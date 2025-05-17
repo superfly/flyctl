@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -67,6 +68,10 @@ func NewLaunch() *cobra.Command {
 			Name:        "auto-stop",
 			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
 			Default:     "stop",
+		},
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
 	)
 
@@ -232,11 +237,37 @@ func runLaunch(ctx context.Context) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
+
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to run 'fly mcp add': %w", err)
 		}
+	}
 
-		log.Debug(strings.Join(args, " "))
+	// Add secrets to the app
+	if secrets := flag.GetStringArray(ctx, "secret"); len(secrets) > 0 {
+		parsedSecrets, err := cmdutil.ParseKVStringsToMap(secrets)
+		if err != nil {
+			return fmt.Errorf("failed parsing secrets: %w", err)
+		}
+
+		args := []string{"secrets", "set"}
+		for k, v := range parsedSecrets {
+			args = append(args, fmt.Sprintf("%s=%s", k, v))
+		}
+		if app := flag.GetString(ctx, "app"); app != "" {
+			args = append(args, "--app", app)
+		}
+
+		// Run 'fly secrets set ...'
+		cmd = exec.Command(flyctl, args...)
+		cmd.Env = os.Environ()
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to run 'fly secrets set': %w", err)
+		}
 	}
 
 	// Deploy to a single machine
