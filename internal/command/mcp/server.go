@@ -58,7 +58,7 @@ func runServer(ctx context.Context) error {
 
 	if flag.GetBool(ctx, "inspector") {
 		// Launch MCP inspector
-		cmd := exec.Command("npx", "@modelcontextprotocol/inspector", flyctl, "mcp", "server")
+		cmd := exec.Command("npx", "@modelcontextprotocol/inspector@latest", flyctl, "mcp", "server")
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

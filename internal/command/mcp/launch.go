@@ -13,21 +13,11 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 )
-
-// MCPConfig represents the structure of the JSON file
-type MCPConfig struct {
-	MCPServers map[string]MCPServer `json:"mcpServers"`
-}
-
-// Server represents a server configuration in the JSON file
-type MCPServer struct {
-	Args    []string `json:"args"`
-	Command string   `json:"command"`
-}
 
 func NewLaunch() *cobra.Command {
 	const (
@@ -41,6 +31,10 @@ func NewLaunch() *cobra.Command {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "name",
+			Description: "Suggested name for the app",
+		},
+		flag.String{
+			Name:        "server",
 			Description: "Name to use for the MCP server in the MCP client configuration",
 		},
 		flag.String{
@@ -75,6 +69,32 @@ func NewLaunch() *cobra.Command {
 			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
 			Default:     "stop",
 		},
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-local",
+			Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-literal",
+			Description: "Set of literals in the form of /path/inside/machine=VALUE pairs where VALUE is the content. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-secret",
+			Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "region",
+			Shorthand:   "r",
+			Description: "The target region. By default, the new volume will be created in the source volume's region.",
+		},
+		flag.String{
+			Name:        "org",
+			Description: `The organization that will own the app`,
+		},
+		flag.VMSizeFlags,
 	)
 
 	for client, name := range McpClients {
@@ -127,7 +147,7 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", name)
+	tempDir, err := os.MkdirTemp("", "fly-mcp-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -135,8 +155,15 @@ func runLaunch(ctx context.Context) error {
 
 	log.Debugf("Created temporary directory: %s\n", tempDir)
 
-	if err := os.Chdir(tempDir); err != nil {
-		return fmt.Errorf("failed to change to temporary directory: %w", err)
+	appDir := filepath.Join(tempDir, name)
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return fmt.Errorf("failed to create app directory: %w", err)
+	}
+
+	log.Debugf("Created app directory: %s\n", appDir)
+
+	if err := os.Chdir(appDir); err != nil {
+		return fmt.Errorf("failed to change to app directory: %w", err)
 	}
 
 	// Build the Dockerfile
@@ -152,7 +179,7 @@ func runLaunch(ctx context.Context) error {
 
 	dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
 
-	if err := os.WriteFile(filepath.Join(tempDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(appDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
 		return fmt.Errorf("failed to create Dockerfile: %w", err)
 	}
 
@@ -166,6 +193,42 @@ func runLaunch(ctx context.Context) error {
 
 	if autoStop := flag.GetString(ctx, "auto-stop"); autoStop != "" {
 		args = append(args, "--auto-stop", autoStop)
+	}
+
+	if region := flag.GetString(ctx, "region"); region != "" {
+		args = append(args, "--region", region)
+	}
+
+	if org := flag.GetString(ctx, "org"); org != "" {
+		args = append(args, "--org", org)
+	}
+
+	if vmCpuKind := flag.GetString(ctx, "vm-cpu-kind"); vmCpuKind != "" {
+		args = append(args, "--vm-cpu-kind", vmCpuKind)
+	}
+
+	if vmCpus := flag.GetInt(ctx, "vm-cpus"); vmCpus != 0 {
+		args = append(args, "--vm-cpus", fmt.Sprintf("%d", vmCpus))
+	}
+
+	if vmGpuKind := flag.GetString(ctx, "vm-gpu-kind"); vmGpuKind != "" {
+		args = append(args, "--vm-gpu-kind", vmGpuKind)
+	}
+
+	if vmGpus := flag.GetInt(ctx, "vm-gpus"); vmGpus != 0 {
+		args = append(args, "--vm-gpus", fmt.Sprintf("%d", vmGpus))
+	}
+
+	if vmMemory := flag.GetString(ctx, "vm-memory"); vmMemory != "" {
+		args = append(args, "--vm-memory", vmMemory)
+	}
+
+	if vmSize := flag.GetString(ctx, "vm-size"); vmSize != "" {
+		args = append(args, "--vm-size", vmSize)
+	}
+
+	if hostDedicationId := flag.GetString(ctx, "host-dedication-id"); hostDedicationId != "" {
+		args = append(args, "--host-dedication-id", hostDedicationId)
 	}
 
 	// Run fly launch, but don't deploy
@@ -232,15 +295,61 @@ func runLaunch(ctx context.Context) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
+
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to run 'fly mcp add': %w", err)
 		}
+	}
 
-		log.Debug(strings.Join(args, " "))
+	// Add secrets to the app
+	if secrets := flag.GetStringArray(ctx, "secret"); len(secrets) > 0 {
+		parsedSecrets, err := cmdutil.ParseKVStringsToMap(secrets)
+		if err != nil {
+			return fmt.Errorf("failed parsing secrets: %w", err)
+		}
+
+		args := []string{"secrets", "set"}
+		for k, v := range parsedSecrets {
+			args = append(args, fmt.Sprintf("%s=%s", k, v))
+		}
+		if app := flag.GetString(ctx, "app"); app != "" {
+			args = append(args, "--app", app)
+		}
+
+		// Run 'fly secrets set ...'
+		cmd = exec.Command(flyctl, args...)
+		cmd.Env = os.Environ()
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to run 'fly secrets set': %w", err)
+		}
+	}
+
+	args = []string{"deploy", "--ha=false"}
+
+	for _, file := range flag.GetStringArray(ctx, "file-local") {
+		if file != "" {
+			args = append(args, "--file-local", file)
+		}
+	}
+
+	for _, file := range flag.GetStringArray(ctx, "file-literal") {
+		if file != "" {
+			args = append(args, "--file-literal", file)
+		}
+	}
+
+	for _, file := range flag.GetStringArray(ctx, "file-secret") {
+		if file != "" {
+			args = append(args, "--file-secret", file)
+		}
 	}
 
 	// Deploy to a single machine
-	cmd = exec.Command(flyctl, "deploy", "--ha=false")
+	cmd = exec.Command(flyctl, args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -267,7 +376,7 @@ func runLaunch(ctx context.Context) error {
 			os.Exit(1)
 		}
 
-		args := []string{"-y", "@modelcontextprotocol/inspector"}
+		args := []string{"@modelcontextprotocol/inspector@latest"}
 		for _, server := range config.MCPServers {
 			args = append(args, server.Command)
 			args = append(args, server.Args...)
