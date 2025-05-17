@@ -73,6 +73,28 @@ func NewLaunch() *cobra.Command {
 			Name:        "secret",
 			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
+		flag.StringArray{
+			Name:        "file-local",
+			Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-literal",
+			Description: "Set of literals in the form of /path/inside/machine=VALUE pairs where VALUE is the content. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-secret",
+			Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "region",
+			Shorthand:   "r",
+			Description: "The target region. By default, the new volume will be created in the source volume's region.",
+		},
+		flag.String{
+			Name:        "org",
+			Description: `The organization that will own the app`,
+		},
+		flag.VMSizeFlags,
 	)
 
 	for client, name := range McpClients {
@@ -173,6 +195,42 @@ func runLaunch(ctx context.Context) error {
 		args = append(args, "--auto-stop", autoStop)
 	}
 
+	if region := flag.GetString(ctx, "region"); region != "" {
+		args = append(args, "--region", region)
+	}
+
+	if org := flag.GetString(ctx, "org"); org != "" {
+		args = append(args, "--org", org)
+	}
+
+	if vmCpuKind := flag.GetString(ctx, "vm-cpu-kind"); vmCpuKind != "" {
+		args = append(args, "--vm-cpu-kind", vmCpuKind)
+	}
+
+	if vmCpus := flag.GetInt(ctx, "vm-cpus"); vmCpus != 0 {
+		args = append(args, "--vm-cpus", fmt.Sprintf("%d", vmCpus))
+	}
+
+	if vmGpuKind := flag.GetString(ctx, "vm-gpu-kind"); vmGpuKind != "" {
+		args = append(args, "--vm-gpu-kind", vmGpuKind)
+	}
+
+	if vmGpus := flag.GetInt(ctx, "vm-gpus"); vmGpus != 0 {
+		args = append(args, "--vm-gpus", fmt.Sprintf("%d", vmGpus))
+	}
+
+	if vmMemory := flag.GetString(ctx, "vm-memory"); vmMemory != "" {
+		args = append(args, "--vm-memory", vmMemory)
+	}
+
+	if vmSize := flag.GetString(ctx, "vm-size"); vmSize != "" {
+		args = append(args, "--vm-size", vmSize)
+	}
+
+	if hostDedicationId := flag.GetString(ctx, "host-dedication-id"); hostDedicationId != "" {
+		args = append(args, "--host-dedication-id", hostDedicationId)
+	}
+
 	// Run fly launch, but don't deploy
 	cmd := exec.Command(flyctl, args...)
 	cmd.Env = os.Environ()
@@ -270,8 +328,28 @@ func runLaunch(ctx context.Context) error {
 		}
 	}
 
+	args = []string{"deploy", "--ha=false"}
+
+	for _, file := range flag.GetStringArray(ctx, "file-local") {
+		if file != "" {
+			args = append(args, "--file-local", file)
+		}
+	}
+
+	for _, file := range flag.GetStringArray(ctx, "file-literal") {
+		if file != "" {
+			args = append(args, "--file-literal", file)
+		}
+	}
+
+	for _, file := range flag.GetStringArray(ctx, "file-secret") {
+		if file != "" {
+			args = append(args, "--file-secret", file)
+		}
+	}
+
 	// Deploy to a single machine
-	cmd = exec.Command(flyctl, "deploy", "--ha=false")
+	cmd = exec.Command(flyctl, args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
