@@ -24,6 +24,35 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
+var sharedProxyFlags = flag.Set{
+	flag.App(),
+
+	flag.String{
+		Name:        "url",
+		Description: "URL of the MCP wrapper server",
+	},
+	flag.String{
+		Name:        "bearer-token",
+		Description: "Bearer token to authenticate with",
+	},
+	flag.String{
+		Name:        "user",
+		Description: "User to authenticate with",
+		Shorthand:   "u",
+	},
+	flag.String{
+		Name:        "password",
+		Description: "Password to authenticate with",
+		Shorthand:   "p",
+	},
+	flag.String{
+		Name:        flagnames.BindAddr,
+		Shorthand:   "b",
+		Default:     "127.0.0.1",
+		Description: "Local address to bind to",
+	},
+}
+
 func NewProxy() *cobra.Command {
 	const (
 		short = "[experimental] Start an MCP proxy client"
@@ -35,32 +64,7 @@ func NewProxy() *cobra.Command {
 	cmd.Args = cobra.ExactArgs(0)
 
 	flag.Add(cmd,
-		flag.App(),
-
-		flag.String{
-			Name:        "url",
-			Description: "URL of the MCP wrapper server",
-		},
-		flag.String{
-			Name:        "bearer-token",
-			Description: "Bearer token to authenticate with",
-		},
-		flag.String{
-			Name:        "user",
-			Description: "User to authenticate with",
-			Shorthand:   "u",
-		},
-		flag.String{
-			Name:        "password",
-			Description: "Password to authenticate with",
-			Shorthand:   "p",
-		},
-		flag.String{
-			Name:        flagnames.BindAddr,
-			Shorthand:   "b",
-			Default:     "127.0.0.1",
-			Description: "Local address to bind to",
-		},
+		sharedProxyFlags,
 		flag.Bool{
 			Name:        "inspector",
 			Description: "Launch MCP inspector: a developer tool for testing and debugging MCP servers",
@@ -72,34 +76,137 @@ func NewProxy() *cobra.Command {
 	return cmd
 }
 
+func NewInspect() *cobra.Command {
+	const (
+		short = "[experimental] Inspect a MCP stdio server"
+		long  = short + "\n"
+		usage = "inspect"
+	)
+
+	cmd := command.New(usage, short, long, runInspect, command.LoadAppNameIfPresent)
+	cmd.Args = cobra.ExactArgs(0)
+
+	flag.Add(cmd,
+		sharedProxyFlags,
+		flag.String{
+			Name:        "server",
+			Description: "Name of the MCP server in the MCP client configuration",
+		},
+		flag.String{
+			Name:        "config",
+			Description: "Path to the MCP client configuration file",
+		},
+	)
+
+	for client, name := range McpClients {
+		flag.Add(cmd,
+			flag.Bool{
+				Name:        client,
+				Description: "Use the configuration for " + name + " client",
+			},
+		)
+	}
+
+	return cmd
+}
+
+type ProxyInfo struct {
+	url         string
+	bearerToken string
+	user        string
+	password    string
+}
+
 func runProxy(ctx context.Context) error {
-	url := flag.GetString(ctx, "url")
+	proxyInfo := ProxyInfo{
+		url:         flag.GetString(ctx, "url"),
+		bearerToken: flag.GetString(ctx, "bearer-token"),
+		user:        flag.GetString(ctx, "user"),
+		password:    flag.GetString(ctx, "password"),
+	}
+
+	return runProxyOrInspect(ctx, proxyInfo, flag.GetBool(ctx, "inspector"))
+}
+
+func runInspect(ctx context.Context) error {
+	proxyInfo := ProxyInfo{
+		url:         flag.GetString(ctx, "url"),
+		bearerToken: flag.GetString(ctx, "bearer-token"),
+		user:        flag.GetString(ctx, "user"),
+		password:    flag.GetString(ctx, "password"),
+	}
+
+	server := flag.GetString(ctx, "server")
+
+	configPaths, err := listCOnfigPaths(ctx, true)
+	if err != nil {
+		return err
+	}
+
+	if len(configPaths) == 1 {
+		mcpConfig, err := configExtract(configPaths[0].Path, server)
+		if err != nil {
+			return err
+		}
+
+		if proxyInfo.url == "" {
+			proxyInfo.url, _ = mcpConfig["url"].(string)
+		}
+		if proxyInfo.bearerToken == "" {
+			proxyInfo.bearerToken, _ = mcpConfig["bearer-token"].(string)
+		}
+		if proxyInfo.user == "" {
+			proxyInfo.user, _ = mcpConfig["user"].(string)
+		}
+		if proxyInfo.password == "" {
+			proxyInfo.password, _ = mcpConfig["password"].(string)
+		}
+	} else if len(configPaths) > 1 {
+		return fmt.Errorf("multiple MCP client configuration files specifed. Please specify at most one")
+	}
+
+	return runProxyOrInspect(ctx, proxyInfo, true)
+}
+
+func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) error {
 
 	// If no URL is provided, try to get it from the app config
 	// If that fails, return an error
-	if url == "" {
+	if proxyInfo.url == "" {
 		appConfig := appconfig.ConfigFromContext(ctx)
 
 		if appConfig != nil {
 			appUrl := appConfig.URL()
 			if appUrl != nil {
-				url = appUrl.String()
+				proxyInfo.url = appUrl.String()
 			}
 		}
 
-		if url == "" {
+		if proxyInfo.url == "" {
 			log.Fatal("The app config could not be found and no URL was provided")
 		}
 	}
 
-	if flag.GetBool(ctx, "inspector") {
+	if inspect {
 		flyctl, err := os.Executable()
 		if err != nil {
 			return fmt.Errorf("failed to find executable: %w", err)
 		}
 
+		args := []string{"@modelcontextprotocol/inspector@latest", flyctl, "mcp", "proxy", "--url", proxyInfo.url}
+
+		if proxyInfo.bearerToken != "" {
+			args = append(args, "--bearer-token", proxyInfo.bearerToken)
+		}
+		if proxyInfo.user != "" {
+			args = append(args, "--user", proxyInfo.user)
+		}
+		if proxyInfo.password != "" {
+			args = append(args, "--password", proxyInfo.password)
+		}
+
 		// Launch MCP inspector
-		cmd := exec.Command("npx", "@modelcontextprotocol/inspector", flyctl, "mcp", "proxy", "--url", url)
+		cmd := exec.Command("npx", args...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -109,15 +216,17 @@ func runProxy(ctx context.Context) error {
 		return nil
 	}
 
-	url, proxyCmd, err := resolveProxy(ctx, url)
+	url, proxyCmd, err := resolveProxy(ctx, proxyInfo.url)
 	if err != nil {
 		log.Fatalf("Error resolving proxy URL: %v", err)
 	}
 
+	proxyInfo.url = url
+
 	// Configure logging to go to stderr only
 	log.SetOutput(os.Stderr)
 
-	err = waitForServer(ctx, url)
+	err = waitForServer(ctx, proxyInfo)
 	if err != nil {
 		log.Fatalf("Error waiting for server: %v", err)
 	}
@@ -126,7 +235,7 @@ func runProxy(ctx context.Context) error {
 	go func() {
 		start := time.Now()
 		for {
-			getFromServer(ctx, url)
+			getFromServer(ctx, proxyInfo)
 
 			// Wait a minimum of 10 seconds before the next request
 			elapsed := time.Since(start)
@@ -138,7 +247,7 @@ func runProxy(ctx context.Context) error {
 	}()
 
 	// Start processing stdin
-	if err := processStdin(ctx, url); err != nil {
+	if err := processStdin(ctx, proxyInfo); err != nil {
 		log.Fatalf("Error processing stdin: %v", err)
 	}
 
@@ -154,12 +263,12 @@ func runProxy(ctx context.Context) error {
 }
 
 // waitForServer waits for the server to be up and running
-func waitForServer(ctx context.Context, url string) error {
+func waitForServer(ctx context.Context, proxyInfo ProxyInfo) error {
 	// Continue to post nothing until the server is up
 	delay := 100 * time.Millisecond
 	var err error
 	for delay < 60*time.Second {
-		err = sendToServer(ctx, "", url)
+		err = sendToServer(ctx, "", proxyInfo)
 
 		if err == nil {
 			break
@@ -176,7 +285,7 @@ func waitForServer(ctx context.Context, url string) error {
 }
 
 // ProcessStdin reads messages from stdin and forwards them to the server
-func processStdin(ctx context.Context, url string) error {
+func processStdin(ctx context.Context, proxyInfo ProxyInfo) error {
 	stp := make(chan os.Signal, 1)
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -194,7 +303,7 @@ func processStdin(ctx context.Context, url string) error {
 		}
 
 		// Forward raw message to server
-		err := sendToServer(ctx, line, url)
+		err := sendToServer(ctx, line, proxyInfo)
 		if err != nil {
 			// Log error but continue processing
 			log.Printf("Error sending message to server: %v", err)
@@ -299,9 +408,9 @@ func getAvailablePort() (int, error) {
 }
 
 // getFromServer sends a GET request to the server and streams the response to stdout
-func getFromServer(ctx context.Context, url string) error {
+func getFromServer(ctx context.Context, proxyInfo ProxyInfo) error {
 	// Create HTTP request
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", proxyInfo.url, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -309,10 +418,10 @@ func getFromServer(ctx context.Context, url string) error {
 	req.Header.Set("Accept", "application/json")
 
 	// Set basic authentication if bearer token or user is provided
-	if flag.GetString(ctx, "bearer-token") != "" {
-		req.Header.Set("Authorization", "Bearer "+flag.GetString(ctx, "bearer-token"))
-	} else if flag.GetString(ctx, "user") != "" {
-		req.SetBasicAuth(flag.GetString(ctx, "user"), flag.GetString(ctx, "password"))
+	if proxyInfo.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+proxyInfo.bearerToken)
+	} else if proxyInfo.user != "" {
+		req.SetBasicAuth(proxyInfo.user, proxyInfo.password)
 	}
 
 	// Send request
@@ -337,9 +446,9 @@ func getFromServer(ctx context.Context, url string) error {
 }
 
 // SendToServer sends a raw message to the server and returns the raw response
-func sendToServer(ctx context.Context, message string, url string) error {
+func sendToServer(ctx context.Context, message string, proxyInfo ProxyInfo) error {
 	// Create HTTP request with raw message
-	req, err := http.NewRequest("POST", url, bytes.NewBufferString(message))
+	req, err := http.NewRequest("POST", proxyInfo.url, bytes.NewBufferString(message))
 	if err != nil {
 		return fmt.Errorf("error creating request: %w", err)
 	}
@@ -348,10 +457,10 @@ func sendToServer(ctx context.Context, message string, url string) error {
 	req.Header.Set("Accept", "application/json, text/event-stream")
 
 	// Set basic authentication if bearer token or user is provided
-	if flag.GetString(ctx, "bearer-token") != "" {
-		req.Header.Set("Authorization", "Bearer "+flag.GetString(ctx, "bearer-token"))
-	} else if flag.GetString(ctx, "user") != "" {
-		req.SetBasicAuth(flag.GetString(ctx, "user"), flag.GetString(ctx, "password"))
+	if proxyInfo.bearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+proxyInfo.bearerToken)
+	} else if proxyInfo.user != "" {
+		req.SetBasicAuth(proxyInfo.user, proxyInfo.password)
 	}
 
 	// Send request
