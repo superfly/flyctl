@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/docker/go-units"
@@ -110,6 +112,49 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
+	// if the user specified a command, set it in the app config
+	if flag.GetString(ctx, "command") != "" {
+		if state.appConfig.Processes == nil {
+			state.appConfig.Processes = make(map[string]string)
+		}
+
+		state.appConfig.Processes["app"] = flag.GetString(ctx, "command")
+	}
+
+	volumes := flag.GetStringSlice(ctx, "volume")
+	if len(volumes) > 0 {
+		v := volumes[0]
+		splittedIDDestOpts := strings.Split(v, ":")
+
+		if len(splittedIDDestOpts) < 2 {
+			re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+			m := re.FindStringSubmatch(splittedIDDestOpts[0])
+
+			if len(m) > 0 {
+				state.appConfig.Mounts = []appconfig.Mount{
+					{
+						Source:      m[3], // last part of path
+						Destination: m[2], // full path
+					},
+				}
+			}
+		} else {
+			// if the user specified a volume, set it in the app config
+			state.appConfig.Mounts = []appconfig.Mount{
+				{
+					Source:      splittedIDDestOpts[0],
+					Destination: splittedIDDestOpts[1],
+				},
+			}
+
+			if len(splittedIDDestOpts) > 2 {
+				if err := ParseMountOptions(&state.appConfig.Mounts[0], splittedIDDestOpts[2]); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	// Finally write application configuration to fly.toml
 	configDir, configFile := filepath.Split(state.configPath)
 	configFileOverride := flag.GetString(ctx, flagnames.AppConfigFilePath)
@@ -137,6 +182,47 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 		if err := state.firstDeploy(ctx); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func ParseMountOptions(mount *appconfig.Mount, options string) error {
+	if options == "" {
+		return nil
+	}
+
+	pairs := strings.Split(options, ",")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			return fmt.Errorf("invalid mount option: %s", pair)
+		}
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+
+		switch key {
+		case "initial_size":
+			mount.InitialSize = value
+		case "snapshot_retention":
+			ret, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for snapshot_retention: %s", value)
+			}
+			mount.SnapshotRetention = &ret
+		case "auto_extend_size_threshold":
+			threshold, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for auto_extend_size_threshold: %s", value)
+			}
+			mount.AutoExtendSizeThreshold = threshold
+		case "auto_extend_size_increment":
+			mount.AutoExtendSizeIncrement = value
+		case "auto_extend_size_limit":
+			mount.AutoExtendSizeLimit = value
+		default:
+			return fmt.Errorf("unknown mount option: %s", key)
 		}
 	}
 

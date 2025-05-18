@@ -66,8 +66,8 @@ func NewLaunch() *cobra.Command {
 		},
 		flag.String{
 			Name:        "auto-stop",
-			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
-			Default:     "stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend'",
+			Default:     "suspend",
 		},
 		flag.StringArray{
 			Name:        "secret",
@@ -93,6 +93,11 @@ func NewLaunch() *cobra.Command {
 		flag.String{
 			Name:        "org",
 			Description: `The organization that will own the app`,
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
 		},
 		flag.VMSizeFlags,
 	)
@@ -127,11 +132,15 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// determine the name of the MCP server
-	name := flag.GetString(ctx, "name")
-	if name == "" {
-		name = "fly-mcp"
+	serverName := flag.GetString(ctx, "server")
+	if serverName == "" {
+		serverName = flag.GetString(ctx, "name")
+	}
 
-		ingoreWords := []string{"npx", "uv", "-y", "--yes"}
+	if serverName == "" {
+		serverName = "fly-mcp"
+
+		ingoreWords := []string{"npx", "uvx", "-y", "--yes"}
 
 		for _, w := range cmdParts {
 			if !slices.Contains(ingoreWords, w) {
@@ -139,7 +148,7 @@ func runLaunch(ctx context.Context) error {
 				split := re.FindAllString(w, -1)
 
 				if len(split) > 0 {
-					name = split[len(split)-1]
+					serverName = split[len(split)-1]
 					break
 				}
 			}
@@ -155,7 +164,12 @@ func runLaunch(ctx context.Context) error {
 
 	log.Debugf("Created temporary directory: %s\n", tempDir)
 
-	appDir := filepath.Join(tempDir, name)
+	appName := flag.GetString(ctx, "server")
+	if appName == "" {
+		appName = serverName
+	}
+
+	appDir := filepath.Join(tempDir, appName)
 	if err := os.MkdirAll(appDir, 0755); err != nil {
 		return fmt.Errorf("failed to create app directory: %w", err)
 	}
@@ -166,26 +180,28 @@ func runLaunch(ctx context.Context) error {
 		return fmt.Errorf("failed to change to app directory: %w", err)
 	}
 
-	// Build the Dockerfile
-	jsonData, err := json.Marshal(cmdParts)
-	if err != nil {
-		return fmt.Errorf("failed to marshal command parts to JSON: %w", err)
-	}
+	/*
+		// Build the Dockerfile - no longer needed; but may once again be useful in the future?
+		jsonData, err := json.Marshal(cmdParts)
+		if err != nil {
+			return fmt.Errorf("failed to marshal command parts to JSON: %w", err)
+		}
 
-	dockerfile := []string{
-		"FROM flyio/mcp",
-		"CMD " + string(jsonData),
-	}
+		dockerfile := []string{
+			"FROM flyio/mcp",
+			"CMD " + string(jsonData),
+		}
 
-	dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
+		dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
 
-	if err := os.WriteFile(filepath.Join(appDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
-		return fmt.Errorf("failed to create Dockerfile: %w", err)
-	}
+		if err := os.WriteFile(filepath.Join(appDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
+			return fmt.Errorf("failed to create Dockerfile: %w", err)
+		}
 
-	log.Debug("Created Dockerfile")
+		log.Debug("Created Dockerfile")
+	*/
 
-	args := []string{"launch", "--yes", "--no-deploy"}
+	args := []string{"launch", "--yes", "--no-deploy", "--command", command, "--image", "flyio/mcp"}
 
 	if flycast := flag.GetBool(ctx, "flycast"); flycast {
 		args = append(args, "--flycast")
@@ -231,6 +247,11 @@ func runLaunch(ctx context.Context) error {
 		args = append(args, "--host-dedication-id", hostDedicationId)
 	}
 
+	volumes := flag.GetStringSlice(ctx, "volume")
+	if len(volumes) > 0 {
+		args = append(args, "--volume", strings.Join(volumes, ","))
+	}
+
 	// Run fly launch, but don't deploy
 	cmd := exec.Command(flyctl, args...)
 	cmd.Env = os.Environ()
@@ -271,20 +292,20 @@ func runLaunch(ctx context.Context) error {
 		log.Debug("No MCP client configuration flags provided")
 	} else {
 		args = append([]string{"mcp", "add"}, args...)
-		args = append(args, "--name", name)
+		args = append(args, "--name", serverName)
 
-		if app := flag.GetString(ctx, "app"); app != "" {
-			args = append(args, "--app", app)
-		}
 		if user := flag.GetString(ctx, "user"); user != "" {
 			args = append(args, "--user", user)
 		}
+
 		if password := flag.GetString(ctx, "password"); password != "" {
 			args = append(args, "--password", password)
 		}
+
 		if bearer := flag.GetBool(ctx, "bearer-token"); bearer {
 			args = append(args, "--bearer-token")
 		}
+
 		if flycast := flag.GetBool(ctx, "flycast"); flycast {
 			args = append(args, "--flycast")
 		}
@@ -311,9 +332,6 @@ func runLaunch(ctx context.Context) error {
 		args := []string{"secrets", "set"}
 		for k, v := range parsedSecrets {
 			args = append(args, fmt.Sprintf("%s=%s", k, v))
-		}
-		if app := flag.GetString(ctx, "app"); app != "" {
-			args = append(args, "--app", app)
 		}
 
 		// Run 'fly secrets set ...'
