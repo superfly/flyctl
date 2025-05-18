@@ -143,8 +143,17 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "auto-stop",
-			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend'",
 			Default:     "stop",
+		},
+		flag.String{
+			Name:        "command",
+			Description: "The command to override the Docker CND.",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
 		},
 	}
 
