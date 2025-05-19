@@ -3,6 +3,9 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
@@ -16,8 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
-	"strconv"
-	"strings"
 )
 
 func newPlace() (cmd *cobra.Command) {
@@ -61,7 +62,12 @@ func runPlace(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	vm, err := flag.GetMachineGuest(ctx, nil)
+	guest := &fly.MachineGuest{}
+	err = guest.SetSize("performance-1x")
+	if err != nil {
+		return err
+	}
+	vm, err := flag.GetMachineGuest(ctx, guest)
 	if err != nil {
 		return err
 	}
