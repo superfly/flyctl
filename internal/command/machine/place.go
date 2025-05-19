@@ -41,7 +41,6 @@ func newPlace() (cmd *cobra.Command) {
 		flag.Int{
 			Name:        "count",
 			Description: "number of machines to place",
-			Default:     1,
 		},
 		flag.String{
 			Name:        "region",
@@ -89,7 +88,7 @@ func runPlace(ctx context.Context) error {
 	regions, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
 		VM:              vm,
 		Region:          flag.GetString(ctx, "region"),
-		Count:           int64(max(flag.GetInt(ctx, "count"), 1)),
+		Count:           int64(flag.GetInt(ctx, "count")),
 		VolumeName:      flag.GetString(ctx, "volume-name"),
 		VolumeSizeBytes: uint64(flag.GetInt(ctx, "volume-size") * units.GB),
 		Weights:         weights,
@@ -110,21 +109,20 @@ func runPlace(ctx context.Context) error {
 	showConcurrency := false
 	for _, region := range regions {
 		count := fmt.Sprint(region.Count)
-		if region.Concurrency != region.Count {
+		row := []string{region.Region, count}
+		if region.Concurrency != region.Count && region.Concurrency > 0 {
 			showConcurrency = true
-			count += fmt.Sprintf(" (%d)", region.Concurrency)
+			row = append(row, fmt.Sprint(region.Concurrency))
 		}
-		rows = append(rows, []string{
-			region.Region,
-			count,
-		})
+		rows = append(rows, row)
 	}
 
-	countCol := "Count"
+	cols := []string{"Region", "Count"}
 	if showConcurrency {
-		countCol += " (Concurrency)"
+		cols = append(cols, "Concurrency")
 	}
-	return render.Table(out, "", rows, "Region", countCol)
+
+	return render.Table(out, "", rows, cols...)
 }
 
 func getWeights(ctx context.Context) (*flaps.Weights, error) {
