@@ -24,6 +24,7 @@ func newVolume() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runVolume)
 	cmd.Args = cobra.ExactArgs(0)
+	cmd.Hidden = true
 
 	flag.Add(cmd,
 		flag.String{
