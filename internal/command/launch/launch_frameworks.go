@@ -23,6 +23,10 @@ import (
 )
 
 func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
+	if flag.GetBool(ctx, "no-github-workflow") {
+		return nil
+	}
+
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
 	if state.sourceInfo.GitHubActions.Secrets {
