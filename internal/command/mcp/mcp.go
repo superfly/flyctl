@@ -26,6 +26,8 @@ func New() *cobra.Command {
 
 		NewLaunch(),
 		NewDestroy(),
+
+		newVolume(),
 	)
 
 	return cmd
