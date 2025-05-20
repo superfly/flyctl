@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"strconv"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -88,9 +89,9 @@ func runVolume(ctx context.Context) error {
 	if initialSize := flag.GetString(ctx, "initial-size"); initialSize != "" {
 		options = append(options, "initial_size="+initialSize)
 	}
-
 	if autoExtendSizeThreshold := flag.GetInt(ctx, "auto-extend-size-threshold"); autoExtendSizeThreshold != 0 {
-		options = append(options, "auto_extend_size_threshold="+string(autoExtendSizeThreshold))
+		options = append(options, "auto_extend_size_threshold="+strconv.Itoa(autoExtendSizeThreshold))
+	}
 	}
 
 	if autoExtendSizeIncrement := flag.GetString(ctx, "auto-extend-size-increment"); autoExtendSizeIncrement != "" {
@@ -100,9 +101,9 @@ func runVolume(ctx context.Context) error {
 	if autoExtendSizeLimit := flag.GetString(ctx, "auto-extend-size-limit"); autoExtendSizeLimit != "" {
 		options = append(options, "auto_extend_size_limit="+autoExtendSizeLimit)
 	}
-
 	if snapshotRetention := flag.GetInt(ctx, "snapshot-retention"); snapshotRetention != 0 {
-		options = append(options, "snapshot_retention="+string(snapshotRetention))
+		options = append(options, "snapshot_retention="+strconv.Itoa(snapshotRetention))
+	}
 	}
 
 	if len(options) > 0 {
