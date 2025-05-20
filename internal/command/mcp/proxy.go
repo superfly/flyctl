@@ -138,7 +138,7 @@ func runInspect(ctx context.Context) error {
 
 	server := flag.GetString(ctx, "server")
 
-	configPaths, err := listCOnfigPaths(ctx, true)
+	configPaths, err := ListCOnfigPaths(ctx, true)
 	if err != nil {
 		return err
 	}
