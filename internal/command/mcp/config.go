@@ -210,7 +210,7 @@ func runAdd(ctx context.Context) error {
 		}
 	}
 
-	configPaths, err := listCOnfigPaths(ctx, true)
+	configPaths, err := ListCOnfigPaths(ctx, true)
 	if err != nil {
 		return err
 	} else if len(configPaths) == 0 {
@@ -230,7 +230,7 @@ func runAdd(ctx context.Context) error {
 			configPath.ConfigName = "mcpServers"
 		}
 
-		err = updateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctl, args)
+		err = UpdateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctl, args)
 		if err != nil {
 			return fmt.Errorf("failed to update configuration at %s: %w", configPath.Path, err)
 		}
@@ -240,7 +240,7 @@ func runAdd(ctx context.Context) error {
 }
 
 // Build a list of configuration paths to update
-func listCOnfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, error) {
+func ListCOnfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, error) {
 	log := logger.FromContext(ctx)
 
 	var paths []ConfigPath
@@ -328,9 +328,13 @@ func listCOnfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, err
 	return paths, nil
 }
 
-// updateConfig updates the configuration at the specified path with the MCP servers
-func updateConfig(ctx context.Context, path string, configKey string, server string, command string, args []string) error {
+// UpdateConfig updates the configuration at the specified path with the MCP servers
+func UpdateConfig(ctx context.Context, path string, configKey string, server string, command string, args []string) error {
 	log.Debugf("Updating configuration at %s", path)
+
+	if configKey == "" {
+		configKey = "mcpServers"
+	}
 
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(path)
@@ -415,7 +419,7 @@ func updateConfig(ctx context.Context, path string, configKey string, server str
 func runRemove(ctx context.Context) error {
 	var err error
 
-	configPaths, err := listCOnfigPaths(ctx, true)
+	configPaths, err := ListCOnfigPaths(ctx, true)
 	if err != nil {
 		return err
 	} else if len(configPaths) == 0 {
@@ -444,10 +448,6 @@ func runRemove(ctx context.Context) error {
 	}
 
 	for _, configPath := range configPaths {
-		if configPath.ConfigName == "" {
-			configPath.ConfigName = "mcpServers"
-		}
-
 		err = removeConfig(ctx, configPath.Path, configPath.ConfigName, server)
 		if err != nil {
 			return fmt.Errorf("failed to update configuration at %s: %w", configPath.Path, err)

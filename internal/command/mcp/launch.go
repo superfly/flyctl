@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/shlex"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -99,6 +101,10 @@ func NewLaunch() *cobra.Command {
 			Shorthand:   "v",
 			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
 		},
+		flag.String{
+			Name:        "image",
+			Description: "The image to use for the app",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -117,6 +123,8 @@ func NewLaunch() *cobra.Command {
 func runLaunch(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 
+	image := flag.GetString(ctx, "image")
+
 	flyctl, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to find executable: %w", err)
@@ -127,8 +135,27 @@ func runLaunch(ctx context.Context) error {
 	cmdParts, err := shlex.Split(command)
 	if err != nil {
 		return fmt.Errorf("failed to parse command: %w", err)
-	} else if len(cmdParts) == 0 {
-		return fmt.Errorf("missing command to run")
+	} else if len(cmdParts) == 0 && image == "" {
+		return fmt.Errorf("missing command or image to run")
+	}
+
+	// extract the entrypoint from the image
+	entrypoint := []string{}
+	if image != "" {
+		ref, err := name.ParseReference(image)
+		if err != nil {
+			return fmt.Errorf("failed to parse image reference: %w", err)
+		}
+		img, err := remote.Image(ref)
+		if err != nil {
+			return fmt.Errorf("failed to find image: %w", err)
+		}
+		cfg, err := img.ConfigFile()
+		if err != nil {
+			return fmt.Errorf("failed to get image config: %w", err)
+		}
+		entrypoint = cfg.Config.Entrypoint
+		cmdParts = cfg.Config.Cmd
 	}
 
 	// determine the name of the MCP server
@@ -164,7 +191,7 @@ func runLaunch(ctx context.Context) error {
 
 	log.Debugf("Created temporary directory: %s\n", tempDir)
 
-	appName := flag.GetString(ctx, "server")
+	appName := flag.GetString(ctx, "name")
 	if appName == "" {
 		appName = serverName
 	}
@@ -180,28 +207,43 @@ func runLaunch(ctx context.Context) error {
 		return fmt.Errorf("failed to change to app directory: %w", err)
 	}
 
-	/*
-		// Build the Dockerfile - no longer needed; but may once again be useful in the future?
-		jsonData, err := json.Marshal(cmdParts)
-		if err != nil {
-			return fmt.Errorf("failed to marshal command parts to JSON: %w", err)
+	args := []string{"launch", "--yes", "--no-deploy"}
+
+	if image != "" {
+		dockerfile := []string{
+			"FROM " + image,
+			"COPY --from=flyio/flyctl /flyctl /usr/bin/flyctl",
 		}
 
-		dockerfile := []string{
-			"FROM flyio/mcp",
-			"CMD " + string(jsonData),
+		if len(cmdParts) > 0 {
+			// Build the Dockerfile - no longer needed; but may once again be useful in the future?
+			jsonData, err := json.Marshal(cmdParts)
+			if err != nil {
+				return fmt.Errorf("failed to marshal command parts to JSON: %w", err)
+			}
+
+			dockerfile = append(dockerfile, "CMD "+string(jsonData))
 		}
+
+		entrypoint = append([]string{"/usr/bin/flyctl", "mcp", "wrap", "--"}, entrypoint...)
+		jsonData, err := json.Marshal(entrypoint)
+		if err != nil {
+			return fmt.Errorf("failed to marshal entrypoint to JSON: %w", err)
+		}
+		dockerfile = append(dockerfile, "ENTRYPOINT "+string(jsonData))
 
 		dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
+
+		fmt.Println(dockerfileContent)
 
 		if err := os.WriteFile(filepath.Join(appDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
 			return fmt.Errorf("failed to create Dockerfile: %w", err)
 		}
 
 		log.Debug("Created Dockerfile")
-	*/
-
-	args := []string{"launch", "--yes", "--no-deploy", "--command", command, "--image", "flyio/mcp"}
+	} else {
+		args = append(args, "--command", command, "--image", "flyio/mcp")
+	}
 
 	if flycast := flag.GetBool(ctx, "flycast"); flycast {
 		args = append(args, "--flycast")
