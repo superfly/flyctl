@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -24,6 +24,7 @@ func newVolume() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runVolume)
 	cmd.Args = cobra.ExactArgs(0)
+	cmd.Hidden = true
 
 	flag.Add(cmd,
 		flag.String{
@@ -92,7 +93,6 @@ func runVolume(ctx context.Context) error {
 	if autoExtendSizeThreshold := flag.GetInt(ctx, "auto-extend-size-threshold"); autoExtendSizeThreshold != 0 {
 		options = append(options, "auto_extend_size_threshold="+strconv.Itoa(autoExtendSizeThreshold))
 	}
-	}
 
 	if autoExtendSizeIncrement := flag.GetString(ctx, "auto-extend-size-increment"); autoExtendSizeIncrement != "" {
 		options = append(options, "auto_extend_size_increment="+autoExtendSizeIncrement)
@@ -101,9 +101,9 @@ func runVolume(ctx context.Context) error {
 	if autoExtendSizeLimit := flag.GetString(ctx, "auto-extend-size-limit"); autoExtendSizeLimit != "" {
 		options = append(options, "auto_extend_size_limit="+autoExtendSizeLimit)
 	}
+
 	if snapshotRetention := flag.GetInt(ctx, "snapshot-retention"); snapshotRetention != 0 {
 		options = append(options, "snapshot_retention="+strconv.Itoa(snapshotRetention))
-	}
 	}
 
 	if len(options) > 0 {
