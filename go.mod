@@ -193,7 +193,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
-	github.com/google/go-containerregistry v0.20.2 // indirect
+	github.com/google/go-containerregistry v0.20.2
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
