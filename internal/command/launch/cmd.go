@@ -130,6 +130,11 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
+			Name:        "no-github-workflow",
+			Description: "Skip automatically provisioning a GitHub fly deploy workflow",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
