@@ -138,13 +138,13 @@ func runInspect(ctx context.Context) error {
 
 	server := flag.GetString(ctx, "server")
 
-	configPaths, err := ListCOnfigPaths(ctx, true)
+	configPaths, err := ListConfigPaths(ctx, true)
 	if err != nil {
 		return err
 	}
 
 	if len(configPaths) == 1 {
-		mcpConfig, err := configExtract(configPaths[0].Path, server)
+		mcpConfig, err := configExtract(configPaths[0], server)
 		if err != nil {
 			return err
 		}

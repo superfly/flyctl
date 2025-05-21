@@ -61,7 +61,7 @@ func runDestroy(ctx context.Context) error {
 	if appName == "" {
 		server := flag.GetString(ctx, "server")
 
-		configPaths, err := ListCOnfigPaths(ctx, true)
+		configPaths, err := ListConfigPaths(ctx, true)
 		if err != nil {
 			return err
 		}
@@ -70,7 +70,7 @@ func runDestroy(ctx context.Context) error {
 			return fmt.Errorf("No app name or MCP client configuration file provided")
 		}
 
-		mcpConfig, err := configExtract(configPaths[0].Path, server)
+		mcpConfig, err := configExtract(configPaths[0], server)
 		if err != nil {
 			return err
 		}
