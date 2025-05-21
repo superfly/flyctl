@@ -36,12 +36,12 @@ name and version.`
 	return cmd
 }
 
-func compareSecrets(a, b fly.ListSecret) int {
-	aver, aprefix, err1 := SplitLabelKeyver(a.Label)
+func compareSecrets(a, b fly.SecretKey) int {
+	aver, aprefix, err1 := SplitLabelKeyver(a.Name)
 	if err1 != nil {
 		return -1
 	}
-	bver, bprefix, err2 := SplitLabelKeyver(b.Label)
+	bver, bprefix, err2 := SplitLabelKeyver(b.Name)
 	if err2 != nil {
 		return 1
 	}
@@ -71,7 +71,7 @@ func runKeysList(ctx context.Context) (err error) {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecrets(ctx)
+	secrets, err := flapsClient.ListSecretkeys(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -85,12 +85,12 @@ func runKeysList(ctx context.Context) (err error) {
 			continue
 		}
 
-		ver, prefix, err := SplitLabelKeyver(secret.Label)
+		ver, prefix, err := SplitLabelKeyver(secret.Name)
 		if err != nil {
 			continue
 		}
 		jsecret := jsonSecret{
-			Label:   secret.Label,
+			Label:   secret.Name,
 			Name:    prefix,
 			Version: ver.String(),
 			SemType: string(semType),
