@@ -348,6 +348,11 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	// Override internal port if requested using --internal-port flag
+	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+		launchManifest.Plan.HttpServicePort = n
+	}
+
 	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
 
 	status.AppName = launchManifest.Plan.AppName
