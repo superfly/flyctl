@@ -73,7 +73,7 @@ func runServer(ctx context.Context) error {
 		return fmt.Errorf("failed to find executable: %w", err)
 	}
 
-	configs, err := ListCOnfigPaths(ctx, true)
+	configs, err := ListConfigPaths(ctx, true)
 	if err != nil {
 		return fmt.Errorf("failed to list MCP client configuration paths: %w", err)
 	}
