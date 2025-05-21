@@ -28,6 +28,7 @@ func New() *cobra.Command {
 		NewDestroy(),
 
 		newVolume(),
+		newList(),
 	)
 
 	return cmd

@@ -422,25 +422,20 @@ func runLaunch(ctx context.Context) error {
 
 	// If the inspector flag is set, run the MCP inspector
 	if flag.GetBool(ctx, "inspector") {
-		// Read the JSON file
-		data, err := os.ReadFile(tmpConfig)
+		server, err := configExtract(ConfigPath{Path: tmpConfig, ConfigName: "mcpServers"}, serverName)
 		if err != nil {
-			fmt.Printf("Error reading file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Parse the JSON data
-		var config MCPConfig
-		if err := json.Unmarshal(data, &config); err != nil {
-			fmt.Printf("Error parsing JSON: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to extract config: %w", err)
 		}
 
 		args := []string{"@modelcontextprotocol/inspector@latest"}
-		for _, server := range config.MCPServers {
-			args = append(args, server.Command)
-			args = append(args, server.Args...)
-			break
+		args = append(args, server["command"].(string))
+
+		// Convert []interface{} to []string
+		rawArgs, _ := server["args"].([]interface{})
+		for _, v := range rawArgs {
+			if s, ok := v.(string); ok {
+				args = append(args, s)
+			}
 		}
 
 		inspectorCmd := exec.Command("npx", args...)
