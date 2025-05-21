@@ -36,10 +36,6 @@ func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (e
 	panic("TODO")
 }
 
-func (m *FlapsClient) CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error) {
-	panic("TODO")
-}
-
 func (m *FlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	panic("TODO")
 }
@@ -52,7 +48,11 @@ func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string)
 	panic("TODO")
 }
 
-func (m *FlapsClient) DeleteSecret(ctx context.Context, label string) (err error) {
+func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteSecretkey(ctx context.Context, name string) error {
 	panic("TODO")
 }
 
@@ -76,7 +76,7 @@ func (m *FlapsClient) FindLease(ctx context.Context, machineID string) (*fly.Mac
 	panic("TODO")
 }
 
-func (m *FlapsClient) GenerateSecret(ctx context.Context, sLabel, sType string) (err error) {
+func (m *FlapsClient) GenerateSecretkey(ctx context.Context, name string, typ string) (*fly.SetSecretkeyResp, error) {
 	panic("TODO")
 }
 
@@ -152,7 +152,11 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context) (machines []*fly.
 	return machines, releaseCmdMachine, nil
 }
 
-func (m *FlapsClient) ListSecrets(ctx context.Context) (out []fly.ListSecret, err error) {
+func (m *FlapsClient) ListAppSecrets(ctx context.Context, version *uint64) ([]fly.AppSecret, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListSecretkeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
 	panic("TODO")
 }
 
@@ -173,6 +177,14 @@ func (m *FlapsClient) Restart(ctx context.Context, in fly.RestartMachineInput, n
 }
 
 func (m *FlapsClient) SetMetadata(ctx context.Context, machineID, key, value string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) SetAppSecret(ctx context.Context, name string, value string) (*fly.SetAppSecretResp, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) SetSecretkey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretkeyResp, error) {
 	panic("TODO")
 }
 

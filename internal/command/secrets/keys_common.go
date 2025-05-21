@@ -25,18 +25,18 @@ type KeyTypeInfo struct {
 // In this list, the most preferred types are listed first.
 var supportedKeyTypes = []KeyTypeInfo{
 	// Preferred key types:
-	{SECRET_TYPE_KMS_NACL_AUTH, SemTypeSigning},
-	{SECRET_TYPE_KMS_NACL_SECRETBOX, SemTypeEncrypting},
+	{SECRETKEY_TYPE_NACL_AUTH, SemTypeSigning},
+	{SECRETKEY_TYPE_NACL_SECRETBOX, SemTypeEncrypting},
 
 	// Also supported key types:
-	{SECRET_TYPE_KMS_HS256, SemTypeSigning},
-	{SECRET_TYPE_KMS_HS384, SemTypeSigning},
-	{SECRET_TYPE_KMS_HS512, SemTypeSigning},
-	{SECRET_TYPE_KMS_XAES256GCM, SemTypeEncrypting},
+	{SECRETKEY_TYPE_HS256, SemTypeSigning},
+	{SECRETKEY_TYPE_HS384, SemTypeSigning},
+	{SECRETKEY_TYPE_HS512, SemTypeSigning},
+	{SECRETKEY_TYPE_XAES256GCM, SemTypeEncrypting},
 
 	// Unsupported:
-	// SECRET_TYPE_KMS_NACL_BOX, SemTypePublicEncrypting
-	// SECRET_TYPE_KMS_NACL_SIGN, SmeTypePublicSigning
+	// SECRETKEY_TYPE_NACL_BOX, SemTypePublicEncrypting
+	// SECRETKEY_TYPE_NACL_SIGN, SmeTypePublicSigning
 }
 
 // SupportedSecretTypes is a list of the SecretTypes for supported key types.

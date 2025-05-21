@@ -15,17 +15,17 @@ type FlapsClient struct {
 	AcquireLeaseFunc         func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	CordonFunc               func(ctx context.Context, machineID string, nonce string) (err error)
 	CreateAppFunc            func(ctx context.Context, name string, org string) (err error)
-	CreateSecretFunc         func(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error)
 	CreateVolumeFunc         func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc func(ctx context.Context, volumeId string) error
 	DeleteMetadataFunc       func(ctx context.Context, machineID, key string) error
-	DeleteSecretFunc         func(ctx context.Context, label string) (err error)
+	DeleteAppSecretFunc      func(ctx context.Context, name string) error
+	DeleteSecretkeyFunc      func(ctx context.Context, name string) error
 	DeleteVolumeFunc         func(ctx context.Context, volumeId string) (*fly.Volume, error)
 	DestroyFunc              func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
 	ExecFunc                 func(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error)
 	ExtendVolumeFunc         func(ctx context.Context, volumeId string, size_gb int) (*fly.Volume, bool, error)
 	FindLeaseFunc            func(ctx context.Context, machineID string) (*fly.MachineLease, error)
-	GenerateSecretFunc       func(ctx context.Context, sLabel, sType string) (err error)
+	GenerateSecretkeyFunc    func(ctx context.Context, name string, typ string) (*fly.SetSecretkeyResp, error)
 	GetFunc                  func(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumesFunc        func(ctx context.Context) ([]fly.Volume, error)
 	GetManyFunc              func(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
@@ -39,12 +39,15 @@ type FlapsClient struct {
 	ListFunc                 func(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActiveFunc           func(ctx context.Context) ([]*fly.Machine, error)
 	ListFlyAppsMachinesFunc  func(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
-	ListSecretsFunc          func(ctx context.Context) (out []fly.ListSecret, err error)
+	ListAppSecretsFunc       func(ctx context.Context, version *uint64) ([]fly.AppSecret, error)
+	ListSecretkeysFunc       func(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc           func(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc         func(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLeaseFunc         func(ctx context.Context, machineID, nonce string) error
 	RestartFunc              func(ctx context.Context, in fly.RestartMachineInput, nonce string) (err error)
 	SetMetadataFunc          func(ctx context.Context, machineID, key, value string) error
+	SetAppSecretFunc         func(ctx context.Context, name string, value string) (*fly.SetAppSecretResp, error)
+	SetSecretkeyFunc         func(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretkeyResp, error)
 	StartFunc                func(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error)
 	StopFunc                 func(ctx context.Context, in fly.StopMachineInput, nonce string) (err error)
 	SuspendFunc              func(ctx context.Context, machineID, nonce string) (err error)
@@ -67,10 +70,6 @@ func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (e
 	return m.CreateAppFunc(ctx, name, org)
 }
 
-func (m *FlapsClient) CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error) {
-	return m.CreateSecretFunc(ctx, sLabel, sType, in)
-}
-
 func (m *FlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	return m.CreateVolumeFunc(ctx, req)
 }
@@ -83,8 +82,12 @@ func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string)
 	return m.DeleteMetadataFunc(ctx, machineID, key)
 }
 
-func (m *FlapsClient) DeleteSecret(ctx context.Context, label string) (err error) {
-	return m.DeleteSecretFunc(ctx, label)
+func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) (err error) {
+	return m.DeleteAppSecretFunc(ctx, name)
+}
+
+func (m *FlapsClient) DeleteSecretkey(ctx context.Context, name string) (err error) {
+	return m.DeleteSecretkeyFunc(ctx, name)
 }
 
 func (m *FlapsClient) DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error) {
@@ -107,8 +110,8 @@ func (m *FlapsClient) FindLease(ctx context.Context, machineID string) (*fly.Mac
 	return m.FindLeaseFunc(ctx, machineID)
 }
 
-func (m *FlapsClient) GenerateSecret(ctx context.Context, sLabel, sType string) (err error) {
-	return m.GenerateSecretFunc(ctx, sLabel, sType)
+func (m *FlapsClient) GenerateSecretkey(ctx context.Context, name string, typ string) (*fly.SetSecretkeyResp, error) {
+	return m.GenerateSecretkeyFunc(ctx, name, typ)
 }
 
 func (m *FlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, error) {
@@ -163,8 +166,12 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, 
 	return m.ListFlyAppsMachinesFunc(ctx)
 }
 
-func (m *FlapsClient) ListSecrets(ctx context.Context) (out []fly.ListSecret, err error) {
-	return m.ListSecretsFunc(ctx)
+func (m *FlapsClient) ListAppSecrets(ctx context.Context, version *uint64) (out []fly.AppSecret, err error) {
+	return m.ListAppSecretsFunc(ctx, version)
+}
+
+func (m *FlapsClient) ListSecretkeys(ctx context.Context, version *uint64) (out []fly.SecretKey, err error) {
+	return m.ListSecretkeysFunc(ctx, version)
 }
 
 func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
@@ -185,6 +192,14 @@ func (m *FlapsClient) Restart(ctx context.Context, in fly.RestartMachineInput, n
 
 func (m *FlapsClient) SetMetadata(ctx context.Context, machineID, key, value string) error {
 	return m.SetMetadataFunc(ctx, machineID, key, value)
+}
+
+func (m *FlapsClient) SetAppSecret(ctx context.Context, name string, value string) (*fly.SetAppSecretResp, error) {
+	return m.SetAppSecretFunc(ctx, name, value)
+}
+
+func (m *FlapsClient) SetSecretkey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretkeyResp, error) {
+	return m.SetSecretkeyFunc(ctx, name, typ, value)
 }
 
 func (m *FlapsClient) Start(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
