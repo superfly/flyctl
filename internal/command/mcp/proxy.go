@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -231,11 +232,23 @@ func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) e
 		log.Fatalf("Error waiting for server: %v", err)
 	}
 
+	// Store whether the SSE connection is ready
+	// This may become unready if the connection is closed
+	ready := false
+	readyMutex := sync.Mutex{}
+	readyCond := sync.NewCond(&readyMutex)
+
 	// Start the HTTP client
 	go func() {
 		start := time.Now()
 		for {
-			getFromServer(ctx, proxyInfo)
+			getFromServer(ctx, proxyInfo, &ready, readyCond)
+
+			// Ready should be set to false when the connection is closed
+			readyCond.L.Lock()
+			ready = false
+			readyCond.Broadcast()
+			readyCond.L.Unlock()
 
 			// Wait a minimum of 10 seconds before the next request
 			elapsed := time.Since(start)
@@ -247,7 +260,7 @@ func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) e
 	}()
 
 	// Start processing stdin
-	if err := processStdin(ctx, proxyInfo); err != nil {
+	if err := processStdin(ctx, proxyInfo, &ready, readyCond); err != nil {
 		log.Fatalf("Error processing stdin: %v", err)
 	}
 
@@ -285,7 +298,7 @@ func waitForServer(ctx context.Context, proxyInfo ProxyInfo) error {
 }
 
 // ProcessStdin reads messages from stdin and forwards them to the server
-func processStdin(ctx context.Context, proxyInfo ProxyInfo) error {
+func processStdin(ctx context.Context, proxyInfo ProxyInfo, ready *bool, readyCond *sync.Cond) error {
 	stp := make(chan os.Signal, 1)
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -301,6 +314,13 @@ func processStdin(ctx context.Context, proxyInfo ProxyInfo) error {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
+
+		// Wait for the server to be ready
+		readyCond.L.Lock()
+		for !*ready {
+			readyCond.Wait()
+		}
+		readyCond.L.Unlock()
 
 		// Forward raw message to server
 		err := sendToServer(ctx, line, proxyInfo)
@@ -408,7 +428,7 @@ func getAvailablePort() (int, error) {
 }
 
 // getFromServer sends a GET request to the server and streams the response to stdout
-func getFromServer(ctx context.Context, proxyInfo ProxyInfo) error {
+func getFromServer(ctx context.Context, proxyInfo ProxyInfo, ready *bool, readyCond *sync.Cond) error {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", proxyInfo.url, nil)
 	if err != nil {
@@ -436,6 +456,12 @@ func getFromServer(ctx context.Context, proxyInfo ProxyInfo) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned error: %s (status %d)", resp.Status, resp.StatusCode)
 	}
+
+	// We're now ready to receive messages
+	readyCond.L.Lock()
+	*ready = true
+	readyCond.Broadcast()
+	readyCond.L.Unlock()
 
 	// Stream response body to stdout
 	if _, err := io.Copy(os.Stdout, resp.Body); err != nil {
