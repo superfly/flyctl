@@ -125,11 +125,6 @@ func runLaunch(ctx context.Context) error {
 
 	image := flag.GetString(ctx, "image")
 
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	// Parse the command
 	command := flag.FirstArg(ctx)
 	cmdParts, err := shlex.Split(command)
@@ -295,12 +290,7 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// Run fly launch, but don't deploy
-	cmd := exec.Command(flyctl, args...)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to run 'fly launch': %w", err)
 	}
 
@@ -353,13 +343,7 @@ func runLaunch(ctx context.Context) error {
 		}
 
 		// Run 'fly mcp add ...'
-		cmd = exec.Command(flyctl, args...)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		if err := cmd.Run(); err != nil {
+		if err := flyctl(args...); err != nil {
 			return fmt.Errorf("failed to run 'fly mcp add': %w", err)
 		}
 	}
@@ -371,19 +355,13 @@ func runLaunch(ctx context.Context) error {
 			return fmt.Errorf("failed parsing secrets: %w", err)
 		}
 
-		args := []string{"secrets", "set"}
+		args = []string{"secrets", "set"}
 		for k, v := range parsedSecrets {
 			args = append(args, fmt.Sprintf("%s=%s", k, v))
 		}
 
 		// Run 'fly secrets set ...'
-		cmd = exec.Command(flyctl, args...)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		if err := cmd.Run(); err != nil {
+		if err := flyctl(args...); err != nil {
 			return fmt.Errorf("failed to run 'fly secrets set': %w", err)
 		}
 	}
@@ -409,12 +387,7 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// Deploy to a single machine
-	cmd = exec.Command(flyctl, args...)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to run 'fly launch': %w", err)
 	}
 

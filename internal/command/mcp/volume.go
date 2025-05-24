@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -133,23 +131,8 @@ func runVolume(ctx context.Context) error {
 		}
 	}
 
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
-	cmd := exec.Command(flyctl, args...)
-	cmd.Env = os.Environ()
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to launch MCP volume: %w", err)
-	}
-
-	// Check if the command was successful
-	if cmd.ProcessState.ExitCode() != 0 {
-		return fmt.Errorf("failed to launch MCP volume: %s", cmd.ProcessState.String())
 	}
 
 	return nil

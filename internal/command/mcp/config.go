@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -137,17 +136,13 @@ func NewRemove() *cobra.Command {
 }
 
 func runAdd(ctx context.Context) error {
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		appName := appconfig.NameFromContext(ctx)
 		if appName == "" {
 			return errors.New("app name is required")
 		} else {
+			var err error
 			appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 			if err != nil {
 				return err
@@ -180,33 +175,24 @@ func runAdd(ctx context.Context) error {
 			if err != nil && !prompt.IsNonInteractive(err) {
 				return fmt.Errorf("failed to get password: %w", err)
 			}
+			args = append(args, "--password", password)
 		}
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl("secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set user/password secrets': %w", err)
 		}
 
 	} else if flag.GetBool(ctx, "bearer-token") {
 		// Generate a secure random 24 character base64 encoded string for bearerToken
 		b := make([]byte, 18) // 18 bytes = 24 base64 characters
-		_, err = rand.Read(b)
+		_, err := rand.Read(b)
 		if err != nil {
 			return fmt.Errorf("failed to generate bearer token: %w", err)
 		}
 		bearerTokenStr := base64.StdEncoding.EncodeToString(b)
 		args = append(args, "--bearer-token", bearerTokenStr)
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl("secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set bearer token secret': %w", err)
 		}
 	}
@@ -226,8 +212,13 @@ func runAdd(ctx context.Context) error {
 		}
 	}
 
+	flyctlExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to find executable: %w", err)
+	}
+
 	for _, configPath := range configPaths {
-		err = UpdateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctl, args)
+		err = UpdateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctlExecutable, args)
 		if err != nil {
 			return fmt.Errorf("failed to update configuration at %s: %w", configPath.Path, err)
 		}
