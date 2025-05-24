@@ -59,14 +59,17 @@ func runList(ctx context.Context) error {
 		}
 	}
 
+	// Get a list of config paths
 	configPaths, err := ListConfigPaths(ctx, true)
 	if err != nil {
 		return err
 	}
 
-	serverMap := make(map[string]interface{})
+	// build a server map from all of the configs
+	serverMap := make(map[string]any)
 
 	for _, configPath := range configPaths {
+		// if the configuration file doesn't exist, skip it
 		if _, err := os.Stat(configPath.Path); err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -74,31 +77,53 @@ func runList(ctx context.Context) error {
 			return err
 		}
 
+		// read the configuration file
 		file, err := os.Open(configPath.Path)
 		if err != nil {
 			return err
 		}
 		defer file.Close()
 
-		var data map[string]interface{}
+		// parse the configuration file as JSON
+		var data map[string]any
 		decoder := json.NewDecoder(file)
 		if err := decoder.Decode(&data); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", configPath.Path, err)
 		}
 
-		if val, ok := data[configPath.ConfigName]; ok {
-			server := make(map[string]interface{})
-			server["mcpServers"] = val
-			server["configName"] = configPath.ConfigName
+		if mcpServers, ok := data[configPath.ConfigName].(map[string]any); ok {
+			// add metadata about the tool
+			config := make(map[string]any)
+			config["mcpServers"] = mcpServers
+			config["configName"] = configPath.ConfigName
 
 			if configPath.ToolName != "" {
-				server["toolName"] = configPath.ToolName
+				config["toolName"] = configPath.ToolName
 			}
 
-			serverMap[configPath.Path] = server
+			serverMap[configPath.Path] = config
+
+			// add metadata about each MCP server
+			for name := range mcpServers {
+				if serverMap, ok := mcpServers[name].(map[string]any); ok {
+					server, err := configExtract(configPath, name)
+					if err != nil {
+						return fmt.Errorf("failed to extract config for %s: %w", name, err)
+					}
+
+					for key, value := range server {
+						if key != "command" && key != "args" {
+							serverMap[key] = value
+						}
+					}
+
+					mcpServers[name] = serverMap
+				}
+			}
 		}
 	}
 
+	// if the user has specified the --json flag, output the server map as JSON
 	if flag.GetBool(ctx, "json") {
 		output, err := json.MarshalIndent(serverMap, "", "  ")
 		if err != nil {
@@ -108,30 +133,31 @@ func runList(ctx context.Context) error {
 		return nil
 	}
 
+	// if no MCP servers were found, print a message and return
 	if len(serverMap) == 0 {
 		fmt.Println("No MCP servers found.")
 		return nil
 	}
 
+	// print the server map in a human-readable format
 	for pathName, configPath := range serverMap {
 		fmt.Printf("Config Path: %s\n", pathName)
-		if config, ok := configPath.(map[string]interface{}); ok {
-			if servers, ok := config["mcpServers"].(map[string]interface{}); ok {
+		if config, ok := configPath.(map[string]any); ok {
+			if toolName, ok := config["toolName"].(string); ok {
+				fmt.Printf("  Tool Name: %s\n", toolName)
+			}
+
+			if servers, ok := config["mcpServers"].(map[string]any); ok {
 				for name := range servers {
 					fmt.Printf("  MCP Server: %v\n", name)
 
-					configName, ok := config["configName"].(string)
+					server, ok := servers[name].(map[string]any)
 
 					if ok {
-						server, err := configExtract(ConfigPath{Path: pathName, ConfigName: configName}, name)
-						if err == nil {
-							for key, value := range server {
-								if key != "command" && key != "args" {
-									fmt.Printf("    %s: %v\n", key, value)
-								}
+						for key, value := range server {
+							if key != "command" && key != "args" {
+								fmt.Printf("    %s: %v\n", key, value)
 							}
-						} else {
-							fmt.Printf("    Error: %v\n", err)
 						}
 					}
 				}
