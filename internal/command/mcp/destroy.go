@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/apex/log"
@@ -36,6 +34,11 @@ func NewDestroy() *cobra.Command {
 			Name:        "config",
 			Description: "Path to the MCP client configuration file",
 		},
+		flag.Bool{
+			Name:        "yes",
+			Description: "Accept all confirmations",
+			Shorthand:   "y",
+		},
 	)
 
 	for client, name := range McpClients {
@@ -51,11 +54,6 @@ func NewDestroy() *cobra.Command {
 }
 
 func runDestroy(ctx context.Context) error {
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	appName := appconfig.NameFromContext(ctx)
 
 	if appName == "" {
@@ -83,18 +81,19 @@ func runDestroy(ctx context.Context) error {
 	}
 
 	client := flyutil.ClientFromContext(ctx)
-	_, err = client.GetApp(ctx, appName)
+	_, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("app not found: %w", err)
 	}
 
 	// Destroy the app
-	cmd := exec.Command(flyctl, "apps", "destroy", appName)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	args := []string{"apps", "destroy", appName}
+
+	if flag.GetBool(ctx, "yes") {
+		args = append(args, "--yes")
+	}
+
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to destroy app': %w", err)
 	}
 
@@ -103,7 +102,7 @@ func runDestroy(ctx context.Context) error {
 		return fmt.Errorf("app not destroyed: %s", appName)
 	}
 
-	args := []string{}
+	args = []string{}
 
 	// Add the MCP server to the MCP client configurations
 	for client := range McpClients {
@@ -130,12 +129,7 @@ func runDestroy(ctx context.Context) error {
 		}
 
 		// Run 'fly mcp remove ...'
-		cmd = exec.Command(flyctl, args...)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl(args...); err != nil {
 			return fmt.Errorf("failed to run 'fly mcp remove': %w", err)
 		}
 

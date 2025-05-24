@@ -372,7 +372,12 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 
 	ports := fmt.Sprintf("%d:%s", localPort, remotePort)
 
-	cmd := exec.Command(os.Args[0], "proxy", ports, remoteHost, "--quiet", "--app", appName)
+	flyctl, err := os.Executable()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find executable: %w", err)
+	}
+
+	cmd := exec.Command(flyctl, "proxy", ports, remoteHost, "--quiet", "--app", appName)
 	cmd.Stdin = nil
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr

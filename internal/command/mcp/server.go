@@ -84,9 +84,9 @@ func runServer(ctx context.Context) error {
 			server = "flyctl"
 		}
 
-		if len(configs) > 0 {
-			args := []string{"mcp", "server"}
+		args := []string{"mcp", "server"}
 
+		if len(configs) > 0 {
 			for _, config := range configs {
 				UpdateConfig(ctx, config.Path, config.ConfigName, server, flyctl, args)
 			}
@@ -94,7 +94,8 @@ func runServer(ctx context.Context) error {
 
 		if flag.GetBool(ctx, "inspector") {
 			// Launch MCP inspector
-			cmd := exec.Command("npx", "@modelcontextprotocol/inspector@latest", flyctl, "mcp", "server")
+			args = append([]string{"@modelcontextprotocol/inspector@latest", flyctl}, args...)
+			cmd := exec.Command("npx", args...)
 			cmd.Env = os.Environ()
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
