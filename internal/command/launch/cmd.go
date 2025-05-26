@@ -160,6 +160,10 @@ func New() (cmd *cobra.Command) {
 			Shorthand:   "v",
 			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
 		},
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
 	}
 
 	ldClient, err := launchdarkly.NewServiceClient()

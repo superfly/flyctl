@@ -170,6 +170,25 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
+	// Add secrets to the app
+	if secretsFlag := flag.GetStringArray(ctx, "secret"); len(secretsFlag) > 0 {
+		secrets := make(map[string]string, len(secretsFlag))
+		for _, secret := range secretsFlag {
+			kv := strings.SplitN(secret, "=", 2)
+			if len(kv) != 2 {
+				return fmt.Errorf("invalid secret format: %s, expected NAME=VALUE", secret)
+			}
+			key := strings.TrimSpace(kv[0])
+			value := strings.TrimSpace(kv[1])
+			secrets[key] = value
+		}
+
+		client := flyutil.ClientFromContext(ctx)
+		if _, err := client.SetSecrets(ctx, state.appConfig.AppName, secrets); err != nil {
+			return err
+		}
+	}
+
 	if state.sourceInfo != nil {
 		if state.appConfig.Deploy != nil && state.appConfig.Deploy.SeedCommand != "" {
 			ctx = appconfig.WithSeedCommand(ctx, state.appConfig.Deploy.SeedCommand)
