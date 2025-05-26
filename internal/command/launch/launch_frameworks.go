@@ -23,7 +23,7 @@ import (
 )
 
 func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
-	if flag.GetBool(ctx, "no-github-workflow") {
+	if flag.GetBool(ctx, "no-github-workflow") || flag.GetString(ctx, "from") != "" {
 		return nil
 	}
 
