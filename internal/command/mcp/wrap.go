@@ -292,6 +292,8 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
 
+		w.(http.Flusher).Flush() // Flush headers to the client
+
 		// Create channel for response
 		responseCh := make(chan string, 1)
 		s.mutex.Lock()
