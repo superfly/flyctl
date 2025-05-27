@@ -219,6 +219,11 @@ func (s *Server) ReadFromProgram() {
 	}()
 
 	scanner := bufio.NewScanner(s.stdout)
+	const (
+		defaultBufSize  = bufio.MaxScanTokenSize // 64KiB
+		maxResponseSize = 10 * 1024 * 1024       // 10MiB
+	)
+	scanner.Buffer(make([]byte, 0, defaultBufSize), maxResponseSize)
 	for scanner.Scan() {
 		line := scanner.Text() + "\n"
 
