@@ -12,7 +12,6 @@ import (
 	"unicode"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -20,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
@@ -123,6 +121,13 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		}
 	}
 
+	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
+	if err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	httpServicePort := 8080
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
@@ -178,19 +183,12 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	}
 	guest := fakeDefaultMachine.Guest
 
-	region, regionExplanation, err := determineRegion(ctx, appConfig, org, guest)
-	if err != nil {
-		if err := recoverableErrors.tryRecover(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	lp := &plan.LaunchPlan{
 		AppName:          appName,
 		OrgSlug:          org.Slug,
-		RegionCode:       region,
+		RegionCode:       region.Code,
 		HighAvailability: flag.GetBool(ctx, "ha"),
 		Compute:          compute,
 		CPUKind:          guest.CPUKind,
@@ -671,8 +669,9 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 // determineRegion returns the region to use for a new app. In order, it tries:
 //  1. the primary_region field of the config, if one exists
 //  2. the region specified on the command line, if specified
-//  3. the nearest region to the user with capacity (as determined by GetPlacements)
-func determineRegion(ctx context.Context, config *appconfig.Config, org *fly.Organization, guest *fly.MachineGuest) (string, string, error) {
+//  3. the nearest region to the user
+func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
+	client := flyutil.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -683,28 +682,19 @@ func determineRegion(ctx context.Context, config *appconfig.Config, org *fly.Org
 
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return "", "", err
-	}
+	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
 
 	if regionCode != "" {
 		region, err := getRegionByCode(ctx, regionCode)
 		if err != nil {
-			return "", explanation, err
+			// Check and see if this is recoverable
+			if closestRegionErr == nil {
+				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
+			}
 		}
-		return region.Code, explanation, err
+		return region, explanation, err
 	}
-
-	placements, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
-		ComputeRequirements: guest,
-		Count:               1,
-		Org:                 org.Slug,
-	})
-	if err != nil {
-		return "", "", err
-	}
-	return placements[0].Region, "this is the fastest region for you", nil
+	return closestRegion, "this is the fastest region for you", closestRegionErr
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
