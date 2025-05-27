@@ -71,7 +71,7 @@ func runKeysList(ctx context.Context) (err error) {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecretkeys(ctx, nil)
+	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
 	if err != nil {
 		return err
 	}

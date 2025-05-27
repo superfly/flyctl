@@ -83,7 +83,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecretkeys(ctx, nil)
+	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -135,9 +135,9 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	}
 
 	if gen {
-		_, err = flapsClient.GenerateSecretkey(ctx, label, typ)
+		_, err = flapsClient.GenerateSecretKey(ctx, label, typ)
 	} else {
-		_, err = flapsClient.SetSecretkey(ctx, label, typ, val)
+		_, err = flapsClient.SetSecretKey(ctx, label, typ, val)
 	}
 	if err != nil {
 		return err

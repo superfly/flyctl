@@ -52,7 +52,7 @@ func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) error {
 	panic("TODO")
 }
 
-func (m *FlapsClient) DeleteSecretkey(ctx context.Context, name string) error {
+func (m *FlapsClient) DeleteSecretKey(ctx context.Context, name string) error {
 	panic("TODO")
 }
 
@@ -76,7 +76,7 @@ func (m *FlapsClient) FindLease(ctx context.Context, machineID string) (*fly.Mac
 	panic("TODO")
 }
 
-func (m *FlapsClient) GenerateSecretkey(ctx context.Context, name string, typ string) (*fly.SetSecretkeyResp, error) {
+func (m *FlapsClient) GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error) {
 	panic("TODO")
 }
 
@@ -156,7 +156,7 @@ func (m *FlapsClient) ListAppSecrets(ctx context.Context, version *uint64, showS
 	panic("TODO")
 }
 
-func (m *FlapsClient) ListSecretkeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
+func (m *FlapsClient) ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
 	panic("TODO")
 }
 
@@ -184,7 +184,7 @@ func (m *FlapsClient) SetAppSecret(ctx context.Context, name string, value strin
 	panic("TODO")
 }
 
-func (m *FlapsClient) SetSecretkey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretkeyResp, error) {
+func (m *FlapsClient) SetSecretKey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretKeyResp, error) {
 	panic("TODO")
 }
 

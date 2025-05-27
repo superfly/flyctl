@@ -19,13 +19,13 @@ type FlapsClient interface {
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, name string) error
-	DeleteSecretkey(ctx context.Context, name string) error
+	DeleteSecretKey(ctx context.Context, name string) error
 	DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
 	Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error)
 	ExtendVolume(ctx context.Context, volumeId string, size_gb int) (*fly.Volume, bool, error)
 	FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error)
-	GenerateSecretkey(ctx context.Context, name string, typ string) (*fly.SetSecretkeyResp, error)
+	GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
@@ -40,13 +40,13 @@ type FlapsClient interface {
 	ListActive(ctx context.Context) ([]*fly.Machine, error)
 	ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
 	ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
-	ListSecretkeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
+	ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLease(ctx context.Context, machineID, nonce string) error
 	Restart(ctx context.Context, in fly.RestartMachineInput, nonce string) (err error)
 	SetAppSecret(ctx context.Context, name string, value string) (*fly.SetAppSecretResp, error)
-	SetSecretkey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretkeyResp, error)
+	SetSecretKey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretKeyResp, error)
 	SetMetadata(ctx context.Context, machineID, key, value string) error
 	Start(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error)
 	Stop(ctx context.Context, in fly.StopMachineInput, nonce string) (err error)

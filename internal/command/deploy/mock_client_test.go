@@ -62,7 +62,7 @@ func (m *mockFlapsClient) DeleteAppSecret(ctx context.Context, name string) erro
 	return fmt.Errorf("failed to delete app secret %s", name)
 }
 
-func (m *mockFlapsClient) DeleteSecretkey(ctx context.Context, name string) error {
+func (m *mockFlapsClient) DeleteSecretKey(ctx context.Context, name string) error {
 	return fmt.Errorf("failed to delete secret key %s", name)
 }
 
@@ -89,7 +89,7 @@ func (m *mockFlapsClient) FindLease(ctx context.Context, machineID string) (*fly
 	return nil, fmt.Errorf("failed to find lease for %s", machineID)
 }
 
-func (m *mockFlapsClient) GenerateSecretkey(ctx context.Context, name string, typ string) (*fly.SetSecretkeyResp, error) {
+func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error) {
 
 	return nil, fmt.Errorf("failed to generate app secret %s", name)
 }
@@ -163,7 +163,7 @@ func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64, s
 	return nil, fmt.Errorf("failed to list app secrets")
 }
 
-func (m *mockFlapsClient) ListSecretkeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
+func (m *mockFlapsClient) ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
 	return nil, fmt.Errorf("failed to list secret keys")
 }
 
@@ -218,7 +218,7 @@ func (m *mockFlapsClient) SetAppSecret(ctx context.Context, name string, value s
 	return nil, fmt.Errorf("failed to set app secret %s", name)
 }
 
-func (m *mockFlapsClient) SetSecretkey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretkeyResp, error) {
+func (m *mockFlapsClient) SetSecretKey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretKeyResp, error) {
 	return nil, fmt.Errorf("failed to set secret key %s", name)
 }
 
