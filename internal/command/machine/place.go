@@ -1,8 +1,10 @@
 package machine
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -107,6 +109,7 @@ func runPlace(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed getting machine placements: %w", err)
 	}
+	slices.SortFunc(regions, func(a, b flaps.RegionPlacement) int { return cmp.Compare(a.Region, b.Region) })
 
 	io := iostreams.FromContext(ctx)
 	out := io.Out
