@@ -45,7 +45,24 @@ func newServer() *cobra.Command {
 			Default:     false,
 			Shorthand:   "i",
 		},
+		flag.String{
+			Name:        "server",
+			Description: "Name to use for the MCP server in the MCP client configuration",
+		},
+		flag.StringArray{
+			Name:        "config",
+			Description: "Path to the MCP client configuration file (can be specified multiple times)",
+		},
 	)
+
+	for client, name := range McpClients {
+		flag.Add(cmd,
+			flag.Bool{
+				Name:        client,
+				Description: "Add flyctl MCP server to the " + name + " client configuration",
+			},
+		)
+	}
 
 	return cmd
 }
@@ -56,15 +73,38 @@ func runServer(ctx context.Context) error {
 		return fmt.Errorf("failed to find executable: %w", err)
 	}
 
-	if flag.GetBool(ctx, "inspector") {
-		// Launch MCP inspector
-		cmd := exec.Command("npx", "@modelcontextprotocol/inspector", flyctl, "mcp", "server")
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to launch MCP inspector: %w", err)
+	configs, err := ListConfigPaths(ctx, true)
+	if err != nil {
+		return fmt.Errorf("failed to list MCP client configuration paths: %w", err)
+	}
+
+	if flag.GetBool(ctx, "inspector") || len(configs) > 0 {
+		server := flag.GetString(ctx, "server")
+		if server == "" {
+			server = "flyctl"
 		}
+
+		args := []string{"mcp", "server"}
+
+		if len(configs) > 0 {
+			for _, config := range configs {
+				UpdateConfig(ctx, config.Path, config.ConfigName, server, flyctl, args)
+			}
+		}
+
+		if flag.GetBool(ctx, "inspector") {
+			// Launch MCP inspector
+			args = append([]string{"@modelcontextprotocol/inspector@latest", flyctl}, args...)
+			cmd := exec.Command("npx", args...)
+			cmd.Env = os.Environ()
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("failed to launch MCP inspector: %w", err)
+			}
+		}
+
 		return nil
 	}
 
@@ -249,7 +289,7 @@ func runServer(ctx context.Context) error {
 		)
 	}
 
-	fmt.Fprintf(os.Stderr, "Starting MCP server...\n")
+	fmt.Fprintf(os.Stderr, "Starting flyctl MCP server...\n")
 	if err := server.ServeStdio(srv); err != nil {
 		return fmt.Errorf("Server error: %v", err)
 	}

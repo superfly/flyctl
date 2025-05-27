@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/apex/log"
 	"github.com/spf13/cobra"
@@ -32,6 +33,7 @@ var McpClients = map[string]string{
 
 // ConfigPath represents a configuration file path
 type ConfigPath struct {
+	ToolName   string
 	Path       string
 	ConfigName string
 }
@@ -58,6 +60,11 @@ func NewAdd() *cobra.Command {
 		},
 		flag.String{
 			Name:        "name",
+			Description: "Name to use for the MCP server in the MCP client configuration",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "server",
 			Description: "Name to use for the MCP server in the MCP client configuration",
 		},
 		flag.String{
@@ -97,7 +104,7 @@ func NewRemove() *cobra.Command {
 		long  = short + "\n"
 		usage = "remove"
 	)
-	cmd := command.New(usage, short, long, runRemove, command.RequireAppName)
+	cmd := command.New(usage, short, long, runRemove, command.LoadAppNameIfPresent)
 	cmd.Args = cobra.ExactArgs(0)
 
 	flag.Add(cmd,
@@ -108,6 +115,11 @@ func NewRemove() *cobra.Command {
 		},
 		flag.String{
 			Name:        "name",
+			Description: "Name to use for the MCP server in the MCP client configuration",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "server",
 			Description: "Name to use for the MCP server in the MCP client configuration",
 		},
 	)
@@ -124,17 +136,13 @@ func NewRemove() *cobra.Command {
 }
 
 func runAdd(ctx context.Context) error {
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		appName := appconfig.NameFromContext(ctx)
 		if appName == "" {
 			return errors.New("app name is required")
 		} else {
+			var err error
 			appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 			if err != nil {
 				return err
@@ -167,55 +175,50 @@ func runAdd(ctx context.Context) error {
 			if err != nil && !prompt.IsNonInteractive(err) {
 				return fmt.Errorf("failed to get password: %w", err)
 			}
+			args = append(args, "--password", password)
 		}
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl("secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set user/password secrets': %w", err)
 		}
 
 	} else if flag.GetBool(ctx, "bearer-token") {
 		// Generate a secure random 24 character base64 encoded string for bearerToken
 		b := make([]byte, 18) // 18 bytes = 24 base64 characters
-		_, err = rand.Read(b)
+		_, err := rand.Read(b)
 		if err != nil {
 			return fmt.Errorf("failed to generate bearer token: %w", err)
 		}
 		bearerTokenStr := base64.StdEncoding.EncodeToString(b)
 		args = append(args, "--bearer-token", bearerTokenStr)
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl("secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set bearer token secret': %w", err)
 		}
 	}
 
-	configPaths, err := listCOnfigPaths(ctx)
+	configPaths, err := ListConfigPaths(ctx, true)
 	if err != nil {
 		return err
 	} else if len(configPaths) == 0 {
 		return errors.New("no configuration paths found")
 	}
 
-	name := flag.GetString(ctx, "name")
-	if name == "" {
-		name = appConfig.AppName
+	server := flag.GetString(ctx, "server")
+	if server == "" {
+		server = flag.GetString(ctx, "name")
+		if server == "" {
+			server = appConfig.AppName
+		}
+	}
+
+	flyctlExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to find executable: %w", err)
 	}
 
 	for _, configPath := range configPaths {
-		if configPath.ConfigName == "" {
-			configPath.ConfigName = "mcpServers"
-		}
-
-		err = updateConfig(ctx, configPath.Path, configPath.ConfigName, name, flyctl, args)
+		err = UpdateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctlExecutable, args)
 		if err != nil {
 			return fmt.Errorf("failed to update configuration at %s: %w", configPath.Path, err)
 		}
@@ -225,7 +228,7 @@ func runAdd(ctx context.Context) error {
 }
 
 // Build a list of configuration paths to update
-func listCOnfigPaths(ctx context.Context) ([]ConfigPath, error) {
+func ListConfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, error) {
 	log := logger.FromContext(ctx)
 
 	var paths []ConfigPath
@@ -250,60 +253,82 @@ func listCOnfigPaths(ctx context.Context) ([]ConfigPath, error) {
 	if flag.GetBool(ctx, "claude") {
 		claudePath := filepath.Join(configDir, "Claude", "claude_desktop_config.json")
 		log.Debugf("Adding Claude configuration path: %s", claudePath)
-		paths = append(paths, ConfigPath{Path: claudePath})
+		paths = append(paths, ConfigPath{ToolName: "claude", Path: claudePath})
 	}
 
 	// VS Code configuration
 	if flag.GetBool(ctx, "vscode") {
 		vscodePath := filepath.Join(configDir, "Code", "User", "settings.json")
 		log.Debugf("Adding VS Code configuration path: %s", vscodePath)
-		paths = append(paths, ConfigPath{Path: vscodePath})
+		paths = append(paths, ConfigPath{ToolName: "vscode", Path: vscodePath, ConfigName: "mcp"})
 	}
 
 	// Cursor configuration
 	if flag.GetBool(ctx, "cursor") {
 		cursorPath := filepath.Join(configDir, "Cursor", "config.json")
 		log.Debugf("Adding Cursor configuration path: %s", cursorPath)
-		paths = append(paths, ConfigPath{Path: cursorPath})
+		paths = append(paths, ConfigPath{ToolName: "cursor", Path: cursorPath})
 	}
 
 	// Neovim configuration
 	if flag.GetBool(ctx, "neovim") {
 		neovimPath := filepath.Join(configDir, "nvim", "init.json")
 		log.Debugf("Adding Neovim configuration path: %s", neovimPath)
-		paths = append(paths, ConfigPath{Path: neovimPath})
+		paths = append(paths, ConfigPath{ToolName: "neovim", Path: neovimPath})
 	}
 
 	// Windsurf configuration
 	if flag.GetBool(ctx, "windsurf") {
 		windsurfPath := filepath.Join(home, ".codeium", "windsurf", "config.json")
 		log.Debugf("Adding Windsurf configuration path: %s", windsurfPath)
-		paths = append(paths, ConfigPath{Path: windsurfPath})
+		paths = append(paths, ConfigPath{ToolName: "windsurf", Path: windsurfPath})
 	}
 
 	// Zed configuration
 	if flag.GetBool(ctx, "zed") {
 		zedPath := filepath.Join(home, ".config", "zed", "settings.json")
 		log.Debugf("Adding Zed configuration path: %s", zedPath)
-		paths = append(paths, ConfigPath{Path: zedPath, ConfigName: "context_servers"})
+		paths = append(paths, ConfigPath{ToolName: "zed", Path: zedPath, ConfigName: "context_servers"})
 	}
 
-	// Add custom configuration paths
-	for _, path := range flag.GetStringArray(ctx, "config") {
-		path, err := filepath.Abs(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for %s: %w", path, err)
+	if configIsArray {
+		// Add custom configuration paths
+		for _, path := range flag.GetStringArray(ctx, "config") {
+			path, err := filepath.Abs(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get absolute path for %s: %w", path, err)
+			}
+			log.Debugf("Adding custom configuration path: %s", path)
+			paths = append(paths, ConfigPath{Path: path})
 		}
-		log.Debugf("Adding custom configuration path: %s", path)
-		paths = append(paths, ConfigPath{Path: path})
+	} else {
+		path := flag.GetString(ctx, "config")
+		if path != "" {
+			path, err := filepath.Abs(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get absolute path for %s: %w", path, err)
+			}
+			log.Debugf("Adding custom configuration path: %s", path)
+			paths = append(paths, ConfigPath{Path: path})
+		}
+	}
+
+	for i, configPath := range paths {
+		if configPath.ConfigName == "" {
+			paths[i].ConfigName = "mcpServers"
+		}
 	}
 
 	return paths, nil
 }
 
-// updateConfig updates the configuration at the specified path with the MCP servers
-func updateConfig(ctx context.Context, path string, configKey string, name string, command string, args []string) error {
+// UpdateConfig updates the configuration at the specified path with the MCP servers
+func UpdateConfig(ctx context.Context, path string, configKey string, server string, command string, args []string) error {
 	log.Debugf("Updating configuration at %s", path)
+
+	if configKey == "" {
+		configKey = "mcpServers"
+	}
 
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(path)
@@ -347,10 +372,10 @@ func updateConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Merge the new MCP server with existing ones
-	if _, exists := mcpServers[name]; exists {
-		log.Debugf("Replacing existing MCP server: %s", name)
+	if _, exists := mcpServers[server]; exists {
+		log.Debugf("Replacing existing MCP server: %s", server)
 	} else {
-		log.Debugf("Adding new MCP server: %s", name)
+		log.Debugf("Adding new MCP server: %s", server)
 	}
 
 	// Build the server map
@@ -360,7 +385,7 @@ func updateConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Update the server in the existing map
-	mcpServers[name] = serverMap
+	mcpServers[server] = serverMap
 
 	// Update the mcpServers field in the config
 	configData[configKey] = mcpServers
@@ -388,37 +413,36 @@ func updateConfig(ctx context.Context, path string, configKey string, name strin
 func runRemove(ctx context.Context) error {
 	var err error
 
-	appConfig := appconfig.ConfigFromContext(ctx)
-	if appConfig == nil {
-		appName := appconfig.NameFromContext(ctx)
-		if appName == "" {
-			return errors.New("app name is required")
-		} else {
-			appConfig, err = appconfig.FromRemoteApp(ctx, appName)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	configPaths, err := listCOnfigPaths(ctx)
+	configPaths, err := ListConfigPaths(ctx, true)
 	if err != nil {
 		return err
 	} else if len(configPaths) == 0 {
 		return errors.New("no configuration paths found")
 	}
 
-	name := flag.GetString(ctx, "name")
-	if name == "" {
-		name = appConfig.AppName
+	server := flag.GetString(ctx, "server")
+	if server == "" {
+		server = flag.GetString(ctx, "name")
+		if server == "" {
+			appConfig := appconfig.ConfigFromContext(ctx)
+			if appConfig == nil {
+				appName := appconfig.NameFromContext(ctx)
+				if appName == "" {
+					return errors.New("app name is required")
+				} else {
+					appConfig, err = appconfig.FromRemoteApp(ctx, appName)
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+			server = appConfig.AppName
+		}
 	}
 
 	for _, configPath := range configPaths {
-		if configPath.ConfigName == "" {
-			configPath.ConfigName = "mcpServers"
-		}
-
-		err = removeConfig(ctx, configPath.Path, configPath.ConfigName, name)
+		err = removeConfig(ctx, configPath.Path, configPath.ConfigName, server)
 		if err != nil {
 			return fmt.Errorf("failed to update configuration at %s: %w", configPath.Path, err)
 		}
@@ -487,4 +511,66 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 
 	log.Debugf("Successfully updated existing configuration at %s", path)
 	return nil
+}
+
+// Server represents a server configuration in the JSON file
+type MCPServer struct {
+	Args    []string `json:"args"`
+	Command string   `json:"command"`
+}
+
+func configExtract(config ConfigPath, server string) (map[string]interface{}, error) {
+	// Check if the file exists
+	// Read the configuration file
+	data, err := os.ReadFile(config.Path)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading file: %v", err)
+	}
+
+	// Parse the JSON data
+	jsonConfig := make(map[string]interface{})
+	if err := json.Unmarshal(data, &jsonConfig); err != nil {
+		return nil, fmt.Errorf("Error parsing JSON: %v", err)
+	}
+
+	jsonServers, ok := jsonConfig[config.ConfigName].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Error finding MCP server configuration: %v", err)
+	}
+
+	serverConfig, ok := jsonServers[server].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Error finding MCP server configuration: %v", err)
+	}
+
+	args, ok := serverConfig["args"].([]interface{})
+
+	if ok {
+		for i, arg := range args {
+			if arg == "--bearer-token" && i+1 < len(args) {
+				serverConfig["bearer-token"] = args[i+1]
+			}
+
+			if arg == "--url" && i+1 < len(args) {
+				appUrl := args[i+1]
+				serverConfig["url"] = appUrl
+
+				if appUrlStr, ok := appUrl.(string); ok {
+					parsedURL, err := url.Parse(appUrlStr)
+					if err == nil {
+						hostnameParts := strings.Split(parsedURL.Hostname(), ".")
+						if len(hostnameParts) > 2 && hostnameParts[len(hostnameParts)-1] == "dev" && hostnameParts[len(hostnameParts)-2] == "fly" {
+							serverConfig["app"] = hostnameParts[len(hostnameParts)-3]
+						} else if len(hostnameParts) > 1 && hostnameParts[len(hostnameParts)-1] == "flycast" {
+							serverConfig["app"] = hostnameParts[len(hostnameParts)-2]
+						} else if len(hostnameParts) > 1 && hostnameParts[len(hostnameParts)-1] == "internal" {
+							serverConfig["app"] = hostnameParts[len(hostnameParts)-2]
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return serverConfig, nil
 }

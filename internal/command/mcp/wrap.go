@@ -286,17 +286,27 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Create channel for response
+		responseCh := make(chan string, 1)
+		s.mutex.Lock()
+		if s.client == nil {
+			s.client = responseCh
+		}
+		s.mutex.Unlock()
+
+		if s.client != responseCh {
+			// If we already have a client, return an error
+			http.Error(w, "Another client is already connected", http.StatusConflict)
+			return
+		}
+
 		// Set headers for SSE
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
 
-		// Create channel for response
-		responseCh := make(chan string, 1)
-		s.mutex.Lock()
-		s.client = responseCh
-		s.mutex.Unlock()
+		w.(http.Flusher).Flush() // Flush headers to the client
 
 		// Stream responses to the client
 		for {
@@ -314,15 +324,43 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else if r.Method == http.MethodPost {
-		// Stream request body to program's stdin
-		if _, err := io.Copy(s.stdin, r.Body); err != nil {
-			log.Printf("Error writing to program: %v", err)
-			http.Error(w, fmt.Sprintf("Error writing to program: %v", err), http.StatusInternalServerError)
-		} else {
-			// Successfully wrote to program
-			w.WriteHeader(http.StatusAccepted)
+		// Stream request body to program's stdin, but inspect the last byte
+		var lastByte byte
+		buf := make([]byte, 4096)
+		for {
+			n, err := r.Body.Read(buf)
+			if n > 0 {
+				lastByte = buf[n-1]
+				if _, werr := s.stdin.Write(buf[:n]); werr != nil {
+					log.Printf("Error writing to program: %v", werr)
+					http.Error(w, fmt.Sprintf("Error writing to program: %v", werr), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Printf("Error reading request body: %v", err)
+				http.Error(w, fmt.Sprintf("Error reading request body: %v", err), http.StatusBadRequest)
+				return
+			}
 		}
-		defer r.Body.Close()
+
+		// Ensure the last byte is a newline
+		if lastByte != '\n' {
+			s.stdin.Write([]byte{'\n'})
+		}
+
+		if f, ok := s.stdin.(interface{ Flush() error }); ok {
+			if err := f.Flush(); err != nil {
+				log.Printf("Error flushing stdin: %v", err)
+			}
+		}
+
+		// Successfully wrote to program
+		w.WriteHeader(http.StatusAccepted)
+		r.Body.Close()
 
 	} else {
 		// Method not allowed

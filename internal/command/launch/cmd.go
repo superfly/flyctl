@@ -130,6 +130,11 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
+			Name:        "no-github-workflow",
+			Description: "Skip automatically provisioning a GitHub fly deploy workflow",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
@@ -143,8 +148,21 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "auto-stop",
-			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend'",
 			Default:     "stop",
+		},
+		flag.String{
+			Name:        "command",
+			Description: "The command to override the Docker CND.",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
+		},
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
 	}
 
@@ -337,6 +355,11 @@ func run(ctx context.Context) (err error) {
 			jsonEncoder.SetIndent("", "  ")
 			return jsonEncoder.Encode(launchManifest)
 		}
+	}
+
+	// Override internal port if requested using --internal-port flag
+	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+		launchManifest.Plan.HttpServicePort = n
 	}
 
 	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
