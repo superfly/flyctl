@@ -152,7 +152,7 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context) (machines []*fly.
 	return machines, releaseCmdMachine, nil
 }
 
-func (m *FlapsClient) ListAppSecrets(ctx context.Context, version *uint64) ([]fly.AppSecret, error) {
+func (m *FlapsClient) ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
 	panic("TODO")
 }
 

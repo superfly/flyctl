@@ -159,7 +159,7 @@ func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machi
 	return nil, nil, fmt.Errorf("failed to list fly apps machines")
 }
 
-func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64) ([]fly.AppSecret, error) {
+func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
 	return nil, fmt.Errorf("failed to list app secrets")
 }
 

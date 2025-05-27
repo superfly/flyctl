@@ -39,7 +39,7 @@ type FlapsClient struct {
 	ListFunc                 func(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActiveFunc           func(ctx context.Context) ([]*fly.Machine, error)
 	ListFlyAppsMachinesFunc  func(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
-	ListAppSecretsFunc       func(ctx context.Context, version *uint64) ([]fly.AppSecret, error)
+	ListAppSecretsFunc       func(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListSecretkeysFunc       func(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc           func(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc         func(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)

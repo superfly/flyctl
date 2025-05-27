@@ -39,7 +39,7 @@ type FlapsClient interface {
 	List(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActive(ctx context.Context) ([]*fly.Machine, error)
 	ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
-	ListAppSecrets(ctx context.Context, version *uint64) ([]fly.AppSecret, error)
+	ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListSecretkeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
