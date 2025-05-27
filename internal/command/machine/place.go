@@ -67,7 +67,7 @@ func runPlace(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	vm, err := flag.GetMachineGuest(ctx, guest)
+	guest, err = flag.GetMachineGuest(ctx, guest)
 	if err != nil {
 		return err
 	}
@@ -91,15 +91,18 @@ func runPlace(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	region := flag.GetString(ctx, "region")
+	if region == "" {
+		region = "any"
+	}
 	regions, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
-		VM:              vm,
-		Region:          flag.GetString(ctx, "region"),
-		Count:           int64(flag.GetInt(ctx, "count")),
-		VolumeName:      flag.GetString(ctx, "volume-name"),
-		VolumeSizeBytes: uint64(flag.GetInt(ctx, "volume-size") * units.GB),
-		Weights:         weights,
-		Size:            "",
-		Org:             orgSlug,
+		ComputeRequirements: guest,
+		Region:              region,
+		Count:               uint64(flag.GetInt(ctx, "count")),
+		VolumeName:          flag.GetString(ctx, "volume-name"),
+		VolumeSizeBytes:     uint64(flag.GetInt(ctx, "volume-size") * units.GB),
+		Weights:             weights,
+		Org:                 orgSlug,
 	})
 	if err != nil {
 		return fmt.Errorf("failed getting machine placements: %w", err)
@@ -112,22 +115,12 @@ func runPlace(ctx context.Context) error {
 	}
 
 	var rows [][]string
-	showConcurrency := false
 	for _, region := range regions {
 		count := fmt.Sprint(region.Count)
 		row := []string{region.Region, count}
-		if region.Concurrency != region.Count && region.Concurrency > 0 {
-			showConcurrency = true
-			row = append(row, fmt.Sprint(region.Concurrency))
-		}
 		rows = append(rows, row)
 	}
-
 	cols := []string{"Region", "Count"}
-	if showConcurrency {
-		cols = append(cols, "Concurrency")
-	}
-
 	return render.Table(out, "", rows, cols...)
 }
 
