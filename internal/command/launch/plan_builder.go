@@ -697,9 +697,9 @@ func determineRegion(ctx context.Context, config *appconfig.Config, org *fly.Org
 	}
 
 	placements, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
-		VM:    guest,
-		Count: 1,
-		Org:   org.Slug,
+		ComputeRequirements: guest,
+		Count:               1,
+		Org:                 org.Slug,
 	})
 	if err != nil {
 		return "", "", err
