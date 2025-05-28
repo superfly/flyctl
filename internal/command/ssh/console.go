@@ -254,13 +254,13 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 		return nil, err
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.List(ctx, "summary=true")
 	if err != nil {
 		return nil, err
 	}
 
 	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
-		return m.State == "started"
+		return m.State == "started" && !m.IsReleaseCommandMachine() && !m.IsFlyAppsConsole()
 	})
 
 	if len(machines) < 1 {

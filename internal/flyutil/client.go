@@ -7,6 +7,7 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/graphql"
 )
 
@@ -117,5 +118,9 @@ func NewContextWithClient(ctx context.Context, c Client) context.Context {
 // ClientFromContext returns the Client ctx carries.
 func ClientFromContext(ctx context.Context) Client {
 	c, _ := ctx.Value(contextKeyClient).(Client)
+	ch := cache.FromContext(ctx)
+	if ch != nil && c != nil {
+		return &CachedClient{ch, c}
+	}
 	return c
 }
