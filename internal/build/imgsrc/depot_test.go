@@ -6,12 +6,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func TestInitBuilder(t *testing.T) {
 	ctx := context.Background()
+	ctx = cache.NewContext(ctx, cache.New())
 	ctx = flyutil.NewContextWithClient(ctx, flyutil.NewClientFromOptions(ctx, fly.ClientOptions{BaseURL: "invalid://localhost"}))
 	ios, _, _, _ := iostreams.Test()
 	build := newBuild("build1", false)
