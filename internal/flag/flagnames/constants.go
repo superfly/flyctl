@@ -51,4 +51,7 @@ const (
 
 	// ProcessGroup denotes the name of the process group flag.
 	ProcessGroup = "process-group"
+
+	// MPGClusterID denotes the name of the MPG cluster ID flag.
+	MPGClusterID = "cluster"
 )

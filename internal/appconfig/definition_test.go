@@ -271,15 +271,13 @@ func TestToDefinition(t *testing.T) {
 		},
 		"metrics": []any{
 			map[string]any{
-				"port":  int64(9999),
-				"path":  "/metrics",
-				"https": false,
+				"port": int64(9999),
+				"path": "/metrics",
 			},
 			map[string]any{
 				"port":      int64(9998),
 				"path":      "/metrics",
 				"processes": []any{"web"},
-				"https":     false,
 			},
 		},
 		"statics": []any{

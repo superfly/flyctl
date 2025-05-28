@@ -52,7 +52,10 @@ func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, err
 		return nil, err
 	}
 
-	if buildinfo.Version().Equal(resVer) {
+	// Seems like the flyctl agent version is set when the agent is started,
+	// so, in development, it can't ever be equal to the flyctl version,
+	// which seems to be set at build time.
+	if buildinfo.Version().Equal(resVer) || (buildinfo.Version().Channel == "dev" && buildinfo.Version().Newer(resVer)) {
 		return c, nil
 	}
 

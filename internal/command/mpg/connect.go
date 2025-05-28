@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -26,6 +27,7 @@ func newConnect() (cmd *cobra.Command) {
 
 	flag.Add(cmd,
 		flag.Org(),
+		flag.MPGCluster(),
 	)
 
 	return cmd
@@ -41,6 +43,10 @@ func runConnect(ctx context.Context) (err error) {
 		return err
 	}
 
+	if cluster.Status != "ready" {
+		fmt.Fprintf(io.ErrOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
+	}
+
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
 		fmt.Fprintf(io.Out, "Could not find psql in your $PATH. Install it or point your psql at: %s", "someurl")
@@ -53,7 +59,7 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	name := fmt.Sprintf("pgdb-%s", cluster.Id)
-	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=require", name, password, localProxyPort, name)
+	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s", name, password, localProxyPort, name)
 	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
