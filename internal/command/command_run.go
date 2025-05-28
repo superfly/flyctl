@@ -108,7 +108,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		return nil, errors.New("could not find an image to deploy")
 	}
 
-	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
+	fmt.Fprintf(io.Out, "Image: %s\n", img.String())
 	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil

@@ -21,4 +21,4 @@ repos:
     rev: v1.54.2
     hooks:
     -   id: golangci-lint
-        stages: [commit]
+        stages: [pre-commit]

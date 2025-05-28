@@ -7,6 +7,7 @@ import (
 type PostgresPlan struct {
 	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
 	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
+	ManagedPostgres  *ManagedPostgresPlan  `json:"managed_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -19,10 +20,24 @@ func (p *PostgresPlan) Provider() any {
 	if p.SupabasePostgres != nil {
 		return p.SupabasePostgres
 	}
+	if p.ManagedPostgres != nil {
+		return p.ManagedPostgres
+	}
 	return nil
 }
 
-func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
+func DefaultPostgres(plan *LaunchPlan, mpgEnabled bool) PostgresPlan {
+	var vmRam, diskSizeGb, price int
+	if mpgEnabled {
+		vmRam = 1024 // 1GB RAM for basic plan
+		diskSizeGb = 10
+		price = 38
+	} else {
+		vmRam = 256
+		diskSizeGb = 1
+		price = -1
+	}
+
 	return PostgresPlan{
 		// TODO: Once supabase is GA, we want to default to Supabase
 		FlyPostgres: &FlyPostgresPlan{
@@ -32,9 +47,10 @@ func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 			//        so it constructs the name on-the-spot each time it needs it)
 			AppName:    plan.AppName + "-db",
 			VmSize:     "shared-cpu-1x",
-			VmRam:      256,
+			VmRam:      vmRam,
 			Nodes:      1,
-			DiskSizeGB: 1,
+			DiskSizeGB: diskSizeGb,
+			Price:      price,
 		},
 	}
 }
@@ -46,6 +62,7 @@ type FlyPostgresPlan struct {
 	Nodes      int    `json:"nodes"`
 	DiskSizeGB int    `json:"disk_size_gb"`
 	AutoStop   bool   `json:"auto_stop"`
+	Price      int    `json:"price"`
 }
 
 func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
@@ -70,6 +87,28 @@ func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
 }
 
 func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
+	if p.Region == "" {
+		return plan.RegionCode
+	}
+	return p.Region
+}
+
+type ManagedPostgresPlan struct {
+	DbName    string `json:"db_name"`
+	Region    string `json:"region"`
+	Plan      string `json:"plan"`
+	DiskSize  int    `json:"disk_size"`
+	ClusterID string `json:"cluster_id,omitempty"`
+}
+
+func (p *ManagedPostgresPlan) GetDbName(plan *LaunchPlan) string {
+	if p.DbName == "" {
+		return plan.AppName + "-db"
+	}
+	return p.DbName
+}
+
+func (p *ManagedPostgresPlan) GetRegion(plan *LaunchPlan) string {
 	if p.Region == "" {
 		return plan.RegionCode
 	}

@@ -512,7 +512,14 @@ func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
+
+	viewerUser, ok := tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser)
+	if ok {
+		return viewerUser.AgreedToProviderTos, nil
+	} else {
+		// If we are unable to determine if the user has agreed to the provider ToS, return false
+		return false, nil
+	}
 }
 
 func Status(ctx context.Context, provider gql.AddOnType) (err error) {
@@ -663,4 +670,5 @@ var PlatformMap = map[string]string{
 	"Remix":         "javascript-remix",
 	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
+	"Shopify":       "javascript-shopify",
 }

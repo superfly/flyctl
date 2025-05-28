@@ -179,7 +179,6 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	}
 
 	return machine, nil
-
 }
 
 func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Volume, error) {
@@ -324,6 +323,7 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 			Region:              region,
 		})
 		if retErr == nil {
+			region = volume.Region
 			break
 		}
 

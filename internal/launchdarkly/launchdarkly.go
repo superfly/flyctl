@@ -76,6 +76,22 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 	return ldClient, nil
 }
 
+func NewServiceClient() (*Client, error) {
+	ctx := context.Background()
+	_, span := tracing.GetTracer().Start(ctx, "new_flyctl_feature_flag_client")
+	defer span.End()
+
+	ldClient := &Client{ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"), flagsMutex: sync.Mutex{}}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	// we don't really care if this errors or not, but it's good to at least try
+	_ = ldClient.updateFeatureFlags(timeoutCtx)
+
+	go ldClient.monitor(ctx)
+	return ldClient, nil
+}
+
 func (ldClient *Client) monitor(ctx context.Context) {
 	logger := logger.MaybeFromContext(ctx)
 
@@ -176,4 +192,18 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	ldClient.flagsMutex.Unlock()
 
 	return nil
+}
+
+func (ldClient *Client) ManagedPostgresEnabled() bool {
+	choice := ldClient.getLaunchPostgresChoiceFlag()
+	return choice == "mpg" || choice == "both"
+}
+
+func (ldClient *Client) UnmanagedPostgresEnabled() bool {
+	choice := ldClient.getLaunchPostgresChoiceFlag()
+	return choice == "unmanaged-pg" || choice == "both"
+}
+
+func (ldClient *Client) getLaunchPostgresChoiceFlag() string {
+	return ldClient.GetFeatureFlagValue("launch-postgres-choice", "unmanaged-pg").(string)
 }
