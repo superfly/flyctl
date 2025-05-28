@@ -51,16 +51,12 @@ func QueryHostIssues(ctx context.Context) {
 
 	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
 		cancel()
-		select {
-		case hostIssues := <-statusCh:
-			logger.Debugf("querying for host issues resulted to %v", hostIssues)
-			hostIssuesCount := len(hostIssues)
-			if hostIssuesCount > 0 {
-				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
-					colorize.Yellow("WARNING: There are active host issues affecting your app. Please check `fly incidents hosts list` or visit your app in https://fly.io/dashboard\n"),
-				)
-				break
-			}
+		hostIssues := <-statusCh
+		logger.Debugf("querying for host issues resulted to %v", hostIssues)
+		if len(hostIssues) > 0 {
+			fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
+				colorize.Yellow("WARNING: There are active host issues affecting your app. Please check `fly incidents hosts list` or visit your app in https://fly.io/dashboard\n"),
+			)
 		}
 	})
 }

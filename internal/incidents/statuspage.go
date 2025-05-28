@@ -63,20 +63,15 @@ func QueryStatuspageIncidents(ctx context.Context) {
 
 	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
 		cancel()
-		select {
-		case incidents := <-statusCh:
-			if incidents == nil {
-				break
-			}
-
-			logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
-			incidentCount := len(incidents.Incidents)
-			if incidentCount > 0 {
-				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
-					colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n"),
-				)
-				break
-			}
+		incidents := <-statusCh
+		if incidents == nil {
+			return
+		}
+		logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
+		if len(incidents.Incidents) > 0 {
+			fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
+				colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n"),
+			)
 		}
 	})
 }
