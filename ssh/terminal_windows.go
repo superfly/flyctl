@@ -65,8 +65,6 @@ func watchWindowSize(ctx context.Context, fd windows.Handle, sess *ssh.Session, 
 			return err
 		}
 	}
-
-	return nil
 }
 
 func getConsoleSize(fd windows.Handle) (int, int, error) {
