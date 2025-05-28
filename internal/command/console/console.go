@@ -53,8 +53,12 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "select",
 			Shorthand:   "s",
-			Description: "Select the machine on which to execute the console from a list.",
+			Description: "Select the machine and container on which to execute the console from a list.",
 			Default:     false,
+		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to connect to",
 		},
 		flag.String{
 			Name:        "user",
@@ -221,6 +225,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
+		Container:      flag.GetString(ctx, "container"),
 		AppNames:       []string{app.Name},
 	}
 	sshClient, err := ssh.Connect(params, machine.PrivateIP)
@@ -234,7 +239,7 @@ func runConsole(ctx context.Context) error {
 		consoleCommand = flag.GetString(ctx, "command")
 	}
 
-	return ssh.Console(ctx, sshClient, consoleCommand, true)
+	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
 }
 
 func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {

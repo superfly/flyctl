@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/docker/docker/pkg/ioutils"
@@ -61,6 +62,10 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Shorthand:   "A",
 			Description: "Address of VM to connect to",
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to connect to",
+		},
 		flag.Bool{
 			Name:        "pty",
 			Description: "Allocate a pseudo-terminal (default: on when no command is provided)",
@@ -79,17 +84,34 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
-	addr, err = addrForMachines(ctx, app, console)
+func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, container string, err error) {
+	selectedMachine, err := selectMachine(ctx, app)
 	if err != nil {
-		return
+		return "", "", err
+	}
+
+	container, err = selectContainer(ctx, selectedMachine)
+	if err != nil {
+		return "", "", err
+	}
+
+	if addr = flag.GetString(ctx, "address"); addr != "" {
+		return addr, container, nil
+	}
+
+	if addr == "" {
+		if console && len(flag.Args(ctx)) != 0 {
+			addr = flag.Args(ctx)[0]
+		} else {
+			addr = selectedMachine.PrivateIP
+		}
 	}
 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
-			return "", errors.Wrapf(err, "host unavailable at %s", addr)
+			return "", "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
 
@@ -155,7 +177,7 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	addr, err := lookupAddress(ctx, agentclient, dialer, app, true)
+	addr, container, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, true)
 	if err != nil {
 		return err
 	}
@@ -177,6 +199,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),
+		Container:      container,
 		AppNames:       []string{app.Name},
 	}
 	sshc, err := Connect(params, addr)
@@ -185,7 +208,7 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	if err := Console(ctx, sshc, cmd, allocPTY); err != nil {
+	if err := Console(ctx, sshc, cmd, allocPTY, params.Container); err != nil {
 		captureError(ctx, err, app)
 		return err
 	}
@@ -193,7 +216,7 @@ func runConsole(ctx context.Context) error {
 	return nil
 }
 
-func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool) error {
+func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, container string) error {
 	currentStdin, currentStdout, currentStderr, err := setupConsole()
 	defer func() error {
 		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
@@ -214,26 +237,26 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		TermEnv:  determineTermEnv(),
 	}
 
-	if err := sshClient.Shell(ctx, sessIO, cmd); err != nil {
+	if err := sshClient.Shell(ctx, sessIO, cmd, container); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
 	return err
 }
 
-func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
+func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
 		AppName:    app.Name,
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	machines, err := flapsClient.List(ctx, "summary=true")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
@@ -241,7 +264,7 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 	})
 
 	if len(machines) < 1 {
-		return "", fmt.Errorf("app %s has no started VMs.\nIt may be unhealthy or not have been deployed yet.\nTry the following command to verify:\n\nfly status", app.Name)
+		return nil, fmt.Errorf("app %s has no started VMs.\nIt may be unhealthy or not have been deployed yet.\nTry the following command to verify:\n\nfly status", app.Name)
 	}
 
 	if region := flag.GetRegion(ctx); region != "" {
@@ -249,7 +272,7 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 			return m.Region == region
 		})
 		if len(machines) < 1 {
-			return "", fmt.Errorf("app %s has no VMs in region %s", app.Name, region)
+			return nil, fmt.Errorf("app %s has no VMs in region %s", app.Name, region)
 		}
 	}
 
@@ -258,7 +281,7 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 			return m.ProcessGroup() == group
 		})
 		if len(machines) < 1 {
-			return "", fmt.Errorf("app %s has no VMs in process group %s", app.Name, group)
+			return nil, fmt.Errorf("app %s has no VMs in process group %s", app.Name, group)
 		}
 	}
 
@@ -295,15 +318,23 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 		namesWithRegion = append(namesWithRegion, nameWithRegion)
 	}
 
+	if machineID != "" && selectedMachine == nil {
+		return nil, fmt.Errorf("--machine=%q not found/started", machineID)
+	}
+
 	if flag.GetBool(ctx, "select") {
 		if flag.IsSpecified(ctx, "machine") {
-			return "", errors.New("--machine can't be used with -s/--select")
+			return nil, errors.New("--machine can't be used with -s/--select")
 		}
 
 		selected := 0
 
-		if prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
-			return "", fmt.Errorf("selecting VM: %w", err)
+		if len(namesWithRegion) > 1 {
+			if err = prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
+				return nil, fmt.Errorf("selecting VM: %w", err)
+			}
+		} else if len(machines) == 1 {
+			fmt.Fprintf(out, "Only one machine available, selecting %s in region %s\n", machines[0].ID, machines[0].Region)
 		}
 
 		selectedMachine = machines[selected]
@@ -314,33 +345,75 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
 			_, err := flapsClient.Start(ctx, selectedMachine.ID, "")
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 
 			err = flapsClient.Wait(ctx, selectedMachine, "started", 60*time.Second)
 
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 	}
 
-	if addr = flag.GetString(ctx, "address"); addr != "" {
-		return addr, nil
-	}
-
-	if console {
-		if len(flag.Args(ctx)) != 0 {
-			return flag.Args(ctx)[0], nil
-		}
-	}
+	// No VM was selected or passed as an argument, so just pick the first one for now
+	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
 
 	if selectedMachine == nil {
 		selectedMachine = machines[0]
+
+		if len(machines) > 1 || flag.GetBool(ctx, "select") {
+			fmt.Fprintf(out, "No machine specified, using %s in region %s\n", selectedMachine.ID, selectedMachine.Region)
+		}
 	}
-	// No VM was selected or passed as an argument, so just pick the first one for now
-	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
-	return selectedMachine.PrivateIP, nil
+
+	return selectedMachine, nil
+}
+
+// selectContainer selects a container from the machine's config.
+func selectContainer(ctx context.Context, machine *fly.Machine) (container string, err error) {
+	containers := machine.Config.Containers
+	container = flag.GetString(ctx, "container")
+
+	if len(containers) == 0 {
+		if container == "" {
+			return "", nil
+		} else {
+			return "", fmt.Errorf("no containers found for machine %s", machine.ID)
+		}
+	} else if len(containers) == 1 {
+		if container == "" || container == containers[0].Name {
+			return containers[0].Name, nil
+		} else {
+			return "", fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID)
+		}
+	} else {
+		var availableContainers []string
+		for _, c := range containers {
+			availableContainers = append(availableContainers, c.Name)
+		}
+
+		if container == "" {
+			selected := 0
+			if len(availableContainers) > 1 {
+				if flag.GetBool(ctx, "select") {
+					if err = prompt.Select(ctx, &selected, "Select container:", "", availableContainers...); err != nil {
+						return "", fmt.Errorf("selecting container: %w", err)
+					}
+				} else {
+					fmt.Printf("No container specified, using %s\n", availableContainers[0])
+				}
+			}
+			return availableContainers[selected], nil
+		} else {
+			if slices.Contains(availableContainers, container) {
+				return container, nil
+			} else {
+				return "", fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID)
+			}
+		}
+	}
+
 }
 
 const defaultTermEnv = "xterm"

@@ -51,6 +51,7 @@ type SourceInfo struct {
 	BuildArgs        map[string]string
 	Builder          string
 	ReleaseCmd       string
+	SeedCmd          string
 	DockerCommand    string
 	DockerEntrypoint string
 	KillSignal       string
@@ -86,6 +87,7 @@ type SourceInfo struct {
 	AutoInstrumentErrors            bool
 	FailureCallback                 func(err error) error
 	Runtime                         plan.RuntimeStruct
+	PostInitCallback                func() error
 }
 
 type SourceFile struct {

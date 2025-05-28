@@ -58,6 +58,15 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
+	// Pilot Container support: configuration, including the set of containers, can either
+	// be specified in a separate file or in the fly.toml file itself.  If containers are
+	// defined, one container can be identified as the "app" container, which is the
+	// the one where the image is replaced upon deploy.  If no container is identified,
+	// this will default to the "app" container, and if that is not present, the first
+	// container in the list will be used.
+	MachineConfig string `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
+	Container     string `toml:"container,omitempty" json:"container,omitempty"`
+
 	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
 
 	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
@@ -93,6 +102,7 @@ type Deploy struct {
 	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
 	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	ReleaseCommandCompute *Compute      `toml:"release_command_vm,omitempty" json:"release_command_vm,omitempty"`
+	SeedCommand           string        `toml:"seed_command,omitempty" json:"seed_command,omitempty"`
 }
 
 type File struct {

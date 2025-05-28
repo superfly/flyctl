@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
 )
 
 type LeasableMachine interface {
@@ -323,16 +323,6 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
 	defer cancel()
 
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
-	for _, s := range lm.Machine().Config.Services {
-		checkDefs = append(checkDefs, s.Checks...)
-	}
-	shortestInterval := 120 * time.Second
-	for _, c := range checkDefs {
-		if c.Interval != nil && c.Interval.Duration < shortestInterval {
-			shortestInterval = c.Interval.Duration
-		}
-	}
 	b := &backoff.Backoff{
 		Min:    1 * time.Second,
 		Max:    2 * time.Second,
@@ -498,23 +488,25 @@ func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leas
 }
 
 func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, duration time.Duration, delayBetween time.Duration) {
-	var (
-		err error
-		b   = &backoff.Backoff{
-			Min:    delayBetween - 20*time.Millisecond,
-			Max:    delayBetween + 20*time.Millisecond,
-			Jitter: true,
-		}
-	)
+	b := &backoff.Backoff{
+		Min:    delayBetween - 20*time.Millisecond,
+		Max:    delayBetween + 20*time.Millisecond,
+		Jitter: true,
+	}
+
 	for {
-		err = lm.RefreshLease(ctx, duration)
-		switch {
+		time.Sleep(b.Duration())
+		switch err := lm.RefreshLease(ctx, duration); {
+		case err == nil:
+			// good times
 		case errors.Is(err, context.Canceled):
 			return
-		case err != nil:
+		case strings.Contains(err.Error(), "machine not found"):
+			// machine is gone, no need to refresh its lease
+			return
+		default:
 			terminal.Warnf("error refreshing lease for machine %s: %v\n", lm.machine.ID, err)
 		}
-		time.Sleep(b.Duration())
 	}
 }
 
@@ -551,19 +543,26 @@ func (lm *leasableMachine) resetLease() {
 
 func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration) {
 	minInterval := 60 * time.Second
-
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
-	for _, s := range lm.Machine().Config.Services {
-		checkDefs = append(checkDefs, s.Checks...)
-	}
 	minGracePeriod := time.Second
-	for _, c := range checkDefs {
+
+	for _, c := range lm.Machine().Config.Checks {
 		if c.Interval != nil && c.Interval.Duration < minInterval {
 			minInterval = c.Interval.Duration
 		}
 
 		if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
 			minGracePeriod = c.GracePeriod.Duration
+		}
+	}
+	for _, s := range lm.Machine().Config.Services {
+		for _, c := range s.Checks {
+			if c.Interval != nil && c.Interval.Duration < minInterval {
+				minInterval = c.Interval.Duration
+			}
+
+			if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
+				minGracePeriod = c.GracePeriod.Duration
+			}
 		}
 	}
 

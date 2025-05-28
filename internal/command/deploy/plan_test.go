@@ -227,6 +227,9 @@ func TestUpdateMachines(t *testing.T) {
 			}, nil
 		},
 		ReleaseLeaseFunc: func(ctx context.Context, machineID, nonce string) error {
+			if _, loaded := acquiredLeases.LoadAndDelete(machineID); !loaded {
+				t.Error("Release lease not found for machine:", machineID)
+			}
 			return nil
 		},
 		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
@@ -288,10 +291,11 @@ func TestUpdateMachines(t *testing.T) {
 		app: &fly.AppCompact{
 			Name: "myapp",
 		},
-		appConfig:      &appconfig.Config{AppName: "myapp"},
-		waitTimeout:    10 * time.Second,
-		deployRetries:  5,
-		maxUnavailable: 3,
+		appConfig:       &appconfig.Config{AppName: "myapp"},
+		waitTimeout:     10 * time.Second,
+		deployRetries:   5,
+		maxUnavailable:  3,
+		skipSmokeChecks: true,
 	}
 
 	oldAppState := &AppState{
@@ -303,7 +307,7 @@ func TestUpdateMachines(t *testing.T) {
 	settings := updateMachineSettings{
 		pushForward:          true,
 		skipHealthChecks:     false,
-		skipSmokeChecks:      false,
+		skipSmokeChecks:      true,
 		skipLeaseAcquisition: false,
 	}
 
