@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -19,6 +20,7 @@ func _getValidationContext(t *testing.T) context.Context {
 	require.NoError(t, err)
 	ctx, err = preparers.LoadConfig(ctx)
 	require.NoError(t, err)
+	ctx = cache.NewContext(ctx, cache.New())
 	ctx, err = preparers.InitClient(ctx)
 	require.NoError(t, err)
 	return ctx
