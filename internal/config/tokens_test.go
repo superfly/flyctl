@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/macaroon"
@@ -18,6 +19,7 @@ import (
 
 func TestFetchOrgTokens(t *testing.T) {
 	ctx := logger.NewContext(context.Background(), logger.New(os.Stdout, logger.Debug, true))
+	ctx = cache.NewContext(ctx, cache.New())
 
 	// no tokens
 	created, err := doFetchOrgTokens(ctx, &tokens.Tokens{}, nil, nil)
