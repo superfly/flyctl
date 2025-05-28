@@ -190,10 +190,13 @@ func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLC
 	}
 
 	if uucb != nil {
+		// Update without UserURLCallback to fetch tokens in parallel.
 		updated, err := t.Update(ctx, updateOpts...)
 		if err == nil || !strings.Contains(err.Error(), "missing user-url callback") {
 			return updated, err
 		}
+
+		// Retry with UserURLCallback if we received a 'missing user-url callback' error.
 		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
 	}
 
