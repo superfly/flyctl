@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -255,6 +256,16 @@ func (s *Server) ReadFromProgram() {
 
 // HandleHTTPRequest handles incoming HTTP requests
 func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	// Access logging
+	log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
+	for name, values := range r.Header {
+		if strings.EqualFold(name, "Authorization") {
+			log.Printf("Header: %s: [REDACTED]", name)
+		} else {
+			log.Printf("Header: %s: %v", name, values)
+		}
+	}
+
 	if s.private {
 		clientIP := r.Header.Get("Fly-Client-Ip")
 		if clientIP != "" && !strings.HasPrefix(clientIP, "fdaa:") {
@@ -329,6 +340,9 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else if r.Method == http.MethodPost {
+		// Capture request body for logging
+		var bodyBuf bytes.Buffer
+		r.Body = io.NopCloser(io.TeeReader(r.Body, &bodyBuf))
 		// Stream request body to program's stdin, but inspect the last byte
 		var lastByte byte
 		buf := make([]byte, 4096)
@@ -362,6 +376,8 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Error flushing stdin: %v", err)
 			}
 		}
+
+		log.Printf("Request body: %s", bodyBuf.String())
 
 		// Successfully wrote to program
 		w.WriteHeader(http.StatusAccepted)
