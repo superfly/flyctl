@@ -142,6 +142,11 @@ func GetOrg(ctx context.Context) string {
 	return org
 }
 
+// GetMPGClusterID is shorthand for GetString(ctx, "cluster").
+func GetMPGClusterID(ctx context.Context) string {
+	return GetString(ctx, flagnames.MPGClusterID)
+}
+
 // GetRegion is shorthand for GetString(ctx, Region).
 func GetRegion(ctx context.Context) string {
 	return GetString(ctx, flagnames.Region)

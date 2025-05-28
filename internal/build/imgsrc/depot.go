@@ -10,12 +10,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
 	depotbuild "github.com/depot/depot-go/build"
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -119,9 +117,15 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	return image, "", nil
 }
 
-func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build, scope depotBuilderScope) (*DeploymentImage, error) {
+func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build, scope depotBuilderScope) (i *DeploymentImage, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "depot_build", trace.WithAttributes(opts.ToSpanAttributes()...))
-	defer span.End()
+	defer func() {
+		if retErr != nil {
+			streams.StopProgressIndicator()
+			span.RecordError(retErr)
+		}
+		span.End()
+	}()
 
 	buildState.BuilderInitStart()
 	buildState.SetBuilderMetaPart1(depotBuilderType, "", "")
@@ -135,10 +139,13 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		}
 	}
 
-	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams, scope)
+	// Building a container image may take multiple minutes.
+	// So we can only have the provisoning part in this context.
+	provisionCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	buildkit, build, buildErr := initBuilder(provisionCtx, buildState, opts.AppName, streams, scope)
 	if buildErr != nil {
-		streams.StopProgressIndicator()
-		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 	defer func() {
@@ -146,15 +153,10 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		build.Finish(buildErr)
 	}()
 
-	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancelConnect()
-
 	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
-	buildkitClient, buildErr = buildkit.Connect(connectCtx)
+	buildkitClient, buildErr = buildkit.Connect(provisionCtx)
 	if buildErr != nil {
-		streams.StopProgressIndicator()
-		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 
@@ -168,7 +170,6 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	res, buildErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
 	if buildErr != nil {
 		buildState.BuildAndPushFinish()
-		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 	buildState.BuildAndPushFinish()
@@ -179,11 +180,20 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	return newDeploymentImage(res, opts.Tag)
 }
 
-func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (*depotmachine.Machine, *depotbuild.Build, error) {
+// initBuilder returns a Depot machine to build a container image.
+// Note that the caller is reponsible for passing a context with a resonable timeout.
+// Otherwise, the function cloud block indefinitely.
+func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
-	defer span.End()
 
-	defer buildState.BuilderInitFinish()
+	defer func() {
+		if retErr != nil {
+			streams.StopProgressIndicator()
+			span.RecordError(retErr)
+		}
+		buildState.BuilderInitFinish()
+		span.End()
+	}()
 
 	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
@@ -198,7 +208,6 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		BuilderScope: fly.StringPointer(builderScope.String()),
 	})
 	if err != nil {
-		streams.StopProgressIndicator()
 		return nil, nil, err
 	}
 
@@ -207,30 +216,14 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		return nil, nil, err
 	}
 
-	// Set the buildErr to any error that represents the build failing.
-	var finalBuildErr error
-
 	span.AddEvent("Acquiring Depot machine")
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
-	defer cancel()
-
-	buildkit, finalBuildErr := backoff.Retry(timeoutCtx, func() (*depotmachine.Machine, error) {
-		machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
-		if err != nil {
-			span.RecordError(err)
-			return nil, err
-		}
-
-		return machine, nil
-	}, backoff.WithMaxTries(2))
-
-	if finalBuildErr != nil {
-		streams.StopProgressIndicator()
-		return nil, nil, finalBuildErr
+	machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return buildkit, &build, err
+	return machine, &build, nil
 }
 
 func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOptions, dockerfilePath string) (*client.SolveResponse, error) {
@@ -301,16 +294,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		res, err = buildkitClient.Solve(ctx, nil, solverOptions, ch)
 		return err
 	})
-
-	eg.Go(func() error {
-		display, err := progressui.NewDisplay(os.Stderr, progressui.AutoMode)
-		if err != nil {
-			return err
-		}
-
-		_, err = display.UpdateFrom(context.Background(), ch)
-		return err
-	})
+	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
 		span.RecordError(err)
