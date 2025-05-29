@@ -254,7 +254,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 		return nil, err
 	}
 
-	machines, err := flapsClient.List(ctx, "summary=true")
+	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return nil, err
 	}
