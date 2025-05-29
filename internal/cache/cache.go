@@ -69,7 +69,8 @@ const defaultChannel = "latest"
 // New initializes and returns a reference to a new cache.
 func New() Cache {
 	return &cache{
-		channel: defaultChannel,
+		channel:     defaultChannel,
+		objectCache: make(map[string]*CachedObject),
 	}
 }
 
@@ -83,15 +84,22 @@ type cache struct {
 	objectCache   map[string]*CachedObject
 }
 
-func (c *cache) Fetch(key string, expiresIn time.Duration, refreshIn time.Duration, fetchFn func() (any, error)) (any, error) {
+func (c *cache) Get(key string) (*CachedObject, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	obj, ok := c.objectCache[key]
+	return obj, ok
+}
+
+func (c *cache) Fetch(key string, expiresIn time.Duration, refreshIn time.Duration, fetchFn func() (any, error)) (any, error) {
 	fetch := func() (any, error) {
 		obj, err := fetchFn()
 		if err != nil {
 			return nil, err
 		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
 		c.objectCache[key] = &CachedObject{
 			ExpiresAt: time.Now().Add(expiresIn),
 			RefreshAt: time.Now().Add(refreshIn),
@@ -100,11 +108,9 @@ func (c *cache) Fetch(key string, expiresIn time.Duration, refreshIn time.Durati
 		c.dirty = true
 		return obj, nil
 	}
-	if c.objectCache == nil {
-		c.objectCache = map[string]*CachedObject{}
-	}
 
-	if obj := c.objectCache[key]; obj != nil && obj.ExpiresAt.After(time.Now()) {
+
+	if obj, ok := c.Get(key); ok && obj.ExpiresAt.After(time.Now()) {
 		if obj.RefreshAt.Before(time.Now()) {
 			go func() { _, _ = fetch() }()
 		}
@@ -280,6 +286,9 @@ func Load(path string) (c Cache, err error) {
 
 	var w wrapper
 	if err = yaml.NewDecoder(f).Decode(&w); err == nil {
+		if w.ObjectCache == nil {
+			w.ObjectCache = make(map[string]*CachedObject)
+		}
 		c = &cache{
 			channel:       w.Channel,
 			lastCheckedAt: w.LastCheckedAt,
