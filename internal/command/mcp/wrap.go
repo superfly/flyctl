@@ -256,13 +256,17 @@ func (s *Server) ReadFromProgram() {
 
 // HandleHTTPRequest handles incoming HTTP requests
 func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	debugLog := os.Getenv("LOG_LEVEL") == "debug"
+
 	// Access logging
-	log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
-	for name, values := range r.Header {
-		if strings.EqualFold(name, "Authorization") {
-			log.Printf("Header: %s: [REDACTED]", name)
-		} else {
-			log.Printf("Header: %s: %v", name, values)
+	if debugLog {
+		log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
+		for name, values := range r.Header {
+			if strings.EqualFold(name, "Authorization") {
+				log.Printf("Header: %s: [REDACTED]", name)
+			} else {
+				log.Printf("Header: %s: %v", name, values)
+			}
 		}
 	}
 
@@ -340,9 +344,13 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else if r.Method == http.MethodPost {
-		// Capture request body for logging
-		var bodyBuf bytes.Buffer
-		r.Body = io.NopCloser(io.TeeReader(r.Body, &bodyBuf))
+		if debugLog {
+			// Capture request body for logging
+			var bodyBuf bytes.Buffer
+			r.Body = io.NopCloser(io.TeeReader(r.Body, &bodyBuf))
+			log.Printf("Request body: %s", bodyBuf.String())
+		}
+
 		// Stream request body to program's stdin, but inspect the last byte
 		var lastByte byte
 		buf := make([]byte, 4096)
@@ -376,8 +384,6 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Error flushing stdin: %v", err)
 			}
 		}
-
-		log.Printf("Request body: %s", bodyBuf.String())
 
 		// Successfully wrote to program
 		w.WriteHeader(http.StatusAccepted)
