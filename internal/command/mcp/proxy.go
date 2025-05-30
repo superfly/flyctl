@@ -49,6 +49,22 @@ var sharedProxyFlags = flag.Set{
 		Name:        "instance",
 		Description: "Use fly-force-instance-id to connect to a specific instance",
 	},
+	flag.Bool{
+		Name:        "sse",
+		Description: "Use Server-Sent Events (SSE) for the MCP connection",
+	},
+	flag.Bool{
+		Name:        "stream",
+		Description: "Use streaming for the MCP connection",
+	},
+	flag.Int{
+		Name:        "timeout",
+		Description: "Timeout in seconds for the MCP connection",
+	},
+	flag.Bool{
+		Name:        "ping",
+		Description: "Enable ping for the MCP connection",
+	},
 }
 
 func NewProxy() *cobra.Command {
@@ -108,26 +124,35 @@ func NewInspect() *cobra.Command {
 	return cmd
 }
 
-func runProxy(ctx context.Context) error {
+func getInfo(ctx context.Context) mcpProxy.ProxyInfo {
 	proxyInfo := mcpProxy.ProxyInfo{
 		Url:         flag.GetString(ctx, "url"),
 		BearerToken: flag.GetString(ctx, "bearer-token"),
 		User:        flag.GetString(ctx, "user"),
 		Password:    flag.GetString(ctx, "password"),
 		Instance:    flag.GetString(ctx, "instance"),
+		Mode:        "passthru", // Default mode is passthru
+		Timeout:     flag.GetInt(ctx, "timeout"),
+		Ping:        flag.GetBool(ctx, "ping"),
 	}
+
+	if flag.GetBool(ctx, "sse") {
+		proxyInfo.Mode = "sse"
+	} else if flag.GetBool(ctx, "stream") {
+		proxyInfo.Mode = "stream"
+	}
+
+	return proxyInfo
+}
+
+func runProxy(ctx context.Context) error {
+	proxyInfo := getInfo(ctx)
 
 	return runProxyOrInspect(ctx, proxyInfo, flag.GetBool(ctx, "inspector"))
 }
 
 func runInspect(ctx context.Context) error {
-	proxyInfo := mcpProxy.ProxyInfo{
-		Url:         flag.GetString(ctx, "url"),
-		BearerToken: flag.GetString(ctx, "bearer-token"),
-		User:        flag.GetString(ctx, "user"),
-		Password:    flag.GetString(ctx, "password"),
-		Instance:    flag.GetString(ctx, "instance"),
-	}
+	proxyInfo := getInfo(ctx)
 
 	server := flag.GetString(ctx, "server")
 
@@ -197,6 +222,20 @@ func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspec
 		if proxyInfo.Password != "" {
 			args = append(args, "--password", proxyInfo.Password)
 		}
+		if proxyInfo.Instance != "" {
+			args = append(args, "--instance", proxyInfo.Instance)
+		}
+		if proxyInfo.Mode == "sse" {
+			args = append(args, "--sse")
+		} else if proxyInfo.Mode == "stream" {
+			args = append(args, "--stream")
+		}
+		if proxyInfo.Timeout > 0 {
+			args = append(args, "--timeout", fmt.Sprintf("%d", proxyInfo.Timeout))
+		}
+		if proxyInfo.Ping {
+			args = append(args, "--ping")
+		}
 
 		// Launch MCP inspector
 		cmd := exec.Command("npx", args...)
@@ -219,7 +258,20 @@ func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspec
 	// Configure logging to go to stderr only
 	log.SetOutput(os.Stderr)
 
-	err = mcpProxy.Passthru(ctx, proxyInfo)
+	if flag.GetBool(ctx, "sse") {
+		proxyInfo.Mode = "sse"
+	} else if flag.GetBool(ctx, "stream") {
+		proxyInfo.Mode = "stream"
+	}
+
+	if proxyInfo.Mode == "passthru" {
+		fmt.Fprintf(os.Stderr, "Starting MCP proxy passthru mode for URL: %s\n", proxyInfo.Url)
+		err = mcpProxy.Passthru(proxyInfo)
+	} else {
+		fmt.Fprintf(os.Stderr, "Starting MCP proxy in %s mode for URL: %s\n", proxyInfo.Mode, proxyInfo.Url)
+		err = mcpProxy.Replay(ctx, proxyInfo)
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}
