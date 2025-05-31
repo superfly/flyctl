@@ -2,11 +2,14 @@ package launch
 
 import (
 	"context"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func NewPlan() *cobra.Command {
@@ -47,6 +50,16 @@ func newPropose() *cobra.Command {
 			Name:        "manifest",
 			Description: "Output the proposed manifest",
 			Default:     true,
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "name",
+			Description: `Name of the new app`,
+		},
+		flag.String{
+			Name:        "manifest-path",
+			Description: "Path to write the manifest to",
+			Default:     "",
 			Hidden:      true,
 		},
 	)
@@ -166,6 +179,10 @@ func RunPlan(ctx context.Context, step string) error {
 }
 
 func runPropose(ctx context.Context) error {
+	if flag.GetString(ctx, "manifest-path") == "" {
+		ctx = logger.NewContext(context.Background(), logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
+	}
+
 	RunPlan(ctx, "propose")
 	return nil
 }
