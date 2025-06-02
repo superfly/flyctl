@@ -217,15 +217,22 @@ func runLaunch(ctx context.Context) error {
 	args := []string{"launch", "--yes", "--no-deploy"}
 
 	if image != "" {
-		dockerfile := []string{
-			"FROM " + image,
-			"COPY --from=flyio/flyctl /flyctl /usr/bin/flyctl",
+		dockerfile := []string{"FROM " + image}
+
+		if image != "flyio/mcp" {
+			dockerfile = append(dockerfile, "COPY --from=flyio/flyctl /flyctl /usr/bin/flyctl")
+			entrypoint = append([]string{"/usr/bin/flyctl", "mcp", "wrap", "--"}, entrypoint...)
 		}
 
 		dockerfile = append(dockerfile, setup...)
 
+		jsonData, err := json.Marshal(entrypoint)
+		if err != nil {
+			return fmt.Errorf("failed to marshal entrypoint to JSON: %w", err)
+		}
+		dockerfile = append(dockerfile, "ENTRYPOINT "+string(jsonData))
+
 		if len(cmdParts) > 0 {
-			// Build the Dockerfile - no longer needed; but may once again be useful in the future?
 			jsonData, err := json.Marshal(cmdParts)
 			if err != nil {
 				return fmt.Errorf("failed to marshal command parts to JSON: %w", err)
@@ -233,13 +240,6 @@ func runLaunch(ctx context.Context) error {
 
 			dockerfile = append(dockerfile, "CMD "+string(jsonData))
 		}
-
-		entrypoint = append([]string{"/usr/bin/flyctl", "mcp", "wrap", "--"}, entrypoint...)
-		jsonData, err := json.Marshal(entrypoint)
-		if err != nil {
-			return fmt.Errorf("failed to marshal entrypoint to JSON: %w", err)
-		}
-		dockerfile = append(dockerfile, "ENTRYPOINT "+string(jsonData))
 
 		dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
 
