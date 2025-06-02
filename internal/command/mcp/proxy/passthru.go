@@ -3,7 +3,6 @@ package mcpProxy
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -16,7 +15,7 @@ import (
 	"time"
 )
 
-func Passthru(ctx context.Context, proxyInfo ProxyInfo) error {
+func Passthru(proxyInfo ProxyInfo) error {
 	err := waitForServer(proxyInfo)
 	if err != nil {
 		return fmt.Errorf("error waiting for server: %w", err)
