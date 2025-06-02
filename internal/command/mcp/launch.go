@@ -105,6 +105,10 @@ func NewLaunch() *cobra.Command {
 			Name:        "image",
 			Description: "The image to use for the app",
 		},
+		flag.StringSlice{
+			Name:        "setup",
+			Description: "Additional setup commands to run before launching the MCP server",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -134,6 +138,11 @@ func runLaunch(ctx context.Context) error {
 		return fmt.Errorf("missing command or image to run")
 	}
 
+	setup := flag.GetStringSlice(ctx, "setup")
+	if len(setup) > 0 && image == "" {
+		image = "flyio/mcp"
+	}
+
 	// extract the entrypoint from the image
 	entrypoint := []string{}
 	if image != "" {
@@ -150,7 +159,10 @@ func runLaunch(ctx context.Context) error {
 			return fmt.Errorf("failed to get image config: %w", err)
 		}
 		entrypoint = cfg.Config.Entrypoint
-		cmdParts = cfg.Config.Cmd
+
+		if len(cmdParts) == 0 {
+			cmdParts = cfg.Config.Cmd
+		}
 	}
 
 	// determine the name of the MCP server
@@ -209,6 +221,8 @@ func runLaunch(ctx context.Context) error {
 			"FROM " + image,
 			"COPY --from=flyio/flyctl /flyctl /usr/bin/flyctl",
 		}
+
+		dockerfile = append(dockerfile, setup...)
 
 		if len(cmdParts) > 0 {
 			// Build the Dockerfile - no longer needed; but may once again be useful in the future?
