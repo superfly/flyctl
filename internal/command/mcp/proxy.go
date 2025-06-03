@@ -154,9 +154,7 @@ func runProxy(ctx context.Context) error {
 func runInspect(ctx context.Context) error {
 	proxyInfo := getInfo(ctx)
 
-	server := flag.GetString(ctx, "server")
-
-	configPaths, err := ListConfigPaths(ctx, true)
+	server, configPaths, err := SelectServerAndConfig(ctx, false)
 	if err != nil {
 		return err
 	}

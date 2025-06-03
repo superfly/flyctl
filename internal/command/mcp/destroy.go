@@ -30,7 +30,7 @@ func NewDestroy() *cobra.Command {
 			Name:        "server",
 			Description: "Name of the MCP server in the MCP client configuration",
 		},
-		flag.String{
+		flag.StringArray{
 			Name:        "config",
 			Description: "Path to the MCP client configuration file",
 		},
@@ -57,9 +57,7 @@ func runDestroy(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	if appName == "" {
-		server := flag.GetString(ctx, "server")
-
-		configPaths, err := ListConfigPaths(ctx, true)
+		server, configPaths, err := SelectServerAndConfig(ctx, true)
 		if err != nil {
 			return err
 		}
@@ -104,7 +102,7 @@ func runDestroy(ctx context.Context) error {
 
 	args = []string{}
 
-	// Add the MCP server to the MCP client configurations
+	// Remove the MCP server to the MCP client configurations
 	for client := range McpClients {
 		if flag.GetBool(ctx, client) {
 			args = append(args, "--"+client)
@@ -113,7 +111,7 @@ func runDestroy(ctx context.Context) error {
 
 	for _, config := range flag.GetStringArray(ctx, "config") {
 		if config != "" {
-			log.Debugf("Adding %s to MCP client configuration", config)
+			log.Debugf("Removing %s from the MCP client configuration", config)
 			args = append(args, "--config", config)
 		}
 	}
