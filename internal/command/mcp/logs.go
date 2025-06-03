@@ -53,22 +53,9 @@ func newLogs() *cobra.Command {
 }
 
 func runLogs(ctx context.Context) error {
-	// Get a list of config paths
-	configPaths, err := ListConfigPaths(ctx, true)
+	name, configPaths, err := SelectServerAndConfig(ctx, false)
 	if err != nil {
 		return err
-	}
-
-	if len(configPaths) == 0 {
-		return fmt.Errorf("no MCP client configuration files found")
-	} else if len(configPaths) > 1 {
-		return fmt.Errorf("multiple MCP client configuration files found, please specify one")
-	}
-
-	// Get the server name
-	name := flag.GetString(ctx, "server")
-	if name == "" {
-		return fmt.Errorf("please specify a server name")
 	}
 
 	server, err := configExtract(configPaths[0], name)
@@ -76,8 +63,8 @@ func runLogs(ctx context.Context) error {
 		return err
 	}
 
-	if app, ok := server["app"]; ok {
-		args := []string{"logs", "--app", app.(string)}
+	if app, ok := server["app"].(string); ok {
+		args := []string{"logs", "--app", app}
 
 		if flag.GetBool(ctx, "json") {
 			args = append(args, "--json")
