@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -31,6 +32,13 @@ func newProxy() (cmd *cobra.Command) {
 		flag.Org(),
 		flag.Region(),
 		flag.MPGCluster(),
+
+		flag.String{
+			Name:        flagnames.BindAddr,
+			Shorthand:   "b",
+			Default:     "127.0.0.1",
+			Description: "Local address to bind to",
+		},
 	)
 
 	return cmd
@@ -107,7 +115,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		Ports:            []string{localProxyPort, "5432"},
 		OrganizationSlug: org.Slug,
 		Dialer:           dialer,
-		BindAddr:         "localhost",
+		BindAddr:         flag.GetBindAddr(ctx),
 		RemoteHost:       cluster.IpAssignments.Direct,
 	}, response.Credentials.Password, nil
 }
