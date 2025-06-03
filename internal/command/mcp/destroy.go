@@ -57,9 +57,7 @@ func runDestroy(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	if appName == "" {
-		server := flag.GetString(ctx, "server")
-
-		configPaths, err := ListConfigPaths(ctx, true)
+		server, configPaths, err := SelectServerAndConfig(ctx, false)
 		if err != nil {
 			return err
 		}
