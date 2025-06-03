@@ -6,7 +6,7 @@ on:
       region:
         description: Region
         required: false
-        default: ord
+        default: iad
         type: string
   workflow_call:
 
