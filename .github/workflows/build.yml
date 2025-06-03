@@ -38,4 +38,6 @@ jobs:
   preflight:
     needs: test_build
     uses: ./.github/workflows/preflight.yml
+    with:
+      region: ord
     secrets: inherit
