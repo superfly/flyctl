@@ -107,6 +107,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		Ports:            []string{localProxyPort, "5432"},
 		OrganizationSlug: org.Slug,
 		Dialer:           dialer,
+		BindAddr:         "localhost",
 		RemoteHost:       cluster.IpAssignments.Direct,
 	}, response.Credentials.Password, nil
 }
