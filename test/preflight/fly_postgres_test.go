@@ -206,7 +206,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
 	)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	result := f.Fly(
 		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT app_name FROM app_name'\"",
