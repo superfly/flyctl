@@ -126,8 +126,8 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name: "restart",
-		Description: `Set the restart policy for a Machine. Options include 'no', 'always', and 'on-fail'.
-	Default is 'on-fail' for Machines created by 'fly deploy' and Machines with a schedule. Default is 'always' for Machines created by 'fly m run'.`,
+		Description: `Set the restart policy for a Machine. Options include 'no', 'always', and 'on-failure'.
+	Default is 'on-failure' for Machines created by 'fly deploy' and Machines with a schedule. Default is 'always' for Machines created by 'fly m run'.`,
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
@@ -780,7 +780,7 @@ func determineMachineConfig(
 		machineConf.Restart = &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		}
-	case "on-fail":
+	case "on-failure":
 		machineConf.Restart = &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyOnFailure,
 		}
