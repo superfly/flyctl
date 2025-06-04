@@ -175,17 +175,7 @@ func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string)
 }
 
 func TestPostgres_ImportSuccess(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
 	f := testlib.NewTestEnvFromEnv(t)
-
-	// Since this explicitly sets a size, no need to test on GPUs/alternate
-	// sizes.
-	if f.VMSize != "" {
-		t.Skip()
-	}
 
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
@@ -216,6 +206,8 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
 	)
 
+	time.Sleep(5 * time.Second)
+
 	result := f.Fly(
 		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT app_name FROM app_name'\"",
 		secondAppName,
@@ -230,10 +222,6 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
