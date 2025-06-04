@@ -437,12 +437,15 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 		if len(choices) == 0 {
 			return "", nil, errors.New("no MCP servers found in the selected configuration files")
 		} else if len(choices) > 1 {
-			err := prompt.Select(ctx, &index, "Select a configuration file", "", choices...)
-			if err != nil {
+			switch err = prompt.Select(ctx, &index, "Select a configuration file", "", choices...); {
+			case err == nil:
+				if choiceIndex, ok := choiceMap[index]; ok {
+					index = choiceIndex
+				}
+			case prompt.IsNonInteractive(err):
+				return "", nil, prompt.NonInteractiveError("MCP client or config file must be specified when not running interactively")
+			default:
 				return "", nil, fmt.Errorf("failed to select configuration file: %w", err)
-			}
-			if choiceIndex, ok := choiceMap[index]; ok {
-				index = choiceIndex
 			}
 
 		}
@@ -473,12 +476,15 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 			server = choices[0]
 			log.Debugf("Only one MCP server found: %s", server)
 		} else {
-			err := prompt.Select(ctx, &index, "Select a MCP server", "", choices...)
-			if err != nil {
+			switch err = prompt.Select(ctx, &index, "Select a MCP server", "", choices...); {
+			case err == nil:
+				server = choices[index]
+				log.Debugf("Selected MCP server: %s", server)
+			case prompt.IsNonInteractive(err):
+				return "", nil, prompt.NonInteractiveError("server must be specified when not running interactively")
+			default:
 				return "", configPaths, fmt.Errorf("failed to select MCP server: %w", err)
 			}
-			server = choices[index]
-			log.Debugf("Selected MCP server: %s", server)
 		}
 	}
 
