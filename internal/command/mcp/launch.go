@@ -174,10 +174,14 @@ func runLaunch(ctx context.Context) error {
 	if serverName == "" {
 		serverName = "fly-mcp"
 
-		ingoreWords := []string{"npx", "uvx", "-y", "--yes"}
+		ignoreWords := []string{"npx", "uvx", "-y", "--yes", "go", "run"}
 
 		for _, w := range cmdParts {
-			if !slices.Contains(ingoreWords, w) {
+			if !slices.Contains(ignoreWords, w) {
+				if at := strings.Index(w, "@"); at != -1 {
+					w = w[:at]
+				}
+
 				re := regexp.MustCompile(`[-\w]+`)
 				split := re.FindAllString(w, -1)
 
@@ -215,6 +219,10 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	args := []string{"launch", "--yes", "--no-deploy"}
+
+	if cmdParts[0] == "go" && image == "" {
+		image = "golang:latest"
+	}
 
 	if image != "" {
 		dockerfile := []string{"FROM " + image}
