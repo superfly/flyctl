@@ -3,11 +3,14 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	mcpGo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -15,7 +18,9 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	mcpServer "github.com/superfly/flyctl/internal/command/mcp/server"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
 var COMMANDS = slices.Concat(
@@ -27,6 +32,10 @@ var COMMANDS = slices.Concat(
 	mcpServer.StatusCommands,
 	mcpServer.VolumeCommands,
 )
+
+type contextKey string
+
+const authTokenKey contextKey = "authToken"
 
 func newServer() *cobra.Command {
 	const (
@@ -53,6 +62,25 @@ func newServer() *cobra.Command {
 			Name:        "config",
 			Description: "Path to the MCP client configuration file (can be specified multiple times)",
 		},
+		flag.Bool{
+			Name:        "stream",
+			Description: "Enable HTTP streaming output for MCP commands",
+		},
+		flag.Bool{
+			Name:        "sse",
+			Description: "Enable Server-Sent Events (SSE) for MCP commands",
+		},
+		flag.Int{
+			Name:        "port",
+			Description: "Port to run the MCP server on (default is 8080)",
+			Default:     8080,
+		},
+		flag.String{
+			Name:        flagnames.BindAddr,
+			Shorthand:   "b",
+			Default:     "127.0.0.1",
+			Description: "Local address to bind to",
+		},
 	)
 
 	for client, name := range McpClients {
@@ -78,6 +106,9 @@ func runServer(ctx context.Context) error {
 		return fmt.Errorf("failed to list MCP client configuration paths: %w", err)
 	}
 
+	stream := flag.GetBool(ctx, "stream")
+	sse := flag.GetBool(ctx, "sse")
+
 	if flag.GetBool(ctx, "inspector") || len(configs) > 0 {
 		server := flag.GetString(ctx, "server")
 		if server == "" {
@@ -86,6 +117,25 @@ func runServer(ctx context.Context) error {
 
 		args := []string{"mcp", "server"}
 
+		if stream || sse {
+			args = []string{
+				"mcp",
+				"proxy",
+				"--url",
+				fmt.Sprintf("http://localhost:%d", flag.GetInt(ctx, "port")),
+			}
+
+			if token := getAccessToken(ctx); token != "" {
+				args = append(args, "--bearer-token", token)
+			}
+
+			if stream {
+				args = append(args, "--stream")
+			} else {
+				args = append(args, "--sse")
+			}
+		}
+
 		if len(configs) > 0 {
 			for _, config := range configs {
 				UpdateConfig(ctx, config.Path, config.ConfigName, server, flyctl, args)
@@ -93,6 +143,33 @@ func runServer(ctx context.Context) error {
 		}
 
 		if flag.GetBool(ctx, "inspector") {
+			var process *os.Process
+
+			// If sse or stream, start flyctl mcp server in the background
+			if stream || sse {
+				args := []string{"mcp", "server", "--port", strconv.Itoa(flag.GetInt(ctx, "port"))}
+
+				if token := getAccessToken(ctx); token != "" {
+					args = append(args, "--access-token", token)
+				}
+
+				if stream {
+					args = append(args, "--stream")
+				} else {
+					args = append(args, "--sse")
+				}
+
+				cmd := exec.Command(flyctl, args...)
+				cmd.Env = os.Environ()
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				if err := cmd.Start(); err != nil {
+					return fmt.Errorf("failed to start flyctl mcp server in background: %w", err)
+				}
+
+				process = cmd.Process
+			}
+
 			// Launch MCP inspector
 			args = append([]string{"@modelcontextprotocol/inspector@latest", flyctl}, args...)
 			cmd := exec.Command("npx", args...)
@@ -102,6 +179,13 @@ func runServer(ctx context.Context) error {
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("failed to launch MCP inspector: %w", err)
+			}
+
+			if process != nil {
+				// Attempt to kill the background process after inspector exits
+				if err := process.Kill(); err != nil {
+					fmt.Fprintf(os.Stderr, "failed to kill background flyctl mcp server: %v\n", err)
+				}
 			}
 		}
 
@@ -120,7 +204,11 @@ func runServer(ctx context.Context) error {
 		tool := func(ctx context.Context, request mcpGo.CallToolRequest) (*mcpGo.CallToolResult, error) {
 			// Extract arguments from the request
 			args := make(map[string]string)
-			for argName, argValue := range request.Params.Arguments {
+			argMap, ok := request.Params.Arguments.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("invalid arguments: expected map[string]any")
+			}
+			for argName, argValue := range argMap {
 				description, ok := cmd.ToolArgs[argName]
 				if !ok {
 					return nil, fmt.Errorf("unknown argument %s", argName)
@@ -198,8 +286,15 @@ func runServer(ctx context.Context) error {
 				return nil, fmt.Errorf("failed to build command: %w", err)
 			}
 
-			// Execute the command
+			// Log the command (without the auth token)
 			fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", cmdArgs)
+
+			// If auth token is present in context, add --access-token flag
+			if token, ok := ctx.Value(authTokenKey).(string); ok && token != "" {
+				cmdArgs = append(cmdArgs, "--access-token", token)
+			}
+
+			// Execute the command
 			execCmd := exec.Command(flyctl, cmdArgs...)
 			output, err := execCmd.CombinedOutput()
 			if err != nil {
@@ -289,10 +384,73 @@ func runServer(ctx context.Context) error {
 		)
 	}
 
-	fmt.Fprintf(os.Stderr, "Starting flyctl MCP server...\n")
-	if err := server.ServeStdio(srv); err != nil {
-		return fmt.Errorf("Server error: %v", err)
+	if defaultToken := getAccessToken(ctx); defaultToken != "" {
+		ctx = context.WithValue(ctx, authTokenKey, defaultToken)
+	}
+
+	if stream || sse {
+		port := flag.GetInt(ctx, "port")
+		var start func(string) error
+		var err error
+
+		// enable graceful shutdown on signals
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc,
+			syscall.SIGHUP,
+			syscall.SIGINT,
+			syscall.SIGTERM,
+			syscall.SIGQUIT)
+		go func() {
+			<-sigc
+			os.Exit(0)
+		}()
+
+		// Function to extract the auth token from the request context
+		extractAuthToken := func(ctx context.Context, r *http.Request) context.Context {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader != "" {
+				// Extract the token from the Authorization header
+				token := strings.TrimPrefix(authHeader, "Bearer ")
+				if token != authHeader { // Ensure it was a Bearer token
+					return context.WithValue(ctx, authTokenKey, token)
+				}
+			}
+
+			return ctx
+		}
+
+		if stream {
+			fmt.Fprintf(os.Stderr, "Starting flyctl MCP server in streaming mode on port %d...\n", port)
+			httpServer := server.NewStreamableHTTPServer(srv)
+			server.WithHTTPContextFunc(extractAuthToken)(httpServer)
+			start = httpServer.Start
+		} else {
+			fmt.Fprintf(os.Stderr, "Starting flyctl MCP server in SSE mode on port %d...\n", port)
+			sseServer := server.NewSSEServer(srv)
+			server.WithSSEContextFunc(extractAuthToken)(sseServer)
+			start = sseServer.Start
+		}
+
+		if err = start(fmt.Sprintf("%s:%d", flag.GetString(ctx, flagnames.BindAddr), port)); err != nil {
+			return fmt.Errorf("Server error: %v", err)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Starting flyctl MCP server...\n")
+		if err := server.ServeStdio(srv); err != nil {
+			return fmt.Errorf("Server error: %v", err)
+		}
 	}
 
 	return nil
+}
+
+func getAccessToken(ctx context.Context) string {
+	token := flag.GetString(ctx, flagnames.AccessToken)
+
+	if token == "" {
+		cfg := config.FromContext(ctx)
+		token = cfg.Tokens.GraphQL()
+	}
+
+	return token
 }
