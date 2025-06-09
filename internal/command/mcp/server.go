@@ -29,6 +29,7 @@ var COMMANDS = slices.Concat(
 	mcpServer.MachineCommands,
 	mcpServer.OrgCommands,
 	mcpServer.PlatformCommands,
+	mcpServer.SecretsCommands,
 	mcpServer.StatusCommands,
 	mcpServer.VolumeCommands,
 )
@@ -250,6 +251,24 @@ func runServer(ctx context.Context) error {
 					} else {
 						return nil, fmt.Errorf("argument %s must be an array of strings", argName)
 					}
+				case "hash":
+					if arrValue, ok := argValue.([]any); ok {
+						if len(arrValue) > 0 {
+							strArr := make([]string, len(arrValue))
+							for i, v := range arrValue {
+								if str, ok := v.(string); ok {
+									// Simple shell escaping: wrap value in single quotes and escape any single quotes inside
+									str = "'" + strings.ReplaceAll(str, "'", "'\\''") + "'"
+									strArr[i] = str
+								} else {
+									return nil, fmt.Errorf("argument %s must be an array of strings", argName)
+								}
+							}
+							args[argName] = strings.Join(strArr, " ")
+						}
+					} else {
+						return nil, fmt.Errorf("argument %s must be an array of strings", argName)
+					}
 				case "number":
 					if numValue, ok := argValue.(float64); ok {
 						args[argName] = strconv.FormatFloat(numValue, 'f', -1, 64)
@@ -372,6 +391,12 @@ func runServer(ctx context.Context) error {
 				}
 
 				toolOptions = append(toolOptions, mcpGo.WithBoolean(argName, options...))
+
+			case "hash":
+				schema := map[string]any{"type": "string"}
+				options = append(options, mcpGo.Items(schema))
+
+				toolOptions = append(toolOptions, mcpGo.WithArray(argName, options...))
 
 			default:
 				return fmt.Errorf("unsupported argument type %s for argument %s", arg.Type, argName)
