@@ -91,7 +91,7 @@ var SecretsCommands = []FlyCommand{
 	},
 
 	{
-		ToolName:        "fly-secrets-unset",
+		ToolName:        "fly-secrets-unset; changes are staged for the next deploy",
 		ToolDescription: "Unset secrets for the specified app",
 		ToolArgs: map[string]FlyArg{
 			"app": {
@@ -106,7 +106,7 @@ var SecretsCommands = []FlyCommand{
 			},
 		},
 		Builder: func(args map[string]string) ([]string, error) {
-			cmdArgs := []string{"secrets", "unset"}
+			cmdArgs := []string{"secrets", "unset", "--stage"}
 
 			app, ok := args["app"]
 			if !ok || app == "" {
