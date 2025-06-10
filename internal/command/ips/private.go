@@ -8,7 +8,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newPrivate() *cobra.Command {
@@ -44,7 +47,21 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	renderPrivateTableMachines(ctx, machines)
+
+	if flag.GetBool(ctx, flagnames.JSONOutput) {
+		privateIpAddresses := make([]string, 0, len(machines))
+
+		for _, machine := range machines {
+			if machine.PrivateIP != "" {
+				privateIpAddresses = append(privateIpAddresses, machine.PrivateIP)
+			}
+		}
+
+		out := iostreams.FromContext(ctx).Out
+		return render.JSON(out, privateIpAddresses)
+	} else {
+		renderPrivateTableMachines(ctx, machines)
+	}
 
 	return nil
 }
