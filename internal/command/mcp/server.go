@@ -306,8 +306,19 @@ func runServer(ctx context.Context) error {
 				return nil, fmt.Errorf("failed to build command: %w", err)
 			}
 
-			// Log the command (without the auth token)
-			fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", cmdArgs)
+			// Log the command (without the auth token and any secret values)
+			if len(cmdArgs) >= 2 && cmdArgs[0] == "secrets" && cmdArgs[1] == "set" {
+				loggedCmdArgs := append([]string(nil), cmdArgs...)
+				for i, arg := range loggedCmdArgs[2:] {
+					if strings.Contains(arg, "=") {
+						parts := strings.SplitN(arg, "=", 2)
+						loggedCmdArgs[i+2] = parts[0] + "=REDACTED"
+					}
+				}
+				fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", loggedCmdArgs)
+			} else {
+				fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", cmdArgs)
+			}
 
 			// If auth token is present in context, add --access-token flag
 			if token, ok := ctx.Value(authTokenKey).(string); ok && token != "" {
