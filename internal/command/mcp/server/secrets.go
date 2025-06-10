@@ -91,8 +91,8 @@ var SecretsCommands = []FlyCommand{
 	},
 
 	{
-		ToolName:        "fly-secrets-unset; changes are staged for the next deploy",
-		ToolDescription: "Unset secrets for the specified app",
+		ToolName:        "fly-secrets-unset",
+		ToolDescription: "Unset secrets for the specified app; changes are staged for the next deploy",
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
