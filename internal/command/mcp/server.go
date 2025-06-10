@@ -308,14 +308,14 @@ func runServer(ctx context.Context) error {
 
 			// Log the command (without the auth token and any secret values)
 			if len(cmdArgs) >= 2 && cmdArgs[0] == "secrets" && cmdArgs[1] == "set" {
-				loggedCmdArgs := append([]string(nil), cmdArgs...)
-				for i, arg := range loggedCmdArgs[2:] {
+				redactedCmdArgs := append([]string(nil), cmdArgs...)
+				for i, arg := range redactedCmdArgs[2:] {
 					if strings.Contains(arg, "=") {
 						parts := strings.SplitN(arg, "=", 2)
-						loggedCmdArgs[i+2] = parts[0] + "=REDACTED"
+						redactedCmdArgs[i+2] = parts[0] + "=REDACTED"
 					}
 				}
-				fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", loggedCmdArgs)
+				fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", redactedCmdArgs)
 			} else {
 				fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", cmdArgs)
 			}
