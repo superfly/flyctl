@@ -1,5 +1,7 @@
 package mcpServer
 
+import "context"
+
 // This file defines the structure and types used for Fly commands in the MCP server.
 // As JSON-RPC schema wrapped in MCP go functions is a bit verbose, we define a simpler
 // structure here to make it easier to define and dispatch commands.  This contains only
@@ -22,6 +24,7 @@ type FlyCommand struct {
 	ToolDescription string
 	ToolArgs        map[string]FlyArg
 	Builder         func(args map[string]string) ([]string, error)
+	Execute         func(ctx context.Context, cmd string, args ...string) ([]byte, error)
 }
 
 // FlyArg represents an argument for a Fly command

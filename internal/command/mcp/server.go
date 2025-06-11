@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -288,6 +289,16 @@ func runServer(ctx context.Context) error {
 				}
 			}
 
+			// if the request has a progress token, add it to the arguments
+			if request.Params.Meta != nil {
+				progressToken := request.Params.Meta.ProgressToken
+				if progressToken != nil {
+					if jsonBytes, err := json.Marshal(progressToken); err == nil {
+						args["_meta.progressToken"] = string(jsonBytes)
+					}
+				}
+			}
+
 			// Check for required arguments and fill in defaults
 			for argName, description := range cmd.ToolArgs {
 				if description.Required {
@@ -327,8 +338,14 @@ func runServer(ctx context.Context) error {
 			}
 
 			// Execute the command
-			execCmd := exec.Command(flyctl, cmdArgs...)
-			output, err := execCmd.CombinedOutput()
+			var output []byte
+			if cmd.Execute != nil {
+				output, err = cmd.Execute(ctx, flyctl, cmdArgs...)
+			} else {
+				execCmd := exec.Command(flyctl, cmdArgs...)
+				output, err = execCmd.CombinedOutput()
+			}
+
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error executing flyctl: %v\nOutput: %s\n", err, string(output))
 				return nil, fmt.Errorf("failed to execute command: %v\nOutput: %s", err, string(output))
