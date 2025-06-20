@@ -264,7 +264,7 @@ query ListAddOns($addOnType: AddOnType) {
 	}
 }
 
-query ListAddOnsForOrganization($addOnType: AddOnType, $organizationId: ID!) {
+query ListOrganizationAddOns($organizationId: ID!, $addOnType: AddOnType) {
 	organization(id: $organizationId) {
 		addOns(type: $addOnType) {
 			nodes {

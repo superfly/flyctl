@@ -48,7 +48,7 @@ func runList(ctx context.Context) (err error) {
 
 	var nodes []*gql.ListAddOnData
 	if org != nil {
-		response, err := gql.ListAddOnsForOrganization(ctx, client, "tigris", org.ID)
+		response, err := gql.ListOrganizationAddOns(ctx, client, org.ID, "tigris")
 		if err != nil {
 			return fmt.Errorf("error listing add-ons for organization: %w", err)
 		}
