@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -42,7 +41,7 @@ func runList(ctx context.Context) (err error) {
 		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	org, err := getOrg(ctx)
+	org, err := flyutil.OrgFromContextBySlug(ctx, flag.GetOrg(ctx))
 	if err != nil {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
@@ -78,16 +77,4 @@ func runList(ctx context.Context) (err error) {
 	_ = render.Table(out, "", rows, "Name", "Org")
 
 	return
-}
-
-func getOrg(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
-
-	orgName := flag.GetOrg(ctx)
-
-	if orgName == "" {
-		return nil, nil
-	}
-
-	return client.GetOrganizationBySlug(ctx, orgName)
 }
