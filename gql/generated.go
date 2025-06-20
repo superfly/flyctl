@@ -2406,6 +2406,79 @@ func (v *GetOrganizationResponse) GetOrganization() GetOrganizationOrganization 
 	return v.Organization
 }
 
+// ListAddOnData includes the GraphQL fields of AddOn requested by the fragment ListAddOnData.
+type ListAddOnData struct {
+	Id string `json:"id"`
+	// The service name according to the provider
+	Name string `json:"name"`
+	// The add-on plan
+	AddOnPlan ListAddOnDataAddOnPlan `json:"addOnPlan"`
+	// Private flycast IP address of the add-on
+	PrivateIp string `json:"privateIp"`
+	// Region where the primary instance is deployed
+	PrimaryRegion string `json:"primaryRegion"`
+	// Regions where replica instances are deployed
+	ReadRegions []string `json:"readRegions"`
+	// Add-on options
+	Options interface{} `json:"options"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
+	// Organization that owns this service
+	Organization ListAddOnDataOrganization `json:"organization"`
+}
+
+// GetId returns ListAddOnData.Id, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetId() string { return v.Id }
+
+// GetName returns ListAddOnData.Name, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetName() string { return v.Name }
+
+// GetAddOnPlan returns ListAddOnData.AddOnPlan, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetAddOnPlan() ListAddOnDataAddOnPlan { return v.AddOnPlan }
+
+// GetPrivateIp returns ListAddOnData.PrivateIp, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetPrivateIp() string { return v.PrivateIp }
+
+// GetPrimaryRegion returns ListAddOnData.PrimaryRegion, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
+
+// GetReadRegions returns ListAddOnData.ReadRegions, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOptions returns ListAddOnData.Options, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetOptions() interface{} { return v.Options }
+
+// GetMetadata returns ListAddOnData.Metadata, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetMetadata() interface{} { return v.Metadata }
+
+// GetOrganization returns ListAddOnData.Organization, and is useful for accessing the field via an interface.
+func (v *ListAddOnData) GetOrganization() ListAddOnDataOrganization { return v.Organization }
+
+// ListAddOnDataAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
+type ListAddOnDataAddOnPlan struct {
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+}
+
+// GetDisplayName returns ListAddOnDataAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
+func (v *ListAddOnDataAddOnPlan) GetDisplayName() string { return v.DisplayName }
+
+// GetDescription returns ListAddOnDataAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListAddOnDataAddOnPlan) GetDescription() string { return v.Description }
+
+// ListAddOnDataOrganization includes the requested fields of the GraphQL type Organization.
+type ListAddOnDataOrganization struct {
+	Id string `json:"id"`
+	// Unique organization slug
+	Slug string `json:"slug"`
+}
+
+// GetId returns ListAddOnDataOrganization.Id, and is useful for accessing the field via an interface.
+func (v *ListAddOnDataOrganization) GetId() string { return v.Id }
+
+// GetSlug returns ListAddOnDataOrganization.Slug, and is useful for accessing the field via an interface.
+func (v *ListAddOnDataOrganization) GetSlug() string { return v.Slug }
+
 // ListAddOnPlansAddOnPlansAddOnPlanConnection includes the requested fields of the GraphQL type AddOnPlanConnection.
 // The GraphQL type's documentation follows.
 //
@@ -2479,84 +2552,271 @@ func (v *ListAddOnsAddOnsAddOnConnection) GetNodes() []ListAddOnsAddOnsAddOnConn
 
 // ListAddOnsAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
 type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
-	Id string `json:"id"`
-	// The service name according to the provider
-	Name string `json:"name"`
-	// The add-on plan
-	AddOnPlan ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan `json:"addOnPlan"`
-	// Private flycast IP address of the add-on
-	PrivateIp string `json:"privateIp"`
-	// Region where the primary instance is deployed
-	PrimaryRegion string `json:"primaryRegion"`
-	// Regions where replica instances are deployed
-	ReadRegions []string `json:"readRegions"`
-	// Add-on options
-	Options interface{} `json:"options"`
-	// Add-on metadata
-	Metadata interface{} `json:"metadata"`
-	// Organization that owns this service
-	Organization ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization `json:"organization"`
+	ListAddOnData `json:"-"`
 }
 
 // GetId returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Id, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetId() string { return v.Id }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetId() string { return v.ListAddOnData.Id }
 
 // GetName returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.Name }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.ListAddOnData.Name }
 
 // GetAddOnPlan returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.AddOnPlan, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan {
-	return v.AddOnPlan
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListAddOnDataAddOnPlan {
+	return v.ListAddOnData.AddOnPlan
 }
 
 // GetPrivateIp returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.PrivateIp, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string { return v.PrivateIp }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string {
+	return v.ListAddOnData.PrivateIp
+}
 
 // GetPrimaryRegion returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string {
+	return v.ListAddOnData.PrimaryRegion
+}
 
 // GetReadRegions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.ReadRegions, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string { return v.ReadRegions }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string {
+	return v.ListAddOnData.ReadRegions
+}
 
 // GetOptions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} { return v.Options }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
+	return v.ListAddOnData.Options
+}
 
 // GetMetadata returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} { return v.Metadata }
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.ListAddOnData.Metadata
+}
 
 // GetOrganization returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Organization, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization {
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnDataOrganization {
+	return v.ListAddOnData.Organization
+}
+
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*ListAddOnsAddOnsAddOnConnectionNodesAddOn
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.ListAddOnsAddOnsAddOnConnectionNodesAddOn = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.ListAddOnData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	AddOnPlan ListAddOnDataAddOnPlan `json:"addOnPlan"`
+
+	PrivateIp string `json:"privateIp"`
+
+	PrimaryRegion string `json:"primaryRegion"`
+
+	ReadRegions []string `json:"readRegions"`
+
+	Options interface{} `json:"options"`
+
+	Metadata interface{} `json:"metadata"`
+
+	Organization ListAddOnDataOrganization `json:"organization"`
+}
+
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() (*__premarshalListAddOnsAddOnsAddOnConnectionNodesAddOn, error) {
+	var retval __premarshalListAddOnsAddOnsAddOnConnectionNodesAddOn
+
+	retval.Id = v.ListAddOnData.Id
+	retval.Name = v.ListAddOnData.Name
+	retval.AddOnPlan = v.ListAddOnData.AddOnPlan
+	retval.PrivateIp = v.ListAddOnData.PrivateIp
+	retval.PrimaryRegion = v.ListAddOnData.PrimaryRegion
+	retval.ReadRegions = v.ListAddOnData.ReadRegions
+	retval.Options = v.ListAddOnData.Options
+	retval.Metadata = v.ListAddOnData.Metadata
+	retval.Organization = v.ListAddOnData.Organization
+	return &retval, nil
+}
+
+// ListAddOnsForOrganizationOrganization includes the requested fields of the GraphQL type Organization.
+type ListAddOnsForOrganizationOrganization struct {
+	// List third party integrations associated with an organization
+	AddOns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnection `json:"addOns"`
+}
+
+// GetAddOns returns ListAddOnsForOrganizationOrganization.AddOns, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganization) GetAddOns() ListAddOnsForOrganizationOrganizationAddOnsAddOnConnection {
+	return v.AddOns
+}
+
+// ListAddOnsForOrganizationOrganizationAddOnsAddOnConnection includes the requested fields of the GraphQL type AddOnConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for AddOn.
+type ListAddOnsForOrganizationOrganizationAddOnsAddOnConnection struct {
+	// A list of nodes.
+	Nodes []ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn `json:"nodes"`
+}
+
+// GetNodes returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnection) GetNodes() []ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn {
+	return v.Nodes
+}
+
+// ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
+type ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn struct {
+	ListAddOnData `json:"-"`
+}
+
+// GetId returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.Id, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetId() string {
+	return v.ListAddOnData.Id
+}
+
+// GetName returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetName() string {
+	return v.ListAddOnData.Name
+}
+
+// GetAddOnPlan returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.AddOnPlan, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListAddOnDataAddOnPlan {
+	return v.ListAddOnData.AddOnPlan
+}
+
+// GetPrivateIp returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.PrivateIp, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string {
+	return v.ListAddOnData.PrivateIp
+}
+
+// GetPrimaryRegion returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string {
+	return v.ListAddOnData.PrimaryRegion
+}
+
+// GetReadRegions returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.ReadRegions, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string {
+	return v.ListAddOnData.ReadRegions
+}
+
+// GetOptions returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
+	return v.ListAddOnData.Options
+}
+
+// GetMetadata returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.ListAddOnData.Metadata
+}
+
+// GetOrganization returns ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn.Organization, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnDataOrganization {
+	return v.ListAddOnData.Organization
+}
+
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.ListAddOnData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	AddOnPlan ListAddOnDataAddOnPlan `json:"addOnPlan"`
+
+	PrivateIp string `json:"privateIp"`
+
+	PrimaryRegion string `json:"primaryRegion"`
+
+	ReadRegions []string `json:"readRegions"`
+
+	Options interface{} `json:"options"`
+
+	Metadata interface{} `json:"metadata"`
+
+	Organization ListAddOnDataOrganization `json:"organization"`
+}
+
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *ListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() (*__premarshalListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn, error) {
+	var retval __premarshalListAddOnsForOrganizationOrganizationAddOnsAddOnConnectionNodesAddOn
+
+	retval.Id = v.ListAddOnData.Id
+	retval.Name = v.ListAddOnData.Name
+	retval.AddOnPlan = v.ListAddOnData.AddOnPlan
+	retval.PrivateIp = v.ListAddOnData.PrivateIp
+	retval.PrimaryRegion = v.ListAddOnData.PrimaryRegion
+	retval.ReadRegions = v.ListAddOnData.ReadRegions
+	retval.Options = v.ListAddOnData.Options
+	retval.Metadata = v.ListAddOnData.Metadata
+	retval.Organization = v.ListAddOnData.Organization
+	return &retval, nil
+}
+
+// ListAddOnsForOrganizationResponse is returned by ListAddOnsForOrganization on success.
+type ListAddOnsForOrganizationResponse struct {
+	// Find an organization by ID
+	Organization ListAddOnsForOrganizationOrganization `json:"organization"`
+}
+
+// GetOrganization returns ListAddOnsForOrganizationResponse.Organization, and is useful for accessing the field via an interface.
+func (v *ListAddOnsForOrganizationResponse) GetOrganization() ListAddOnsForOrganizationOrganization {
 	return v.Organization
 }
-
-// ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
-type ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
-	DisplayName string `json:"displayName"`
-	Description string `json:"description"`
-}
-
-// GetDisplayName returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDisplayName() string {
-	return v.DisplayName
-}
-
-// GetDescription returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDescription() string {
-	return v.Description
-}
-
-// ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization includes the requested fields of the GraphQL type Organization.
-type ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization struct {
-	Id string `json:"id"`
-	// Unique organization slug
-	Slug string `json:"slug"`
-}
-
-// GetId returns ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization.Id, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization) GetId() string { return v.Id }
-
-// GetSlug returns ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization.Slug, and is useful for accessing the field via an interface.
-func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization) GetSlug() string { return v.Slug }
 
 // ListAddOnsResponse is returned by ListAddOns on success.
 type ListAddOnsResponse struct {
@@ -3094,6 +3354,18 @@ type __ListAddOnPlansInput struct {
 
 // GetAddOnType returns __ListAddOnPlansInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnPlansInput) GetAddOnType() AddOnType { return v.AddOnType }
+
+// __ListAddOnsForOrganizationInput is used internally by genqlient
+type __ListAddOnsForOrganizationInput struct {
+	AddOnType      AddOnType `json:"addOnType"`
+	OrganizationId string    `json:"organizationId"`
+}
+
+// GetAddOnType returns __ListAddOnsForOrganizationInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListAddOnsForOrganizationInput) GetAddOnType() AddOnType { return v.AddOnType }
+
+// GetOrganizationId returns __ListAddOnsForOrganizationInput.OrganizationId, and is useful for accessing the field via an interface.
+func (v *__ListAddOnsForOrganizationInput) GetOrganizationId() string { return v.OrganizationId }
 
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
@@ -4080,22 +4352,25 @@ const ListAddOns_Operation = `
 query ListAddOns ($addOnType: AddOnType) {
 	addOns(type: $addOnType) {
 		nodes {
-			id
-			name
-			addOnPlan {
-				displayName
-				description
-			}
-			privateIp
-			primaryRegion
-			readRegions
-			options
-			metadata
-			organization {
-				id
-				slug
-			}
+			... ListAddOnData
 		}
+	}
+}
+fragment ListAddOnData on AddOn {
+	id
+	name
+	addOnPlan {
+		displayName
+		description
+	}
+	privateIp
+	primaryRegion
+	readRegions
+	options
+	metadata
+	organization {
+		id
+		slug
 	}
 }
 `
@@ -4114,6 +4389,63 @@ func ListAddOns(
 	}
 
 	data_ = &ListAddOnsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ListAddOnsForOrganization.
+const ListAddOnsForOrganization_Operation = `
+query ListAddOnsForOrganization ($addOnType: AddOnType, $organizationId: ID!) {
+	organization(id: $organizationId) {
+		addOns(type: $addOnType) {
+			nodes {
+				... ListAddOnData
+			}
+		}
+	}
+}
+fragment ListAddOnData on AddOn {
+	id
+	name
+	addOnPlan {
+		displayName
+		description
+	}
+	privateIp
+	primaryRegion
+	readRegions
+	options
+	metadata
+	organization {
+		id
+		slug
+	}
+}
+`
+
+func ListAddOnsForOrganization(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	addOnType AddOnType,
+	organizationId string,
+) (data_ *ListAddOnsForOrganizationResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ListAddOnsForOrganization",
+		Query:  ListAddOnsForOrganization_Operation,
+		Variables: &__ListAddOnsForOrganizationInput{
+			AddOnType:      addOnType,
+			OrganizationId: organizationId,
+		},
+	}
+
+	data_ = &ListAddOnsForOrganizationResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
