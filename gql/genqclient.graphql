@@ -238,10 +238,8 @@ query GetAddOnProvider($name: String!) {
 	}
 }
 
-query ListAddOns($addOnType: AddOnType) {
-	addOns(type: $addOnType) {
-		nodes {
-			id
+fragment ListAddOnData on AddOn {
+	id
 			name
 			addOnPlan {
 				displayName
@@ -255,6 +253,22 @@ query ListAddOns($addOnType: AddOnType) {
 			organization {
 				id
 				slug
+			}
+}
+
+query ListAddOns($addOnType: AddOnType) {
+	addOns(type: $addOnType) {
+		nodes {
+			...ListAddOnData
+		}
+	}
+}
+
+query ListAddOnsForOrganization($addOnType: AddOnType, $organizationId: ID!) {
+	organization(id: $organizationId) {
+		addOns(type: $addOnType) {
+			nodes {
+				...ListAddOnData
 			}
 		}
 	}
