@@ -67,6 +67,18 @@ func runAttach(ctx context.Context) error {
 		variableName = "DATABASE_URL"
 	}
 
+	// Check if the app already has the secret variable set
+	secrets, err := client.GetAppSecrets(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving secrets for app %s: %w", appName, err)
+	}
+
+	for _, secret := range secrets {
+		if secret.Name == variableName {
+			return fmt.Errorf("app %s already has %s set. Use 'fly secrets unset %s' to remove it first", appName, variableName, variableName)
+		}
+	}
+
 	s := map[string]string{}
 	s[variableName] = response.Credentials.ConnectionUri
 
