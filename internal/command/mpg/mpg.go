@@ -35,6 +35,7 @@ func New() *cobra.Command {
 		newStatus(),
 		newList(),
 		newCreate(),
+		newDestroy(),
 	)
 
 	return cmd

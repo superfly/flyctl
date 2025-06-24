@@ -51,14 +51,26 @@ func runAttach(ctx context.Context) error {
 		io         = iostreams.FromContext(ctx)
 	)
 
+	// Get cluster details to determine which org it belongs to
 	response, err := uiexClient.GetManagedClusterById(ctx, clusterId)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
 
+	clusterOrgSlug := response.Data.Organization.Slug
+
+	// Get app details to determine which org it belongs to
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	appOrgSlug := app.Organization.Slug
+
+	// Verify that the app and cluster are in the same organization
+	if appOrgSlug != clusterOrgSlug {
+		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
+			appName, appOrgSlug, clusterId, clusterOrgSlug)
 	}
 
 	variableName := flag.GetString(ctx, "variable-name")

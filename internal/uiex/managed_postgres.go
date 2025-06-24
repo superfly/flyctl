@@ -333,3 +333,39 @@ func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGReg
 	}
 
 }
+
+// DestroyCluster permanently destroys a managed Postgres cluster
+func (c *Client) DestroyCluster(ctx context.Context, id string) error {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s", c.baseUrl, id)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+	case http.StatusNotFound:
+		return fmt.Errorf("cluster %s not found", id)
+	case http.StatusForbidden:
+		return fmt.Errorf("access denied: you don't have permission to destroy cluster %s", id)
+	default:
+		return fmt.Errorf("failed to destroy cluster (status %d): %s", res.StatusCode, string(body))
+	}
+}
