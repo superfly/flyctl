@@ -7,6 +7,7 @@ import (
 )
 
 type Client interface {
+	ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClusters(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)

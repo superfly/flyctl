@@ -16,6 +16,15 @@ type ManagedClusterIpAssignments struct {
 	Direct string `json:"direct"`
 }
 
+type MPGRegion struct {
+	Code      string `json:"code"`      // e.g., "fra"
+	Available bool   `json:"available"` // Whether this region supports MPG
+}
+
+type ListMPGRegionsResponse struct {
+	Data []MPGRegion `json:"data"`
+}
+
 type ManagedCluster struct {
 	Id            string                      `json:"id"`
 	Name          string                      `json:"name"`
@@ -285,4 +294,42 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 	default:
 		return response, fmt.Errorf("failed to create cluster (status %d): %s", res.StatusCode, string(body))
 	}
+}
+
+// ListMPGRegions returns the list of regions available for Managed Postgres
+// TODO: Implement the actual API endpoint on the backend
+func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error) {
+	var response ListMPGRegionsResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/regions", c.baseUrl, orgSlug)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+		}
+		return response, nil
+	default:
+		return response, fmt.Errorf("failed to list MPG regions (status %d): %s", res.StatusCode, string(body))
+	}
+
 }
