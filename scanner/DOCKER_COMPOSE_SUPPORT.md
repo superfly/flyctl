@@ -16,7 +16,12 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 
 2. **Service Translation**: Each Docker Compose service is converted to a container in the machine configuration, except for database services which are recommended to be replaced with Fly.io managed services.
 
-3. **Configuration Generation**:
+3. **Service Discovery Setup**: Automatically configures service discovery by:
+   - Injecting an entrypoint script that updates `/etc/hosts`
+   - Mapping all service names to `127.0.0.1` (localhost)
+   - Chaining to the original entrypoint/command
+
+4. **Configuration Generation**:
    - Creates a `fly.toml` file with basic app configuration
    - Generates a `fly.machine.json` file with multi-container specifications
    - Uses Pilot as the init system (required for multi-container machines)
@@ -32,6 +37,7 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 - **Health checks**: Converted to Fly.io format
 - **Volumes**: Translated to Fly.io persistent volumes
 - **Restart policies**: Mapped to container restart settings
+- **Service discovery**: Automatic `/etc/hosts` configuration for inter-service communication
 
 ### ⚠️ Partially Supported
 - **Database services**: Detected but recommended to use managed services
@@ -85,7 +91,8 @@ Running `flyctl launch` will:
 2. **Generate** `fly.toml` with HTTP service configuration
 3. **Create** `fly.machine.json` with multi-container setup
 4. **Recommend** using Fly.io Postgres instead of the `db` service
-5. **Configure** containers to communicate via localhost (shared VM)
+5. **Configure** service discovery so containers can access each other by name
+6. **Setup** containers to communicate via localhost (shared VM)
 
 ## Generated Configuration
 
@@ -116,8 +123,9 @@ machine_config = "fly.machine.json"
         "context": ".",
         "dockerfile": "Dockerfile"
       },
+      "entrypoint": ["/fly-entrypoint.sh"],
       "environment": {
-        "DATABASE_URL": "postgresql://user:pass@localhost:5432/myapp"
+        "DATABASE_URL": "postgresql://user:pass@db:5432/myapp"
       },
       "depends_on": [
         {
@@ -139,9 +147,10 @@ machine_config = "fly.machine.json"
         "context": ".",
         "dockerfile": "Dockerfile"
       },
+      "entrypoint": ["/fly-entrypoint.sh"],
       "command": ["python", "worker.py"],
       "environment": {
-        "DATABASE_URL": "postgresql://user:pass@localhost:5432/myapp"
+        "DATABASE_URL": "postgresql://user:pass@db:5432/myapp"
       },
       "depends_on": [
         {
@@ -164,9 +173,9 @@ When the scanner detects database services, it will recommend using Fly.io manag
 
 ## Migration Tips
 
-1. **Update connection strings**: Change service names to `localhost` since containers share networking
+1. **Keep service names in connection strings**: The scanner automatically configures service discovery, so you can keep using service names like `db`, `redis`, etc.
 2. **Remove database services**: Use managed services for better reliability
-3. **Simplify networking**: Remove custom networks as containers communicate via localhost
+3. **Simplify networking**: Remove custom networks as containers communicate via localhost with service discovery
 4. **Check resource limits**: Ensure containers fit within Fly.io machine limits
 
 ## Limitations
@@ -193,6 +202,6 @@ The deployment will:
 ## Troubleshooting
 
 **Build failures**: Ensure Dockerfiles are present in build contexts
-**Networking issues**: Update service URLs to use `localhost`
+**Networking issues**: Service names are automatically mapped to localhost via `/etc/hosts`
 **Health check failures**: Verify health check commands work in containers
 **Resource limits**: Check container resource requirements

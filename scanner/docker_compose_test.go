@@ -52,6 +52,14 @@ services:
 		assert.Equal(t, "web", srcInfo.Containers[0].Name)
 		assert.Equal(t, "nginx:latest", srcInfo.Containers[0].Image)
 
+		// Verify entrypoint script is set for service discovery
+		assert.Equal(t, []string{"/fly-entrypoint.sh"}, srcInfo.Containers[0].Entrypoint)
+
+		// Verify entrypoint script file is included
+		assert.Len(t, srcInfo.Files, 1)
+		assert.Equal(t, "/fly-entrypoint.sh", srcInfo.Files[0].Path)
+		assert.Contains(t, string(srcInfo.Files[0].Contents), "127.0.0.1 web")
+
 		// Verify database detection
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 		assert.True(t, srcInfo.RedisDesired)
@@ -89,6 +97,9 @@ services:
 		assert.Equal(t, "app", srcInfo.Containers[0].Name)
 		assert.Equal(t, tmpDir, srcInfo.Containers[0].BuildContext)
 		assert.Equal(t, 3000, srcInfo.Port)
+
+		// Verify entrypoint script is set
+		assert.Equal(t, []string{"/fly-entrypoint.sh"}, srcInfo.Containers[0].Entrypoint)
 	})
 
 	t.Run("handles health checks", func(t *testing.T) {

@@ -201,6 +201,12 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
+	// Add entrypoint script for service discovery
+	s.Files = append(s.Files, SourceFile{
+		Path:     "/fly-entrypoint.sh",
+		Contents: generateEntrypointScript(s.Containers),
+	})
+
 	// Add callback for additional configuration
 	s.Callback = composeCallback
 
@@ -319,9 +325,24 @@ func prepareContainerFromService(name string, service DockerComposeService, sour
 		}
 	}
 
-	// Handle command
-	container.Command = extractCommand(service.Command)
-	container.Entrypoint = extractCommand(service.Entrypoint)
+	// Set up entrypoint for service discovery and chain to original
+	originalEntrypoint := extractCommand(service.Entrypoint)
+	originalCommand := extractCommand(service.Command)
+
+	// Use our entrypoint script for service discovery
+	container.Entrypoint = []string{"/fly-entrypoint.sh"}
+
+	// Determine what to execute after setting up /etc/hosts
+	if len(originalEntrypoint) > 0 {
+		// If there was an original entrypoint, chain to it
+		container.Command = append(originalEntrypoint, originalCommand...)
+	} else if len(originalCommand) > 0 {
+		// If there was only a command, use it
+		container.Command = originalCommand
+	} else {
+		// No entrypoint or command specified, will fall back to Dockerfile defaults
+		container.Command = nil
+	}
 
 	// Handle dependencies
 	container.DependsOn = extractDependencies(service.DependsOn)
@@ -446,4 +467,36 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	}
 
 	return nil
+}
+
+// generateEntrypointScript creates a shell script that sets up /etc/hosts for service discovery
+func generateEntrypointScript(containers []Container) []byte {
+	script := `#!/bin/sh
+set -e
+
+# Add service names to /etc/hosts for multi-container service discovery
+# This allows containers to access each other using their service names
+echo "127.0.0.1 localhost" >> /etc/hosts
+`
+
+	// Add each container service name pointing to localhost
+	for _, container := range containers {
+		script += fmt.Sprintf("echo \"127.0.0.1 %s\" >> /etc/hosts\n", container.Name)
+	}
+
+	script += `
+# Chain to the original entrypoint or command
+if [ $# -eq 0 ]; then
+    # No arguments provided, this shouldn't happen in multi-container setup
+    exec /bin/sh
+elif [ -x "$1" ]; then
+    # First argument is executable, run it directly
+    exec "$@"
+else
+    # First argument is not executable, run it with shell
+    exec /bin/sh -c "$*"
+fi
+`
+
+	return []byte(script)
 }

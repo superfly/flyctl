@@ -554,6 +554,18 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		containers = append(containers, containerConfig)
 	}
 
+	// Add entrypoint script file for service discovery to all containers
+	entrypointScript := getEntrypointScript(srcInfo.Files)
+	for i := range containers {
+		containers[i]["files"] = []map[string]interface{}{
+			{
+				"guest_path": "/fly-entrypoint.sh",
+				"raw_value":  string(entrypointScript),
+				"secret":     false,
+			},
+		}
+	}
+
 	// Create the machine configuration with Pilot as init
 	machineConfig := map[string]interface{}{
 		"init":       "pilot",
@@ -561,4 +573,19 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 	}
 
 	return machineConfig
+}
+
+// getEntrypointScript extracts the entrypoint script from SourceInfo files
+func getEntrypointScript(files []scanner.SourceFile) []byte {
+	for _, file := range files {
+		if file.Path == "/fly-entrypoint.sh" {
+			return file.Contents
+		}
+	}
+	// Fallback script if not found (shouldn't happen)
+	return []byte(`#!/bin/sh
+set -e
+echo "127.0.0.1 localhost" >> /etc/hosts
+exec "$@"
+`)
 }
