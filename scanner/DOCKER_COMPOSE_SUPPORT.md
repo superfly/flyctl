@@ -17,14 +17,16 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 2. **Service Translation**: Each Docker Compose service is converted to a container in the machine configuration, except for database services which are recommended to be replaced with Fly.io managed services.
 
 3. **Service Discovery Setup**: Automatically configures service discovery by:
-   - Injecting an entrypoint script that updates `/etc/hosts`
+   - Injecting an entrypoint script (`/fly-entrypoint.sh`) that updates `/etc/hosts`
    - Mapping all service names to `127.0.0.1` (localhost)
-   - Chaining to the original entrypoint/command
+   - Preserving original entrypoint/command behavior through chaining
+   - Enabling containers to access each other using their Docker Compose service names
 
 4. **Configuration Generation**:
    - Creates a `fly.toml` file with basic app configuration
    - Generates a `fly.machine.json` file with multi-container specifications
    - Uses Pilot as the init system (required for multi-container machines)
+   - Includes the service discovery entrypoint script
 
 ## Supported Features
 
@@ -49,6 +51,39 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 - **Privileged containers**: Security limitation
 - **Host networking**: Not available in Fly.io
 
+## Service Discovery
+
+The Docker Compose scanner automatically sets up service discovery to maintain compatibility with existing Docker Compose applications:
+
+### How Service Discovery Works
+
+1. **Entrypoint Script**: Each container gets an entrypoint script (`/fly-entrypoint.sh`) that:
+   - Adds all service names to `/etc/hosts` pointing to `127.0.0.1`
+   - Chains to the original entrypoint or command
+   - Preserves all original container behavior
+
+2. **Name Resolution**: Containers can access each other using service names:
+   - `http://web:3000` → resolves to `http://127.0.0.1:3000`
+   - `redis://cache:6379` → resolves to `redis://127.0.0.1:6379`
+   - `postgresql://db:5432/myapp` → resolves to `postgresql://127.0.0.1:5432/myapp`
+
+3. **Automatic Configuration**: No changes needed to:
+   - Connection strings
+   - Environment variables
+   - Application code
+
+### Example Service Discovery
+
+If your `docker-compose.yml` defines services named `web`, `api`, and `cache`, the entrypoint script will add:
+
+```bash
+127.0.0.1 web
+127.0.0.1 api
+127.0.0.1 cache
+```
+
+This allows your `web` container to access the `api` container using `http://api:8080` just like in Docker Compose.
+
 ## Example Usage
 
 Given a `docker-compose.yml` file:
@@ -62,8 +97,10 @@ services:
       - "8080:8080"
     environment:
       - DATABASE_URL=postgresql://user:pass@db:5432/myapp
+      - REDIS_URL=redis://cache:6379
     depends_on:
       - db
+      - cache
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -75,8 +112,13 @@ services:
     command: ["python", "worker.py"]
     environment:
       - DATABASE_URL=postgresql://user:pass@db:5432/myapp
+      - REDIS_URL=redis://cache:6379
     depends_on:
       - db
+      - cache
+
+  cache:
+    image: redis:alpine
 
   db:
     image: postgres:13
@@ -90,7 +132,7 @@ Running `flyctl launch` will:
 1. **Detect** the Docker Compose configuration
 2. **Generate** `fly.toml` with HTTP service configuration
 3. **Create** `fly.machine.json` with multi-container setup
-4. **Recommend** using Fly.io Postgres instead of the `db` service
+4. **Recommend** using Fly.io Postgres and Redis instead of containerized versions
 5. **Configure** service discovery so containers can access each other by name
 6. **Setup** containers to communicate via localhost (shared VM)
 
@@ -125,8 +167,16 @@ machine_config = "fly.machine.json"
       },
       "entrypoint": ["/fly-entrypoint.sh"],
       "environment": {
-        "DATABASE_URL": "postgresql://user:pass@db:5432/myapp"
+        "DATABASE_URL": "postgresql://user:pass@db:5432/myapp",
+        "REDIS_URL": "redis://cache:6379"
       },
+      "files": [
+        {
+          "guest_path": "/fly-entrypoint.sh",
+          "raw_value": "#!/bin/sh\nset -e\n\n# Service discovery setup\necho \"127.0.0.1 localhost\" >> /etc/hosts\necho \"127.0.0.1 web\" >> /etc/hosts\necho \"127.0.0.1 worker\" >> /etc/hosts\n\n# Chain to original entrypoint\nexec \"$@\"\n",
+          "secret": false
+        }
+      ],
       "depends_on": [
         {
           "container": "db",
@@ -150,8 +200,16 @@ machine_config = "fly.machine.json"
       "entrypoint": ["/fly-entrypoint.sh"],
       "command": ["python", "worker.py"],
       "environment": {
-        "DATABASE_URL": "postgresql://user:pass@db:5432/myapp"
+        "DATABASE_URL": "postgresql://user:pass@db:5432/myapp",
+        "REDIS_URL": "redis://cache:6379"
       },
+      "files": [
+        {
+          "guest_path": "/fly-entrypoint.sh",
+          "raw_value": "#!/bin/sh\nset -e\n\n# Service discovery setup\necho \"127.0.0.1 localhost\" >> /etc/hosts\necho \"127.0.0.1 web\" >> /etc/hosts\necho \"127.0.0.1 worker\" >> /etc/hosts\n\n# Chain to original command\nexec \"$@\"\n",
+          "secret": false
+        }
+      ],
       "depends_on": [
         {
           "container": "db",
@@ -171,12 +229,22 @@ When the scanner detects database services, it will recommend using Fly.io manag
 - **MySQL** → Fly.io MySQL (when available)
 - **Redis** → `flyctl redis create` (Upstash Redis)
 
+### Why Use Managed Services?
+
+1. **Better Performance**: Dedicated resources and optimized configurations
+2. **Automatic Backups**: Built-in backup and restore capabilities
+3. **High Availability**: Replication and failover support
+4. **Security**: Network isolation and encryption at rest
+5. **Monitoring**: Built-in metrics and alerting
+
 ## Migration Tips
 
-1. **Keep service names in connection strings**: The scanner automatically configures service discovery, so you can keep using service names like `db`, `redis`, etc.
-2. **Remove database services**: Use managed services for better reliability
+1. **Keep service names in connection strings**: The scanner automatically configures service discovery, so you can keep using service names like `db`, `redis`, `cache`, etc.
+2. **Remove database services**: Use managed services for better reliability and performance
 3. **Simplify networking**: Remove custom networks as containers communicate via localhost with service discovery
 4. **Check resource limits**: Ensure containers fit within Fly.io machine limits
+5. **Test locally first**: Verify your application works with all services on localhost
+6. **Use environment variables**: Keep connection strings in environment variables for easy updates
 
 ## Limitations
 
@@ -184,6 +252,8 @@ When the scanner detects database services, it will recommend using Fly.io manag
 - No support for Docker Compose networks (containers use localhost)
 - Database services should be replaced with managed services
 - Some Docker Compose features may not translate directly
+- Maximum number of containers limited by VM resources
+- No support for container-to-container volumes
 
 ## Deployment
 
@@ -195,13 +265,89 @@ flyctl deploy
 
 The deployment will:
 1. Build images for containers with build contexts
-2. Create multi-container machine with Pilot init
-3. Start containers in dependency order
-4. Configure health checks and networking
+2. Upload images to Fly.io registry
+3. Create multi-container machine with Pilot init
+4. Start containers in dependency order
+5. Configure health checks and networking
+6. Set up service discovery via `/etc/hosts`
 
 ## Troubleshooting
 
-**Build failures**: Ensure Dockerfiles are present in build contexts
-**Networking issues**: Service names are automatically mapped to localhost via `/etc/hosts`
-**Health check failures**: Verify health check commands work in containers
-**Resource limits**: Check container resource requirements
+### Common Issues
+
+**Build failures**:
+- Ensure Dockerfiles are present in build contexts
+- Check that build contexts are relative to docker-compose.yml location
+- Verify Docker images are accessible if using pre-built images
+
+**Networking issues**:
+- Service names are automatically mapped to localhost via `/etc/hosts`
+- Ensure services listen on the correct ports
+- Check that services bind to `0.0.0.0` not just `127.0.0.1`
+
+**Health check failures**:
+- Verify health check commands work in containers
+- Ensure health check endpoints are accessible
+- Check timeout values are appropriate for your application
+
+**Resource limits**:
+- Check container resource requirements
+- Monitor VM CPU and memory usage
+- Consider scaling horizontally with multiple machines
+
+**Service discovery problems**:
+- Verify the entrypoint script is being executed
+- Check container logs for `/etc/hosts` setup errors
+- Ensure original entrypoint/command is preserved
+
+### Debugging Commands
+
+```bash
+# View machine configuration
+flyctl machine list
+
+# Check container logs
+flyctl logs
+
+# SSH into machine
+flyctl ssh console
+
+# Inspect /etc/hosts in a container
+flyctl ssh console -C "docker exec <container-name> cat /etc/hosts"
+
+# View machine status
+flyctl status
+```
+
+## Advanced Configuration
+
+### Custom Entrypoint Handling
+
+If your container has a complex entrypoint, the scanner will:
+1. Set `/fly-entrypoint.sh` as the new entrypoint
+2. Pass the original entrypoint as the command
+3. Chain execution to preserve behavior
+
+### Environment Variable Substitution
+
+The scanner preserves Docker Compose environment variables, but you may need to update:
+- Database connection strings to use Fly.io managed services
+- External service URLs to use Fly.io equivalents
+- File paths to match Fly.io volume mounts
+
+### Volume Migration
+
+Docker Compose volumes are converted to Fly.io persistent volumes:
+- Named volumes → Fly.io volumes with same name
+- Bind mounts → Not supported, use Fly.io volumes instead
+- Anonymous volumes → Create named Fly.io volumes
+
+## Best Practices
+
+1. **Start Simple**: Test with a minimal configuration first
+2. **Use Health Checks**: Ensure all services have proper health checks
+3. **Monitor Resources**: Use `flyctl status` and metrics to track usage
+4. **Plan for Failures**: Implement proper error handling and retries
+5. **Document Changes**: Keep notes on any modifications from Docker Compose
+6. **Test Thoroughly**: Verify all service interactions work correctly
+
