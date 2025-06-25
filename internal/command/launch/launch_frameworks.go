@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -284,6 +286,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		return nil
 	}
 
+	// Handle multi-container configurations from Docker Compose
+	if len(srcInfo.Containers) > 0 {
+		return state.scannerSetMultiContainerConfig(ctx)
+	}
+
 	if srcInfo.HttpCheckPath != "" {
 		appConfig.SetHttpCheck(srcInfo.HttpCheckPath, srcInfo.HttpCheckHeaders)
 	}
@@ -380,4 +387,178 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
 	return nil
+}
+
+// scannerSetMultiContainerConfig handles multi-container configurations from Docker Compose
+func (state *launchState) scannerSetMultiContainerConfig(ctx context.Context) error {
+	srcInfo := state.sourceInfo
+	appConfig := state.appConfig
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	// For multi-container apps, we need to use Pilot as the init system
+	fmt.Fprintf(io.Out, "%s Detected multi-container application with %d services\n",
+		colorize.SuccessIcon(), len(srcInfo.Containers))
+
+	// Set up basic app configuration
+	if srcInfo.Port != 0 {
+		if appConfig.HTTPService == nil {
+			appConfig.HTTPService = &appconfig.HTTPService{
+				InternalPort:       srcInfo.Port,
+				ForceHTTPS:         true,
+				AutoStartMachines:  fly.Pointer(true),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
+				MinMachinesRunning: fly.Pointer(0),
+			}
+		} else {
+			appConfig.HTTPService.InternalPort = srcInfo.Port
+		}
+	}
+
+	// Apply global environment variables
+	for envName, envVal := range srcInfo.Env {
+		if envVal == "APP_FQDN" {
+			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
+		} else if envVal == "APP_URL" {
+			appConfig.SetEnvVariable(envName, "https://"+appConfig.AppName+".fly.dev")
+		} else {
+			appConfig.SetEnvVariable(envName, envVal)
+		}
+	}
+
+	// Set up volumes
+	if len(srcInfo.Volumes) > 0 {
+		var appVolumes []appconfig.Mount
+		for _, v := range srcInfo.Volumes {
+			appVolumes = append(appVolumes, appconfig.Mount{
+				Source:                  v.Source,
+				Destination:             v.Destination,
+				AutoExtendSizeThreshold: v.AutoExtendSizeThreshold,
+				AutoExtendSizeIncrement: v.AutoExtendSizeIncrement,
+				AutoExtendSizeLimit:     v.AutoExtendSizeLimit,
+			})
+		}
+		appConfig.SetMounts(appVolumes)
+	}
+
+	// Generate machine configuration for multi-container setup
+	machineConfig := state.generateMultiContainerMachineConfig()
+
+	// Write machine configuration to a separate file
+	machineConfigPath := "fly.machine.json"
+	machineConfigData, err := json.MarshalIndent(machineConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal machine configuration: %w", err)
+	}
+
+	if err := os.WriteFile(machineConfigPath, machineConfigData, 0644); err != nil {
+		return fmt.Errorf("failed to write machine configuration: %w", err)
+	}
+
+	// Reference the machine config file in fly.toml
+	appConfig.MachineConfig = machineConfigPath
+
+	fmt.Fprintf(io.Out, "  Created machine configuration file: %s\n", machineConfigPath)
+	fmt.Fprintf(io.Out, "  Note: All containers will run in the same VM with shared networking\n")
+
+	// Add database notices if needed
+	if srcInfo.DatabaseDesired != scanner.DatabaseKindNone {
+		fmt.Fprintf(io.Out, "\n%s Database service detected in docker-compose.yml\n", colorize.Yellow("!"))
+		fmt.Fprintf(io.Out, "  Consider using Fly.io managed databases for better performance and reliability\n")
+	}
+
+	if srcInfo.RedisDesired {
+		fmt.Fprintf(io.Out, "\n%s Redis service detected in docker-compose.yml\n", colorize.Yellow("!"))
+		fmt.Fprintf(io.Out, "  Consider using Fly.io Upstash Redis for better performance and reliability\n")
+	}
+
+	return nil
+}
+
+// generateMultiContainerMachineConfig creates the machine configuration for multi-container apps
+func (state *launchState) generateMultiContainerMachineConfig() map[string]interface{} {
+	srcInfo := state.sourceInfo
+
+	// Create containers array for the machine configuration
+	containers := []map[string]interface{}{}
+
+	for _, container := range srcInfo.Containers {
+		containerConfig := map[string]interface{}{
+			"name": container.Name,
+		}
+
+		// Set image or build configuration
+		if container.Image != "" {
+			containerConfig["image"] = container.Image
+		} else if container.BuildContext != "" {
+			// For build contexts, we'll need to handle this during deployment
+			// For now, mark it as needing build
+			containerConfig["image"] = fmt.Sprintf("registry.fly.io/%s:%s", state.appConfig.AppName, container.Name)
+			containerConfig["build"] = map[string]interface{}{
+				"context":    container.BuildContext,
+				"dockerfile": container.Dockerfile,
+			}
+		}
+
+		// Set command and entrypoint
+		if len(container.Command) > 0 {
+			containerConfig["command"] = container.Command
+		}
+		if len(container.Entrypoint) > 0 {
+			containerConfig["entrypoint"] = container.Entrypoint
+		}
+
+		// Set environment variables
+		if len(container.Env) > 0 {
+			containerConfig["environment"] = container.Env
+		}
+
+		// Set dependencies
+		if len(container.DependsOn) > 0 {
+			dependencies := []map[string]interface{}{}
+			for _, dep := range container.DependsOn {
+				dependencies = append(dependencies, map[string]interface{}{
+					"container": dep.Name,
+					"condition": dep.Condition,
+				})
+			}
+			containerConfig["depends_on"] = dependencies
+		}
+
+		// Set health check
+		if container.HealthCheck != nil {
+			healthcheck := map[string]interface{}{
+				"test": container.HealthCheck.Test,
+			}
+			if container.HealthCheck.Interval != "" {
+				healthcheck["interval"] = container.HealthCheck.Interval
+			}
+			if container.HealthCheck.Timeout != "" {
+				healthcheck["timeout"] = container.HealthCheck.Timeout
+			}
+			if container.HealthCheck.StartPeriod != "" {
+				healthcheck["start_period"] = container.HealthCheck.StartPeriod
+			}
+			if container.HealthCheck.Retries > 0 {
+				healthcheck["retries"] = container.HealthCheck.Retries
+			}
+			containerConfig["healthcheck"] = healthcheck
+		}
+
+		// Set restart policy
+		if container.RestartPolicy != "" {
+			containerConfig["restart"] = container.RestartPolicy
+		}
+
+		containers = append(containers, containerConfig)
+	}
+
+	// Create the machine configuration with Pilot as init
+	machineConfig := map[string]interface{}{
+		"init":       "pilot",
+		"containers": containers,
+	}
+
+	return machineConfig
 }

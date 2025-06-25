@@ -44,6 +44,35 @@ const (
 	DatabaseKindSqlite
 )
 
+// Container represents a container configuration for multi-container deployments
+type Container struct {
+	Name          string
+	Image         string
+	BuildContext  string
+	Dockerfile    string
+	Command       []string
+	Entrypoint    []string
+	Env           map[string]string
+	DependsOn     []ContainerDependency
+	HealthCheck   *ContainerHealthCheck
+	RestartPolicy string
+}
+
+// ContainerDependency represents a dependency between containers
+type ContainerDependency struct {
+	Name      string
+	Condition string // "started", "healthy", "exited_successfully"
+}
+
+// ContainerHealthCheck represents health check configuration for a container
+type ContainerHealthCheck struct {
+	Test        []string
+	Interval    string
+	Timeout     string
+	StartPeriod string
+	Retries     int
+}
+
 type SourceInfo struct {
 	Family           string
 	Version          string
@@ -88,6 +117,7 @@ type SourceInfo struct {
 	FailureCallback                 func(err error) error
 	Runtime                         plan.RuntimeStruct
 	PostInitCallback                func() error
+	Containers                      []Container // For multi-container deployments
 }
 
 type SourceFile struct {
@@ -122,6 +152,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
+		configureDockerCompose,
 		configureDockerfile,
 		configureBridgetown,
 		configureLucky,
