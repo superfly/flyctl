@@ -16,7 +16,7 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 
 2. **Service Translation**: Each Docker Compose service is converted to a container in the machine configuration, except for database services which are recommended to be replaced with Fly.io managed services.
 
-3. **Configuration Generation**: 
+3. **Configuration Generation**:
    - Creates a `fly.toml` file with basic app configuration
    - Generates a `fly.machine.json` file with multi-container specifications
    - Uses Pilot as the init system (required for multi-container machines)
