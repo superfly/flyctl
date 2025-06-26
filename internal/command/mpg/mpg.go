@@ -13,6 +13,45 @@ import (
 	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
+// RegionProvider interface for getting platform regions
+type RegionProvider interface {
+	GetPlatformRegions(ctx context.Context) ([]fly.Region, error)
+}
+
+// DefaultRegionProvider implements RegionProvider using the prompt package
+type DefaultRegionProvider struct{}
+
+func (p *DefaultRegionProvider) GetPlatformRegions(ctx context.Context) ([]fly.Region, error) {
+	regionsFuture := prompt.PlatformRegions(ctx)
+	regions, err := regionsFuture.Get()
+	if err != nil {
+		return nil, err
+	}
+	return regions.Regions, nil
+}
+
+// MPGService provides MPG-related functionality with injectable dependencies
+type MPGService struct {
+	uiexClient     uiexutil.Client
+	regionProvider RegionProvider
+}
+
+// NewMPGService creates a new MPGService with default dependencies
+func NewMPGService(ctx context.Context) *MPGService {
+	return &MPGService{
+		uiexClient:     uiexutil.ClientFromContext(ctx),
+		regionProvider: &DefaultRegionProvider{},
+	}
+}
+
+// NewMPGServiceWithDependencies creates a new MPGService with custom dependencies
+func NewMPGServiceWithDependencies(uiexClient uiexutil.Client, regionProvider RegionProvider) *MPGService {
+	return &MPGService{
+		uiexClient:     uiexClient,
+		regionProvider: regionProvider,
+	}
+}
+
 func New() *cobra.Command {
 	const (
 		short = `Manage Managed Postgres clusters.`
@@ -82,27 +121,36 @@ func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.Managed
 
 // GetAvailableMPGRegions returns the list of regions available for Managed Postgres
 func GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, error) {
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	service := NewMPGService(ctx)
+	return service.GetAvailableMPGRegions(ctx, orgSlug)
+}
 
+// GetAvailableMPGRegions returns the list of regions available for Managed Postgres
+func (s *MPGService) GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, error) {
 	// Get platform regions
-	regionsFuture := prompt.PlatformRegions(ctx)
-	regions, err := regionsFuture.Get()
+	platformRegions, err := s.regionProvider.GetPlatformRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Try to get available MPG regions from API
-	mpgRegionsResponse, err := uiexClient.ListMPGRegions(ctx, orgSlug)
+	mpgRegionsResponse, err := s.uiexClient.ListMPGRegions(ctx, orgSlug)
 	if err != nil {
 		return nil, err
 	}
 
-	return filterMPGRegions(regions.Regions, mpgRegionsResponse.Data), nil
+	return filterMPGRegions(platformRegions, mpgRegionsResponse.Data), nil
 }
 
 // IsValidMPGRegion checks if a region code is valid for Managed Postgres
 func IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (bool, error) {
-	availableRegions, err := GetAvailableMPGRegions(ctx, orgSlug)
+	service := NewMPGService(ctx)
+	return service.IsValidMPGRegion(ctx, orgSlug, regionCode)
+}
+
+// IsValidMPGRegion checks if a region code is valid for Managed Postgres
+func (s *MPGService) IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (bool, error) {
+	availableRegions, err := s.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil {
 		return false, err
 	}
@@ -117,7 +165,13 @@ func IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (b
 
 // GetAvailableMPGRegionCodes returns just the region codes for error messages
 func GetAvailableMPGRegionCodes(ctx context.Context, orgSlug string) ([]string, error) {
-	availableRegions, err := GetAvailableMPGRegions(ctx, orgSlug)
+	service := NewMPGService(ctx)
+	return service.GetAvailableMPGRegionCodes(ctx, orgSlug)
+}
+
+// GetAvailableMPGRegionCodes returns just the region codes for error messages
+func (s *MPGService) GetAvailableMPGRegionCodes(ctx context.Context, orgSlug string) ([]string, error) {
+	availableRegions, err := s.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil {
 		return nil, err
 	}
