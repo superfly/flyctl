@@ -17,6 +17,7 @@ type DockerComposeConfig struct {
 	Services map[string]DockerComposeService `yaml:"services"`
 	Volumes  map[string]DockerComposeVolume  `yaml:"volumes,omitempty"`
 	Networks map[string]interface{}          `yaml:"networks,omitempty"`
+	Secrets  map[string]DockerComposeSecret  `yaml:"secrets,omitempty"`
 }
 
 // DockerComposeService represents a service in docker-compose.yml
@@ -42,6 +43,7 @@ type DockerComposeService struct {
 	Tty         bool                      `yaml:"tty,omitempty"`
 	User        string                    `yaml:"user,omitempty"`
 	Expose      []string                  `yaml:"expose,omitempty"`
+	Secrets     interface{}               `yaml:"secrets,omitempty"` // can be array of strings or array of maps
 }
 
 // DockerComposeHealthCheck represents health check configuration
@@ -94,6 +96,13 @@ type DockerComposeBuildConfig struct {
 	Dockerfile string            `yaml:"dockerfile,omitempty"`
 	Args       map[string]string `yaml:"args,omitempty"`
 	Target     string            `yaml:"target,omitempty"`
+}
+
+// DockerComposeSecret represents a secret definition
+type DockerComposeSecret struct {
+	File     string `yaml:"file,omitempty"`
+	External bool   `yaml:"external,omitempty"`
+	Name     string `yaml:"name,omitempty"`
 }
 
 // configureDockerCompose detects and configures Docker Compose projects
@@ -210,6 +219,16 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		// Prepare container configuration
 		container := prepareContainerFromService(name, service, sourceDir, excludedServices)
 
+		// Check if container uses DATABASE_URL or REDIS_URL before extraction
+		hadDatabaseURL := false
+		hadRedisURL := false
+		if _, ok := container.Env["DATABASE_URL"]; ok {
+			hadDatabaseURL = true
+		}
+		if _, ok := container.Env["REDIS_URL"]; ok {
+			hadRedisURL = true
+		}
+
 		// Extract database credentials from environment variables and move to secrets
 		// Skip secrets that Fly.io will automatically provide for managed databases
 		secrets := extractDatabaseSecrets(container.Env, s.DatabaseDesired, s.RedisDesired)
@@ -218,6 +237,37 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		// Add the secret names to the container's secrets list
 		for _, secret := range secrets {
 			container.Secrets = append(container.Secrets, secret.Key)
+		}
+
+		// If Fly managed database is detected, still add DATABASE_URL to container secrets
+		// (Fly will provide it, but container needs access to it)
+		if s.DatabaseDesired != DatabaseKindNone && hadDatabaseURL {
+			// Make sure DATABASE_URL is in the secrets list
+			hasDatabaseURLSecret := false
+			for _, secretName := range container.Secrets {
+				if secretName == "DATABASE_URL" {
+					hasDatabaseURLSecret = true
+					break
+				}
+			}
+			if !hasDatabaseURLSecret {
+				container.Secrets = append(container.Secrets, "DATABASE_URL")
+			}
+		}
+
+		// Similarly for REDIS_URL
+		if s.RedisDesired && hadRedisURL {
+			// Make sure REDIS_URL is in the secrets list
+			hasRedisURLSecret := false
+			for _, secretName := range container.Secrets {
+				if secretName == "REDIS_URL" {
+					hasRedisURLSecret = true
+					break
+				}
+			}
+			if !hasRedisURLSecret {
+				container.Secrets = append(container.Secrets, "REDIS_URL")
+			}
 		}
 
 		s.Containers = append(s.Containers, container)
@@ -251,6 +301,25 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		Path:     "/fly-entrypoint.sh",
 		Contents: generateEntrypointScript(s.Containers),
 	})
+
+	// Process Docker Compose secrets
+	if len(compose.Secrets) > 0 {
+		composeSecrets := processDockerComposeSecrets(compose.Secrets, compose.Services, sourceDir)
+		s.Secrets = append(s.Secrets, composeSecrets...)
+
+		// Add secrets to containers that reference them
+		for i := range s.Containers {
+			container := &s.Containers[i]
+			// Find the original service to check its secrets
+			for serviceName, service := range compose.Services {
+				if serviceName == container.Name {
+					serviceSecrets := extractServiceSecrets(service.Secrets)
+					container.Secrets = append(container.Secrets, serviceSecrets...)
+					break
+				}
+			}
+		}
+	}
 
 	// Add callback for additional configuration
 	s.Callback = composeCallback
@@ -628,6 +697,74 @@ func extractDatabaseSecrets(env map[string]string, databaseDesired DatabaseKind,
 	}
 
 	return secrets
+}
+
+// processDockerComposeSecrets converts Docker Compose secrets to Fly.io secrets
+func processDockerComposeSecrets(secrets map[string]DockerComposeSecret, services map[string]DockerComposeService, sourceDir string) []Secret {
+	var flySecrets []Secret
+
+	for secretName, secret := range secrets {
+		// Skip external secrets - these need to be managed separately
+		if secret.External {
+			continue
+		}
+
+		var secretValue string
+		var helpText string
+
+		if secret.File != "" {
+			// Read secret from file
+			filePath := filepath.Join(sourceDir, secret.File)
+			data, err := os.ReadFile(filePath)
+			if err != nil {
+				helpText = fmt.Sprintf("Secret from file %s (could not read: %v)", secret.File, err)
+				secretValue = "" // Will prompt user during launch
+			} else {
+				secretValue = strings.TrimSpace(string(data))
+				helpText = fmt.Sprintf("Secret from Docker Compose file: %s", secret.File)
+			}
+		} else {
+			helpText = fmt.Sprintf("Docker Compose secret: %s", secretName)
+			secretValue = "" // Will prompt user during launch
+		}
+
+		flySecret := Secret{
+			Key:   secretName,
+			Value: secretValue,
+			Help:  helpText,
+		}
+		flySecrets = append(flySecrets, flySecret)
+	}
+
+	return flySecrets
+}
+
+// extractServiceSecrets extracts secret names from a service's secrets configuration
+func extractServiceSecrets(secrets interface{}) []string {
+	var secretNames []string
+
+	if secrets == nil {
+		return secretNames
+	}
+
+	switch s := secrets.(type) {
+	case []interface{}:
+		// Secrets can be a simple array of strings or array of maps
+		for _, secret := range s {
+			switch sec := secret.(type) {
+			case string:
+				// Simple string format: just the secret name
+				secretNames = append(secretNames, sec)
+			case map[string]interface{}:
+				// Map format with source/target
+				if source, ok := sec["source"].(string); ok {
+					secretNames = append(secretNames, source)
+				}
+			}
+		}
+	}
+
+	return secretNames
 }
 
 // generateEntrypointScript creates a shell script that sets up /etc/hosts for service discovery

@@ -41,6 +41,7 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 - **Restart policies**: Mapped to container restart settings
 - **Service discovery**: Automatic `/etc/hosts` configuration for inter-service communication
 - **Database credentials**: Automatically extracted from environment variables and converted to Fly.io secrets
+- **Docker Compose secrets**: File-based secrets are read and converted to Fly.io secrets
 
 ### ⚠️ Partially Supported
 - **Database services**: Detected but recommended to use managed services
@@ -261,6 +262,38 @@ fi
   ]
 }
 ```
+
+## Docker Compose Secrets Support
+
+The scanner supports Docker Compose secrets, converting them to Fly.io secrets:
+
+### File-based Secrets
+```yaml
+secrets:
+  master_key:
+    file: ./config/master.key
+  api_token:
+    file: ./secrets/api_token.txt
+```
+
+- File contents are read and stored as Fly.io secrets
+- Secrets are automatically injected into containers at runtime
+- Each container only has access to the secrets it declares
+
+### Service Secret References
+```yaml
+services:
+  web:
+    image: myapp
+    secrets:
+      - master_key              # Simple format
+      - source: api_token       # Long format
+        target: /run/secrets/api_token
+```
+
+- Services must explicitly declare which secrets they need
+- Secrets are listed in the container's `secrets` field in fly.machine.json
+- External secrets (marked with `external: true`) must be created separately
 
 ## Database Credentials Management
 

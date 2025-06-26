@@ -344,9 +344,11 @@ services:
 		assert.NotContains(t, webContainer.Env, "DB_PASSWORD")
 
 		// Verify container has the secrets it needs access to
-		assert.Len(t, webContainer.Secrets, 1)
+		assert.Len(t, webContainer.Secrets, 3) // DB_PASSWORD + DATABASE_URL + REDIS_URL
 		assert.Contains(t, webContainer.Secrets, "DB_PASSWORD")
-		// DATABASE_URL and REDIS_URL are not in secrets list because Fly provides them
+		// DATABASE_URL and REDIS_URL are in secrets list (even though Fly provides them, container needs access)
+		assert.Contains(t, webContainer.Secrets, "DATABASE_URL")
+		assert.Contains(t, webContainer.Secrets, "REDIS_URL")
 
 		// Verify database services were detected
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
@@ -414,5 +416,123 @@ services:
 		assert.Contains(t, webContainer.Secrets, "DATABASE_URL")
 		assert.Contains(t, webContainer.Secrets, "REDIS_URL")
 		assert.Contains(t, webContainer.Secrets, "DB_PASSWORD")
+	})
+
+	t.Run("handles docker compose secrets section", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a master.key file
+		masterKeyPath := filepath.Join(tmpDir, "master.key")
+		err = os.WriteFile(masterKeyPath, []byte("secret-master-key-value\n"), 0600)
+		require.NoError(t, err)
+
+		// Create a docker-compose.yml with secrets section
+		composeContent := `version: '3.8'
+services:
+  web:
+    image: myapp:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://user:pass@postgres-db/mydb
+    secrets:
+      - master_key
+      - source: api_key
+        target: /run/secrets/api_key
+  postgres-db:
+    image: postgres:13
+    environment:
+      - POSTGRES_PASSWORD=dbpass
+
+secrets:
+  master_key:
+    file: ./master.key
+  api_key:
+    external: true
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Verify Docker Compose secrets were extracted
+		// Should have master_key (api_key is external so it's skipped)
+		secretKeys := make(map[string]string)
+		for _, secret := range srcInfo.Secrets {
+			secretKeys[secret.Key] = secret.Value
+		}
+
+		// Check master_key was read from file
+		assert.Contains(t, secretKeys, "master_key")
+		assert.Equal(t, "secret-master-key-value", secretKeys["master_key"])
+
+		// api_key should not be in secrets (it's external)
+		assert.NotContains(t, secretKeys, "api_key")
+
+		// Verify container has secrets it references
+		assert.Len(t, srcInfo.Containers, 1)
+		webContainer := srcInfo.Containers[0]
+		assert.Contains(t, webContainer.Secrets, "master_key")
+		assert.Contains(t, webContainer.Secrets, "api_key")
+
+		// DATABASE_URL should be in container secrets (Fly managed db detected)
+		assert.Contains(t, webContainer.Secrets, "DATABASE_URL")
+
+		// DATABASE_URL should have been removed from environment
+		assert.NotContains(t, webContainer.Env, "DATABASE_URL")
+	})
+
+	t.Run("database services get DATABASE_URL secret access", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with database service
+		composeContent := `version: '3.8'
+services:
+  web:
+    image: myapp:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://root:password@postgres-db/
+      - API_KEY=somekey
+  postgres-db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Verify Postgres was detected
+		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
+
+		// Verify container setup
+		assert.Len(t, srcInfo.Containers, 1)
+		webContainer := srcInfo.Containers[0]
+
+		// DATABASE_URL should be in container's secrets list (needed for Fly-provided secret)
+		assert.Contains(t, webContainer.Secrets, "DATABASE_URL")
+
+		// DATABASE_URL should NOT be in the global secrets (Fly provides it)
+		for _, secret := range srcInfo.Secrets {
+			assert.NotEqual(t, "DATABASE_URL", secret.Key)
+		}
+
+		// Regular env vars should remain
+		assert.Equal(t, "somekey", webContainer.Env["API_KEY"])
 	})
 }
