@@ -566,9 +566,9 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		}
 	}
 
-	// Create the machine configuration with Pilot as init
+	// Create the machine configuration for multi-container deployment
+	// Pilot is used automatically for multi-container machines
 	machineConfig := map[string]interface{}{
-		"init":       "pilot",
 		"containers": containers,
 	}
 

@@ -25,7 +25,7 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 4. **Configuration Generation**:
    - Creates a `fly.toml` file with basic app configuration
    - Generates a `fly.machine.json` file with multi-container specifications
-   - Uses Pilot as the init system (required for multi-container machines)
+   - Configures for multi-container deployment (Pilot init is used automatically)
    - Includes the service discovery entrypoint script
 
 ## Supported Features
@@ -156,7 +156,6 @@ machine_config = "fly.machine.json"
 ### fly.machine.json
 ```json
 {
-  "init": "pilot",
   "containers": [
     {
       "name": "web",
@@ -266,7 +265,7 @@ flyctl deploy
 The deployment will:
 1. Build images for containers with build contexts
 2. Upload images to Fly.io registry
-3. Create multi-container machine with Pilot init
+3. Create multi-container machine (with automatic Pilot init)
 4. Start containers in dependency order
 5. Configure health checks and networking
 6. Set up service discovery via `/etc/hosts`
@@ -350,4 +349,3 @@ Docker Compose volumes are converted to Fly.io persistent volumes:
 4. **Plan for Failures**: Implement proper error handling and retries
 5. **Document Changes**: Keep notes on any modifications from Docker Compose
 6. **Test Thoroughly**: Verify all service interactions work correctly
-
