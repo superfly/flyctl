@@ -92,7 +92,7 @@ func runCreate(ctx context.Context) error {
 			appName = appName + "-db"
 		} else {
 			// If no app name is available, prompt for a name
-			appName, err = prompt.SelectAppName(ctx)
+			appName, err = prompt.SelectAppNameWithMsg(ctx, "Choose a database name:")
 			if err != nil {
 				return err
 			}
@@ -105,7 +105,7 @@ func runCreate(ctx context.Context) error {
 	}
 
 	// Get available MPG regions from API
-	mpgRegions, err := GetAvailableMPGRegions(ctx, org.Slug)
+	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
 
 	if len(mpgRegions) == 0 {
 		return fmt.Errorf("no valid regions found for Managed Postgres")
