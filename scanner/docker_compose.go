@@ -145,7 +145,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 	excludedServices := make(map[string]bool)
 	hasDatabase := false
 	hasRedis := false
-	
+
 	for name, service := range compose.Services {
 		// Detect database services
 		if isPostgresService(name, service) {
@@ -418,7 +418,7 @@ func extractDependencies(deps interface{}, excludedServices map[string]bool) []C
 			if excludedServices[name] {
 				continue
 			}
-			
+
 			dependency := ContainerDependency{
 				Name:      name,
 				Condition: "started", // default

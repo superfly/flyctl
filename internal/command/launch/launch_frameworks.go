@@ -448,9 +448,9 @@ func (state *launchState) scannerSetMultiContainerConfig(ctx context.Context) er
 	if err := os.WriteFile(entrypointPath, entrypointScript, 0755); err != nil {
 		return fmt.Errorf("failed to write entrypoint script: %w", err)
 	}
-	
+
 	fmt.Fprintf(io.Out, "  Created entrypoint script: %s\n", entrypointPath)
-	
+
 	// Generate machine configuration for multi-container setup
 	machineConfig := state.generateMultiContainerMachineConfig()
 
