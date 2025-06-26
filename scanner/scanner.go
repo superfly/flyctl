@@ -56,6 +56,7 @@ type Container struct {
 	DependsOn     []ContainerDependency
 	HealthCheck   *ContainerHealthCheck
 	RestartPolicy string
+	Secrets       []string // List of secret names this container needs access to
 }
 
 // ContainerDependency represents a dependency between containers

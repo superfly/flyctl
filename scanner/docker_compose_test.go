@@ -315,7 +315,8 @@ services:
 		require.NotNil(t, srcInfo)
 
 		// Verify secrets were extracted
-		assert.Len(t, srcInfo.Secrets, 3) // DATABASE_URL, REDIS_URL, DB_PASSWORD
+		// DATABASE_URL and REDIS_URL should NOT be in secrets because Fly.io managed databases are detected
+		assert.Len(t, srcInfo.Secrets, 1) // Only DB_PASSWORD
 
 		// Check specific secrets
 		secretKeys := make(map[string]string)
@@ -323,10 +324,11 @@ services:
 			secretKeys[secret.Key] = secret.Value
 		}
 
-		assert.Contains(t, secretKeys, "DATABASE_URL")
-		assert.Equal(t, "postgresql://user:pass@db:5432/myapp", secretKeys["DATABASE_URL"])
-		assert.Contains(t, secretKeys, "REDIS_URL")
-		assert.Equal(t, "redis://cache:6379", secretKeys["REDIS_URL"])
+		// DATABASE_URL and REDIS_URL should NOT be in secrets (Fly will provide them)
+		assert.NotContains(t, secretKeys, "DATABASE_URL")
+		assert.NotContains(t, secretKeys, "REDIS_URL")
+
+		// DB_PASSWORD should still be in secrets
 		assert.Contains(t, secretKeys, "DB_PASSWORD")
 		assert.Equal(t, "secretpass", secretKeys["DB_PASSWORD"])
 
@@ -340,5 +342,77 @@ services:
 		assert.NotContains(t, webContainer.Env, "DATABASE_URL")
 		assert.NotContains(t, webContainer.Env, "REDIS_URL")
 		assert.NotContains(t, webContainer.Env, "DB_PASSWORD")
+
+		// Verify container has the secrets it needs access to
+		assert.Len(t, webContainer.Secrets, 1)
+		assert.Contains(t, webContainer.Secrets, "DB_PASSWORD")
+		// DATABASE_URL and REDIS_URL are not in secrets list because Fly provides them
+
+		// Verify database services were detected
+		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
+		assert.True(t, srcInfo.RedisDesired)
+	})
+
+	t.Run("extracts all database credentials when no managed databases detected", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml without database services (no managed db will be created)
+		composeContent := `version: '3'
+services:
+  web:
+    image: myapp:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@external-db:5432/myapp
+      - REDIS_URL=redis://external-cache:6379
+      - DB_PASSWORD=secretpass
+      - NORMAL_ENV=value
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Verify NO database services were detected
+		assert.Equal(t, DatabaseKindNone, srcInfo.DatabaseDesired)
+		assert.False(t, srcInfo.RedisDesired)
+
+		// Verify ALL database secrets were extracted (including DATABASE_URL and REDIS_URL)
+		assert.Len(t, srcInfo.Secrets, 3) // DATABASE_URL, REDIS_URL, DB_PASSWORD
+
+		// Check specific secrets
+		secretKeys := make(map[string]string)
+		for _, secret := range srcInfo.Secrets {
+			secretKeys[secret.Key] = secret.Value
+		}
+
+		// When no managed databases are detected, these should be in secrets
+		assert.Contains(t, secretKeys, "DATABASE_URL")
+		assert.Equal(t, "postgresql://user:pass@external-db:5432/myapp", secretKeys["DATABASE_URL"])
+		assert.Contains(t, secretKeys, "REDIS_URL")
+		assert.Equal(t, "redis://external-cache:6379", secretKeys["REDIS_URL"])
+		assert.Contains(t, secretKeys, "DB_PASSWORD")
+		assert.Equal(t, "secretpass", secretKeys["DB_PASSWORD"])
+
+		// Verify database env vars were removed from container environment
+		assert.Len(t, srcInfo.Containers, 1)
+		webContainer := srcInfo.Containers[0]
+		assert.NotContains(t, webContainer.Env, "DATABASE_URL")
+		assert.NotContains(t, webContainer.Env, "REDIS_URL")
+		assert.NotContains(t, webContainer.Env, "DB_PASSWORD")
+		assert.Equal(t, "value", webContainer.Env["NORMAL_ENV"])
+
+		// Verify container has all the secrets it needs access to
+		assert.Len(t, webContainer.Secrets, 3)
+		assert.Contains(t, webContainer.Secrets, "DATABASE_URL")
+		assert.Contains(t, webContainer.Secrets, "REDIS_URL")
+		assert.Contains(t, webContainer.Secrets, "DB_PASSWORD")
 	})
 }

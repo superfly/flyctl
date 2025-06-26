@@ -228,7 +228,8 @@ fi
         "interval": "30s",
         "timeout": "10s",
         "retries": 3
-      }
+      },
+      "secrets": ["DATABASE_URL", "REDIS_URL"]
     },
     {
       "name": "worker",
@@ -254,7 +255,8 @@ fi
           "container": "db",
           "condition": "started"
         }
-      ]
+      ],
+      "secrets": ["DATABASE_URL", "REDIS_URL"]
     }
   ]
 }
@@ -271,10 +273,18 @@ The scanner automatically identifies database-related environment variables and 
 These credentials are:
 1. Extracted from the container's environment variables
 2. Stored as Fly.io secrets (encrypted at rest)
-3. Automatically injected into containers at runtime
-4. Removed from the plain text configuration files
+3. Listed in each container's `secrets` field in fly.machine.json
+4. Automatically injected into containers at runtime
+5. Removed from the plain text configuration files
 
-This ensures sensitive database credentials are not exposed in configuration files or logs.
+**Important**: When Fly.io managed databases are detected:
+- `DATABASE_URL` is NOT created as a secret (Fly.io will provide it automatically when you create a Postgres database)
+- `REDIS_URL` is NOT created as a secret (Fly.io will provide it automatically when you create a Redis instance)
+- Other database-related environment variables (like `DB_PASSWORD`, `DB_HOST`, etc.) are still extracted as secrets
+
+Each container in the machine configuration will include a `secrets` array listing only the secrets it needs access to, ensuring proper security isolation between containers.
+
+This ensures sensitive database credentials are not exposed in configuration files or logs, while avoiding conflicts with Fly.io's automatic database configuration.
 
 ## Database Recommendations
 

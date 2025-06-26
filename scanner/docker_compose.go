@@ -211,8 +211,14 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		container := prepareContainerFromService(name, service, sourceDir, excludedServices)
 
 		// Extract database credentials from environment variables and move to secrets
-		secrets := extractDatabaseSecrets(container.Env)
+		// Skip secrets that Fly.io will automatically provide for managed databases
+		secrets := extractDatabaseSecrets(container.Env, s.DatabaseDesired, s.RedisDesired)
 		s.Secrets = append(s.Secrets, secrets...)
+
+		// Add the secret names to the container's secrets list
+		for _, secret := range secrets {
+			container.Secrets = append(container.Secrets, secret.Key)
+		}
 
 		s.Containers = append(s.Containers, container)
 	}
@@ -519,7 +525,8 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 
 // extractDatabaseSecrets identifies database-related environment variables and returns them as secrets
 // It also removes them from the environment map
-func extractDatabaseSecrets(env map[string]string) []Secret {
+// When Fly.io managed databases are detected, it skips DATABASE_URL and REDIS_URL as they will be provided by Fly
+func extractDatabaseSecrets(env map[string]string, databaseDesired DatabaseKind, redisDesired bool) []Secret {
 	var secrets []Secret
 
 	// Common database-related environment variable patterns
@@ -591,6 +598,22 @@ func extractDatabaseSecrets(env map[string]string) []Secret {
 		}
 
 		if isDatabase {
+			// Skip DATABASE_URL if Fly.io managed database will be created
+			if key == "DATABASE_URL" && databaseDesired != DatabaseKindNone {
+				// Don't create a secret for DATABASE_URL as Fly will provide it
+				// But still remove it from the environment map
+				delete(env, key)
+				continue
+			}
+
+			// Skip REDIS_URL if Fly.io Redis will be created
+			if key == "REDIS_URL" && redisDesired {
+				// Don't create a secret for REDIS_URL as Fly will provide it
+				// But still remove it from the environment map
+				delete(env, key)
+				continue
+			}
+
 			// Create a secret for this environment variable
 			secret := Secret{
 				Key:   key,

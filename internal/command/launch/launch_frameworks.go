@@ -571,6 +571,11 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 			containerConfig["restart"] = container.RestartPolicy
 		}
 
+		// Set secrets that this container needs access to
+		if len(container.Secrets) > 0 {
+			containerConfig["secrets"] = container.Secrets
+		}
+
 		containers = append(containers, containerConfig)
 	}
 
