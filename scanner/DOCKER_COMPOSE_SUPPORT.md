@@ -58,9 +58,11 @@ The Docker Compose scanner automatically sets up service discovery to maintain c
 ### How Service Discovery Works
 
 1. **Entrypoint Script**: Each container gets an entrypoint script (`/fly-entrypoint.sh`) that:
-   - Adds all service names to `/etc/hosts` pointing to `127.0.0.1`
+   - Appends service names to `/etc/hosts` pointing to `127.0.0.1`
+   - Preserves existing Fly.io networking entries (6PN addresses, fly-local-6pn, etc.)
+   - Only adds entries if they don't already exist
    - Chains to the original entrypoint or command
-   - Preserves all original container behavior
+   - Maintains all original container behavior
 
 2. **Name Resolution**: Containers can access each other using service names:
    - `http://web:3000` → resolves to `http://127.0.0.1:3000`
@@ -74,15 +76,23 @@ The Docker Compose scanner automatically sets up service discovery to maintain c
 
 ### Example Service Discovery
 
-If your `docker-compose.yml` defines services named `web`, `api`, and `cache`, the entrypoint script will add:
+If your `docker-compose.yml` defines services named `web`, `api`, and `cache`, the entrypoint script will append to `/etc/hosts`:
 
 ```bash
-127.0.0.1 web
-127.0.0.1 api
-127.0.0.1 cache
+# Original Fly.io entries preserved
+127.0.0.1    localhost
+fdaa:0:cfd4:a7b:c988:593f:a9e5:2    fly-local-6pn
+172.19.10.34    178190eb632e58
+172.19.10.35    fly-global-services
+2605:4c40:119:c6b2:0:593f:a9e5:1    178190eb632e58
+
+# Service discovery entries added by fly-entrypoint.sh
+127.0.0.1    web
+127.0.0.1    api
+127.0.0.1    cache
 ```
 
-This allows your `web` container to access the `api` container using `http://api:8080` just like in Docker Compose.
+This allows your `web` container to access the `api` container using `http://api:8080` just like in Docker Compose, while maintaining all Fly.io networking functionality.
 
 ## Example Usage
 
@@ -131,10 +141,11 @@ Running `flyctl launch` will:
 
 1. **Detect** the Docker Compose configuration
 2. **Generate** `fly.toml` with HTTP service configuration
-3. **Create** `fly.machine.json` with multi-container setup
-4. **Recommend** using Fly.io Postgres and Redis instead of containerized versions
-5. **Configure** service discovery so containers can access each other by name
-6. **Setup** containers to communicate via localhost (shared VM)
+3. **Create** `fly-entrypoint.sh` script for service discovery
+4. **Generate** `fly.machine.json` with multi-container setup
+5. **Recommend** using Fly.io Postgres and Redis instead of containerized versions
+6. **Configure** service discovery so containers can access each other by name
+7. **Setup** containers to communicate via localhost (shared VM)
 
 ## Generated Configuration
 
@@ -151,6 +162,36 @@ primary_region = "sea"
   min_machines_running = 0
 
 machine_config = "fly.machine.json"
+```
+
+### fly-entrypoint.sh
+```bash
+#!/bin/sh
+set -e
+
+# Add service names to /etc/hosts for multi-container service discovery
+# This allows containers to access each other using their service names
+# We append to the existing /etc/hosts to preserve Fly.io networking entries
+
+# Only add entries if they don't already exist
+if ! grep -q "\sweb\(\s\|$\)" /etc/hosts; then
+    echo "127.0.0.1    web" >> /etc/hosts
+fi
+if ! grep -q "\sworker\(\s\|$\)" /etc/hosts; then
+    echo "127.0.0.1    worker" >> /etc/hosts
+fi
+
+# Chain to the original entrypoint or command
+if [ $# -eq 0 ]; then
+    # No arguments provided, this shouldn't happen in multi-container setup
+    exec /bin/sh
+elif [ -x "$1" ]; then
+    # First argument is executable, run it directly
+    exec "$@"
+else
+    # First argument is not executable, run it with shell
+    exec /bin/sh -c "$*"
+fi
 ```
 
 ### fly.machine.json
@@ -172,8 +213,7 @@ machine_config = "fly.machine.json"
       "files": [
         {
           "guest_path": "/fly-entrypoint.sh",
-          "raw_value": "#!/bin/sh\nset -e\n\n# Service discovery setup\necho \"127.0.0.1 localhost\" >> /etc/hosts\necho \"127.0.0.1 web\" >> /etc/hosts\necho \"127.0.0.1 worker\" >> /etc/hosts\n\n# Chain to original entrypoint\nexec \"$@\"\n",
-          "secret": false
+          "local_path": "fly-entrypoint.sh"
         }
       ],
       "depends_on": [
@@ -205,8 +245,7 @@ machine_config = "fly.machine.json"
       "files": [
         {
           "guest_path": "/fly-entrypoint.sh",
-          "raw_value": "#!/bin/sh\nset -e\n\n# Service discovery setup\necho \"127.0.0.1 localhost\" >> /etc/hosts\necho \"127.0.0.1 web\" >> /etc/hosts\necho \"127.0.0.1 worker\" >> /etc/hosts\n\n# Chain to original command\nexec \"$@\"\n",
-          "secret": false
+          "local_path": "fly-entrypoint.sh"
         }
       ],
       "depends_on": [

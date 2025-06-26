@@ -476,12 +476,17 @@ set -e
 
 # Add service names to /etc/hosts for multi-container service discovery
 # This allows containers to access each other using their service names
-echo "127.0.0.1 localhost" >> /etc/hosts
+# We append to the existing /etc/hosts to preserve Fly.io networking entries
+
+# Only add entries if they don't already exist
 `
 
 	// Add each container service name pointing to localhost
 	for _, container := range containers {
-		script += fmt.Sprintf("echo \"127.0.0.1 %s\" >> /etc/hosts\n", container.Name)
+		script += fmt.Sprintf(`if ! grep -q "\\s%s\\(\\s\\|$\\)" /etc/hosts; then
+    echo "127.0.0.1    %s" >> /etc/hosts
+fi
+`, container.Name, container.Name)
 	}
 
 	script += `

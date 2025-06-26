@@ -58,7 +58,7 @@ services:
 		// Verify entrypoint script file is included
 		assert.Len(t, srcInfo.Files, 1)
 		assert.Equal(t, "/fly-entrypoint.sh", srcInfo.Files[0].Path)
-		assert.Contains(t, string(srcInfo.Files[0].Contents), "127.0.0.1 web")
+		assert.Contains(t, string(srcInfo.Files[0].Contents), "127.0.0.1    web")
 
 		// Verify database detection
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)

@@ -442,6 +442,15 @@ func (state *launchState) scannerSetMultiContainerConfig(ctx context.Context) er
 		appConfig.SetMounts(appVolumes)
 	}
 
+	// Write the entrypoint script to a file
+	entrypointScript := getEntrypointScript(srcInfo.Files)
+	entrypointPath := "fly-entrypoint.sh"
+	if err := os.WriteFile(entrypointPath, entrypointScript, 0755); err != nil {
+		return fmt.Errorf("failed to write entrypoint script: %w", err)
+	}
+	
+	fmt.Fprintf(io.Out, "  Created entrypoint script: %s\n", entrypointPath)
+	
 	// Generate machine configuration for multi-container setup
 	machineConfig := state.generateMultiContainerMachineConfig()
 
@@ -554,14 +563,12 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		containers = append(containers, containerConfig)
 	}
 
-	// Add entrypoint script file for service discovery to all containers
-	entrypointScript := getEntrypointScript(srcInfo.Files)
+	// Add entrypoint script file reference for service discovery to all containers
 	for i := range containers {
 		containers[i]["files"] = []map[string]interface{}{
 			{
 				"guest_path": "/fly-entrypoint.sh",
-				"raw_value":  string(entrypointScript),
-				"secret":     false,
+				"local_path": "fly-entrypoint.sh",
 			},
 		}
 	}
