@@ -14,7 +14,7 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
    - `compose.yml`
    - `compose.yaml`
 
-2. **Service Translation**: Each Docker Compose service is converted to a container in the machine configuration, except for database services which are recommended to be replaced with Fly.io managed services.
+2. **Service Translation**: Each Docker Compose service is converted to a container in the machine configuration, except for database services which are recommended to be replaced with Fly.io managed services. Dependencies on excluded database services are automatically removed.
 
 3. **Service Discovery Setup**: Automatically configures service discovery by:
    - Injecting an entrypoint script (`/fly-entrypoint.sh`) that updates `/etc/hosts`
@@ -35,7 +35,7 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 - **Build contexts**: Local Dockerfile builds
 - **Port mappings**: Translated to internal ports
 - **Environment variables**: Passed through to containers
-- **Dependencies**: `depends_on` relationships with conditions
+- **Dependencies**: `depends_on` relationships with conditions (excluding database services)
 - **Health checks**: Converted to Fly.io format
 - **Volumes**: Translated to Fly.io persistent volumes
 - **Restart policies**: Mapped to container restart settings

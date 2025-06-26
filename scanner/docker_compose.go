@@ -141,26 +141,33 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		Containers: []Container{}, // Will be populated with service containers
 	}
 
-	// Process each service
-	primaryService := ""
+	// First pass: identify excluded services (databases) and detect types
+	excludedServices := make(map[string]bool)
 	hasDatabase := false
 	hasRedis := false
-
+	
 	for name, service := range compose.Services {
 		// Detect database services
 		if isPostgresService(name, service) {
 			s.DatabaseDesired = DatabaseKindPostgres
 			hasDatabase = true
-			continue
-		}
-		if isMySQLService(name, service) {
+			excludedServices[name] = true
+		} else if isMySQLService(name, service) {
 			s.DatabaseDesired = DatabaseKindMySQL
 			hasDatabase = true
-			continue
-		}
-		if isRedisService(name, service) {
+			excludedServices[name] = true
+		} else if isRedisService(name, service) {
 			s.RedisDesired = true
 			hasRedis = true
+			excludedServices[name] = true
+		}
+	}
+
+	// Second pass: process non-database services
+	primaryService := ""
+	for name, service := range compose.Services {
+		// Skip excluded services
+		if excludedServices[name] {
 			continue
 		}
 
@@ -174,7 +181,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 
 		// Prepare container configuration
-		container := prepareContainerFromService(name, service, sourceDir)
+		container := prepareContainerFromService(name, service, sourceDir, excludedServices)
 		s.Containers = append(s.Containers, container)
 	}
 
@@ -284,7 +291,7 @@ func extractServicePort(service DockerComposeService) int {
 }
 
 // prepareContainerFromService creates a Container configuration from a Docker Compose service
-func prepareContainerFromService(name string, service DockerComposeService, sourceDir string) Container {
+func prepareContainerFromService(name string, service DockerComposeService, sourceDir string, excludedServices map[string]bool) Container {
 	container := Container{
 		Name: name,
 	}
@@ -344,8 +351,8 @@ func prepareContainerFromService(name string, service DockerComposeService, sour
 		container.Command = nil
 	}
 
-	// Handle dependencies
-	container.DependsOn = extractDependencies(service.DependsOn)
+	// Handle dependencies (excluding database services)
+	container.DependsOn = extractDependencies(service.DependsOn, excludedServices)
 
 	// Handle health check
 	if service.HealthCheck != nil {
@@ -381,8 +388,8 @@ func extractCommand(cmd interface{}) []string {
 	return nil
 }
 
-// extractDependencies extracts service dependencies
-func extractDependencies(deps interface{}) []ContainerDependency {
+// extractDependencies extracts service dependencies, filtering out excluded services
+func extractDependencies(deps interface{}, excludedServices map[string]bool) []ContainerDependency {
 	if deps == nil {
 		return nil
 	}
@@ -394,6 +401,10 @@ func extractDependencies(deps interface{}) []ContainerDependency {
 		// Simple array format
 		for _, dep := range d {
 			if name, ok := dep.(string); ok {
+				// Skip dependencies on excluded services (databases)
+				if excludedServices[name] {
+					continue
+				}
 				result = append(result, ContainerDependency{
 					Name:      name,
 					Condition: "started",
@@ -403,6 +414,11 @@ func extractDependencies(deps interface{}) []ContainerDependency {
 	case map[string]interface{}:
 		// Extended format with conditions
 		for name, config := range d {
+			// Skip dependencies on excluded services (databases)
+			if excludedServices[name] {
+				continue
+			}
+			
 			dependency := ContainerDependency{
 				Name:      name,
 				Condition: "started", // default

@@ -64,10 +64,8 @@ services:
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 		assert.True(t, srcInfo.RedisDesired)
 
-		// Verify dependencies
-		assert.Len(t, srcInfo.Containers[0].DependsOn, 1)
-		assert.Equal(t, "db", srcInfo.Containers[0].DependsOn[0].Name)
-		assert.Equal(t, "started", srcInfo.Containers[0].DependsOn[0].Condition)
+		// Verify dependencies - database dependency should be filtered out
+		assert.Len(t, srcInfo.Containers[0].DependsOn, 0)
 	})
 
 	t.Run("handles build context", func(t *testing.T) {
@@ -148,5 +146,58 @@ services:
 		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
 		assert.NoError(t, err)
 		assert.Nil(t, srcInfo)
+	})
+
+	t.Run("preserves non-database dependencies", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with mixed dependencies
+		composeContent := `version: '3'
+services:
+  web:
+    image: nginx:latest
+    depends_on:
+      - api
+      - db
+      - cache
+  api:
+    image: myapi:latest
+  db:
+    image: postgres:13
+  cache:
+    image: redis:alpine
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Should have 2 containers (web and api, excluding db and cache)
+		assert.Len(t, srcInfo.Containers, 2)
+		
+		// Find the web container
+		var webContainer *Container
+		for i := range srcInfo.Containers {
+			if srcInfo.Containers[i].Name == "web" {
+				webContainer = &srcInfo.Containers[i]
+				break
+			}
+		}
+		require.NotNil(t, webContainer)
+		
+		// Web should only depend on api (db and cache are filtered out)
+		assert.Len(t, webContainer.DependsOn, 1)
+		assert.Equal(t, "api", webContainer.DependsOn[0].Name)
+		assert.Equal(t, "started", webContainer.DependsOn[0].Condition)
+		
+		// Verify database services were detected
+		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
+		assert.True(t, srcInfo.RedisDesired)
 	})
 }
