@@ -107,6 +107,10 @@ func runCreate(ctx context.Context) error {
 	// Get available MPG regions from API
 	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
 
+	if err != nil {
+		return err
+	}
+
 	if len(mpgRegions) == 0 {
 		return fmt.Errorf("no valid regions found for Managed Postgres")
 	}
