@@ -18,9 +18,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// Allowed MPG regions
-var AllowedMPGRegions = []string{"fra", "iad", "ord", "syd", "lax"}
-
 type CreateClusterParams struct {
 	Name          string
 	OrgSlug       string
@@ -95,7 +92,7 @@ func runCreate(ctx context.Context) error {
 			appName = appName + "-db"
 		} else {
 			// If no app name is available, prompt for a name
-			appName, err = prompt.SelectAppName(ctx)
+			appName, err = prompt.SelectAppNameWithMsg(ctx, "Choose a database name:")
 			if err != nil {
 				return err
 			}
@@ -107,21 +104,11 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	// Get all regions and filter for MPG allowed regions
-	regionsFuture := prompt.PlatformRegions(ctx)
-	regions, err := regionsFuture.Get()
+	// Get available MPG regions from API
+	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
+
 	if err != nil {
 		return err
-	}
-
-	var mpgRegions []fly.Region
-	for _, region := range regions.Regions {
-		for _, allowed := range AllowedMPGRegions {
-			if region.Code == allowed {
-				mpgRegions = append(mpgRegions, region)
-				break
-			}
-		}
 	}
 
 	if len(mpgRegions) == 0 {
@@ -141,7 +128,8 @@ func runCreate(ctx context.Context) error {
 			}
 		}
 		if selectedRegion == nil {
-			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, AllowedMPGRegions)
+			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
+			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
 	} else {
 		// Create region options for prompt
