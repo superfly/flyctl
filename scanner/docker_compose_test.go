@@ -279,4 +279,66 @@ services:
 		assert.Nil(t, srcInfo)
 		assert.Contains(t, err.Error(), "multiple services with build sections found")
 	})
+
+	t.Run("extracts database credentials as secrets", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with database credentials
+		composeContent := `version: '3'
+services:
+  web:
+    image: myapp:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/myapp
+      - REDIS_URL=redis://cache:6379
+      - API_KEY=not-a-database-key
+      - DB_PASSWORD=secretpass
+      - NORMAL_ENV=value
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_PASSWORD=secret
+  cache:
+    image: redis:alpine
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Verify secrets were extracted
+		assert.Len(t, srcInfo.Secrets, 3) // DATABASE_URL, REDIS_URL, DB_PASSWORD
+
+		// Check specific secrets
+		secretKeys := make(map[string]string)
+		for _, secret := range srcInfo.Secrets {
+			secretKeys[secret.Key] = secret.Value
+		}
+
+		assert.Contains(t, secretKeys, "DATABASE_URL")
+		assert.Equal(t, "postgresql://user:pass@db:5432/myapp", secretKeys["DATABASE_URL"])
+		assert.Contains(t, secretKeys, "REDIS_URL")
+		assert.Equal(t, "redis://cache:6379", secretKeys["REDIS_URL"])
+		assert.Contains(t, secretKeys, "DB_PASSWORD")
+		assert.Equal(t, "secretpass", secretKeys["DB_PASSWORD"])
+
+		// Verify non-database env vars remain in container environment
+		assert.Len(t, srcInfo.Containers, 1)
+		webContainer := srcInfo.Containers[0]
+		assert.Equal(t, "not-a-database-key", webContainer.Env["API_KEY"])
+		assert.Equal(t, "value", webContainer.Env["NORMAL_ENV"])
+
+		// Verify database env vars were removed from container environment
+		assert.NotContains(t, webContainer.Env, "DATABASE_URL")
+		assert.NotContains(t, webContainer.Env, "REDIS_URL")
+		assert.NotContains(t, webContainer.Env, "DB_PASSWORD")
+	})
 }

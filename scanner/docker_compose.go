@@ -139,6 +139,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		Version:    compose.Version,
 		Notice:     "This application uses Docker Compose with multiple services",
 		Containers: []Container{}, // Will be populated with service containers
+		Secrets:    []Secret{},    // Will be populated with database credentials
 	}
 
 	// First pass: identify excluded services (databases) and detect types
@@ -208,6 +209,11 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 
 		// Prepare container configuration
 		container := prepareContainerFromService(name, service, sourceDir, excludedServices)
+
+		// Extract database credentials from environment variables and move to secrets
+		secrets := extractDatabaseSecrets(container.Env)
+		s.Secrets = append(s.Secrets, secrets...)
+
 		s.Containers = append(s.Containers, container)
 	}
 
@@ -509,6 +515,96 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	}
 
 	return nil
+}
+
+// extractDatabaseSecrets identifies database-related environment variables and returns them as secrets
+// It also removes them from the environment map
+func extractDatabaseSecrets(env map[string]string) []Secret {
+	var secrets []Secret
+
+	// Common database-related environment variable patterns
+	databasePatterns := []string{
+		"DATABASE_URL",
+		"DB_URL",
+		"POSTGRES_URL",
+		"POSTGRESQL_URL",
+		"MYSQL_URL",
+		"MONGO_URL",
+		"MONGODB_URL",
+		"REDIS_URL",
+		"CACHE_URL",
+		"CONNECTION_STRING",
+		"DB_CONNECTION",
+		"DB_HOST",
+		"DB_PORT",
+		"DB_USER",
+		"DB_PASSWORD",
+		"DB_NAME",
+		"DB_DATABASE",
+		"POSTGRES_HOST",
+		"POSTGRES_PORT",
+		"POSTGRES_USER",
+		"POSTGRES_PASSWORD",
+		"POSTGRES_DB",
+		"MYSQL_HOST",
+		"MYSQL_PORT",
+		"MYSQL_USER",
+		"MYSQL_PASSWORD",
+		"MYSQL_DATABASE",
+		"REDIS_HOST",
+		"REDIS_PORT",
+		"REDIS_PASSWORD",
+		"MONGODB_URI",
+		"MONGO_HOST",
+		"MONGO_PORT",
+		"MONGO_USER",
+		"MONGO_PASSWORD",
+	}
+
+	// Check each environment variable
+	for key, value := range env {
+		isDatabase := false
+
+		// Check if key matches any database pattern
+		upperKey := strings.ToUpper(key)
+		for _, pattern := range databasePatterns {
+			if upperKey == pattern || strings.Contains(upperKey, pattern) {
+				isDatabase = true
+				break
+			}
+		}
+
+		// Also check for generic password/secret patterns that might be database-related
+		if strings.Contains(upperKey, "PASSWORD") ||
+			strings.Contains(upperKey, "SECRET") ||
+			strings.Contains(upperKey, "_KEY") ||
+			strings.Contains(upperKey, "_TOKEN") {
+			// Check if it's in a database context
+			if strings.Contains(upperKey, "DB") ||
+				strings.Contains(upperKey, "DATABASE") ||
+				strings.Contains(upperKey, "POSTGRES") ||
+				strings.Contains(upperKey, "MYSQL") ||
+				strings.Contains(upperKey, "MONGO") ||
+				strings.Contains(upperKey, "REDIS") {
+				isDatabase = true
+			}
+		}
+
+		if isDatabase {
+			// Create a secret for this environment variable
+			secret := Secret{
+				Key:   key,
+				Value: value,
+				Help:  fmt.Sprintf("Database credential from docker-compose.yml (was: %s)", key),
+			}
+			secrets = append(secrets, secret)
+
+			// Remove from environment map
+			delete(env, key)
+		}
+	}
+
+	return secrets
 }
 
 // generateEntrypointScript creates a shell script that sets up /etc/hosts for service discovery

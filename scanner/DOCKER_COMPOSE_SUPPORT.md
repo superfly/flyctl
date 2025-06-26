@@ -32,14 +32,15 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 
 ### ✅ Supported
 - **Images**: Pre-built Docker images
-- **Build contexts**: Local Dockerfile builds
+- **Build contexts**: Local Dockerfile builds (only one service can have a build section)
 - **Port mappings**: Translated to internal ports
-- **Environment variables**: Passed through to containers
+- **Environment variables**: Passed through to containers (database credentials automatically extracted as secrets)
 - **Dependencies**: `depends_on` relationships with conditions (excluding database services)
 - **Health checks**: Converted to Fly.io format
 - **Volumes**: Translated to Fly.io persistent volumes
 - **Restart policies**: Mapped to container restart settings
 - **Service discovery**: Automatic `/etc/hosts` configuration for inter-service communication
+- **Database credentials**: Automatically extracted from environment variables and converted to Fly.io secrets
 
 ### ⚠️ Partially Supported
 - **Database services**: Detected but recommended to use managed services
@@ -258,6 +259,22 @@ fi
   ]
 }
 ```
+
+## Database Credentials Management
+
+The scanner automatically identifies database-related environment variables and converts them to Fly.io secrets for better security. This includes:
+
+- Connection strings (e.g., `DATABASE_URL`, `REDIS_URL`, `MONGODB_URI`)
+- Individual credentials (e.g., `DB_PASSWORD`, `POSTGRES_USER`, `MYSQL_PASSWORD`)
+- Host/port configurations (e.g., `DB_HOST`, `REDIS_PORT`)
+
+These credentials are:
+1. Extracted from the container's environment variables
+2. Stored as Fly.io secrets (encrypted at rest)
+3. Automatically injected into containers at runtime
+4. Removed from the plain text configuration files
+
+This ensures sensitive database credentials are not exposed in configuration files or logs.
 
 ## Database Recommendations
 
