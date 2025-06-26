@@ -468,6 +468,11 @@ func (state *launchState) scannerSetMultiContainerConfig(ctx context.Context) er
 	// Reference the machine config file in fly.toml
 	appConfig.MachineConfig = machineConfigPath
 
+	// Set the container field if specified (for single build service)
+	if srcInfo.Container != "" {
+		appConfig.Container = srcInfo.Container
+	}
+
 	fmt.Fprintf(io.Out, "  Created machine configuration file: %s\n", machineConfigPath)
 	fmt.Fprintf(io.Out, "  Note: All containers will run in the same VM with shared networking\n")
 
@@ -497,16 +502,22 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 			"name": container.Name,
 		}
 
-		// Set image or build configuration
-		if container.Image != "" {
-			containerConfig["image"] = container.Image
-		} else if container.BuildContext != "" {
-			// For build contexts, we'll need to handle this during deployment
-			// For now, mark it as needing build
-			containerConfig["image"] = fmt.Sprintf("registry.fly.io/%s:%s", state.appConfig.AppName, container.Name)
-			containerConfig["build"] = map[string]interface{}{
-				"context":    container.BuildContext,
-				"dockerfile": container.Dockerfile,
+		// Check if this is the container with the build section that should be omitted
+		if srcInfo.Container != "" && container.Name == srcInfo.Container {
+			// For the service with build section, omit both build and image fields
+			// The container will be built from the fly.toml build configuration
+		} else {
+			// Set image or build configuration for other containers
+			if container.Image != "" {
+				containerConfig["image"] = container.Image
+			} else if container.BuildContext != "" {
+				// For build contexts, we'll need to handle this during deployment
+				// For now, mark it as needing build
+				containerConfig["image"] = fmt.Sprintf("registry.fly.io/%s:%s", state.appConfig.AppName, container.Name)
+				containerConfig["build"] = map[string]interface{}{
+					"context":    container.BuildContext,
+					"dockerfile": container.Dockerfile,
+				}
 			}
 		}
 

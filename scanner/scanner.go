@@ -118,6 +118,7 @@ type SourceInfo struct {
 	Runtime                         plan.RuntimeStruct
 	PostInitCallback                func() error
 	Containers                      []Container // For multi-container deployments
+	Container                       string      // Name of the container to build (for multi-container with single build)
 }
 
 type SourceFile struct {

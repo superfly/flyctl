@@ -163,8 +163,34 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
-	// Second pass: process non-database services
+	// Second pass: process non-database services and check for build sections
 	primaryService := ""
+	buildServices := []string{}
+
+	// First, count services with build sections
+	for name, service := range compose.Services {
+		// Skip excluded services
+		if excludedServices[name] {
+			continue
+		}
+
+		// Check if service has a build section
+		if service.Build != nil {
+			buildServices = append(buildServices, name)
+		}
+	}
+
+	// Error if more than one service has a build section
+	if len(buildServices) > 1 {
+		return nil, fmt.Errorf("multiple services with build sections found: %v. Only one service can have a build section", buildServices)
+	}
+
+	// If exactly one service has a build section, set it as the container
+	if len(buildServices) == 1 {
+		s.Container = buildServices[0]
+	}
+
+	// Process all non-database services
 	for name, service := range compose.Services {
 		// Skip excluded services
 		if excludedServices[name] {

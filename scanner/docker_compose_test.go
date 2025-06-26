@@ -200,4 +200,83 @@ services:
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 		assert.True(t, srcInfo.RedisDesired)
 	})
+
+	t.Run("handles single build section correctly", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with one build service and one image service
+		composeContent := `version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+  worker:
+    image: nginx:latest
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Should have 2 containers
+		assert.Len(t, srcInfo.Containers, 2)
+
+		// Container field should be set to the build service
+		assert.Equal(t, "web", srcInfo.Container)
+
+		// Verify containers
+		var webContainer, workerContainer *Container
+		for i := range srcInfo.Containers {
+			if srcInfo.Containers[i].Name == "web" {
+				webContainer = &srcInfo.Containers[i]
+			} else if srcInfo.Containers[i].Name == "worker" {
+				workerContainer = &srcInfo.Containers[i]
+			}
+		}
+		require.NotNil(t, webContainer)
+		require.NotNil(t, workerContainer)
+
+		// Web container should have build context
+		assert.Equal(t, tmpDir, webContainer.BuildContext)
+		assert.Equal(t, "", webContainer.Image)
+
+		// Worker container should have image
+		assert.Equal(t, "nginx:latest", workerContainer.Image)
+		assert.Equal(t, "", workerContainer.BuildContext)
+	})
+
+	t.Run("errors on multiple build sections", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with multiple build services
+		composeContent := `version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+  api:
+    build: ./api
+  worker:
+    image: nginx:latest
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner - should error
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		assert.Error(t, err)
+		assert.Nil(t, srcInfo)
+		assert.Contains(t, err.Error(), "multiple services with build sections found")
+	})
 }
