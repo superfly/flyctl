@@ -75,6 +75,12 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 	// Get the organization from the cluster
 	orgSlug := cluster.Organization.Slug
 
+	// Resolve organization slug to handle aliases
+	resolvedOrgSlug, err := ResolveOrganizationSlug(ctx, orgSlug)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to resolve organization slug: %w", err)
+	}
+
 	if response.Credentials.Status == "initializing" {
 		return nil, nil, "", fmt.Errorf("Cluster is still initializing, wait a bit more")
 	}
@@ -92,15 +98,15 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		return nil, nil, "", err
 	}
 
-	// Use the organization slug from the cluster for wireguard tunnel
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, "", false)
+	// Use the resolved organization slug for wireguard tunnel
+	dialer, err := agentclient.ConnectToTunnel(ctx, resolvedOrgSlug, "", false)
 	if err != nil {
 		return nil, nil, "", err
 	}
 
 	return &cluster, &proxy.ConnectParams{
 		Ports:            []string{localProxyPort, "5432"},
-		OrganizationSlug: orgSlug,
+		OrganizationSlug: resolvedOrgSlug,
 		Dialer:           dialer,
 		BindAddr:         flag.GetBindAddr(ctx),
 		RemoteHost:       cluster.IpAssignments.Direct,

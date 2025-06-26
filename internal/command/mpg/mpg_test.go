@@ -772,3 +772,7 @@ func TestCreateCommand_RegionValidation(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, valid, "Should not find invalid region")
 }
+
+// Note: Testing ResolveOrganizationSlug would require extensive GraphQL client mocking
+// which is beyond the scope of this implementation. The function integrates with
+// the existing GraphQL infrastructure and follows established patterns in the codebase.
