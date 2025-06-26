@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -30,7 +29,6 @@ This action is not reversible.`
 	cmd.Aliases = []string{"delete", "remove", "rm"}
 
 	flag.Add(cmd,
-		flag.Org(),
 		flag.Yes(),
 	)
 
@@ -45,28 +43,17 @@ func runDestroy(ctx context.Context) error {
 		colorize   = io.ColorScheme()
 	)
 
-	// Validate organization access before allowing destruction
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
-	if err != nil {
-		return err
-	}
-
 	// Get cluster details to verify ownership and show info
 	response, err := uiexClient.GetManagedClusterById(ctx, clusterId)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
 
-	// Verify the cluster belongs to the user's org
-	if response.Data.Organization.Slug != org.Slug {
-		return fmt.Errorf("cluster %s does not belong to organization %s", clusterId, org.Slug)
-	}
-
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying a managed Postgres cluster is not reversible. All data will be permanently lost."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Destroy managed Postgres cluster %s (%s)?", response.Data.Name, clusterId); {
+		switch confirmed, err := prompt.Confirmf(ctx, "Destroy managed Postgres cluster %s from organization %s (%s)?", response.Data.Name, response.Data.Organization.Name, clusterId); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -79,7 +66,7 @@ func runDestroy(ctx context.Context) error {
 	}
 
 	// Destroy the cluster
-	err = uiexClient.DestroyCluster(ctx, clusterId)
+	err = uiexClient.DestroyCluster(ctx, response.Data.Organization.Slug, clusterId)
 	if err != nil {
 		return fmt.Errorf("failed to destroy cluster %s: %w", clusterId, err)
 	}

@@ -25,7 +25,7 @@ type MockUiexClient struct {
 	GetManagedClusterByIdFunc func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUserFunc            func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
 	CreateClusterFunc         func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
-	DestroyClusterFunc        func(ctx context.Context, id string) error
+	DestroyClusterFunc        func(ctx context.Context, orgSlug string, id string) error
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
@@ -70,9 +70,9 @@ func (m *MockUiexClient) CreateCluster(ctx context.Context, input uiex.CreateClu
 	return uiex.CreateClusterResponse{}, nil
 }
 
-func (m *MockUiexClient) DestroyCluster(ctx context.Context, id string) error {
+func (m *MockUiexClient) DestroyCluster(ctx context.Context, orgSlug string, id string) error {
 	if m.DestroyClusterFunc != nil {
-		return m.DestroyClusterFunc(ctx, id)
+		return m.DestroyClusterFunc(ctx, orgSlug, id)
 	}
 	return nil
 }
@@ -356,7 +356,8 @@ func TestDestroyCommand_Logic(t *testing.T) {
 				Data: expectedCluster,
 			}, nil
 		},
-		DestroyClusterFunc: func(ctx context.Context, id string) error {
+		DestroyClusterFunc: func(ctx context.Context, orgSlug string, id string) error {
+			assert.Equal(t, "test-org", orgSlug)
 			assert.Equal(t, clusterID, id)
 			return nil
 		},
@@ -376,7 +377,7 @@ func TestDestroyCommand_Logic(t *testing.T) {
 	}
 
 	// Test successful cluster destruction
-	err = mockUiex.DestroyCluster(ctx, clusterID)
+	err = mockUiex.DestroyCluster(ctx, "test-org", clusterID)
 	require.NoError(t, err)
 }
 
@@ -513,13 +514,13 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("DestroyCluster error", func(t *testing.T) {
 		mockUiex := &MockUiexClient{
-			DestroyClusterFunc: func(ctx context.Context, id string) error {
+			DestroyClusterFunc: func(ctx context.Context, orgSlug string, id string) error {
 				return fmt.Errorf("destroy failed")
 			},
 		}
 		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
 
-		err := mockUiex.DestroyCluster(ctx, "test-cluster")
+		err := mockUiex.DestroyCluster(ctx, "test-org", "test-cluster")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "destroy failed")
 	})

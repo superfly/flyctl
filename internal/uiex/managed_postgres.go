@@ -335,9 +335,9 @@ func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGReg
 }
 
 // DestroyCluster permanently destroys a managed Postgres cluster
-func (c *Client) DestroyCluster(ctx context.Context, id string) error {
+func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) error {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.baseUrl, orgSlug, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
