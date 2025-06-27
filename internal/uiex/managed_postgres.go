@@ -220,27 +220,29 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 }
 
 type CreateClusterInput struct {
-	Name    string `json:"name"`
-	Region  string `json:"region"`
-	Plan    string `json:"plan"`
-	OrgSlug string `json:"org_slug"`
-	Disk    int    `json:"disk"`
+	Name            string `json:"name"`
+	Region          string `json:"region"`
+	Plan            string `json:"plan"`
+	OrgSlug         string `json:"org_slug"`
+	Disk            int    `json:"disk"`
+	PGVectorEnabled bool   `json:"pgvector_enabled"`
 }
 
 type CreateClusterResponse struct {
 	Ok     bool           `json:"ok"`
 	Errors DetailedErrors `json:"errors"`
 	Data   struct {
-		Id            string                      `json:"id"`
-		Name          string                      `json:"name"`
-		Status        *string                     `json:"status"`
-		Plan          string                      `json:"plan"`
-		Environment   *string                     `json:"environment"`
-		Region        string                      `json:"region"`
-		Organization  fly.Organization            `json:"organization"`
-		Replicas      int                         `json:"replicas"`
-		Disk          int                         `json:"disk"`
-		IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
+		Id              string                      `json:"id"`
+		Name            string                      `json:"name"`
+		Status          *string                     `json:"status"`
+		Plan            string                      `json:"plan"`
+		Environment     *string                     `json:"environment"`
+		Region          string                      `json:"region"`
+		Organization    fly.Organization            `json:"organization"`
+		Replicas        int                         `json:"replicas"`
+		Disk            int                         `json:"disk"`
+		IpAssignments   ManagedClusterIpAssignments `json:"ip_assignments"`
+		PGVectorEnabled bool                        `json:"pgvector_enabled"`
 	} `json:"data"`
 }
 
