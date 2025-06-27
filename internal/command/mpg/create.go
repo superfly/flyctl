@@ -19,14 +19,12 @@ import (
 )
 
 type CreateClusterParams struct {
-	Name          string
-	OrgSlug       string
-	Region        string
-	Plan          string
-	Nodes         int
-	VolumeSizeGB  int
-	EnableBackups bool
-	AutoStop      bool
+	Name            string
+	OrgSlug         string
+	Region          string
+	Plan            string
+	VolumeSizeGB    int
+	PGVectorEnabled bool
 }
 
 func newCreate() *cobra.Command {
@@ -57,6 +55,11 @@ func newCreate() *cobra.Command {
 			Name:        "volume-size",
 			Description: "The volume size in GB",
 			Default:     10,
+		},
+		flag.Bool{
+			Name:        "pgvector",
+			Description: "Enable PGVector for the Postgres cluster",
+			Default:     false,
 		},
 	)
 
@@ -152,21 +155,23 @@ func runCreate(ctx context.Context) error {
 	}
 
 	params := &CreateClusterParams{
-		Name:         appName,
-		OrgSlug:      slug,
-		Region:       selectedRegion.Code,
-		Plan:         plan,
-		VolumeSizeGB: flag.GetInt(ctx, "volume-size"),
+		Name:            appName,
+		OrgSlug:         slug,
+		Region:          selectedRegion.Code,
+		Plan:            plan,
+		VolumeSizeGB:    flag.GetInt(ctx, "volume-size"),
+		PGVectorEnabled: flag.GetBool(ctx, "pgvector"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	input := uiex.CreateClusterInput{
-		Name:    params.Name,
-		Region:  params.Region,
-		Plan:    params.Plan,
-		OrgSlug: params.OrgSlug,
-		Disk:    params.VolumeSizeGB,
+		Name:            params.Name,
+		Region:          params.Region,
+		Plan:            params.Plan,
+		OrgSlug:         params.OrgSlug,
+		Disk:            params.VolumeSizeGB,
+		PGVectorEnabled: params.PGVectorEnabled,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
@@ -218,6 +223,7 @@ func runCreate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
+	fmt.Fprintf(io.Out, "  PGVector: %t\n", response.Data.PGVectorEnabled)
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", userResponse.ConnectionUri)
 
 	return nil

@@ -193,14 +193,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	// Create cluster using the same parameters as mpg create
 	params := &mpg.CreateClusterParams{
-		Name:          pgPlan.DbName,
-		OrgSlug:       slug,
-		Region:        pgPlan.Region,
-		Plan:          pgPlan.Plan,
-		Nodes:         1, // Default to single node
-		VolumeSizeGB:  pgPlan.DiskSize,
-		EnableBackups: true,  // Default to enabled
-		AutoStop:      false, // Default to disabled
+		Name:         pgPlan.DbName,
+		OrgSlug:      slug,
+		Region:       pgPlan.Region,
+		Plan:         pgPlan.Plan,
+		VolumeSizeGB: pgPlan.DiskSize,
 	}
 
 	// Create cluster using the UI-EX client
@@ -209,6 +206,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		Region:  params.Region,
 		Plan:    params.Plan,
 		OrgSlug: params.OrgSlug,
+		Disk:    params.VolumeSizeGB,
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
@@ -221,7 +219,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	// Wait for cluster to be ready
 	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, response.Data.Id)
 	fmt.Fprintf(io.Out, "If this is taking too long, you can press Ctrl+C to continue with deployment.\n")
-	fmt.Fprintf(io.Out, "You can check the status later with 'mpg status' and attach with 'mpg attach'.\n")
+	fmt.Fprintf(io.Out, "You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
 
 	// Create a separate context for the wait loop that won't propagate cancellation
 	waitCtx := context.Background()
