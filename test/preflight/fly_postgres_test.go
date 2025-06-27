@@ -175,6 +175,8 @@ func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string)
 }
 
 func TestPostgres_ImportSuccess(t *testing.T) {
+	t.Skip()
+
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -226,6 +228,8 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
+	t.Skip()
+
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate

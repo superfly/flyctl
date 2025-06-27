@@ -161,7 +161,7 @@ var AppCommands = []FlyCommand{
 			cmdArgs := []string{"apps", "releases"}
 
 			if name, ok := args["name"]; ok {
-				cmdArgs = append(cmdArgs, name)
+				cmdArgs = append(cmdArgs, "--app", name)
 			} else {
 				return nil, fmt.Errorf("missing required argument: name")
 			}

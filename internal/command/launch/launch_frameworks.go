@@ -115,9 +115,13 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
 				continue
 			}
-			confirm, err := prompt.ConfirmOverwrite(ctx, path)
-			if !confirm || err != nil {
-				continue
+			if !flag.GetBool(ctx, "yes") {
+				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if !confirm || err != nil {
+					continue
+				}
+			} else {
+				fmt.Fprintf(io.Out, "You specified --yes, overwriting %s\n", path)
 			}
 		}
 
