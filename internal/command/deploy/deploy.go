@@ -247,7 +247,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(ctx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
