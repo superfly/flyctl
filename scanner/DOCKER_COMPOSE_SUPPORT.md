@@ -230,7 +230,16 @@ fi
         "timeout": "10s",
         "retries": 3
       },
-      "secrets": ["DATABASE_URL", "REDIS_URL"]
+      "secrets": [
+        {
+          "env_var": "DATABASE_URL",
+          "secret_name": "DATABASE_URL"
+        },
+        {
+          "env_var": "REDIS_URL", 
+          "secret_name": "REDIS_URL"
+        }
+      ]
     },
     {
       "name": "worker",
@@ -257,7 +266,16 @@ fi
           "condition": "started"
         }
       ],
-      "secrets": ["DATABASE_URL", "REDIS_URL"]
+      "secrets": [
+        {
+          "env_var": "DATABASE_URL",
+          "secret_name": "DATABASE_URL"
+        },
+        {
+          "env_var": "REDIS_URL", 
+          "secret_name": "REDIS_URL"
+        }
+      ]
     }
   ]
 }
