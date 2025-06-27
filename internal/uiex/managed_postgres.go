@@ -224,6 +224,7 @@ type CreateClusterInput struct {
 	Region  string `json:"region"`
 	Plan    string `json:"plan"`
 	OrgSlug string `json:"org_slug"`
+	Disk    int    `json:"disk"`
 }
 
 type CreateClusterResponse struct {

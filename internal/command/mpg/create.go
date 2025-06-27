@@ -54,24 +54,9 @@ func newCreate() *cobra.Command {
 			Description: "The plan to use for the Postgres cluster (development, production, etc)",
 		},
 		flag.Int{
-			Name:        "nodes",
-			Description: "Number of nodes in the cluster",
-			Default:     1,
-		},
-		flag.Int{
 			Name:        "volume-size",
 			Description: "The volume size in GB",
 			Default:     10,
-		},
-		flag.Bool{
-			Name:        "enable-backups",
-			Description: "Enable WAL-based backups",
-			Default:     true,
-		},
-		flag.Bool{
-			Name:        "auto-stop",
-			Description: "Automatically stop the cluster when not in use",
-			Default:     false,
 		},
 	)
 
@@ -167,14 +152,11 @@ func runCreate(ctx context.Context) error {
 	}
 
 	params := &CreateClusterParams{
-		Name:          appName,
-		OrgSlug:       slug,
-		Region:        selectedRegion.Code,
-		Plan:          plan,
-		Nodes:         flag.GetInt(ctx, "nodes"),
-		VolumeSizeGB:  flag.GetInt(ctx, "volume-size"),
-		EnableBackups: flag.GetBool(ctx, "enable-backups"),
-		AutoStop:      flag.GetBool(ctx, "auto-stop"),
+		Name:         appName,
+		OrgSlug:      slug,
+		Region:       selectedRegion.Code,
+		Plan:         plan,
+		VolumeSizeGB: flag.GetInt(ctx, "volume-size"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
@@ -184,6 +166,7 @@ func runCreate(ctx context.Context) error {
 		Region:  params.Region,
 		Plan:    params.Plan,
 		OrgSlug: params.OrgSlug,
+		Disk:    params.VolumeSizeGB,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
