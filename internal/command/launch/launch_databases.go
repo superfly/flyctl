@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
@@ -200,7 +201,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		VolumeSizeGB: pgPlan.DiskSize,
 	}
 
-	// Create cluster using the UI-EX client
+	// Create cluster using the UI-EX client with retry logic for network errors
 	input := uiex.CreateClusterInput{
 		Name:    params.Name,
 		Region:  params.Region,
@@ -211,67 +212,106 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
-	response, err := uiexClient.CreateCluster(ctx, input)
+	var response uiex.CreateClusterResponse
+	err = retry.Do(
+		func() error {
+			var retryErr error
+			response, retryErr = uiexClient.CreateCluster(ctx, input)
+			return retryErr
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(1*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			fmt.Fprintf(io.Out, "Retrying cluster creation (attempt %d) due to: %v\n", n+1, err)
+		}),
+	)
 	if err != nil {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
 
 	// Wait for cluster to be ready
 	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, response.Data.Id)
-	fmt.Fprintf(io.Out, "If this is taking too long, you can press Ctrl+C to continue with deployment.\n")
+	fmt.Fprintf(io.Out, "This may take up to 15 minutes. If this is taking too long, you can press Ctrl+C to continue with deployment.\n")
 	fmt.Fprintf(io.Out, "You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
 
-	// Create a separate context for the wait loop that won't propagate cancellation
+	// Create a separate context for the wait loop with 15 minute timeout
 	waitCtx := context.Background()
-	waitCtx, cancel := context.WithCancel(waitCtx)
+	waitCtx, cancel := context.WithTimeout(waitCtx, 15*time.Minute)
 	defer cancel()
 
-	// Channel to signal when cluster is ready
-	ready := make(chan bool, 1)
-	errChan := make(chan error, 1)
-
-	// Start the wait loop in a goroutine
-	go func() {
-		for {
-			select {
-			case <-waitCtx.Done():
-				return
-			default:
-				cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
-				if err != nil {
-					errChan <- fmt.Errorf("failed checking cluster status: %w", err)
-					return
+	// Use retry.Do with a 15-minute timeout and exponential backoff
+	err = retry.Do(
+		func() error {
+			cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+			if err != nil {
+				// For network errors, return the error to trigger retry
+				if containsNetworkError(err.Error()) {
+					return err
 				}
-
-				if cluster.Data.Status == "ready" {
-					ready <- true
-					return
-				}
-
-				if cluster.Data.Status == "error" {
-					errChan <- fmt.Errorf("cluster creation failed")
-					return
-				}
-
-				time.Sleep(5 * time.Second)
+				// For other errors, make them unrecoverable
+				return retry.Unrecoverable(fmt.Errorf("failed checking cluster status: %w", err))
 			}
-		}
-	}()
 
-	// Wait for either ready signal, error, or context cancellation
-	select {
-	case <-ready:
-		// Cluster is ready, continue with user creation
-	case err := <-errChan:
+			if cluster.Data.Status == "ready" {
+				return nil // Success!
+			}
+
+			if cluster.Data.Status == "error" {
+				return retry.Unrecoverable(fmt.Errorf("cluster creation failed"))
+			}
+
+			// Return an error to continue retrying if status is not ready
+			return fmt.Errorf("cluster status is %s, waiting for ready", cluster.Data.Status)
+		},
+		retry.Context(waitCtx),
+		retry.Attempts(0), // Unlimited attempts within the timeout
+		retry.Delay(2*time.Second),
+		retry.MaxDelay(30*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			// Log network-related errors and periodic status updates
+			if containsNetworkError(err.Error()) {
+				fmt.Fprintf(io.Out, "Retrying status check due to network issue: %v\n", err)
+			} else if n%10 == 0 && n > 0 { // Log every 10th attempt to show progress
+				fmt.Fprintf(io.Out, "Still waiting for cluster to be ready (attempt %d)...\n", n+1)
+			}
+		}),
+	)
+
+	// Handle the result
+	if err != nil {
+		// Check if we hit the timeout
+		if waitCtx.Err() == context.DeadlineExceeded {
+			fmt.Fprintf(io.Out, "\nCluster creation is taking longer than expected. Continuing with deployment.\n")
+			fmt.Fprintf(io.Out, "You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+			return nil
+		}
+		// Check if the user cancelled
+		if ctx.Err() == context.Canceled {
+			fmt.Fprintf(io.Out, "\nContinuing with deployment. You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+			return nil
+		}
 		return err
-	case <-ctx.Done():
-		fmt.Fprintf(io.Out, "\nContinuing with deployment. You can check the status later with 'mpg status' and attach with 'mpg attach'.\n")
-		// Continue with deployment even if cluster isn't ready
-		return nil
 	}
 
-	// Get the cluster credentials
-	cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+	// Get the cluster credentials with retry logic
+	var cluster uiex.GetManagedClusterResponse
+	err = retry.Do(
+		func() error {
+			var retryErr error
+			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+			return retryErr
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(1*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			fmt.Fprintf(io.Out, "Retrying credential retrieval (attempt %d) due to: %v\n", n+1, err)
+		}),
+	)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
@@ -290,6 +330,42 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
 
 	return nil
+}
+
+// containsNetworkError checks if an error message contains network-related error indicators
+func containsNetworkError(errMsg string) bool {
+	networkErrors := []string{
+		"connection reset by peer",
+		"connection refused",
+		"timeout",
+		"network is unreachable",
+		"temporary failure in name resolution",
+		"i/o timeout",
+	}
+
+	for _, netErr := range networkErrors {
+		if contains(errMsg, netErr) {
+			return true
+		}
+	}
+	return false
+}
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				(stringContains(s, substr)))
+}
+
+func stringContains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
 
 func (state *launchState) createUpstashRedis(ctx context.Context) error {
