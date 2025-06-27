@@ -565,22 +565,24 @@ func TestCreateCommand_Logic(t *testing.T) {
 
 			return uiex.CreateClusterResponse{
 				Data: struct {
-					Id            string                           `json:"id"`
-					Name          string                           `json:"name"`
-					Status        *string                          `json:"status"`
-					Plan          string                           `json:"plan"`
-					Environment   *string                          `json:"environment"`
-					Region        string                           `json:"region"`
-					Organization  fly.Organization                 `json:"organization"`
-					Replicas      int                              `json:"replicas"`
-					Disk          int                              `json:"disk"`
-					IpAssignments uiex.ManagedClusterIpAssignments `json:"ip_assignments"`
+					Id              string                           `json:"id"`
+					Name            string                           `json:"name"`
+					Status          *string                          `json:"status"`
+					Plan            string                           `json:"plan"`
+					Environment     *string                          `json:"environment"`
+					Region          string                           `json:"region"`
+					Organization    fly.Organization                 `json:"organization"`
+					Replicas        int                              `json:"replicas"`
+					Disk            int                              `json:"disk"`
+					IpAssignments   uiex.ManagedClusterIpAssignments `json:"ip_assignments"`
+					PGVectorEnabled bool                             `json:"pgvector_enabled"`
 				}{
-					Id:           expectedCluster.Id,
-					Name:         expectedCluster.Name,
-					Region:       expectedCluster.Region,
-					Plan:         expectedCluster.Plan,
-					Organization: expectedCluster.Organization,
+					Id:              expectedCluster.Id,
+					Name:            expectedCluster.Name,
+					Region:          expectedCluster.Region,
+					Plan:            expectedCluster.Plan,
+					Organization:    expectedCluster.Organization,
+					PGVectorEnabled: false,
 				},
 			}, nil
 		},
