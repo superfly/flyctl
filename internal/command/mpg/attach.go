@@ -51,20 +51,44 @@ func runAttach(ctx context.Context) error {
 		io         = iostreams.FromContext(ctx)
 	)
 
+	// Get cluster details to determine which org it belongs to
 	response, err := uiexClient.GetManagedClusterById(ctx, clusterId)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	clusterOrgSlug := response.Data.Organization.Slug
+
+	// Get app details to determine which org it belongs to
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	appOrgSlug := app.Organization.RawSlug
+
+	// Verify that the app and cluster are in the same organization
+	if appOrgSlug != clusterOrgSlug {
+		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
+			appName, appOrgSlug, clusterId, clusterOrgSlug)
 	}
 
 	variableName := flag.GetString(ctx, "variable-name")
 
 	if variableName == "" {
 		variableName = "DATABASE_URL"
+	}
+
+	// Check if the app already has the secret variable set
+	secrets, err := client.GetAppSecrets(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving secrets for app %s: %w", appName, err)
+	}
+
+	for _, secret := range secrets {
+		if secret.Name == variableName {
+			return fmt.Errorf("app %s already has %s set. Use 'fly secrets unset %s' to remove it first", appName, variableName, variableName)
+		}
 	}
 
 	s := map[string]string{}

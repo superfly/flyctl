@@ -18,9 +18,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// Allowed MPG regions
-var AllowedMPGRegions = []string{"fra", "iad", "ord", "syd", "lax"}
-
 type CreateClusterParams struct {
 	Name          string
 	OrgSlug       string
@@ -57,24 +54,9 @@ func newCreate() *cobra.Command {
 			Description: "The plan to use for the Postgres cluster (development, production, etc)",
 		},
 		flag.Int{
-			Name:        "nodes",
-			Description: "Number of nodes in the cluster",
-			Default:     1,
-		},
-		flag.Int{
 			Name:        "volume-size",
 			Description: "The volume size in GB",
 			Default:     10,
-		},
-		flag.Bool{
-			Name:        "enable-backups",
-			Description: "Enable WAL-based backups",
-			Default:     true,
-		},
-		flag.Bool{
-			Name:        "auto-stop",
-			Description: "Automatically stop the cluster when not in use",
-			Default:     false,
 		},
 	)
 
@@ -95,7 +77,7 @@ func runCreate(ctx context.Context) error {
 			appName = appName + "-db"
 		} else {
 			// If no app name is available, prompt for a name
-			appName, err = prompt.SelectAppName(ctx)
+			appName, err = prompt.SelectAppNameWithMsg(ctx, "Choose a database name:")
 			if err != nil {
 				return err
 			}
@@ -107,21 +89,11 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	// Get all regions and filter for MPG allowed regions
-	regionsFuture := prompt.PlatformRegions(ctx)
-	regions, err := regionsFuture.Get()
+	// Get available MPG regions from API
+	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
+
 	if err != nil {
 		return err
-	}
-
-	var mpgRegions []fly.Region
-	for _, region := range regions.Regions {
-		for _, allowed := range AllowedMPGRegions {
-			if region.Code == allowed {
-				mpgRegions = append(mpgRegions, region)
-				break
-			}
-		}
 	}
 
 	if len(mpgRegions) == 0 {
@@ -141,7 +113,8 @@ func runCreate(ctx context.Context) error {
 			}
 		}
 		if selectedRegion == nil {
-			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, AllowedMPGRegions)
+			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
+			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
 	} else {
 		// Create region options for prompt
@@ -179,14 +152,11 @@ func runCreate(ctx context.Context) error {
 	}
 
 	params := &CreateClusterParams{
-		Name:          appName,
-		OrgSlug:       slug,
-		Region:        selectedRegion.Code,
-		Plan:          plan,
-		Nodes:         flag.GetInt(ctx, "nodes"),
-		VolumeSizeGB:  flag.GetInt(ctx, "volume-size"),
-		EnableBackups: flag.GetBool(ctx, "enable-backups"),
-		AutoStop:      flag.GetBool(ctx, "auto-stop"),
+		Name:         appName,
+		OrgSlug:      slug,
+		Region:       selectedRegion.Code,
+		Plan:         plan,
+		VolumeSizeGB: flag.GetInt(ctx, "volume-size"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
@@ -196,6 +166,7 @@ func runCreate(ctx context.Context) error {
 		Region:  params.Region,
 		Plan:    params.Plan,
 		OrgSlug: params.OrgSlug,
+		Disk:    params.VolumeSizeGB,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)

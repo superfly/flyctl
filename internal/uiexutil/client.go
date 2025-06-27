@@ -7,11 +7,13 @@ import (
 )
 
 type Client interface {
+	ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClusters(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUser(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
 	CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
+	DestroyCluster(ctx context.Context, orgSlug string, id string) error
 }
 
 type contextKey struct{}
