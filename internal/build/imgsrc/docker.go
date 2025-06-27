@@ -455,6 +455,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		}
 	}
 
+	cachedDocker = cachedClient
 	return cachedClient, nil
 }
 
@@ -562,9 +563,7 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 	}
 
 	var (
-		consecutiveSuccesses int
-		brokenTunnelErrors   int
-		healthyStart         time.Time
+		brokenTunnelErrors int
 	)
 
 	for ctx.Err() == nil {
@@ -578,25 +577,11 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 				return false, err
 			}
 
-			consecutiveSuccesses = 0
-
 			dur := b.Duration()
 			terminal.Debugf("Remote builder unavailable, retrying in %s (err: %v)\n", dur, err)
 			pause.For(ctx, dur)
 		case nil:
-			if consecutiveSuccesses++; consecutiveSuccesses == 1 {
-				healthyStart = time.Now()
-			}
-
-			if time.Since(healthyStart) > time.Second {
-				terminal.Debug("Remote builder is ready to build!")
-				return true, nil
-			}
-
-			b.Reset()
-			dur := b.Duration()
-			terminal.Debugf("Remote builder available, but pinging again in %s to be sure\n", dur)
-			pause.For(ctx, dur)
+			return true, nil
 		}
 	}
 
