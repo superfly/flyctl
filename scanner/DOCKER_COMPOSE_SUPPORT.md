@@ -215,7 +215,8 @@ fi
       "files": [
         {
           "guest_path": "/fly-entrypoint.sh",
-          "local_path": "fly-entrypoint.sh"
+          "local_path": "fly-entrypoint.sh",
+          "mode": 493
         }
       ],
       "depends_on": [
@@ -257,7 +258,8 @@ fi
       "files": [
         {
           "guest_path": "/fly-entrypoint.sh",
-          "local_path": "fly-entrypoint.sh"
+          "local_path": "fly-entrypoint.sh",
+          "mode": 493
         }
       ],
       "depends_on": [

@@ -445,8 +445,12 @@ func (state *launchState) scannerSetMultiContainerConfig(ctx context.Context) er
 	// Write the entrypoint script to a file
 	entrypointScript := getEntrypointScript(srcInfo.Files)
 	entrypointPath := "fly-entrypoint.sh"
-	if err := os.WriteFile(entrypointPath, entrypointScript, 0755); err != nil {
+	if err := os.WriteFile(entrypointPath, entrypointScript, 0644); err != nil {
 		return fmt.Errorf("failed to write entrypoint script: %w", err)
+	}
+	// Explicitly set executable permissions
+	if err := os.Chmod(entrypointPath, 0755); err != nil {
+		return fmt.Errorf("failed to set entrypoint script permissions: %w", err)
 	}
 
 	fmt.Fprintf(io.Out, "  Created entrypoint script: %s\n", entrypointPath)
@@ -592,6 +596,7 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 			{
 				"guest_path": "/fly-entrypoint.sh",
 				"local_path": "fly-entrypoint.sh",
+				"mode":       0755,
 			},
 		}
 	}
