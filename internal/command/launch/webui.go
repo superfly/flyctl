@@ -103,7 +103,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 			}
 
 			// Check if region is supported for managed Postgres
-			validRegion, err := mpg.IsValidMPGRegion(ctx, org.Slug, region)
+			validRegion, err := mpg.IsValidMPGRegion(ctx, org.RawSlug, region)
 			if err != nil {
 				return fmt.Errorf("failed to validate MPG region: %w", err)
 			}
