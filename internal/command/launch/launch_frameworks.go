@@ -579,10 +579,12 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		if len(container.Secrets) > 0 {
 			secrets := []map[string]interface{}{}
 			for _, secretName := range container.Secrets {
-				secrets = append(secrets, map[string]interface{}{
-					"env_var":     secretName,
-					"secret_name": secretName,
-				})
+				// Create secret config with just env_var
+				// The "name" field is omitted when it's the same as env_var
+				secretConfig := map[string]interface{}{
+					"env_var": secretName,
+				}
+				secrets = append(secrets, secretConfig)
 			}
 			containerConfig["secrets"] = secrets
 		}

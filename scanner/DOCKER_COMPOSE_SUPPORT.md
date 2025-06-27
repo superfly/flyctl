@@ -233,12 +233,10 @@ fi
       },
       "secrets": [
         {
-          "env_var": "DATABASE_URL",
-          "secret_name": "DATABASE_URL"
+          "env_var": "DATABASE_URL"
         },
         {
-          "env_var": "REDIS_URL", 
-          "secret_name": "REDIS_URL"
+          "env_var": "REDIS_URL"
         }
       ]
     },
@@ -270,12 +268,10 @@ fi
       ],
       "secrets": [
         {
-          "env_var": "DATABASE_URL",
-          "secret_name": "DATABASE_URL"
+          "env_var": "DATABASE_URL"
         },
         {
-          "env_var": "REDIS_URL", 
-          "secret_name": "REDIS_URL"
+          "env_var": "REDIS_URL"
         }
       ]
     }
