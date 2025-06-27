@@ -260,7 +260,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 	}
 
 	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
-		return m.State == "started"
+		return m.State == "started" && !m.IsReleaseCommandMachine() && !m.IsFlyAppsConsole()
 	})
 
 	if len(machines) < 1 {

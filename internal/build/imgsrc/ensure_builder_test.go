@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
@@ -150,6 +151,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 func TestCreateBuilder(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	ctx = cache.NewContext(ctx, cache.New())
 	org := &fly.Organization{
 		Slug: "bigorg",
 	}
