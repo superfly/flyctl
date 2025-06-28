@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -316,10 +317,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		tracing.RecordError(span, err, "failed to validate volume config")
 		return nil, err
 	}
-	if err = md.createReleaseInBackend(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to create release in backend")
-		return nil, err
-	}
+	task.FromContext(ctx).Run(func(ctx context.Context) {
+		if err = md.createReleaseInBackend(ctx); err != nil {
+			tracing.RecordError(span, err, "failed to create release in backend")
+			terminal.Error(err)
+		}
+	})
 
 	span.SetAttributes(md.ToSpanAttributes()...)
 	return md, nil

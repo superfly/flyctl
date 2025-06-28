@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -69,10 +70,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
-		tracing.RecordError(span, err, "failed to update release")
-		return fmt.Errorf("failed to set release status to 'running': %w", err)
-	}
+	task.FromContext(ctx).Run(func(ctx context.Context) {
+		if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
+			tracing.RecordError(span, err, "failed to update release")
+			terminal.Warnf("failed to set release status to 'running': %v", err)
+		}
+	})
 
 	if md.tigrisStatics != nil && !md.restartOnly {
 		if err := md.tigrisStatics.Push(ctx); err != nil {
@@ -108,13 +111,15 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		status = "failed"
 	}
 
-	if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
-		if err == nil {
-			err = fmt.Errorf("failed to set final release status: %w", updateErr)
-		} else {
-			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+	task.FromContext(ctx).Run(func(ctx context.Context) {
+		if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
+			if err == nil {
+				terminal.Warnf("failed to set final release status: %v\n", updateErr)
+			} else {
+				terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+			}
 		}
-	}
+	})
 
 	if md.tigrisStatics != nil && !md.restartOnly {
 		if err == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/samber/lo"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
@@ -135,29 +137,36 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	_, span := tracing.GetTracer().Start(ctx, "update_feature_flags")
 	defer span.End()
 
-	ldContextJSON := ldClient.ldContext.JSONString()
-	ldContextB64 := base64.URLEncoding.EncodeToString([]byte(ldContextJSON))
+	flags, err := fetchFlags(ctx, func(ctx context.Context) (map[string]FeatureFlag, error) {
+		var flags map[string]FeatureFlag
 
-	url := fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+		ldContextJSON := ldClient.ldContext.JSONString()
+		ldContextB64 := base64.URLEncoding.EncodeToString([]byte(ldContextJSON))
+
+		url := fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+		if err != nil {
+			span.RecordError(err)
+			return nil, err
+		}
+
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			span.RecordError(err)
+			return nil, err
+		}
+		defer response.Body.Close()
+
+		if err := json.NewDecoder(response.Body).Decode(&flags); err != nil {
+			span.RecordError(err)
+			return nil, err
+		}
+		return flags, nil
+	})
+
 	if err != nil {
-		span.RecordError(err)
 		return err
 	}
-
-	response, err := http.DefaultClient.Do(req)
-	if err != nil {
-		span.RecordError(err)
-		return err
-	}
-	defer response.Body.Close()
-
-	var flags map[string]FeatureFlag
-	if err := json.NewDecoder(response.Body).Decode(&flags); err != nil {
-		span.RecordError(err)
-		return err
-	}
-
 	if flags == nil {
 		span.AddEvent("no flags returned")
 		return nil
@@ -206,4 +215,34 @@ func (ldClient *Client) UnmanagedPostgresEnabled() bool {
 
 func (ldClient *Client) getLaunchPostgresChoiceFlag() string {
 	return ldClient.GetFeatureFlagValue("launch-postgres-choice", "unmanaged-pg").(string)
+}
+
+const (
+	cacheKey = "launchdarkly-flags"
+	ttl      = time.Hour
+	refresh  = 5 * time.Minute
+)
+
+func fetchFlags(ctx context.Context,
+	fetchFn func(context.Context) (map[string]FeatureFlag, error),
+) (map[string]FeatureFlag, error) {
+	c := cache.FromContext(ctx)
+	if c == nil {
+		return nil, errors.New("cache not present in context")
+	}
+
+	obj, err := c.Fetch(cacheKey, ttl, refresh,
+		func() (any, error) {
+			return fetchFn(ctx)
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("fetching LaunchDarkly flags: %w", err)
+	}
+
+	flags, ok := obj.(map[string]FeatureFlag)
+	if !ok {
+		return nil, fmt.Errorf("unexpected cache payload type: %T", obj)
+	}
+	return flags, nil
 }
