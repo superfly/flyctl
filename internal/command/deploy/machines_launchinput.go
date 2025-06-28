@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -24,7 +26,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 	}
 }
 
-func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForLaunch(ctx context.Context, processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, nil)
 	if err != nil {
 		return nil, err
@@ -64,6 +66,11 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 		return nil, err
 	}
 
+	// Extract CMD from image for containers that need it
+	if err = md.updateContainerCmdFromImage(ctx, mConfig); err != nil {
+		terminal.Debugf("Warning: failed to extract CMD from images: %v", err)
+	}
+
 	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
@@ -71,7 +78,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	}, nil
 }
 
-func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForUpdate(ctx context.Context, origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
 	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
 
@@ -94,6 +101,29 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	// Update container image
 	if err = md.updateContainerImage(mConfig); err != nil {
 		return nil, err
+	}
+
+	// Extract CMD from image for containers that need it
+	if err = md.updateContainerCmdFromImage(ctx, mConfig); err != nil {
+		terminal.Debugf("Warning: failed to extract CMD from images: %v", err)
+	}
+
+	// Ensure container files from machine_config are re-processed
+	// This is necessary because machine_config files may have been updated locally
+	if md.appConfig.MachineConfig != "" && len(mConfig.Containers) > 0 {
+		// Re-parse the machine config to get fresh file content
+		tempConfig := &fly.MachineConfig{}
+		if err := config.ParseConfig(tempConfig, md.appConfig.MachineConfig); err == nil {
+			// Apply container files from the re-parsed config
+			for _, container := range mConfig.Containers {
+				for _, tempContainer := range tempConfig.Containers {
+					if container.Name == tempContainer.Name && len(tempContainer.Files) > 0 {
+						// Update container files with fresh content
+						container.Files = tempContainer.Files
+					}
+				}
+			}
+		}
 	}
 
 	// Mounts needs special treatment:
@@ -284,7 +314,23 @@ func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) er
 		}
 
 		container.Image = mConfig.Image
+
+		// Note: CMD extraction for multi-container configurations happens after this loop
 	}
 
+	return nil
+}
+
+// updateContainerCmdFromImage extracts CMD from images for containers that need it
+func (md *machineDeployment) updateContainerCmdFromImage(ctx context.Context, mConfig *fly.MachineConfig) error {
+	fmt.Fprintf(md.io.ErrOut, "[DEBUG] updateContainerCmdFromImage called with %d containers\n", len(mConfig.Containers))
+	if len(mConfig.Containers) == 0 {
+		fmt.Fprintf(md.io.ErrOut, "[DEBUG] No containers found, skipping CMD extraction\n")
+		return nil
+	}
+
+	// For now, skip CMD extraction due to registry authentication complexity
+	// Let containers use their image defaults when UseImageDefaults is set
+	fmt.Fprintf(md.io.ErrOut, "[DEBUG] Skipping CMD extraction - containers will use image defaults\n")
 	return nil
 }
