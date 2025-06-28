@@ -198,6 +198,16 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		// Prepare container configuration (no exclusions during scanning)
 		container := prepareContainerFromService(name, service, sourceDir, len(compose.Services))
 
+		// Check if DATABASE_URL or REDIS_URL exist before extraction
+		hadDatabaseURL := false
+		hadRedisURL := false
+		if _, ok := container.Env["DATABASE_URL"]; ok {
+			hadDatabaseURL = true
+		}
+		if _, ok := container.Env["REDIS_URL"]; ok {
+			hadRedisURL = true
+		}
+
 		// Extract database credentials from environment variables
 		// Only extract secrets for databases that are NOT being proposed as managed services
 		secrets := extractDatabaseSecrets(container.Env, s.DatabaseDesired, s.RedisDesired)
@@ -210,7 +220,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 
 		// Always add DATABASE_URL to container secrets if it was in the environment
 		// This ensures container can access it whether it comes from managed DB or extracted secret
-		if _, hadDatabaseURL := container.Env["DATABASE_URL"]; hadDatabaseURL {
+		if hadDatabaseURL {
 			hasDBURL := false
 			for _, secretName := range container.Secrets {
 				if secretName == "DATABASE_URL" {
@@ -224,7 +234,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 
 		// Similarly for REDIS_URL
-		if _, hadRedisURL := container.Env["REDIS_URL"]; hadRedisURL {
+		if hadRedisURL {
 			hasRedisURL := false
 			for _, secretName := range container.Secrets {
 				if secretName == "REDIS_URL" {
