@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -111,7 +112,12 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		}
 
 		if srcInfo.DockerfilePath != "" {
-			build.Dockerfile = srcInfo.DockerfilePath
+			// Make DockerfilePath relative to the working directory for proper resolution
+			if relPath, err := filepath.Rel(workingDir, srcInfo.DockerfilePath); err == nil {
+				build.Dockerfile = relPath
+			} else {
+				build.Dockerfile = srcInfo.DockerfilePath
+			}
 		}
 
 		if srcInfo.Builder != "" {
