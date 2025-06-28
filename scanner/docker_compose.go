@@ -217,7 +217,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 
 		// Prepare container configuration
-		container := prepareContainerFromService(name, service, sourceDir, excludedServices)
+		container := prepareContainerFromService(name, service, sourceDir, excludedServices, len(compose.Services))
 
 		// Check if container uses DATABASE_URL or REDIS_URL before extraction
 		hadDatabaseURL := false
@@ -296,11 +296,22 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
-	// Add entrypoint script for service discovery
-	s.Files = append(s.Files, SourceFile{
-		Path:     "/fly-entrypoint.sh",
-		Contents: generateEntrypointScript(s.Containers),
-	})
+	// Check if any containers need the service discovery entrypoint
+	needsServiceDiscovery := false
+	for _, container := range s.Containers {
+		if len(container.Entrypoint) > 0 && container.Entrypoint[0] == "/fly-entrypoint.sh" {
+			needsServiceDiscovery = true
+			break
+		}
+	}
+
+	// Add entrypoint script for service discovery only if needed
+	if needsServiceDiscovery {
+		s.Files = append(s.Files, SourceFile{
+			Path:     "/fly-entrypoint.sh",
+			Contents: generateEntrypointScript(s.Containers),
+		})
+	}
 
 	// Process Docker Compose secrets
 	if len(compose.Secrets) > 0 {
@@ -312,6 +323,10 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 			container := &s.Containers[i]
 			// Find the original service to check its secrets
 			for serviceName, service := range compose.Services {
+				// Skip excluded services
+				if excludedServices[serviceName] {
+					continue
+				}
 				if serviceName == container.Name {
 					serviceSecrets := extractServiceSecrets(service.Secrets)
 					container.Secrets = append(container.Secrets, serviceSecrets...)
@@ -398,7 +413,7 @@ func extractServicePort(service DockerComposeService) int {
 }
 
 // prepareContainerFromService creates a Container configuration from a Docker Compose service
-func prepareContainerFromService(name string, service DockerComposeService, sourceDir string, excludedServices map[string]bool) Container {
+func prepareContainerFromService(name string, service DockerComposeService, sourceDir string, excludedServices map[string]bool, totalServices int) Container {
 	container := Container{
 		Name: name,
 	}
@@ -439,23 +454,40 @@ func prepareContainerFromService(name string, service DockerComposeService, sour
 		}
 	}
 
-	// Set up entrypoint for service discovery and chain to original
+	// Set up entrypoint and command
 	originalEntrypoint := extractCommand(service.Entrypoint)
 	originalCommand := extractCommand(service.Command)
 
-	// Use our entrypoint script for service discovery
-	container.Entrypoint = []string{"/fly-entrypoint.sh"}
-
-	// Determine what to execute after setting up /etc/hosts
-	if len(originalEntrypoint) > 0 {
-		// If there was an original entrypoint, chain to it
-		container.Command = append(originalEntrypoint, originalCommand...)
-	} else if len(originalCommand) > 0 {
-		// If there was only a command, use it
-		container.Command = originalCommand
-	} else {
-		// No entrypoint or command specified, will fall back to Dockerfile defaults
+	// Determine whether to use image defaults
+	hasExplicitEntrypoint := len(originalEntrypoint) > 0
+	hasExplicitCommand := len(originalCommand) > 0
+	
+	if !hasExplicitEntrypoint && !hasExplicitCommand {
+		// No entrypoint or command specified - use image defaults without any override
+		// This is critical: we don't set ANY entrypoint or command
+		container.Entrypoint = nil
 		container.Command = nil
+		container.UseImageDefaults = true
+	} else {
+		// Service has explicit entrypoint/command
+		// Check if we need service discovery for multi-container setups
+		needsServiceDiscovery := (totalServices - len(excludedServices)) > 1 // More than one non-database service
+		
+		if needsServiceDiscovery {
+			// Use our entrypoint script for service discovery
+			container.Entrypoint = []string{"/fly-entrypoint.sh"}
+			
+			// Chain to original entrypoint/command
+			if hasExplicitEntrypoint {
+				container.Command = append(originalEntrypoint, originalCommand...)
+			} else {
+				container.Command = originalCommand
+			}
+		} else {
+			// Single container or no service discovery needed - use original values
+			container.Entrypoint = originalEntrypoint
+			container.Command = originalCommand
+		}
 	}
 
 	// Handle dependencies (excluding database services)
@@ -586,7 +618,8 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	// Add any Docker Compose specific configuration or warnings
 	if len(srcInfo.Containers) > 1 {
 		fmt.Printf("\nConfiguring multi-container application with %d services\n", len(srcInfo.Containers))
-		fmt.Println("Note: All containers will run in the same VM with shared networking")
+		fmt.Println("Note: All containers will run in the same VM with shared networking.")
+		fmt.Println("Containers can communicate with each other using localhost (127.0.0.1) and their respective port numbers.")
 	}
 
 	return nil
@@ -790,7 +823,8 @@ fi
 	script += `
 # Chain to the original entrypoint or command
 if [ $# -eq 0 ]; then
-    # No arguments provided, this shouldn't happen in multi-container setup
+    # No arguments provided - use the default shell
+    # This case should be handled by fly.machine.json with proper cmd
     exec /bin/sh
 elif [ -x "$1" ]; then
     # First argument is executable, run it directly

@@ -19,9 +19,11 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/oci"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
@@ -526,11 +528,19 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		}
 
 		// Set command and entrypoint
-		if len(container.Command) > 0 {
-			containerConfig["command"] = container.Command
-		}
-		if len(container.Entrypoint) > 0 {
+		if container.UseImageDefaults {
+			// For containers that need image defaults, don't override entrypoint or cmd
+			// Let the image use its default ENTRYPOINT and CMD
+			terminal.Debugf("Container %s using image defaults, no entrypoint/cmd override", container.Name)
+		} else if len(container.Entrypoint) > 0 {
 			containerConfig["entrypoint"] = container.Entrypoint
+			// When entrypoint is set, include "cmd" if we have one
+			if len(container.Command) > 0 {
+				containerConfig["cmd"] = container.Command
+			}
+		} else if len(container.Command) > 0 {
+			// No custom entrypoint, use standard command
+			containerConfig["command"] = container.Command
 		}
 
 		// Set environment variables
@@ -592,14 +602,19 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		containers = append(containers, containerConfig)
 	}
 
-	// Add entrypoint script file reference for service discovery to all containers
-	for i := range containers {
-		containers[i]["files"] = []map[string]interface{}{
-			{
-				"guest_path": "/fly-entrypoint.sh",
-				"local_path": "fly-entrypoint.sh",
-				"mode":       0755,
-			},
+	// Add entrypoint script file reference for service discovery only to containers that use it
+	for i, containerMap := range containers {
+		// Check if this container uses the service discovery entrypoint
+		if entrypoint, exists := containerMap["entrypoint"]; exists {
+			if entrypointSlice, ok := entrypoint.([]string); ok && len(entrypointSlice) > 0 && entrypointSlice[0] == "/fly-entrypoint.sh" {
+				containers[i]["files"] = []map[string]interface{}{
+					{
+						"guest_path": "/fly-entrypoint.sh",
+						"local_path": "fly-entrypoint.sh",
+						"mode":       0755,
+					},
+				}
+			}
 		}
 	}
 
@@ -625,4 +640,25 @@ set -e
 echo "127.0.0.1 localhost" >> /etc/hosts
 exec "$@"
 `)
+}
+
+// extractCmdFromImage extracts the CMD from a Docker image using OCI inspection
+func (state *launchState) extractCmdFromImage(imageName string) []string {
+	if imageName == "" {
+		return nil
+	}
+
+	imageConfig, err := oci.GetImageConfig(imageName, nil)
+	if err != nil {
+		terminal.Debugf("Warning: failed to extract CMD from image %s: %v", imageName, err)
+		return nil
+	}
+
+	if len(imageConfig.Cmd) > 0 {
+		terminal.Debugf("Extracted CMD from image %s: %v", imageName, imageConfig.Cmd)
+		return imageConfig.Cmd
+	}
+
+	terminal.Debugf("No CMD found in image %s", imageName)
+	return nil
 }

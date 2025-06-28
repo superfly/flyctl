@@ -208,6 +208,7 @@ fi
         "dockerfile": "Dockerfile"
       },
       "entrypoint": ["/fly-entrypoint.sh"],
+      "cmd": ["original-entrypoint", "original-command"],
       "environment": {
         "DATABASE_URL": "postgresql://user:pass@db:5432/myapp",
         "REDIS_URL": "redis://cache:6379"
@@ -248,7 +249,7 @@ fi
         "dockerfile": "Dockerfile"
       },
       "entrypoint": ["/fly-entrypoint.sh"],
-      "command": ["python", "worker.py"],
+      "cmd": ["python", "worker.py"],
       "environment": {
         "DATABASE_URL": "postgresql://user:pass@db:5432/myapp",
         "REDIS_URL": "redis://cache:6379"

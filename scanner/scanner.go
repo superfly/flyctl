@@ -46,17 +46,18 @@ const (
 
 // Container represents a container configuration for multi-container deployments
 type Container struct {
-	Name          string
-	Image         string
-	BuildContext  string
-	Dockerfile    string
-	Command       []string
-	Entrypoint    []string
-	Env           map[string]string
-	DependsOn     []ContainerDependency
-	HealthCheck   *ContainerHealthCheck
-	RestartPolicy string
-	Secrets       []string // List of secret names this container needs access to
+	Name             string
+	Image            string
+	BuildContext     string
+	Dockerfile       string
+	Command          []string
+	Entrypoint       []string
+	Env              map[string]string
+	DependsOn        []ContainerDependency
+	HealthCheck      *ContainerHealthCheck
+	RestartPolicy    string
+	Secrets          []string // List of secret names this container needs access to
+	UseImageDefaults bool     // If true, use CMD from image when entrypoint is overridden
 }
 
 // ContainerDependency represents a dependency between containers
