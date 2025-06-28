@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -68,7 +69,7 @@ func testLaunchInputForBasic(t *testing.T) {
 			},
 		},
 	}
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 
@@ -105,7 +106,7 @@ func testLaunchInputForBasic(t *testing.T) {
 	}
 	want.Config.Image = "super/globe"
 	want.Config.Env["NOT_SET_ON_RESTART_ONLY"] = "true"
-	li, err = md.launchInputForUpdate(origMachineRaw)
+	li, err = md.launchInputForUpdate(context.Background(), origMachineRaw)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 }
@@ -121,7 +122,7 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	li, err := md.launchInputForUpdate(&fly.Machine{
+	li, err := md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID:     "ab1234567890",
 		Region: "ord",
 		Config: &fly.MachineConfig{
@@ -135,7 +136,7 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 
 	// Updating an unreachable machine with a volume attached must fail until we can move the volume to another host
 	md.appConfig.Mounts = []appconfig.Mount{{Source: "data", Destination: "/data"}}
-	_, err = md.launchInputForUpdate(&fly.Machine{
+	_, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		IncompleteConfig: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
@@ -150,7 +151,7 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 			{ID: "vol_10001", Name: "data"},
 		},
 	}
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		IncompleteConfig: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "replace-me-because-i-m-different-fly-toml"}},
@@ -177,13 +178,13 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	}
 
 	// New machine must get a volume attached
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, fly.MachineMount{Volume: "vol_10001", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// The machine already has a volume that matches fly.toml [mounts] section
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
@@ -197,7 +198,7 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	assert.Equal(t, fly.MachineMount{Volume: "vol_attached", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Update a machine with volume attached on a different path
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/update-me", Name: "data"}},
@@ -211,7 +212,7 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	assert.Equal(t, fly.MachineMount{Volume: "vol_attached", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Updating a machine with an existing unnamed mount must keep the original mount as much as possible
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/keep-me"}},
@@ -225,7 +226,7 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	assert.Equal(t, fly.MachineMount{Volume: "vol_attached", Path: "/keep-me"}, li.Config.Mounts[0])
 
 	// Updating a machine whose volume name doesn't match fly.toml's mount section must replace the machine altogether
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
@@ -240,7 +241,7 @@ func testLaunchInputForOnMounts(t *testing.T) {
 
 	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
 	md.appConfig.Mounts = nil
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
@@ -275,7 +276,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	}
 
 	// New machine must get a volume attached
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, fly.MachineMount{
@@ -289,7 +290,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 
 	// The machine already has a volume that matches fly.toml [mounts] section
 	// confirm new extend configs will be added
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
@@ -316,7 +317,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	}, li.Config.Mounts[0])
 
 	// Update a machine with volume attached on a different path
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
@@ -343,7 +344,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	}, li.Config.Mounts[0])
 
 	// Updating a machine with an existing unnamed mount must keep the original mount as much as possible
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
@@ -368,7 +369,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	}, li.Config.Mounts[0])
 
 	// Updating a machine whose volume name doesn't match fly.toml's mount section must replace the machine altogether
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
@@ -390,7 +391,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 
 	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
 	md.appConfig.Mounts = nil
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	li, err = md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID: "ab1234567890",
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
@@ -438,7 +439,7 @@ func testLaunchInputForUpdateKeepUnmanagedFields(t *testing.T) {
 		},
 		HostStatus: fly.HostStatusOk,
 	}
-	li, err := md.launchInputForUpdate(origMachineRaw)
+	li, err := md.launchInputForUpdate(context.Background(), origMachineRaw)
 	require.NoError(t, err)
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.Equal(t, "ord", li.Region)
@@ -470,7 +471,7 @@ func testLaunchInputForUpdateClearStandbysWithServices(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	li, err := md.launchInputForUpdate(&fly.Machine{
+	li, err := md.launchInputForUpdate(context.Background(), &fly.Machine{
 		ID:     "ab1234567890",
 		Region: "scl",
 		Config: &fly.MachineConfig{
@@ -522,7 +523,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 			},
 		},
 	}
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 }
@@ -544,7 +545,7 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	li, err := md.launchInputForUpdate(&fly.Machine{
+	li, err := md.launchInputForUpdate(context.Background(), &fly.Machine{
 		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Files: []*fly.File{
