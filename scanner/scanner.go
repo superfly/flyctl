@@ -56,8 +56,16 @@ type Container struct {
 	DependsOn        []ContainerDependency
 	HealthCheck      *ContainerHealthCheck
 	RestartPolicy    string
-	Secrets          []string // List of secret names this container needs access to
-	UseImageDefaults bool     // If true, use CMD from image when entrypoint is overridden
+	Secrets          []string        // List of secret names this container needs access to
+	UseImageDefaults bool            // If true, use CMD from image when entrypoint is overridden
+	Files            []ContainerFile // Files to mount in the container
+}
+
+// ContainerFile represents a file to be mounted in a container
+type ContainerFile struct {
+	GuestPath string // Path inside the container
+	LocalPath string // Path to local file (relative to project root)
+	Mode      int    // File permissions (e.g., 0644, 0755)
 }
 
 // ContainerDependency represents a dependency between containers

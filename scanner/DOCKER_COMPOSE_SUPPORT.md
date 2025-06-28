@@ -33,11 +33,13 @@ The Docker Compose scanner detects `docker-compose.yml` or `docker-compose.yaml`
 ### ✅ Supported
 - **Images**: Pre-built Docker images
 - **Build contexts**: Local Dockerfile builds (only one service can have a build section)
+- **External images only**: When all services use external images, no build section is generated
 - **Port mappings**: Translated to internal ports
 - **Environment variables**: Passed through to containers (database credentials automatically extracted as secrets)
 - **Dependencies**: `depends_on` relationships with conditions (excluding database services)
 - **Health checks**: Converted to Fly.io format
 - **Volumes**: Translated to Fly.io persistent volumes
+- **Bind mount volumes**: Local files mounted into containers via fly.machine.json files section
 - **Restart policies**: Mapped to container restart settings
 - **Service discovery**: Automatic `/etc/hosts` configuration for inter-service communication
 - **Database credentials**: Automatically extracted from environment variables and converted to Fly.io secrets
@@ -155,6 +157,10 @@ Running `flyctl launch` will:
 ```toml
 app = "my-app"
 primary_region = "sea"
+machine_config = "fly.machine.json"
+
+[build]
+  builder = "heroku/buildpacks:20"
 
 [http_service]
   internal_port = 8080
@@ -162,9 +168,9 @@ primary_region = "sea"
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
-
-machine_config = "fly.machine.json"
 ```
+
+**Note**: The `[build]` section is only included when services have build contexts. For Docker Compose files using only external images, no build section is generated, keeping the configuration clean and minimal.
 
 ### fly-entrypoint.sh
 ```bash
@@ -454,10 +460,19 @@ The scanner preserves Docker Compose environment variables, but you may need to 
 
 ### Volume Migration
 
-Docker Compose volumes are converted to Fly.io persistent volumes:
-- Named volumes → Fly.io volumes with same name
-- Bind mounts → Not supported, use Fly.io volumes instead
-- Anonymous volumes → Create named Fly.io volumes
+Docker Compose volumes are converted to Fly.io equivalents:
+- **Named volumes** → Fly.io volumes with same name
+- **Bind mounts** → Converted to file mounts in fly.machine.json files section
+- **Anonymous volumes** → Create named Fly.io volumes
+
+**Bind Mount Support**: Local files and directories can be mounted into containers:
+```yaml
+volumes:
+  - "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"
+  - "./config:/app/config"
+```
+
+These are converted to Fly.io file mounts with appropriate permissions (read-only files get mode 0444, read-write get mode 0644).
 
 ## Best Practices
 

@@ -536,3 +536,39 @@ services:
 		assert.Equal(t, "somekey", webContainer.Env["API_KEY"])
 	})
 }
+
+func TestParseBindMount(t *testing.T) {
+	t.Run("parses simple bind mount", func(t *testing.T) {
+		result := parseBindMount("./nginx.conf:/etc/nginx/conf.d/default.conf", "/app")
+		require.NotNil(t, result)
+		assert.Equal(t, "/etc/nginx/conf.d/default.conf", result.GuestPath)
+		assert.Equal(t, "nginx.conf", result.LocalPath)
+		assert.Equal(t, 0644, result.Mode)
+	})
+
+	t.Run("parses read-only bind mount", func(t *testing.T) {
+		result := parseBindMount("./nginx.conf:/etc/nginx/conf.d/default.conf:ro", "/app")
+		require.NotNil(t, result)
+		assert.Equal(t, "/etc/nginx/conf.d/default.conf", result.GuestPath)
+		assert.Equal(t, "nginx.conf", result.LocalPath)
+		assert.Equal(t, 0444, result.Mode)
+	})
+
+	t.Run("skips named volumes", func(t *testing.T) {
+		result := parseBindMount("data:/app/data", "/app")
+		assert.Nil(t, result)
+	})
+
+	t.Run("skips volumes without colon", func(t *testing.T) {
+		result := parseBindMount("data", "/app")
+		assert.Nil(t, result)
+	})
+
+	t.Run("handles absolute paths", func(t *testing.T) {
+		result := parseBindMount("/host/config:/app/config", "/app")
+		require.NotNil(t, result)
+		assert.Equal(t, "/app/config", result.GuestPath)
+		assert.Equal(t, "config", result.LocalPath) // Should use basename for absolute paths
+		assert.Equal(t, 0644, result.Mode)
+	})
+}

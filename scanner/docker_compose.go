@@ -149,6 +149,11 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		Notice:     "This application uses Docker Compose with multiple services",
 		Containers: []Container{}, // Will be populated with service containers
 		Secrets:    []Secret{},    // Will be populated with database credentials
+		// Explicitly clear all build-related fields from any previous scanners
+		Builder:        "",
+		DockerfilePath: "",
+		Buildpacks:     nil,
+		BuildArgs:      nil,
 	}
 
 	// First pass: identify database services and propose plan
@@ -180,6 +185,14 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 	// If exactly one service has a build section, set it as the container
 	if len(buildServices) == 1 {
 		s.Container = buildServices[0]
+	} else if len(buildServices) == 0 {
+		// When all containers use external images, ensure no build configuration is set
+		// This prevents the creation of an unnecessary [build] section in fly.toml
+		s.Builder = ""
+		s.DockerfilePath = ""
+		s.Container = ""
+		s.Buildpacks = nil
+		s.BuildArgs = nil
 	}
 
 	// Third pass: process ALL services initially (decisions about exclusion happen in callback)
@@ -468,7 +481,14 @@ func prepareContainerFromService(name string, service DockerComposeService, sour
 
 	// Handle restart policy
 	if service.Restart != "" {
-		container.RestartPolicy = service.Restart
+		container.RestartPolicy = mapRestartPolicy(service.Restart)
+	}
+
+	// Process bind mount volumes
+	for _, volume := range service.Volumes {
+		if bindMount := parseBindMount(volume, sourceDir); bindMount != nil {
+			container.Files = append(container.Files, *bindMount)
+		}
 	}
 
 	return container
@@ -872,4 +892,77 @@ fi
 `
 
 	return []byte(script)
+}
+
+// parseBindMount parses a Docker Compose volume string and returns a ContainerFile for bind mounts
+// Handles formats like:
+// - "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"
+// - "./config:/app/config"
+// - "/host/path:/container/path:rw"
+func parseBindMount(volumeSpec, sourceDir string) *ContainerFile {
+	// Skip named volumes and other non-bind mount formats
+	if !strings.Contains(volumeSpec, ":") {
+		return nil // Named volume, not a bind mount
+	}
+
+	parts := strings.Split(volumeSpec, ":")
+	if len(parts) < 2 {
+		return nil // Invalid format
+	}
+
+	hostPath := parts[0]
+	guestPath := parts[1]
+
+	// Only process bind mounts (relative or absolute paths)
+	// Skip named volumes (which don't start with . or /)
+	if !strings.HasPrefix(hostPath, "./") && !strings.HasPrefix(hostPath, "/") && !strings.HasPrefix(hostPath, "../") {
+		return nil // Likely a named volume, not a bind mount
+	}
+
+	// Convert relative paths to absolute paths relative to compose file location
+	var localPath string
+	if strings.HasPrefix(hostPath, "./") || strings.HasPrefix(hostPath, "../") {
+		localPath = filepath.Clean(strings.TrimPrefix(hostPath, "./"))
+	} else {
+		// Absolute path - use as-is but make it relative to sourceDir if possible
+		if rel, err := filepath.Rel(sourceDir, hostPath); err == nil && !strings.HasPrefix(rel, "..") {
+			localPath = rel
+		} else {
+			// Can't make it relative, use the basename
+			localPath = filepath.Base(hostPath)
+		}
+	}
+
+	// Determine file mode based on read-only flag
+	mode := 0644 // Default to read-write
+	if len(parts) >= 3 {
+		options := parts[2]
+		if strings.Contains(options, "ro") {
+			mode = 0444 // Read-only
+		}
+	}
+
+	return &ContainerFile{
+		GuestPath: guestPath,
+		LocalPath: localPath,
+		Mode:      mode,
+	}
+}
+
+// mapRestartPolicy maps Docker Compose restart policies to Fly.io restart policies
+func mapRestartPolicy(dockerPolicy string) string {
+	switch dockerPolicy {
+	case "no":
+		return "no"
+	case "always":
+		return "always"
+	case "on-failure":
+		return "on-failure"
+	case "unless-stopped":
+		// Docker Compose "unless-stopped" is closest to "always" in Fly.io
+		return "always"
+	default:
+		// Default to "on-failure" for unknown policies
+		return "on-failure"
+	}
 }

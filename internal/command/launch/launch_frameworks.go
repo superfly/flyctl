@@ -581,7 +581,9 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 
 		// Set restart policy
 		if container.RestartPolicy != "" {
-			containerConfig["restart"] = container.RestartPolicy
+			containerConfig["restart"] = map[string]interface{}{
+				"policy": container.RestartPolicy,
+			}
 		}
 
 		// Set secrets that this container needs access to
@@ -598,6 +600,20 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 			containerConfig["secrets"] = secrets
 		}
 
+		// Set files that this container needs (bind mounts from Docker Compose)
+		if len(container.Files) > 0 {
+			files := []map[string]interface{}{}
+			for _, file := range container.Files {
+				fileConfig := map[string]interface{}{
+					"guest_path": file.GuestPath,
+					"local_path": file.LocalPath,
+					"mode":       file.Mode,
+				}
+				files = append(files, fileConfig)
+			}
+			containerConfig["files"] = files
+		}
+
 		containers = append(containers, containerConfig)
 	}
 
@@ -606,12 +622,19 @@ func (state *launchState) generateMultiContainerMachineConfig() map[string]inter
 		// Check if this container uses the service discovery entrypoint
 		if entrypoint, exists := containerMap["entrypoint"]; exists {
 			if entrypointSlice, ok := entrypoint.([]string); ok && len(entrypointSlice) > 0 && entrypointSlice[0] == "/fly-entrypoint.sh" {
-				containers[i]["files"] = []map[string]interface{}{
-					{
-						"guest_path": "/fly-entrypoint.sh",
-						"local_path": "fly-entrypoint.sh",
-						"mode":       0755,
-					},
+				entrypointFile := map[string]interface{}{
+					"guest_path": "/fly-entrypoint.sh",
+					"local_path": "fly-entrypoint.sh",
+					"mode":       0755,
+				}
+
+				// Add to existing files or create new files array
+				if existingFiles, hasFiles := containerMap["files"]; hasFiles {
+					if filesArray, ok := existingFiles.([]map[string]interface{}); ok {
+						containers[i]["files"] = append(filesArray, entrypointFile)
+					}
+				} else {
+					containers[i]["files"] = []map[string]interface{}{entrypointFile}
 				}
 			}
 		}
