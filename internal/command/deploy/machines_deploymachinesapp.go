@@ -457,7 +457,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 
 	var machineUpdateEntries []*machineUpdateEntry
 	for _, lm := range md.machineSet.GetMachines() {
-		li, err := md.launchInputForUpdate(lm.Machine())
+		li, err := md.launchInputForUpdate(ctx, lm.Machine())
 		if err != nil {
 			return fmt.Errorf("failed to update machine configuration for %s: %w", lm.FormattedMachineId(), err)
 		}
@@ -1039,7 +1039,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		opt(&options)
 	}
 
-	launchInput, err := md.launchInputForLaunch(groupName, options.guest, standbyFor)
+	launchInput, err := md.launchInputForLaunch(ctx, groupName, options.guest, standbyFor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating machine configuration: %w", err)
 	}
