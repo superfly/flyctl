@@ -360,6 +360,12 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			}
 		}
 
+		// Check if this group has multi-container configuration
+		var hasContainers bool
+		if mConfig, err := groupConfig.ToMachineConfig(name, nil); err == nil {
+			hasContainers = len(mConfig.Containers) > 0
+		}
+
 		// Create spare machines that increases availability unless --ha=false was used
 		if !md.increasedAvailability {
 			continue
@@ -368,11 +374,11 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		// TODO(Ali): This overwrites the main machine's status log with the standby machine's status log.
 
 		// We strive to provide a HA setup according to:
-		// - Create only 1 machine if the group has mounts
+		// - Create only 1 machine if the group has mounts or containers
 		// - Create 2 machines for groups with services
 		// - Create 1 always-on and 1 standby machine for groups without services
 		switch {
-		case len(groupConfig.Mounts) > 0:
+		case len(groupConfig.Mounts) > 0 || hasContainers:
 			continue
 		case len(services) > 0:
 			fmt.Fprintf(md.io.Out, "Creating a second machine to increase service availability\n")
@@ -1166,10 +1172,17 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff
 		for name := range diff.groupsNeedingMachines {
 			var description string
 			groupConfig, err := md.appConfig.Flatten(name)
+
+			// Check if this group has multi-container configuration
+			var hasContainers bool
+			if mConfig, err := groupConfig.ToMachineConfig(name, nil); err == nil {
+				hasContainers = len(mConfig.Containers) > 0
+			}
+
 			switch {
 			case err != nil:
 				continue
-			case !md.increasedAvailability || len(groupConfig.Mounts) > 0:
+			case !md.increasedAvailability || len(groupConfig.Mounts) > 0 || hasContainers:
 				description = fmt.Sprintf("1 \"%s\" machine", name)
 			case len(groupConfig.AllServices()) > 0:
 				description = fmt.Sprintf("2 \"%s\" machines", name)
