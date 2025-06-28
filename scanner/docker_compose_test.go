@@ -47,25 +47,36 @@ services:
 		assert.Equal(t, "3.8", srcInfo.Version)
 		assert.Equal(t, 80, srcInfo.Port)
 
-		// Verify containers were created (excluding database services)
-		assert.Len(t, srcInfo.Containers, 1)
-		assert.Equal(t, "web", srcInfo.Containers[0].Name)
-		assert.Equal(t, "nginx:latest", srcInfo.Containers[0].Image)
+		// Verify all containers are returned during scanning (filtering happens in callback)
+		assert.Len(t, srcInfo.Containers, 3)
 
-		// Verify entrypoint script is set for service discovery
-		assert.Equal(t, []string{"/fly-entrypoint.sh"}, srcInfo.Containers[0].Entrypoint)
+		// Find the web container
+		var webContainer *Container
+		for i := range srcInfo.Containers {
+			if srcInfo.Containers[i].Name == "web" {
+				webContainer = &srcInfo.Containers[i]
+				break
+			}
+		}
+		require.NotNil(t, webContainer, "web container should be found")
 
-		// Verify entrypoint script file is included
-		assert.Len(t, srcInfo.Files, 1)
-		assert.Equal(t, "/fly-entrypoint.sh", srcInfo.Files[0].Path)
-		assert.Contains(t, string(srcInfo.Files[0].Contents), "127.0.0.1    web")
+		assert.Equal(t, "web", webContainer.Name)
+		assert.Equal(t, "nginx:latest", webContainer.Image)
+
+		// Verify entrypoint is NOT set for nginx (no explicit command/entrypoint)
+		assert.Nil(t, webContainer.Entrypoint)
+		assert.True(t, webContainer.UseImageDefaults)
+
+		// Verify no entrypoint script file is created (not needed for image-only containers)
+		assert.Len(t, srcInfo.Files, 0)
 
 		// Verify database detection
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 		assert.True(t, srcInfo.RedisDesired)
 
-		// Verify dependencies - database dependency should be filtered out
-		assert.Len(t, srcInfo.Containers[0].DependsOn, 0)
+		// Verify dependencies are preserved during scanning (filtering happens in callback)
+		assert.Len(t, webContainer.DependsOn, 1)
+		assert.Equal(t, "db", webContainer.DependsOn[0].Name)
 	})
 
 	t.Run("handles build context", func(t *testing.T) {
@@ -96,8 +107,9 @@ services:
 		assert.Equal(t, tmpDir, srcInfo.Containers[0].BuildContext)
 		assert.Equal(t, 3000, srcInfo.Port)
 
-		// Verify entrypoint script is set
-		assert.Equal(t, []string{"/fly-entrypoint.sh"}, srcInfo.Containers[0].Entrypoint)
+		// Verify entrypoint is NOT set for build context without explicit command
+		assert.Nil(t, srcInfo.Containers[0].Entrypoint)
+		assert.True(t, srcInfo.Containers[0].UseImageDefaults)
 	})
 
 	t.Run("handles health checks", func(t *testing.T) {
@@ -178,8 +190,8 @@ services:
 		require.NoError(t, err)
 		require.NotNil(t, srcInfo)
 
-		// Should have 2 containers (web and api, excluding db and cache)
-		assert.Len(t, srcInfo.Containers, 2)
+		// Should have 4 containers (all containers returned during scanning)
+		assert.Len(t, srcInfo.Containers, 4)
 
 		// Find the web container
 		var webContainer *Container
@@ -191,10 +203,17 @@ services:
 		}
 		require.NotNil(t, webContainer)
 
-		// Web should only depend on api (db and cache are filtered out)
-		assert.Len(t, webContainer.DependsOn, 1)
-		assert.Equal(t, "api", webContainer.DependsOn[0].Name)
-		assert.Equal(t, "started", webContainer.DependsOn[0].Condition)
+		// Web should depend on all services during scanning (filtering happens in callback)
+		assert.Len(t, webContainer.DependsOn, 3)
+
+		// Verify all dependencies are present
+		depNames := make([]string, len(webContainer.DependsOn))
+		for i, dep := range webContainer.DependsOn {
+			depNames[i] = dep.Name
+		}
+		assert.Contains(t, depNames, "api")
+		assert.Contains(t, depNames, "db")
+		assert.Contains(t, depNames, "cache")
 
 		// Verify database services were detected
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
@@ -332,9 +351,20 @@ services:
 		assert.Contains(t, secretKeys, "DB_PASSWORD")
 		assert.Equal(t, "secretpass", secretKeys["DB_PASSWORD"])
 
+		// Verify all containers are returned during scanning
+		assert.Len(t, srcInfo.Containers, 3)
+
+		// Find the web container
+		var webContainer *Container
+		for i := range srcInfo.Containers {
+			if srcInfo.Containers[i].Name == "web" {
+				webContainer = &srcInfo.Containers[i]
+				break
+			}
+		}
+		require.NotNil(t, webContainer)
+
 		// Verify non-database env vars remain in container environment
-		assert.Len(t, srcInfo.Containers, 1)
-		webContainer := srcInfo.Containers[0]
 		assert.Equal(t, "not-a-database-key", webContainer.Env["API_KEY"])
 		assert.Equal(t, "value", webContainer.Env["NORMAL_ENV"])
 
@@ -475,9 +505,18 @@ secrets:
 		// api_key should not be in secrets (it's external)
 		assert.NotContains(t, secretKeys, "api_key")
 
-		// Verify container has secrets it references
-		assert.Len(t, srcInfo.Containers, 1)
-		webContainer := srcInfo.Containers[0]
+		// Verify all containers are returned during scanning
+		assert.Len(t, srcInfo.Containers, 2)
+
+		// Find the web container
+		var webContainer *Container
+		for i := range srcInfo.Containers {
+			if srcInfo.Containers[i].Name == "web" {
+				webContainer = &srcInfo.Containers[i]
+				break
+			}
+		}
+		require.NotNil(t, webContainer)
 		assert.Contains(t, webContainer.Secrets, "master_key")
 		assert.Contains(t, webContainer.Secrets, "api_key")
 
@@ -520,9 +559,18 @@ services:
 		// Verify Postgres was detected
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 
-		// Verify container setup
-		assert.Len(t, srcInfo.Containers, 1)
-		webContainer := srcInfo.Containers[0]
+		// Verify all containers are returned during scanning
+		assert.Len(t, srcInfo.Containers, 2)
+
+		// Find the web container
+		var webContainer *Container
+		for i := range srcInfo.Containers {
+			if srcInfo.Containers[i].Name == "web" {
+				webContainer = &srcInfo.Containers[i]
+				break
+			}
+		}
+		require.NotNil(t, webContainer)
 
 		// DATABASE_URL should be in container's secrets list (needed for Fly-provided secret)
 		assert.Contains(t, webContainer.Secrets, "DATABASE_URL")

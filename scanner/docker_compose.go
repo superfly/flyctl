@@ -755,9 +755,16 @@ func extractDatabaseSecrets(env map[string]string, databaseDesired DatabaseKind,
 			// Skip DATABASE_URL and PostgreSQL-related secrets if managed Postgres is proposed
 			if databaseDesired != DatabaseKindNone {
 				if upperKey == "DATABASE_URL" ||
-					strings.Contains(upperKey, "POSTGRES") ||
-					(strings.Contains(upperKey, "DB") && !strings.Contains(upperKey, "REDIS")) {
+					strings.Contains(upperKey, "POSTGRES") {
 					shouldSkip = true
+				}
+				// Only skip generic DB secrets if they're connection-related (not passwords/keys)
+				if strings.Contains(upperKey, "DB") && !strings.Contains(upperKey, "REDIS") {
+					if strings.Contains(upperKey, "URL") || strings.Contains(upperKey, "HOST") ||
+						strings.Contains(upperKey, "PORT") || strings.Contains(upperKey, "NAME") ||
+						strings.Contains(upperKey, "DATABASE") || upperKey == "DB_CONNECTION" {
+						shouldSkip = true
+					}
 				}
 			}
 
