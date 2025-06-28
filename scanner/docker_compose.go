@@ -151,39 +151,21 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		Secrets:    []Secret{},    // Will be populated with database credentials
 	}
 
-	// First pass: identify excluded services (databases) and detect types
-	excludedServices := make(map[string]bool)
-	hasDatabase := false
-	hasRedis := false
-
+	// First pass: identify database services and propose plan
 	for name, service := range compose.Services {
-		// Detect database services
+		// Detect database services and propose them in the plan
 		if isPostgresService(name, service) {
 			s.DatabaseDesired = DatabaseKindPostgres
-			hasDatabase = true
-			excludedServices[name] = true
 		} else if isMySQLService(name, service) {
 			s.DatabaseDesired = DatabaseKindMySQL
-			hasDatabase = true
-			excludedServices[name] = true
 		} else if isRedisService(name, service) {
 			s.RedisDesired = true
-			hasRedis = true
-			excludedServices[name] = true
 		}
 	}
 
-	// Second pass: process non-database services and check for build sections
-	primaryService := ""
+	// Second pass: check for build sections
 	buildServices := []string{}
-
-	// First, count services with build sections
 	for name, service := range compose.Services {
-		// Skip excluded services
-		if excludedServices[name] {
-			continue
-		}
-
 		// Check if service has a build section
 		if service.Build != nil {
 			buildServices = append(buildServices, name)
@@ -200,12 +182,9 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		s.Container = buildServices[0]
 	}
 
-	// Process all non-database services
+	// Third pass: process ALL services initially (decisions about exclusion happen in callback)
+	primaryService := ""
 	for name, service := range compose.Services {
-		// Skip excluded services
-		if excludedServices[name] {
-			continue
-		}
 
 		// Extract port from the first non-database service
 		if primaryService == "" && s.Port == 0 {
@@ -216,21 +195,11 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 			}
 		}
 
-		// Prepare container configuration
-		container := prepareContainerFromService(name, service, sourceDir, excludedServices, len(compose.Services))
+		// Prepare container configuration (no exclusions during scanning)
+		container := prepareContainerFromService(name, service, sourceDir, len(compose.Services))
 
-		// Check if container uses DATABASE_URL or REDIS_URL before extraction
-		hadDatabaseURL := false
-		hadRedisURL := false
-		if _, ok := container.Env["DATABASE_URL"]; ok {
-			hadDatabaseURL = true
-		}
-		if _, ok := container.Env["REDIS_URL"]; ok {
-			hadRedisURL = true
-		}
-
-		// Extract database credentials from environment variables and move to secrets
-		// Skip secrets that Fly.io will automatically provide for managed databases
+		// Extract database credentials from environment variables
+		// Only extract secrets for databases that are NOT being proposed as managed services
 		secrets := extractDatabaseSecrets(container.Env, s.DatabaseDesired, s.RedisDesired)
 		s.Secrets = append(s.Secrets, secrets...)
 
@@ -239,33 +208,31 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 			container.Secrets = append(container.Secrets, secret.Key)
 		}
 
-		// If Fly managed database is detected, still add DATABASE_URL to container secrets
-		// (Fly will provide it, but container needs access to it)
-		if s.DatabaseDesired != DatabaseKindNone && hadDatabaseURL {
-			// Make sure DATABASE_URL is in the secrets list
-			hasDatabaseURLSecret := false
+		// Always add DATABASE_URL to container secrets if it was in the environment
+		// This ensures container can access it whether it comes from managed DB or extracted secret
+		if _, hadDatabaseURL := container.Env["DATABASE_URL"]; hadDatabaseURL {
+			hasDBURL := false
 			for _, secretName := range container.Secrets {
 				if secretName == "DATABASE_URL" {
-					hasDatabaseURLSecret = true
+					hasDBURL = true
 					break
 				}
 			}
-			if !hasDatabaseURLSecret {
+			if !hasDBURL {
 				container.Secrets = append(container.Secrets, "DATABASE_URL")
 			}
 		}
 
 		// Similarly for REDIS_URL
-		if s.RedisDesired && hadRedisURL {
-			// Make sure REDIS_URL is in the secrets list
-			hasRedisURLSecret := false
+		if _, hadRedisURL := container.Env["REDIS_URL"]; hadRedisURL {
+			hasRedisURL := false
 			for _, secretName := range container.Secrets {
 				if secretName == "REDIS_URL" {
-					hasRedisURLSecret = true
+					hasRedisURL = true
 					break
 				}
 			}
-			if !hasRedisURLSecret {
+			if !hasRedisURL {
 				container.Secrets = append(container.Secrets, "REDIS_URL")
 			}
 		}
@@ -278,13 +245,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		s.Port = 8080
 	}
 
-	// Add notices about databases
-	if hasDatabase {
-		s.Notice += "\n\nNote: Database services detected. Consider using Fly.io managed databases instead of running them in containers."
-	}
-	if hasRedis {
-		s.Notice += "\n\nNote: Redis service detected. Consider using Fly.io Upstash Redis instead of running Redis in a container."
-	}
+	// Notices about databases will be handled in the callback based on final plan
 
 	// Extract volumes
 	for name, vol := range compose.Volumes {
@@ -323,10 +284,6 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 			container := &s.Containers[i]
 			// Find the original service to check its secrets
 			for serviceName, service := range compose.Services {
-				// Skip excluded services
-				if excludedServices[serviceName] {
-					continue
-				}
 				if serviceName == container.Name {
 					serviceSecrets := extractServiceSecrets(service.Secrets)
 					container.Secrets = append(container.Secrets, serviceSecrets...)
@@ -376,6 +333,15 @@ func isRedisService(name string, service DockerComposeService) bool {
 	return false
 }
 
+// Helper functions for container identification in callback
+func isPostgresContainer(name, image string) bool {
+	return isPostgresService(name, DockerComposeService{Image: image})
+}
+
+func isRedisContainer(name, image string) bool {
+	return isRedisService(name, DockerComposeService{Image: image})
+}
+
 // extractServicePort extracts the internal port from service configuration
 func extractServicePort(service DockerComposeService) int {
 	for _, portMapping := range service.Ports {
@@ -413,7 +379,7 @@ func extractServicePort(service DockerComposeService) int {
 }
 
 // prepareContainerFromService creates a Container configuration from a Docker Compose service
-func prepareContainerFromService(name string, service DockerComposeService, sourceDir string, excludedServices map[string]bool, totalServices int) Container {
+func prepareContainerFromService(name string, service DockerComposeService, sourceDir string, totalServices int) Container {
 	container := Container{
 		Name: name,
 	}
@@ -461,7 +427,7 @@ func prepareContainerFromService(name string, service DockerComposeService, sour
 	// Determine whether to use image defaults
 	hasExplicitEntrypoint := len(originalEntrypoint) > 0
 	hasExplicitCommand := len(originalCommand) > 0
-	
+
 	if !hasExplicitEntrypoint && !hasExplicitCommand {
 		// No entrypoint or command specified - use image defaults without any override
 		// This is critical: we don't set ANY entrypoint or command
@@ -470,28 +436,20 @@ func prepareContainerFromService(name string, service DockerComposeService, sour
 		container.UseImageDefaults = true
 	} else {
 		// Service has explicit entrypoint/command
-		// Check if we need service discovery for multi-container setups
-		needsServiceDiscovery := (totalServices - len(excludedServices)) > 1 // More than one non-database service
-		
-		if needsServiceDiscovery {
-			// Use our entrypoint script for service discovery
-			container.Entrypoint = []string{"/fly-entrypoint.sh"}
-			
-			// Chain to original entrypoint/command
-			if hasExplicitEntrypoint {
-				container.Command = append(originalEntrypoint, originalCommand...)
-			} else {
-				container.Command = originalCommand
-			}
+		// For now, assume we might need service discovery (final decision in callback)
+		// Use our entrypoint script for service discovery
+		container.Entrypoint = []string{"/fly-entrypoint.sh"}
+
+		// Chain to original entrypoint/command
+		if hasExplicitEntrypoint {
+			container.Command = append(originalEntrypoint, originalCommand...)
 		} else {
-			// Single container or no service discovery needed - use original values
-			container.Entrypoint = originalEntrypoint
 			container.Command = originalCommand
 		}
 	}
 
-	// Handle dependencies (excluding database services)
-	container.DependsOn = extractDependencies(service.DependsOn, excludedServices)
+	// Handle dependencies (will be filtered in callback based on final plan)
+	container.DependsOn = extractDependencies(service.DependsOn, nil)
 
 	// Handle health check
 	if service.HealthCheck != nil {
@@ -540,8 +498,8 @@ func extractDependencies(deps interface{}, excludedServices map[string]bool) []C
 		// Simple array format
 		for _, dep := range d {
 			if name, ok := dep.(string); ok {
-				// Skip dependencies on excluded services (databases)
-				if excludedServices[name] {
+				// Skip dependencies on excluded services (if excludedServices provided)
+				if excludedServices != nil && excludedServices[name] {
 					continue
 				}
 				result = append(result, ContainerDependency{
@@ -553,8 +511,8 @@ func extractDependencies(deps interface{}, excludedServices map[string]bool) []C
 	case map[string]interface{}:
 		// Extended format with conditions
 		for name, config := range d {
-			// Skip dependencies on excluded services (databases)
-			if excludedServices[name] {
+			// Skip dependencies on excluded services (if excludedServices provided)
+			if excludedServices != nil && excludedServices[name] {
 				continue
 			}
 
@@ -613,8 +571,69 @@ func convertHealthCheck(hc *DockerComposeHealthCheck) *ContainerHealthCheck {
 	return result
 }
 
-// composeCallback is called during the launch process
+// composeCallback is called during the launch process after user confirms the plan
 func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
+	// Now that we have the final plan, filter containers and secrets based on user decisions
+
+	// Determine which services should be excluded based on the plan
+	excludedServices := make(map[string]bool)
+
+	// If user chose managed databases, exclude database containers
+	if plan.Postgres.Provider() != nil {
+		// Find PostgreSQL services and exclude them
+		for i := len(srcInfo.Containers) - 1; i >= 0; i-- {
+			container := srcInfo.Containers[i]
+			if isPostgresContainer(container.Name, container.Image) {
+				excludedServices[container.Name] = true
+				// Remove from containers list
+				srcInfo.Containers = append(srcInfo.Containers[:i], srcInfo.Containers[i+1:]...)
+			}
+		}
+	}
+
+	if plan.Redis.Provider() != nil {
+		// Find Redis services and exclude them
+		for i := len(srcInfo.Containers) - 1; i >= 0; i-- {
+			container := srcInfo.Containers[i]
+			if isRedisContainer(container.Name, container.Image) {
+				excludedServices[container.Name] = true
+				// Remove from containers list
+				srcInfo.Containers = append(srcInfo.Containers[:i], srcInfo.Containers[i+1:]...)
+			}
+		}
+	}
+
+	// Filter secrets based on final plan
+	// Remove secrets that Fly.io will automatically provide when creating managed databases
+	filteredSecrets := []Secret{}
+	for _, secret := range srcInfo.Secrets {
+		// Skip DATABASE_URL if user chose managed Postgres (Fly launch will create this secret)
+		if secret.Key == "DATABASE_URL" && plan.Postgres.Provider() != nil {
+			continue // Fly.io will automatically create and set this secret
+		}
+		// Skip REDIS_URL if user chose managed Redis (Fly launch will create this secret)
+		if secret.Key == "REDIS_URL" && plan.Redis.Provider() != nil {
+			continue // Fly.io will automatically create and set this secret
+		}
+		filteredSecrets = append(filteredSecrets, secret)
+	}
+	srcInfo.Secrets = filteredSecrets
+
+	// Update container dependencies to remove excluded services
+	for i := range srcInfo.Containers {
+		container := &srcInfo.Containers[i]
+		filteredDeps := []ContainerDependency{}
+		for _, dep := range container.DependsOn {
+			if !excludedServices[dep.Name] {
+				filteredDeps = append(filteredDeps, dep)
+			}
+		}
+		container.DependsOn = filteredDeps
+	}
+
+	// Container secrets for managed databases will be available automatically
+	// when the databases are attached (no action needed here)
+
 	// Add any Docker Compose specific configuration or warnings
 	if len(srcInfo.Containers) > 1 {
 		fmt.Printf("\nConfiguring multi-container application with %d services\n", len(srcInfo.Containers))
@@ -627,7 +646,7 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 
 // extractDatabaseSecrets identifies database-related environment variables and returns them as secrets
 // It also removes them from the environment map
-// When Fly.io managed databases are detected, it skips DATABASE_URL and REDIS_URL as they will be provided by Fly
+// Skip secrets that will be provided by managed services (when databases are proposed)
 func extractDatabaseSecrets(env map[string]string, databaseDesired DatabaseKind, redisDesired bool) []Secret {
 	var secrets []Secret
 
@@ -700,31 +719,38 @@ func extractDatabaseSecrets(env map[string]string, databaseDesired DatabaseKind,
 		}
 
 		if isDatabase {
-			// Skip DATABASE_URL if Fly.io managed database will be created
-			if key == "DATABASE_URL" && databaseDesired != DatabaseKindNone {
-				// Don't create a secret for DATABASE_URL as Fly will provide it
-				// But still remove it from the environment map
-				delete(env, key)
-				continue
+			// Skip secrets that will be provided by managed services
+			shouldSkip := false
+
+			// Skip DATABASE_URL and PostgreSQL-related secrets if managed Postgres is proposed
+			if databaseDesired != DatabaseKindNone {
+				if upperKey == "DATABASE_URL" ||
+					strings.Contains(upperKey, "POSTGRES") ||
+					(strings.Contains(upperKey, "DB") && !strings.Contains(upperKey, "REDIS")) {
+					shouldSkip = true
+				}
 			}
 
-			// Skip REDIS_URL if Fly.io Redis will be created
-			if key == "REDIS_URL" && redisDesired {
-				// Don't create a secret for REDIS_URL as Fly will provide it
-				// But still remove it from the environment map
-				delete(env, key)
-				continue
+			// Skip Redis-related secrets if managed Redis is proposed
+			if redisDesired {
+				if upperKey == "REDIS_URL" ||
+					strings.Contains(upperKey, "REDIS") ||
+					upperKey == "CACHE_URL" {
+					shouldSkip = true
+				}
 			}
 
-			// Create a secret for this environment variable
-			secret := Secret{
-				Key:   key,
-				Value: value,
-				Help:  fmt.Sprintf("Database credential from docker-compose.yml (was: %s)", key),
+			if !shouldSkip {
+				// Create a secret for this environment variable
+				secret := Secret{
+					Key:   key,
+					Value: value,
+					Help:  fmt.Sprintf("Database credential from docker-compose.yml (was: %s)", key),
+				}
+				secrets = append(secrets, secret)
 			}
-			secrets = append(secrets, secret)
 
-			// Remove from environment map
+			// Remove from environment map regardless (managed services will provide these)
 			delete(env, key)
 		}
 	}

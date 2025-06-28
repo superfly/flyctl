@@ -323,14 +323,11 @@ func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) er
 
 // updateContainerCmdFromImage extracts CMD from images for containers that need it
 func (md *machineDeployment) updateContainerCmdFromImage(ctx context.Context, mConfig *fly.MachineConfig) error {
-	fmt.Fprintf(md.io.ErrOut, "[DEBUG] updateContainerCmdFromImage called with %d containers\n", len(mConfig.Containers))
 	if len(mConfig.Containers) == 0 {
-		fmt.Fprintf(md.io.ErrOut, "[DEBUG] No containers found, skipping CMD extraction\n")
 		return nil
 	}
 
 	// For now, skip CMD extraction due to registry authentication complexity
 	// Let containers use their image defaults when UseImageDefaults is set
-	fmt.Fprintf(md.io.ErrOut, "[DEBUG] Skipping CMD extraction - containers will use image defaults\n")
 	return nil
 }

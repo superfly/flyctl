@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/oci"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -640,25 +639,4 @@ set -e
 echo "127.0.0.1 localhost" >> /etc/hosts
 exec "$@"
 `)
-}
-
-// extractCmdFromImage extracts the CMD from a Docker image using OCI inspection
-func (state *launchState) extractCmdFromImage(imageName string) []string {
-	if imageName == "" {
-		return nil
-	}
-
-	imageConfig, err := oci.GetImageConfig(imageName, nil)
-	if err != nil {
-		terminal.Debugf("Warning: failed to extract CMD from image %s: %v", imageName, err)
-		return nil
-	}
-
-	if len(imageConfig.Cmd) > 0 {
-		terminal.Debugf("Extracted CMD from image %s: %v", imageName, imageConfig.Cmd)
-		return imageConfig.Cmd
-	}
-
-	terminal.Debugf("No CMD found in image %s", imageName)
-	return nil
 }

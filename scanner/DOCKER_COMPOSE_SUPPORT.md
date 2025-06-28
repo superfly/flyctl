@@ -327,14 +327,16 @@ These credentials are:
 4. Automatically injected into containers at runtime
 5. Removed from the plain text configuration files
 
-**Important**: When Fly.io managed databases are detected:
-- `DATABASE_URL` is NOT created as a secret (Fly.io will provide it automatically when you create a Postgres database)
-- `REDIS_URL` is NOT created as a secret (Fly.io will provide it automatically when you create a Redis instance)
-- Other database-related environment variables (like `DB_PASSWORD`, `DB_HOST`, etc.) are still extracted as secrets
+**Important**: When Fly.io managed databases are proposed during launch:
+- `DATABASE_URL` is NOT created as a manual secret (Fly.io will provide it automatically when you create a Postgres database)
+- `REDIS_URL` is NOT created as a manual secret (Fly.io will provide it automatically when you create a Redis instance)  
+- PostgreSQL-related environment variables (`POSTGRES_USER`, `POSTGRES_PASSWORD`, etc.) are NOT created as manual secrets when managed Postgres is chosen
+- Redis-related environment variables (`REDIS_PASSWORD`, etc.) are NOT created as manual secrets when managed Redis is chosen
+- Non-database secrets (like `RAILS_MASTER_KEY`, `SECRET_KEY_BASE`) are still extracted and created as manual secrets
 
-Each container in the machine configuration will include a `secrets` array listing only the secrets it needs access to, ensuring proper security isolation between containers.
+Each container in the machine configuration will include a `secrets` array listing all the secrets it needs access to (both manual secrets and those automatically provided by managed services), ensuring proper security isolation between containers.
 
-This ensures sensitive database credentials are not exposed in configuration files or logs, while avoiding conflicts with Fly.io's automatic database configuration.
+This ensures sensitive database credentials are not exposed in configuration files or logs, while avoiding conflicts with Fly.io's automatic database configuration and preventing duplicate secret creation.
 
 ## Database Recommendations
 
