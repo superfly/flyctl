@@ -699,6 +699,164 @@ services:
 		// Postgres detection should still be correct
 		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 	})
+
+	t.Run("converts to processes when all services have identical builds and environments", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a simple Dockerfile
+		dockerfileContent := `FROM node:16
+WORKDIR /app
+COPY . .
+CMD ["npm", "start"]`
+		err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileContent), 0644)
+		require.NoError(t, err)
+
+		// Create a docker-compose.yml with multiple services that have identical builds and environments
+		composeContent := `version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+  worker:
+    build: .
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    command: ["npm", "run", "worker"]
+  api:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+  postgres-db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=secret
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Initially, should have 4 containers (before callback)
+		assert.Len(t, srcInfo.Containers, 4)
+
+		// Simulate the callback being called with managed Postgres enabled
+		mockPlan := &plan.LaunchPlan{
+			Postgres: plan.PostgresPlan{
+				FlyPostgres: &plan.FlyPostgresPlan{
+					AppName: "test-app-db",
+				},
+			},
+		}
+
+		// Call the callback directly to simulate what happens after user chooses managed Postgres
+		err = srcInfo.Callback("test-app", srcInfo, mockPlan, []string{})
+		require.NoError(t, err)
+
+		// After callback, should have no containers (processes mode)
+		assert.Len(t, srcInfo.Containers, 0)
+		assert.Equal(t, "", srcInfo.Container)
+		assert.Len(t, srcInfo.BuildContainers, 0)
+
+		// Should have processes instead
+		assert.Len(t, srcInfo.Processes, 3)
+		assert.Contains(t, srcInfo.Processes, "web")
+		assert.Contains(t, srcInfo.Processes, "worker")
+		assert.Contains(t, srcInfo.Processes, "api")
+
+		// Check specific process commands
+		assert.Equal(t, "npm start", srcInfo.Processes["web"])         // From Dockerfile CMD
+		assert.Equal(t, "npm run worker", srcInfo.Processes["worker"]) // From explicit command
+		assert.Equal(t, "npm start", srcInfo.Processes["api"])         // From Dockerfile CMD
+
+		// Postgres detection should still be correct
+		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
+	})
+
+	t.Run("does not convert to processes when services have volumes", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a simple Dockerfile
+		dockerfileContent := `FROM node:16
+WORKDIR /app
+COPY . .
+CMD ["npm", "start"]`
+		err = os.WriteFile(filepath.Join(tmpDir, "Dockerfile"), []byte(dockerfileContent), 0644)
+		require.NoError(t, err)
+
+		// Create a docker-compose.yml with services that have volumes (should not convert to processes)
+		composeContent := `version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./config:/app/config
+  worker:
+    build: .
+    environment:
+      - NODE_ENV=production
+    command: ["npm", "run", "worker"]
+  postgres-db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=secret
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Initially, should have 3 containers (before callback)
+		assert.Len(t, srcInfo.Containers, 3)
+
+		// Simulate the callback being called with managed Postgres enabled
+		mockPlan := &plan.LaunchPlan{
+			Postgres: plan.PostgresPlan{
+				FlyPostgres: &plan.FlyPostgresPlan{
+					AppName: "test-app-db",
+				},
+			},
+		}
+
+		// Call the callback directly to simulate what happens after user chooses managed Postgres
+		err = srcInfo.Callback("test-app", srcInfo, mockPlan, []string{})
+		require.NoError(t, err)
+
+		// After callback, should still have containers (multi-container mode, not processes)
+		// because one service has volumes
+		assert.Len(t, srcInfo.Containers, 2) // web and worker remain, postgres filtered out
+		assert.NotEqual(t, "", srcInfo.Container)
+		assert.Len(t, srcInfo.BuildContainers, 2)
+
+		// Should NOT have processes
+		assert.Len(t, srcInfo.Processes, 0)
+
+		// Postgres detection should still be correct
+		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
+	})
 }
 
 func TestParseBindMount(t *testing.T) {

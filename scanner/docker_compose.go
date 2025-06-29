@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -700,9 +701,20 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 
 	// Add any Docker Compose specific configuration or warnings
 	if len(srcInfo.Containers) > 1 {
-		fmt.Printf("\nConfiguring multi-container application with %d services\n", len(srcInfo.Containers))
-		fmt.Println("Note: All containers will run in the same VM with shared networking.")
-		fmt.Println("Containers can communicate with each other using localhost (127.0.0.1) and their respective port numbers.")
+		// Check if all remaining containers have build sections with identical environments
+		if canConvertToProcesses(srcInfo.Containers) {
+			// Convert to processes-based deployment
+			err := convertContainersToProcesses(srcInfo, plan)
+			if err != nil {
+				return fmt.Errorf("failed to convert containers to processes: %w", err)
+			}
+			fmt.Printf("\nConfiguring processes-based application with %d services\n", len(srcInfo.Processes))
+			fmt.Println("Note: All processes will use the same built image with different commands.")
+		} else {
+			fmt.Printf("\nConfiguring multi-container application with %d services\n", len(srcInfo.Containers))
+			fmt.Println("Note: All containers will run in the same VM with shared networking.")
+			fmt.Println("Containers can communicate with each other using localhost (127.0.0.1) and their respective port numbers.")
+		}
 	} else if len(srcInfo.Containers) == 1 {
 		// If only one container remains after database services are replaced,
 		// clear multi-container configuration to use single-container deployment
@@ -1040,4 +1052,136 @@ func areBuildConfigsIdentical(a, b *buildConfig) bool {
 	}
 
 	return true
+}
+
+// canConvertToProcesses checks if all containers have build sections with identical environments
+func canConvertToProcesses(containers []Container) bool {
+	if len(containers) < 2 {
+		return false
+	}
+
+	// All containers must have build contexts
+	for _, container := range containers {
+		if container.BuildContext == "" {
+			return false
+		}
+
+		// Don't convert to processes if any container has volumes
+		if len(container.Files) > 0 {
+			return false
+		}
+	}
+
+	// Check if all environments are identical
+	firstEnv := containers[0].Env
+	for i := 1; i < len(containers); i++ {
+		if !areEnvironmentsIdentical(firstEnv, containers[i].Env) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// areEnvironmentsIdentical compares two environment maps for equality
+func areEnvironmentsIdentical(env1, env2 map[string]string) bool {
+	if len(env1) != len(env2) {
+		return false
+	}
+
+	for k, v := range env1 {
+		if v2, ok := env2[k]; !ok || v != v2 {
+			return false
+		}
+	}
+
+	return true
+}
+
+// convertContainersToProcesses converts containers with identical builds/envs to processes
+func convertContainersToProcesses(srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
+	if len(srcInfo.Containers) == 0 {
+		return nil
+	}
+
+	// Initialize processes map if needed
+	if srcInfo.Processes == nil {
+		srcInfo.Processes = make(map[string]string)
+	}
+
+	// Get the first container's build context for dockerfile parsing
+	buildContext := srcInfo.Containers[0].BuildContext
+
+	// Process each container
+	for _, container := range srcInfo.Containers {
+		command := getContainerCommand(container, buildContext)
+		if command != "" {
+			srcInfo.Processes[container.Name] = command
+		}
+	}
+
+	// Clear multi-container configuration
+	srcInfo.Containers = nil
+	srcInfo.Container = ""
+	srcInfo.BuildContainers = nil
+
+	return nil
+}
+
+// getContainerCommand extracts the command for a container, parsing Dockerfile if needed
+func getContainerCommand(container Container, buildContext string) string {
+	// If container has explicit command, use it
+	if len(container.Command) > 0 {
+		return strings.Join(container.Command, " ")
+	}
+
+	// If container has explicit entrypoint, use it
+	if len(container.Entrypoint) > 0 && container.Entrypoint[0] != "/fly-entrypoint.sh" {
+		return strings.Join(container.Entrypoint, " ")
+	}
+
+	// Parse Dockerfile for CMD
+	dockerfilePath := filepath.Join(buildContext, "Dockerfile")
+	if container.Dockerfile != "" {
+		dockerfilePath = filepath.Join(buildContext, container.Dockerfile)
+	}
+
+	cmd := parseDockerfileCMD(dockerfilePath)
+	if cmd != "" {
+		return cmd
+	}
+
+	// Default fallback
+	return ""
+}
+
+// parseDockerfileCMD parses a Dockerfile and extracts the CMD instruction
+func parseDockerfileCMD(dockerfilePath string) string {
+	data, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToUpper(line), "CMD ") {
+			// Extract CMD content
+			cmdContent := strings.TrimSpace(line[4:])
+
+			// Handle JSON array format: CMD ["executable", "param1", "param2"]
+			if strings.HasPrefix(cmdContent, "[") && strings.HasSuffix(cmdContent, "]") {
+				// Parse JSON array
+				var cmdArray []string
+				if err := json.Unmarshal([]byte(cmdContent), &cmdArray); err == nil {
+					return strings.Join(cmdArray, " ")
+				}
+			}
+
+			// Handle shell format: CMD command param1 param2
+			return cmdContent
+		}
+	}
+
+	return ""
 }
