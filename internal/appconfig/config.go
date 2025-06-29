@@ -65,7 +65,8 @@ type Config struct {
 	// this will default to the "app" container, and if that is not present, the first
 	// container in the list will be used.
 	MachineConfig string `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
-	Container     string `toml:"container,omitempty" json:"container,omitempty"`
+	Container       string   `toml:"container,omitempty" json:"container,omitempty"`
+	BuildContainers []string `toml:"build_containers,omitempty" json:"build_containers,omitempty"`
 
 	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
 

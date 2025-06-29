@@ -44,6 +44,45 @@ const (
 	DatabaseKindSqlite
 )
 
+// Container represents a container configuration for multi-container deployments
+type Container struct {
+	Name             string
+	Image            string
+	BuildContext     string
+	Dockerfile       string
+	Command          []string
+	Entrypoint       []string
+	Env              map[string]string
+	DependsOn        []ContainerDependency
+	HealthCheck      *ContainerHealthCheck
+	RestartPolicy    string
+	Secrets          []string        // List of secret names this container needs access to
+	UseImageDefaults bool            // If true, use CMD from image when entrypoint is overridden
+	Files            []ContainerFile // Files to mount in the container
+}
+
+// ContainerFile represents a file to be mounted in a container
+type ContainerFile struct {
+	GuestPath string // Path inside the container
+	LocalPath string // Path to local file (relative to project root)
+	Mode      int    // File permissions (e.g., 0644, 0755)
+}
+
+// ContainerDependency represents a dependency between containers
+type ContainerDependency struct {
+	Name      string
+	Condition string // "started", "healthy", "exited_successfully"
+}
+
+// ContainerHealthCheck represents health check configuration for a container
+type ContainerHealthCheck struct {
+	Test        []string
+	Interval    string
+	Timeout     string
+	StartPeriod string
+	Retries     int
+}
+
 type SourceInfo struct {
 	Family           string
 	Version          string
@@ -88,6 +127,9 @@ type SourceInfo struct {
 	FailureCallback                 func(err error) error
 	Runtime                         plan.RuntimeStruct
 	PostInitCallback                func() error
+	Containers                      []Container // For multi-container deployments
+	Container                       string      // Name of the container to build (for multi-container with single build)
+	BuildContainers                 []string    // Names of all containers that should receive the built image
 }
 
 type SourceFile struct {
@@ -113,6 +155,7 @@ type GitHubActionsStruct struct {
 
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	scanners := []sourceScanner{
+		configureDockerCompose,
 		configureDjango,
 		configureLaravel,
 		configurePhoenix,
