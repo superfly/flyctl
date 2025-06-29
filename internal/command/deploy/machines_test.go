@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -103,7 +104,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	}
 
 	// New app machine
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -246,7 +247,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}
 
 	// New app machine
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch(context.Background(), "", nil, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -281,7 +282,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}
 
 	// Reuse app machine
-	li, err = md.launchInputForUpdate(origMachine)
+	li, err = md.launchInputForUpdate(context.Background(), origMachine)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
