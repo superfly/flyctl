@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -18,7 +19,7 @@ import (
 
 func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyConfig bool, workingDir string) (*scanner.SourceInfo, *appconfig.Build, error) {
 	io := iostreams.FromContext(ctx)
-	build := &appconfig.Build{}
+	var build *appconfig.Build
 	srcInfo := &scanner.SourceInfo{}
 	var err error
 
@@ -36,7 +37,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
-		build.Image = img
+		build = &appconfig.Build{Image: img}
 		return srcInfo, build, nil
 	}
 
@@ -50,7 +51,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 			dockerfile = resp.Filename
 		}
 		fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
-		build.Dockerfile = dockerfile
+		build = &appconfig.Build{Dockerfile: dockerfile}
 
 		srcInfo, err = scanner.ScanDockerfile(dockerfile, scannerConfig)
 		if err != nil {
@@ -103,16 +104,28 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		fmt.Fprintf(io.Out, "Detected %s %s app\n", articleFor(srcInfo.Family), aurora.Green(appType))
 	}
 
-	if srcInfo.Builder != "" {
-		fmt.Fprintln(io.Out, "Using the following build configuration:")
-		fmt.Fprintln(io.Out, "\tBuilder:", srcInfo.Builder)
-		if len(srcInfo.Buildpacks) > 0 {
-			fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
-		}
-
+	// Only create a build configuration if we have actual build settings
+	if srcInfo.Builder != "" || srcInfo.DockerfilePath != "" || len(srcInfo.Buildpacks) > 0 {
 		build = &appconfig.Build{
 			Builder:    srcInfo.Builder,
 			Buildpacks: srcInfo.Buildpacks,
+		}
+
+		if srcInfo.DockerfilePath != "" {
+			// Make DockerfilePath relative to the working directory for proper resolution
+			if relPath, err := filepath.Rel(workingDir, srcInfo.DockerfilePath); err == nil {
+				build.Dockerfile = relPath
+			} else {
+				build.Dockerfile = srcInfo.DockerfilePath
+			}
+		}
+
+		if srcInfo.Builder != "" {
+			fmt.Fprintln(io.Out, "Using the following build configuration:")
+			fmt.Fprintln(io.Out, "\tBuilder:", srcInfo.Builder)
+			if len(srcInfo.Buildpacks) > 0 {
+				fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
+			}
 		}
 	}
 	return srcInfo, build, nil

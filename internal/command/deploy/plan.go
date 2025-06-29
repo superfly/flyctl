@@ -768,7 +768,7 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 		return oldMachine, nil
 	}
 
-	input, err := md.launchInputForUpdate(oldMachine)
+	input, err := md.launchInputForUpdate(ctx, oldMachine)
 	if err != nil {
 		return nil, err
 	}
