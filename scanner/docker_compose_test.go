@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func TestConfigureDockerCompose(t *testing.T) {
@@ -644,6 +645,59 @@ services:
 
 		// Regular env vars should remain
 		assert.Equal(t, "somekey", webContainer.Env["API_KEY"])
+	})
+
+	t.Run("clears multi-container config when only one service remains", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with web service and database
+		composeContent := `version: '3.8'
+services:
+  web:
+    image: myapp:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://root:password@postgres-db/
+  postgres-db:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Initially, should have 2 containers (before callback)
+		assert.Len(t, srcInfo.Containers, 2)
+
+		// Simulate the callback being called with managed Postgres enabled
+		mockPlan := &plan.LaunchPlan{
+			Postgres: plan.PostgresPlan{
+				FlyPostgres: &plan.FlyPostgresPlan{
+					AppName: "test-app-db",
+				},
+			},
+		}
+
+		// Call the callback directly to simulate what happens after user chooses managed Postgres
+		err = srcInfo.Callback("test-app", srcInfo, mockPlan, []string{})
+		require.NoError(t, err)
+
+		// After callback with managed Postgres, should have no containers (single-container mode)
+		assert.Len(t, srcInfo.Containers, 0)
+		assert.Equal(t, "", srcInfo.Container)
+		assert.Len(t, srcInfo.BuildContainers, 0)
+
+		// Postgres detection should still be correct
+		assert.Equal(t, DatabaseKindPostgres, srcInfo.DatabaseDesired)
 	})
 }
 

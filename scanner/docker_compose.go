@@ -703,6 +703,12 @@ func composeCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		fmt.Printf("\nConfiguring multi-container application with %d services\n", len(srcInfo.Containers))
 		fmt.Println("Note: All containers will run in the same VM with shared networking.")
 		fmt.Println("Containers can communicate with each other using localhost (127.0.0.1) and their respective port numbers.")
+	} else if len(srcInfo.Containers) == 1 {
+		// If only one container remains after database services are replaced,
+		// clear multi-container configuration to use single-container deployment
+		srcInfo.Containers = nil
+		srcInfo.Container = ""
+		srcInfo.BuildContainers = nil
 	}
 
 	return nil
