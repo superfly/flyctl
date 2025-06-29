@@ -1035,4 +1035,3 @@ func areBuildConfigsIdentical(a, b *buildConfig) bool {
 
 	return true
 }
-
