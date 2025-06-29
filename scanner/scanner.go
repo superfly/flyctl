@@ -129,6 +129,7 @@ type SourceInfo struct {
 	PostInitCallback                func() error
 	Containers                      []Container // For multi-container deployments
 	Container                       string      // Name of the container to build (for multi-container with single build)
+	BuildContainers                 []string    // Names of all containers that should receive the built image
 }
 
 type SourceFile struct {

@@ -478,6 +478,11 @@ func (state *launchState) scannerSetMultiContainerConfig(ctx context.Context) er
 		appConfig.Container = srcInfo.Container
 	}
 
+	// Set the build containers field if specified (for multi-container with multiple builds)
+	if len(srcInfo.BuildContainers) > 0 {
+		appConfig.BuildContainers = srcInfo.BuildContainers
+	}
+
 	fmt.Fprintf(io.Out, "  Created machine configuration file: %s\n", machineConfigPath)
 	fmt.Fprintf(io.Out, "  Note: All containers will run in the same VM with shared networking\n")
 

@@ -168,24 +168,57 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
-	// Second pass: check for build sections
+	// Second pass: check for build sections and validate they are identical
 	buildServices := []string{}
+	var firstBuildConfig *buildConfig
+
 	for name, service := range compose.Services {
 		// Check if service has a build section
 		if service.Build != nil {
+			// Extract build configuration
+			var config buildConfig
+			switch build := service.Build.(type) {
+			case string:
+				config.context = build
+			case map[string]interface{}:
+				if context, ok := build["context"].(string); ok {
+					config.context = context
+				}
+				if dockerfile, ok := build["dockerfile"].(string); ok {
+					config.dockerfile = dockerfile
+				}
+				if args, ok := build["args"].(map[string]interface{}); ok {
+					config.args = make(map[string]string)
+					for k, v := range args {
+						config.args[k] = fmt.Sprintf("%v", v)
+					}
+				}
+				if target, ok := build["target"].(string); ok {
+					config.target = target
+				}
+			}
+
+			// If this is the first build config, save it for comparison
+			if firstBuildConfig == nil {
+				firstBuildConfig = &config
+			} else {
+				// Validate that build configs are identical
+				if !areBuildConfigsIdentical(firstBuildConfig, &config) {
+					return nil, fmt.Errorf("multiple services with different build configurations found. All services with build sections must have identical build configurations")
+				}
+			}
+
 			buildServices = append(buildServices, name)
 		}
 	}
 
-	// Error if more than one service has a build section
-	if len(buildServices) > 1 {
-		return nil, fmt.Errorf("multiple services with build sections found: %v. Only one service can have a build section", buildServices)
-	}
-
-	// If exactly one service has a build section, set it as the container
-	if len(buildServices) == 1 {
+	// If services have build sections, set up the build configuration
+	if len(buildServices) > 0 {
+		// The first service with a build section becomes the primary container
 		s.Container = buildServices[0]
-	} else if len(buildServices) == 0 {
+		// Track all services that should receive the built image
+		s.BuildContainers = buildServices
+	} else {
 		// When all containers use external images, ensure no build configuration is set
 		// This prevents the creation of an unnecessary [build] section in fly.toml
 		s.Builder = ""
@@ -193,6 +226,7 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		s.Container = ""
 		s.Buildpacks = nil
 		s.BuildArgs = nil
+		s.BuildContainers = nil
 	}
 
 	// Third pass: process ALL services initially (decisions about exclusion happen in callback)
@@ -973,3 +1007,32 @@ func mapRestartPolicy(dockerPolicy string) string {
 		return "on-failure"
 	}
 }
+
+// buildConfig represents a build configuration for validating identical build sections
+type buildConfig struct {
+	context    string
+	dockerfile string
+	args       map[string]string
+	target     string
+}
+
+// areBuildConfigsIdentical compares two build configurations to ensure they are identical
+func areBuildConfigsIdentical(a, b *buildConfig) bool {
+	// Compare basic fields
+	if a.context != b.context || a.dockerfile != b.dockerfile || a.target != b.target {
+		return false
+	}
+
+	// Compare args maps
+	if len(a.args) != len(b.args) {
+		return false
+	}
+	for k, v := range a.args {
+		if bv, ok := b.args[k]; !ok || v != bv {
+			return false
+		}
+	}
+
+	return true
+}
+

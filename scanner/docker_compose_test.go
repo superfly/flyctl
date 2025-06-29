@@ -271,7 +271,69 @@ services:
 		assert.Equal(t, "", workerContainer.BuildContext)
 	})
 
-	t.Run("errors on multiple build sections", func(t *testing.T) {
+	t.Run("handles multiple identical build sections", func(t *testing.T) {
+		// Create temporary directory
+		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+
+		// Create a docker-compose.yml with multiple identical build services
+		composeContent := `version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+  api:
+    build: .
+  worker:
+    image: nginx:latest
+`
+		err = os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(composeContent), 0644)
+		require.NoError(t, err)
+
+		// Run scanner - should succeed
+		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, srcInfo)
+
+		// Should have 3 containers
+		assert.Len(t, srcInfo.Containers, 3)
+
+		// Container field should be set to the first build service
+		assert.Equal(t, "web", srcInfo.Container)
+
+		// BuildContainers should include both build services
+		assert.Equal(t, []string{"web", "api"}, srcInfo.BuildContainers)
+
+		// Verify containers
+		var webContainer, apiContainer, workerContainer *Container
+		for i := range srcInfo.Containers {
+			switch srcInfo.Containers[i].Name {
+			case "web":
+				webContainer = &srcInfo.Containers[i]
+			case "api":
+				apiContainer = &srcInfo.Containers[i]
+			case "worker":
+				workerContainer = &srcInfo.Containers[i]
+			}
+		}
+		require.NotNil(t, webContainer)
+		require.NotNil(t, apiContainer)
+		require.NotNil(t, workerContainer)
+
+		// Both web and api containers should have build context
+		assert.Equal(t, tmpDir, webContainer.BuildContext)
+		assert.Equal(t, "", webContainer.Image)
+		assert.Equal(t, tmpDir, apiContainer.BuildContext)
+		assert.Equal(t, "", apiContainer.Image)
+
+		// Worker container should have image
+		assert.Equal(t, "nginx:latest", workerContainer.Image)
+		assert.Equal(t, "", workerContainer.BuildContext)
+	})
+
+	t.Run("errors on multiple different build sections", func(t *testing.T) {
 		// Create temporary directory
 		tmpDir, err := os.MkdirTemp("", "docker-compose-test")
 		require.NoError(t, err)
@@ -296,7 +358,7 @@ services:
 		srcInfo, err := configureDockerCompose(tmpDir, &ScannerConfig{})
 		assert.Error(t, err)
 		assert.Nil(t, srcInfo)
-		assert.Contains(t, err.Error(), "multiple services with build sections found")
+		assert.Contains(t, err.Error(), "multiple services with different build configurations found")
 	})
 
 	t.Run("extracts database credentials as secrets", func(t *testing.T) {
