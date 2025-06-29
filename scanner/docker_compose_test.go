@@ -301,10 +301,10 @@ services:
 		// Should have 3 containers
 		assert.Len(t, srcInfo.Containers, 3)
 
-		// Container field should be set to the first build service
+		// Container field should be set to the first build service (web, since it appears first in YAML)
 		assert.Equal(t, "web", srcInfo.Container)
 
-		// BuildContainers should include both build services
+		// BuildContainers should include both build services in original order
 		assert.Equal(t, []string{"web", "api"}, srcInfo.BuildContainers)
 
 		// Verify containers

@@ -140,6 +140,12 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 		return nil, fmt.Errorf("failed to parse docker-compose file: %w", err)
 	}
 
+	// Get ordered service names from YAML
+	serviceOrder, err := getServiceOrder(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse service order: %w", err)
+	}
+
 	if len(compose.Services) == 0 {
 		return nil, fmt.Errorf("no services found in docker-compose file")
 	}
@@ -158,7 +164,8 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 	}
 
 	// First pass: identify database services and propose plan
-	for name, service := range compose.Services {
+	for _, name := range serviceOrder {
+		service := compose.Services[name]
 		// Detect database services and propose them in the plan
 		if isPostgresService(name, service) {
 			s.DatabaseDesired = DatabaseKindPostgres
@@ -173,7 +180,8 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 	buildServices := []string{}
 	var firstBuildConfig *buildConfig
 
-	for name, service := range compose.Services {
+	for _, name := range serviceOrder {
+		service := compose.Services[name]
 		// Check if service has a build section
 		if service.Build != nil {
 			// Extract build configuration
@@ -232,7 +240,8 @@ func configureDockerCompose(sourceDir string, config *ScannerConfig) (*SourceInf
 
 	// Third pass: process ALL services initially (decisions about exclusion happen in callback)
 	primaryService := ""
-	for name, service := range compose.Services {
+	for _, name := range serviceOrder {
+		service := compose.Services[name]
 
 		// Extract port from the first non-database service
 		if primaryService == "" && s.Port == 0 {
@@ -1184,4 +1193,41 @@ func parseDockerfileCMD(dockerfilePath string) string {
 	}
 
 	return ""
+}
+
+// getServiceOrder extracts the order of services from the YAML file
+func getServiceOrder(yamlData []byte) ([]string, error) {
+	var node yaml.Node
+	if err := yaml.Unmarshal(yamlData, &node); err != nil {
+		return nil, err
+	}
+
+	// Find the services section in the YAML node tree
+	return extractServiceOrder(&node), nil
+}
+
+// extractServiceOrder recursively searches for the services section and extracts service names in order
+func extractServiceOrder(node *yaml.Node) []string {
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		return extractServiceOrder(node.Content[0])
+	}
+
+	if node.Kind == yaml.MappingNode {
+		for i := 0; i < len(node.Content); i += 2 {
+			if i+1 < len(node.Content) && node.Content[i].Value == "services" {
+				servicesNode := node.Content[i+1]
+				if servicesNode.Kind == yaml.MappingNode {
+					var serviceNames []string
+					for j := 0; j < len(servicesNode.Content); j += 2 {
+						if j < len(servicesNode.Content) {
+							serviceNames = append(serviceNames, servicesNode.Content[j].Value)
+						}
+					}
+					return serviceNames
+				}
+			}
+		}
+	}
+
+	return nil
 }
