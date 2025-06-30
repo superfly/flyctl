@@ -285,7 +285,12 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		// Use a short timeout for shutdown to prevent hanging
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
 	defer span.End()
