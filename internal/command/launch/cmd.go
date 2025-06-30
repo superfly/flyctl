@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -166,20 +165,11 @@ func New() (cmd *cobra.Command) {
 		},
 	}
 
-	ldClient, err := launchdarkly.NewServiceClient()
-	if err != nil {
-		return nil
-	}
-
-	managedPostgresEnabled := ldClient.ManagedPostgresEnabled()
-	if managedPostgresEnabled {
-		flags = append(flags, flag.Bool{
-			Name:        "db",
-			Description: "Force provisioning a managed Postgres database",
-			Default:     false,
-		})
-	}
-
+	flags = append(flags, flag.Bool{
+		Name:        "db",
+		Description: "Force provisioning a Postgres database",
+		Default:     false,
+	})
 	flag.Add(cmd, flags...)
 
 	cmd.AddCommand(NewPlan())
