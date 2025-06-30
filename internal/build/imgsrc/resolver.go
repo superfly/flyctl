@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
 	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.opentelemetry.io/otel/attribute"
@@ -265,9 +264,13 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	span.SetAttributes(attribute.String("strategies", strings.Join(strategiesString, ",")))
 
-	bld, err := r.createBuild(ctx, strategies, opts)
-	if err != nil {
-		terminal.Warnf("failed to create build in graphql: %v\n", err)
+	skipGQL := true
+	bld := newBuild("", false)
+	if !skipGQL {
+		bld, err = r.createBuild(ctx, strategies, opts)
+		if err != nil {
+			terminal.Warnf("failed to create build in graphql: %v\n", err)
+		}
 	}
 	for _, s := range strategies {
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
@@ -279,7 +282,9 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, true /* failed */, err, note)
-			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			if !skipGQL {
+				r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			}
 			return nil, err
 		}
 		if img != nil {
@@ -296,8 +301,9 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		bld.BuildAndPushFinish()
 		bld.FinishStrategy(s, true /* failed */, nil, note)
 	}
-
-	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+	if !skipGQL {
+		r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+	}
 	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
 }
 
@@ -683,22 +689,22 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	_, err = backoff.Retry(ctx, func() (any, error) {
-		return nil, r.heartbeatFn(ctx, dockerClient, heartbeatReq)
-	}, backoff.WithMaxTries(3))
-	if err != nil {
-		var h *httpError
-		if errors.As(err, &h) {
-			if h.StatusCode == http.StatusNotFound {
-				terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
-				return nil, nil
-			}
-		} else {
-			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
-		}
-		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
-		return nil, fmt.Errorf("failed to send first heartbeat: %w", err)
-	}
+	//_, err = backoff.Retry(ctx, func() (any, error) {
+	//	return nil, r.heartbeatFn(ctx, dockerClient, heartbeatReq)
+	//}, backoff.WithMaxTries(3))
+	//if err != nil {
+	//	var h *httpError
+	//	if errors.As(err, &h) {
+	//		if h.StatusCode == http.StatusNotFound {
+	//			terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
+	//			return nil, nil
+	//		}
+	//	} else {
+	//		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
+	//	}
+	//	tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
+	//	return nil, fmt.Errorf("failed to send first heartbeat: %w", err)
+	//}
 
 	// We timeout on idleness every 10 minutes on the server, so sending a pulse every 2 minutes to make sure we don't get timed out seems cool
 	pulseInterval := 2 * time.Minute

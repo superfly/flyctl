@@ -62,6 +62,7 @@ var commonPreparers = []preparers.Preparer{
 	preparers.DetermineConfigDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
+	loadCache,
 	preparers.LoadConfig,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,

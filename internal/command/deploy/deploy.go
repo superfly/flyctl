@@ -25,8 +25,10 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -275,12 +277,14 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	client := flyutil.ClientFromContext(ctx)
 
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving current user: %w", err)
-	}
+	task.FromContext(ctx).Run(func(ctx context.Context) {
+		user, err := client.GetCurrentUser(ctx)
+		if err != nil {
+			terminal.Errorf("failed retrieving current user: %v", err)
+		}
 
-	span.SetAttributes(attribute.String("user.id", user.ID))
+		span.SetAttributes(attribute.String("user.id", user.ID))
+	})
 
 	var manifestPath = flag.GetString(ctx, "from-manifest")
 
