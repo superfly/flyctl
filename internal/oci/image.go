@@ -1,6 +1,7 @@
 package oci
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,9 +23,9 @@ type ErrorDetail struct {
 }
 
 type ErrorItem struct {
-	Code    string        `json:"code"`
-	Message string        `json:"message"`
-	Detail  []ErrorDetail `json:"detail"`
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Detail  interface{} `json:"detail"` // Can be string, array, or null
 }
 
 type Platform struct {
@@ -108,6 +109,11 @@ func GetImageConfig(image string, auth *Auth) (*Config, error) {
 			return nil, fmt.Errorf("failed to get dockerhub token: %w", err)
 		}
 		headers["Authorization"] = "Bearer " + token
+	} else if statusCode == http.StatusUnauthorized && strings.Contains(registry, "registry.fly.io") && auth != nil {
+		// For Fly.io registry, use basic auth with username:password
+		basicAuth := fmt.Sprintf("%s:%s", auth.Username, auth.Password)
+		encoded := base64.StdEncoding.EncodeToString([]byte(basicAuth))
+		headers["Authorization"] = "Basic " + encoded
 	}
 
 	manifestList, err := fetchManifestList(registry, image, tag, headers)
