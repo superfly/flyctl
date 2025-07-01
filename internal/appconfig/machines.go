@@ -10,7 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/containerconfig"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -257,8 +257,18 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		appMachineConfig = c.MachineConfig
 	}
 
-	if appMachineConfig != "" {
-		if err := config.ParseConfig(mConfig, appMachineConfig); err != nil {
+	// Parse container configuration (machine config or compose file)
+	composePath := ""
+	if c.Build != nil {
+		composePath = c.Build.Compose
+	}
+	parsedConfig, err := containerconfig.ParseContainerConfig(composePath, appMachineConfig, c.ConfigFilePath())
+	if err != nil {
+		return nil, err
+	}
+	if parsedConfig != nil {
+		// Merge parsed config with existing mConfig
+		if err := mergeConfigs(mConfig, parsedConfig); err != nil {
 			return nil, err
 		}
 	}
@@ -476,4 +486,78 @@ func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 	}
 
 	return guest, nil
+}
+
+// mergeConfigs merges parsedConfig into mConfig, preserving existing values in mConfig
+func mergeConfigs(mConfig, parsedConfig *fly.MachineConfig) error {
+	// Only merge if the target field is not already set
+	if mConfig.DNS == nil && parsedConfig.DNS != nil {
+		mConfig.DNS = parsedConfig.DNS
+	} else if mConfig.DNS != nil && parsedConfig.DNS != nil {
+		// Merge DNS configs - preserve existing fields and add new ones
+		if len(mConfig.DNS.Nameservers) == 0 && len(parsedConfig.DNS.Nameservers) > 0 {
+			mConfig.DNS.Nameservers = parsedConfig.DNS.Nameservers
+		}
+		if len(mConfig.DNS.Searches) == 0 && len(parsedConfig.DNS.Searches) > 0 {
+			mConfig.DNS.Searches = parsedConfig.DNS.Searches
+		}
+		if len(mConfig.DNS.Options) == 0 && len(parsedConfig.DNS.Options) > 0 {
+			mConfig.DNS.Options = parsedConfig.DNS.Options
+		}
+	}
+
+	if mConfig.Guest == nil && parsedConfig.Guest != nil {
+		mConfig.Guest = parsedConfig.Guest
+	}
+
+	if mConfig.Schedule == "" && parsedConfig.Schedule != "" {
+		mConfig.Schedule = parsedConfig.Schedule
+	}
+
+	if mConfig.Restart == nil && parsedConfig.Restart != nil {
+		mConfig.Restart = parsedConfig.Restart
+	}
+
+	if mConfig.Metadata == nil {
+		mConfig.Metadata = parsedConfig.Metadata
+	} else if parsedConfig.Metadata != nil {
+		for k, v := range parsedConfig.Metadata {
+			if _, exists := mConfig.Metadata[k]; !exists {
+				mConfig.Metadata[k] = v
+			}
+		}
+	}
+
+	if mConfig.Env == nil {
+		mConfig.Env = parsedConfig.Env
+	} else if parsedConfig.Env != nil {
+		for k, v := range parsedConfig.Env {
+			if _, exists := mConfig.Env[k]; !exists {
+				mConfig.Env[k] = v
+			}
+		}
+	}
+
+	// Merge other fields as needed
+	if len(mConfig.Services) == 0 && len(parsedConfig.Services) > 0 {
+		mConfig.Services = parsedConfig.Services
+	}
+
+	if len(mConfig.Checks) == 0 && len(parsedConfig.Checks) > 0 {
+		mConfig.Checks = parsedConfig.Checks
+	}
+
+	if len(mConfig.Files) == 0 && len(parsedConfig.Files) > 0 {
+		mConfig.Files = parsedConfig.Files
+	}
+
+	if len(mConfig.Mounts) == 0 && len(parsedConfig.Mounts) > 0 {
+		mConfig.Mounts = parsedConfig.Mounts
+	}
+
+	if len(mConfig.Containers) == 0 && len(parsedConfig.Containers) > 0 {
+		mConfig.Containers = parsedConfig.Containers
+	}
+
+	return nil
 }
