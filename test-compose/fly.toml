@@ -1,0 +1,5 @@
+app = "test-compose-app"
+primary_region = "ord"
+
+[build]
+compose = "compose.yml"
