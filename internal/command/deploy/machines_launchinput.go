@@ -97,16 +97,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		return nil, err
 	}
 
-	// Ensure container files are re-processed
-	// This is necessary because container config files may have been updated locally
-	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != "")) && len(mConfig.Containers) > 0 {
-		// Re-parse the container config to get fresh file content
-		composePath := ""
-		if md.appConfig.Build != nil {
-			composePath = md.appConfig.Build.Compose
-		}
+	// Ensure container files are re-processed for compose files
+	// This is necessary because volume-mounted files may have been updated locally
+	if (md.appConfig.Build != nil && md.appConfig.Build.Compose != "") && len(mConfig.Containers) > 0 {
+		// Re-parse the compose file to get fresh file content
 		tempConfig := &fly.MachineConfig{}
-		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath())
+		err := containerconfig.ParseContainerConfig(tempConfig, md.appConfig.Build.Compose, "", md.appConfig.ConfigFilePath())
 		if err == nil && len(tempConfig.Containers) > 0 {
 			// Apply container files from the re-parsed config
 			for _, container := range mConfig.Containers {
