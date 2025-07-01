@@ -725,6 +725,7 @@ func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName
 	if err != nil {
 		return nil, nil, err
 	}
+	terminal.Debugf("Got org: %s\n", org.Slug)
 	builderMachine, builderApp, err := EnsureBuilder(ctx, org, region, recreateBuilder)
 	return builderMachine, builderApp, err
 }

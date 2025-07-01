@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
@@ -163,13 +164,24 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if _, err := validateBuilderVolumes(ctx, flapsClient); err != nil {
-		tracing.RecordError(span, err, "error validating builder volumes")
-		return nil, err
-	}
-	machine, err := validateBuilderMachines(ctx, flapsClient)
-	if err != nil {
-		tracing.RecordError(span, err, "error validating builder machines")
+	var eg errgroup.Group
+	eg.Go(func() error {
+		_, err := validateBuilderVolumes(ctx, flapsClient)
+		if err != nil {
+			tracing.RecordError(span, err, "error validating builder volumes")
+		}
+		return err
+	})
+	var machine *fly.Machine
+	eg.Go(func() error {
+		var err error
+		machine, err = validateBuilderMachines(ctx, flapsClient)
+		if err != nil {
+			tracing.RecordError(span, err, "error validating builder machines")
+		}
+		return err
+	})
+	if err := eg.Wait(); err != nil {
 		return nil, err
 	}
 

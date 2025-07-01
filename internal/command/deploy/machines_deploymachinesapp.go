@@ -130,6 +130,9 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	// no need to run dns checks if the deployment failed
+	if md.skipDNSChecks {
+		terminal.Debugf("Skipping DNS checks")
+	}
 	if !md.skipDNSChecks && err == nil {
 		if err := md.checkDNS(ctx); err != nil {
 			terminal.Warnf("DNS checks failed: %v\n", err)
@@ -574,7 +577,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		tracing.RecordError(span, err, "failed to acquire lease")
 		return err
 	}
-	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
+	defer func() {
+		task.FromContext(ctx).Run(func(ctx context.Context) {
+			_ = md.machineSet.ReleaseLeases(ctx)
+		})
+	}()
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)

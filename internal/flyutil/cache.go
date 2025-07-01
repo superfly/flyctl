@@ -62,3 +62,9 @@ func (c *CachedClient) GetAppNetwork(ctx context.Context, appName string) (*stri
 		return c.Client.GetAppNetwork(ctx, appName)
 	}))
 }
+
+func (c *CachedClient) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
+	return convert[*fly.Organization](c.Cache.Fetch("GetOrganizationByApp:"+appName, 1*time.Hour, 1*time.Minute, func() (any, error) {
+		return c.Client.GetOrganizationByApp(ctx, appName)
+	}))
+}

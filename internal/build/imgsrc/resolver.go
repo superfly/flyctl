@@ -290,12 +290,13 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, false /* success */, nil, note)
-			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
-			if err == nil && buildResult != nil {
-				// we should only set the image's buildID if we push the build info to web
-				img.BuildID = buildResult.BuildId
+			if !skipGQL {
+				buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+				if err == nil && buildResult != nil {
+					// we should only set the image's buildID if we push the build info to web
+					img.BuildID = buildResult.BuildId
+				}
 			}
-
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
