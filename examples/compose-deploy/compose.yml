@@ -1,13 +1,14 @@
+# Example Docker Compose file for Fly.io deployment
+# All services will be deployed as containers in a single machine
 version: "3"
 services:
   app:
-    image: myapp:latest
+    image: nginx:alpine
     ports:
-      - "8080:8080"
+      - "8080:80"
     environment:
       APP_ENV: production
-      PORT: 8080
-    command: ["./start.sh"]
+      PORT: 80
     restart: always
   db:
     image: postgres:14

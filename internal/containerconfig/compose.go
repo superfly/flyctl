@@ -53,6 +53,7 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 }
 
 // composeToMachineConfig converts a Docker Compose file to Fly machine configuration
+// Always uses containers for compose files, regardless of service count
 func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.MachineConfig, error) {
 	if len(compose.Services) == 0 {
 		return nil, fmt.Errorf("no services defined in compose file")
@@ -63,180 +64,97 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 		Restart: &fly.MachineRestart{},
 	}
 
-	// If there's only one service, use it as the main container
-	if len(compose.Services) == 1 {
-		for serviceName, service := range compose.Services {
-			// Set the image
-			if service.Image != "" {
-				mConfig.Image = service.Image
-			} else if service.Build != nil {
-				// If build is specified, we'll need to handle this differently
-				return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image")
-			}
+	// Always use containers for compose files
+	containers := make([]*fly.ContainerConfig, 0, len(compose.Services))
 
-			// Handle environment variables
-			if len(service.Environment) > 0 {
-				mConfig.Env = make(map[string]string)
-				for k, v := range service.Environment {
-					mConfig.Env[k] = v
-				}
-			}
+	// Find the "app" service to use as the main container, or use the first one
+	var mainServiceName string
+	var mainService *ComposeService
 
-			// Handle command
-			if service.Command != nil {
-				switch cmd := service.Command.(type) {
-				case string:
-					mConfig.Init.Cmd = []string{cmd}
-				case []interface{}:
-					cmdSlice := make([]string, 0, len(cmd))
-					for _, c := range cmd {
-						if str, ok := c.(string); ok {
-							cmdSlice = append(cmdSlice, str)
-						}
-					}
-					mConfig.Init.Cmd = cmdSlice
-				}
-			}
-
-			// Handle entrypoint
-			if service.Entrypoint != nil {
-				switch ep := service.Entrypoint.(type) {
-				case string:
-					mConfig.Init.Entrypoint = []string{ep}
-				case []interface{}:
-					epSlice := make([]string, 0, len(ep))
-					for _, e := range ep {
-						if str, ok := e.(string); ok {
-							epSlice = append(epSlice, str)
-						}
-					}
-					mConfig.Init.Entrypoint = epSlice
-				}
-			}
-
-			// Handle ports
-			if len(service.Ports) > 0 {
-				services := make([]fly.MachineService, 0)
-				for range service.Ports {
-					// Parse port specifications like "8080:80" or "80"
-					// This is a simplified implementation
-					// TODO: Handle more complex port specifications
-					service := fly.MachineService{
-						Protocol:     "tcp",
-						InternalPort: 80, // Default, should be parsed from portSpec
-					}
-					services = append(services, service)
-				}
-				mConfig.Services = services
-			}
-
-			// Handle restart policy
-			if service.Restart != "" {
-				switch service.Restart {
-				case "always":
-					mConfig.Restart.Policy = fly.MachineRestartPolicyAlways
-				case "on-failure":
-					mConfig.Restart.Policy = fly.MachineRestartPolicyOnFailure
-				case "no", "never":
-					mConfig.Restart.Policy = fly.MachineRestartPolicyNo
-				}
-			}
-
-			fmt.Printf("Using service '%s' from compose file\n", serviceName)
-		}
+	// Check if there's an "app" service
+	if appService, ok := compose.Services["app"]; ok {
+		mainServiceName = "app"
+		mainService = &appService
 	} else {
-		// Multiple services - use containers
-		containers := make([]*fly.ContainerConfig, 0, len(compose.Services))
-
-		// Find the "app" service to use as the main container, or use the first one
-		var mainServiceName string
-		var mainService *ComposeService
-
-		// Check if there's an "app" service
-		if appService, ok := compose.Services["app"]; ok {
-			mainServiceName = "app"
-			mainService = &appService
-		} else {
-			// Use the first service as main
-			for name, svc := range compose.Services {
-				mainServiceName = name
-				mainService = &svc
-				break
-			}
+		// Use the first service as main
+		for name, svc := range compose.Services {
+			mainServiceName = name
+			mainService = &svc
+			break
 		}
-
-		// Set the main container image
-		if mainService.Image != "" {
-			mConfig.Image = mainService.Image
-		} else if mainService.Build != nil {
-			return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", mainServiceName)
-		}
-
-		// Process all services as containers
-		for serviceName, service := range compose.Services {
-			container := &fly.ContainerConfig{
-				Name: serviceName,
-			}
-
-			// Set image
-			if service.Image != "" {
-				container.Image = service.Image
-			} else if service.Build != nil {
-				return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", serviceName)
-			}
-
-			// Handle environment variables
-			if len(service.Environment) > 0 {
-				container.ExtraEnv = make(map[string]string)
-				for k, v := range service.Environment {
-					container.ExtraEnv[k] = v
-				}
-			}
-
-			// Handle command
-			if service.Command != nil {
-				switch cmd := service.Command.(type) {
-				case string:
-					container.CmdOverride = []string{cmd}
-				case []interface{}:
-					cmdSlice := make([]string, 0, len(cmd))
-					for _, c := range cmd {
-						if str, ok := c.(string); ok {
-							cmdSlice = append(cmdSlice, str)
-						}
-					}
-					container.CmdOverride = cmdSlice
-				}
-			}
-
-			// Handle entrypoint
-			if service.Entrypoint != nil {
-				switch ep := service.Entrypoint.(type) {
-				case string:
-					container.EntrypointOverride = []string{ep}
-				case []interface{}:
-					epSlice := make([]string, 0, len(ep))
-					for _, e := range ep {
-						if str, ok := e.(string); ok {
-							epSlice = append(epSlice, str)
-						}
-					}
-					container.EntrypointOverride = epSlice
-				}
-			}
-
-			// Handle user
-			if service.User != "" {
-				container.UserOverride = service.User
-			}
-
-			containers = append(containers, container)
-		}
-
-		mConfig.Containers = containers
-		fmt.Printf("Using %d services from compose file as containers\n", len(compose.Services))
-		fmt.Printf("Main container: '%s' (image: %s)\n", mainServiceName, mConfig.Image)
 	}
+
+	// Set the main container image
+	if mainService.Image != "" {
+		mConfig.Image = mainService.Image
+	} else if mainService.Build != nil {
+		return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", mainServiceName)
+	}
+
+	// Process all services as containers
+	for serviceName, service := range compose.Services {
+		container := &fly.ContainerConfig{
+			Name: serviceName,
+		}
+
+		// Set image
+		if service.Image != "" {
+			container.Image = service.Image
+		} else if service.Build != nil {
+			return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", serviceName)
+		}
+
+		// Handle environment variables
+		if len(service.Environment) > 0 {
+			container.ExtraEnv = make(map[string]string)
+			for k, v := range service.Environment {
+				container.ExtraEnv[k] = v
+			}
+		}
+
+		// Handle command
+		if service.Command != nil {
+			switch cmd := service.Command.(type) {
+			case string:
+				container.CmdOverride = []string{cmd}
+			case []interface{}:
+				cmdSlice := make([]string, 0, len(cmd))
+				for _, c := range cmd {
+					if str, ok := c.(string); ok {
+						cmdSlice = append(cmdSlice, str)
+					}
+				}
+				container.CmdOverride = cmdSlice
+			}
+		}
+
+		// Handle entrypoint
+		if service.Entrypoint != nil {
+			switch ep := service.Entrypoint.(type) {
+			case string:
+				container.EntrypointOverride = []string{ep}
+			case []interface{}:
+				epSlice := make([]string, 0, len(ep))
+				for _, e := range ep {
+					if str, ok := e.(string); ok {
+						epSlice = append(epSlice, str)
+					}
+				}
+				container.EntrypointOverride = epSlice
+			}
+		}
+
+		// Handle user
+		if service.User != "" {
+			container.UserOverride = service.User
+		}
+
+		containers = append(containers, container)
+	}
+
+	mConfig.Containers = containers
+	fmt.Printf("Using %d services from compose file as containers\n", len(compose.Services))
+	fmt.Printf("Main container: '%s' (image: %s)\n", mainServiceName, mConfig.Image)
 
 	return mConfig, nil
 }

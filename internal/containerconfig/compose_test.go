@@ -31,21 +31,28 @@ services:
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
 
-	// Verify the parsed configuration
+	// Verify the parsed configuration - now always uses containers
 	if mConfig.Image != "nginx:latest" {
-		t.Errorf("Expected image 'nginx:latest', got '%s'", mConfig.Image)
+		t.Errorf("Expected main image 'nginx:latest', got '%s'", mConfig.Image)
 	}
 
-	if mConfig.Env["ENV_VAR"] != "value" {
-		t.Errorf("Expected ENV_VAR='value', got '%s'", mConfig.Env["ENV_VAR"])
+	// Should have one container
+	if len(mConfig.Containers) != 1 {
+		t.Errorf("Expected 1 container, got %d", len(mConfig.Containers))
 	}
 
-	if len(mConfig.Services) == 0 {
-		t.Error("Expected services to be defined")
+	// Check the container details
+	container := mConfig.Containers[0]
+	if container.Name != "web" {
+		t.Errorf("Expected container name 'web', got '%s'", container.Name)
 	}
 
-	if mConfig.Restart.Policy != "always" {
-		t.Errorf("Expected restart policy 'always', got '%s'", mConfig.Restart.Policy)
+	if container.Image != "nginx:latest" {
+		t.Errorf("Expected container image 'nginx:latest', got '%s'", container.Image)
+	}
+
+	if container.ExtraEnv["ENV_VAR"] != "value" {
+		t.Errorf("Expected ENV_VAR='value', got '%s'", container.ExtraEnv["ENV_VAR"])
 	}
 }
 
