@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -94,6 +95,28 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	// Update container image
 	if err = md.updateContainerImage(mConfig); err != nil {
 		return nil, err
+	}
+
+	// Ensure container files are re-processed
+	// This is necessary because container config files may have been updated locally
+	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != "")) && len(mConfig.Containers) > 0 {
+		// Re-parse the container config to get fresh file content
+		composePath := ""
+		if md.appConfig.Build != nil {
+			composePath = md.appConfig.Build.Compose
+		}
+		tempConfig, err := containerconfig.ParseContainerConfig(composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath())
+		if err == nil && tempConfig != nil {
+			// Apply container files from the re-parsed config
+			for _, container := range mConfig.Containers {
+				for _, tempContainer := range tempConfig.Containers {
+					if container.Name == tempContainer.Name && len(tempContainer.Files) > 0 {
+						// Update container files with fresh content
+						container.Files = tempContainer.Files
+					}
+				}
+			}
+		}
 	}
 
 	// Mounts needs special treatment:
