@@ -8,7 +8,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -97,12 +97,13 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		return nil, err
 	}
 
-	// Ensure container files from machine_config are re-processed
-	// This is necessary because machine_config files may have been updated locally
-	if md.appConfig.MachineConfig != "" && len(mConfig.Containers) > 0 {
-		// Re-parse the machine config to get fresh file content
+	// Ensure container files are re-processed for compose files
+	// This is necessary because volume-mounted files may have been updated locally
+	if (md.appConfig.Build != nil && md.appConfig.Build.Compose != "") && len(mConfig.Containers) > 0 {
+		// Re-parse the compose file to get fresh file content
 		tempConfig := &fly.MachineConfig{}
-		if err := config.ParseConfig(tempConfig, md.appConfig.MachineConfig); err == nil {
+		err := containerconfig.ParseContainerConfig(tempConfig, md.appConfig.Build.Compose, "", md.appConfig.ConfigFilePath())
+		if err == nil && len(tempConfig.Containers) > 0 {
 			// Apply container files from the re-parsed config
 			for _, container := range mConfig.Containers {
 				for _, tempContainer := range tempConfig.Containers {
