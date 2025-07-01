@@ -162,6 +162,7 @@ type Build struct {
 	Dockerfile        string            `toml:"dockerfile,omitempty" json:"dockerfile,omitempty"`
 	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
 	DockerBuildTarget string            `toml:"build-target,omitempty" json:"build-target,omitempty"`
+	Compose           string            `toml:"compose,omitempty" json:"compose,omitempty"`
 }
 
 type Experimental struct {
