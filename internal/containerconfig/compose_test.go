@@ -31,7 +31,8 @@ services:
 	}
 
 	// Parse the compose file
-	mConfig, err := ParseComposeFile(composePath)
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
@@ -85,7 +86,8 @@ services:
 	}
 
 	// Parse the compose file - should succeed with containers
-	mConfig, err := ParseComposeFile(composePath)
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse multi-service compose file: %v", err)
 	}
@@ -155,7 +157,8 @@ services:
 	}
 
 	// Parse the compose file
-	mConfig, err := ParseComposeFile(composePath)
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
@@ -195,7 +198,8 @@ services:
 	}
 
 	// Parse the compose file
-	mConfig, err := ParseComposeFile(composePath)
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
@@ -322,7 +326,8 @@ services:
 	}
 
 	// Parse the compose file
-	mConfig, err := ParseComposeFile(composePath)
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}

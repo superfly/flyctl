@@ -105,8 +105,9 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		if md.appConfig.Build != nil {
 			composePath = md.appConfig.Build.Compose
 		}
-		tempConfig, err := containerconfig.ParseContainerConfig(composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath())
-		if err == nil && tempConfig != nil {
+		tempConfig := &fly.MachineConfig{}
+		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath())
+		if err == nil && len(tempConfig.Containers) > 0 {
 			// Apply container files from the re-parsed config
 			for _, container := range mConfig.Containers {
 				for _, tempContainer := range tempConfig.Containers {

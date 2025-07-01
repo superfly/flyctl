@@ -193,14 +193,17 @@ func convertHealthcheck(composeHC *ComposeHealthcheck) *fly.ContainerHealthcheck
 
 // composeToMachineConfig converts a Docker Compose file to Fly machine configuration
 // Always uses containers for compose files, regardless of service count
-func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.MachineConfig, error) {
+func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, composePath string) error {
 	if len(compose.Services) == 0 {
-		return nil, fmt.Errorf("no services defined in compose file")
+		return fmt.Errorf("no services defined in compose file")
 	}
 
-	mConfig := &fly.MachineConfig{
-		Init:    fly.MachineInit{},
-		Restart: &fly.MachineRestart{},
+	// Initialize empty slices/maps if they don't exist
+	if mConfig.Containers == nil {
+		mConfig.Containers = []*fly.ContainerConfig{}
+	}
+	if mConfig.Restart == nil {
+		mConfig.Restart = &fly.MachineRestart{}
 	}
 
 	// Always use containers for compose files
@@ -227,7 +230,7 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 	if mainService.Image != "" {
 		mConfig.Image = mainService.Image
 	} else if mainService.Build != nil {
-		return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", mainServiceName)
+		return fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", mainServiceName)
 	}
 
 	// Collect all service names for hosts file
@@ -250,7 +253,7 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 		if service.Image != "" {
 			container.Image = service.Image
 		} else if service.Build != nil {
-			return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", serviceName)
+			return fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", serviceName)
 		}
 
 		// Handle environment variables
@@ -367,15 +370,15 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 	fmt.Printf("Using %d services from compose file as containers\n", len(compose.Services))
 	fmt.Printf("Main container: '%s' (image: %s)\n", mainServiceName, mConfig.Image)
 
-	return mConfig, nil
+	return nil
 }
 
 // ParseComposeFileWithPath parses a Docker Compose file and converts it to machine config
-func ParseComposeFileWithPath(composePath string) (*fly.MachineConfig, error) {
+func ParseComposeFileWithPath(mConfig *fly.MachineConfig, composePath string) error {
 	compose, err := parseComposeFile(composePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return composeToMachineConfig(compose, composePath)
+	return composeToMachineConfig(mConfig, compose, composePath)
 }
