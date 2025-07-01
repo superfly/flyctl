@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	fly "github.com/superfly/fly-go"
 )
 
 func TestParseComposeFile(t *testing.T) {
@@ -280,6 +282,123 @@ func TestExtractImageEntrypoint(t *testing.T) {
 
 		if len(result) > 0 {
 			t.Logf("Image %s has entrypoint: %v", test.image, result)
+		}
+	}
+}
+
+func TestComposeVolumeAndHealthcheck(t *testing.T) {
+	// Create a compose file with volumes and health checks
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+
+	// Copy nginx.conf to temp directory
+	nginxConf := `server {
+    listen 80;
+    location / {
+        proxy_pass http://echo:80;
+    }
+}`
+	nginxPath := filepath.Join(tmpDir, "nginx.conf")
+	if err := os.WriteFile(nginxPath, []byte(nginxConf), 0644); err != nil {
+		t.Fatalf("Failed to write nginx.conf: %v", err)
+	}
+
+	composeContent := `version: "3.8"
+services:
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  echo:
+    image: ealen/echo-server
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+`
+	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	// Parse the compose file
+	mConfig, err := ParseComposeFile(composePath)
+	if err != nil {
+		t.Fatalf("Failed to parse compose file: %v", err)
+	}
+
+	// Find the nginx container
+	var nginxContainer *fly.ContainerConfig
+	var echoContainer *fly.ContainerConfig
+	for _, container := range mConfig.Containers {
+		if container.Name == "nginx" {
+			nginxContainer = container
+		} else if container.Name == "echo" {
+			echoContainer = container
+		}
+	}
+
+	if nginxContainer == nil {
+		t.Fatal("nginx container not found")
+	}
+	if echoContainer == nil {
+		t.Fatal("echo container not found")
+	}
+
+	// Check nginx has the volume mounted
+	nginxConfFound := false
+	for _, file := range nginxContainer.Files {
+		if file.GuestPath == "/etc/nginx/conf.d/default.conf" {
+			nginxConfFound = true
+			// Check it's read-only
+			if file.Mode != 0444 {
+				t.Errorf("Expected nginx.conf to be read-only (0444), got %o", file.Mode)
+			}
+			// Check content
+			if file.RawValue != nil {
+				decoded, err := base64.StdEncoding.DecodeString(*file.RawValue)
+				if err != nil {
+					t.Errorf("Failed to decode nginx.conf content: %v", err)
+				} else if !strings.Contains(string(decoded), "proxy_pass http://echo:80") {
+					t.Errorf("nginx.conf should contain proxy_pass directive")
+				}
+			}
+			break
+		}
+	}
+	if !nginxConfFound {
+		t.Error("nginx.conf volume mount not found")
+	}
+
+	// Check echo container has health check
+	if len(echoContainer.Healthchecks) == 0 {
+		t.Error("echo container should have health check")
+	} else {
+		hc := echoContainer.Healthchecks[0]
+		if hc.Exec == nil {
+			t.Error("Expected exec health check")
+		} else {
+			// Command should be ["wget", "--spider", "localhost:80"] (without CMD)
+			expectedCmd := []string{"wget", "--spider", "localhost:80"}
+			if len(hc.Exec.Command) != len(expectedCmd) {
+				t.Errorf("Expected health check command %v, got %v", expectedCmd, hc.Exec.Command)
+			} else {
+				for i, cmd := range expectedCmd {
+					if i < len(hc.Exec.Command) && hc.Exec.Command[i] != cmd {
+						t.Errorf("Expected health check command[%d] '%s', got '%s'", i, cmd, hc.Exec.Command[i])
+					}
+				}
+			}
+		}
+		// Check intervals
+		if hc.Interval != 30 {
+			t.Errorf("Expected interval 30, got %d", hc.Interval)
+		}
+		if hc.Timeout != 10 {
+			t.Errorf("Expected timeout 10, got %d", hc.Timeout)
+		}
+		if hc.FailureThreshold != 3 {
+			t.Errorf("Expected failure threshold 3, got %d", hc.FailureThreshold)
 		}
 	}
 }

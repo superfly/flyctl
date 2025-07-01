@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	fly "github.com/superfly/fly-go"
@@ -27,7 +29,17 @@ type ComposeService struct {
 	Secrets     []interface{}          `yaml:"secrets"`
 	Deploy      map[string]interface{} `yaml:"deploy"`
 	DependsOn   interface{}            `yaml:"depends_on"`
+	Healthcheck *ComposeHealthcheck    `yaml:"healthcheck"`
 	Extra       map[string]interface{} `yaml:",inline"`
+}
+
+// ComposeHealthcheck represents a health check configuration
+type ComposeHealthcheck struct {
+	Test        interface{} `yaml:"test"`
+	Interval    string      `yaml:"interval"`
+	Timeout     string      `yaml:"timeout"`
+	Retries     int         `yaml:"retries"`
+	StartPeriod string      `yaml:"start_period"`
 }
 
 // ComposeFile represents a Docker Compose file structure
@@ -100,6 +112,83 @@ func extractImageEntrypoint(imageName string) ([]string, error) {
 
 	// If no entrypoint, return empty (will use CMD or the image's default)
 	return []string{}, nil
+}
+
+// parseVolume parses a Docker Compose volume string
+// Format: [HOST:]CONTAINER[:ro|:rw]
+func parseVolume(volume string) (hostPath, containerPath string, readOnly bool) {
+	parts := strings.Split(volume, ":")
+
+	switch len(parts) {
+	case 1:
+		// Just container path (anonymous volume)
+		return "", parts[0], false
+	case 2:
+		// Could be HOST:CONTAINER or CONTAINER:ro
+		if parts[1] == "ro" || parts[1] == "rw" {
+			return "", parts[0], parts[1] == "ro"
+		}
+		return parts[0], parts[1], false
+	case 3:
+		// HOST:CONTAINER:ro/rw
+		return parts[0], parts[1], parts[2] == "ro"
+	default:
+		// Invalid format, return container path from first part
+		return "", parts[0], false
+	}
+}
+
+// convertHealthcheck converts a compose healthcheck to Fly healthcheck
+func convertHealthcheck(composeHC *ComposeHealthcheck) *fly.ContainerHealthcheck {
+	if composeHC == nil {
+		return nil
+	}
+
+	hc := &fly.ContainerHealthcheck{
+		Name: "healthcheck", // Default name
+	}
+
+	// Parse test command
+	var cmd []string
+	switch test := composeHC.Test.(type) {
+	case string:
+		// HEALTHCHECK test
+		cmd = []string{test}
+	case []interface{}:
+		// ["CMD", "wget", "--spider", "localhost:80"]
+		for i, t := range test {
+			if str, ok := t.(string); ok {
+				// Skip "CMD" or "CMD-SHELL" prefix
+				if i == 0 && (str == "CMD" || str == "CMD-SHELL") {
+					continue
+				}
+				cmd = append(cmd, str)
+			}
+		}
+	}
+
+	// Set up exec healthcheck
+	if len(cmd) > 0 {
+		hc.ContainerHealthcheckType = fly.ContainerHealthcheckType{
+			Exec: &fly.ExecHealthcheck{
+				Command: cmd,
+			},
+		}
+	}
+
+	// Parse durations - for now just use defaults
+	// In a real implementation, you'd parse "30s" -> 30, etc.
+	if composeHC.Interval != "" {
+		hc.Interval = 30 // Default 30s
+	}
+	if composeHC.Timeout != "" {
+		hc.Timeout = 10 // Default 10s
+	}
+	if composeHC.Retries > 0 {
+		hc.FailureThreshold = int32(composeHC.Retries)
+	}
+
+	return hc
 }
 
 // composeToMachineConfig converts a Docker Compose file to Fly machine configuration
@@ -221,12 +310,54 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 		}
 
 		// Add the hosts update script as a file
-		container.Files = []*fly.File{
+		files := []*fly.File{
 			{
 				GuestPath: "/usr/local/bin/hosts-update.sh",
 				RawValue:  &hostsScriptB64,
 				Mode:      0755, // Executable
 			},
+		}
+
+		// Handle volume mounts
+		for _, vol := range service.Volumes {
+			hostPath, containerPath, readOnly := parseVolume(vol)
+			if hostPath != "" {
+				// Make host path absolute if relative
+				if !filepath.IsAbs(hostPath) {
+					hostPath = filepath.Join(filepath.Dir(composePath), hostPath)
+				}
+
+				// Read the file content
+				content, err := os.ReadFile(hostPath)
+				if err != nil {
+					// Log warning but continue
+					fmt.Printf("Warning: Could not read volume file %s: %v\n", hostPath, err)
+					continue
+				}
+
+				// Add file to container
+				encodedContent := base64.StdEncoding.EncodeToString(content)
+				mode := uint32(0644)
+				if readOnly {
+					mode = 0444
+				}
+
+				files = append(files, &fly.File{
+					GuestPath: containerPath,
+					RawValue:  &encodedContent,
+					Mode:      mode,
+				})
+			}
+		}
+
+		container.Files = files
+
+		// Handle health checks
+		if service.Healthcheck != nil {
+			healthcheck := convertHealthcheck(service.Healthcheck)
+			if healthcheck != nil {
+				container.Healthchecks = []fly.ContainerHealthcheck{*healthcheck}
+			}
 		}
 
 		containers = append(containers, container)

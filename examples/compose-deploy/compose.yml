@@ -1,7 +1,7 @@
 # Example Docker Compose file for Fly.io deployment
 # All services will be deployed as containers in a single machine
 # Services can reference each other by name (e.g., "db" or "cache")
-version: "3"
+version: "3.8"
 services:
   app:
     image: nginx:alpine
@@ -10,16 +10,31 @@ services:
     environment:
       APP_ENV: production
       PORT: 80
-      DATABASE_URL: "postgresql://myapp:secret@db:5432/myapp"
-      REDIS_URL: "redis://cache:6379"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      db:
+        condition: service_healthy
     restart: always
+    
   db:
     image: postgres:14
     environment:
       POSTGRES_DB: myapp
       POSTGRES_USER: myapp
       POSTGRES_PASSWORD: secret
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "myapp"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
   cache:
     image: redis:alpine
     environment:
       REDIS_PASSWORD: ""
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
