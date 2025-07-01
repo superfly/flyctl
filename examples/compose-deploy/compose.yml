@@ -1,5 +1,6 @@
 # Example Docker Compose file for Fly.io deployment
 # All services will be deployed as containers in a single machine
+# Services can reference each other by name (e.g., "db" or "cache")
 version: "3"
 services:
   app:
@@ -9,6 +10,8 @@ services:
     environment:
       APP_ENV: production
       PORT: 80
+      DATABASE_URL: "postgresql://myapp:secret@db:5432/myapp"
+      REDIS_URL: "redis://cache:6379"
     restart: always
   db:
     image: postgres:14

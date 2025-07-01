@@ -1,9 +1,12 @@
 package containerconfig
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	fly "github.com/superfly/fly-go"
 	"gopkg.in/yaml.v3"
 )
@@ -52,6 +55,53 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 	return &compose, nil
 }
 
+// createHostsUpdateScript creates a shell script that updates /etc/hosts for service networking
+func createHostsUpdateScript(serviceNames []string) string {
+	script := `#!/bin/sh
+# Update /etc/hosts to map service names to localhost for Docker Compose compatibility
+`
+	for _, serviceName := range serviceNames {
+		script += fmt.Sprintf("echo '127.0.0.1 %s' >> /etc/hosts\n", serviceName)
+	}
+
+	script += `
+# Execute the original entrypoint/command
+exec "$@"
+`
+	return script
+}
+
+// extractImageEntrypoint extracts the entrypoint from a Docker image by fetching its config
+func extractImageEntrypoint(imageName string) ([]string, error) {
+	// Try to get the image config from the registry
+	config, err := crane.Config(imageName)
+	if err != nil {
+		// If we can't fetch the config, return empty entrypoint
+		// This might happen for private images or network issues
+		return []string{}, nil
+	}
+
+	// Parse the config JSON
+	var imageConfig struct {
+		Config struct {
+			Entrypoint []string `json:"Entrypoint"`
+			Cmd        []string `json:"Cmd"`
+		} `json:"config"`
+	}
+
+	if err := json.Unmarshal(config, &imageConfig); err != nil {
+		return []string{}, nil
+	}
+
+	// Return the entrypoint if it exists
+	if len(imageConfig.Config.Entrypoint) > 0 {
+		return imageConfig.Config.Entrypoint, nil
+	}
+
+	// If no entrypoint, return empty (will use CMD or the image's default)
+	return []string{}, nil
+}
+
 // composeToMachineConfig converts a Docker Compose file to Fly machine configuration
 // Always uses containers for compose files, regardless of service count
 func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.MachineConfig, error) {
@@ -91,6 +141,16 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 		return nil, fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", mainServiceName)
 	}
 
+	// Collect all service names for hosts file
+	serviceNames := make([]string, 0, len(compose.Services))
+	for serviceName := range compose.Services {
+		serviceNames = append(serviceNames, serviceName)
+	}
+
+	// Create the hosts update script
+	hostsScript := createHostsUpdateScript(serviceNames)
+	hostsScriptB64 := base64.StdEncoding.EncodeToString([]byte(hostsScript))
+
 	// Process all services as containers
 	for serviceName, service := range compose.Services {
 		container := &fly.ContainerConfig{
@@ -128,11 +188,12 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 			}
 		}
 
-		// Handle entrypoint
+		// Extract original entrypoint from image or service definition
+		var originalEntrypoint []string
 		if service.Entrypoint != nil {
 			switch ep := service.Entrypoint.(type) {
 			case string:
-				container.EntrypointOverride = []string{ep}
+				originalEntrypoint = []string{ep}
 			case []interface{}:
 				epSlice := make([]string, 0, len(ep))
 				for _, e := range ep {
@@ -140,13 +201,32 @@ func composeToMachineConfig(compose *ComposeFile, composePath string) (*fly.Mach
 						epSlice = append(epSlice, str)
 					}
 				}
-				container.EntrypointOverride = epSlice
+				originalEntrypoint = epSlice
 			}
+		} else {
+			// Try to extract from image
+			originalEntrypoint, _ = extractImageEntrypoint(service.Image)
 		}
+
+		// Create wrapper entrypoint that updates hosts then runs original
+		wrapperEntrypoint := []string{"/usr/local/bin/hosts-update.sh"}
+		if len(originalEntrypoint) > 0 {
+			wrapperEntrypoint = append(wrapperEntrypoint, originalEntrypoint...)
+		}
+		container.EntrypointOverride = wrapperEntrypoint
 
 		// Handle user
 		if service.User != "" {
 			container.UserOverride = service.User
+		}
+
+		// Add the hosts update script as a file
+		container.Files = []*fly.File{
+			{
+				GuestPath: "/usr/local/bin/hosts-update.sh",
+				RawValue:  &hostsScriptB64,
+				Mode:      0755, // Executable
+			},
 		}
 
 		containers = append(containers, container)
