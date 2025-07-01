@@ -248,8 +248,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	defer func() {
-		// Use a short timeout for shutdown to prevent hanging
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
 		tp.Shutdown(shutdownCtx)
 	}()
