@@ -318,7 +318,10 @@ func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) er
 			}
 		}
 
-		container.Image = mConfig.Image
+		// Only update the container image if it's not already set (e.g., from compose file)
+		if container.Image == "" {
+			container.Image = mConfig.Image
+		}
 	}
 
 	return nil

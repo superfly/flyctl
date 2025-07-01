@@ -2,13 +2,11 @@ package containerconfig
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/crane"
 	fly "github.com/superfly/fly-go"
 	"gopkg.in/yaml.v3"
 )
@@ -65,53 +63,6 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 	}
 
 	return &compose, nil
-}
-
-// createHostsUpdateScript creates a shell script that updates /etc/hosts for service networking
-func createHostsUpdateScript(serviceNames []string) string {
-	script := `#!/bin/sh
-# Update /etc/hosts to map service names to localhost for Docker Compose compatibility
-`
-	for _, serviceName := range serviceNames {
-		script += fmt.Sprintf("echo '127.0.0.1 %s' >> /etc/hosts\n", serviceName)
-	}
-
-	script += `
-# Execute the original entrypoint/command
-exec "$@"
-`
-	return script
-}
-
-// extractImageEntrypoint extracts the entrypoint from a Docker image by fetching its config
-func extractImageEntrypoint(imageName string) ([]string, error) {
-	// Try to get the image config from the registry
-	config, err := crane.Config(imageName)
-	if err != nil {
-		// If we can't fetch the config, return empty entrypoint
-		// This might happen for private images or network issues
-		return []string{}, nil
-	}
-
-	// Parse the config JSON
-	var imageConfig struct {
-		Config struct {
-			Entrypoint []string `json:"Entrypoint"`
-			Cmd        []string `json:"Cmd"`
-		} `json:"config"`
-	}
-
-	if err := json.Unmarshal(config, &imageConfig); err != nil {
-		return []string{}, nil
-	}
-
-	// Return the entrypoint if it exists
-	if len(imageConfig.Config.Entrypoint) > 0 {
-		return imageConfig.Config.Entrypoint, nil
-	}
-
-	// If no entrypoint, return empty (will use CMD or the image's default)
-	return []string{}, nil
 }
 
 // parseVolume parses a Docker Compose volume string
@@ -206,42 +157,8 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 		mConfig.Restart = &fly.MachineRestart{}
 	}
 
-	// Always use containers for compose files
+	// Create containers for all services
 	containers := make([]*fly.ContainerConfig, 0, len(compose.Services))
-
-	// Find the "app" service to use as the main container, or use the first one
-	var mainServiceName string
-	var mainService *ComposeService
-
-	// Check if there's an "app" service
-	if appService, ok := compose.Services["app"]; ok {
-		mainServiceName = "app"
-		mainService = &appService
-	} else {
-		// Use the first service as main
-		for name, svc := range compose.Services {
-			mainServiceName = name
-			mainService = &svc
-			break
-		}
-	}
-
-	// Set the main container image
-	if mainService.Image != "" {
-		mConfig.Image = mainService.Image
-	} else if mainService.Build != nil {
-		return fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", mainServiceName)
-	}
-
-	// Collect all service names for hosts file
-	serviceNames := make([]string, 0, len(compose.Services))
-	for serviceName := range compose.Services {
-		serviceNames = append(serviceNames, serviceName)
-	}
-
-	// Create the hosts update script
-	hostsScript := createHostsUpdateScript(serviceNames)
-	hostsScriptB64 := base64.StdEncoding.EncodeToString([]byte(hostsScript))
 
 	// Process all services as containers
 	for serviceName, service := range compose.Services {
@@ -264,7 +181,22 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 			}
 		}
 
-		// Handle command
+		// Handle compose-specific entrypoint/command if specified
+		if service.Entrypoint != nil {
+			switch ep := service.Entrypoint.(type) {
+			case string:
+				container.EntrypointOverride = []string{ep}
+			case []interface{}:
+				epSlice := make([]string, 0, len(ep))
+				for _, e := range ep {
+					if str, ok := e.(string); ok {
+						epSlice = append(epSlice, str)
+					}
+				}
+				container.EntrypointOverride = epSlice
+			}
+		}
+
 		if service.Command != nil {
 			switch cmd := service.Command.(type) {
 			case string:
@@ -280,46 +212,15 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 			}
 		}
 
-		// Extract original entrypoint from image or service definition
-		var originalEntrypoint []string
-		if service.Entrypoint != nil {
-			switch ep := service.Entrypoint.(type) {
-			case string:
-				originalEntrypoint = []string{ep}
-			case []interface{}:
-				epSlice := make([]string, 0, len(ep))
-				for _, e := range ep {
-					if str, ok := e.(string); ok {
-						epSlice = append(epSlice, str)
-					}
-				}
-				originalEntrypoint = epSlice
-			}
-		} else {
-			// Try to extract from image
-			originalEntrypoint, _ = extractImageEntrypoint(service.Image)
-		}
-
-		// Create wrapper entrypoint that updates hosts then runs original
-		wrapperEntrypoint := []string{"/usr/local/bin/hosts-update.sh"}
-		if len(originalEntrypoint) > 0 {
-			wrapperEntrypoint = append(wrapperEntrypoint, originalEntrypoint...)
-		}
-		container.EntrypointOverride = wrapperEntrypoint
+		// If no entrypoint/command specified in compose, let container use image defaults
 
 		// Handle user
 		if service.User != "" {
 			container.UserOverride = service.User
 		}
 
-		// Add the hosts update script as a file
-		files := []*fly.File{
-			{
-				GuestPath: "/usr/local/bin/hosts-update.sh",
-				RawValue:  &hostsScriptB64,
-				Mode:      0755, // Executable
-			},
-		}
+		// Start with empty files list
+		files := []*fly.File{}
 
 		// Handle volume mounts
 		for _, vol := range service.Volumes {
@@ -367,8 +268,12 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 	}
 
 	mConfig.Containers = containers
-	fmt.Printf("Using %d services from compose file as containers\n", len(compose.Services))
-	fmt.Printf("Main container: '%s' (image: %s)\n", mainServiceName, mConfig.Image)
+
+	// Clear services - containers handle their own networking
+	mConfig.Services = nil
+
+	// Clear the main image - containers have their own images
+	mConfig.Image = ""
 
 	return nil
 }
