@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  app:
+    image: nginx:latest
+    environment:
+      DATABASE_URL: "postgresql://db:5432/test"
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_DB: test
+    healthcheck:
+      test: ["CMD", "pg_isready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

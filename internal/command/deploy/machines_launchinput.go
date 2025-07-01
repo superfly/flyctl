@@ -97,12 +97,16 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		return nil, err
 	}
 
-	// Ensure container files are re-processed for compose files
-	// This is necessary because volume-mounted files may have been updated locally
-	if (md.appConfig.Build != nil && md.appConfig.Build.Compose != "") && len(mConfig.Containers) > 0 {
-		// Re-parse the compose file to get fresh file content
+	// Ensure container files are re-processed if they reference local files
+	// This is necessary because local files may have been updated since initial parsing
+	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != "")) && hasContainerFiles(mConfig) {
+		// Re-parse the container config to get fresh file content
+		composePath := ""
+		if md.appConfig.Build != nil {
+			composePath = md.appConfig.Build.Compose
+		}
 		tempConfig := &fly.MachineConfig{}
-		err := containerconfig.ParseContainerConfig(tempConfig, md.appConfig.Build.Compose, "", md.appConfig.ConfigFilePath())
+		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath())
 		if err == nil && len(tempConfig.Containers) > 0 {
 			// Apply container files from the re-parsed config
 			for _, container := range mConfig.Containers {
@@ -221,6 +225,17 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
 	}, nil
+}
+
+// hasContainerFiles returns true if any container has file configurations
+// that might need refreshing from local sources
+func hasContainerFiles(mConfig *fly.MachineConfig) bool {
+	for _, container := range mConfig.Containers {
+		if len(container.Files) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
