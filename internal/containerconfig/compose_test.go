@@ -10,7 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 )
 
-func TestParseComposeFile(t *testing.T) {
+func TestParseComposeFileWithPath(t *testing.T) {
 	// Create a temporary compose file for testing
 	tmpDir := t.TempDir()
 	composePath := filepath.Join(tmpDir, "compose.yml")
@@ -31,7 +31,7 @@ services:
 
 	// Parse the compose file
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
@@ -87,7 +87,7 @@ services:
 
 	// Parse the compose file - should succeed with containers
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse multi-service compose file: %v", err)
 	}
@@ -158,7 +158,7 @@ services:
 
 	// Parse the compose file
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
@@ -211,7 +211,7 @@ services:
 
 	// Parse the compose file
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file: %v", err)
 	}
@@ -312,7 +312,7 @@ services:
 
 	// Parse the compose file
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file with build: %v", err)
 	}
@@ -370,7 +370,7 @@ services:
 
 	// Parse should fail
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err == nil {
 		t.Fatal("Expected error for multiple services with build, got nil")
 	}
@@ -397,7 +397,7 @@ services:
 
 	// Parse should fail
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err == nil {
 		t.Fatal("Expected error for service without image or build, got nil")
 	}
@@ -430,7 +430,7 @@ services:
 
 	// Parse the compose file
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file with dependencies: %v", err)
 	}
@@ -505,7 +505,7 @@ services:
 
 	// Parse the compose file
 	mConfig := &fly.MachineConfig{}
-	err := ParseComposeFile(mConfig, composePath)
+	err := ParseComposeFileWithPath(mConfig, composePath)
 	if err != nil {
 		t.Fatalf("Failed to parse compose file with short dependencies: %v", err)
 	}
