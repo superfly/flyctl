@@ -49,6 +49,8 @@ var (
 	safeToDestroyValue = "safe_to_destroy"
 )
 
+const healthChecksRequirementMsg = "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n"
+
 type RollbackLog struct {
 	// this ensures that user invoked aborts after green machines are healthy
 	// doesn't cause the greeen machines to be removed. eg. if someone aborts after cordoning blue machines
@@ -688,6 +690,11 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrOrgLimit
 	}
 
+	if !bg.appConfig.HasHealthChecks() && len(bg.blueMachines) != 0 {
+		fmt.Fprint(bg.io.ErrOut, healthChecksRequirementMsg)
+		return ErrValidationError
+	}
+
 	fmt.Fprintf(bg.io.ErrOut, "\nVerifying if app can be safely deployed \n")
 
 	err = bg.DetectMultipleImageVersions(ctx)
@@ -709,7 +716,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	}
 
 	if totalChecks == 0 && len(bg.blueMachines) != 0 {
-		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
+		fmt.Fprint(bg.io.ErrOut, healthChecksRequirementMsg)
 		return ErrValidationError
 	}
 
