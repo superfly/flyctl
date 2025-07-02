@@ -207,3 +207,11 @@ func (ldClient *Client) UnmanagedPostgresEnabled() bool {
 func (ldClient *Client) getLaunchPostgresChoiceFlag() string {
 	return ldClient.GetFeatureFlagValue("launch-postgres-choice", "unmanaged-pg").(string)
 }
+
+func (ldClient *Client) getManagedBuilderEnabled() bool {
+	return ldClient.GetFeatureFlagValue("managed-builder", false).(bool)
+}
+
+func (ldClient *Client) ManagedBuilderEnabled() bool {
+	return ldClient.getManagedBuilderEnabled()
+}
