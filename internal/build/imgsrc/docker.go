@@ -118,10 +118,10 @@ func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNix
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
 	}
-	if allowRemote {
+	if allowRemote || useManagedBuilder {
 		daemonType = daemonType | DockerDaemonTypeRemote
 	}
-	if useDepot || !useManagedBuilder {
+	if useDepot && !useManagedBuilder {
 		daemonType = daemonType | DockerDaemonTypeDepot
 	}
 	if useNixpacks {
