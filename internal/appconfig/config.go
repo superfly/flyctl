@@ -394,18 +394,18 @@ func (cfg *Config) DeployStrategy() string {
 // the configuration. It inspects top-level checks as well as checks defined for
 // any service or the http_service.
 func (cfg *Config) HasHealthChecks() bool {
-	if len(cfg.Checks) > 0 {
+	if len(cfg.Checks) > 0 || len(cfg.MachineChecks) > 0 {
 		return true
 	}
 
 	if cfg.HTTPService != nil {
-		if len(cfg.HTTPService.HTTPChecks) > 0 || len(cfg.HTTPService.TCPChecks) > 0 {
+		if len(cfg.HTTPService.HTTPChecks) > 0 || len(cfg.HTTPService.MachineChecks) > 0 {
 			return true
 		}
 	}
 
 	for _, svc := range cfg.Services {
-		if len(svc.HTTPChecks) > 0 || len(svc.TCPChecks) > 0 {
+		if len(svc.HTTPChecks) > 0 || len(svc.TCPChecks) > 0 || len(svc.MachineChecks) > 0 {
 			return true
 		}
 	}
