@@ -239,10 +239,6 @@ services:
 	for _, file := range nginxContainer.Files {
 		if file.GuestPath == "/etc/nginx/conf.d/default.conf" {
 			nginxConfFound = true
-			// Check it's read-only
-			if file.Mode != 0444 {
-				t.Errorf("Expected nginx.conf to be read-only (0444), got %o", file.Mode)
-			}
 			// Check content
 			if file.RawValue != nil {
 				decoded, err := base64.StdEncoding.DecodeString(*file.RawValue)

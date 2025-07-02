@@ -291,9 +291,9 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 // updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
 	if len(mConfig.Containers) != 0 {
-		for _, container := range mConfig.Containers {
-			if container.Image == "." {
-				container.Image = mConfig.Image
+		for i := range mConfig.Containers {
+			if mConfig.Containers[i].Image == "." {
+				mConfig.Containers[i].Image = mConfig.Image
 			}
 		}
 	}

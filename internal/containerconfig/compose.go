@@ -172,9 +172,7 @@ func convertHealthcheck(composeHC *ComposeHealthcheck) *fly.ContainerHealthcheck
 		return nil
 	}
 
-	hc := &fly.ContainerHealthcheck{
-		Name: "healthcheck", // Default name
-	}
+	hc := &fly.ContainerHealthcheck{}
 
 	// Parse test command
 	var cmd []string
@@ -326,7 +324,7 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 
 		// Handle volume mounts
 		for _, vol := range service.Volumes {
-			hostPath, containerPath, readOnly := parseVolume(vol)
+			hostPath, containerPath, _ := parseVolume(vol)
 			if hostPath != "" {
 				// Make host path absolute if relative
 				if !filepath.IsAbs(hostPath) {
@@ -343,15 +341,10 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 
 				// Add file to container
 				encodedContent := base64.StdEncoding.EncodeToString(content)
-				mode := uint32(0644)
-				if readOnly {
-					mode = 0444
-				}
 
 				files = append(files, &fly.File{
 					GuestPath: containerPath,
 					RawValue:  &encodedContent,
-					Mode:      mode,
 				})
 			}
 		}
