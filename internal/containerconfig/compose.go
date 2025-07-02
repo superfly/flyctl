@@ -31,6 +31,25 @@ type ComposeService struct {
 	Extra       map[string]interface{} `yaml:",inline"`
 }
 
+// ComposeDependency represents a service dependency with conditions
+type ComposeDependency struct {
+	Condition string `yaml:"condition"`
+	Required  bool   `yaml:"required"`
+	Restart   bool   `yaml:"restart"`
+}
+
+// ServiceDependencies represents parsed dependencies for a service
+type ServiceDependencies struct {
+	Dependencies map[string]ComposeDependency
+}
+
+// DependencyCondition constants
+const (
+	DependencyConditionStarted               = "service_started"
+	DependencyConditionHealthy               = "service_healthy"
+	DependencyConditionCompletedSuccessfully = "service_completed_successfully"
+)
+
 // ComposeHealthcheck represents a health check configuration
 type ComposeHealthcheck struct {
 	Test        interface{} `yaml:"test"`
@@ -63,6 +82,64 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 	}
 
 	return &compose, nil
+}
+
+// parseDependsOn parses both short and long syntax depends_on
+func parseDependsOn(dependsOn interface{}) (ServiceDependencies, error) {
+	deps := ServiceDependencies{
+		Dependencies: make(map[string]ComposeDependency),
+	}
+
+	if dependsOn == nil {
+		return deps, nil
+	}
+
+	switch v := dependsOn.(type) {
+	case []interface{}:
+		// Short syntax: depends_on: [db, redis]
+		for _, dep := range v {
+			if serviceName, ok := dep.(string); ok {
+				deps.Dependencies[serviceName] = ComposeDependency{
+					Condition: DependencyConditionStarted,
+					Required:  true,
+					Restart:   false,
+				}
+			}
+		}
+	case map[string]interface{}:
+		// Long syntax: depends_on: { db: { condition: service_healthy } }
+		for serviceName, depConfig := range v {
+			dependency := ComposeDependency{
+				Condition: DependencyConditionStarted,
+				Required:  true,
+				Restart:   false,
+			}
+
+			if config, ok := depConfig.(map[string]interface{}); ok {
+				if condition, exists := config["condition"]; exists {
+					if condStr, ok := condition.(string); ok {
+						dependency.Condition = condStr
+					}
+				}
+				if required, exists := config["required"]; exists {
+					if reqBool, ok := required.(bool); ok {
+						dependency.Required = reqBool
+					}
+				}
+				if restart, exists := config["restart"]; exists {
+					if restartBool, ok := restart.(bool); ok {
+						dependency.Restart = restartBool
+					}
+				}
+			}
+
+			deps.Dependencies[serviceName] = dependency
+		}
+	default:
+		return deps, fmt.Errorf("invalid depends_on format")
+	}
+
+	return deps, nil
 }
 
 // parseVolume parses a Docker Compose volume string
@@ -155,6 +232,16 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 	}
 	if mConfig.Restart == nil {
 		mConfig.Restart = &fly.MachineRestart{}
+	}
+
+	// Parse dependencies for all services
+	serviceDependencies := make(map[string]ServiceDependencies)
+	for serviceName, service := range compose.Services {
+		deps, err := parseDependsOn(service.DependsOn)
+		if err != nil {
+			return fmt.Errorf("failed to parse dependencies for service '%s': %w", serviceName, err)
+		}
+		serviceDependencies[serviceName] = deps
 	}
 
 	// Create containers for all services
@@ -277,6 +364,30 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 			if healthcheck != nil {
 				container.Healthchecks = []fly.ContainerHealthcheck{*healthcheck}
 			}
+		}
+
+		// Handle dependencies
+		if deps, exists := serviceDependencies[serviceName]; exists && len(deps.Dependencies) > 0 {
+			var containerDeps []fly.ContainerDependency
+			for depName, dep := range deps.Dependencies {
+				var condition fly.ContainerDependencyCondition
+				switch dep.Condition {
+				case DependencyConditionStarted:
+					condition = fly.Started
+				case DependencyConditionHealthy:
+					condition = fly.Healthy
+				case DependencyConditionCompletedSuccessfully:
+					condition = fly.ExitedSuccessfully
+				default:
+					condition = fly.Started // default fallback
+				}
+
+				containerDeps = append(containerDeps, fly.ContainerDependency{
+					Name:      depName,
+					Condition: condition,
+				})
+			}
+			container.DependsOn = containerDeps
 		}
 
 		containers = append(containers, container)

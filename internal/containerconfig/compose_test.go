@@ -406,3 +406,140 @@ services:
 		t.Errorf("Expected error about missing image or build, got: %v", err)
 	}
 }
+
+func TestParseComposeFileWithDependencies(t *testing.T) {
+	// Create a compose file with dependencies
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+
+	composeContent := `version: "3.8"
+services:
+  nginx:
+    image: nginx:latest
+    depends_on:
+      echo:
+        condition: service_healthy
+  echo:
+    build: .
+    healthcheck:
+      test: ["CMD", "wget", "-q0-", "localhost:80"]
+`
+	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	// Parse the compose file
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
+	if err != nil {
+		t.Fatalf("Failed to parse compose file with dependencies: %v", err)
+	}
+
+	// Verify containers were created
+	if len(mConfig.Containers) != 2 {
+		t.Errorf("Expected 2 containers, got %d", len(mConfig.Containers))
+	}
+
+	// Find containers
+	var nginxContainer, echoContainer *fly.ContainerConfig
+	for _, container := range mConfig.Containers {
+		switch container.Name {
+		case "nginx":
+			nginxContainer = container
+		case "echo":
+			echoContainer = container
+		}
+	}
+
+	if nginxContainer == nil {
+		t.Fatal("nginx container not found")
+	}
+	if echoContainer == nil {
+		t.Fatal("echo container not found")
+	}
+
+	// Check nginx dependencies
+	if len(nginxContainer.DependsOn) != 1 {
+		t.Errorf("Expected nginx to have 1 dependency, got %d", len(nginxContainer.DependsOn))
+	} else {
+		dep := nginxContainer.DependsOn[0]
+		if dep.Name != "echo" {
+			t.Errorf("Expected dependency on 'echo', got '%s'", dep.Name)
+		}
+		if dep.Condition != fly.Healthy {
+			t.Errorf("Expected condition 'healthy', got '%s'", dep.Condition)
+		}
+	}
+
+	// Check echo has no dependencies
+	if len(echoContainer.DependsOn) != 0 {
+		t.Errorf("Expected echo to have no dependencies, got %d", len(echoContainer.DependsOn))
+	}
+
+	// Check echo has health check
+	if len(echoContainer.Healthchecks) == 0 {
+		t.Error("Expected echo to have health check")
+	}
+}
+
+func TestParseComposeFileShortDependencySyntax(t *testing.T) {
+	// Create a compose file with short dependency syntax
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+
+	composeContent := `version: "3"
+services:
+  web:
+    image: nginx:latest
+    depends_on:
+      - db
+      - redis
+  db:
+    image: postgres:14
+  redis:
+    image: redis:alpine
+`
+	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	// Parse the compose file
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
+	if err != nil {
+		t.Fatalf("Failed to parse compose file with short dependencies: %v", err)
+	}
+
+	// Find web container
+	var webContainer *fly.ContainerConfig
+	for _, container := range mConfig.Containers {
+		if container.Name == "web" {
+			webContainer = container
+			break
+		}
+	}
+
+	if webContainer == nil {
+		t.Fatal("web container not found")
+	}
+
+	// Check dependencies
+	if len(webContainer.DependsOn) != 2 {
+		t.Errorf("Expected web to have 2 dependencies, got %d", len(webContainer.DependsOn))
+	}
+
+	depNames := make(map[string]bool)
+	for _, dep := range webContainer.DependsOn {
+		depNames[dep.Name] = true
+		if dep.Condition != fly.Started {
+			t.Errorf("Expected condition 'started' for short syntax, got '%s'", dep.Condition)
+		}
+	}
+
+	if !depNames["db"] {
+		t.Error("Expected dependency on 'db'")
+	}
+	if !depNames["redis"] {
+		t.Error("Expected dependency on 'redis'")
+	}
+}
