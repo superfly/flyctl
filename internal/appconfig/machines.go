@@ -262,7 +262,7 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 	if c.Build != nil {
 		composePath = c.Build.Compose
 	}
-	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath()); err != nil {
+	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath(), c.Container); err != nil {
 		return nil, err
 	}
 

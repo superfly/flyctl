@@ -160,6 +160,17 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 	// Create containers for all services
 	containers := make([]*fly.ContainerConfig, 0, len(compose.Services))
 
+	// Check that only one service specifies build
+	buildServiceCount := 0
+	for _, service := range compose.Services {
+		if service.Build != nil {
+			buildServiceCount++
+		}
+	}
+	if buildServiceCount > 1 {
+		return fmt.Errorf("only one service can specify build, found %d services with build", buildServiceCount)
+	}
+
 	// Process all services as containers
 	for serviceName, service := range compose.Services {
 		container := &fly.ContainerConfig{
@@ -167,10 +178,14 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 		}
 
 		// Set image
-		if service.Image != "" {
+		if service.Build != nil {
+			// Service with build section uses "." as image
+			container.Image = "."
+		} else if service.Image != "" {
 			container.Image = service.Image
-		} else if service.Build != nil {
-			return fmt.Errorf("compose files with build sections are not yet supported, please specify an image for service '%s'", serviceName)
+		} else {
+			// Services without build must specify image
+			return fmt.Errorf("service '%s' must specify either 'image' or 'build'", serviceName)
 		}
 
 		// Handle environment variables

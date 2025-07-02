@@ -106,7 +106,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 			composePath = md.appConfig.Build.Compose
 		}
 		tempConfig := &fly.MachineConfig{}
-		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath())
+		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath(), md.appConfig.Container)
 		if err == nil && len(tempConfig.Containers) > 0 {
 			// Apply container files from the re-parsed config
 			for _, container := range mConfig.Containers {
@@ -288,39 +288,13 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	return false
 }
 
-// If the machine config has containers, we need to apply the image  to the container
-// named in the app config. If no container name is specified, we look for "app" or
-// the first container.
+// updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
 	if len(mConfig.Containers) != 0 {
-
-		// identify the container to use
-		// if no container is specified, look for "app" or the first container
-		var container *fly.ContainerConfig
-
-		match := md.appConfig.Container
-		if match == "" {
-			match = "app"
-		}
-
-		for _, c := range mConfig.Containers {
-			if c.Name == match {
-				container = c
-				break
+		for _, container := range mConfig.Containers {
+			if container.Image == "." {
+				container.Image = mConfig.Image
 			}
-		}
-
-		if container == nil {
-			if md.appConfig.Container != "" {
-				return fmt.Errorf("container %q not found", md.appConfig.Container)
-			} else {
-				container = mConfig.Containers[0]
-			}
-		}
-
-		// Only update the container image if it's not already set (e.g., from compose file)
-		if container.Image == "" {
-			container.Image = mConfig.Image
 		}
 	}
 

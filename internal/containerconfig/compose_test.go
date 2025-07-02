@@ -291,3 +291,118 @@ services:
 		}
 	}
 }
+
+func TestParseComposeFileWithBuild(t *testing.T) {
+	// Create a compose file with build section
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+
+	composeContent := `version: "3"
+services:
+  app:
+    build: .
+    environment:
+      APP_ENV: production
+  db:
+    image: postgres:14
+`
+	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	// Parse the compose file
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
+	if err != nil {
+		t.Fatalf("Failed to parse compose file with build: %v", err)
+	}
+
+	// Verify containers were created
+	if len(mConfig.Containers) != 2 {
+		t.Errorf("Expected 2 containers, got %d", len(mConfig.Containers))
+	}
+
+	// Find containers
+	var appContainer, dbContainer *fly.ContainerConfig
+	for _, container := range mConfig.Containers {
+		switch container.Name {
+		case "app":
+			appContainer = container
+		case "db":
+			dbContainer = container
+		}
+	}
+
+	if appContainer == nil {
+		t.Fatal("app container not found")
+	}
+	if dbContainer == nil {
+		t.Fatal("db container not found")
+	}
+
+	// Service with build should have image "."
+	if appContainer.Image != "." {
+		t.Errorf("Expected app container image '.', got '%s'", appContainer.Image)
+	}
+
+	// Service without build should have its specified image
+	if dbContainer.Image != "postgres:14" {
+		t.Errorf("Expected db container image 'postgres:14', got '%s'", dbContainer.Image)
+	}
+}
+
+func TestParseComposeFileMultipleBuildError(t *testing.T) {
+	// Create a compose file with multiple build sections
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+
+	composeContent := `version: "3"
+services:
+  app1:
+    build: .
+  app2:
+    build:
+      context: ./app2
+`
+	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	// Parse should fail
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
+	if err == nil {
+		t.Fatal("Expected error for multiple services with build, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "only one service can specify build") {
+		t.Errorf("Expected error about multiple build services, got: %v", err)
+	}
+}
+
+func TestParseComposeFileMissingImageAndBuild(t *testing.T) {
+	// Create a compose file with a service that has neither image nor build
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+
+	composeContent := `version: "3"
+services:
+  app:
+    environment:
+      APP_ENV: production
+`
+	if err := os.WriteFile(composePath, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	// Parse should fail
+	mConfig := &fly.MachineConfig{}
+	err := ParseComposeFile(mConfig, composePath)
+	if err == nil {
+		t.Fatal("Expected error for service without image or build, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "must specify either 'image' or 'build'") {
+		t.Errorf("Expected error about missing image or build, got: %v", err)
+	}
+}
