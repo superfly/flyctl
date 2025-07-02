@@ -352,6 +352,21 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		}
 	}
 
+	strategy := flag.GetString(ctx, "strategy")
+	if strategy == "" {
+		strategy = appConfig.DeployStrategy()
+	}
+	if strategy == "bluegreen" {
+		if appConfig.HasMounts() {
+			fmt.Fprint(io.ErrOut, volumesRequirementMsg)
+			return ErrValidationError
+		}
+		if !appConfig.HasHealthChecks() {
+			fmt.Fprint(io.ErrOut, healthChecksRequirementMsg)
+			return ErrValidationError
+		}
+	}
+
 	httpFailover := flag.GetHTTPSFailover(ctx)
 	usingWireguard := flag.GetWireguard(ctx)
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
