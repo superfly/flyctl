@@ -412,3 +412,8 @@ func (cfg *Config) HasHealthChecks() bool {
 
 	return false
 }
+
+// HasMounts returns true if the configuration defines any mounts.
+func (cfg *Config) HasMounts() bool {
+	return len(cfg.Mounts) > 0
+}

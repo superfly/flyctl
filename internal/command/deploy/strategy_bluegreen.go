@@ -49,7 +49,8 @@ var (
 	safeToDestroyValue = "safe_to_destroy"
 )
 
-const healthChecksRequirementMsg = "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n"
+const healthChecksRequirementMsg = "\n\nYou need to define at least 1 check in order to use bluegreen deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n"
+const volumesRequirementMsg = "\n\nBluegreen deployments are not supported when machines have attached volumes.\n"
 
 type RollbackLog struct {
 	// this ensures that user invoked aborts after green machines are healthy
@@ -688,6 +689,11 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	if !canPerform {
 		tracing.RecordError(span, ErrOrgLimit, "failed to deploy, orglimit")
 		return ErrOrgLimit
+	}
+
+	if bg.appConfig.HasMounts() && len(bg.blueMachines) != 0 {
+		fmt.Fprint(bg.io.ErrOut, volumesRequirementMsg)
+		return ErrValidationError
 	}
 
 	if !bg.appConfig.HasHealthChecks() && len(bg.blueMachines) != 0 {

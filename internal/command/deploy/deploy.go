@@ -356,9 +356,15 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	if strategy == "" {
 		strategy = appConfig.DeployStrategy()
 	}
-	if strategy == "bluegreen" && !appConfig.HasHealthChecks() {
-		fmt.Fprint(io.ErrOut, healthChecksRequirementMsg)
-		return ErrValidationError
+	if strategy == "bluegreen" {
+		if appConfig.HasMounts() {
+			fmt.Fprint(io.ErrOut, volumesRequirementMsg)
+			return ErrValidationError
+		}
+		if !appConfig.HasHealthChecks() {
+			fmt.Fprint(io.ErrOut, healthChecksRequirementMsg)
+			return ErrValidationError
+		}
 	}
 
 	httpFailover := flag.GetHTTPSFailover(ctx)
