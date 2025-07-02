@@ -62,6 +62,10 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 			mode:   daemonType,
 			remote: true,
 			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+				cfg := config.FromContext(ctx)
+				if cfg.DisableManagedBuilders {
+					useManagedBuilder = false
+				}
 				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, useManagedBuilder, recreateBuilder)
 			},
 			apiClient: apiClient,
