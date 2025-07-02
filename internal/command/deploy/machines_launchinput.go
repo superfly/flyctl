@@ -8,7 +8,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -97,12 +97,17 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		return nil, err
 	}
 
-	// Ensure container files from machine_config are re-processed
-	// This is necessary because machine_config files may have been updated locally
-	if md.appConfig.MachineConfig != "" && len(mConfig.Containers) > 0 {
-		// Re-parse the machine config to get fresh file content
+	// Ensure container files are re-processed if they reference local files
+	// This is necessary because local files may have been updated since initial parsing
+	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != "")) && hasContainerFiles(mConfig) {
+		// Re-parse the container config to get fresh file content
+		composePath := ""
+		if md.appConfig.Build != nil {
+			composePath = md.appConfig.Build.Compose
+		}
 		tempConfig := &fly.MachineConfig{}
-		if err := config.ParseConfig(tempConfig, md.appConfig.MachineConfig); err == nil {
+		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath(), md.appConfig.Container)
+		if err == nil && len(tempConfig.Containers) > 0 {
 			// Apply container files from the re-parsed config
 			for _, container := range mConfig.Containers {
 				for _, tempContainer := range tempConfig.Containers {
@@ -222,6 +227,17 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	}, nil
 }
 
+// hasContainerFiles returns true if any container has file configurations
+// that might need refreshing from local sources
+func hasContainerFiles(mConfig *fly.MachineConfig) bool {
+	for _, container := range mConfig.Containers {
+		if len(container.Files) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
 		fly.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
@@ -272,37 +288,14 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	return false
 }
 
-// If the machine config has containers, we need to apply the image  to the container
-// named in the app config. If no container name is specified, we look for "app" or
-// the first container.
+// updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
 	if len(mConfig.Containers) != 0 {
-
-		// identify the container to use
-		// if no container is specified, look for "app" or the first container
-		var container *fly.ContainerConfig
-
-		match := md.appConfig.Container
-		if match == "" {
-			match = "app"
-		}
-
-		for _, c := range mConfig.Containers {
-			if c.Name == match {
-				container = c
-				break
+		for _, container := range mConfig.Containers {
+			if container.Image == "." {
+				container.Image = mConfig.Image
 			}
 		}
-
-		if container == nil {
-			if md.appConfig.Container != "" {
-				return fmt.Errorf("container %q not found", md.appConfig.Container)
-			} else {
-				container = mConfig.Containers[0]
-			}
-		}
-
-		container.Image = mConfig.Image
 	}
 
 	return nil
