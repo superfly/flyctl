@@ -34,9 +34,10 @@ func ParseContainerConfig(mConfig *fly.MachineConfig, composePath, machineConfig
 		return nil
 	}
 
-	// After parsing, if we have containers, apply the updateContainerImage logic
-	if len(mConfig.Containers) > 0 {
-		// Copy the logic from updateContainerImage that selects the container
+	// Apply container selection logic only for machine config JSON (not compose files)
+	if len(mConfig.Containers) > 0 && composePath == "" && machineConfigStr != "" {
+		// Select which container should receive the built image
+		// Priority: specified containerName > "app" container > first container
 		var selectedContainer *fly.ContainerConfig
 
 		match := containerName
@@ -65,6 +66,13 @@ func ParseContainerConfig(mConfig *fly.MachineConfig, composePath, machineConfig
 			if c == selectedContainer {
 				c.Image = "."
 			} else if c.Image == "" {
+				return fmt.Errorf("container %q must have an image specified", c.Name)
+			}
+		}
+	} else if len(mConfig.Containers) > 0 {
+		// For compose files, just validate that all containers have images
+		for _, c := range mConfig.Containers {
+			if c.Image == "" {
 				return fmt.Errorf("container %q must have an image specified", c.Name)
 			}
 		}
