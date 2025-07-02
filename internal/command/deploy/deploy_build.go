@@ -57,6 +57,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	ldClient := launchdarkly.ClientFromContext(ctx)
 	depotBool := ldClient.GetFeatureFlagValue("use-depot-for-builds", true).(bool)
+	useManagedBuilder := ldClient.ManagedBuilderEnabled()
 
 	switch flag.GetString(ctx, "depot") {
 	case "", "true":
@@ -69,7 +70,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"), useManagedBuilder)
 
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
