@@ -3,16 +3,11 @@ package imgsrc
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/moby/buildkit/client"
-	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -37,57 +32,25 @@ func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory,
 	defer span.End()
 
 	build.BuildStart()
+	defer build.BuildFinish()
 
-	var dockerfile string
-
-	switch {
-	case opts.DockerfilePath != "" && !helpers.FileExists(opts.DockerfilePath):
-		build.BuildFinish()
-		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-		tracing.RecordError(span, err, "failed to find dockerfile")
+	dockerfile, err := ResolveDockerfileFromOptions(opts)
+	if err != nil {
 		return nil, "", err
-	case opts.DockerfilePath != "":
-		dockerfile = opts.DockerfilePath
-	default:
-		dockerfile = ResolveDockerfile(opts.WorkingDir)
 	}
-
 	if dockerfile == "" {
-		span.AddEvent("dockerfile not found, skipping")
-		terminal.Debug("dockerfile not found, skipping")
-		build.BuildFinish()
-		return nil, "", nil
+		return nil, "", nil // No dockerfile found
 	}
-
-	var relDockerfile string
-	if isPathInRoot(dockerfile, opts.WorkingDir) {
-		// pass the relative path to Dockerfile within the context
-		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to get relative dockerfile path")
-			build.BuildFinish()
-			return nil, "", err
-		}
-		// On Windows, convert \ to a slash / as the docker build will
-		// run in a Linux VM at the end.
-		relDockerfile = filepath.ToSlash(p)
-	}
-	span.SetAttributes(attribute.String("relative_dockerfile_path", relDockerfile))
 
 	build.ImageBuildStart()
-
 	image, err := r.buildWithRemoteBuildkit(ctx, streams, opts, dockerfile, build)
 	if err != nil {
 		build.ImageBuildFinish()
-		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to build image")
-		return nil, "", errors.Wrap(err, "error building")
+		return nil, "", err
 	}
-
 	build.ImageBuildFinish()
-	build.BuildFinish()
-	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 	span.SetAttributes(image.ToSpanAttributes()...)
 	return image, "", nil
 }

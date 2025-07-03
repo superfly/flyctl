@@ -14,9 +14,7 @@ import (
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -24,7 +22,6 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -61,58 +58,26 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	defer span.End()
 
 	build.BuildStart()
+	defer build.BuildFinish()
 
-	var dockerfile string
-
-	switch {
-	case opts.DockerfilePath != "" && !helpers.FileExists(opts.DockerfilePath):
-		build.BuildFinish()
-		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-		tracing.RecordError(span, err, "failed to find dockerfile")
+	dockerfile, err := ResolveDockerfileFromOptions(opts)
+	if err != nil {
 		return nil, "", err
-	case opts.DockerfilePath != "":
-		dockerfile = opts.DockerfilePath
-	default:
-		dockerfile = ResolveDockerfile(opts.WorkingDir)
 	}
-
 	if dockerfile == "" {
-		span.AddEvent("dockerfile not found, skipping")
-		terminal.Debug("dockerfile not found, skipping")
-		build.BuildFinish()
-		return nil, "", nil
+		return nil, "", nil // No dockerfile found
 	}
-
-	var relDockerfile string
-	if isPathInRoot(dockerfile, opts.WorkingDir) {
-		// pass the relative path to Dockerfile within the context
-		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to get relative dockerfile path")
-			build.BuildFinish()
-			return nil, "", err
-		}
-		// On Windows, convert \ to a slash / as the docker build will
-		// run in a Linux VM at the end.
-		relDockerfile = filepath.ToSlash(p)
-	}
-	span.SetAttributes(attribute.String("relative_dockerfile_path", relDockerfile))
 
 	build.ImageBuildStart()
-
 	image, err := depotBuild(ctx, streams, opts, dockerfile, build, d.Scope)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		build.ImageBuildFinish()
-		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to build image")
-		return nil, "", errors.Wrap(err, "error building")
+		return nil, "", err
 	}
-
 	build.ImageBuildFinish()
-	build.BuildFinish()
-	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 	span.SetAttributes(image.ToSpanAttributes()...)
 	return image, "", nil
 }
