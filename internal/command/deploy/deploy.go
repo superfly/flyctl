@@ -178,6 +178,12 @@ var CommonFlags = flag.Set{
 		Description: "Number of times to retry a deployment if it fails",
 		Default:     "auto",
 	},
+	flag.String{
+		Name:        "pooled-builder",
+		Default:     "auto",
+		NoOptDefVal: "true",
+		Description: "Experimental: Use pooled builder from Fly.io",
+	},
 }
 
 type Command struct {
@@ -198,6 +204,7 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
+		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
