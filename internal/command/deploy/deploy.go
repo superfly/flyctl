@@ -179,7 +179,7 @@ var CommonFlags = flag.Set{
 		Default:     "auto",
 	},
 	flag.String{
-		Name:        "pooled-builder",
+		Name:        "builder-pool",
 		Default:     "auto",
 		NoOptDefVal: "true",
 		Description: "Experimental: Use pooled builder from Fly.io",
