@@ -19,13 +19,14 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
-	ListMPGRegionsFunc        func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
-	ListManagedClustersFunc   func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
-	GetManagedClusterFunc     func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
-	GetManagedClusterByIdFunc func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
-	CreateUserFunc            func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
-	CreateClusterFunc         func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
-	DestroyClusterFunc        func(ctx context.Context, orgSlug string, id string) error
+	ListMPGRegionsFunc          func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
+	ListManagedClustersFunc     func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
+	GetManagedClusterFunc       func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
+	GetManagedClusterByIdFunc   func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
+	CreateUserFunc              func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateClusterFunc           func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
+	DestroyClusterFunc          func(ctx context.Context, orgSlug string, id string) error
+	CreateFlyManagedBuilderFunc func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
@@ -61,6 +62,13 @@ func (m *MockUiexClient) CreateUser(ctx context.Context, id string, input uiex.C
 		return m.CreateUserFunc(ctx, id, input)
 	}
 	return uiex.CreateUserResponse{}, nil
+}
+
+func (m *MockUiexClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error) {
+	if m.CreateUserFunc != nil {
+		return m.CreateFlyManagedBuilderFunc(ctx, orgSlug, region)
+	}
+	return uiex.CreateFlyManagedBuilderResponse{}, nil
 }
 
 func (m *MockUiexClient) CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {
