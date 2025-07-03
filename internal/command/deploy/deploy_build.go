@@ -66,7 +66,19 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		depotBool = false
 	case "auto":
 	default:
-		return nil, fmt.Errorf("invalid falue for the 'depot' flag. must be 'true', 'false', or ''")
+		return nil, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
+	}
+
+	switch flag.GetString(ctx, "pooled-builder") {
+	case "", "true":
+		span.AddEvent("opt-in pooled-builder")
+		useManagedBuilder = true
+	case "false":
+		useManagedBuilder = false
+	case "auto":
+		// nothing
+	default:
+		return nil, fmt.Errorf("invalid value for the 'pooled-builder' flag. must be 'true', 'false', or ''")
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
