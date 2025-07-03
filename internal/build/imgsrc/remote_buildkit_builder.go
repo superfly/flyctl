@@ -20,14 +20,10 @@ type RemoteBuildkitBuilder struct {
 }
 
 func NewRemoteBuildkitBuilder(addr string) *RemoteBuildkitBuilder {
-	return &RemoteBuildkitBuilder{
-		addr: addr,
-	}
+	return &RemoteBuildkitBuilder{addr: addr}
 }
 
-func (r *RemoteBuildkitBuilder) Name() string {
-	return "Remote Buildkit"
-}
+func (r *RemoteBuildkitBuilder) Name() string { return "Buildkit" }
 
 func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "remote_buildkit_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
@@ -64,13 +60,13 @@ func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory,
 	return image, "", nil
 }
 
-func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (i *DeploymentImage, retErr error) {
+func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (i *DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "remote_buildkit_build", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer func() {
-		if retErr != nil {
-			streams.StopProgressIndicator()
-			span.RecordError(retErr)
+		if err != nil {
+			span.RecordError(err)
 		}
+		streams.StopProgressIndicator()
 		span.End()
 	}()
 
@@ -78,33 +74,28 @@ func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, str
 	defer buildState.BuilderInitFinish()
 	buildState.SetBuilderMetaPart1("remote-buildkit", r.addr, "")
 
-	{
-		msg := fmt.Sprintf("Connecting to remote buildkit daemon at %s...\n", r.addr)
-		if streams.IsInteractive() {
-			streams.StartProgressIndicatorMsg(msg)
-		} else {
-			fmt.Fprintln(streams.ErrOut, msg)
-		}
+	msg := fmt.Sprintf("Connecting to remote buildkit daemon at %s...\n", r.addr)
+	if streams.IsInteractive() {
+		streams.StartProgressIndicatorMsg(msg)
+	} else {
+		fmt.Fprintln(streams.ErrOut, msg)
 	}
 
-	span.AddEvent("connecting to buildkit")
-	var buildkitClient *client.Client
-	buildkitClient, retErr = client.New(ctx, r.addr)
-	if retErr != nil {
-		return nil, fmt.Errorf("failed to connect to remote buildkit daemon at %s: %w", r.addr, retErr)
+	buildkitClient, err := client.New(ctx, r.addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to remote buildkit daemon at %s: %w", r.addr, err)
 	}
 	defer buildkitClient.Close()
 
 	streams.StopProgressIndicator()
-
 	cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("Connected to remote buildkit daemon at %s", r.addr))
 
 	buildState.BuildAndPushStart()
 	defer buildState.BuildAndPushFinish()
 
-	res, retErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
-	if retErr != nil {
-		return nil, retErr
+	res, err := buildImage(ctx, buildkitClient, opts, dockerfilePath)
+	if err != nil {
+		return nil, err
 	}
 
 	return newDeploymentImage(res, opts.Tag)
