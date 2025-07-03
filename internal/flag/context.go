@@ -197,7 +197,6 @@ func GetProcessGroup(ctx context.Context) string {
 	return GetString(ctx, flagnames.ProcessGroup)
 }
 
-// GetBuildkitAddr returns the buildkit address from flag or environment variable
 func GetBuildkitAddr(ctx context.Context) string {
 	addr := GetString(ctx, "buildkit-addr")
 	if addr == "" {

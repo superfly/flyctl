@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/moby/buildkit/client"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -34,22 +36,29 @@ func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory,
 	build.BuildStart()
 	defer build.BuildFinish()
 
-	dockerfile, err := ResolveDockerfileFromOptions(opts)
-	if err != nil {
-		return nil, "", err
+	var dockerfile string
+
+	switch {
+	case opts.DockerfilePath != "" && !helpers.FileExists(opts.DockerfilePath):
+		return nil, "", fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
+	case opts.DockerfilePath != "":
+		dockerfile = opts.DockerfilePath
+	default:
+		dockerfile = ResolveDockerfile(opts.WorkingDir)
 	}
+
 	if dockerfile == "" {
-		return nil, "", nil // No dockerfile found
+		terminal.Debug("dockerfile not found, skipping")
+		return nil, "", nil
 	}
 
 	build.ImageBuildStart()
+	defer build.ImageBuildFinish()
+
 	image, err := r.buildWithRemoteBuildkit(ctx, streams, opts, dockerfile, build)
 	if err != nil {
-		build.ImageBuildFinish()
 		return nil, "", err
 	}
-	build.ImageBuildFinish()
-
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 	span.SetAttributes(image.ToSpanAttributes()...)
 	return image, "", nil
@@ -66,6 +75,7 @@ func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, str
 	}()
 
 	buildState.BuilderInitStart()
+	defer buildState.BuilderInitFinish()
 	buildState.SetBuilderMetaPart1("remote-buildkit", r.addr, "")
 
 	{
@@ -81,23 +91,21 @@ func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, str
 	var buildkitClient *client.Client
 	buildkitClient, retErr = client.New(ctx, r.addr)
 	if retErr != nil {
-		buildState.BuilderInitFinish()
 		return nil, fmt.Errorf("failed to connect to remote buildkit daemon at %s: %w", r.addr, retErr)
 	}
 	defer buildkitClient.Close()
 
-	buildState.BuilderInitFinish()
 	streams.StopProgressIndicator()
 
 	cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("Connected to remote buildkit daemon at %s", r.addr))
 
 	buildState.BuildAndPushStart()
+	defer buildState.BuildAndPushFinish()
+
 	res, retErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
 	if retErr != nil {
-		buildState.BuildAndPushFinish()
 		return nil, retErr
 	}
-	buildState.BuildAndPushFinish()
 
 	return newDeploymentImage(res, opts.Tag)
 }
