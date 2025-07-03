@@ -43,7 +43,9 @@ type ListManagedClustersResponse struct {
 
 type GetManagedClusterCredentialsResponse struct {
 	Status        string `json:"status"`
+	User          string `json:"user"`
 	Password      string `json:"password"`
+	DBName        string `json:"dbname"`
 	ConnectionUri string `json:"pgbouncer_uri"`
 }
 
