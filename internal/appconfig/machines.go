@@ -259,8 +259,9 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 
 	// Parse container configuration (machine config or compose file) directly into mConfig
 	composePath := ""
-	if c.Build != nil {
-		composePath = c.Build.Compose
+	if c.Build != nil && c.Build.Compose != nil {
+		// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+		composePath = c.DetectComposeFile()
 	}
 	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath(), c.Container); err != nil {
 		return nil, err
