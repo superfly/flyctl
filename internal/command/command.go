@@ -648,19 +648,19 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	explicit := flag.GetAppConfigFilePath(ctx)
+	explicitPath := flag.GetAppConfigFilePath(ctx)
 	var candidates []string
 
-	if explicit != "" {
-		if err := validateConfigPath(explicit); err != nil {
+	if explicitPath != "" {
+		if err := validateConfigPath(explicitPath); err != nil {
 			return nil, err
 		}
-		candidates = []string{explicit}
+		candidates = []string{explicitPath}
 	} else {
 		candidates = buildDefaultCandidates(ctx)
 	}
 
-	return loadConfig(ctx, candidates, explicit != "")
+	return loadConfig(ctx, candidates, explicitPath)
 }
 
 func validateConfigPath(path string) error {
@@ -691,7 +691,7 @@ func buildDefaultCandidates(ctx context.Context) []string {
 	}
 }
 
-func loadConfig(ctx context.Context, candidates []string, isExplicit bool) (context.Context, error) {
+func loadConfig(ctx context.Context, candidates []string, explicitPath string) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
 	for _, path := range candidates {
@@ -711,8 +711,8 @@ func loadConfig(ctx context.Context, candidates []string, isExplicit bool) (cont
 		}
 	}
 
-	if isExplicit {
-		return nil, fmt.Errorf("no app config could be loaded from %q", candidates[0])
+	if explicitPath != "" {
+		return nil, fmt.Errorf("no app config could be loaded from %q", explicitPath)
 	}
 
 	return ctx, nil
