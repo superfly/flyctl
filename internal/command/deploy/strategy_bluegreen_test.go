@@ -39,11 +39,18 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 		apiClient:     &mockWebClient{},
 		flaps:         client,
 		maxConcurrent: 10,
-		appConfig:     &appconfig.Config{},
-		io:            ios,
-		colorize:      ios.ColorScheme(),
-		timeout:       1 * time.Second,
-		blueMachines:  machines,
+		appConfig: &appconfig.Config{
+			Checks: map[string]*appconfig.ToplevelCheck{
+				"alive": {
+					Type: fly.Pointer("tcp"),
+					Port: fly.Pointer(8080),
+				},
+			},
+		},
+		io:           ios,
+		colorize:     ios.ColorScheme(),
+		timeout:      1 * time.Second,
+		blueMachines: machines,
 	}
 	strategy.initialize()
 
