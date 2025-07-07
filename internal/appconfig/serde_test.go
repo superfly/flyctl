@@ -43,6 +43,91 @@ func TestLoadTOMLAppConfigWithDockerfile(t *testing.T) {
 	assert.Equal(t, p.Build.Dockerfile, "./Dockerfile")
 }
 
+func TestLoadTOMLAppConfigWithCompose(t *testing.T) {
+	const path = "./testdata/compose.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	require.NotNil(t, p.Build)
+	require.NotNil(t, p.Build.Compose)
+	assert.Equal(t, p.Build.Compose.File, "docker-compose.yml")
+}
+
+func TestLoadTOMLAppConfigWithComposeAutoDetect(t *testing.T) {
+	const path = "./testdata/compose-autodetect.toml"
+
+	// Create a temporary compose.yaml file in the testdata directory
+	composeFile := "./testdata/compose.yaml"
+	err := os.WriteFile(composeFile, []byte("version: '3'\nservices:\n  app:\n    image: test\n"), 0644)
+	require.NoError(t, err)
+	defer os.Remove(composeFile)
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	require.NotNil(t, p.Build)
+	require.NotNil(t, p.Build.Compose)
+	assert.Equal(t, p.Build.Compose.File, "") // File is empty in config
+
+	// Test the detection
+	detected := p.DetectComposeFile()
+	assert.Equal(t, "compose.yaml", detected)
+}
+
+func TestDetectComposeFileWithExplicitFile(t *testing.T) {
+	const path = "./testdata/compose.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	require.NotNil(t, p.Build)
+	require.NotNil(t, p.Build.Compose)
+
+	// When file is explicitly set, DetectComposeFile should return it
+	detected := p.DetectComposeFile()
+	assert.Equal(t, "docker-compose.yml", detected)
+}
+
+func TestDetectComposeFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "fly.toml")
+
+	// Write a minimal config
+	err := os.WriteFile(configPath, []byte(`app = "test"`), 0644)
+	require.NoError(t, err)
+
+	config, err := LoadConfig(configPath)
+	require.NoError(t, err)
+
+	// Test each well-known filename
+	for _, filename := range WellKnownComposeFilenames {
+		t.Run(filename, func(t *testing.T) {
+			// Remove any existing compose files
+			for _, f := range WellKnownComposeFilenames {
+				os.Remove(filepath.Join(tmpDir, f))
+			}
+
+			// Create the test file
+			composePath := filepath.Join(tmpDir, filename)
+			err := os.WriteFile(composePath, []byte("test"), 0644)
+			require.NoError(t, err)
+
+			// Test detection
+			detected := config.DetectComposeFile()
+			assert.Equal(t, filename, detected)
+		})
+	}
+
+	// Test when no compose file exists
+	t.Run("no compose file", func(t *testing.T) {
+		// Remove all compose files
+		for _, f := range WellKnownComposeFilenames {
+			os.Remove(filepath.Join(tmpDir, f))
+		}
+
+		detected := config.DetectComposeFile()
+		assert.Empty(t, detected)
+	})
+}
+
 func TestLoadTOMLAppConfigWithBuilderNameAndArgs(t *testing.T) {
 	const path = "./testdata/build-with-args.toml"
 

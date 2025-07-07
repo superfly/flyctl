@@ -99,11 +99,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 
 	// Ensure container files are re-processed if they reference local files
 	// This is necessary because local files may have been updated since initial parsing
-	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != "")) && hasContainerFiles(mConfig) {
+	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != nil)) && hasContainerFiles(mConfig) {
 		// Re-parse the container config to get fresh file content
 		composePath := ""
-		if md.appConfig.Build != nil {
-			composePath = md.appConfig.Build.Compose
+		if md.appConfig.Build != nil && md.appConfig.Build.Compose != nil {
+			// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+			composePath = md.appConfig.DetectComposeFile()
 		}
 		tempConfig := &fly.MachineConfig{}
 		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath(), md.appConfig.Container)
