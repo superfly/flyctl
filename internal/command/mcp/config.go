@@ -21,7 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
-	
+
 	"github.com/superfly/fly-go/flaps"
 )
 
@@ -155,7 +155,7 @@ func runAdd(ctx context.Context) error {
 				}
 				ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 			}
-			
+
 			var err error
 			appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 			if err != nil {
