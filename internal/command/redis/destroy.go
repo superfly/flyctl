@@ -63,7 +63,7 @@ func runDestroy(ctx context.Context) (err error) {
 
 	name := flag.FirstArg(ctx)
 
-	_, err = gql.DeleteAddOn(ctx, client, name)
+	_, err = gql.DeleteAddOn(ctx, client, name, string(gql.AddOnTypeUpstashRedis))
 
 	if err != nil {
 		return
