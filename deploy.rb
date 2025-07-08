@@ -24,6 +24,7 @@ DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
 CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
 FLYIO_BRANCH_NAME = "flyio-new-files"
 
+DEPLOY_IMAGE_REF = get_env("DEPLOY_IMAGE_REF")
 DEPLOY_TRIGGER = get_env("DEPLOY_TRIGGER")
 DEPLOYER_FLY_CONFIG_PATH = get_env("DEPLOYER_FLY_CONFIG_PATH")
 DEPLOYER_SOURCE_CWD = get_env("DEPLOYER_SOURCE_CWD")
@@ -83,7 +84,6 @@ if GIT_REPO_URL
     in_step Step::GIT_PULL do
       ref = get_env("GIT_REF")
       artifact Artifact::GIT_INFO, { repository: GIT_REPO, reference: ref }
-      
       exec_capture("git init", log: false)
 
       redacted_repo_url = GIT_REPO_URL.dup
@@ -206,7 +206,7 @@ if !DEPLOY_ONLY
           plugin = FLYCTL_TO_ASDF_PLUGIN_NAME.fetch(RUNTIME_LANGUAGE, RUNTIME_LANGUAGE)
           if plugin == "elixir"
             # required for elixir to work
-            exec_capture("asdf install erlang #{DEFAULT_ERLANG_VERSION}")  
+            exec_capture("asdf install erlang #{DEFAULT_ERLANG_VERSION}")
           end
           exec_capture("asdf install #{plugin} #{version}")
         else
@@ -314,17 +314,21 @@ end
 fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
-image_ref = in_step Step::BUILD do
-  image_tag = "deployment-#{SecureRandom.hex(16)}"
-  if (image_ref = fly_config.dig("build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
-    info("Skipping build, using image defined in fly config: #{image_ref}")
-    image_ref
-  else
-    image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+image_ref = if !DEPLOY_IMAGE_REF.nil? do
+  DEPLOY_IMAGE_REF
+else
+  in_step Step::BUILD do
+    image_tag = "deployment-#{SecureRandom.hex(16)}"
+    if (image_ref = fly_config.dig("build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
+      info("Skipping build, using image defined in fly config: #{image_ref}")
+      image_ref
+    else
+      image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
-    artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
-    image_ref
+      exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
+      artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
+      image_ref
+    end
   end
 end
 
