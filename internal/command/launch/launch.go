@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/docker/go-units"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
@@ -102,10 +106,46 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
-	if planStep != "generate" {
-		// Override internal port if requested using --internal-port flag
-		if n := flag.GetInt(ctx, "internal-port"); n > 0 {
-			state.appConfig.SetInternalPort(n)
+	// if the user specified a command, set it in the app config
+	if flag.GetString(ctx, "command") != "" {
+		if state.appConfig.Processes == nil {
+			state.appConfig.Processes = make(map[string]string)
+		}
+
+		state.appConfig.Processes["app"] = flag.GetString(ctx, "command")
+	}
+
+	volumes := flag.GetStringSlice(ctx, "volume")
+	if len(volumes) > 0 {
+		v := volumes[0]
+		splittedIDDestOpts := strings.Split(v, ":")
+
+		if len(splittedIDDestOpts) < 2 {
+			re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+			m := re.FindStringSubmatch(splittedIDDestOpts[0])
+
+			if len(m) > 0 {
+				state.appConfig.Mounts = []appconfig.Mount{
+					{
+						Source:      m[3], // last part of path
+						Destination: m[2], // full path
+					},
+				}
+			}
+		} else {
+			// if the user specified a volume, set it in the app config
+			state.appConfig.Mounts = []appconfig.Mount{
+				{
+					Source:      splittedIDDestOpts[0],
+					Destination: splittedIDDestOpts[1],
+				},
+			}
+
+			if len(splittedIDDestOpts) > 2 {
+				if err := ParseMountOptions(&state.appConfig.Mounts[0], splittedIDDestOpts[2]); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -129,9 +169,73 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
+	// Add secrets to the app
+	if secretsFlag := flag.GetStringArray(ctx, "secret"); len(secretsFlag) > 0 {
+		secrets := make(map[string]string, len(secretsFlag))
+		for _, secret := range secretsFlag {
+			kv := strings.SplitN(secret, "=", 2)
+			if len(kv) != 2 {
+				return fmt.Errorf("invalid secret format: %s, expected NAME=VALUE", secret)
+			}
+			key := strings.TrimSpace(kv[0])
+			value := strings.TrimSpace(kv[1])
+			secrets[key] = value
+		}
+
+		client := flyutil.ClientFromContext(ctx)
+		if _, err := client.SetSecrets(ctx, state.appConfig.AppName, secrets); err != nil {
+			return err
+		}
+	}
+
 	if state.sourceInfo != nil {
+		if state.appConfig.Deploy != nil && state.appConfig.Deploy.SeedCommand != "" {
+			ctx = appconfig.WithSeedCommand(ctx, state.appConfig.Deploy.SeedCommand)
+		}
+
 		if err := state.firstDeploy(ctx); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func ParseMountOptions(mount *appconfig.Mount, options string) error {
+	if options == "" {
+		return nil
+	}
+
+	pairs := strings.Split(options, ",")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			return fmt.Errorf("invalid mount option: %s", pair)
+		}
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+
+		switch key {
+		case "initial_size":
+			mount.InitialSize = value
+		case "snapshot_retention":
+			ret, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for snapshot_retention: %s", value)
+			}
+			mount.SnapshotRetention = &ret
+		case "auto_extend_size_threshold":
+			threshold, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for auto_extend_size_threshold: %s", value)
+			}
+			mount.AutoExtendSizeThreshold = threshold
+		case "auto_extend_size_increment":
+			mount.AutoExtendSizeIncrement = value
+		case "auto_extend_size_limit":
+			mount.AutoExtendSizeLimit = value
+		default:
+			return fmt.Errorf("unknown mount option: %s", key)
 		}
 	}
 
@@ -170,12 +274,40 @@ func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appco
 	if env != nil {
 		appConfig.SetEnvVariables(env)
 	}
-	if plan.HttpServicePort != 0 {
-		if appConfig.HTTPService == nil {
-			appConfig.HTTPService = &appconfig.HTTPService{
+
+	state.appConfig.Compute = state.Plan.Compute
+
+	if state.Plan.HttpServicePort != 0 {
+		autostop := fly.MachineAutostopStop
+		autostopFlag := flag.GetString(ctx, "auto-stop")
+
+		if autostopFlag == "off" {
+			autostop = fly.MachineAutostopOff
+		} else if autostopFlag == "suspend" {
+			autostop = fly.MachineAutostopSuspend
+
+			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
+			for _, compute := range state.appConfig.Compute {
+				if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
+					autostop = fly.MachineAutostopStop
+					break
+				}
+
+				if compute.Memory != "" {
+					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+					if err != nil || mb >= 2048 {
+						autostop = fly.MachineAutostopStop
+						break
+					}
+				}
+			}
+		}
+
+		if state.appConfig.HTTPService == nil {
+			state.appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
-				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
+				AutoStopMachines:   fly.Pointer(autostop),
 				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}

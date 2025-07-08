@@ -105,7 +105,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, err
 	}
 
-	addr, err := lookupAddress(ctx, agentclient, dialer, app, false)
+	addr, container, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, false)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +116,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		Dialer:         dialer,
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,
+		Container:      container,
 		AppNames:       []string{app.Name},
 	}
 

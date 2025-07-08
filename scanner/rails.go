@@ -35,6 +35,27 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	var err error
+	bundle, err = exec.LookPath("bundle")
+	if err != nil {
+		if errors.Is(err, exec.ErrDot) {
+			bundle, err = filepath.Abs(bundle)
+		}
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failure finding bundle executable")
+		}
+	}
+
+	ruby, err = exec.LookPath("ruby")
+	if err != nil {
+		if errors.Is(err, exec.ErrDot) {
+			ruby, err = filepath.Abs(ruby)
+		}
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failure finding ruby executable")
+		}
+	}
 
 	s := &SourceInfo{
 		Family:               "Rails",
@@ -47,7 +68,40 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	// add ruby version
 
-	rubyVersion, _ := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby-version")
+	var rubyVersion string
+
+	// add ruby version from Gemfile
+	gemfile, err := os.ReadFile("Gemfile")
+	if err == nil {
+		re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+		matches := re.FindStringSubmatch(string(gemfile))
+		if len(matches) >= 2 {
+			rubyVersion = matches[1]
+		}
+	}
+
+	if rubyVersion == "" {
+		// add ruby version from .ruby-version file
+		versionFile, err := os.ReadFile(".ruby-version")
+		if err == nil {
+			re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionFile))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion == "" {
+		versionOutput, err := exec.Command("ruby", "--version").Output()
+		if err == nil {
+			re := regexp.MustCompile(`ruby (\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionOutput))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
 
 	if rubyVersion != "" {
 		s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: rubyVersion}
@@ -65,9 +119,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// postgresql
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
-	} else {
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
 		// sqlite
 		s.DatabaseDesired = DatabaseKindSqlite
+		s.SkipDatabase = true
+		s.ObjectStorageDesired = true
+	} else {
+		// no database
+		s.DatabaseDesired = DatabaseKindNone
 		s.SkipDatabase = true
 	}
 
@@ -293,43 +352,41 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 				}
 			}
 
-			// install dockerfile-rails gem if the gem installation directory is writable
-			if writable {
-				cmd := exec.Command(bundle, "add", "dockerfile-rails",
-					"--optimistic", "--group", "development", "--skip-install")
-				cmd.Stdin = nil
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
+		// install dockerfile-rails gem if the gem installation directory is writable
+		if writable {
+			cmd := exec.Command(bundle, "add", "dockerfile-rails",
+				"--optimistic", "--group", "development", "--skip-install")
+			cmd.Stdin = nil
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
 
-				pendingError = cmd.Run()
-				if pendingError != nil {
-					pendingError = errors.Wrap(pendingError, "Failed to add dockerfile-rails gem")
-				} else {
-					generatorInstalled = true
-				}
+			pendingError = cmd.Run()
+			if pendingError != nil {
+				pendingError = errors.Wrap(pendingError, "Failed to add dockerfile-rails gem")
+			} else {
+				generatorInstalled = true
 			}
 		} else {
 			// proceed using the already installed gem
 			generatorInstalled = true
 		}
 
-		cmd := exec.Command(bundle, "install", "--quiet")
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	cmd := exec.Command(bundle, "install", "--quiet")
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-		err = cmd.Run()
-		if err != nil {
-			return errors.Wrap(pendingError, "Failed to install bundle, exiting")
-		}
+	err = cmd.Run()
+	if err != nil {
+		return errors.Wrap(err, "Failed to install bundle, exiting")
+	}
 
-		// ensure Gemfile.lock includes the x86_64-linux platform
-		if out, err := exec.Command(bundle, "platform").Output(); err == nil {
-			if !strings.Contains(string(out), "x86_64-linux") {
-				cmd := exec.Command(bundle, "lock", "--add-platform", "x86_64-linux")
-				if err := cmd.Run(); err != nil {
-					return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
-				}
+	// ensure Gemfile.lock includes the x86_64-linux platform
+	if out, err := exec.Command(bundle, "platform").Output(); err == nil {
+		if !strings.Contains(string(out), "x86_64-linux") {
+			cmd := exec.Command(bundle, "lock", "--add-platform", "x86_64-linux")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
 			}
 		}
 	}
@@ -351,6 +408,45 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 			Name:      flyToml,
 			Temporary: true,
 		}
+	}
+
+	// base generate command
+	args := []string{binrails, "generate", "dockerfile",
+		"--label=fly_launch_runtime:rails"}
+
+	// skip prompt to replace files if Dockerfile already exists
+	_, err = os.Stat("Dockerfile")
+	if !errors.Is(err, fs.ErrNotExist) {
+		args = append(args, "--skip")
+
+		if !generatorInstalled {
+			return errors.Wrap(pendingError, "No Dockerfile found")
+		}
+	}
+
+	// add postgres
+	if plan.Postgres.Provider() != nil {
+		args = append(args, "--postgresql", "--no-prepare")
+	}
+
+	// add redis
+	if plan.Redis.Provider() != nil {
+		args = append(args, "--redis")
+	}
+
+	// add object storage
+	if plan.ObjectStorage.Provider() != nil {
+		args = append(args, "--tigris")
+
+		// add litestream if object storage is available and the database is sqlite
+		if srcInfo.DatabaseDesired == DatabaseKindSqlite {
+			args = append(args, "--litestream")
+		}
+	}
+
+	// add additional flags from launch command
+	if len(flags) > 0 {
+		args = append(args, flags...)
 	}
 
 	// run command if the generator is available

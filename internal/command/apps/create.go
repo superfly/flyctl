@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -17,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 func newCreate() (cmd *cobra.Command) {
@@ -53,6 +55,11 @@ fetch one with 'fly config save -a <app_name>'.`
 			Name:        "machines",
 			Description: "Use the machines platform",
 			Hidden:      true,
+		},
+		flag.Yes(),
+		flag.Bool{
+			Name:        "save",
+			Description: "Save the app name to the config file",
 		},
 		flag.Org(),
 	)
@@ -123,5 +130,34 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
+
+	if flag.GetBool(ctx, "save") {
+		path := state.WorkingDirectory(ctx)
+		configfilename, err := appconfig.ResolveConfigFileFromPath(path)
+		if err != nil {
+			return err
+		}
+
+		if exists, _ := appconfig.ConfigFileExistsAtPath(configfilename); exists && !flag.GetBool(ctx, "yes") {
+			confirmation, err := prompt.Confirmf(ctx,
+				"An existing configuration file has been found\nOverwrite file '%s'", configfilename)
+			if err != nil {
+				return err
+			}
+			if !confirmation {
+				return nil
+			}
+		}
+
+		cfg := appconfig.Config{
+			AppName: app.Name,
+		}
+
+		err = cfg.WriteToDisk(ctx, configfilename)
+		if err != nil {
+			return fmt.Errorf("failed to save app name to config file: %w", err)
+		}
+	}
+
 	return nil
 }

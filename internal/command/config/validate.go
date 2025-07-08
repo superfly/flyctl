@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -30,7 +31,21 @@ func runValidate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	cfg := appconfig.ConfigFromContext(ctx)
 
-	if err := cfg.SetMachinesPlatform(); err != nil {
+	// if not found locally, try to get it from the remote app
+	var err error
+	if cfg == nil {
+		appName := appconfig.NameFromContext(ctx)
+		if appName == "" {
+			return errors.New("app name is required")
+		} else {
+			cfg, err = appconfig.FromRemoteApp(ctx, appName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if err = cfg.SetMachinesPlatform(); err != nil {
 		return err
 	}
 	err, extra_info := cfg.Validate(ctx)
