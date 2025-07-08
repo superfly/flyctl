@@ -314,7 +314,7 @@ end
 fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
-image_ref = if !DEPLOY_IMAGE_REF.nil? do
+image_ref = if !DEPLOY_IMAGE_REF.nil?
   DEPLOY_IMAGE_REF
 else
   in_step Step::BUILD do
