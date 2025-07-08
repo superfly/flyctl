@@ -61,6 +61,11 @@ func newUpdate() *cobra.Command {
 			Description: "Seconds to wait for individual machines to transition states and become healthy. (default 300)",
 			Default:     300,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Hidden:      false,
+		},
 	)
 
 	cmd.Args = cobra.RangeArgs(0, 1)

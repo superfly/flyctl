@@ -17,7 +17,6 @@ import (
 const descriptionNone = "<none>"
 
 func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
-
 	switch provider := launchPlan.Postgres.Provider().(type) {
 	case *plan.FlyPostgresPlan:
 		return describeFlyPostgresPlan(provider)
@@ -28,17 +27,15 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 }
 
 func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
-
-	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
-	nodesStr := fmt.Sprintf("(Fly Postgres) %d Node%s", p.Nodes, nodePlural)
-
-	guestStr := fly.MachinePresets[p.VmSize].String()
-
+	guestStr := fmt.Sprintf("%s, %dGB RAM", p.VmSize, p.VmRam/1024)
 	diskSizeStr := fmt.Sprintf("%dGB disk", p.DiskSizeGB)
 
-	info := []string{nodesStr, guestStr, diskSizeStr}
+	info := []string{guestStr, diskSizeStr}
 	if p.AutoStop {
 		info = append(info, "auto-stop")
+	}
+	if p.Price > 0 {
+		info = append(info, fmt.Sprintf("$%d/mo", p.Price))
 	}
 
 	return strings.Join(info, ", "), nil

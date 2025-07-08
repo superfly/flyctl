@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -34,6 +35,7 @@ func newCreate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.Detach(),
+		flag.VMSizeFlags,
 		flag.Bool{
 			Name:        "enable-backups",
 			Description: "Create a new tigris bucket and enable WAL-based backups",
@@ -47,10 +49,6 @@ func newCreate() *cobra.Command {
 			Name:        "password",
 			Shorthand:   "p",
 			Description: "The superuser password. The password will be generated for you if you leave this blank",
-		},
-		flag.String{
-			Name:        "vm-size",
-			Description: "the size of the VM",
 		},
 		flag.Int{
 			Name:        "vm-memory",
@@ -297,6 +295,25 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
 	}
 
+	isCustomMachine := false
+	for _, sizeFlag := range flag.VMSizeFlags {
+		nameField := reflect.ValueOf(sizeFlag).FieldByName("Name")
+
+		if nameField.IsValid() {
+			name := nameField.String()
+			if name == "vm-size" {
+				continue
+			}
+
+			if flag.IsSpecified(ctx, name) {
+				isCustomMachine = true
+				break
+			}
+		}
+	}
+
+	customConfig := isCustomMachine || params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
+
 	var config *PostgresConfiguration
 	customConfig := false
 
@@ -361,13 +378,22 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 		input.InitialClusterSize = params.PostgresConfiguration.InitialClusterSize
 
-		// Resolve VM size
-		vmSize, err := resolveVMSize(ctx, params.VMSize)
-		if err != nil {
-			return err
-		}
+		if isCustomMachine {
+			guest, err := flag.GetMachineGuest(ctx, nil)
+			if err != nil {
+				return err
+			}
 
-		input.VMSize = vmSize
+			input.Guest = guest
+		} else {
+			// Resolve VM size
+			vmSize, err := resolveVMSize(ctx, params.VMSize)
+			if err != nil {
+				return err
+			}
+
+			input.VMSize = vmSize
+		}
 
 		if params.ScaleToZero != nil {
 			input.ScaleToZero = *params.ScaleToZero

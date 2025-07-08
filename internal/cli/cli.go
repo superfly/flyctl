@@ -67,10 +67,11 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetErr(io.ErrOut)
 
 	// Special case for the launch command, support `flyctl launch args -- [subargs]`
+	// and `flyctl mcp wrap --mcp script -- [subargs]`
 	// Where the arguments after `--` are passed to the scanner/dockerfile generator.
 	// This isn't supported natively by cobra, so we have to manually split the args
 	// See: https://github.com/spf13/cobra/issues/739
-	if len(args) > 0 && args[0] == "launch" {
+	if (len(args) > 0 && args[0] == "launch") || (len(args) > 2 && args[0] == "mcp" && args[1] == "wrap") {
 		index := slices.Index(args, "--")
 		if index >= 0 {
 			ctx = flag.WithExtraArgs(ctx, args[index+1:])
