@@ -296,7 +296,7 @@ func (c *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[
 	panic("TODO")
 }
 
-func (m *Client) GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error) {
+func (m *Client) GetLatestImageDetails(ctx context.Context, image string, flyVersion string) (*fly.ImageVersion, error) {
 	panic("TODO")
 }
 

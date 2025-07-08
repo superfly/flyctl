@@ -58,6 +58,11 @@ func newCreate() *cobra.Command {
 			Description: "Place the volume in a separate hardware zone from existing volumes to help ensure availability",
 			Default:     true,
 		},
+		flag.Bool{
+			Name:        "unique-zone-app-wide",
+			Description: "Checks all volumes in app for unique zone handling, instead of only volumes with the same name (which is the default)",
+			Default:     false,
+		},
 		flag.String{
 			Name:        "snapshot-id",
 			Description: "Create the volume from the specified snapshot",
@@ -151,6 +156,7 @@ func runCreate(ctx context.Context) error {
 		SizeGb:              fly.Pointer(flag.GetInt(ctx, "size")),
 		Encrypted:           fly.Pointer(!flag.GetBool(ctx, "no-encryption")),
 		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),

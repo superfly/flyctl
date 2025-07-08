@@ -39,6 +39,7 @@ Machines REST fly.`
 		newMachineUncordon(),
 		newSuspend(),
 		newEgressIp(),
+		newPlace(),
 	)
 
 	return cmd

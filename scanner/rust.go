@@ -1,6 +1,6 @@
 package scanner
 
-import "github.com/superfly/flyctl/internal/command/launch/plan"
+import "fmt"
 
 func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Cargo.toml", "Cargo.lock")) {
@@ -12,7 +12,8 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, err
 	}
 
-	deps := cargoData["dependencies"].(map[string]interface{})
+	// Cargo.toml may not contain a "dependencies" section, so we don't return an error if it's missing.
+	deps, _ := cargoData["dependencies"].(map[string]interface{})
 	family := "Rust"
 	env := map[string]string{
 		"PORT": "8080",
@@ -32,8 +33,16 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		family = "Poem"
 	}
 
+	pkg, ok := cargoData["package"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("file Cargo.toml does not contain a valid package section")
+	}
+
 	vars := make(map[string]interface{})
-	vars["appName"] = cargoData["package"].(map[string]interface{})["name"].(string)
+	vars["appName"], ok = pkg["name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("file Cargo.toml does not contain a valid package name")
+	}
 
 	s := &SourceInfo{
 		Files:        templatesExecute("templates/rust", vars),

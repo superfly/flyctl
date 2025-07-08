@@ -78,7 +78,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 
 	if srcInfo == nil {
 		var colorFn func(arg interface{}) aurora.Value
-		noBlank := flag.GetBool(ctx, "no-blank")
+		noBlank := planStep == "propose"
 		if noBlank {
 			colorFn = aurora.Red
 		} else {
@@ -90,14 +90,6 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		}
 		fmt.Fprintln(io.Out, colorFn(msg))
 		if noBlank {
-			entries, err := os.ReadDir("./")
-			if err == nil {
-				// TODO: probably remove this...
-				fmt.Fprintln(io.Out, "Are you in the right directory? Current directory listing:")
-				for _, e := range entries {
-					fmt.Fprintln(io.Out, e.Name())
-				}
-			}
 			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
 		}
 		return srcInfo, nil, err

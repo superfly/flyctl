@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -121,6 +122,18 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 	return machine, app, nil
 }
 
+func EnsureFlyManagedBuilder(ctx context.Context, org *fly.Organization, region string) (*fly.Machine, *fly.App, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "ensure_fly_managed_builder")
+	defer span.End()
+
+	app, machine, err := createFlyManagedBuilder(ctx, org, region)
+	if err != nil {
+		tracing.RecordError(span, err, "error creating fly managed builder")
+		return nil, nil, err
+	}
+	return machine, app, nil
+}
+
 type ValidateBuilderError int
 
 func (e ValidateBuilderError) Error() string {
@@ -179,7 +192,6 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	}
 
 	return machine, nil
-
 }
 
 func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Volume, error) {
@@ -324,6 +336,7 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 			Region:              region,
 		})
 		if retErr == nil {
+			region = volume.Region
 			break
 		}
 
@@ -411,6 +424,29 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 	}
 
 	return
+}
+
+func createFlyManagedBuilder(ctx context.Context, org *fly.Organization, region string) (app *fly.App, mach *fly.Machine, retErr error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
+	defer span.End()
+
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	response, error := uiexClient.CreateFlyManagedBuilder(ctx, org.Slug, region)
+	if error != nil {
+		tracing.RecordError(span, retErr, "error creating managed builder")
+		return nil, nil, retErr
+	}
+
+	builderApp := &fly.App{
+		Name: response.Data.AppName,
+	}
+
+	machine := &fly.Machine{
+		ID: response.Data.MachineID,
+	}
+
+	return builderApp, machine, nil
 }
 
 func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) error {

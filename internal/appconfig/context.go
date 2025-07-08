@@ -10,6 +10,7 @@ const (
 	_ contextKeyType = iota
 	configContextKey
 	nameContextKey
+	seedContextKey
 )
 
 // WithConfig derives a context that carries cfg from ctx.
@@ -35,6 +36,20 @@ func WithName(ctx context.Context, name string) context.Context {
 func NameFromContext(ctx context.Context) string {
 	if name, ok := ctx.Value(nameContextKey).(string); ok {
 		return name
+	}
+
+	return ""
+}
+
+// WithSeed derives a context that carries the given seed from ctx.
+func WithSeedCommand(ctx context.Context, seedCommand string) context.Context {
+	return context.WithValue(ctx, seedContextKey, seedCommand)
+}
+
+// SeedFromContext returns the seed ctx carries or an empty string.
+func SeedCommandFromContext(ctx context.Context) string {
+	if seed, ok := ctx.Value(seedContextKey).(string); ok {
+		return seed
 	}
 
 	return ""
