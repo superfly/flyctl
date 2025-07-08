@@ -75,7 +75,9 @@ if !DEPLOY_ONLY
   steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"}) if DEPLOY_CUSTOMIZE
 else
   # only deploying, so we need to send the artifacts right away
-  steps.push({id: Step::BUILD, description: "Build image"})
+  if DEPLOY_IMAGE_REF.nil?
+    steps.push({id: Step::BUILD, description: "Build image"})
+  end
   steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
   artifact Artifact::META, { steps: steps }
 end
@@ -280,7 +282,9 @@ if !DEPLOY_ONLY
   SENTRY = manifest.dig("plan", "sentry") == true
 
   steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
-  steps.push({id: Step::BUILD, description: "Build image"})
+  if DEPLOY_IMAGE_REF.nil?
+    steps.push({id: Step::BUILD, description: "Build image"})
+  end
   steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
   steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
   steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
