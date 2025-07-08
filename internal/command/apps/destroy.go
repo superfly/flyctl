@@ -84,7 +84,7 @@ func RunDestroy(ctx context.Context) error {
 		}
 
 		if bucket != nil {
-			_, err = gql.DeleteAddOn(ctx, client.GenqClient(), bucket.Name)
+			_, err = gql.DeleteAddOn(ctx, client.GenqClient(), bucket.Name, string(gql.AddOnTypeTigris))
 			if err != nil {
 				return err
 			}
