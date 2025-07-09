@@ -13,5 +13,5 @@ do
 	continue
     fi
     echo "Destroy $app"
-    flyctl apps destroy --yes "${app}"
+    flyctl apps destroy --yes "${app}" > /dev/null
 done
