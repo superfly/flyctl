@@ -179,52 +179,49 @@ func runCreate(ctx context.Context) error {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
 
+	clusterID := response.Data.Id
+
+	var connectionURI string
+
 	// Wait for cluster to be ready
-	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, response.Data.Id)
-	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, response.Data.Id)
+	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
+	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
-	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", response.Data.Id)
+	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
 	for {
-		cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+		res, err := uiexClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed checking cluster status: %w", err)
 		}
 
-		if cluster.Data.Id == "" {
+		cluster := res.Data
+		credentials := res.Credentials
+
+		if cluster.Id == "" {
 			return fmt.Errorf("invalid cluster response: no cluster ID")
 		}
 
-		if cluster.Data.Status == "ready" {
+		if cluster.Status == "ready" {
+			connectionURI = credentials.ConnectionUri
 			break
 		}
 
-		if cluster.Data.Status == "error" {
+		if cluster.Status == "error" {
 			return fmt.Errorf("cluster creation failed")
 		}
 
 		time.Sleep(5 * time.Second)
 	}
 
-	// Create a default user to get the connection string
-	userInput := uiex.CreateUserInput{
-		DbName:   "postgres",
-		UserName: "postgres",
-	}
-
-	userResponse, err := uiexClient.CreateUser(ctx, response.Data.Id, userInput)
-	if err != nil {
-		return fmt.Errorf("failed creating default user: %w", err)
-	}
-
 	fmt.Fprintf(io.Out, "\nManaged Postgres cluster created successfully!\n")
-	fmt.Fprintf(io.Out, "  ID: %s\n", response.Data.Id)
+	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
 	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
 	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
 	fmt.Fprintf(io.Out, "  PGVector: %t\n", response.Data.PGVectorEnabled)
-	fmt.Fprintf(io.Out, "  Connection string: %s\n", userResponse.ConnectionUri)
+	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
 
 	return nil
 }
