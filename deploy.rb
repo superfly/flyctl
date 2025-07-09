@@ -320,7 +320,11 @@ if !DEPLOY_ONLY
 end
 
 # TODO: better error if missing config
-fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
+fly_config = manifest && manifest.dig("config")
+if !fly_config && CUSTOM_COMMAND.nil?
+  fly_config = JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
+end
+
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
 image_ref = if !DEPLOY_IMAGE_REF.nil?
