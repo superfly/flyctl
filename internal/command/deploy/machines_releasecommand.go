@@ -12,6 +12,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -27,22 +28,38 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "run_release_cmd")
+func (md *machineDeployment) runReleaseCommands(ctx context.Context) error {
+	err := md.runReleaseCommand(ctx, "release")
+
+	if err == nil {
+		seedCommand := appconfig.SeedCommandFromContext(ctx)
+
+		if seedCommand != "" {
+			md.appConfig.Deploy.ReleaseCommand = seedCommand
+			err = md.runReleaseCommand(ctx, "seed")
+		}
+	}
+
+	return err
+}
+
+func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType string) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "run_"+commandType+"_cmd")
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to run release_cmd")
+			tracing.RecordError(span, err, "failed to run "+commandType+"_cmd")
 		}
 		span.End()
 	}()
 
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
-		span.AddEvent("no release command")
+		span.AddEvent("no " + commandType + " command")
 		return nil
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "Running %s release_command: %s\n",
+	fmt.Fprintf(md.io.ErrOut, "Running %s %s_command: %s\n",
 		md.colorize.Bold(md.app.Name),
+		commandType,
 		md.appConfig.Deploy.ReleaseCommand,
 	)
 	ctx, loggerCleanup := statuslogger.SingleLine(ctx, true)
@@ -64,8 +81,8 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 	eg.Go(func() error {
 		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to create release cmd machine")
-			return fmt.Errorf("error running release_command machine: %w", err)
+			tracing.RecordError(span, err, "failed to create "+commandType+" cmd machine")
+			return fmt.Errorf("error running %s_command machine: %w", commandType, err)
 		}
 		return nil
 	})
@@ -117,24 +134,24 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 	fmt.Fprintln(md.io.ErrOut, "Starting machine")
 
 	if err = releaseCmdMachine.Start(ctx); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "error starting release_command machine: %v\n", err)
+		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
 		return
 	}
 
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for release cmd machine")
+		tracing.RecordError(span, err, "failed to wait for "+commandType+" cmd machine")
 
 		return err
 	}
 	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.releaseCmdTimeout, true)
 	if err != nil {
-		return fmt.Errorf("error finding the release_command machine %s exit event: %w", releaseCmdMachine.Machine().ID, err)
+		return fmt.Errorf("error finding the %s_command machine %s exit event: %w", commandType, releaseCmdMachine.Machine().ID, err)
 	}
 	exitCode, err := lastExitEvent.Request.GetExitCode()
 	if err != nil {
-		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
+		return fmt.Errorf("error get %s_command machine %s exit code: %w", commandType, releaseCmdMachine.Machine().ID, err)
 	}
 
 	if flag.GetBool(ctx, "verbose") {
@@ -142,7 +159,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 	}
 
 	if exitCode != 0 {
-		statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
+		statuslogger.LogStatus(ctx, statuslogger.StatusFailure, commandType+"_command failed")
 
 		// Preemptive cleanup of the logger so that the logs have a clean place to write to
 		loggerCleanup(false)
@@ -163,7 +180,8 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 	}
 	statuslogger.LogfStatus(ctx,
 		statuslogger.StatusSuccess,
-		"release_command %s completed successfully",
+		"%s_command %s completed successfully",
+		commandType,
 		md.colorize.Bold(releaseCmdMachine.Machine().ID),
 	)
 	return nil
@@ -194,22 +212,20 @@ func dedicatedHostIdMismatch(m *fly.Machine, ac *appconfig.Config) bool {
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
 	span := trace.SpanFromContext(ctx)
 
-	if md.releaseCommandMachine.IsEmpty() {
-		return md.createReleaseCommandMachine(ctx)
-	}
-
-	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
-
-	if dedicatedHostIdMismatch(releaseCmdMachine.Machine(), md.appConfig) {
-		span.AddEvent("dedicated hostid mismatch")
-		if err := releaseCmdMachine.Destroy(ctx, true); err != nil {
-			return fmt.Errorf("error destroying release_command machine: %w", err)
+	// Existent release command machines must be destroyed if not already, are set to auto-destroy anyways
+	if !md.releaseCommandMachine.IsEmpty() {
+		mPool := pool.New().WithErrors().WithMaxGoroutines(4).WithContext(ctx)
+		for _, m := range md.releaseCommandMachine.GetMachines() {
+			mPool.Go(func(ctx context.Context) error {
+				return m.Destroy(ctx, true)
+			})
 		}
-
-		return md.createReleaseCommandMachine(ctx)
+		if err := mPool.Wait(); err != nil {
+			tracing.RecordError(span, err, "failed to destroy old release_command machine")
+		}
 	}
 
-	return md.updateReleaseCommandMachine(ctx)
+	return md.createReleaseCommandMachine(ctx)
 }
 
 func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
@@ -235,32 +251,6 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	return nil
 }
 
-func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "update_release_cmd_machine")
-	defer span.End()
-
-	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
-	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
-
-	if err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false); err != nil {
-		err = suggestChangeWaitTimeout(err, "wait-timeout")
-		return err
-	}
-
-	if err := md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout); err != nil {
-		return err
-	}
-	defer md.releaseCommandMachine.ReleaseLeases(ctx) // skipcq: GO-S2307
-	md.releaseCommandMachine.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
-
-	launchInput := md.launchInputForReleaseCommand(releaseCmdMachine.Machine())
-	if err := releaseCmdMachine.Update(ctx, *launchInput); err != nil {
-		return fmt.Errorf("error updating release_command machine: %w", err)
-	}
-
-	return nil
-}
-
 func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
 	if origMachineRaw == nil {
 		origMachineRaw = &fly.Machine{
@@ -270,8 +260,10 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	// We can ignore the error because ToReleaseMachineConfig fails only
 	// if it can't split the command and we test that at initialization
 	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
-	mConfig.Guest = md.inferReleaseCommandGuest()
 	mConfig.Image = md.img
+	if mConfig.Guest == nil {
+		mConfig.Guest = md.inferReleaseCommandGuest()
+	}
 	md.setMachineReleaseData(mConfig)
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {
@@ -330,5 +322,6 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
+	md.releaseCommandMachine.RemoveMachines(ctx, []machine.LeasableMachine{releaseCmdMachine})
 	return nil
 }

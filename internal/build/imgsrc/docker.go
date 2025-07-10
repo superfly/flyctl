@@ -55,13 +55,18 @@ type dockerClientFactory struct {
 }
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *dockerClientFactory {
+	useManagedBuilder := daemonType.UseManagedBuilder()
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
 			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, recreateBuilder)
+				cfg := config.FromContext(ctx)
+				if cfg.DisableManagedBuilders {
+					useManagedBuilder = false
+				}
+				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, useManagedBuilder, recreateBuilder)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -108,15 +113,15 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNixpacks bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNixpacks bool, useManagedBuilder bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
 	}
-	if allowRemote {
+	if allowRemote || useManagedBuilder {
 		daemonType = daemonType | DockerDaemonTypeRemote
 	}
-	if useDepot {
+	if useDepot && !useManagedBuilder {
 		daemonType = daemonType | DockerDaemonTypeDepot
 	}
 	if useNixpacks {
@@ -124,6 +129,9 @@ func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNix
 	}
 	if prefersLocal && !useDepot {
 		daemonType = daemonType | DockerDaemonTypePrefersLocal
+	}
+	if useManagedBuilder {
+		daemonType = daemonType | DockerDaemonTypeManaged
 	}
 	return daemonType
 }
@@ -137,6 +145,7 @@ const (
 	DockerDaemonTypePrefersLocal
 	DockerDaemonTypeNixpacks
 	DockerDaemonTypeDepot
+	DockerDaemonTypeManaged
 )
 
 func (t DockerDaemonType) String() string {
@@ -156,6 +165,9 @@ func (t DockerDaemonType) String() string {
 	}
 	if t&DockerDaemonTypeDepot != 0 {
 		strs = append(strs, "depot")
+	}
+	if t&DockerDaemonTypeManaged != 0 {
+		strs = append(strs, "managed")
 	}
 	if len(strs) == 0 {
 		return "none"
@@ -192,6 +204,10 @@ func (t DockerDaemonType) UseDepot() bool {
 	return (t & DockerDaemonTypeDepot) != 0
 }
 
+func (t DockerDaemonType) UseManagedBuilder() bool {
+	return (t & DockerDaemonTypeManaged) != 0
+}
+
 func (t DockerDaemonType) PrefersLocal() bool {
 	return (t & DockerDaemonTypePrefersLocal) != 0
 }
@@ -220,7 +236,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, recreateBuilder bool) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, useManagedBuilder bool, recreateBuilder bool) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -241,10 +257,18 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	var host string
 	var app *fly.App
 	var machine *fly.Machine
-	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, recreateBuilder)
+	if useManagedBuilder {
+		machine, app, err = remoteManagedBuilderMachine(ctx, apiClient, appName)
+	} else {
+		machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, recreateBuilder)
+	}
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
 		return nil, err
+	}
+
+	if useManagedBuilder {
+		connectOverWireguard = false
 	}
 
 	if !connectOverWireguard && !wglessCompatible {
@@ -741,6 +765,20 @@ func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName
 		return nil, nil, err
 	}
 	builderMachine, builderApp, err := EnsureBuilder(ctx, org, region, recreateBuilder)
+	return builderMachine, builderApp, err
+}
+
+func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *fly.App, error) {
+	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
+		return nil, nil, nil
+	}
+
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return nil, nil, err
+	}
+	builderMachine, builderApp, err := EnsureFlyManagedBuilder(ctx, org, region)
 	return builderMachine, builderApp, err
 }
 

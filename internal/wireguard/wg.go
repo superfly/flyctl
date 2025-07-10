@@ -24,6 +24,10 @@ import (
 
 var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 
+type WebClient interface {
+	ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error)
+}
+
 func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
@@ -181,7 +185,7 @@ func setWireGuardStateForOrg(ctx context.Context, orgSlug, network string, s *wg
 	return setWireGuardState(ctx, states)
 }
 
-func PruneInvalidPeers(ctx context.Context, apiClient flyutil.Client) error {
+func PruneInvalidPeers(ctx context.Context, apiClient WebClient) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil

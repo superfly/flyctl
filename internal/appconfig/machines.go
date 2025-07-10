@@ -1,11 +1,7 @@
 package appconfig
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -14,6 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/containerconfig"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -66,6 +63,15 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	// Files
 	mConfig.Files = nil
 	fly.MergeFiles(mConfig, c.MergedFiles)
+
+	// Guest
+	if v := c.Deploy.ReleaseCommandCompute; v != nil {
+		guest, err := c.computeToGuest(v)
+		if err != nil {
+			return nil, err
+		}
+		mConfig.Guest = guest
+	}
 
 	return mConfig, nil
 }
@@ -241,28 +247,24 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig = helpers.Clone(src)
 	}
 
+	// Extract machine config from fly.toml
+	var appMachineConfig string
 	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
-		emc := c.Experimental.MachineConfig
-		var buf []byte
-		switch {
-		case strings.HasPrefix(emc, "{"):
-			buf = []byte(emc)
-		case strings.HasSuffix(emc, ".json"):
-			fo, err := os.Open(emc)
-			if err != nil {
-				return nil, err
-			}
-			buf, err = io.ReadAll(fo)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("invalid machine config source: %q", emc)
-		}
+		appMachineConfig = c.Experimental.MachineConfig
+	}
 
-		if err := json.Unmarshal(buf, mConfig); err != nil {
-			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
-		}
+	if appMachineConfig == "" {
+		appMachineConfig = c.MachineConfig
+	}
+
+	// Parse container configuration (machine config or compose file) directly into mConfig
+	composePath := ""
+	if c.Build != nil && c.Build.Compose != nil {
+		// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+		composePath = c.DetectComposeFile()
+	}
+	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath(), c.Container); err != nil {
+		return nil, err
 	}
 
 	// Metrics
@@ -436,8 +438,10 @@ func (c *Config) toMachineGuest() (*fly.MachineGuest, error) {
 	}
 
 	// At most one compute after group flattening
-	compute := c.Compute[0]
+	return c.computeToGuest(c.Compute[0])
+}
 
+func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 	size := fly.DefaultVMSize
 	switch {
 	case compute.Size != "":

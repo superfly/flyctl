@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 
@@ -17,6 +18,14 @@ const (
 	// DefaultConfigFileName denotes the default application configuration file name.
 	DefaultConfigFileName = "fly.toml"
 )
+
+// Well-known docker compose filenames in order of preference
+var WellKnownComposeFilenames = []string{
+	"compose.yaml",
+	"compose.yml",
+	"docker-compose.yaml",
+	"docker-compose.yml",
+}
 
 type RestartPolicy string
 
@@ -58,6 +67,15 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
+	// Pilot Container support: configuration, including the set of containers, can either
+	// be specified in a separate file or in the fly.toml file itself.  If containers are
+	// defined, one container can be identified as the "app" container, which is the
+	// the one where the image is replaced upon deploy.  If no container is identified,
+	// this will default to the "app" container, and if that is not present, the first
+	// container in the list will be used.
+	MachineConfig string `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
+	Container     string `toml:"container,omitempty" json:"container,omitempty"`
+
 	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
 
 	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
@@ -87,11 +105,13 @@ type Metrics struct {
 }
 
 type Deploy struct {
-	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
 	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 	WaitTimeout           *fly.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
+	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
+	ReleaseCommandCompute *Compute      `toml:"release_command_vm,omitempty" json:"release_command_vm,omitempty"`
+	SeedCommand           string        `toml:"seed_command,omitempty" json:"seed_command,omitempty"`
 }
 
 type File struct {
@@ -141,6 +161,10 @@ type Mount struct {
 	Processes               []string `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
+type BuildCompose struct {
+	File string `toml:"file,omitempty" json:"file,omitempty"`
+}
+
 type Build struct {
 	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`
 	Args              map[string]string `toml:"args,omitempty" json:"args,omitempty"`
@@ -151,6 +175,7 @@ type Build struct {
 	Dockerfile        string            `toml:"dockerfile,omitempty" json:"dockerfile,omitempty"`
 	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
 	DockerBuildTarget string            `toml:"build-target,omitempty" json:"build-target,omitempty"`
+	Compose           *BuildCompose     `toml:"compose,omitempty" json:"compose,omitempty"`
 }
 
 type Experimental struct {
@@ -377,4 +402,26 @@ func (cfg *Config) DeployStrategy() string {
 		return ""
 	}
 	return cfg.Deploy.Strategy
+}
+
+// DetectComposeFile returns Build.Compose.File if set, otherwise looks for
+// well-known compose filenames in the directory containing the config file.
+// Returns the first found filename or empty string.
+func (cfg *Config) DetectComposeFile() string {
+	// If compose file is explicitly set, return it
+	if cfg.Build != nil && cfg.Build.Compose != nil && cfg.Build.Compose.File != "" {
+		return cfg.Build.Compose.File
+	}
+
+	// Otherwise, detect well-known filenames
+	configDir := filepath.Dir(cfg.configFilePath)
+
+	for _, filename := range WellKnownComposeFilenames {
+		path := filepath.Join(configDir, filename)
+		if _, err := os.Stat(path); err == nil {
+			return filename
+		}
+	}
+
+	return ""
 }

@@ -56,6 +56,7 @@ type ConnectParams struct {
 	Username       string
 	Dialer         agent.Dialer
 	DisableSpinner bool
+	Container      string
 	AppNames       []string
 }
 

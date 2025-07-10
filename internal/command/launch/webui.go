@@ -16,6 +16,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/logger"
 	state2 "github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -42,7 +43,6 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 			session.URL,
 		)
 	} else {
-
 		colorize := io.ColorScheme()
 		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(session.URL))
 	}
@@ -85,6 +85,58 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
+
+	// Handle database plan from form data
+	if pgData, ok := finalSession.Metadata["postgres"].(map[string]interface{}); ok {
+		logger.Debugf("Postgres form data: %+v", pgData)
+		if mpgData, ok := pgData["managed_postgres"].(map[string]interface{}); ok {
+			logger.Debugf("Managed Postgres form data: %+v", mpgData)
+			// Validate region for managed Postgres
+			region := "iad" // Default region
+			if r, ok := mpgData["region"].(string); ok && r != "" {
+				region = r
+			}
+
+			org, err := state.Org(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get organization: %w", err)
+			}
+
+			// Check if region is supported for managed Postgres
+			validRegion, err := mpg.IsValidMPGRegion(ctx, org.RawSlug, region)
+			if err != nil {
+				return fmt.Errorf("failed to validate MPG region: %w", err)
+			}
+
+			if !validRegion {
+				availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, org.Slug)
+				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, availableCodes)
+			}
+
+			state.Plan.Postgres = plan.PostgresPlan{
+				ManagedPostgres: &plan.ManagedPostgresPlan{
+					DbName:   state.Plan.AppName + "-db",
+					Region:   region,
+					Plan:     "basic", // Default plan
+					DiskSize: 10,      // Default disk size
+				},
+			}
+
+			// Apply settings from the form
+			if dbName, ok := mpgData["db_name"].(string); ok && dbName != "" {
+				state.Plan.Postgres.ManagedPostgres.DbName = dbName
+			}
+			if plan, ok := mpgData["plan"].(string); ok && plan != "" {
+				state.Plan.Postgres.ManagedPostgres.Plan = plan
+			}
+			if disk, ok := mpgData["disk"].(float64); ok {
+				state.Plan.Postgres.ManagedPostgres.DiskSize = int(disk)
+			}
+			if clusterID, ok := mpgData["existing_mpg_hashid"].(string); ok && clusterID != "" {
+				state.Plan.Postgres.ManagedPostgres.ClusterID = clusterID
+			}
+		}
+	}
 
 	return nil
 }

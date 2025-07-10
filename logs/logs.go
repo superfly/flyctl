@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/wireguard"
 )
 
 type LogOptions struct {
@@ -15,6 +18,12 @@ type LogOptions struct {
 	VMID       string
 	RegionCode string
 	NoTail     bool
+}
+
+type WebClient interface {
+	GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error)
+	GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
+	wireguard.WebClient
 }
 
 func (opts *LogOptions) toNatsSubject() (subject string) {

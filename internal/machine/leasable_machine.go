@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -18,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
 )
 
 type LeasableMachine interface {
@@ -49,14 +50,20 @@ type leasableMachine struct {
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
 	machine                *fly.Machine
-	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
 	showLogs               bool
+
+	// mu protects leaseNonce. A leasableMachine shouldn't be shared between
+	// goroutines, but StartBackgroundLeaseRefresh breaks the rule.
+	mu         sync.Mutex
+	leaseNonce string
 }
 
-// TODO: make sure the other functions handle showLogs correctly
+// NewLeasableMachine creates a wrapper for the given machine.
+// A lease must be held before calling this function.
 func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
+	// TODO: make sure the other functions handle showLogs correctly
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
@@ -316,16 +323,6 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
 	defer cancel()
 
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
-	for _, s := range lm.Machine().Config.Services {
-		checkDefs = append(checkDefs, s.Checks...)
-	}
-	shortestInterval := 120 * time.Second
-	for _, c := range checkDefs {
-		if c.Interval != nil && c.Interval.Duration < shortestInterval {
-			shortestInterval = c.Interval.Duration
-		}
-	}
 	b := &backoff.Backoff{
 		Min:    1 * time.Second,
 		Max:    2 * time.Second,
@@ -466,6 +463,9 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 }
 
 func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Duration) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
 	seconds := int(duration.Seconds())
 	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
 	if err != nil {
@@ -488,27 +488,33 @@ func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leas
 }
 
 func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, duration time.Duration, delayBetween time.Duration) {
-	var (
-		err error
-		b   = &backoff.Backoff{
-			Min:    delayBetween - 20*time.Millisecond,
-			Max:    delayBetween + 20*time.Millisecond,
-			Jitter: true,
-		}
-	)
+	b := &backoff.Backoff{
+		Min:    delayBetween - 20*time.Millisecond,
+		Max:    delayBetween + 20*time.Millisecond,
+		Jitter: true,
+	}
+
 	for {
-		err = lm.RefreshLease(ctx, duration)
-		switch {
+		time.Sleep(b.Duration())
+		switch err := lm.RefreshLease(ctx, duration); {
+		case err == nil:
+			// good times
 		case errors.Is(err, context.Canceled):
 			return
-		case err != nil:
+		case strings.Contains(err.Error(), "machine not found"):
+			// machine is gone, no need to refresh its lease
+			return
+		default:
 			terminal.Warnf("error refreshing lease for machine %s: %v\n", lm.machine.ID, err)
 		}
-		time.Sleep(b.Duration())
 	}
 }
 
+// ReleaseLease releases the lease on this machine.
 func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
 	nonce := lm.leaseNonce
 	lm.resetLease()
 	if nonce == "" {
@@ -525,13 +531,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
-	contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-	if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
-		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
-		return err
-	}
-	return nil
+	return lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
 }
 
 func (lm *leasableMachine) resetLease() {
@@ -543,19 +543,26 @@ func (lm *leasableMachine) resetLease() {
 
 func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration) {
 	minInterval := 60 * time.Second
-
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
-	for _, s := range lm.Machine().Config.Services {
-		checkDefs = append(checkDefs, s.Checks...)
-	}
 	minGracePeriod := time.Second
-	for _, c := range checkDefs {
+
+	for _, c := range lm.Machine().Config.Checks {
 		if c.Interval != nil && c.Interval.Duration < minInterval {
 			minInterval = c.Interval.Duration
 		}
 
 		if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
 			minGracePeriod = c.GracePeriod.Duration
+		}
+	}
+	for _, s := range lm.Machine().Config.Services {
+		for _, c := range s.Checks {
+			if c.Interval != nil && c.Interval.Duration < minInterval {
+				minInterval = c.Interval.Duration
+			}
+
+			if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
+				minGracePeriod = c.GracePeriod.Duration
+			}
 		}
 	}
 

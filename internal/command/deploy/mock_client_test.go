@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	fly "github.com/superfly/fly-go"
@@ -22,12 +23,19 @@ type mockFlapsClient struct {
 	breakUncordon    bool
 	breakSetMetadata bool
 	breakList        bool
+	breakDestroy     bool
+	breakLease       bool
 
-	machines []*fly.Machine
+	// mu to protect the members below.
+	mu            sync.Mutex
+	machines      []*fly.Machine
+	leases        map[string]struct{}
+	nextMachineID int
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
-	return nil, fmt.Errorf("failed to acquire lease for %s", machineID)
+	nonce := fmt.Sprintf("%x-lease", machineID)
+	return m.RefreshLease(ctx, machineID, ttl, nonce)
 }
 
 func (m *mockFlapsClient) Cordon(ctx context.Context, machineID string, nonce string) (err error) {
@@ -36,10 +44,6 @@ func (m *mockFlapsClient) Cordon(ctx context.Context, machineID string, nonce st
 
 func (m *mockFlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
 	return fmt.Errorf("failed to create app %s", name)
-}
-
-func (m *mockFlapsClient) CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error) {
-	return fmt.Errorf("failed to create secret %s", sLabel)
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -54,8 +58,12 @@ func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, machineID, key str
 	return fmt.Errorf("failed to delete metadata %s", key)
 }
 
-func (m *mockFlapsClient) DeleteSecret(ctx context.Context, label string) (err error) {
-	return fmt.Errorf("failed to delete secret %s", label)
+func (m *mockFlapsClient) DeleteAppSecret(ctx context.Context, name string) error {
+	return fmt.Errorf("failed to delete app secret %s", name)
+}
+
+func (m *mockFlapsClient) DeleteSecretKey(ctx context.Context, name string) error {
+	return fmt.Errorf("failed to delete secret key %s", name)
 }
 
 func (m *mockFlapsClient) DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error) {
@@ -63,7 +71,10 @@ func (m *mockFlapsClient) DeleteVolume(ctx context.Context, volumeId string) (*f
 }
 
 func (m *mockFlapsClient) Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
-	return fmt.Errorf("failed to destroy %s", input.ID)
+	if m.breakDestroy {
+		return fmt.Errorf("failed to destroy %s", input.ID)
+	}
+	return nil
 }
 
 func (m *mockFlapsClient) Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error) {
@@ -78,8 +89,9 @@ func (m *mockFlapsClient) FindLease(ctx context.Context, machineID string) (*fly
 	return nil, fmt.Errorf("failed to find lease for %s", machineID)
 }
 
-func (m *mockFlapsClient) GenerateSecret(ctx context.Context, sLabel, sType string) (err error) {
-	return fmt.Errorf("failed to generate secret %s", sLabel)
+func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error) {
+
+	return nil, fmt.Errorf("failed to generate app secret %s", name)
 }
 
 func (m *mockFlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, error) {
@@ -119,10 +131,17 @@ func (m *mockFlapsClient) Kill(ctx context.Context, machineID string) (err error
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.breakLaunch {
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
-	return &fly.Machine{}, nil
+	m.nextMachineID += 1
+	return &fly.Machine{
+		ID:         fmt.Sprintf("%x", m.nextMachineID),
+		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
+	}, nil
 }
 
 func (m *mockFlapsClient) List(ctx context.Context, state string) ([]*fly.Machine, error) {
@@ -140,8 +159,12 @@ func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machi
 	return nil, nil, fmt.Errorf("failed to list fly apps machines")
 }
 
-func (m *mockFlapsClient) ListSecrets(ctx context.Context) (out []fly.ListSecret, err error) {
-	return nil, fmt.Errorf("failed to list secrets")
+func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
+	return nil, fmt.Errorf("failed to list app secrets")
+}
+
+func (m *mockFlapsClient) ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
+	return nil, fmt.Errorf("failed to list secret keys")
 }
 
 func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
@@ -149,11 +172,35 @@ func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, i
 }
 
 func (m *mockFlapsClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
-	return nil, fmt.Errorf("failed to refresh lease for %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.breakLease {
+		return nil, fmt.Errorf("failed to acquire lease for %s", machineID)
+	}
+
+	if m.leases == nil {
+		m.leases = make(map[string]struct{})
+	}
+	m.leases[machineID] = struct{}{}
+
+	return &fly.MachineLease{
+		Status: "success",
+		Data:   &fly.MachineLeaseData{Nonce: nonce},
+	}, nil
 }
 
 func (m *mockFlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {
-	return fmt.Errorf("failed to release lease for %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	_, exists := m.leases[machineID]
+	if !exists {
+		return fmt.Errorf("failed to release lease for %s", machineID)
+	}
+	delete(m.leases, machineID)
+
+	return nil
 }
 
 func (m *mockFlapsClient) Restart(ctx context.Context, in fly.RestartMachineInput, nonce string) (err error) {
@@ -165,6 +212,14 @@ func (m *mockFlapsClient) SetMetadata(ctx context.Context, machineID, key, value
 		return fmt.Errorf("failed to set metadata for %s", machineID)
 	}
 	return nil
+}
+
+func (m *mockFlapsClient) SetAppSecret(ctx context.Context, name string, value string) (*fly.SetAppSecretResp, error) {
+	return nil, fmt.Errorf("failed to set app secret %s", name)
+}
+
+func (m *mockFlapsClient) SetSecretKey(ctx context.Context, name string, typ string, value []byte) (*fly.SetSecretKeyResp, error) {
+	return nil, fmt.Errorf("failed to set secret key %s", name)
 }
 
 func (m *mockFlapsClient) Start(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {

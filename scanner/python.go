@@ -100,6 +100,7 @@ func parsePyDep(dep string) string {
 	dep = strings.ToLower(dep)
 	dep = strings.Split(dep, ";")[0]
 	dep = strings.Split(dep, " ")[0]
+	dep = strings.Split(dep, "[")[0]
 	dep = strings.Split(dep, "==")[0]
 	dep = strings.Split(dep, ">")[0]
 	dep = strings.Split(dep, "<")[0]

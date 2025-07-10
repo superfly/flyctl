@@ -23,6 +23,10 @@ import (
 )
 
 func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
+	if flag.GetBool(ctx, "no-github-workflow") || flag.GetString(ctx, "from") != "" {
+		return nil
+	}
+
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
 	if state.sourceInfo.GitHubActions.Secrets {
@@ -56,7 +60,6 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				return fmt.Errorf("failed creating token: %w", err)
 			} else {
 				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-				fmt.Println(token)
 
 				fmt.Println("Setting FLY_API_TOKEN secret in GitHub repository settings")
 				cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
@@ -112,9 +115,13 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
 				continue
 			}
-			confirm, err := prompt.ConfirmOverwrite(ctx, path)
-			if !confirm || err != nil {
-				continue
+			if !flag.GetBool(ctx, "yes") {
+				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if !confirm || err != nil {
+					continue
+				}
+			} else {
+				fmt.Fprintf(io.Out, "You specified --yes, overwriting %s\n", path)
 			}
 		}
 
@@ -197,6 +204,10 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 					state.sourceInfo.ReleaseCmd = cfg.Deploy.ReleaseCommand
 				}
 
+				if state.sourceInfo.SeedCmd == "" && cfg.Deploy != nil {
+					state.sourceInfo.SeedCmd = cfg.Deploy.SeedCommand
+				}
+
 				if len(cfg.Env) > 0 {
 					if len(state.sourceInfo.Env) == 0 {
 						state.sourceInfo.Env = cfg.Env
@@ -233,6 +244,13 @@ func (state *launchState) scannerRunInitCommands(ctx context.Context) error {
 			}
 		}
 	}
+
+	if state.sourceInfo != nil && state.sourceInfo.PostInitCallback != nil {
+		if err := state.sourceInfo.PostInitCallback(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -299,8 +317,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		var appVolumes []appconfig.Mount
 		for _, v := range srcInfo.Volumes {
 			appVolumes = append(appVolumes, appconfig.Mount{
-				Source:      v.Source,
-				Destination: v.Destination,
+				Source:                  v.Source,
+				Destination:             v.Destination,
+				AutoExtendSizeThreshold: v.AutoExtendSizeThreshold,
+				AutoExtendSizeIncrement: v.AutoExtendSizeIncrement,
+				AutoExtendSizeLimit:     v.AutoExtendSizeLimit,
 			})
 		}
 		appConfig.SetMounts(appVolumes)
@@ -321,6 +342,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 
 	if srcInfo.ReleaseCmd != "" {
 		appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+	}
+
+	if srcInfo.SeedCmd != "" {
+		// no V1 compatibility for this feature so bypass setters
+		appConfig.Deploy.SeedCommand = srcInfo.SeedCmd
 	}
 
 	if srcInfo.DockerCommand != "" {

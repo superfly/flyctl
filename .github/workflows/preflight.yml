@@ -18,7 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         parallelism: [20]
-        index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+        index:
+          [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -57,10 +58,9 @@ jobs:
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
         with:
+          webhook: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "blocks": [

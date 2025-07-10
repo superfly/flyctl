@@ -115,7 +115,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		TermEnv:  "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd); err != nil {
+	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd, ""); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 

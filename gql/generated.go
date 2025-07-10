@@ -3001,11 +3001,15 @@ func (v *__CreateTosAgreementInput) GetProviderName() string { return v.Provider
 
 // __DeleteAddOnInput is used internally by genqlient
 type __DeleteAddOnInput struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
 }
 
 // GetName returns __DeleteAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__DeleteAddOnInput) GetName() string { return v.Name }
+
+// GetProvider returns __DeleteAddOnInput.Provider, and is useful for accessing the field via an interface.
+func (v *__DeleteAddOnInput) GetProvider() string { return v.Provider }
 
 // __FlyctlConfigCurrentReleaseInput is used internally by genqlient
 type __FlyctlConfigCurrentReleaseInput struct {
@@ -3509,8 +3513,8 @@ func CreateTosAgreement(
 
 // The mutation executed by DeleteAddOn.
 const DeleteAddOn_Operation = `
-mutation DeleteAddOn ($name: String) {
-	deleteAddOn(input: {name:$name}) {
+mutation DeleteAddOn ($name: String, $provider: String) {
+	deleteAddOn(input: {name:$name,provider:$provider}) {
 		deletedAddOnName
 	}
 }
@@ -3520,12 +3524,14 @@ func DeleteAddOn(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	name string,
+	provider string,
 ) (data_ *DeleteAddOnResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "DeleteAddOn",
 		Query:  DeleteAddOn_Operation,
 		Variables: &__DeleteAddOnInput{
-			Name: name,
+			Name:     name,
+			Provider: provider,
 		},
 	}
 
