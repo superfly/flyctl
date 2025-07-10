@@ -27,6 +27,7 @@ func newCredentials() (cmd *cobra.Command) {
 	cmd.Aliases = []string{"creds"}
 
 	flag.Add(cmd,
+		flag.Org(),
 		flag.MPGCluster(),
 	)
 
