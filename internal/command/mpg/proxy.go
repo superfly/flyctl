@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/proxy"
-	"github.com/superfly/flyctl/terminal"
 )
 
 func newProxy() (cmd *cobra.Command) {
@@ -45,15 +44,10 @@ func newProxy() (cmd *cobra.Command) {
 
 func runProxy(ctx context.Context) (err error) {
 	localProxyPort := "16380"
-	_, params, credentials, err := getMpgProxyParams(ctx, localProxyPort)
+	_, params, _, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
 		return err
 	}
-
-	user := credentials.User
-	password := credentials.Password
-
-	terminal.Infof("Proxying postgres to port \"%s\" with user \"%s\" password \"%s\"", localProxyPort, user, password)
 
 	return proxy.Connect(ctx, params)
 }
