@@ -163,13 +163,13 @@ func New() (cmd *cobra.Command) {
 			Name:        "secret",
 			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
+		flag.Bool{
+			Name:        "db",
+			Description: "Force provisioning a Postgres database",
+			Default:     false,
+		},
 	}
 
-	flags = append(flags, flag.Bool{
-		Name:        "db",
-		Description: "Force provisioning a Postgres database",
-		Default:     false,
-	})
 	flag.Add(cmd, flags...)
 
 	cmd.AddCommand(NewPlan())
