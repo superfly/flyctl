@@ -244,6 +244,13 @@ func runCreate(ctx context.Context) error {
 
 	var connectionURI string
 
+	// Output plan details after creation
+	planDetails := mpgPlans[plan]
+	fmt.Fprintf(io.Out, "Selected Plan: %s\n", planDetails.Name)
+	fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
+	fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
+	fmt.Fprintf(io.Out, "  Price: $%d per month\n\n", planDetails.PricePerMo)
+
 	// Wait for cluster to be ready
 	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
 	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
@@ -283,13 +290,6 @@ func runCreate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
 	fmt.Fprintf(io.Out, "  PGVector: %t\n", response.Data.PGVectorEnabled)
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
-
-	// Output plan details after creation
-	planDetails := mpgPlans[plan]
-	fmt.Fprintf(io.Out, "\nSelected Plan: %s\n", planDetails.Name)
-	fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
-	fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
-	fmt.Fprintf(io.Out, "  Price: $%d per month\n\n", planDetails.PricePerMo)
 
 	return nil
 }
