@@ -119,3 +119,13 @@ func ClientFromContext(ctx context.Context) Client {
 	c, _ := ctx.Value(contextKeyClient).(Client)
 	return c
 }
+
+// OrgFromContextBySlug returns the organization by slug, or nil if slug is empty, using the client from ctx.
+func OrgFromContextBySlug(ctx context.Context, orgSlug string) (*fly.Organization, error) {
+	if orgSlug == "" {
+		return nil, nil
+	}
+
+	client := ClientFromContext(ctx)
+	return client.GetOrganizationBySlug(ctx, orgSlug)
+}
