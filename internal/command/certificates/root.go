@@ -36,6 +36,7 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 		newCertificatesRemove(),
 		newCertificatesShow(),
 		newCertificatesCheck(),
+		newCertificatesSetup(),
 	)
 	return cmd
 }
@@ -124,6 +125,25 @@ func newCertificatesCheck() *cobra.Command {
 Displays results in the same format as the SHOW command.`
 	)
 	cmd := command.New("check <hostname>", short, long, runCertificatesCheck,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.JSONOutput(),
+	)
+	cmd.Args = cobra.ExactArgs(1)
+	return cmd
+}
+
+func newCertificatesSetup() *cobra.Command {
+	const (
+		short = "Shows certificate setup instructions"
+		long  = `Shows setup instructions for configuring DNS records for a certificate.
+Takes hostname as a parameter to show the setup instructions for that certificate.`
+	)
+	cmd := command.New("setup <hostname>", short, long, runCertificatesSetup,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -230,6 +250,19 @@ func runCertificatesRemove(ctx context.Context) error {
 	)
 
 	return nil
+}
+
+func runCertificatesSetup(ctx context.Context) error {
+	apiClient := flyutil.ClientFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	hostname := flag.FirstArg(ctx)
+
+	cert, hostcheck, err := apiClient.CheckAppCertificate(ctx, appName, hostname)
+	if err != nil {
+		return err
+	}
+
+	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
 
 func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck) error {
