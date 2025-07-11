@@ -510,7 +510,7 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 		fmt.Fprintln(io.Out, "   Use this setup when configuring a proxy or CDN in front of your Fly application.")
 		fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
 		fmt.Fprintln(io.Out)
-		optionNum++
+		// optionNum++ uncomment if steps added.
 	}
 
 	if opts.Certificate.IsWildcard {
