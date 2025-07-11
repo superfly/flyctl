@@ -459,14 +459,14 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 		if hasIPv4 {
 			fmt.Fprintf(io.Out, colorize.Green("%d. External proxy setup\n\n"), optionNum)
 			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
-			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's ipv6 address.")
+			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
 			fmt.Fprintln(io.Out)
 			optionNum++
 		} else {
 			fmt.Fprintf(io.Out, colorize.Yellow("%d. External proxy setup (requires IPv6 allocation)\n"), optionNum)
 			fmt.Fprintf(io.Out, "   Run: %s to allocate IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
 			fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n\n", colorize.Bold("fly certs setup "+opts.Hostname))
-			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's ipv6 address.")
+			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
 			fmt.Fprintln(io.Out)
 			optionNum++
 		}
@@ -508,7 +508,7 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 			fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n\n", colorize.Bold("fly certs setup "+opts.Hostname))
 		}
 		fmt.Fprintln(io.Out, "   Use this setup when configuring a proxy or CDN in front of your Fly application.")
-		fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's ipv6 address.")
+		fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
 		fmt.Fprintln(io.Out)
 		optionNum++
 	}
