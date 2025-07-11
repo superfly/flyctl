@@ -36,6 +36,7 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 		newCertificatesRemove(),
 		newCertificatesShow(),
 		newCertificatesCheck(),
+		newCertificatesSetup(),
 	)
 	return cmd
 }
@@ -124,6 +125,25 @@ func newCertificatesCheck() *cobra.Command {
 Displays results in the same format as the SHOW command.`
 	)
 	cmd := command.New("check <hostname>", short, long, runCertificatesCheck,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.JSONOutput(),
+	)
+	cmd.Args = cobra.ExactArgs(1)
+	return cmd
+}
+
+func newCertificatesSetup() *cobra.Command {
+	const (
+		short = "Shows certificate setup instructions"
+		long  = `Shows setup instructions for configuring DNS records for a certificate.
+Takes hostname as a parameter to show the setup instructions for that certificate.`
+	)
+	cmd := command.New("setup <hostname>", short, long, runCertificatesSetup,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -232,6 +252,19 @@ func runCertificatesRemove(ctx context.Context) error {
 	return nil
 }
 
+func runCertificatesSetup(ctx context.Context) error {
+	apiClient := flyutil.ClientFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	hostname := flag.FirstArg(ctx)
+
+	cert, hostcheck, err := apiClient.CheckAppCertificate(ctx, appName, hostname)
+	if err != nil {
+		return err
+	}
+
+	return reportNextStepCert(ctx, hostname, cert, hostcheck)
+}
+
 func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck) error {
 	io := iostreams.FromContext(ctx)
 
@@ -253,12 +286,14 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	var ipV6 fly.IPAddress
 	var configuredipV4 bool
 	var configuredipV6 bool
+	var externalProxyHint bool
 
 	// Extract the v4 and v6 addresses we have allocated
 	for _, x := range ips {
-		if x.Type == "v4" || x.Type == "shared_v4" {
+		switch x.Type {
+		case "v4", "shared_v4":
 			ipV4 = x
-		} else if x.Type == "v6" {
+		case "v6":
 			ipV6 = x
 		}
 	}
@@ -268,11 +303,11 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		// Let's check the first A record against our recorded addresses
 		ip := net.ParseIP(hostcheck.ARecords[0])
 		if !ip.Equal(net.ParseIP(ipV4.Address)) {
-			if isCloudflareProxied(cert.DNSProvider, ip) {
-				return printCloudflareInstructions(ctx, hostname, cert)
+			if isExternalProxied(cert.DNSProvider, ip) {
+				externalProxyHint = true
+			} else {
+				fmt.Fprintf(io.Out, colorize.Yellow("A Record (%s) does not match app's IP (%s)\n"), hostcheck.ARecords[0], ipV4.Address)
 			}
-
-			fmt.Fprintf(io.Out, colorize.Yellow("A Record (%s) does not match app's IP (%s)\n"), hostcheck.ARecords[0], ipV4.Address)
 		} else {
 			configuredipV4 = true
 		}
@@ -282,10 +317,11 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		// Let's check the first A record against our recorded addresses
 		ip := net.ParseIP(hostcheck.AAAARecords[0])
 		if !ip.Equal(net.ParseIP(ipV6.Address)) {
-			if isCloudflareProxied(cert.DNSProvider, ip) {
-				return printCloudflareInstructions(ctx, hostname, cert)
+			if isExternalProxied(cert.DNSProvider, ip) {
+				externalProxyHint = true
+			} else {
+				fmt.Fprintf(io.Out, colorize.Yellow("AAAA Record (%s) does not match app's IP (%s)\n"), hostcheck.AAAARecords[0], ipV6.Address)
 			}
-			fmt.Fprintf(io.Out, colorize.Yellow("AAAA Record (%s) does not match app's IP (%s)\n"), hostcheck.AAAARecords[0], ipV6.Address)
 		} else {
 			configuredipV6 = true
 		}
@@ -299,35 +335,27 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 			} else if ip.Equal(net.ParseIP(ipV6.Address)) {
 				configuredipV6 = true
 			} else {
-				if isCloudflareProxied(cert.DNSProvider, ip) {
-					return printCloudflareInstructions(ctx, hostname, cert)
+				if isExternalProxied(cert.DNSProvider, ip) {
+					externalProxyHint = true
+				} else {
+					fmt.Fprintf(io.Out, colorize.Yellow("Address resolution (%s) does not match app's IP (%s/%s)\n"), address, ipV4.Address, ipV6.Address)
 				}
-				fmt.Fprintf(io.Out, colorize.Yellow("Address resolution (%s) does not match app's IP (%s/%s)\n"), address, ipV4.Address, ipV6.Address)
 			}
 		}
 	}
 
 	if cert.IsApex {
-		// If this is an apex domain we should guide towards creating A and AAAA records
-		addArecord := !configuredipV4
-		addAAAArecord := !cert.AcmeALPNConfigured
+		addDNSConfig := !configuredipV4 || !configuredipV6
 
-		if addArecord || addAAAArecord {
-			stepcnt := 1
-			fmt.Fprintf(io.Out, "You are creating a certificate for %s\n", colorize.Bold(hostname))
-			fmt.Fprintf(io.Out, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
-			if addArecord {
-				fmt.Fprintf(io.Out, "You can direct traffic to %s by:\n\n", hostname)
-				fmt.Fprintf(io.Out, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
-				fmt.Fprintf(io.Out, "\n    A @ %s\n\n", ipV4.Address)
-				stepcnt = stepcnt + 1
-			}
-			if addAAAArecord {
-				fmt.Fprintf(io.Out, "You can validate your ownership of %s by:\n\n", hostname)
-				fmt.Fprintf(io.Out, "%d: Adding an AAAA record to your DNS service which reads:\n\n", stepcnt)
-				fmt.Fprintf(io.Out, "    AAAA @ %s\n\n", ipV6.Address)
-				// stepcnt = stepcnt + 1 Uncomment if more steps
-			}
+		if addDNSConfig {
+			printDNSSetupOptions(DNSSetupFlags{
+				Context:               ctx,
+				Hostname:              hostname,
+				Certificate:           cert,
+				IPv4Address:           ipV4,
+				IPv6Address:           ipV6,
+				ExternalProxyDetected: externalProxyHint,
+			})
 		} else {
 			if cert.ClientStatus == "Ready" {
 				fmt.Fprintf(io.Out, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
@@ -336,45 +364,32 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 			}
 		}
 	} else if cert.IsWildcard {
-		// If this is an wildcard domain we should guide towards satisfying a DNS-01 challenge
-		addArecord := !configuredipV4
-		addCNAMErecord := !cert.AcmeDNSConfigured
+		addDNSConfig := !configuredipV4 || !cert.AcmeDNSConfigured
 
-		stepcnt := 1
-		fmt.Fprintf(io.Out, "You are creating a wildcard certificate for %s\n", hostname)
-		fmt.Fprintf(io.Out, "We are using %s for this certificate.\n\n", cert.CertificateAuthority)
-		if addArecord {
-			fmt.Fprintf(io.Out, "You can direct traffic to %s by:\n\n", hostname)
-			fmt.Fprintf(io.Out, "%d: Adding an A record to your DNS service which reads\n", stepcnt)
-			stepcnt = stepcnt + 1
-			fmt.Fprintf(io.Out, "\n    A @ %s\n\n", ipV4.Address)
-		}
-
-		if addCNAMErecord {
-			printDNSValidationInstructions(ctx, stepcnt, hostname, cert)
-			// stepcnt = stepcnt + 1 Uncomment if more steps
+		if addDNSConfig {
+			printDNSSetupOptions(DNSSetupFlags{
+				Context:               ctx,
+				Hostname:              hostname,
+				Certificate:           cert,
+				IPv4Address:           ipV4,
+				IPv6Address:           ipV6,
+				ExternalProxyDetected: externalProxyHint,
+			})
 		}
 	} else {
 		// This is not an apex domain
-		// If A and AAAA record is not configured offer CNAME
-
 		nothingConfigured := !(configuredipV4 && configuredipV6)
 		onlyV4Configured := configuredipV4 && !configuredipV6
 
 		if nothingConfigured || onlyV4Configured {
-			fmt.Fprintf(io.Out, "You are creating a certificate for %s\n", hostname)
-			fmt.Fprintf(io.Out, "We are using %s for this certificate.\n\n", readableCertAuthority(cert.CertificateAuthority))
-
-			if nothingConfigured {
-				fmt.Fprintf(io.Out, "You can configure your DNS for %s by:\n\n", hostname)
-
-				eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
-				subdomainname := strings.TrimSuffix(hostname, eTLD)
-				fmt.Fprintf(io.Out, "1: Adding an CNAME record to your DNS service which reads:\n")
-				fmt.Fprintf(io.Out, "\n    CNAME %s %s.fly.dev\n", subdomainname, appName)
-			} else if onlyV4Configured {
-				printDNSValidationInstructions(ctx, 1, hostname, cert)
-			}
+			printDNSSetupOptions(DNSSetupFlags{
+				Context:               ctx,
+				Hostname:              hostname,
+				Certificate:           cert,
+				IPv4Address:           ipV4,
+				IPv6Address:           ipV6,
+				ExternalProxyDetected: externalProxyHint,
+			})
 		} else {
 			if cert.ClientStatus == "Ready" {
 				fmt.Fprintf(io.Out, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
@@ -387,42 +402,143 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	return nil
 }
 
-func printDNSValidationInstructions(ctx context.Context, stepcnt int, hostname string, cert *fly.AppCertificate) {
-	io := iostreams.FromContext(ctx)
-
-	fmt.Fprintf(io.Out, "You can validate your ownership of %s by:\n\n", hostname)
-
-	fmt.Fprintf(io.Out, "%d: Adding an CNAME record to your DNS service which reads:\n", stepcnt)
-	fmt.Fprintf(io.Out, "    %s\n", cert.DNSValidationInstructions)
-}
-
-func isCloudflareProxied(provider string, ip net.IP) bool {
-	if provider != CLOUDFLARE {
-		return false
-	}
-	for _, ipnet := range CloudflareIPs {
-		if ipnet.Contains(ip) {
-			return true
+func isExternalProxied(provider string, ip net.IP) bool {
+	if provider == CLOUDFLARE {
+		for _, ipnet := range CloudflareIPs {
+			if ipnet.Contains(ip) {
+				return true
+			}
+		}
+	} else {
+		for _, ipnet := range FastlyIPs {
+			if ipnet.Contains(ip) {
+				return true
+			}
 		}
 	}
+
 	return false
 }
 
-func printCloudflareInstructions(ctx context.Context, hostname string, cert *fly.AppCertificate) error {
-	io := iostreams.FromContext(ctx)
+type DNSSetupFlags struct {
+	Context               context.Context
+	Hostname              string
+	Certificate           *fly.AppCertificate
+	IPv4Address           fly.IPAddress
+	IPv6Address           fly.IPAddress
+	ExternalProxyDetected bool
+}
+
+func printDNSSetupOptions(opts DNSSetupFlags) error {
+	io := iostreams.FromContext(opts.Context)
 	colorize := io.ColorScheme()
+	appName := appconfig.NameFromContext(opts.Context)
+	hasIPv4 := opts.IPv4Address.Address != ""
+	hasIPv6 := opts.IPv6Address.Address != ""
+	promoteExtProxy := opts.ExternalProxyDetected && !opts.Certificate.IsWildcard
 
-	fmt.Fprintln(io.Out, colorize.Yellow("You're using Cloudflare's proxying feature (orange cloud active) for this hostname."))
-	fmt.Fprintln(io.Out, "If you do not need Cloudflare-specific features, it's best to turn off proxying.")
-	fmt.Fprintln(io.Out, "The only way to create certificates for proxied hostnames is to use the DNS challenge.")
+	fmt.Fprintf(io.Out, "You are creating a certificate for %s\n", colorize.Bold(opts.Hostname))
+	fmt.Fprintf(io.Out, "We are using %s for this certificate.\n\n", readableCertAuthority(opts.Certificate.CertificateAuthority))
 
-	printDNSValidationInstructions(ctx, 1, hostname, cert)
+	if promoteExtProxy {
+		fmt.Fprintln(io.Out, colorize.Blue("It looks like your hostname currently resolves to a proxy or CDN."))
+		fmt.Fprintln(io.Out, "If you are planning to use a proxy or CDN in front of your Fly application,")
+		fmt.Fprintf(io.Out, "using the %s will ensure Fly can generate a certificate automatically.\n", colorize.Green("external proxy setup"))
+		fmt.Fprintln(io.Out)
+	}
 
+	fmt.Fprintln(io.Out, "You can direct traffic to your Fly application by adding records to your DNS provider.")
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "If you've already set this up, your certificate should be issued soon.")
-	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/networking/custom-domain/")
+
+	fmt.Fprintln(io.Out, colorize.Bold("Choose your DNS setup:"))
+	fmt.Fprintln(io.Out)
+
+	optionNum := 1
+
+	if promoteExtProxy {
+		if hasIPv4 {
+			fmt.Fprintf(io.Out, colorize.Green("%d. External proxy setup\n\n"), optionNum)
+			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
+			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
+			fmt.Fprintln(io.Out)
+			optionNum++
+		} else {
+			fmt.Fprintf(io.Out, colorize.Yellow("%d. External proxy setup (requires IPv6 allocation)\n"), optionNum)
+			fmt.Fprintf(io.Out, "   Run: %s to allocate IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
+			fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n\n", colorize.Bold("fly certs setup "+opts.Hostname))
+			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
+			fmt.Fprintln(io.Out)
+			optionNum++
+		}
+	}
+
+	fmt.Fprintf(io.Out, colorize.Green("%d. A and AAAA records (recommended for direct connections)\n\n"), optionNum)
+	if hasIPv4 {
+		fmt.Fprintf(io.Out, "   A    %s → %s\n", getRecordName(opts.Hostname), opts.IPv4Address.Address)
+	} else {
+		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv4 addresses are allocated for your application."))
+		fmt.Fprintf(io.Out, "   Run: %s to allocate a shared IPv4 address\n", colorize.Bold("fly ips allocate-v4 --shared"))
+		fmt.Fprintf(io.Out, "   Or: %s to allocate a dedicated IPv4 address\n", colorize.Bold("fly ips allocate-v4"))
+		fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n", colorize.Bold("fly certs setup "+opts.Hostname))
+	}
+	if hasIPv6 {
+		fmt.Fprintf(io.Out, "   AAAA %s → %s\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
+	} else {
+		fmt.Fprintf(io.Out, "\n   %s\n", colorize.Yellow("No IPv6 addresses are allocated for your application."))
+		fmt.Fprintf(io.Out, "   Run: %s to allocate a dedicated IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
+		fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n", colorize.Bold("fly certs setup "+opts.Hostname))
+	}
+	fmt.Fprintln(io.Out)
+	optionNum++
+
+	if !opts.Certificate.IsApex && (hasIPv4 || hasIPv6) {
+		fmt.Fprintf(io.Out, colorize.Cyan("%d. CNAME record\n\n"), optionNum)
+		fmt.Fprintf(io.Out, "   CNAME %s → %s.fly.dev\n", getRecordName(opts.Hostname), appName)
+		fmt.Fprintln(io.Out)
+		optionNum++
+	}
+
+	if !promoteExtProxy && !opts.Certificate.IsWildcard {
+		fmt.Fprintf(io.Out, colorize.Blue("%d. External proxy setup\n\n"), optionNum)
+		if hasIPv6 {
+			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
+		} else {
+			fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv6 addresses are allocated for your application."))
+			fmt.Fprintf(io.Out, "   Run: %s to allocate a dedicated IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
+			fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n\n", colorize.Bold("fly certs setup "+opts.Hostname))
+		}
+		fmt.Fprintln(io.Out, "   Use this setup when configuring a proxy or CDN in front of your Fly application.")
+		fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
+		fmt.Fprintln(io.Out)
+		// optionNum++ uncomment if steps added.
+	}
+
+	if opts.Certificate.IsWildcard {
+		fmt.Fprintf(io.Out, colorize.Yellow("Required: DNS Challenge\n\n"))
+	} else {
+		fmt.Fprintf(io.Out, colorize.Yellow("Optional: DNS Challenge\n\n"))
+	}
+	fmt.Fprintf(io.Out, "   %s → %s\n\n", opts.Certificate.DNSValidationHostname, opts.Certificate.DNSValidationTarget)
+	fmt.Fprintln(io.Out, "   Additional to one of the DNS setups.")
+	if opts.Certificate.IsWildcard {
+		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("Required for this wildcard certificate."))
+	} else {
+		fmt.Fprintln(io.Out, "   Required for wildcard certificates, or to generate")
+		fmt.Fprintln(io.Out, "   a certificate before directing traffic to your application.")
+	}
+	fmt.Fprintln(io.Out)
 
 	return nil
+}
+
+func getRecordName(hostname string) string {
+	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
+	subdomainname := strings.TrimSuffix(hostname, eTLD)
+
+	if subdomainname == "" {
+		return "@"
+	}
+	return strings.TrimSuffix(subdomainname, ".")
 }
 
 func printCertificate(ctx context.Context, cert *fly.AppCertificate) {
@@ -523,4 +639,28 @@ var CloudflareIPs = []*net.IPNet{
 	mustParseCIDR("2405:8100::/32"),
 	mustParseCIDR("2a06:98c0::/29"),
 	mustParseCIDR("2c0f:f248::/32"),
+}
+
+var FastlyIPs = []*net.IPNet{
+	mustParseCIDR("23.235.32.0/20"),
+	mustParseCIDR("43.249.72.0/22"),
+	mustParseCIDR("103.244.50.0/24"),
+	mustParseCIDR("103.245.222.0/23"),
+	mustParseCIDR("103.245.224.0/24"),
+	mustParseCIDR("104.156.80.0/20"),
+	mustParseCIDR("140.248.64.0/18"),
+	mustParseCIDR("140.248.128.0/17"),
+	mustParseCIDR("146.75.0.0/17"),
+	mustParseCIDR("151.101.0.0/16"),
+	mustParseCIDR("157.52.64.0/18"),
+	mustParseCIDR("167.82.0.0/17"),
+	mustParseCIDR("167.82.128.0/20"),
+	mustParseCIDR("167.82.160.0/20"),
+	mustParseCIDR("167.82.224.0/20"),
+	mustParseCIDR("172.111.64.0/18"),
+	mustParseCIDR("185.31.16.0/22"),
+	mustParseCIDR("199.27.72.0/21"),
+	mustParseCIDR("199.232.0.0/16"),
+	mustParseCIDR("2a04:4e40::/32"),
+	mustParseCIDR("2a04:4e42::/32"),
 }
