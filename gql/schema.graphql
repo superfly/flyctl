@@ -161,6 +161,7 @@ type AddOn implements Node {
     """
     last: Int
   ): AppConnection
+  createdAt: ISO8601DateTime!
 
   """
   Environment variables for the add-on
@@ -237,6 +238,7 @@ type AddOn implements Node {
   Status of the add-on
   """
   status: String
+  updatedAt: ISO8601DateTime!
 }
 
 """
@@ -439,6 +441,11 @@ input AddWireGuardPeerInput {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
+
+  """
+  An ephemeral peer will be destroyed if not validated for too long
+  """
+  ephemeral: Boolean
 
   """
   Create peer on specific gateway
@@ -1149,6 +1156,7 @@ type AppCertificate implements Node {
   id: ID!
   isAcmeAlpnConfigured: Boolean!
   isAcmeDnsConfigured: Boolean!
+  isAcmeHttpConfigured: Boolean!
   isApex: Boolean!
   isConfigured: Boolean!
   isWildcard: Boolean!
@@ -1523,6 +1531,7 @@ enum BillingStatus {
   DELINQUENT
   PAST_DUE
   SOURCE_REQUIRED
+  SUSPENDED
   TRIAL_ACTIVE
   TRIAL_ENDED
 }
@@ -1726,11 +1735,6 @@ input BuildMachineInput {
   Region for the machine
   """
   region: String
-
-  """
-  Skip checks for machine creation
-  """
-  skipTrustChecks: Boolean
 }
 
 """
@@ -3616,6 +3620,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
+  
   """
   path: [String!]
 
