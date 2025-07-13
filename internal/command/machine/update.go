@@ -66,6 +66,7 @@ func newUpdate() *cobra.Command {
 			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
 			Hidden:      false,
 		},
+		flag.BuildkitAddr(),
 	)
 
 	cmd.Args = cobra.RangeArgs(0, 1)

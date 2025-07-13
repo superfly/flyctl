@@ -166,15 +166,27 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 	ctx, span := tracing.GetTracer().Start(ctx, "resolve_reference")
 	defer span.End()
 
-	strategies := []imageResolver{
-		&localImageResolver{},
-		&remoteImageResolver{flyApi: r.apiClient},
+	var strategies []imageResolver
+
+	if buildkitAddr := flag.GetBuildkitAddr(ctx); buildkitAddr != "" {
+		strategies = append(strategies, NewFlapsResolver(buildkitAddr))
+	} else {
+		strategies = []imageResolver{
+			&localImageResolver{},
+			&remoteImageResolver{flyApi: r.apiClient},
+		}
 	}
 
-	bld, err := r.createImageBuild(ctx, strategies, opts)
-	if err != nil {
-		span.AddEvent(fmt.Sprintf("failed to create image build. err=%s", err.Error()))
-		terminal.Warnf("failed to create build in graphql: %v\n", err)
+	skipGQL := true
+
+	bld := newBuild("", false)
+
+	if !skipGQL {
+		bld, err = r.createImageBuild(ctx, strategies, opts)
+		if err != nil {
+			span.AddEvent(fmt.Sprintf("failed to create image build. err=%s", err.Error()))
+			terminal.Warnf("failed to create build in graphql: %v\n", err)
+		}
 	}
 
 	for _, s := range strategies {
@@ -187,16 +199,20 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
-			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			if !skipGQL {
+				r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			}
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
-			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
-			if err == nil && buildResult != nil {
-				// we should only set the image's buildID if we push the build info to web
-				img.BuildID = buildResult.BuildId
+			if !skipGQL {
+				buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+				if err == nil && buildResult != nil {
+					// we should only set the image's buildID if we push the build info to web
+					img.BuildID = buildResult.BuildId
+				}
 			}
 
 			return img, nil
@@ -207,7 +223,9 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 	}
 
-	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+	if !skipGQL {
+		r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+	}
 	err = fmt.Errorf("could not find image %q", opts.ImageRef)
 	tracing.RecordError(span, err, "failed to resolve image")
 	return nil, err
