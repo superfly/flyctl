@@ -3,10 +3,11 @@ package imgsrc
 import (
 	"context"
 	"fmt"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/internal/config"
 	"net/http"
+
+	"github.com/containerd/containerd/remotes/docker"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 var _ imageResolver = (*FlapsResolver)(nil)
@@ -15,68 +16,52 @@ func NewFlapsResolver(addr string) *FlapsResolver {
 	return &FlapsResolver{addr: addr}
 }
 
-func (r *FlapsResolver) Name() string { return "Flaps" }
-
 type FlapsResolver struct{ addr string }
+
+func (r *FlapsResolver) Name() string { return "Flaps" }
 
 func (r *FlapsResolver) Run(
 	ctx context.Context,
 	_ *dockerClientFactory,
 	streams *iostreams.IOStreams,
 	opts RefOptions,
-	build *build,
+	_ *build,
 ) (*DeploymentImage, string, error) {
-	_, _ = fmt.Fprintf(streams.ErrOut, "Searching for image '%s' in registry...\n", opts.ImageRef)
+	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' in flaps registry...\n", opts.ImageRef)
 
-	build.BuildStart()
-	defer build.BuildFinish()
-
-	ref, err := name.ParseReference(opts.ImageRef)
+	resolver := docker.NewResolver(docker.ResolverOptions{Hosts: registryHosts(config.Tokens(ctx).Docker())})
+	_, desc, err := resolver.Resolve(ctx, opts.ImageRef)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to parse image reference: %w", err)
+		return nil, "", fmt.Errorf("failed to resolve image: %w", err)
 	}
 
-	img, err := remote.Image(ref,
-		remote.WithContext(ctx),
-		remote.WithTransport(&http.Transport{}),
-	)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to get image: %w", err)
-	}
+	return &DeploymentImage{
+		ID:     desc.Digest.String(),
+		Digest: desc.Digest.String(),
+		Size:   desc.Size,
+		Tag:    opts.ImageRef,
+	}, fmt.Sprintf("Found image %s", desc.Digest.String()), nil
+}
 
-	manifest, err := img.Manifest()
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to get manifest: %w", err)
+func registryHosts(token string) docker.RegistryHosts {
+	return func(host string) ([]docker.RegistryHost, error) {
+		if host == "registry.fly.io" {
+			return []docker.RegistryHost{
+				{
+					Client:       &http.Client{},
+					Host:         "_api.internal:4280",
+					Scheme:       "http",
+					Path:         "/v1/registry/v2",
+					Capabilities: docker.HostCapabilityPull | docker.HostCapabilityResolve,
+					Authorizer: docker.NewDockerAuthorizer(
+						docker.WithAuthClient(&http.Client{}),
+						docker.WithAuthCreds(func(host string) (string, string, error) {
+							return "x", token, nil
+						}),
+					),
+				},
+			}, nil
+		}
+		return docker.ConfigureDefaultRegistries()(host)
 	}
-
-	imgDigest, err := img.Digest()
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to get image digest: %w", err)
-	}
-
-	var size int64
-	size += manifest.Config.Size
-	for _, layer := range manifest.Layers {
-		size += layer.Size
-	}
-
-	var tag string
-	if refTag, ok := ref.(name.Tag); ok {
-		tag = refTag.TagStr()
-	}
-
-	imageId, err := img.ConfigName()
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to get image config name: %w", err)
-	}
-
-	deploymentImage := &DeploymentImage{
-		ID:     imageId.String(),
-		Tag:    tag,
-		Digest: imgDigest.String(),
-		Size:   size,
-	}
-
-	fmt.Fprintf(streams.ErrOut, "image found: %s\n", deploymentImage.ID)
-	return deploymentImage, imgDigest.String(), nil
 }
