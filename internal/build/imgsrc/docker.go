@@ -37,6 +37,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/macaroon/flyio/machinesapi"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -635,6 +636,7 @@ func authConfigs(token string) map[string]registry.AuthConfig {
 	authConfigs := map[string]registry.AuthConfig{}
 
 	authConfigs[targetRegistry] = registryAuth(token)
+	authConfigs[machinesapi.InternalURL.Host] = registryAuth(token)
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")

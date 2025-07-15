@@ -3,10 +3,10 @@ package imgsrc
 import (
 	"context"
 	"fmt"
-	"github.com/superfly/flyctl/internal/config"
 	"net/http"
 
 	"github.com/containerd/containerd/remotes/docker"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/iostreams"
 )
 
