@@ -61,7 +61,7 @@ func runConnect(ctx context.Context) (err error) {
 	password := credentials.Password
 	db := credentials.DBName
 
-	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
+	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
 	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
