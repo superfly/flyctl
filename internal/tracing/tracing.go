@@ -71,10 +71,19 @@ func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 }
 
 func CMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	startOpts := []trace.SpanStartOption{
-		trace.WithSpanKind(trace.SpanKindClient),
+	v := os.Getenv("FLY_FORCE_TRACE")
+	forceTrace := !(v == "" || v == "0" || v == "false")
+
+	var attrs []attribute.KeyValue
+	if forceTrace {
+		// TODO: use fly.force_trace once our backend is updated.
+		attrs = append(attrs, attribute.String("http.request.header.fly_force_trace", v))
 	}
 
+	startOpts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(attrs...),
+	}
 	startOpts = append(startOpts, opts...)
 
 	return GetTracer().Start(ctx, spanName, startOpts...)
