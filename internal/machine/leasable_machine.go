@@ -81,6 +81,7 @@ func (lm *leasableMachine) Update(ctx context.Context, input fly.LaunchMachineIn
 	if !lm.HasLease() {
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
+	input.SkipSecrets = true
 	input.ID = lm.machine.ID
 	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
 	if err != nil {
