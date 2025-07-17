@@ -54,6 +54,29 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return cfg, nil
 }
 
+// LoadConfigAsMap loads the config as a map, which is useful for strict validation.
+func LoadConfigAsMap(path string) (rawConfig map[string]any, err error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// First unmarshal to get raw config map
+	rawConfig = map[string]any{}
+	if strings.HasSuffix(path, ".json") {
+		err = json.Unmarshal(buf, &rawConfig)
+	} else if strings.HasSuffix(path, ".yaml") {
+		err = yaml.Unmarshal(buf, &rawConfig)
+		if err == nil {
+			stringifyYAMLMapKeys(rawConfig)
+		}
+	} else {
+		err = toml.Unmarshal(buf, &rawConfig)
+	}
+
+	return rawConfig, err
+}
+
 func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	var b []byte
 	var err error
