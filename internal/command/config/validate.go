@@ -23,13 +23,19 @@ ensure it is correct and meaningful to the platform.`
 		command.RequireAppName,
 	)
 	cmd.Args = cobra.NoArgs
-	flag.Add(cmd, flag.App(), flag.AppConfig())
+	flag.Add(cmd, flag.App(), flag.AppConfig(), flag.Bool{
+		Name:        "strict",
+		Shorthand:   "s",
+		Description: "Enable strict validation to check for unrecognized sections and keys",
+		Default:     false,
+	})
 	return
 }
 
 func runValidate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	cfg := appconfig.ConfigFromContext(ctx)
+	strictMode := flag.GetBool(ctx, "strict")
 
 	// if not found locally, try to get it from the remote app
 	var err error
@@ -45,10 +51,40 @@ func runValidate(ctx context.Context) error {
 		}
 	}
 
+	var rawConfig map[string]any
+	if strictMode {
+		// Load config with raw data for strict validation
+		rawConfig, err = appconfig.LoadConfigAsMap(cfg.ConfigFilePath())
+		if err != nil {
+			return fmt.Errorf("failed to load config for strict validation: %w", err)
+		}
+	}
+
+	// Run standard validation
 	if err = cfg.SetMachinesPlatform(); err != nil {
 		return err
 	}
-	err, extra_info := cfg.Validate(ctx)
-	fmt.Fprintln(io.Out, extra_info)
+	err, extraInfo := cfg.Validate(ctx)
+	fmt.Fprintln(io.Out, extraInfo)
+
+	// Run strict validation if enabled
+	if strictMode {
+		strictResult, strictErr := appconfig.StrictValidate(rawConfig)
+		if strictErr != nil {
+			return fmt.Errorf("strict validation error: %w", strictErr)
+		}
+
+		if strictResult != nil && (len(strictResult.UnrecognizedSections) > 0 || len(strictResult.UnrecognizedKeys) > 0) {
+			strictOutput := appconfig.FormatStrictValidationErrors(strictResult)
+			if strictOutput != "" {
+				fmt.Fprintf(io.Out, "\nStrict validation found unrecognised sections or keys:\n%s\n\n\n", strictOutput)
+				// Return error to indicate validation failed
+				if err == nil {
+					err = errors.New("strict validation failed")
+				}
+			}
+		}
+	}
+
 	return err
 }
