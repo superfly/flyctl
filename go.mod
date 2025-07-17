@@ -103,7 +103,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+require (
+	github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+)
 
 require (
 	connectrpc.com/connect v1.16.1 // indirect
