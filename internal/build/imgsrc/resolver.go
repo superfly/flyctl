@@ -264,7 +264,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	}
 
 	if buildkitAddr := flag.GetBuildkitAddr(ctx); buildkitAddr != "" {
-		strategies = append(strategies, NewRemoteBuildkitBuilder(buildkitAddr))
+		strategies = append(strategies, NewBuildkitBuilder(buildkitAddr))
 	} else if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
 	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {

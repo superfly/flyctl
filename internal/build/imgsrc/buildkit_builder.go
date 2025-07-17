@@ -13,20 +13,20 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var _ imageBuilder = (*RemoteBuildkitBuilder)(nil)
+var _ imageBuilder = (*BuildkitBuilder)(nil)
 
-type RemoteBuildkitBuilder struct {
+type BuildkitBuilder struct {
 	addr string
 }
 
-func NewRemoteBuildkitBuilder(addr string) *RemoteBuildkitBuilder {
-	return &RemoteBuildkitBuilder{addr: addr}
+func NewBuildkitBuilder(addr string) *BuildkitBuilder {
+	return &BuildkitBuilder{addr: addr}
 }
 
-func (r *RemoteBuildkitBuilder) Name() string { return "Buildkit" }
+func (r *BuildkitBuilder) Name() string { return "Buildkit" }
 
-func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "remote_buildkit_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
+func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "buildkit_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
 	build.BuildStart()
@@ -51,7 +51,7 @@ func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory,
 	build.ImageBuildStart()
 	defer build.ImageBuildFinish()
 
-	image, err := r.buildWithRemoteBuildkit(ctx, streams, opts, dockerfile, build)
+	image, err := r.buildWithBuildkit(ctx, streams, opts, dockerfile, build)
 	if err != nil {
 		return nil, "", err
 	}
@@ -60,8 +60,8 @@ func (r *RemoteBuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory,
 	return image, "", nil
 }
 
-func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (i *DeploymentImage, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "remote_buildkit_build", trace.WithAttributes(opts.ToSpanAttributes()...))
+func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (i *DeploymentImage, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "buildkit_build", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer func() {
 		if err != nil {
 			span.RecordError(err)
@@ -72,9 +72,9 @@ func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, str
 
 	buildState.BuilderInitStart()
 	defer buildState.BuilderInitFinish()
-	buildState.SetBuilderMetaPart1("remote-buildkit", r.addr, "")
+	buildState.SetBuilderMetaPart1("buildkit", r.addr, "")
 
-	msg := fmt.Sprintf("Connecting to remote buildkit daemon at %s...\n", r.addr)
+	msg := fmt.Sprintf("Connecting to buildkit daemon at %s...\n", r.addr)
 	if streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)
 	} else {
@@ -83,12 +83,12 @@ func (r *RemoteBuildkitBuilder) buildWithRemoteBuildkit(ctx context.Context, str
 
 	buildkitClient, err := client.New(ctx, r.addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to remote buildkit daemon at %s: %w", r.addr, err)
+		return nil, fmt.Errorf("failed to connect to buildkit daemon at %s: %w", r.addr, err)
 	}
 	defer buildkitClient.Close()
 
 	streams.StopProgressIndicator()
-	cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("Connected to remote buildkit daemon at %s", r.addr))
+	cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("Connected to buildkit daemon at %s", r.addr))
 
 	buildState.BuildAndPushStart()
 	defer buildState.BuildAndPushFinish()
