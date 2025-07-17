@@ -16,7 +16,7 @@ type StrictValidateResult struct {
 
 // StrictValidate performs strict validation on a raw configuration map
 // by checking for unrecognized sections and keys using reflection on the Config type
-func StrictValidate(rawConfig map[string]any) (*StrictValidateResult, error) {
+func StrictValidate(rawConfig map[string]any) *StrictValidateResult {
 	result := &StrictValidateResult{
 		UnrecognizedSections: []string{},
 		UnrecognizedKeys:     make(map[string][]string),
@@ -38,7 +38,7 @@ func StrictValidate(rawConfig map[string]any) (*StrictValidateResult, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 // fieldInfo stores information about a struct field

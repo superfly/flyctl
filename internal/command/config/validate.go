@@ -69,10 +69,7 @@ func runValidate(ctx context.Context) error {
 
 	// Run strict validation if enabled
 	if strictMode {
-		strictResult, strictErr := appconfig.StrictValidate(rawConfig)
-		if strictErr != nil {
-			return fmt.Errorf("strict validation error: %w", strictErr)
-		}
+		strictResult := appconfig.StrictValidate(rawConfig)
 
 		if strictResult != nil && (len(strictResult.UnrecognizedSections) > 0 || len(strictResult.UnrecognizedKeys) > 0) {
 			strictOutput := appconfig.FormatStrictValidationErrors(strictResult)
