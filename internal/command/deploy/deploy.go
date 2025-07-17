@@ -181,6 +181,12 @@ var CommonFlags = flag.Set{
 		Description: "Number of times to retry a deployment if it fails",
 		Default:     "auto",
 	},
+	flag.String{
+		Name:        "builder-pool",
+		Default:     "auto",
+		NoOptDefVal: "true",
+		Description: "Experimental: Use pooled builder from Fly.io",
+	},
 }
 
 type Command struct {
@@ -201,6 +207,7 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
+		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -251,9 +258,9 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	defer func() {
-		ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
-		tp.Shutdown(ctx)
+		tp.Shutdown(shutdownCtx)
 	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")

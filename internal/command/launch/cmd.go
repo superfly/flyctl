@@ -163,13 +163,13 @@ func New() (cmd *cobra.Command) {
 			Name:        "secret",
 			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
+		flag.Bool{
+			Name:        "db",
+			Description: "Force provisioning a Postgres database",
+			Default:     false,
+		},
 	}
 
-	flags = append(flags, flag.Bool{
-		Name:        "db",
-		Description: "Force provisioning a Postgres database",
-		Default:     false,
-	})
 	flag.Add(cmd, flags...)
 
 	cmd.AddCommand(NewPlan())
@@ -275,7 +275,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
 	defer span.End()

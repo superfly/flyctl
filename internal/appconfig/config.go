@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 
@@ -17,6 +18,14 @@ const (
 	// DefaultConfigFileName denotes the default application configuration file name.
 	DefaultConfigFileName = "fly.toml"
 )
+
+// Well-known docker compose filenames in order of preference
+var WellKnownComposeFilenames = []string{
+	"compose.yaml",
+	"compose.yml",
+	"docker-compose.yaml",
+	"docker-compose.yml",
+}
 
 type RestartPolicy string
 
@@ -152,6 +161,10 @@ type Mount struct {
 	Processes               []string `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
+type BuildCompose struct {
+	File string `toml:"file,omitempty" json:"file,omitempty"`
+}
+
 type Build struct {
 	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`
 	Args              map[string]string `toml:"args,omitempty" json:"args,omitempty"`
@@ -162,6 +175,7 @@ type Build struct {
 	Dockerfile        string            `toml:"dockerfile,omitempty" json:"dockerfile,omitempty"`
 	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
 	DockerBuildTarget string            `toml:"build-target,omitempty" json:"build-target,omitempty"`
+	Compose           *BuildCompose     `toml:"compose,omitempty" json:"compose,omitempty"`
 }
 
 type Experimental struct {
@@ -388,4 +402,26 @@ func (cfg *Config) DeployStrategy() string {
 		return ""
 	}
 	return cfg.Deploy.Strategy
+}
+
+// DetectComposeFile returns Build.Compose.File if set, otherwise looks for
+// well-known compose filenames in the directory containing the config file.
+// Returns the first found filename or empty string.
+func (cfg *Config) DetectComposeFile() string {
+	// If compose file is explicitly set, return it
+	if cfg.Build != nil && cfg.Build.Compose != nil && cfg.Build.Compose.File != "" {
+		return cfg.Build.Compose.File
+	}
+
+	// Otherwise, detect well-known filenames
+	configDir := filepath.Dir(cfg.configFilePath)
+
+	for _, filename := range WellKnownComposeFilenames {
+		path := filepath.Join(configDir, filename)
+		if _, err := os.Stat(path); err == nil {
+			return filename
+		}
+	}
+
+	return ""
 }

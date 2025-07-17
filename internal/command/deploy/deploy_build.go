@@ -57,6 +57,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	ldClient := launchdarkly.ClientFromContext(ctx)
 	depotBool := ldClient.GetFeatureFlagValue("use-depot-for-builds", true).(bool)
+	useManagedBuilder := ldClient.ManagedBuilderEnabled()
 
 	switch flag.GetString(ctx, "depot") {
 	case "", "true":
@@ -65,11 +66,23 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		depotBool = false
 	case "auto":
 	default:
-		return nil, fmt.Errorf("invalid falue for the 'depot' flag. must be 'true', 'false', or ''")
+		return nil, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
+	}
+
+	switch flag.GetString(ctx, "builder-pool") {
+	case "", "true":
+		span.AddEvent("opt-in builder-pool")
+		useManagedBuilder = true
+	case "false":
+		useManagedBuilder = false
+	case "auto":
+		// nothing
+	default:
+		return nil, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"), useManagedBuilder)
 
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)

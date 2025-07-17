@@ -10,7 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/containerconfig"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -257,10 +257,14 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		appMachineConfig = c.MachineConfig
 	}
 
-	if appMachineConfig != "" {
-		if err := config.ParseConfig(mConfig, appMachineConfig); err != nil {
-			return nil, err
-		}
+	// Parse container configuration (machine config or compose file) directly into mConfig
+	composePath := ""
+	if c.Build != nil && c.Build.Compose != nil {
+		// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+		composePath = c.DetectComposeFile()
+	}
+	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath(), c.Container); err != nil {
+		return nil, err
 	}
 
 	// Metrics
