@@ -177,7 +177,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	link = streams.CreateLink("Build Summary: ", build.BuildURL)
 	tb.Done(link)
 
-	return newDeploymentImage(res, opts.Tag)
+	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
 // initBuilder returns a Depot machine to build a container image.
@@ -304,7 +304,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	return res, nil
 }
 
-func newDeploymentImage(res *client.SolveResponse, tag string) (*DeploymentImage, error) {
+func newDeploymentImage(ctx context.Context, c *client.Client, res *client.SolveResponse, tag string) (*DeploymentImage, error) {
 	id := res.ExporterResponse["containerimage.digest"]
 	encoded := res.ExporterResponse["containerimage.descriptor"]
 	output, err := base64.StdEncoding.DecodeString(encoded)
@@ -316,6 +316,14 @@ func newDeploymentImage(res *client.SolveResponse, tag string) (*DeploymentImage
 	err = json.Unmarshal(output, descriptor)
 	if err != nil {
 		return nil, err
+	}
+
+	// Standard Buildkit doesn't attach manifest contents to the descriptor.
+	if descriptor.Annotations.RawManifest == "" {
+		descriptor.Annotations.RawManifest, err = readContent(ctx, c.ContentClient(), descriptor)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	image := &DeploymentImage{

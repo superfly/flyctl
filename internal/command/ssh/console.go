@@ -172,7 +172,7 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("get app network: %w", err)
 	}
 
-	agentclient, dialer, err := BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
 	if err != nil {
 		return err
 	}
