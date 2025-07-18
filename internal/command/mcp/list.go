@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/tailscale/hujson"
 )
 
 func newList() *cobra.Command {
@@ -86,11 +88,23 @@ func runList(ctx context.Context) error {
 
 		// parse the configuration file as JSON
 		var data map[string]any
-		decoder := json.NewDecoder(file)
-		if err := decoder.Decode(&data); err != nil {
+		raw, err := io.ReadAll(file)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", configPath.Path, err)
+		}
+
+		parsed, err := hujson.Parse(raw)
+		if err != nil {
 			return fmt.Errorf("failed to parse %s: %w", configPath.Path, err)
 		}
 
+		parsed.Standardize()
+		cleanJson := parsed.Pack()
+
+		if err := json.Unmarshal(cleanJson, &data); err != nil {
+			return fmt.Errorf("failed to unmarshal cleaned JSON: %w", err)
+		}
+		
 		if mcpServers, ok := data[configPath.ConfigName].(map[string]any); ok {
 			// add metadata about the tool
 			config := make(map[string]any)
