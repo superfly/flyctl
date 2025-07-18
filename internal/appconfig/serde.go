@@ -77,8 +77,7 @@ func LoadConfigAsMap(path string) (rawConfig map[string]any, err error) {
 		return nil, err
 	}
 
-	rawConfig, err = patchRoot(rawConfig)
-	return rawConfig, err
+	return patchRoot(rawConfig)
 }
 
 func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
