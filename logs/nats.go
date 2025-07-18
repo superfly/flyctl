@@ -115,20 +115,23 @@ func fromNats(ctx context.Context, out chan<- LogEntry, nc *nats.Conn, opts *Log
 
 			break
 		}
-
-		out <- LogEntry{
-			Instance:  log.Fly.App.Instance,
-			Level:     log.Log.Level,
-			Message:   log.Message,
-			Region:    log.Fly.Region,
-			Timestamp: log.Timestamp,
-			Meta: Meta{
-				Instance: log.Fly.App.Instance,
-				Region:   log.Fly.Region,
-				Event:    struct{ Provider string }{log.Event.Provider},
-			},
-		}
+		out <- logToEntry(&log)
 	}
-
 	return
+}
+
+func logToEntry(log *natsLog) LogEntry {
+
+	return LogEntry{
+		Instance:  log.Fly.App.Instance,
+		Level:     log.Log.Level,
+		Message:   log.Message,
+		Region:    log.Fly.Region,
+		Timestamp: log.Timestamp,
+		Meta: Meta{
+			Instance: log.Fly.App.Instance,
+			Region:   log.Fly.Region,
+			Event:    struct{ Provider string }{log.Event.Provider},
+		},
+	}
 }
