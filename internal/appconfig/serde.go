@@ -73,8 +73,11 @@ func LoadConfigAsMap(path string) (rawConfig map[string]any, err error) {
 	} else {
 		err = toml.Unmarshal(buf, &rawConfig)
 	}
+	if err != nil {
+		return nil, err
+	}
 
-	return rawConfig, err
+	return patchRoot(rawConfig)
 }
 
 func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
