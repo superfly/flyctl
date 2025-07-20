@@ -79,6 +79,17 @@ func dirContains(glob string, patterns ...string) checkFn {
 	}
 }
 
+func or(checks ...checkFn) checkFn {
+	return func(dir string) bool {
+		for _, check := range checks {
+			if check(dir) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 type checkFn func(dir string) bool
 
 func checksPass(sourceDir string, checks ...checkFn) bool {
