@@ -19,9 +19,9 @@ import (
 func New() *cobra.Command {
 	const (
 		short      = `Deprecated: Unmanaged Postgres cluster commands'`
-		deprecated = "DEPRECATED: Unmanaged Fly Postgres is deprecated in favor of 'fly mpg' (Managed Postgres).\n" +
+		notice = "Unmanaged Fly Postgres is not supported by Fly.io Support and users are responsible for operations, management, and disaster recovery. If you'd like a managed, supported solution, try 'fly mpg' (Managed Postgres).\n" +
 			"Please visit https://fly.io/docs/mpg/overview/ for more information about Managed Postgres.\n"
-		long = deprecated
+		long = notice
 	)
 
 	cmd := command.New("postgres", short, long, nil)
@@ -30,7 +30,7 @@ func New() *cobra.Command {
 	// Add PreRun to show deprecation notice
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {
 		io := iostreams.FromContext(cmd.Context())
-		fmt.Fprintf(io.ErrOut, "\n%s\n", deprecated)
+		fmt.Fprintf(io.ErrOut, "\n%s\n", notice)
 	}
 
 	// Add the same PreRun to all subcommands
