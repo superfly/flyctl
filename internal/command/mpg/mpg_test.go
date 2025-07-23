@@ -584,6 +584,7 @@ func TestCreateCommand_Logic(t *testing.T) {
 					Disk            int                              `json:"disk"`
 					IpAssignments   uiex.ManagedClusterIpAssignments `json:"ip_assignments"`
 					PGVectorEnabled bool                             `json:"pgvector_enabled"`
+					PostGISEnabled  bool                             `json:"postgis_enabled"`
 				}{
 					Id:              expectedCluster.Id,
 					Name:            expectedCluster.Name,
@@ -591,6 +592,7 @@ func TestCreateCommand_Logic(t *testing.T) {
 					Plan:            expectedCluster.Plan,
 					Organization:    expectedCluster.Organization,
 					PGVectorEnabled: false,
+					PostGISEnabled:  false,
 				},
 			}, nil
 		},

@@ -228,6 +228,7 @@ type CreateClusterInput struct {
 	OrgSlug         string `json:"org_slug"`
 	Disk            int    `json:"disk"`
 	PGVectorEnabled bool   `json:"pgvector_enabled"`
+	PostGISEnabled  bool   `json:"postgis_enabled"`
 }
 
 type CreateClusterResponse struct {
@@ -245,6 +246,7 @@ type CreateClusterResponse struct {
 		Disk            int                         `json:"disk"`
 		IpAssignments   ManagedClusterIpAssignments `json:"ip_assignments"`
 		PGVectorEnabled bool                        `json:"pgvector_enabled"`
+		PostGISEnabled  bool                        `json:"postgis_enabled"`
 	} `json:"data"`
 }
 

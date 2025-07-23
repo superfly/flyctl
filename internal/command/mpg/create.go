@@ -27,6 +27,7 @@ type CreateClusterParams struct {
 	Plan            string
 	VolumeSizeGB    int
 	PGVectorEnabled bool
+	PostGISEnabled  bool
 }
 
 // PlanDetails holds the details for each managed postgres plan.
@@ -90,6 +91,11 @@ func newCreate() *cobra.Command {
 		flag.Bool{
 			Name:        "pgvector",
 			Description: "Enable PGVector for the Postgres cluster",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "postgis",
+			Description: "Enable PostGIS for the Postgres cluster",
 			Default:     false,
 		},
 	)
@@ -222,6 +228,7 @@ func runCreate(ctx context.Context) error {
 		Plan:            plan,
 		VolumeSizeGB:    flag.GetInt(ctx, "volume-size"),
 		PGVectorEnabled: flag.GetBool(ctx, "pgvector"),
+		PostGISEnabled:  flag.GetBool(ctx, "postgis"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
@@ -233,6 +240,7 @@ func runCreate(ctx context.Context) error {
 		OrgSlug:         params.OrgSlug,
 		Disk:            params.VolumeSizeGB,
 		PGVectorEnabled: params.PGVectorEnabled,
+		PostGISEnabled:  params.PostGISEnabled,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
@@ -289,6 +297,7 @@ func runCreate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
 	fmt.Fprintf(io.Out, "  PGVector: %t\n", response.Data.PGVectorEnabled)
+	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
 
 	return nil
