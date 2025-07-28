@@ -455,6 +455,8 @@ type AppData struct {
 	Deployed bool   `json:"deployed"`
 	// Fly platform version
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+	// Target to use for for CNAME DNS records
+	CnameTarget string `json:"cnameTarget"`
 	// Secrets set on the application
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 	// Organization that owns this app
@@ -472,6 +474,9 @@ func (v *AppData) GetDeployed() bool { return v.Deployed }
 
 // GetPlatformVersion returns AppData.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *AppData) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
+
+// GetCnameTarget returns AppData.CnameTarget, and is useful for accessing the field via an interface.
+func (v *AppData) GetCnameTarget() string { return v.CnameTarget }
 
 // GetSecrets returns AppData.Secrets, and is useful for accessing the field via an interface.
 func (v *AppData) GetSecrets() []AppDataSecretsSecret { return v.Secrets }
@@ -726,6 +731,9 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) GetPlatformVersion() PlatformVer
 	return v.AppData.PlatformVersion
 }
 
+// GetCnameTarget returns CreateAppCreateAppCreateAppPayloadApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *CreateAppCreateAppCreateAppPayloadApp) GetCnameTarget() string { return v.AppData.CnameTarget }
+
 // GetSecrets returns CreateAppCreateAppCreateAppPayloadApp.Secrets, and is useful for accessing the field via an interface.
 func (v *CreateAppCreateAppCreateAppPayloadApp) GetSecrets() []AppDataSecretsSecret {
 	return v.AppData.Secrets
@@ -774,6 +782,8 @@ type __premarshalCreateAppCreateAppCreateAppPayloadApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -796,6 +806,7 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) __premarshalJSON() (*__premarsha
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1576,6 +1587,9 @@ func (v *GetAddOnAddOnApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAddOnAddOnApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetCnameTarget returns GetAddOnAddOnApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetCnameTarget() string { return v.AppData.CnameTarget }
+
 // GetSecrets returns GetAddOnAddOnApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
 
@@ -1616,6 +1630,8 @@ type __premarshalGetAddOnAddOnApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1636,6 +1652,7 @@ func (v *GetAddOnAddOnApp) __premarshalJSON() (*__premarshalGetAddOnAddOnApp, er
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1862,6 +1879,9 @@ func (v *GetAppApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetCnameTarget returns GetAppApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetCnameTarget() string { return v.AppData.CnameTarget }
+
 // GetSecrets returns GetAppApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
 
@@ -1902,6 +1922,8 @@ type __premarshalGetAppApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1922,6 +1944,7 @@ func (v *GetAppApp) __premarshalJSON() (*__premarshalGetAppApp, error) {
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1958,6 +1981,9 @@ func (v *GetAppWithAddonsApp) GetDeployed() bool { return v.AppData.Deployed }
 func (v *GetAppWithAddonsApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
 }
+
+// GetCnameTarget returns GetAppWithAddonsApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetCnameTarget() string { return v.AppData.CnameTarget }
 
 // GetSecrets returns GetAppWithAddonsApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
@@ -2001,6 +2027,8 @@ type __premarshalGetAppWithAddonsApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -2022,6 +2050,7 @@ func (v *GetAppWithAddonsApp) __premarshalJSON() (*__premarshalGetAppWithAddonsA
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -2183,6 +2212,11 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetPlatformVersion() PlatformVe
 	return v.AppData.PlatformVersion
 }
 
+// GetCnameTarget returns GetAppsByRoleAppsAppConnectionNodesApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetCnameTarget() string {
+	return v.AppData.CnameTarget
+}
+
 // GetSecrets returns GetAppsByRoleAppsAppConnectionNodesApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetSecrets() []AppDataSecretsSecret {
 	return v.AppData.Secrets
@@ -2227,6 +2261,8 @@ type __premarshalGetAppsByRoleAppsAppConnectionNodesApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -2247,6 +2283,7 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) __premarshalJSON() (*__premarsh
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -3349,6 +3386,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3650,6 +3688,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3761,6 +3800,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3820,6 +3860,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3887,6 +3928,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
