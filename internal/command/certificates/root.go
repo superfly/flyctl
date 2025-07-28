@@ -282,6 +282,11 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		return err
 	}
 
+	cnameTarget, err := apiClient.GetAppCNAMETarget(ctx, appName)
+	if err != nil {
+		return err
+	}
+
 	var ipV4 fly.IPAddress
 	var ipV6 fly.IPAddress
 	var configuredipV4 bool
@@ -354,6 +359,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 				Certificate:           cert,
 				IPv4Address:           ipV4,
 				IPv6Address:           ipV6,
+				CNAMETarget:           cnameTarget,
 				ExternalProxyDetected: externalProxyHint,
 			})
 		} else {
@@ -373,6 +379,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 				Certificate:           cert,
 				IPv4Address:           ipV4,
 				IPv6Address:           ipV6,
+				CNAMETarget:           cnameTarget,
 				ExternalProxyDetected: externalProxyHint,
 			})
 		}
@@ -388,6 +395,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 				Certificate:           cert,
 				IPv4Address:           ipV4,
 				IPv6Address:           ipV6,
+				CNAMETarget:           cnameTarget,
 				ExternalProxyDetected: externalProxyHint,
 			})
 		} else {
@@ -426,13 +434,13 @@ type DNSSetupFlags struct {
 	Certificate           *fly.AppCertificate
 	IPv4Address           fly.IPAddress
 	IPv6Address           fly.IPAddress
+	CNAMETarget           string
 	ExternalProxyDetected bool
 }
 
 func printDNSSetupOptions(opts DNSSetupFlags) error {
 	io := iostreams.FromContext(opts.Context)
 	colorize := io.ColorScheme()
-	appName := appconfig.NameFromContext(opts.Context)
 	hasIPv4 := opts.IPv4Address.Address != ""
 	hasIPv6 := opts.IPv6Address.Address != ""
 	promoteExtProxy := opts.ExternalProxyDetected && !opts.Certificate.IsWildcard
@@ -491,9 +499,9 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 	fmt.Fprintln(io.Out)
 	optionNum++
 
-	if !opts.Certificate.IsApex && (hasIPv4 || hasIPv6) {
+	if !opts.Certificate.IsApex && (hasIPv4 || hasIPv6) && opts.CNAMETarget != "" {
 		fmt.Fprintf(io.Out, colorize.Cyan("%d. CNAME record\n\n"), optionNum)
-		fmt.Fprintf(io.Out, "   CNAME %s → %s.fly.dev\n", getRecordName(opts.Hostname), appName)
+		fmt.Fprintf(io.Out, "   CNAME %s → %s\n", getRecordName(opts.Hostname), opts.CNAMETarget)
 		fmt.Fprintln(io.Out)
 		optionNum++
 	}

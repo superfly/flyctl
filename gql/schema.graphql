@@ -792,6 +792,11 @@ type App implements Node {
     """
     last: Int
   ): AppChangeConnection!
+
+  """
+  Target to use for for CNAME DNS records
+  """
+  cnameTarget: String
   config: AppConfig!
   createdAt: ISO8601DateTime!
   currentLock: AppLock
