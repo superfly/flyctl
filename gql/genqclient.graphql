@@ -147,6 +147,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}

@@ -53,6 +53,7 @@ type Client struct {
 	GetAppCompactFunc                      func(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetDeployerAppByOrgFunc                func(ctx context.Context, orgID string) (*fly.App, error)
 	GetAppCurrentReleaseMachinesFunc       func(ctx context.Context, appName string) (*fly.Release, error)
+	GetAppCNAMETargetFunc                  func(ctx context.Context, appName string) (string, error)
 	GetAppHostIssuesFunc                   func(ctx context.Context, appName string) ([]fly.HostIssue, error)
 	GetAppLimitedAccessTokensFunc          func(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
 	GetAppLogsFunc                         func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
@@ -261,6 +262,10 @@ func (m *Client) GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.Ap
 
 func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error) {
 	return m.GetAppCurrentReleaseMachinesFunc(ctx, appName)
+}
+
+func (m *Client) GetAppCNAMETarget(ctx context.Context, appName string) (string, error) {
+	return m.GetAppCNAMETargetFunc(ctx, appName)
 }
 
 func (m *Client) GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error) {
