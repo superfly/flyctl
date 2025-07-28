@@ -104,7 +104,7 @@ func runList(ctx context.Context) error {
 		if err := json.Unmarshal(cleanJson, &data); err != nil {
 			return fmt.Errorf("failed to unmarshal cleaned JSON: %w", err)
 		}
-		
+
 		if mcpServers, ok := data[configPath.ConfigName].(map[string]any); ok {
 			// add metadata about the tool
 			config := make(map[string]any)
