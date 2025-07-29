@@ -279,3 +279,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259 // indirect
 )
+
+replace github.com/docker/docker => github.com/moby/moby v27.5.1+incompatible
+
+replace golang.zx2c4.com/wireguard/tun/netstack => golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
