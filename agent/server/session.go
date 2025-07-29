@@ -25,9 +25,9 @@ import (
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/wg"
 
-	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/lib/buildinfo"
+	"github.com/superfly/flyctl/lib/config"
+	"github.com/superfly/flyctl/lib/flyutil"
 )
 
 type id uint64

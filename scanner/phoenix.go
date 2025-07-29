@@ -10,7 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/lib/command/launch/plan"
 )
 
 func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {

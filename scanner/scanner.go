@@ -8,8 +8,8 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/lib/appconfig"
+	"github.com/superfly/flyctl/lib/command/launch/plan"
 	"github.com/superfly/flyctl/iostreams"
 )
 

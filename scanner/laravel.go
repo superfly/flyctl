@@ -17,7 +17,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/lib/command/launch/plan"
 )
 
 // setup Laravel with a sqlite database

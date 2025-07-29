@@ -9,7 +9,7 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	extensions_core "github.com/superfly/flyctl/lib/command/extensions/core"
 )
 
 func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {

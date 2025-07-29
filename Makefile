@@ -9,10 +9,10 @@ generate:
 
 build: generate
 	@echo Running Build
-	CGO_ENABLED=0 go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.branchName=$(GIT_BRANCH)'" .
+	CGO_ENABLED=0 go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/lib/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/lib/buildinfo.branchName=$(GIT_BRANCH)'" .
 
 test: FORCE
-	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
+	go test ./... -ldflags="-X 'github.com/superfly/flyctl/lib/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
 
 raw-preflight-test:
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
@@ -37,6 +37,6 @@ pre:
 
 # Installs a "production" build. Can be used to test metrics against production data.
 install-fake-production:
-	go install -tags production -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=2000-01-01T00:00:00Z' -X 'github.com/superfly/flyctl/internal/buildinfo.buildVersion=9.9.9'" .
+	go install -tags production -ldflags="-X 'github.com/superfly/flyctl/lib/buildinfo.buildDate=2000-01-01T00:00:00Z' -X 'github.com/superfly/flyctl/lib/buildinfo.buildVersion=9.9.9'" .
 
 FORCE:

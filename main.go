@@ -15,9 +15,9 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/cli"
-	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/lib/buildinfo"
+	"github.com/superfly/flyctl/lib/cli"
+	"github.com/superfly/flyctl/lib/sentry"
 )
 
 func main() {

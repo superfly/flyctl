@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/jinzhu/copier"
-	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/lib/sentry"
 )
 
 // Clone clones *public fields* in a structure.

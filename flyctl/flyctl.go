@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/instrument"
+	"github.com/superfly/flyctl/lib/instrument"
 	"github.com/superfly/flyctl/terminal"
 	"gopkg.in/yaml.v2"
 )

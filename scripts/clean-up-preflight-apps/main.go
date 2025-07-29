@@ -10,8 +10,8 @@ import (
 	"github.com/google/shlex"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/lib/flyutil"
+	"github.com/superfly/flyctl/lib/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
 

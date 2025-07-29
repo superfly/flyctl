@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/lib/flyutil"
+	"github.com/superfly/flyctl/lib/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
 )

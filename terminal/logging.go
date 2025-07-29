@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/lib/logger"
 )
 
 var DefaultLogger *logger.Logger

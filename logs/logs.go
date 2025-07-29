@@ -7,7 +7,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/lib/wireguard"
 )
 
 type LogOptions struct {

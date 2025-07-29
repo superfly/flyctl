@@ -11,7 +11,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/internal/command/root"
+	"github.com/superfly/flyctl/lib/command/root"
 )
 
 func newLintCmd() *cobra.Command {

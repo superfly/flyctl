@@ -5,7 +5,7 @@ import (
 	"net"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/lib/logger"
 	"github.com/superfly/flyctl/terminal"
 	"golang.zx2c4.com/wireguard/device"
 )

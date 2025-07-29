@@ -9,9 +9,9 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/internal/command/ssh"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/lib/command/ssh"
+	"github.com/superfly/flyctl/lib/flag"
+	"github.com/superfly/flyctl/lib/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 

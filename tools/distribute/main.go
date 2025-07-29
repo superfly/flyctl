@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/flyctl/lib/version"
 	"github.com/superfly/flyctl/tools/distribute/bundle"
 	"github.com/superfly/flyctl/tools/distribute/flypkgs"
 )

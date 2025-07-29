@@ -3,8 +3,8 @@ package main
 import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/root"
+	"github.com/superfly/flyctl/lib/command"
+	"github.com/superfly/flyctl/lib/command/root"
 )
 
 func newStatsCmd() *cobra.Command {

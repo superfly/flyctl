@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/lib/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 

@@ -10,11 +10,11 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
-	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/watch"
+	"github.com/superfly/flyctl/lib/buildinfo"
+	"github.com/superfly/flyctl/lib/flapsutil"
+	"github.com/superfly/flyctl/lib/flyutil"
+	mach "github.com/superfly/flyctl/lib/machine"
+	"github.com/superfly/flyctl/lib/watch"
 
 	"github.com/superfly/fly-go/flaps"
 	iostreams "github.com/superfly/flyctl/iostreams"

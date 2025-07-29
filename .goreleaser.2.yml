@@ -19,9 +19,9 @@ builds:
       - arm64
       - amd64
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.commit={{.ShortCommit}}
     tags:
       - "{{.Env.BUILD_ENV}}"
 
@@ -34,9 +34,9 @@ builds:
       - arm64
       - amd64
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.commit={{.ShortCommit}}
     tags:
       - "{{.Env.BUILD_ENV}}"
 
@@ -49,9 +49,9 @@ builds:
       - arm64
       - amd64
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/lib/buildinfo.commit={{.ShortCommit}}
     tags:
       - "{{.Env.BUILD_ENV}}"
 

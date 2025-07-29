@@ -3,7 +3,7 @@ package flypkgs
 import (
 	"time"
 
-	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/flyctl/lib/version"
 )
 
 type Release struct {

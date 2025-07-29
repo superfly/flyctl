@@ -13,10 +13,10 @@ import (
 	"github.com/azazeal/pause"
 
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/filemu"
-	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/lib/config"
+	"github.com/superfly/flyctl/lib/filemu"
+	"github.com/superfly/flyctl/lib/logger"
+	"github.com/superfly/flyctl/lib/sentry"
 )
 
 type forkError struct{ error }

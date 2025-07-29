@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/flyctl/lib/version"
 )
 
 type gitError struct {

@@ -13,8 +13,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/lib/command/launch/plan"
+	"github.com/superfly/flyctl/lib/flyerr"
 	"gopkg.in/yaml.v2"
 )
 
