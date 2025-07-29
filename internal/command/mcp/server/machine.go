@@ -309,7 +309,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Restart policy for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"no", "always", "on-fail"},
+				Enum:        []string{"no", "always", "on-failure"},
 			},
 			"rm": {
 				Description: "Automatically remove the Machine when it exits",
@@ -986,7 +986,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Restart policy for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"no", "always", "on-fail"},
+				Enum:        []string{"no", "always", "on-failure"},
 			},
 			"rm": {
 				Description: "Automatically remove the Machine when it exits",
@@ -1482,7 +1482,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Restart policy for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"no", "always", "on-fail"},
+				Enum:        []string{"no", "always", "on-failure"},
 			},
 			"schedule": {
 				Description: "Schedule for the new machine",
