@@ -8,7 +8,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 
-	"github.com/superfly/flyctl/logs"
+	"github.com/superfly/fly-go"
 
 	"github.com/superfly/flyctl/internal/format"
 )
@@ -43,7 +43,7 @@ func HideAllocID() LogOption {
 	}
 }
 
-func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
+func LogEntry(w io.Writer, entry fly.LogEntry, opts ...LogOption) (err error) {
 	options := &LogOptions{}
 	for _, opt := range opts {
 		opt(options)

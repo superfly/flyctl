@@ -45,5 +45,5 @@ func (opts *LogOptions) toNatsSubject() (subject string) {
 
 type LogStream interface {
 	Err() error
-	Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry
+	Stream(ctx context.Context, opts *LogOptions) <-chan fly.LogEntry
 }
