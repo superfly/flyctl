@@ -4,10 +4,10 @@ schema: gql/schema.graphql
 operations:
   - gql/genqclient.graphql
   - agent/**.go
-  - internal/appconfig/*.go
-  - internal/command/**/*.go
-  - internal/command/**/**/*.go
-  - internal/build/imgsrc/*.go
+  - lib/appconfig/*.go
+  - lib/command/**/*.go
+  - lib/command/**/**/*.go
+  - lib/build/imgsrc/*.go
   - scripts/clean-up-preflight-apps/*.go
 bindings:
   JSON:
