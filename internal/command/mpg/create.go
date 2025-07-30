@@ -88,8 +88,7 @@ func newCreate() *cobra.Command {
 			Default:     10,
 		},
 		flag.Bool{
-		flag.Bool{
-			Name:        "postgis",
+			Name:        "enable-postgis-support",
 			Description: "Enable PostGIS for the Postgres cluster",
 			Default:     false,
 		},
@@ -217,12 +216,12 @@ func runCreate(ctx context.Context) error {
 	}
 
 	params := &CreateClusterParams{
-		PostGISEnabled:  flag.GetBool(ctx, "postgis"),
 		Name:           appName,
 		OrgSlug:        slug,
 		Region:         selectedRegion.Code,
 		Plan:           plan,
 		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
+		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
