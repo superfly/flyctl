@@ -184,7 +184,7 @@ func runCertificatesShow(ctx context.Context) error {
 		return nil
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, false)
 }
 
 func runCertificatesCheck(ctx context.Context) error {
@@ -203,7 +203,7 @@ func runCertificatesCheck(ctx context.Context) error {
 		return nil
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, false)
 }
 
 func runCertificatesAdd(ctx context.Context) error {
@@ -216,7 +216,7 @@ func runCertificatesAdd(ctx context.Context) error {
 		return err
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, true)
 }
 
 func runCertificatesRemove(ctx context.Context) error {
@@ -262,10 +262,10 @@ func runCertificatesSetup(ctx context.Context) error {
 		return err
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, true)
 }
 
-func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck) error {
+func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck, forcePrintDns bool) error {
 	io := iostreams.FromContext(ctx)
 
 	// print a blank line, easier to read!
@@ -352,7 +352,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	if cert.IsApex {
 		addDNSConfig := !configuredipV4 || !configuredipV6
 
-		if addDNSConfig {
+		if addDNSConfig || forcePrintDns {
 			printDNSSetupOptions(DNSSetupFlags{
 				Context:               ctx,
 				Hostname:              hostname,
@@ -372,7 +372,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	} else if cert.IsWildcard {
 		addDNSConfig := !configuredipV4 || !cert.AcmeDNSConfigured
 
-		if addDNSConfig {
+		if addDNSConfig || forcePrintDns {
 			printDNSSetupOptions(DNSSetupFlags{
 				Context:               ctx,
 				Hostname:              hostname,
@@ -388,7 +388,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		nothingConfigured := !(configuredipV4 && configuredipV6)
 		onlyV4Configured := configuredipV4 && !configuredipV6
 
-		if nothingConfigured || onlyV4Configured {
+		if nothingConfigured || onlyV4Configured || forcePrintDns {
 			printDNSSetupOptions(DNSSetupFlags{
 				Context:               ctx,
 				Hostname:              hostname,
