@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
@@ -462,7 +463,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		_, dialer, err := ssh.BringUpAgent(ctx, client, app, *network, false)
+		_, dialer, err := agent.BringUpAgent(ctx, client, app, *network, false)
 		if err != nil {
 			return err
 		}

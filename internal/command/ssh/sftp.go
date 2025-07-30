@@ -15,6 +15,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -100,7 +101,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, fmt.Errorf("get app network: %w", err)
 	}
 
-	agentclient, dialer, err := BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
 	if err != nil {
 		return nil, err
 	}
