@@ -1,11 +1,11 @@
 package imgsrc
 
 import (
+	"context"
 	"fmt"
 
-	"context"
-
 	"github.com/pkg/errors"
+
 	"github.com/superfly/flyctl/internal/build/imgsrc/builtins"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -126,7 +126,9 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		builderType, builderRegion := getBuilderInfo(ctx, dockerFactory)
+
+		if err := pushToFly(ctx, docker, streams, opts.Tag, builderType, builderRegion); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}

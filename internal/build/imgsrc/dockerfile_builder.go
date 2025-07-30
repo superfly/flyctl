@@ -25,6 +25,10 @@ import (
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -34,9 +38,6 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
 type dockerfileBuilder struct{}
@@ -270,10 +271,12 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	builderType, builderRegion := getBuilderInfo(ctx, dockerFactory)
+
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, docker, streams, opts.Tag, builderType, builderRegion); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
@@ -521,7 +524,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
-func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
+func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string, builderType string, builderRegion string) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_registry", trace.WithAttributes(attribute.String("tag", tag)))
 	defer span.End()
 
@@ -530,6 +533,12 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 			tracing.RecordError(span, err, "failed to push to fly registry")
 		}
 	}()
+
+	// Add builder type and region to span attributes
+	span.SetAttributes(
+		attribute.String("builder.type", builderType),
+		attribute.String("builder.region", builderRegion),
+	)
 
 	metrics.Started(ctx, "image_push")
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
@@ -543,6 +552,9 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 		return errors.Wrap(err, "error pushing image to registry")
 	}
 	defer pushResp.Close() // skipcq: GO-S2307
+
+	// Send enhanced metrics with builder type and region
+	SendEnhancedImagePushMetrics(ctx, builderType, builderRegion)
 	sendImgPushMetrics()
 
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
@@ -558,4 +570,13 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	}
 
 	return nil
+}
+
+// SendEnhancedImagePushMetrics sends enhanced metrics for image push operations
+// with builder type and region information
+func SendEnhancedImagePushMetrics(ctx context.Context, builderType, builderRegion string) {
+	metrics.Send(ctx, "image_push/enhanced", map[string]interface{}{
+		"builder_type":   builderType,
+		"builder_region": builderRegion,
+	})
 }

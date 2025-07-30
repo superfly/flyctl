@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/iostreams"
@@ -216,7 +217,9 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	build.BuildFinish()
 
 	build.PushStart()
-	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+	builderType, builderRegion := getBuilderInfo(ctx, dockerFactory)
+
+	if err := pushToFly(ctx, docker, streams, opts.Tag, builderType, builderRegion); err != nil {
 		build.PushFinish()
 		return nil, "", err
 	}
