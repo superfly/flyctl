@@ -21,13 +21,12 @@ import (
 )
 
 type CreateClusterParams struct {
-	Name            string
-	OrgSlug         string
-	Region          string
-	Plan            string
-	VolumeSizeGB    int
-	PGVectorEnabled bool
-	PostGISEnabled  bool
+	Name           string
+	OrgSlug        string
+	Region         string
+	Plan           string
+	VolumeSizeGB   int
+	PostGISEnabled bool
 }
 
 // PlanDetails holds the details for each managed postgres plan.
@@ -89,12 +88,7 @@ func newCreate() *cobra.Command {
 			Default:     10,
 		},
 		flag.Bool{
-			Name:        "pgvector",
-			Description: "Enable PGVector for the Postgres cluster",
-			Default:     false,
-		},
-		flag.Bool{
-			Name:        "postgis",
+			Name:        "enable-postgis-support",
 			Description: "Enable PostGIS for the Postgres cluster",
 			Default:     false,
 		},
@@ -222,25 +216,23 @@ func runCreate(ctx context.Context) error {
 	}
 
 	params := &CreateClusterParams{
-		Name:            appName,
-		OrgSlug:         slug,
-		Region:          selectedRegion.Code,
-		Plan:            plan,
-		VolumeSizeGB:    flag.GetInt(ctx, "volume-size"),
-		PGVectorEnabled: flag.GetBool(ctx, "pgvector"),
-		PostGISEnabled:  flag.GetBool(ctx, "postgis"),
+		Name:           appName,
+		OrgSlug:        slug,
+		Region:         selectedRegion.Code,
+		Plan:           plan,
+		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
+		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	input := uiex.CreateClusterInput{
-		Name:            params.Name,
-		Region:          params.Region,
-		Plan:            params.Plan,
-		OrgSlug:         params.OrgSlug,
-		Disk:            params.VolumeSizeGB,
-		PGVectorEnabled: params.PGVectorEnabled,
-		PostGISEnabled:  params.PostGISEnabled,
+		Name:           params.Name,
+		Region:         params.Region,
+		Plan:           params.Plan,
+		OrgSlug:        params.OrgSlug,
+		Disk:           params.VolumeSizeGB,
+		PostGISEnabled: params.PostGISEnabled,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
@@ -296,7 +288,6 @@ func runCreate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
-	fmt.Fprintf(io.Out, "  PGVector: %t\n", response.Data.PGVectorEnabled)
 	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
 
