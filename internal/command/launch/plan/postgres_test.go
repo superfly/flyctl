@@ -201,6 +201,72 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 	}
 }
 
+// TestDefaultPostgres_RegionSwitching tests that when MPG region switching occurs,
+// the overall LaunchPlan.RegionCode is updated, not just the postgres plan
+func TestDefaultPostgres_RegionSwitching(t *testing.T) {
+	t.Run("region switching updates overall app region", func(t *testing.T) {
+		// Create a context with iostreams (non-interactive to avoid prompts)
+		ctx := context.Background()
+		ctx = iostreams.NewContext(ctx, iostreams.System())
+
+		// Create a test context with default db flag
+		flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		flagSet.String("db", "true", "")
+		ctx = flagctx.NewContext(ctx, flagSet)
+
+		// Set up mock UIEX client where iad doesn't support MPG but lax does
+		mpgRegions := []uiex.MPGRegion{
+			{Code: "lax", Available: true},
+			{Code: "fra", Available: true},
+			// iad is not in the list, so it's not available
+		}
+		mockUIEX := &mockUIEXClient{mpgRegions: mpgRegions}
+		ctx = uiexutil.NewContextWithClient(ctx, mockUIEX)
+
+		// Set up mock API client for platform regions
+		mockClient := &mock.Client{
+			PlatformRegionsFunc: func(ctx context.Context) ([]fly.Region, *fly.Region, error) {
+				return []fly.Region{
+					{Code: "iad", Name: "Ashburn, Virginia (US)"},
+					{Code: "lax", Name: "Los Angeles, California (US)"},
+					{Code: "fra", Name: "Frankfurt, Germany"},
+				}, &fly.Region{Code: "iad", Name: "Ashburn, Virginia (US)"}, nil
+			},
+		}
+		ctx = flyutil.NewContextWithClient(ctx, mockClient)
+
+		// Create a launch plan starting with iad region
+		plan := &LaunchPlan{
+			AppName:    "test-app",
+			OrgSlug:    "test-org",
+			RegionCode: "iad", // Start with iad
+		}
+
+		originalRegion := plan.RegionCode
+
+		result, err := DefaultPostgres(ctx, plan, true) // mpgEnabled = true
+
+		if err != nil {
+			t.Errorf("expected no error but got: %v", err)
+			return
+		}
+
+		// In non-interactive mode, it should fall back to unmanaged postgres
+		// and NOT change the region (since user can't be prompted)
+		if result.FlyPostgres == nil {
+			t.Errorf("expected fly postgres plan but got nil")
+		}
+		if result.ManagedPostgres != nil {
+			t.Errorf("expected no managed postgres plan but got one")
+		}
+
+		// Region should remain unchanged in non-interactive mode
+		if plan.RegionCode != originalRegion {
+			t.Errorf("expected region to remain %s but it changed to %s", originalRegion, plan.RegionCode)
+		}
+	})
+}
+
 func TestCreateFlyPostgresPlan(t *testing.T) {
 	plan := &LaunchPlan{
 		AppName:    "test-app",

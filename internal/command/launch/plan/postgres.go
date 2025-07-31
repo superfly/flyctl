@@ -192,12 +192,13 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan) (Postg
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	// Update the plan with the new region
+	// Update the plan with the new region - this changes the overall app region,
+	// not just the postgres region, so the entire app launches in the MPG-supported region
 	selectedRegion := availableRegions[selectedIndex]
 	plan.RegionCode = selectedRegion.Code
 
 	if io != nil {
-		fmt.Fprintf(io.Out, "Switched to region %s (%s) for Managed Postgres support.\n", selectedRegion.Name, selectedRegion.Code)
+		fmt.Fprintf(io.Out, "Switched to region %s (%s) for Managed Postgres support.\nYour app will now launch in this region.\n", selectedRegion.Name, selectedRegion.Code)
 	}
 
 	return createManagedPostgresPlan(ctx, plan, "basic"), nil
