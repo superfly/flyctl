@@ -236,7 +236,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		if !flag.GetBool(ctx, "no-db") {
 			switch srcInfo.DatabaseDesired {
 			case scanner.DatabaseKindPostgres:
-				lp.Postgres = plan.DefaultPostgres(lp, mpgEnabled)
+				lp.Postgres = plan.DefaultPostgres(ctx, lp, mpgEnabled)
 				planSource.postgresSource = scannerSource
 			case scanner.DatabaseKindMySQL:
 				// TODO
@@ -246,7 +246,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		}
 		// Force Postgres provisioning if --db flag is set
 		if flag.GetBool(ctx, "db") {
-			lp.Postgres = plan.DefaultPostgres(lp, mpgEnabled)
+			lp.Postgres = plan.DefaultPostgres(ctx, lp, mpgEnabled)
 			planSource.postgresSource = "forced by --db flag"
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {

@@ -1,7 +1,12 @@
 package plan
 
 import (
+	"context"
+	"fmt"
+
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/command/mpg"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type PostgresPlan struct {
@@ -26,18 +31,35 @@ func (p *PostgresPlan) Provider() any {
 	return nil
 }
 
-func DefaultPostgres(plan *LaunchPlan, mpgEnabled bool) PostgresPlan {
-	var vmRam, diskSizeGb, price int
+// DefaultPostgres returns the default postgres configuration, preferring managed postgres when available in the region
+func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) PostgresPlan {
+	// If managed postgres is enabled, check if it's available in the region
 	if mpgEnabled {
-		vmRam = 1024 // 1GB RAM for basic plan
-		diskSizeGb = 10
-		price = 38
-	} else {
-		vmRam = 256
-		diskSizeGb = 1
-		price = -1
+		validRegion, err := mpg.IsValidMPGRegion(ctx, plan.OrgSlug, plan.RegionCode)
+		if err == nil && validRegion {
+			// Managed postgres is available in this region, use it
+			return PostgresPlan{
+				ManagedPostgres: &ManagedPostgresPlan{
+					DbName:   plan.AppName + "-db",
+					Region:   plan.RegionCode,
+					Plan:     "basic",
+					DiskSize: diskSizeGb,
+				},
+			}
+		}
+
+		// Managed postgres is not available in this region, log warning and fall back to FlyPostgres
+		io := iostreams.FromContext(ctx)
+		if io != nil {
+			fmt.Fprintf(io.ErrOut, "Warning: Using Unmanaged Postgres because Managed Postgres isn't yet available in region %s\n", plan.RegionCode)
+		}
 	}
 
+	vmRam := 256
+	diskSizeGb := 1
+	price := -1
+
+	// Use FlyPostgres (either because mpgEnabled is false or managed postgres is not available in region)
 	return PostgresPlan{
 		// TODO: Once supabase is GA, we want to default to Supabase
 		FlyPostgres: &FlyPostgresPlan{
