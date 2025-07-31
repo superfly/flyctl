@@ -386,7 +386,7 @@ func run(ctx context.Context) (err error) {
 		status.VM.ProcessN = len(vm.Processes)
 	}
 
-	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.SupabasePostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
 	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
 	status.HasSentry = launchManifest.Plan.Sentry
 
