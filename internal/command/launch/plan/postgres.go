@@ -33,35 +33,6 @@ func (p *PostgresPlan) Provider() any {
 	return nil
 }
 
-// MPGPlanDetails represents details about a managed postgres plan
-type MPGPlanDetails struct {
-	Name       string
-	CPU        string
-	Memory     string
-	PricePerMo int
-}
-
-var mpgPlanDetails = map[string]MPGPlanDetails{
-	"basic": {
-		Name:       "Basic",
-		CPU:        "Shared x 2",
-		Memory:     "1 GB",
-		PricePerMo: 38,
-	},
-	"launch": {
-		Name:       "Launch",
-		CPU:        "Performance x 2",
-		Memory:     "8 GB",
-		PricePerMo: 282,
-	},
-	"scale": {
-		Name:       "Scale",
-		CPU:        "Performance x 4",
-		Memory:     "33 GB",
-		PricePerMo: 962,
-	},
-}
-
 // DefaultPostgres returns the default postgres configuration, with support for forcing postgres type and interactive region selection
 func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
@@ -141,7 +112,7 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 
 	// Display plan details if we have an IO context
 	if io != nil && planType != "" {
-		if planDetails, exists := mpgPlanDetails[planType]; exists {
+		if planDetails, exists := mpg.MPGPlans[planType]; exists {
 			fmt.Fprintf(io.Out, "\nSelected Managed Postgres Plan: %s\n", planDetails.Name)
 			fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
 			fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
