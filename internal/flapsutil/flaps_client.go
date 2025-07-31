@@ -28,6 +28,7 @@ type FlapsClient interface {
 	GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
+	GetLogs(ctx context.Context, machineID string) ([]fly.AppLogEntry, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadata(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcesses(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
