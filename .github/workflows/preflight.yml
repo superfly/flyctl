@@ -35,12 +35,14 @@ jobs:
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
       - uses: actions/download-artifact@v4
+        id: download-flyctl
         with:
           name: flyctl
           path: master-build
         continue-on-error: true
       # But if this is a manual run, build the binary first.
       - run: make
+        if: steps.download-flyctl.outcome == 'failure'
       - name: Run preflight tests
         id: preflight
         env:
