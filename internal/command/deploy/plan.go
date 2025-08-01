@@ -746,7 +746,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 }
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
-	leaseTimeout := int(md.leaseTimeout)
+	leaseTimeout := int(md.leaseTimeout.Seconds())
 	lease, err := md.flapsClient.AcquireLease(ctx, machID, &leaseTimeout)
 	if err != nil {
 		// TODO: tell users how to manually clear the lease
