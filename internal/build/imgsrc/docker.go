@@ -26,6 +26,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -37,8 +40,6 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -47,30 +48,39 @@ var (
 )
 
 type dockerClientFactory struct {
-	mode      DockerDaemonType
-	remote    bool
-	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
-	apiClient flyutil.Client
-	appName   string
+	mode          DockerDaemonType
+	remote        bool
+	buildFn       func(ctx context.Context, build *build) (*dockerclient.Client, error)
+	apiClient     flyutil.Client
+	appName       string
+	builderRegion string // Store the region for remote builders
 }
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *dockerClientFactory {
 	useManagedBuilder := daemonType.UseManagedBuilder()
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
-		return &dockerClientFactory{
-			mode:   daemonType,
-			remote: true,
-			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				cfg := config.FromContext(ctx)
-				if cfg.DisableManagedBuilders {
-					useManagedBuilder = false
-				}
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, useManagedBuilder, recreateBuilder)
-			},
+		factory := &dockerClientFactory{
+			mode:      daemonType,
+			remote:    true,
 			apiClient: apiClient,
 			appName:   appName,
 		}
+
+		factory.buildFn = func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+			cfg := config.FromContext(ctx)
+			if cfg.DisableManagedBuilders {
+				useManagedBuilder = false
+			}
+			client, region, err := newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, useManagedBuilder, recreateBuilder)
+			if err == nil {
+				// Store the region in the factory for later use
+				factory.builderRegion = region
+			}
+			return client, err
+		}
+
+		return factory
 	}
 
 	localFactory := func() *dockerClientFactory {
@@ -236,14 +246,14 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, useManagedBuilder bool, recreateBuilder bool) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, useManagedBuilder bool, recreateBuilder bool) (c *dockerclient.Client, region string, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
 	defer span.End()
 	if cachedClient != nil {
 		span.AddEvent("using cached docker client")
-		return cachedClient, nil
+		return cachedClient, "", nil
 	}
 
 	startedAt := time.Now()
@@ -264,7 +274,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	}
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
-		return nil, err
+		return nil, "", err
 	}
 
 	if useManagedBuilder {
@@ -286,7 +296,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to create remote builder request")
-			return nil, err
+			return nil, "", err
 		}
 
 		req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
@@ -297,7 +307,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		res, err := client.Do(req)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to get remote builder settings")
-			return nil, err
+			return nil, "", err
 		}
 
 		if res.StatusCode == http.StatusNotFound {
@@ -308,14 +318,14 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			err := apiClient.DeleteApp(ctx, app.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
-				return nil, err
+				return nil, "", err
 			}
 
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
 			machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, false)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to init remote builder machine")
-				return nil, err
+				return nil, "", err
 			}
 			logClearLinesAbove(streams, 1)
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Green("✓ compatible remote builder created"))
@@ -329,6 +339,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
+	builderRegion := machine.Region
 
 	build.SetBuilderMetaPart1(remoteBuilderType, remoteBuilderAppName, machine.ID)
 
@@ -384,7 +395,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	if host == "" {
 		err = errors.New("machine did not have a private IP")
 		tracing.RecordError(span, err, "failed to boot remote builder")
-		return nil, err
+		return nil, "", err
 	}
 
 	builderHostOverride, ok := os.LookupEnv("FLY_RCHAB_OVERRIDE_HOST")
@@ -409,10 +420,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			captureError(err)
 
 			if strings.Contains(err.Error(), "timed out") || strings.Contains(err.Error(), "websocket") {
-				return nil, generateBrokenWGError(err)
+				return nil, "", generateBrokenWGError(err)
 			}
 
-			return nil, err
+			return nil, "", err
 		}
 
 		wireguardHttpClient, err := dockerclient.NewClientWithOpts(wireguardOpts...)
@@ -423,7 +434,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			captureError(err)
 			tracing.RecordError(span, err, "failed to initialize remote client")
 
-			return nil, err
+			return nil, "", err
 		}
 
 		cachedClient = wireguardHttpClient
@@ -434,7 +445,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 
 			err = fmt.Errorf("failed building wgless options: %w", err)
 			captureError(err)
-			return nil, err
+			return nil, "", err
 		}
 
 		wireguardlessHttpsClient, err := dockerclient.NewClientWithOpts(wglessOpts...)
@@ -445,7 +456,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			captureError(err)
 			tracing.RecordError(span, err, "failed to initialize wgLessHttpClient")
 
-			return nil, err
+			return nil, "", err
 		}
 		cachedClient = wireguardlessHttpsClient
 	}
@@ -459,10 +470,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		tracing.RecordError(span, err, "failed to wait for docker daemon")
 
 		if errors.Is(err, agent.ErrTunnelUnavailable) {
-			return nil, generateBrokenWGError(err)
+			return nil, "", generateBrokenWGError(err)
 		}
 
-		return nil, err
+		return nil, "", err
 	case !up:
 		streams.StopProgressIndicator()
 		err := errors.New("remote builder app unavailable")
@@ -470,7 +481,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		terminal.Warnf("Remote builder did not start in time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
 		tracing.RecordError(span, err, "remote builder failed to start")
 
-		return nil, err
+		return nil, "", err
 	default:
 		if msg := fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName); streams.IsInteractive() {
 			streams.StopProgressIndicatorMsg(msg)
@@ -479,7 +490,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		}
 	}
 
-	return cachedClient, nil
+	return cachedClient, builderRegion, nil
 }
 
 func generateBrokenWGError(err error) flyerr.GenericErr {
@@ -788,4 +799,33 @@ func (d *dockerClientFactory) IsRemote() bool {
 
 func (d *dockerClientFactory) IsLocal() bool {
 	return !d.remote
+}
+
+// GetBuilderRegion returns the region of the builder
+func (d *dockerClientFactory) GetBuilderRegion() string {
+	return d.builderRegion
+}
+
+// getBuilderInfo determines the builder type and region for metrics and logging
+func getBuilderInfo(ctx context.Context, dockerFactory *dockerClientFactory) (builderType, builderRegion string) {
+	builderType = "local"
+	builderRegion = "unknown"
+
+	if dockerFactory.IsRemote() {
+		builderType = "remote"
+		builderRegion = dockerFactory.GetBuilderRegion()
+		if builderRegion == "" {
+			builderRegion = "remote"
+		}
+	} else {
+		// For local builders, try to get the nearest region
+		apiClient := flyutil.ClientFromContext(ctx)
+		if apiClient != nil {
+			if nearestRegion, err := apiClient.GetNearestRegion(ctx); err == nil {
+				builderRegion = nearestRegion.Code
+			}
+		}
+	}
+
+	return builderType, builderRegion
 }
