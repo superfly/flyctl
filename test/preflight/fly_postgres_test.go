@@ -15,7 +15,17 @@ import (
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
-func TestPostgres_singleNode(t *testing.T) {
+func TestPostgres(t *testing.T) {
+	t.Run("singleNode", WithParallel(testPostgres_singleNode))
+	t.Run("autostart", WithParallel(testPostgres_autostart))
+	t.Run("FlexFailover", WithParallel(testPostgres_FlexFailover))
+	t.Run("NoMachines", WithParallel(testPostgres_NoMachines))
+	t.Run("haConfigSave", WithParallel(testPostgres_haConfigSave))
+	t.Run("ImportSuccess", WithParallel(testPostgres_ImportSuccess))
+	t.Run("ImportFailure", WithParallel(testPostgres_ImportFailure))
+}
+
+func testPostgres_singleNode(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName() // Since this explicitly sets a size, no need to test on GPUs/alternate
 
@@ -33,7 +43,7 @@ func TestPostgres_singleNode(t *testing.T) {
 	f.Fly("config validate")
 }
 
-func TestPostgres_autostart(t *testing.T) {
+func testPostgres_autostart(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -70,7 +80,7 @@ func TestPostgres_autostart(t *testing.T) {
 	}
 }
 
-func TestPostgres_FlexFailover(t *testing.T) {
+func testPostgres_FlexFailover(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
@@ -108,7 +118,7 @@ func TestPostgres_FlexFailover(t *testing.T) {
 	require.NotEqual(t, newLeaderMachineID, leaderMachineID, "Failover failed! PG Leader didn't change!")
 }
 
-func TestPostgres_NoMachines(t *testing.T) {
+func testPostgres_NoMachines(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -129,7 +139,7 @@ func TestPostgres_NoMachines(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), "No machines are available on this app")
 }
 
-func TestPostgres_haConfigSave(t *testing.T) {
+func testPostgres_haConfigSave(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -174,7 +184,7 @@ func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string)
 	assert.Equal(tb, 0, ssh.ExitCode(), "failed to connect to postgres at %s: %s", appName, ssh.StdErr())
 }
 
-func TestPostgres_ImportSuccess(t *testing.T) {
+func testPostgres_ImportSuccess(t *testing.T) {
 	t.Skip()
 
 	f := testlib.NewTestEnvFromEnv(t)
@@ -227,7 +237,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
-func TestPostgres_ImportFailure(t *testing.T) {
+func testPostgres_ImportFailure(t *testing.T) {
 	t.Skip()
 
 	f := testlib.NewTestEnvFromEnv(t)
