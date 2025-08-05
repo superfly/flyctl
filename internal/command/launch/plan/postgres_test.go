@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/pflag"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
@@ -21,6 +22,20 @@ type mockUIEXClient struct {
 
 func (m *mockUIEXClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
 	return uiex.ListMPGRegionsResponse{Data: m.mpgRegions}, nil
+}
+
+// mockGenqClient implements the genq.Client interface for testing
+type mockGenqClient struct{}
+
+func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, resp *genq.Response) error {
+	// Mock the GetOrganization response - just return the same slug
+	// This simulates the ResolveOrganizationSlug behavior
+	resp.Data = map[string]interface{}{
+		"organization": map[string]interface{}{
+			"rawSlug": "test-org", // Return a fixed value for testing
+		},
+	}
+	return nil
 }
 
 func (m *mockUIEXClient) ListManagedClusters(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
@@ -156,6 +171,9 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 						{Code: "fra", Name: "Frankfurt, Germany"},
 					}, &fly.Region{Code: "iad", Name: "Ashburn, Virginia (US)"}, nil
 				},
+				GenqClientFunc: func() genq.Client {
+					return &mockGenqClient{}
+				},
 			}
 			ctx = flyutil.NewContextWithClient(ctx, mockClient)
 
@@ -231,6 +249,9 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 					{Code: "lax", Name: "Los Angeles, California (US)"},
 					{Code: "fra", Name: "Frankfurt, Germany"},
 				}, &fly.Region{Code: "iad", Name: "Ashburn, Virginia (US)"}, nil
+			},
+			GenqClientFunc: func() genq.Client {
+				return &mockGenqClient{}
 			},
 		}
 		ctx = flyutil.NewContextWithClient(ctx, mockClient)
