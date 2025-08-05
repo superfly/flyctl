@@ -184,7 +184,8 @@ type testingTWrapper interface {
 	TempDir() string
 }
 
-// Fly runs a flyctl the result
+// Fly runs flyctl and returns the result.
+// It fails the test if the command exits with a non-zero status.
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	if f.VMSize != "" {
 		if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
@@ -195,19 +196,11 @@ func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
-// FlyAllowExitFailure runs a flyctl command and returns the result, but does not fail the test if the command exits with a non-zero status
+// FlyAllowExitFailure runs flyctl command and returns the result.
+// It does not fail the test even if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
-
-// FlyC runs a flyctl command with a context and returns the result
-func (f *FlyctlTestEnv) FlyC(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
-	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
-}
-
-// func (f *FlyctlTestEnv) FlyAllowExitFailure(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
-// 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
-// }
 
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
