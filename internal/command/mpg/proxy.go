@@ -103,7 +103,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 	}
 
 	// Resolve organization slug to handle aliases
-	resolvedOrgSlug, err := ResolveOrganizationSlug(ctx, orgSlug)
+	resolvedOrgSlug, err := AliasedOrganizationSlug(ctx, orgSlug)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to resolve organization slug: %w", err)
 	}

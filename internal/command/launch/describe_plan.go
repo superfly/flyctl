@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/redis"
 )
 
@@ -22,12 +23,19 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 		return describeFlyPostgresPlan(provider)
 	case *plan.SupabasePostgresPlan:
 		return describeSupabasePostgresPlan(provider, launchPlan)
+	case *plan.ManagedPostgresPlan:
+		return describeManagedPostgresPlan(provider, launchPlan)
 	}
 	return descriptionNone, nil
 }
 
 func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
-	guestStr := fmt.Sprintf("%s, %dGB RAM", p.VmSize, p.VmRam/1024)
+	guestStr := ""
+	if p.VmRam > 1024 {
+		guestStr = fmt.Sprintf("%s, %dGB RAM", p.VmSize, p.VmRam/1024)
+	} else {
+		guestStr = fmt.Sprintf("%s, %dMB RAM", p.VmSize, p.VmRam)
+	}
 	diskSizeStr := fmt.Sprintf("%dGB disk", p.DiskSizeGB)
 
 	info := []string{guestStr, diskSizeStr}
@@ -56,7 +64,6 @@ func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *fly.Organizat
 }
 
 func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org *fly.Organization) (string, error) {
-
 	plan, err := redis.DeterminePlan(ctx, org)
 	if err != nil {
 		return "<plan not found, this is an error>", fmt.Errorf("redis plan not found: %w", err)
@@ -72,4 +79,26 @@ func describeObjectStoragePlan(p plan.ObjectStoragePlan) (string, error) {
 	}
 
 	return "private bucket", nil
+}
+
+func describeManagedPostgresPlan(p *plan.ManagedPostgresPlan, launchPlan *plan.LaunchPlan) (string, error) {
+	info := []string{}
+
+	planDetails, ok := mpg.MPGPlans[p.Plan]
+
+	if p.DbName != "" {
+		info = append(info, fmt.Sprintf("\"%s\"", p.GetDbName(launchPlan)))
+	}
+
+	if ok {
+		info = append(info, fmt.Sprintf("%s plan ($%d/mo)", planDetails.Name, planDetails.PricePerMo))
+	} else {
+		info = append(info, fmt.Sprintf("plan %s", p.Plan))
+	}
+
+	if p.Region != "" {
+		info = append(info, fmt.Sprintf("region %s", p.GetRegion(launchPlan)))
+	}
+
+	return strings.Join(info, ", "), nil
 }

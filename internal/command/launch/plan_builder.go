@@ -236,8 +236,17 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		if !flag.GetBool(ctx, "no-db") {
 			switch srcInfo.DatabaseDesired {
 			case scanner.DatabaseKindPostgres:
-				lp.Postgres = plan.DefaultPostgres(lp, mpgEnabled)
+				lp.Postgres, err = plan.DefaultPostgres(ctx, lp, mpgEnabled)
+				if err != nil {
+					return nil, nil, err
+				}
 				planSource.postgresSource = scannerSource
+
+				// We offer switching to MPG if interactive session and the region is not the same as the MPG region
+				// App should launch in the MPG region
+				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+					lp.RegionCode = lp.Postgres.ManagedPostgres.Region
+				}
 			case scanner.DatabaseKindMySQL:
 				// TODO
 			case scanner.DatabaseKindSqlite:
@@ -245,9 +254,19 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			}
 		}
 		// Force Postgres provisioning if --db flag is set
-		if flag.GetBool(ctx, "db") {
-			lp.Postgres = plan.DefaultPostgres(lp, mpgEnabled)
+		dbFlag := flag.GetString(ctx, "db")
+		if dbFlag != "" {
+			lp.Postgres, err = plan.DefaultPostgres(ctx, lp, mpgEnabled)
+			if err != nil {
+				return nil, nil, err
+			}
 			planSource.postgresSource = "forced by --db flag"
+
+			// We offer switching to MPG if interactive session and the region is not the same as the MPG region
+			// App should launch in the MPG region
+			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+				lp.RegionCode = lp.Postgres.ManagedPostgres.Region
+			}
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
