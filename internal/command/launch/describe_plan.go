@@ -78,7 +78,7 @@ func describeObjectStoragePlan(p plan.ObjectStoragePlan) (string, error) {
 }
 
 func describeManagedPostgresPlan(p *plan.ManagedPostgresPlan, launchPlan *plan.LaunchPlan) (string, error) {
-	info := []string{p.Plan}
+	info := []string{}
 
 	planDetails, ok := mpg.MPGPlans[p.Plan]
 
@@ -87,7 +87,7 @@ func describeManagedPostgresPlan(p *plan.ManagedPostgresPlan, launchPlan *plan.L
 	}
 
 	if ok {
-		info = append(info, fmt.Sprintf("plan %s ($%d/mo)", planDetails.Name, planDetails.PricePerMo))
+		info = append(info, fmt.Sprintf("%s plan ($%d/mo)", planDetails.Name, planDetails.PricePerMo))
 	} else {
 		info = append(info, fmt.Sprintf("plan %s", p.Plan))
 	}

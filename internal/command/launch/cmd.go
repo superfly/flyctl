@@ -166,7 +166,7 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "db",
 			Description: "Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
-			Default:     "",
+			NoOptDefVal: "true",
 		},
 	}
 

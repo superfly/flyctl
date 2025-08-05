@@ -66,7 +66,12 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 
 	// Normal flow: prefer managed if enabled and available
 	if mpgEnabled {
-		validRegion, err := mpg.IsValidMPGRegion(ctx, plan.OrgSlug, plan.RegionCode)
+		orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
+		if err != nil {
+			return createFlyPostgresPlan(plan), nil
+		}
+
+		validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 		if err == nil && validRegion {
 			// Managed postgres is available in this region, use it
 			return createManagedPostgresPlan(ctx, plan, "basic"), nil
@@ -75,7 +80,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 		// Managed postgres is not available in this region
 		if isInteractive {
 			// Offer to switch to a nearby region that supports managed postgres
-			return handleInteractiveRegionSwitch(ctx, plan)
+			return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
 		} else {
 			// Non-interactive: log warning and fall back to FlyPostgres
 			if io != nil {
@@ -133,7 +138,13 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 // handleForcedManagedPostgres handles the case where managed postgres is forced but may not be available
 func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
-	validRegion, err := mpg.IsValidMPGRegion(ctx, plan.OrgSlug, plan.RegionCode)
+
+	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
+	if err != nil {
+		return createFlyPostgresPlan(plan), nil
+	}
+
+	validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -144,20 +155,20 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 	isInteractive := io != nil && io.IsInteractive()
 	if isInteractive {
 		// Interactive: suggest switching to a supported region
-		return handleInteractiveRegionSwitch(ctx, plan)
+		return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, plan.OrgSlug)
-		return PostgresPlan{}, fmt.Errorf("Managed Postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
+		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, orgSlug)
+		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
 }
 
 // handleInteractiveRegionSwitch prompts user to switch to a region that supports managed postgres
-func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
+func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlug string) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, plan.OrgSlug)
+	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			fmt.Fprintf(io.ErrOut, "Warning: Unable to find regions that support Managed Postgres. Using Unmanaged Postgres in region %s\n", plan.RegionCode)
