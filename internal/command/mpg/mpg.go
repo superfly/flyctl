@@ -61,9 +61,7 @@ func New() *cobra.Command {
 		long = short + "\n"
 	)
 
-	cmd := command.New("managed-postgres", short, long, nil)
-
-	cmd.Aliases = []string{"mpg"}
+	cmd := command.New("mpg", short, long, nil)
 
 	flag.Add(cmd,
 		flag.Org(),
