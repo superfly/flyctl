@@ -29,35 +29,6 @@ type CreateClusterParams struct {
 	PostGISEnabled bool
 }
 
-// PlanDetails holds the details for each managed postgres plan.
-type PlanDetails struct {
-	Name       string
-	CPU        string
-	Memory     string
-	PricePerMo int
-}
-
-var mpgPlans = map[string]PlanDetails{
-	"basic": {
-		Name:       "Basic",
-		CPU:        "Shared x 2",
-		Memory:     "1 GB",
-		PricePerMo: 38,
-	},
-	"launch": {
-		Name:       "Launch",
-		CPU:        "Performance x 2",
-		Memory:     "8 GB",
-		PricePerMo: 282,
-	},
-	"scale": {
-		Name:       "Scale",
-		CPU:        "Performance x 4",
-		Memory:     "33 GB",
-		PricePerMo: 962,
-	},
-}
-
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new Managed Postgres cluster"
@@ -168,7 +139,7 @@ func runCreate(ctx context.Context) error {
 	// Plan selection and validation
 	plan := flag.GetString(ctx, "plan")
 	plan = normalizePlan(plan)
-	if _, ok := mpgPlans[plan]; !ok {
+	if _, ok := MPGPlans[plan]; !ok {
 		if iostreams.FromContext(ctx).IsInteractive() {
 			// Prepare a sortable slice of plans
 			type planEntry struct {
@@ -176,7 +147,7 @@ func runCreate(ctx context.Context) error {
 				Value PlanDetails
 			}
 			var planEntries []planEntry
-			for k, v := range mpgPlans {
+			for k, v := range MPGPlans {
 				planEntries = append(planEntries, planEntry{Key: k, Value: v})
 			}
 			// Sort by price (convert string like "$38.00" to float)
@@ -245,7 +216,7 @@ func runCreate(ctx context.Context) error {
 	var connectionURI string
 
 	// Output plan details after creation
-	planDetails := mpgPlans[plan]
+	planDetails := MPGPlans[plan]
 	fmt.Fprintf(io.Out, "Selected Plan: %s\n", planDetails.Name)
 	fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
 	fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
