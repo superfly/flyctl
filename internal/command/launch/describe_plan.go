@@ -30,7 +30,12 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 }
 
 func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
-	guestStr := fmt.Sprintf("%s, %dGB RAM", p.VmSize, p.VmRam/1024)
+	guestStr := ""
+	if p.VmRam > 1024 {
+		guestStr = fmt.Sprintf("%s, %dGB RAM", p.VmSize, p.VmRam/1024)
+	} else {
+		guestStr = fmt.Sprintf("%s, %dMB RAM", p.VmSize, p.VmRam)
+	}
 	diskSizeStr := fmt.Sprintf("%dGB disk", p.DiskSizeGB)
 
 	info := []string{guestStr, diskSizeStr}
@@ -59,7 +64,6 @@ func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *fly.Organizat
 }
 
 func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org *fly.Organization) (string, error) {
-
 	plan, err := redis.DeterminePlan(ctx, org)
 	if err != nil {
 		return "<plan not found, this is an error>", fmt.Errorf("redis plan not found: %w", err)
@@ -83,7 +87,7 @@ func describeManagedPostgresPlan(p *plan.ManagedPostgresPlan, launchPlan *plan.L
 	planDetails, ok := mpg.MPGPlans[p.Plan]
 
 	if p.DbName != "" {
-		info = append(info, fmt.Sprintf("cluster %s", p.GetDbName(launchPlan)))
+		info = append(info, fmt.Sprintf("\"%s\"", p.GetDbName(launchPlan)))
 	}
 
 	if ok {
