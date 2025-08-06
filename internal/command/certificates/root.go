@@ -485,8 +485,7 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 		fmt.Fprintf(io.Out, "   A    %s → %s\n", getRecordName(opts.Hostname), opts.IPv4Address.Address)
 	} else {
 		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv4 addresses are allocated for your application."))
-		fmt.Fprintf(io.Out, "   Run: %s to allocate a shared IPv4 address\n", colorize.Bold("fly ips allocate-v4 --shared"))
-		fmt.Fprintf(io.Out, "   Or: %s to allocate a dedicated IPv4 address\n", colorize.Bold("fly ips allocate-v4"))
+		fmt.Fprintf(io.Out, "   Run: %s to allocate recommended addresses\n", colorize.Bold("fly ips allocate"))
 		fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n", colorize.Bold("fly certs setup "+opts.Hostname))
 	}
 	if hasIPv6 {
