@@ -180,14 +180,14 @@ func TestDetermineIPType(t *testing.T) {
 	cfg4.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "weird"}},
 	}}}
-	assert.Equal(t, "dedicated", cfg4.DetermineIPType("public"))
+	assert.Equal(t, "shared", cfg4.DetermineIPType("public"))
 	assert.Equal(t, "private", cfg4.DetermineIPType("private"))
 
 	cfg5 := NewConfig()
 	cfg5.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls"}},
 	}}}
-	assert.Equal(t, "dedicated", cfg5.DetermineIPType("public"))
+	assert.Equal(t, "shared", cfg5.DetermineIPType("public"))
 
 	cfg6 := NewConfig()
 	cfg6.Services = []Service{{Protocol: "udp", Ports: []fly.MachinePort{
