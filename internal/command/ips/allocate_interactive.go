@@ -215,7 +215,7 @@ Would you like to allocate the following address?
 	confirmed, err := prompt.Confirm(ctx, msg)
 	if err != nil {
 		if prompt.IsNonInteractive(err) {
-			return prompt.NonInteractiveError("use --yes flag to automatically allocate IPs in non-interactive mode")
+			return prompt.NonInteractiveError("use fly ips allocate-v4 or fly ips allocate-v6 in non-interactive mode")
 		}
 		return err
 	}
