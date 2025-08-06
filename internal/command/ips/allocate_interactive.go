@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"slices"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -78,7 +77,7 @@ func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (r
 						requiresDedicated = true
 					} else if port.ContainsPort(80) && !reflect.DeepEqual(port.Handlers, []string{"http"}) {
 						requiresDedicated = true
-					} else if port.ContainsPort(443) && !slices.Contains(port.Handlers, "tls") {
+					} else if port.ContainsPort(443) && !(reflect.DeepEqual(port.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(port.Handlers, []string{"tls", "http"})) {
 						requiresDedicated = true
 					}
 				}
