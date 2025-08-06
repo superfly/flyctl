@@ -100,15 +100,15 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 			expectError:       false,
 		},
 		{
-			name:              "default behavior with mpg enabled and region support",
+			name:              "default non-interactive behavior with mpg enabled and region support",
 			dbFlag:            "true",
 			mpgEnabled:        true,
 			mpgRegionsWithIAD: true,
-			expectedType:      "managed",
+			expectedType:      "unmanaged",
 			expectError:       false,
 		},
 		{
-			name:              "default behavior with mpg enabled but no region support",
+			name:              "default non-interactive behavior with mpg enabled but no region support",
 			dbFlag:            "true",
 			mpgEnabled:        true,
 			mpgRegionsWithIAD: false,
