@@ -21,7 +21,7 @@ import (
 func newAllocate() *cobra.Command {
 	const (
 		long  = `Allocate recommended IP addresses for the application`
-		short = `Allocate IP addresses`
+		short = `Allocate recommended IP addresses`
 	)
 
 	cmd := command.New("allocate", short, long, runAllocateInteractive,
