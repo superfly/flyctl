@@ -1,10 +1,6 @@
 name: Automatically sync docs for flyctl
 
 on:
-  push:
-    tags:
-      - v**
-
   workflow_run:
     workflows: ["Automatically release a new version of flyctl"]
     types:
