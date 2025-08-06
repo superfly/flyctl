@@ -508,8 +508,6 @@ func warnLegacyBehavior(ctx context.Context) error {
 
 // validatePostgresFlags checks for conflicting postgres-related flags
 func validatePostgresFlags(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
-
 	dbFlag := flag.GetString(ctx, "db")
 	noDb := flag.GetBool(ctx, "no-db")
 
