@@ -17,7 +17,6 @@ permissions:
 
 jobs:
   sync_docs:
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout flyctl
