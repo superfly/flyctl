@@ -540,10 +540,5 @@ func validatePostgresFlags(ctx context.Context) error {
 		}
 	}
 
-	// If forcing managed postgres, give early warning about potential region issues
-	if dbFlag == "mpg" && io != nil && io.IsInteractive() {
-		fmt.Fprintln(io.Out, "Note: --db=mpg will require switching regions if Managed Postgres is not available in your target region.")
-	}
-
 	return nil
 }

@@ -65,31 +65,32 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	}
 
 	// Normal flow: prefer managed if enabled and available
-	if mpgEnabled {
-		orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
-		if err != nil {
-			return createFlyPostgresPlan(plan), nil
-		}
-
+	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
+	if err == nil && mpgEnabled {
+		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
 		validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
-		if err == nil && validRegion {
-			// Managed postgres is available in this region, use it
-			return createManagedPostgresPlan(ctx, plan, "basic"), nil
-		}
-
-		// Managed postgres is not available in this region
 		if isInteractive {
+			if err == nil && validRegion {
+				// Managed postgres is available in this region, use it
+				return createManagedPostgresPlan(ctx, plan, "basic"), nil
+			}
+
 			// Offer to switch to a nearby region that supports managed postgres
 			return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
 		} else {
 			// Non-interactive: log warning and fall back to FlyPostgres
-			if io != nil {
-				fmt.Fprintf(io.ErrOut, "Warning: Using Unmanaged Postgres because Managed Postgres isn't yet available in region %s\n", plan.RegionCode)
+			if io != nil && err == nil {
+				if validRegion {
+					fmt.Fprintf(io.ErrOut, "Warning: Using Unmanaged Postgres because non-interactive launch defaults to Unmanaged Postgres to maintain backwards compatibility for now\n")
+				} else {
+					fmt.Fprintf(io.ErrOut, "Warning: Using Unmanaged Postgres because Managed Postgres isn't yet available in region %s\n", plan.RegionCode)
+				}
 			}
 		}
 	}
 
 	// Default to FlyPostgres
+	fmt.Fprintf(io.ErrOut, "Deprecation Warning: We will soon default to Managed Postgres when launching new apps in compatible regions. Pass --db=mpg to use Managed Postgres now and --db=upg to use Unmanaged Postgres.\n")
 	return createFlyPostgresPlan(plan), nil
 }
 
