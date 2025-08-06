@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -289,7 +290,7 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 	case http.StatusForbidden:
 		if err = json.Unmarshal(body, &response); err == nil {
 			if response.Errors.Detail != "" {
-				return response, fmt.Errorf(response.Errors.Detail)
+				return response, errors.New(response.Errors.Detail)
 			}
 		}
 

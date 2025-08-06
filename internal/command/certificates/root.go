@@ -522,9 +522,9 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 	}
 
 	if opts.Certificate.IsWildcard {
-		fmt.Fprintf(io.Out, colorize.Yellow("Required: DNS Challenge\n\n"))
+		fmt.Fprint(io.Out, colorize.Yellow("Required: DNS Challenge\n\n"))
 	} else {
-		fmt.Fprintf(io.Out, colorize.Yellow("Optional: DNS Challenge\n\n"))
+		fmt.Fprint(io.Out, colorize.Yellow("Optional: DNS Challenge\n\n"))
 	}
 	fmt.Fprintf(io.Out, "   %s → %s\n\n", opts.Certificate.DNSValidationHostname, opts.Certificate.DNSValidationTarget)
 	fmt.Fprintln(io.Out, "   Additional to one of the DNS setups.")
