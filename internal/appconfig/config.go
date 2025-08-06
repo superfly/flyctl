@@ -236,7 +236,7 @@ func (c *Config) DetermineIPType(ipType string) string {
 					return "dedicated"
 				} else if p.ContainsPort(80) && !reflect.DeepEqual(p.Handlers, []string{"http"}) {
 					return "dedicated"
-				} else if p.ContainsPort(443) && !(reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
+				} else if p.ContainsPort(443) && !(slices.Contains(p.Handlers, "tls") || slices.Contains(p.Handlers, "pg_tls")) {
 					return "dedicated"
 				}
 			}
