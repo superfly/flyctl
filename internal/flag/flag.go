@@ -584,6 +584,14 @@ func Nixpacks() Bool {
 	}
 }
 
+func BuildkitAddr() String {
+	return String{
+		Name:        "buildkit-addr",
+		Description: "Address of remote buildkit daemon (e.g. tcp://127.0.0.1:1234 or unix:///path/to/socket)",
+		EnvName:     "BUILDKIT_ADDR",
+	}
+}
+
 func Strategy() String {
 	return String{
 		Name:        "strategy",
