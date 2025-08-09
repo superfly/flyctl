@@ -14,10 +14,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
+	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
@@ -77,15 +80,16 @@ func run(ctx context.Context) error {
 	var eg *errgroup.Group
 	eg, ctx = errgroup.WithContext(ctx)
 
-	var streams []<-chan logs.LogEntry
+	var streams []<-chan fly.LogEntry
 	if opts.NoTail {
-		streams = []<-chan logs.LogEntry{
-			poll(ctx, eg, client, opts),
+		streams = []<-chan fly.LogEntry{
+			poll(ctx, eg, opts),
 		}
 	} else {
+		opts.NoTail = true
 		pollingCtx, cancelPolling := context.WithCancel(ctx)
-		streams = []<-chan logs.LogEntry{
-			poll(pollingCtx, eg, client, opts),
+		streams = []<-chan fly.LogEntry{
+			poll(pollingCtx, eg, opts),
 			nats(ctx, eg, client, opts, cancelPolling),
 		}
 	}
@@ -97,13 +101,19 @@ func run(ctx context.Context) error {
 	return eg.Wait()
 }
 
-func poll(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions) <-chan logs.LogEntry {
-	c := make(chan logs.LogEntry)
+func poll(ctx context.Context, eg *errgroup.Group, opts *logs.LogOptions) <-chan fly.LogEntry {
+	c := make(chan fly.LogEntry)
 
 	eg.Go(func() (err error) {
 		defer close(c)
 
-		if err = logs.Poll(ctx, c, client, opts); errors.Is(err, context.Canceled) {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: opts.AppName,
+		})
+		if err != nil {
+			return
+		}
+		if err = logs.Poll(ctx, c, flapsClient, opts); errors.Is(err, context.Canceled) {
 			// if the parent context is cancelled then the errorgroup will return
 			// context.Canceled because nats and/or printStreams will return it.
 			err = nil
@@ -115,8 +125,8 @@ func poll(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *
 	return c
 }
 
-func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
-	c := make(chan logs.LogEntry)
+func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan fly.LogEntry {
+	c := make(chan fly.LogEntry)
 
 	eg.Go(func() error {
 		defer close(c)
@@ -146,7 +156,7 @@ func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *
 	return c
 }
 
-func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
+func printStreams(ctx context.Context, streams ...<-chan fly.LogEntry) error {
 	var eg *errgroup.Group
 	eg, ctx = errgroup.WithContext(ctx)
 
@@ -163,7 +173,7 @@ func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
 	return eg.Wait()
 }
 
-func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, json bool) error {
+func printStream(ctx context.Context, w io.Writer, stream <-chan fly.LogEntry, json bool) error {
 	for {
 		select {
 		case <-ctx.Done():
