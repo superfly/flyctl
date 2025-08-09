@@ -45,6 +45,14 @@ func (*dockerfileBuilder) Name() string {
 	return "Dockerfile"
 }
 
+// isDockerfileURL checks if a dockerfile path is a URL
+// We check for temporary files created from URLs by looking at the filename pattern
+func isDockerfileURL(path string) bool {
+	// Check if it's a temporary file created from downloading a URL
+	// These files have the pattern dockerfile-*.tmp
+	return strings.Contains(filepath.Base(path), "dockerfile-") && strings.HasSuffix(path, ".tmp")
+}
+
 // lastProgressOutput is the same as progress.Output except
 // that it only output with the last update. It is used in
 // non terminal scenarios to suppress verbose messages
@@ -120,11 +128,15 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	var dockerfile string
 
 	if opts.DockerfilePath != "" {
-		if !helpers.FileExists(opts.DockerfilePath) {
-			build.BuildFinish()
-			err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-			tracing.RecordError(span, err, "failed to find dockerfile")
-			return nil, "", err
+		// For URLs, we skip the FileExists check since they've already been downloaded
+		// to a temporary file by the resolveDockerfilePath function
+		if !isDockerfileURL(opts.DockerfilePath) {
+			if !helpers.FileExists(opts.DockerfilePath) {
+				build.BuildFinish()
+				err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
+				tracing.RecordError(span, err, "failed to find dockerfile")
+				return nil, "", err
+			}
 		}
 		dockerfile = opts.DockerfilePath
 	} else {
