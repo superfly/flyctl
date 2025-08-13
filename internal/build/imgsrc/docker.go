@@ -745,7 +745,8 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, o
 	}
 
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	_, app, err := EnsureBuilder(ctx, org, region, recreateBuilder)
+	p := newProvisioner(org)
+	_, app, err := p.EnsureBuilder(ctx, region, recreateBuilder)
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
@@ -764,7 +765,8 @@ func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName
 	if err != nil {
 		return nil, nil, err
 	}
-	builderMachine, builderApp, err := EnsureBuilder(ctx, org, region, recreateBuilder)
+	p := newProvisioner(org)
+	builderMachine, builderApp, err := p.EnsureBuilder(ctx, region, recreateBuilder)
 	return builderMachine, builderApp, err
 }
 
