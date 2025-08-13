@@ -59,6 +59,7 @@ func TestStartHeartbeat(t *testing.T) {
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
 			return nil
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
@@ -93,6 +94,7 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 			}
 			return nil
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
@@ -123,6 +125,7 @@ func TestStartHeartbeatNoEndpoint(t *testing.T) {
 				StatusCode: http.StatusNotFound,
 			}
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
@@ -153,6 +156,7 @@ func TestStartHeartbeatWError(t *testing.T) {
 				StatusCode: http.StatusBadRequest,
 			}
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
