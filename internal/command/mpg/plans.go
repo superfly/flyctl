@@ -15,6 +15,12 @@ var MPGPlans = map[string]PlanDetails{
 		Memory:     "1 GB",
 		PricePerMo: 38,
 	},
+	"starter": {
+		Name:       "Starter",
+		CPU:        "Shared x 2",
+		Memory:     "2 GB",
+		PricePerMo: 72,
+	},
 	"launch": {
 		Name:       "Launch",
 		CPU:        "Performance x 2",
