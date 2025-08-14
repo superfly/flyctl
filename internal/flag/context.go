@@ -196,3 +196,11 @@ func GetFlagsName(ctx context.Context, ignoreFlags []string) []string {
 func GetProcessGroup(ctx context.Context) string {
 	return GetString(ctx, flagnames.ProcessGroup)
 }
+
+func GetBuildkitAddr(ctx context.Context) string {
+	addr := GetString(ctx, "buildkit-addr")
+	if addr == "" {
+		addr = env.First("BUILDKIT_ADDR")
+	}
+	return addr
+}

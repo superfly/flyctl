@@ -10,6 +10,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -214,7 +215,7 @@ func runConsole(ctx context.Context) error {
 		defer cleanup()
 	}
 
-	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, *network, false)
+	_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, *network, false)
 	if err != nil {
 		return err
 	}
