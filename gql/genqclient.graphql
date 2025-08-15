@@ -147,6 +147,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -205,8 +206,8 @@ mutation SetNomadVMCount($input: SetVMCountInput!) {
 	}
 }
 
-mutation DeleteAddOn($name: String) {
-	deleteAddOn(input: {name: $name}) {
+mutation DeleteAddOn($name: String, $provider: String) {
+	deleteAddOn(input: {name: $name, provider: $provider}) {
 		deletedAddOnName
 	}
 }

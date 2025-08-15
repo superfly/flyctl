@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -75,7 +76,21 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	}
 
 	if srcInfo == nil {
-		fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
+		var colorFn func(arg interface{}) aurora.Value
+		noBlank := planStep == "propose"
+		if noBlank {
+			colorFn = aurora.Red
+		} else {
+			colorFn = aurora.Green
+		}
+		msg := "Could not find a Dockerfile, nor detect a runtime or framework from source code."
+		if !noBlank {
+			msg += " Continuing with a blank app."
+		}
+		fmt.Fprintln(io.Out, colorFn(msg))
+		if noBlank {
+			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
+		}
 		return srcInfo, nil, err
 	}
 

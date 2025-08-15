@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,15 @@ import (
 
 type ManagedClusterIpAssignments struct {
 	Direct string `json:"direct"`
+}
+
+type MPGRegion struct {
+	Code      string `json:"code"`      // e.g., "fra"
+	Available bool   `json:"available"` // Whether this region supports MPG
+}
+
+type ListMPGRegionsResponse struct {
+	Data []MPGRegion `json:"data"`
 }
 
 type ManagedCluster struct {
@@ -34,7 +44,9 @@ type ListManagedClustersResponse struct {
 
 type GetManagedClusterCredentialsResponse struct {
 	Status        string `json:"status"`
+	User          string `json:"user"`
 	Password      string `json:"password"`
+	DBName        string `json:"dbname"`
 	ConnectionUri string `json:"pgbouncer_uri"`
 }
 
@@ -211,26 +223,29 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 }
 
 type CreateClusterInput struct {
-	Name    string `json:"name"`
-	Region  string `json:"region"`
-	Plan    string `json:"plan"`
-	OrgSlug string `json:"org_slug"`
+	Name           string `json:"name"`
+	Region         string `json:"region"`
+	Plan           string `json:"plan"`
+	OrgSlug        string `json:"org_slug"`
+	Disk           int    `json:"disk"`
+	PostGISEnabled bool   `json:"postgis_enabled"`
 }
 
 type CreateClusterResponse struct {
 	Ok     bool           `json:"ok"`
 	Errors DetailedErrors `json:"errors"`
 	Data   struct {
-		Id            string                      `json:"id"`
-		Name          string                      `json:"name"`
-		Status        *string                     `json:"status"`
-		Plan          string                      `json:"plan"`
-		Environment   *string                     `json:"environment"`
-		Region        string                      `json:"region"`
-		Organization  fly.Organization            `json:"organization"`
-		Replicas      int                         `json:"replicas"`
-		Disk          int                         `json:"disk"`
-		IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
+		Id             string                      `json:"id"`
+		Name           string                      `json:"name"`
+		Status         *string                     `json:"status"`
+		Plan           string                      `json:"plan"`
+		Environment    *string                     `json:"environment"`
+		Region         string                      `json:"region"`
+		Organization   fly.Organization            `json:"organization"`
+		Replicas       int                         `json:"replicas"`
+		Disk           int                         `json:"disk"`
+		IpAssignments  ManagedClusterIpAssignments `json:"ip_assignments"`
+		PostGISEnabled bool                        `json:"postgis_enabled"`
 	} `json:"data"`
 }
 
@@ -275,7 +290,7 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 	case http.StatusForbidden:
 		if err = json.Unmarshal(body, &response); err == nil {
 			if response.Errors.Detail != "" {
-				return response, fmt.Errorf(response.Errors.Detail)
+				return response, errors.New(response.Errors.Detail)
 			}
 		}
 
@@ -284,5 +299,79 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 		return response, fmt.Errorf("server error: %s", string(body))
 	default:
 		return response, fmt.Errorf("failed to create cluster (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
+// ListMPGRegions returns the list of regions available for Managed Postgres
+// TODO: Implement the actual API endpoint on the backend
+func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error) {
+	var response ListMPGRegionsResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/regions", c.baseUrl, orgSlug)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+		}
+		return response, nil
+	default:
+		return response, fmt.Errorf("failed to list MPG regions (status %d): %s", res.StatusCode, string(body))
+	}
+
+}
+
+// DestroyCluster permanently destroys a managed Postgres cluster
+func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) error {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.baseUrl, orgSlug, id)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+	case http.StatusNotFound:
+		return fmt.Errorf("cluster %s not found", id)
+	case http.StatusForbidden:
+		return fmt.Errorf("access denied: you don't have permission to destroy cluster %s", id)
+	default:
+		return fmt.Errorf("failed to destroy cluster (status %d): %s", res.StatusCode, string(body))
 	}
 }

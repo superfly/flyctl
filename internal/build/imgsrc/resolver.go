@@ -246,9 +246,11 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	}
 
-	if r.dockerFactory.mode.UseNixpacks() {
+	if buildkitAddr := flag.GetBuildkitAddr(ctx); buildkitAddr != "" {
+		strategies = append(strategies, NewBuildkitBuilder(buildkitAddr))
+	} else if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
-	} else if r.dockerFactory.mode.UseDepot() && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
+	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
 		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
 		strategies = []imageBuilder{

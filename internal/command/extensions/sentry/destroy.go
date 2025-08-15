@@ -67,7 +67,7 @@ func runDestroy(ctx context.Context) (err error) {
 		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	_, err = gql.DeleteAddOn(ctx, client, extension.Name)
+	_, err = gql.DeleteAddOn(ctx, client, extension.Name, string(gql.AddOnTypeSentry))
 
 	if err != nil {
 		return

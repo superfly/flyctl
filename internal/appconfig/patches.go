@@ -167,6 +167,7 @@ func patchBuild(cfg map[string]any) (map[string]any, error) {
 		switch k {
 		case "build_target":
 			cast["build-target"] = v
+			delete(cast, "build_target")
 		}
 	}
 
@@ -240,6 +241,8 @@ func patchCompute(cfg map[string]any) (map[string]any, error) {
 		}
 	}
 	cfg["vm"] = compute
+	delete(cfg, "compute")
+	delete(cfg, "computes")
 	return cfg, nil
 }
 
@@ -261,6 +264,7 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 		}
 	}
 	cfg["mounts"] = mounts
+	delete(cfg, "mount")
 	return cfg, nil
 }
 
@@ -276,6 +280,7 @@ func patchMetrics(cfg map[string]any) (map[string]any, error) {
 		}
 	}
 	cfg["metrics"] = metrics
+	delete(cfg, "metric")
 	return cfg, nil
 }
 

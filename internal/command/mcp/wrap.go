@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -219,6 +220,11 @@ func (s *Server) ReadFromProgram() {
 	}()
 
 	scanner := bufio.NewScanner(s.stdout)
+	const (
+		defaultBufSize  = bufio.MaxScanTokenSize // 64KiB
+		maxResponseSize = 10 * 1024 * 1024       // 10MiB
+	)
+	scanner.Buffer(make([]byte, 0, defaultBufSize), maxResponseSize)
 	for scanner.Scan() {
 		line := scanner.Text() + "\n"
 
@@ -250,6 +256,20 @@ func (s *Server) ReadFromProgram() {
 
 // HandleHTTPRequest handles incoming HTTP requests
 func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	debugLog := os.Getenv("LOG_LEVEL") == "debug"
+
+	// Access logging
+	if debugLog {
+		log.Printf("Incoming request: %s %s", r.Method, r.URL.Path)
+		for name, values := range r.Header {
+			if strings.EqualFold(name, "Authorization") {
+				log.Printf("Header: %s: [REDACTED]", name)
+			} else {
+				log.Printf("Header: %s: %v", name, values)
+			}
+		}
+	}
+
 	if s.private {
 		clientIP := r.Header.Get("Fly-Client-Ip")
 		if clientIP != "" && !strings.HasPrefix(clientIP, "fdaa:") {
@@ -286,17 +306,27 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Create channel for response
+		responseCh := make(chan string, 1)
+		s.mutex.Lock()
+		if s.client == nil {
+			s.client = responseCh
+		}
+		s.mutex.Unlock()
+
+		if s.client != responseCh {
+			// If we already have a client, return an error
+			http.Error(w, "Another client is already connected", http.StatusConflict)
+			return
+		}
+
 		// Set headers for SSE
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
 
-		// Create channel for response
-		responseCh := make(chan string, 1)
-		s.mutex.Lock()
-		s.client = responseCh
-		s.mutex.Unlock()
+		w.(http.Flusher).Flush() // Flush headers to the client
 
 		// Stream responses to the client
 		for {
@@ -314,15 +344,50 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else if r.Method == http.MethodPost {
-		// Stream request body to program's stdin
-		if _, err := io.Copy(s.stdin, r.Body); err != nil {
-			log.Printf("Error writing to program: %v", err)
-			http.Error(w, fmt.Sprintf("Error writing to program: %v", err), http.StatusInternalServerError)
-		} else {
-			// Successfully wrote to program
-			w.WriteHeader(http.StatusAccepted)
+		if debugLog {
+			// Capture request body for logging
+			var bodyBuf bytes.Buffer
+			r.Body = io.NopCloser(io.TeeReader(r.Body, &bodyBuf))
+			log.Printf("Request body: %s", bodyBuf.String())
 		}
-		defer r.Body.Close()
+
+		// Stream request body to program's stdin, but inspect the last byte
+		var lastByte byte
+		buf := make([]byte, 4096)
+		for {
+			n, err := r.Body.Read(buf)
+			if n > 0 {
+				lastByte = buf[n-1]
+				if _, werr := s.stdin.Write(buf[:n]); werr != nil {
+					log.Printf("Error writing to program: %v", werr)
+					http.Error(w, fmt.Sprintf("Error writing to program: %v", werr), http.StatusInternalServerError)
+					return
+				}
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Printf("Error reading request body: %v", err)
+				http.Error(w, fmt.Sprintf("Error reading request body: %v", err), http.StatusBadRequest)
+				return
+			}
+		}
+
+		// Ensure the last byte is a newline
+		if lastByte != '\n' {
+			s.stdin.Write([]byte{'\n'})
+		}
+
+		if f, ok := s.stdin.(interface{ Flush() error }); ok {
+			if err := f.Flush(); err != nil {
+				log.Printf("Error flushing stdin: %v", err)
+			}
+		}
+
+		// Successfully wrote to program
+		w.WriteHeader(http.StatusAccepted)
+		r.Body.Close()
 
 	} else {
 		// Method not allowed

@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/apex/log"
@@ -32,9 +30,14 @@ func NewDestroy() *cobra.Command {
 			Name:        "server",
 			Description: "Name of the MCP server in the MCP client configuration",
 		},
-		flag.String{
+		flag.StringArray{
 			Name:        "config",
 			Description: "Path to the MCP client configuration file",
+		},
+		flag.Bool{
+			Name:        "yes",
+			Description: "Accept all confirmations",
+			Shorthand:   "y",
 		},
 	)
 
@@ -51,17 +54,10 @@ func NewDestroy() *cobra.Command {
 }
 
 func runDestroy(ctx context.Context) error {
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	appName := appconfig.NameFromContext(ctx)
 
 	if appName == "" {
-		server := flag.GetString(ctx, "server")
-
-		configPaths, err := ListConfigPaths(ctx, true)
+		server, configPaths, err := SelectServerAndConfig(ctx, true)
 		if err != nil {
 			return err
 		}
@@ -83,18 +79,19 @@ func runDestroy(ctx context.Context) error {
 	}
 
 	client := flyutil.ClientFromContext(ctx)
-	_, err = client.GetApp(ctx, appName)
+	_, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("app not found: %w", err)
 	}
 
 	// Destroy the app
-	cmd := exec.Command(flyctl, "apps", "destroy", appName)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	args := []string{"apps", "destroy", appName}
+
+	if flag.GetBool(ctx, "yes") {
+		args = append(args, "--yes")
+	}
+
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to destroy app': %w", err)
 	}
 
@@ -103,9 +100,9 @@ func runDestroy(ctx context.Context) error {
 		return fmt.Errorf("app not destroyed: %s", appName)
 	}
 
-	args := []string{}
+	args = []string{}
 
-	// Add the MCP server to the MCP client configurations
+	// Remove the MCP server to the MCP client configurations
 	for client := range McpClients {
 		if flag.GetBool(ctx, client) {
 			args = append(args, "--"+client)
@@ -114,7 +111,7 @@ func runDestroy(ctx context.Context) error {
 
 	for _, config := range flag.GetStringArray(ctx, "config") {
 		if config != "" {
-			log.Debugf("Adding %s to MCP client configuration", config)
+			log.Debugf("Removing %s from the MCP client configuration", config)
 			args = append(args, "--config", config)
 		}
 	}
@@ -130,12 +127,7 @@ func runDestroy(ctx context.Context) error {
 		}
 
 		// Run 'fly mcp remove ...'
-		cmd = exec.Command(flyctl, args...)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl(args...); err != nil {
 			return fmt.Errorf("failed to run 'fly mcp remove': %w", err)
 		}
 

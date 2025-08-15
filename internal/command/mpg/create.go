@@ -3,6 +3,8 @@ package mpg
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,18 +20,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// Allowed MPG regions
-var AllowedMPGRegions = []string{"fra", "iad", "ord", "syd", "lax"}
-
 type CreateClusterParams struct {
-	Name          string
-	OrgSlug       string
-	Region        string
-	Plan          string
-	Nodes         int
-	VolumeSizeGB  int
-	EnableBackups bool
-	AutoStop      bool
+	Name           string
+	OrgSlug        string
+	Region         string
+	Plan           string
+	VolumeSizeGB   int
+	PostGISEnabled bool
 }
 
 func newCreate() *cobra.Command {
@@ -57,23 +54,13 @@ func newCreate() *cobra.Command {
 			Description: "The plan to use for the Postgres cluster (development, production, etc)",
 		},
 		flag.Int{
-			Name:        "nodes",
-			Description: "Number of nodes in the cluster",
-			Default:     1,
-		},
-		flag.Int{
 			Name:        "volume-size",
 			Description: "The volume size in GB",
 			Default:     10,
 		},
 		flag.Bool{
-			Name:        "enable-backups",
-			Description: "Enable WAL-based backups",
-			Default:     true,
-		},
-		flag.Bool{
-			Name:        "auto-stop",
-			Description: "Automatically stop the cluster when not in use",
+			Name:        "enable-postgis-support",
+			Description: "Enable PostGIS for the Postgres cluster",
 			Default:     false,
 		},
 	)
@@ -95,7 +82,7 @@ func runCreate(ctx context.Context) error {
 			appName = appName + "-db"
 		} else {
 			// If no app name is available, prompt for a name
-			appName, err = prompt.SelectAppName(ctx)
+			appName, err = prompt.SelectAppNameWithMsg(ctx, "Choose a database name:")
 			if err != nil {
 				return err
 			}
@@ -107,21 +94,11 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	// Get all regions and filter for MPG allowed regions
-	regionsFuture := prompt.PlatformRegions(ctx)
-	regions, err := regionsFuture.Get()
+	// Get available MPG regions from API
+	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
+
 	if err != nil {
 		return err
-	}
-
-	var mpgRegions []fly.Region
-	for _, region := range regions.Regions {
-		for _, allowed := range AllowedMPGRegions {
-			if region.Code == allowed {
-				mpgRegions = append(mpgRegions, region)
-				break
-			}
-		}
 	}
 
 	if len(mpgRegions) == 0 {
@@ -141,7 +118,8 @@ func runCreate(ctx context.Context) error {
 			}
 		}
 		if selectedRegion == nil {
-			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, AllowedMPGRegions)
+			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
+			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
 	} else {
 		// Create region options for prompt
@@ -158,9 +136,39 @@ func runCreate(ctx context.Context) error {
 		selectedRegion = &mpgRegions[selectedIndex]
 	}
 
+	// Plan selection and validation
 	plan := flag.GetString(ctx, "plan")
-	if plan == "" {
-		plan = "basic" // Default plan
+	plan = normalizePlan(plan)
+	if _, ok := MPGPlans[plan]; !ok {
+		if iostreams.FromContext(ctx).IsInteractive() {
+			// Prepare a sortable slice of plans
+			type planEntry struct {
+				Key   string
+				Value PlanDetails
+			}
+			var planEntries []planEntry
+			for k, v := range MPGPlans {
+				planEntries = append(planEntries, planEntry{Key: k, Value: v})
+			}
+			// Sort by price (convert string like "$38.00" to float)
+			sort.Slice(planEntries, func(i, j int) bool {
+				return planEntries[i].Value.PricePerMo < planEntries[j].Value.PricePerMo
+			})
+			// Build options and keys in sorted order
+			var planOptions []string
+			var planKeys []string
+			for _, entry := range planEntries {
+				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
+				planKeys = append(planKeys, entry.Key)
+			}
+			var selectedIndex int
+			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", planOptions[0], planOptions...); err != nil {
+				return err
+			}
+			plan = planKeys[selectedIndex]
+		} else {
+			plan = "basic" // Default to basic if not interactive
+		}
 	}
 
 	var slug string
@@ -179,23 +187,23 @@ func runCreate(ctx context.Context) error {
 	}
 
 	params := &CreateClusterParams{
-		Name:          appName,
-		OrgSlug:       slug,
-		Region:        selectedRegion.Code,
-		Plan:          plan,
-		Nodes:         flag.GetInt(ctx, "nodes"),
-		VolumeSizeGB:  flag.GetInt(ctx, "volume-size"),
-		EnableBackups: flag.GetBool(ctx, "enable-backups"),
-		AutoStop:      flag.GetBool(ctx, "auto-stop"),
+		Name:           appName,
+		OrgSlug:        slug,
+		Region:         selectedRegion.Code,
+		Plan:           plan,
+		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
+		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	input := uiex.CreateClusterInput{
-		Name:    params.Name,
-		Region:  params.Region,
-		Plan:    params.Plan,
-		OrgSlug: params.OrgSlug,
+		Name:           params.Name,
+		Region:         params.Region,
+		Plan:           params.Plan,
+		OrgSlug:        params.OrgSlug,
+		Disk:           params.VolumeSizeGB,
+		PostGISEnabled: params.PostGISEnabled,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
@@ -203,51 +211,61 @@ func runCreate(ctx context.Context) error {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
 
+	clusterID := response.Data.Id
+
+	var connectionURI string
+
+	// Output plan details after creation
+	planDetails := MPGPlans[plan]
+	fmt.Fprintf(io.Out, "Selected Plan: %s\n", planDetails.Name)
+	fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
+	fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
+	fmt.Fprintf(io.Out, "  Price: $%d per month\n\n", planDetails.PricePerMo)
+
 	// Wait for cluster to be ready
-	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, response.Data.Id)
-	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, response.Data.Id)
+	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
+	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
-	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", response.Data.Id)
+	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
 	for {
-		cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+		res, err := uiexClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed checking cluster status: %w", err)
 		}
 
-		if cluster.Data.Id == "" {
+		cluster := res.Data
+		credentials := res.Credentials
+
+		if cluster.Id == "" {
 			return fmt.Errorf("invalid cluster response: no cluster ID")
 		}
 
-		if cluster.Data.Status == "ready" {
+		if cluster.Status == "ready" {
+			connectionURI = credentials.ConnectionUri
 			break
 		}
 
-		if cluster.Data.Status == "error" {
+		if cluster.Status == "error" {
 			return fmt.Errorf("cluster creation failed")
 		}
 
 		time.Sleep(5 * time.Second)
 	}
 
-	// Create a default user to get the connection string
-	userInput := uiex.CreateUserInput{
-		DbName:   "postgres",
-		UserName: "postgres",
-	}
-
-	userResponse, err := uiexClient.CreateUser(ctx, response.Data.Id, userInput)
-	if err != nil {
-		return fmt.Errorf("failed creating default user: %w", err)
-	}
-
 	fmt.Fprintf(io.Out, "\nManaged Postgres cluster created successfully!\n")
-	fmt.Fprintf(io.Out, "  ID: %s\n", response.Data.Id)
+	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
 	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
 	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
-	fmt.Fprintf(io.Out, "  Connection string: %s\n", userResponse.ConnectionUri)
+	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)
+	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
 
 	return nil
+}
+
+// normalizePlan lowercases and trims whitespace from the plan name for lookup
+func normalizePlan(plan string) string {
+	return strings.ToLower(strings.TrimSpace(plan))
 }

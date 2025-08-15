@@ -3,7 +3,6 @@ package incidents
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -48,31 +47,31 @@ func QueryStatuspageIncidents(ctx context.Context) {
 	logger := logger.FromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
+	logger.Debug("started querying for statuspage incidents")
+
+	statusCh := make(chan *StatusPageApiResponse, 1)
+	statusCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	go func() {
+		defer cancel()
+		defer close(statusCh)
+		response, err := StatuspageIncidentsRequest(statusCtx)
+		if err != nil {
+			logger.Debugf("failed querying for Statuspage incidents: %v", err)
+		}
+		statusCh <- response
+	}()
 
 	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
-		logger.Debug("started querying for statuspage incidents")
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		switch incidents, err := StatuspageIncidentsRequest(ctx); {
-		case err == nil:
-			if incidents == nil {
-				break
-			}
-
-			logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
-			incidentCount := len(incidents.Incidents)
-			if incidentCount > 0 {
-				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
-					colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n"),
-				)
-				break
-			}
-		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			logger.Debugf("failed querying for Statuspage incidents. Context cancelled or deadline exceeded: %v", err)
-		default:
-			logger.Debugf("failed querying for Statuspage incidents: %v", err)
+		cancel()
+		incidents := <-statusCh
+		if incidents == nil {
+			return
+		}
+		logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
+		if len(incidents.Incidents) > 0 {
+			fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
+				colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n"),
+			)
 		}
 	})
 }

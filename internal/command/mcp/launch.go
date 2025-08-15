@@ -105,6 +105,10 @@ func NewLaunch() *cobra.Command {
 			Name:        "image",
 			Description: "The image to use for the app",
 		},
+		flag.StringSlice{
+			Name:        "setup",
+			Description: "Additional setup commands to run before launching the MCP server",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -125,11 +129,6 @@ func runLaunch(ctx context.Context) error {
 
 	image := flag.GetString(ctx, "image")
 
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	// Parse the command
 	command := flag.FirstArg(ctx)
 	cmdParts, err := shlex.Split(command)
@@ -137,6 +136,11 @@ func runLaunch(ctx context.Context) error {
 		return fmt.Errorf("failed to parse command: %w", err)
 	} else if len(cmdParts) == 0 && image == "" {
 		return fmt.Errorf("missing command or image to run")
+	}
+
+	setup := flag.GetStringSlice(ctx, "setup")
+	if len(setup) > 0 && image == "" {
+		image = "flyio/mcp"
 	}
 
 	// extract the entrypoint from the image
@@ -155,7 +159,10 @@ func runLaunch(ctx context.Context) error {
 			return fmt.Errorf("failed to get image config: %w", err)
 		}
 		entrypoint = cfg.Config.Entrypoint
-		cmdParts = cfg.Config.Cmd
+
+		if len(cmdParts) == 0 {
+			cmdParts = cfg.Config.Cmd
+		}
 	}
 
 	// determine the name of the MCP server
@@ -167,10 +174,14 @@ func runLaunch(ctx context.Context) error {
 	if serverName == "" {
 		serverName = "fly-mcp"
 
-		ingoreWords := []string{"npx", "uvx", "-y", "--yes"}
+		ignoreWords := []string{"npx", "uvx", "-y", "--yes", "go", "run"}
 
 		for _, w := range cmdParts {
-			if !slices.Contains(ingoreWords, w) {
+			if !slices.Contains(ignoreWords, w) {
+				if at := strings.Index(w, "@"); at != -1 {
+					w = w[:at]
+				}
+
 				re := regexp.MustCompile(`[-\w]+`)
 				split := re.FindAllString(w, -1)
 
@@ -209,14 +220,27 @@ func runLaunch(ctx context.Context) error {
 
 	args := []string{"launch", "--yes", "--no-deploy"}
 
+	if cmdParts[0] == "go" && image == "" {
+		image = "golang:latest"
+	}
+
 	if image != "" {
-		dockerfile := []string{
-			"FROM " + image,
-			"COPY --from=flyio/flyctl /flyctl /usr/bin/flyctl",
+		dockerfile := []string{"FROM " + image}
+
+		if image != "flyio/mcp" {
+			dockerfile = append(dockerfile, "COPY --from=flyio/flyctl /flyctl /usr/bin/flyctl")
+			entrypoint = append([]string{"/usr/bin/flyctl", "mcp", "wrap", "--"}, entrypoint...)
 		}
 
+		dockerfile = append(dockerfile, setup...)
+
+		jsonData, err := json.Marshal(entrypoint)
+		if err != nil {
+			return fmt.Errorf("failed to marshal entrypoint to JSON: %w", err)
+		}
+		dockerfile = append(dockerfile, "ENTRYPOINT "+string(jsonData))
+
 		if len(cmdParts) > 0 {
-			// Build the Dockerfile - no longer needed; but may once again be useful in the future?
 			jsonData, err := json.Marshal(cmdParts)
 			if err != nil {
 				return fmt.Errorf("failed to marshal command parts to JSON: %w", err)
@@ -224,13 +248,6 @@ func runLaunch(ctx context.Context) error {
 
 			dockerfile = append(dockerfile, "CMD "+string(jsonData))
 		}
-
-		entrypoint = append([]string{"/usr/bin/flyctl", "mcp", "wrap", "--"}, entrypoint...)
-		jsonData, err := json.Marshal(entrypoint)
-		if err != nil {
-			return fmt.Errorf("failed to marshal entrypoint to JSON: %w", err)
-		}
-		dockerfile = append(dockerfile, "ENTRYPOINT "+string(jsonData))
 
 		dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
 
@@ -295,12 +312,7 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// Run fly launch, but don't deploy
-	cmd := exec.Command(flyctl, args...)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to run 'fly launch': %w", err)
 	}
 
@@ -353,13 +365,7 @@ func runLaunch(ctx context.Context) error {
 		}
 
 		// Run 'fly mcp add ...'
-		cmd = exec.Command(flyctl, args...)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		if err := cmd.Run(); err != nil {
+		if err := flyctl(args...); err != nil {
 			return fmt.Errorf("failed to run 'fly mcp add': %w", err)
 		}
 	}
@@ -371,19 +377,13 @@ func runLaunch(ctx context.Context) error {
 			return fmt.Errorf("failed parsing secrets: %w", err)
 		}
 
-		args := []string{"secrets", "set"}
+		args = []string{"secrets", "set"}
 		for k, v := range parsedSecrets {
 			args = append(args, fmt.Sprintf("%s=%s", k, v))
 		}
 
 		// Run 'fly secrets set ...'
-		cmd = exec.Command(flyctl, args...)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-
-		if err := cmd.Run(); err != nil {
+		if err := flyctl(args...); err != nil {
 			return fmt.Errorf("failed to run 'fly secrets set': %w", err)
 		}
 	}
@@ -409,12 +409,7 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// Deploy to a single machine
-	cmd = exec.Command(flyctl, args...)
-	cmd.Env = os.Environ()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	if err := cmd.Run(); err != nil {
+	if err := flyctl(args...); err != nil {
 		return fmt.Errorf("failed to run 'fly launch': %w", err)
 	}
 

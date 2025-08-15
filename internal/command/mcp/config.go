@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -19,8 +18,11 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
+
+	"github.com/superfly/fly-go/flaps"
 )
 
 var McpClients = map[string]string{
@@ -137,17 +139,24 @@ func NewRemove() *cobra.Command {
 }
 
 func runAdd(ctx context.Context) error {
-	flyctl, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to find executable: %w", err)
-	}
-
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		appName := appconfig.NameFromContext(ctx)
 		if appName == "" {
 			return errors.New("app name is required")
 		} else {
+			// Set up flaps client in context before calling FromRemoteApp
+			if flapsutil.ClientFromContext(ctx) == nil {
+				flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+					AppName: appName,
+				})
+				if err != nil {
+					return fmt.Errorf("could not create flaps client: %w", err)
+				}
+				ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+			}
+
+			var err error
 			appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 			if err != nil {
 				return err
@@ -180,33 +189,24 @@ func runAdd(ctx context.Context) error {
 			if err != nil && !prompt.IsNonInteractive(err) {
 				return fmt.Errorf("failed to get password: %w", err)
 			}
+			args = append(args, "--password", password)
 		}
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl("secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set user/password secrets': %w", err)
 		}
 
 	} else if flag.GetBool(ctx, "bearer-token") {
 		// Generate a secure random 24 character base64 encoded string for bearerToken
 		b := make([]byte, 18) // 18 bytes = 24 base64 characters
-		_, err = rand.Read(b)
+		_, err := rand.Read(b)
 		if err != nil {
 			return fmt.Errorf("failed to generate bearer token: %w", err)
 		}
 		bearerTokenStr := base64.StdEncoding.EncodeToString(b)
 		args = append(args, "--bearer-token", bearerTokenStr)
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName)
-		cmd.Env = os.Environ()
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		if err := cmd.Run(); err != nil {
+		if err := flyctl("secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set bearer token secret': %w", err)
 		}
 	}
@@ -226,8 +226,13 @@ func runAdd(ctx context.Context) error {
 		}
 	}
 
+	flyctlExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to find executable: %w", err)
+	}
+
 	for _, configPath := range configPaths {
-		err = UpdateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctl, args)
+		err = UpdateConfig(ctx, configPath.Path, configPath.ConfigName, server, flyctlExecutable, args)
 		if err != nil {
 			return fmt.Errorf("failed to update configuration at %s: %w", configPath.Path, err)
 		}
@@ -331,6 +336,175 @@ func ListConfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, err
 	return paths, nil
 }
 
+func ServerMap(configPaths []ConfigPath) (map[string]any, error) {
+	// build a server map from all of the configs
+	serverMap := make(map[string]any)
+
+	for _, configPath := range configPaths {
+		// if the configuration file doesn't exist, skip it
+		if _, err := os.Stat(configPath.Path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+
+		// read the configuration file
+		file, err := os.Open(configPath.Path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		// parse the configuration file as JSON
+		var data map[string]any
+		decoder := json.NewDecoder(file)
+		if err := decoder.Decode(&data); err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", configPath.Path, err)
+		}
+
+		if mcpServers, ok := data[configPath.ConfigName].(map[string]any); ok {
+			// add metadata about the tool
+			config := make(map[string]any)
+			config["mcpServers"] = mcpServers
+			config["configName"] = configPath.ConfigName
+
+			if configPath.ToolName != "" {
+				config["toolName"] = configPath.ToolName
+			}
+
+			serverMap[configPath.Path] = config
+
+			// add metadata about each MCP server
+			for name := range mcpServers {
+				if serverMap, ok := mcpServers[name].(map[string]any); ok {
+					server, err := configExtract(configPath, name)
+					if err != nil {
+						return nil, fmt.Errorf("failed to extract config for %s: %w", name, err)
+					}
+
+					for key, value := range server {
+						if key != "command" && key != "args" {
+							serverMap[key] = value
+						}
+					}
+
+					mcpServers[name] = serverMap
+				}
+			}
+		}
+	}
+
+	return serverMap, nil
+}
+
+func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []ConfigPath, error) {
+	server := flag.GetString(ctx, "server")
+
+	// Check if the user has specified any client flags
+	configSelected := false
+	for client := range McpClients {
+		configSelected = configSelected || flag.GetBool(ctx, client)
+	}
+
+	// if no cllent is selected, select all clients
+	if !configSelected {
+		for client := range McpClients {
+			flag.SetString(ctx, client, "true")
+		}
+	}
+
+	// Get a list of config paths
+	configPaths, err := ListConfigPaths(ctx, true)
+	if err != nil {
+		return "", nil, err
+	}
+
+	var serverMap map[string]any
+
+	if len(configPaths) > 1 || server == "" {
+		serverMap, err = ServerMap(configPaths)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to get server map: %w", err)
+		}
+	}
+
+	if len(configPaths) == 0 {
+		return "", nil, errors.New("no configuration paths found")
+	} else if len(configPaths) > 1 && !configIsArray {
+		choices := make([]string, 0)
+		choiceMap := make(map[int]int)
+		for i, configPath := range configPaths {
+			if config, ok := serverMap[configPath.Path].(map[string]any); ok {
+				if servers, ok := config["mcpServers"].(map[string]any); ok && len(servers) > 0 {
+					if toolName, ok := config["toolName"].(string); ok {
+						choices = append(choices, toolName)
+					} else {
+						choices = append(choices, configPath.Path)
+					}
+					choiceMap[i] = len(choices) - 1
+				}
+			}
+		}
+
+		index := 0
+		if len(choices) == 0 {
+			return "", nil, errors.New("no MCP servers found in the selected configuration files")
+		} else if len(choices) > 1 {
+			switch err = prompt.Select(ctx, &index, "Select a configuration file", "", choices...); {
+			case err == nil:
+				if choiceIndex, ok := choiceMap[index]; ok {
+					index = choiceIndex
+				}
+			case prompt.IsNonInteractive(err):
+				return "", nil, prompt.NonInteractiveError("MCP client or config file must be specified when not running interactively")
+			default:
+				return "", nil, fmt.Errorf("failed to select configuration file: %w", err)
+			}
+
+		}
+
+		configPaths = []ConfigPath{configPaths[index]}
+	}
+
+	if server == "" {
+		if len(serverMap) == 0 {
+			return "", configPaths, errors.New("no MCP servers found in the selected configuration files")
+		}
+		// Select a server from the server map
+		var index int
+		choices := make([]string, 0)
+		for _, configPath := range serverMap {
+			if config, ok := configPath.(map[string]any); ok {
+				if servers, ok := config["mcpServers"].(map[string]any); ok {
+					for name := range servers {
+						choices = append(choices, name)
+					}
+				}
+			}
+		}
+
+		if len(choices) == 0 {
+			return "", configPaths, errors.New("no MCP servers found in the selected configuration files")
+		} else if len(choices) == 1 {
+			server = choices[0]
+			log.Debugf("Only one MCP server found: %s", server)
+		} else {
+			switch err = prompt.Select(ctx, &index, "Select a MCP server", "", choices...); {
+			case err == nil:
+				server = choices[index]
+				log.Debugf("Selected MCP server: %s", server)
+			case prompt.IsNonInteractive(err):
+				return "", nil, prompt.NonInteractiveError("server must be specified when not running interactively")
+			default:
+				return "", configPaths, fmt.Errorf("failed to select MCP server: %w", err)
+			}
+		}
+	}
+
+	return server, configPaths, nil
+}
+
 // UpdateConfig updates the configuration at the specified path with the MCP servers
 func UpdateConfig(ctx context.Context, path string, configKey string, server string, command string, args []string) error {
 	log.Debugf("Updating configuration at %s", path)
@@ -422,32 +596,9 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 func runRemove(ctx context.Context) error {
 	var err error
 
-	configPaths, err := ListConfigPaths(ctx, true)
+	server, configPaths, err := SelectServerAndConfig(ctx, false)
 	if err != nil {
 		return err
-	} else if len(configPaths) == 0 {
-		return errors.New("no configuration paths found")
-	}
-
-	server := flag.GetString(ctx, "server")
-	if server == "" {
-		server = flag.GetString(ctx, "name")
-		if server == "" {
-			appConfig := appconfig.ConfigFromContext(ctx)
-			if appConfig == nil {
-				appName := appconfig.NameFromContext(ctx)
-				if appName == "" {
-					return errors.New("app name is required")
-				} else {
-					appConfig, err = appconfig.FromRemoteApp(ctx, appName)
-					if err != nil {
-						return err
-					}
-				}
-			}
-
-			server = appConfig.AppName
-		}
 	}
 
 	for _, configPath := range configPaths {

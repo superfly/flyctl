@@ -1,25 +1,19 @@
 package mcp
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	mcpProxy "github.com/superfly/flyctl/internal/command/mcp/proxy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
@@ -50,6 +44,26 @@ var sharedProxyFlags = flag.Set{
 		Shorthand:   "b",
 		Default:     "127.0.0.1",
 		Description: "Local address to bind to",
+	},
+	flag.String{
+		Name:        "instance",
+		Description: "Use fly-force-instance-id to connect to a specific instance",
+	},
+	flag.Bool{
+		Name:        "sse",
+		Description: "Use Server-Sent Events (SSE) for the MCP connection",
+	},
+	flag.Bool{
+		Name:        "stream",
+		Description: "Use streaming for the MCP connection",
+	},
+	flag.Int{
+		Name:        "timeout",
+		Description: "Timeout in seconds for the MCP connection",
+	},
+	flag.Bool{
+		Name:        "ping",
+		Description: "Enable ping for the MCP connection",
 	},
 }
 
@@ -110,35 +124,37 @@ func NewInspect() *cobra.Command {
 	return cmd
 }
 
-type ProxyInfo struct {
-	url         string
-	bearerToken string
-	user        string
-	password    string
+func getInfo(ctx context.Context) mcpProxy.ProxyInfo {
+	proxyInfo := mcpProxy.ProxyInfo{
+		Url:         flag.GetString(ctx, "url"),
+		BearerToken: flag.GetString(ctx, "bearer-token"),
+		User:        flag.GetString(ctx, "user"),
+		Password:    flag.GetString(ctx, "password"),
+		Instance:    flag.GetString(ctx, "instance"),
+		Mode:        "passthru", // Default mode is passthru
+		Timeout:     flag.GetInt(ctx, "timeout"),
+		Ping:        flag.GetBool(ctx, "ping"),
+	}
+
+	if flag.GetBool(ctx, "sse") {
+		proxyInfo.Mode = "sse"
+	} else if flag.GetBool(ctx, "stream") {
+		proxyInfo.Mode = "stream"
+	}
+
+	return proxyInfo
 }
 
 func runProxy(ctx context.Context) error {
-	proxyInfo := ProxyInfo{
-		url:         flag.GetString(ctx, "url"),
-		bearerToken: flag.GetString(ctx, "bearer-token"),
-		user:        flag.GetString(ctx, "user"),
-		password:    flag.GetString(ctx, "password"),
-	}
+	proxyInfo := getInfo(ctx)
 
 	return runProxyOrInspect(ctx, proxyInfo, flag.GetBool(ctx, "inspector"))
 }
 
 func runInspect(ctx context.Context) error {
-	proxyInfo := ProxyInfo{
-		url:         flag.GetString(ctx, "url"),
-		bearerToken: flag.GetString(ctx, "bearer-token"),
-		user:        flag.GetString(ctx, "user"),
-		password:    flag.GetString(ctx, "password"),
-	}
+	proxyInfo := getInfo(ctx)
 
-	server := flag.GetString(ctx, "server")
-
-	configPaths, err := ListConfigPaths(ctx, true)
+	server, configPaths, err := SelectServerAndConfig(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -149,17 +165,17 @@ func runInspect(ctx context.Context) error {
 			return err
 		}
 
-		if proxyInfo.url == "" {
-			proxyInfo.url, _ = mcpConfig["url"].(string)
+		if proxyInfo.Url == "" {
+			proxyInfo.Url, _ = mcpConfig["url"].(string)
 		}
-		if proxyInfo.bearerToken == "" {
-			proxyInfo.bearerToken, _ = mcpConfig["bearer-token"].(string)
+		if proxyInfo.BearerToken == "" {
+			proxyInfo.BearerToken, _ = mcpConfig["bearer-token"].(string)
 		}
-		if proxyInfo.user == "" {
-			proxyInfo.user, _ = mcpConfig["user"].(string)
+		if proxyInfo.User == "" {
+			proxyInfo.User, _ = mcpConfig["user"].(string)
 		}
-		if proxyInfo.password == "" {
-			proxyInfo.password, _ = mcpConfig["password"].(string)
+		if proxyInfo.Password == "" {
+			proxyInfo.Password, _ = mcpConfig["password"].(string)
 		}
 	} else if len(configPaths) > 1 {
 		return fmt.Errorf("multiple MCP client configuration files specifed. Please specify at most one")
@@ -168,21 +184,21 @@ func runInspect(ctx context.Context) error {
 	return runProxyOrInspect(ctx, proxyInfo, true)
 }
 
-func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) error {
+func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspect bool) error {
 
 	// If no URL is provided, try to get it from the app config
 	// If that fails, return an error
-	if proxyInfo.url == "" {
+	if proxyInfo.Url == "" {
 		appConfig := appconfig.ConfigFromContext(ctx)
 
 		if appConfig != nil {
 			appUrl := appConfig.URL()
 			if appUrl != nil {
-				proxyInfo.url = appUrl.String()
+				proxyInfo.Url = appUrl.String()
 			}
 		}
 
-		if proxyInfo.url == "" {
+		if proxyInfo.Url == "" {
 			log.Fatal("The app config could not be found and no URL was provided")
 		}
 	}
@@ -193,16 +209,30 @@ func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) e
 			return fmt.Errorf("failed to find executable: %w", err)
 		}
 
-		args := []string{"@modelcontextprotocol/inspector@latest", flyctl, "mcp", "proxy", "--url", proxyInfo.url}
+		args := []string{"@modelcontextprotocol/inspector@latest", flyctl, "mcp", "proxy", "--url", proxyInfo.Url}
 
-		if proxyInfo.bearerToken != "" {
-			args = append(args, "--bearer-token", proxyInfo.bearerToken)
+		if proxyInfo.BearerToken != "" {
+			args = append(args, "--bearer-token", proxyInfo.BearerToken)
 		}
-		if proxyInfo.user != "" {
-			args = append(args, "--user", proxyInfo.user)
+		if proxyInfo.User != "" {
+			args = append(args, "--user", proxyInfo.User)
 		}
-		if proxyInfo.password != "" {
-			args = append(args, "--password", proxyInfo.password)
+		if proxyInfo.Password != "" {
+			args = append(args, "--password", proxyInfo.Password)
+		}
+		if proxyInfo.Instance != "" {
+			args = append(args, "--instance", proxyInfo.Instance)
+		}
+		if proxyInfo.Mode == "sse" {
+			args = append(args, "--sse")
+		} else if proxyInfo.Mode == "stream" {
+			args = append(args, "--stream")
+		}
+		if proxyInfo.Timeout > 0 {
+			args = append(args, "--timeout", fmt.Sprintf("%d", proxyInfo.Timeout))
+		}
+		if proxyInfo.Ping {
+			args = append(args, "--ping")
 		}
 
 		// Launch MCP inspector
@@ -216,39 +246,32 @@ func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) e
 		return nil
 	}
 
-	url, proxyCmd, err := resolveProxy(ctx, proxyInfo.url)
+	url, proxyCmd, err := resolveProxy(ctx, proxyInfo.Url)
 	if err != nil {
 		log.Fatalf("Error resolving proxy URL: %v", err)
 	}
 
-	proxyInfo.url = url
+	proxyInfo.Url = url
 
 	// Configure logging to go to stderr only
 	log.SetOutput(os.Stderr)
 
-	err = waitForServer(ctx, proxyInfo)
-	if err != nil {
-		log.Fatalf("Error waiting for server: %v", err)
+	if flag.GetBool(ctx, "sse") {
+		proxyInfo.Mode = "sse"
+	} else if flag.GetBool(ctx, "stream") {
+		proxyInfo.Mode = "stream"
 	}
 
-	// Start the HTTP client
-	go func() {
-		start := time.Now()
-		for {
-			getFromServer(ctx, proxyInfo)
+	if proxyInfo.Mode == "passthru" {
+		fmt.Fprintf(os.Stderr, "Starting MCP proxy passthru mode for URL: %s\n", proxyInfo.Url)
+		err = mcpProxy.Passthru(proxyInfo)
+	} else {
+		fmt.Fprintf(os.Stderr, "Starting MCP proxy in %s mode for URL: %s\n", proxyInfo.Mode, proxyInfo.Url)
+		err = mcpProxy.Replay(ctx, proxyInfo)
+	}
 
-			// Wait a minimum of 10 seconds before the next request
-			elapsed := time.Since(start)
-			if elapsed < 10*time.Second {
-				time.Sleep(10*time.Second - elapsed)
-			}
-			start = time.Now()
-		}
-	}()
-
-	// Start processing stdin
-	if err := processStdin(ctx, proxyInfo); err != nil {
-		log.Fatalf("Error processing stdin: %v", err)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	// Kill the proxy process if it was started
@@ -257,66 +280,6 @@ func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) e
 			log.Printf("Error killing proxy process: %v", err)
 		}
 		proxyCmd.Wait()
-	}
-
-	return nil
-}
-
-// waitForServer waits for the server to be up and running
-func waitForServer(ctx context.Context, proxyInfo ProxyInfo) error {
-	// Continue to post nothing until the server is up
-	delay := 100 * time.Millisecond
-	var err error
-	for delay < 60*time.Second {
-		err = sendToServer(ctx, "", proxyInfo)
-
-		if err == nil {
-			break
-		} else if !strings.Contains(err.Error(), "connection refused") {
-			log.Printf("Error sending message to server: %v", err)
-			break
-		}
-
-		time.Sleep(delay)
-		delay *= 2
-	}
-
-	return err
-}
-
-// ProcessStdin reads messages from stdin and forwards them to the server
-func processStdin(ctx context.Context, proxyInfo ProxyInfo) error {
-	stp := make(chan os.Signal, 1)
-	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-stp
-		os.Exit(0)
-	}()
-
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		line := scanner.Text() + "\n"
-
-		// Skip empty lines
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		// Forward raw message to server
-		err := sendToServer(ctx, line, proxyInfo)
-		if err != nil {
-			// Log error but continue processing
-			log.Printf("Error sending message to server: %v", err)
-			// We could format an error message here, but since we're operating at the raw string level,
-			// we'll return a generic error JSON
-			errMsg := fmt.Sprintf(`{"type":"error","content":"Failed to send to server: %v"}`, err)
-			fmt.Fprintln(os.Stdout, errMsg)
-			continue
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading from stdin: %w", err)
 	}
 
 	return nil
@@ -372,7 +335,12 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 
 	ports := fmt.Sprintf("%d:%s", localPort, remotePort)
 
-	cmd := exec.Command(os.Args[0], "proxy", ports, remoteHost, "--quiet", "--app", appName)
+	flyctl, err := os.Executable()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find executable: %w", err)
+	}
+
+	cmd := exec.Command(flyctl, "proxy", ports, remoteHost, "--quiet", "--app", appName)
 	cmd.Stdin = nil
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
@@ -405,83 +373,4 @@ func getAvailablePort() (int, error) {
 	defer listener.Close()
 
 	return listener.Addr().(*net.TCPAddr).Port, nil
-}
-
-// getFromServer sends a GET request to the server and streams the response to stdout
-func getFromServer(ctx context.Context, proxyInfo ProxyInfo) error {
-	// Create HTTP request
-	req, err := http.NewRequest("GET", proxyInfo.url, nil)
-	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
-	}
-	req.Header.Set("User-Agent", "mcp-bridge-client")
-	req.Header.Set("Accept", "application/json")
-
-	// Set basic authentication if bearer token or user is provided
-	if proxyInfo.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+proxyInfo.bearerToken)
-	} else if proxyInfo.user != "" {
-		req.SetBasicAuth(proxyInfo.user, proxyInfo.password)
-	}
-
-	// Send request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned error: %s (status %d)", resp.Status, resp.StatusCode)
-	}
-
-	// Stream response body to stdout
-	if _, err := io.Copy(os.Stdout, resp.Body); err != nil {
-		return fmt.Errorf("error streaming response to stdout: %w", err)
-	}
-
-	return nil
-}
-
-// SendToServer sends a raw message to the server and returns the raw response
-func sendToServer(ctx context.Context, message string, proxyInfo ProxyInfo) error {
-	// Create HTTP request with raw message
-	req, err := http.NewRequest("POST", proxyInfo.url, bytes.NewBufferString(message))
-	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "mcp-bridge-client")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-
-	// Set basic authentication if bearer token or user is provided
-	if proxyInfo.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+proxyInfo.bearerToken)
-	} else if proxyInfo.user != "" {
-		req.SetBasicAuth(proxyInfo.user, proxyInfo.password)
-	}
-
-	// Send request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusAccepted {
-		// Read response body
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("error reading response: %w", err)
-		}
-
-		return fmt.Errorf("server returned error: %s (status %d)", body, resp.StatusCode)
-	}
-
-	// Request was accepted
-	return nil
 }

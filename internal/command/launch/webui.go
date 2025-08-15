@@ -97,17 +97,20 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 				region = r
 			}
 
+			org, err := state.Org(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to get organization: %w", err)
+			}
+
 			// Check if region is supported for managed Postgres
-			validRegion := false
-			for _, r := range mpg.AllowedMPGRegions {
-				if r == region {
-					validRegion = true
-					break
-				}
+			validRegion, err := mpg.IsValidMPGRegion(ctx, org.RawSlug, region)
+			if err != nil {
+				return fmt.Errorf("failed to validate MPG region: %w", err)
 			}
 
 			if !validRegion {
-				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, mpg.AllowedMPGRegions)
+				availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, org.Slug)
+				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, availableCodes)
 			}
 
 			state.Plan.Postgres = plan.PostgresPlan{

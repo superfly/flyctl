@@ -216,6 +216,10 @@ func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName strin
 	panic("TODO")
 }
 
+func (m *Client) GetAppCNAMETarget(ctx context.Context, appName string) (string, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error) {
 	panic("TODO")
 }

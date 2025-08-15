@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -160,20 +159,15 @@ func New() (cmd *cobra.Command) {
 			Shorthand:   "v",
 			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
 		},
-	}
-
-	ldClient, err := launchdarkly.NewServiceClient()
-	if err != nil {
-		return nil
-	}
-
-	managedPostgresEnabled := ldClient.ManagedPostgresEnabled()
-	if managedPostgresEnabled {
-		flags = append(flags, flag.Bool{
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
 			Name:        "db",
-			Description: "Force provisioning a managed Postgres database",
-			Default:     false,
-		})
+			Description: "Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+			NoOptDefVal: "true",
+		},
 	}
 
 	flag.Add(cmd, flags...)
@@ -281,7 +275,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
 	defer span.End()
@@ -310,6 +308,11 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if err := warnLegacyBehavior(ctx); err != nil {
+		return err
+	}
+
+	// Validate conflicting postgres flags
+	if err := validatePostgresFlags(ctx); err != nil {
 		return err
 	}
 
@@ -347,7 +350,18 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if flag.GetBool(ctx, "manifest") {
-			jsonEncoder := json.NewEncoder(io.Out)
+			var jsonEncoder *json.Encoder
+			if manifestPath := flag.GetString(ctx, "manifest-path"); manifestPath != "" {
+				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+
+				jsonEncoder = json.NewEncoder(file)
+			} else {
+				jsonEncoder = json.NewEncoder(io.Out)
+			}
 			jsonEncoder.SetIndent("", "  ")
 			return jsonEncoder.Encode(launchManifest)
 		}
@@ -372,7 +386,7 @@ func run(ctx context.Context) (err error) {
 		status.VM.ProcessN = len(vm.Processes)
 	}
 
-	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.SupabasePostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
 	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
 	status.HasSentry = launchManifest.Plan.Sentry
 
@@ -489,5 +503,40 @@ func warnLegacyBehavior(ctx context.Context) error {
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
 		}
 	}
+	return nil
+}
+
+// validatePostgresFlags checks for conflicting postgres-related flags
+func validatePostgresFlags(ctx context.Context) error {
+	dbFlag := flag.GetString(ctx, "db")
+	noDb := flag.GetBool(ctx, "no-db")
+
+	// Normalize db flag values
+	switch dbFlag {
+	case "true", "1", "yes":
+		dbFlag = "true"
+	case "mpg", "managed":
+		dbFlag = "mpg"
+	case "upg", "unmanaged", "legacy":
+		dbFlag = "upg"
+	case "false", "0", "no", "":
+		dbFlag = ""
+	default:
+		if dbFlag != "" {
+			return flyerr.GenericErr{
+				Err:     fmt.Sprintf("Invalid value '%s' for --db flag", dbFlag),
+				Suggest: "Valid options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+			}
+		}
+	}
+
+	// Check if db flag conflicts with --no-db
+	if dbFlag != "" && noDb {
+		return flyerr.GenericErr{
+			Err:     "Cannot specify both --db and --no-db",
+			Suggest: "Remove either --db or --no-db",
+		}
+	}
+
 	return nil
 }

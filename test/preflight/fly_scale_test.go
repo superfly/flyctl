@@ -79,7 +79,7 @@ destination = "/data"
 `
 	}
 
-	f.WriteFlyToml(config)
+	f.WriteFlyToml("%s", config)
 
 	f.Fly("deploy --ha=false")
 	assertMachineCount(t, f, appName, 1)

@@ -26,7 +26,6 @@ func newConnect() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runConnect, command.RequireSession, command.RequireUiex)
 
 	flag.Add(cmd,
-		flag.Org(),
 		flag.MPGCluster(),
 	)
 
@@ -38,7 +37,7 @@ func runConnect(ctx context.Context) (err error) {
 
 	localProxyPort := "16380"
 
-	cluster, params, password, err := getMpgProxyParams(ctx, localProxyPort)
+	cluster, params, credentials, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
 		return err
 	}
@@ -58,8 +57,11 @@ func runConnect(ctx context.Context) (err error) {
 		return err
 	}
 
-	name := fmt.Sprintf("pgdb-%s", cluster.Id)
-	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s", name, password, localProxyPort, name)
+	user := credentials.User
+	password := credentials.Password
+	db := credentials.DBName
+
+	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
 	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
