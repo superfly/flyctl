@@ -90,7 +90,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		stream, err = logs.NewNatsStream(ctx, md.apiClient, logOpts)
 		if err != nil {
 			// Silently fallback to app logs polling if NATS streaming client is unavailable.
-			stream = logs.NewPollingStream(md.apiClient)
+			stream = logs.NewPollingStream(md.flapsClient)
 		}
 		return nil
 	})

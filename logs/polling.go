@@ -7,20 +7,21 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/pkg/errors"
 
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 type pollingStream struct {
 	err       error
-	apiClient WebClient
+	apiClient flapsutil.FlapsClient
 }
 
-func NewPollingStream(client WebClient) LogStream {
+func NewPollingStream(client flapsutil.FlapsClient) LogStream {
 	return &pollingStream{apiClient: client}
 }
 
-func (s *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
-	out := make(chan LogEntry)
+func (s *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan fly.LogEntry {
+	out := make(chan fly.LogEntry)
 
 	go func() {
 		defer close(out)
@@ -35,7 +36,7 @@ func (s *pollingStream) Err() error {
 	return s.err
 }
 
-func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogOptions) error {
+func Poll(ctx context.Context, out chan<- fly.LogEntry, client flapsutil.FlapsClient, opts *LogOptions) error {
 	const (
 		minWait = time.Millisecond << 6
 		maxWait = minWait << 6
@@ -43,7 +44,6 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 
 	var (
 		errorCount int
-		nextToken  string
 		waitFor    = minWait
 	)
 
@@ -52,7 +52,7 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 			pause.For(ctx, waitFor)
 		}
 
-		entries, token, err := client.GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
+		entries, err := client.GetLogs(ctx, opts.VMID)
 		if err != nil {
 			switch errorCount++; {
 			default:
@@ -77,19 +77,8 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 
 		waitFor = 0
 
-		if token != "" {
-			nextToken = token
-		}
-
 		for _, entry := range entries {
-			out <- LogEntry{
-				Instance:  entry.Instance,
-				Level:     entry.Level,
-				Message:   entry.Message,
-				Region:    entry.Region,
-				Timestamp: entry.Timestamp,
-				Meta:      entry.Meta,
-			}
+			out <- entry.LogEntry()
 		}
 
 		if opts.NoTail {
