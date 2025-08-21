@@ -37,6 +37,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/macaroon/flyio/machinesapi"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -670,10 +671,12 @@ func registryAuth(token string) registry.AuthConfig {
 
 func authConfigs(token string) map[string]registry.AuthConfig {
 	targetRegistry := viper.GetString(flyctl.ConfigRegistryHost)
+	mirrorRegistry := net.JoinHostPort(machinesapi.InternalURL.Hostname(), "5000")
 
 	authConfigs := map[string]registry.AuthConfig{}
 
 	authConfigs[targetRegistry] = registryAuth(token)
+	authConfigs[mirrorRegistry] = registryAuth(token)
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
