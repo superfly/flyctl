@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -69,10 +70,14 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
-		tracing.RecordError(span, err, "failed to update release")
-		return fmt.Errorf("failed to set release status to 'running': %w", err)
-	}
+	updateReleaseCtx, updateReleaseCancel := context.WithTimeout(ctx, time.Second)
+	defer updateReleaseCancel()
+	go func() {
+		if err := md.updateReleaseInBackend(updateReleaseCtx, "running", nil); err != nil {
+			tracing.RecordError(span, err, "failed to update release")
+			terminal.Debugf("failed to set release status to 'running': %v", err)
+		}
+	}()
 
 	if md.tigrisStatics != nil && !md.restartOnly {
 		if err := md.tigrisStatics.Push(ctx); err != nil {
@@ -108,13 +113,16 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		status = "failed"
 	}
 
-	if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
-		if err == nil {
-			err = fmt.Errorf("failed to set final release status: %w", updateErr)
-		} else {
-			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+	task.FromContext(ctx).Run(func(_ context.Context) {
+		updateReleaseCancel()
+		if updateErr := md.updateReleaseInBackend(context.Background(), status, metadata); updateErr != nil {
+			if err == nil {
+				terminal.Warnf("failed to set final release status: %v\n", updateErr)
+			} else {
+				terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+			}
 		}
-	}
+	})
 
 	if md.tigrisStatics != nil && !md.restartOnly {
 		if err == nil {
@@ -569,7 +577,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		tracing.RecordError(span, err, "failed to acquire lease")
 		return err
 	}
-	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
+	defer func() {
+		task.FromContext(ctx).Run(func(ctx context.Context) {
+			_ = md.machineSet.ReleaseLeases(ctx)
+		})
+	}()
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)

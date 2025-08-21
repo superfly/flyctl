@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
@@ -22,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -155,6 +157,7 @@ type machineDeployment struct {
 	tigrisStatics         *statics.DeployerState
 	deployRetries         int
 	buildID               string
+	releaseMu             sync.Mutex
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -316,10 +319,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		tracing.RecordError(span, err, "failed to validate volume config")
 		return nil, err
 	}
-	if err = md.createReleaseInBackend(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to create release in backend")
-		return nil, err
-	}
+	task.FromContext(ctx).Run(func(_ context.Context) {
+		if err = md.createReleaseInBackend(context.Background()); err != nil {
+			tracing.RecordError(span, err, "failed to create release in backend")
+			terminal.Errorf("failed to create release in backend: %v", err)
+		}
+	})
 
 	span.SetAttributes(md.ToSpanAttributes()...)
 	return md, nil
@@ -579,17 +584,22 @@ func (md *machineDeployment) setStrategy() error {
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
+	md.releaseMu.Lock()
+	defer md.releaseMu.Unlock()
 	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
 	defer span.End()
 
-	resp, err := md.apiClient.CreateRelease(ctx, fly.CreateReleaseInput{
-		AppId:           md.app.Name,
-		PlatformVersion: "machines",
-		Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
-		Definition:      md.appConfig,
-		Image:           md.img,
-		BuildId:         md.buildID,
-	})
+	b := backoff.NewExponentialBackOff()
+	resp, err := backoff.Retry(ctx, func() (*fly.CreateReleaseResponse, error) {
+		return md.apiClient.CreateRelease(ctx, fly.CreateReleaseInput{
+			AppId:           md.app.Name,
+			PlatformVersion: "machines",
+			Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
+			Definition:      md.appConfig,
+			Image:           md.img,
+			BuildId:         md.buildID,
+		})
+	}, backoff.WithBackOff(b))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
 		return err
@@ -600,6 +610,8 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 }
 
 func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
+	md.releaseMu.Lock()
+	defer md.releaseMu.Unlock()
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
 		attribute.String("status", status),
@@ -612,7 +624,12 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 		Metadata:  metadata,
 	}
 
-	_, err := md.apiClient.UpdateRelease(ctx, input)
+	var err error
+	if md.releaseId != "" {
+		_, err = md.apiClient.UpdateRelease(ctx, input)
+	} else {
+		err = fmt.Errorf("release id not set")
+	}
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
