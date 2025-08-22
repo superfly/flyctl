@@ -149,9 +149,10 @@ func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type Resolver struct {
-	dockerFactory *dockerClientFactory
-	apiClient     flyutil.Client
-	heartbeatFn   func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
+	dockerFactory   *dockerClientFactory
+	apiClient       flyutil.Client
+	heartbeatFn     func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
+	recreateBuilder bool
 }
 
 type StopSignal struct {
@@ -243,13 +244,16 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		builderScope = DepotBuilderScopeApp
 	default:
 		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
-
 	}
 
 	if buildkitAddr := flag.GetBuildkitAddr(ctx); buildkitAddr != "" {
 		strategies = append(strategies, NewBuildkitBuilder(buildkitAddr))
 	} else if r.dockerFactory.mode.UseNixpacks() {
-		strategies = append(strategies, &nixpacksBuilder{})
+		org, err := r.apiClient.GetOrganizationByApp(ctx, opts.AppName)
+		if err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, &nixpacksBuilder{provisioner: newProvisioner(org)})
 	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
 		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
@@ -771,9 +775,10 @@ func (s *StopSignal) Stop() {
 
 func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *Resolver {
 	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder),
-		apiClient:     apiClient,
-		heartbeatFn:   heartbeat,
+		dockerFactory:   newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder),
+		apiClient:       apiClient,
+		heartbeatFn:     heartbeat,
+		recreateBuilder: recreateBuilder,
 	}
 }
 

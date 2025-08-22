@@ -16,8 +16,8 @@ import (
 )
 
 func TestValidateBuilder(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
+	p := newProvisioner(&fly.Organization{})
 
 	hasVolumes := false
 	hasMachines := false
@@ -44,24 +44,24 @@ func TestValidateBuilder(t *testing.T) {
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
 
-	_, err := validateBuilder(ctx, nil)
+	_, err := p.validateBuilder(ctx, nil)
 	assert.EqualError(t, err, NoBuilderApp.Error())
 
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.EqualError(t, err, NoBuilderVolume.Error())
 
 	hasVolumes = true
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.EqualError(t, err, InvalidMachineCount.Error())
 
 	hasMachines = true
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.NoError(t, err)
 }
 
 func TestValidateBuilderAPIErrors(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
+	p := newProvisioner(&fly.Organization{})
 
 	maxVolumeRetries := 3
 	volumeRetries := 0
@@ -110,18 +110,18 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
 
 	volumesShouldFail = true
-	_, err := validateBuilder(ctx, &fly.App{})
+	_, err := p.validateBuilder(ctx, &fly.App{})
 	assert.NoError(t, err)
 
 	volumeRetries = 0
 	maxVolumeRetries = 7
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.Error(t, err)
 
 	volumeRetries = 0
 	responseStatusCode = 404
 	// we should only try once if the error is not a server error
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	var flapsErr *flaps.FlapsError
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
@@ -130,29 +130,29 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	volumesShouldFail = false
 	machinesShouldFail = true
 	responseStatusCode = 500
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.NoError(t, err)
 
 	machineRetries = 0
 	maxMachineRetries = 7
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.Error(t, err)
 
 	machineRetries = 0
 	responseStatusCode = 404
 	// we should only try once if the error is not a server error
-	_, err = validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &fly.App{})
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
 	assert.Equal(t, 1, machineRetries)
 }
 
 func TestCreateBuilder(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	org := &fly.Organization{
 		Slug: "bigorg",
 	}
+	p := newProvisioner(org)
 
 	createAppShouldFail := false
 	allocateIPAddressShouldFail := false
@@ -225,38 +225,38 @@ func TestCreateBuilder(t *testing.T) {
 	ctx = flyutil.NewContextWithClient(ctx, &apiClient)
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
 
-	app, machine, err := createBuilder(ctx, org, "ord", "builder")
+	app, machine, err := p.createBuilder(ctx, "ord", "builder")
 	assert.NoError(t, err)
 	assert.Equal(t, "bigmachine", machine.ID)
 	assert.Equal(t, app.Name, "builder")
 
 	createAppShouldFail = true
-	_, _, err = createBuilder(ctx, org, "ord", "builder")
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.Error(t, err)
 
 	createAppShouldFail = false
 	allocateIPAddressShouldFail = true
-	_, _, err = createBuilder(ctx, org, "ord", "builder")
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.Error(t, err)
 
 	allocateIPAddressShouldFail = false
 	waitForAppShouldFail = true
-	_, _, err = createBuilder(ctx, org, "ord", "builder")
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.Error(t, err)
 
 	waitForAppShouldFail = false
 	createVolumeShouldFail = true
-	_, _, err = createBuilder(ctx, org, "ord", "builder")
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.NoError(t, err)
 
 	createVolumeAttempts = 0
 	maxCreateVolumeAttempts = 7
-	_, _, err = createBuilder(ctx, org, "ord", "builder")
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.Error(t, err)
 
 	createVolumeShouldFail = false
 	launchShouldFail = true
-	_, _, err = createBuilder(ctx, org, "ord", "builder")
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.Error(t, err)
 }
 
