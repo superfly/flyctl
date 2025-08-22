@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/iostreams"
@@ -22,7 +23,10 @@ import (
 
 const nixpackInstallerURL string = "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh"
 
-type nixpacksBuilder struct{}
+type nixpacksBuilder struct {
+	builderMachine *fly.Machine
+	builderApp     *fly.App
+}
 
 func (*nixpacksBuilder) Name() string {
 	return "Nixpacks"
@@ -97,7 +101,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 	return err
 }
 
-func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		note := "docker daemon not available, skipping"
@@ -130,13 +134,8 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", err
 		}
 
-		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName, false)
-		if err != nil {
-			build.BuilderInitFinish()
-			build.BuildFinish()
-			return nil, "", err
-		}
-
+		machine := b.builderMachine
+		app := b.builderApp
 		remoteHost := machine.PrivateIP
 
 		if remoteHost == "" {
