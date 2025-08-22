@@ -55,7 +55,6 @@ type dockerClientFactory struct {
 }
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *dockerClientFactory {
-	useManagedBuilder := daemonType.UseManagedBuilder()
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		return &dockerClientFactory{
@@ -63,10 +62,36 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 			remote: true,
 			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 				cfg := config.FromContext(ctx)
+				var (
+					builderMachine *fly.Machine
+					builderApp     *fly.App
+					err            error
+				)
+
+				managed := daemonType.UseManagedBuilder()
 				if cfg.DisableManagedBuilders {
-					useManagedBuilder = false
+					managed = false
 				}
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, useManagedBuilder, recreateBuilder)
+				if managed {
+					connectOverWireguard = false
+					builderMachine, builderApp, err = remoteManagedBuilderMachine(ctx, apiClient, appName)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					var org *fly.Organization
+					org, err = apiClient.GetOrganizationByApp(ctx, appName)
+					if err != nil {
+						return nil, err
+					}
+					provisioner := newProvisioner(org)
+					builderMachine, builderApp, err = provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
+					if err != nil {
+						return nil, err
+					}
+				}
+
+				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, builderApp, builderMachine)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -236,7 +261,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, useManagedBuilder bool, recreateBuilder bool) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *fly.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -255,20 +280,11 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	}()
 
 	var host string
-	var app *fly.App
-	var machine *fly.Machine
-	if useManagedBuilder {
-		machine, app, err = remoteManagedBuilderMachine(ctx, apiClient, appName)
-	} else {
-		machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, recreateBuilder)
-	}
+	app := builderApp
+	machine := builderMachine
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
 		return nil, err
-	}
-
-	if useManagedBuilder {
-		connectOverWireguard = false
 	}
 
 	if !connectOverWireguard && !wglessCompatible {
@@ -472,7 +488,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 
 		return nil, err
 	default:
-		if msg := fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName); streams.IsInteractive() {
+		if msg := fmt.Sprintf("XXX Remote builder %s ready %v %v", remoteBuilderAppName, connectOverWireguard, host); streams.IsInteractive() {
 			streams.StopProgressIndicatorMsg(msg)
 		} else {
 			fmt.Fprintln(streams.ErrOut, msg)
@@ -745,7 +761,8 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, o
 	}
 
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	_, app, err := EnsureBuilder(ctx, org, region, recreateBuilder)
+	p := newProvisioner(org)
+	_, app, err := p.EnsureBuilder(ctx, region, recreateBuilder)
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
@@ -764,7 +781,8 @@ func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName
 	if err != nil {
 		return nil, nil, err
 	}
-	builderMachine, builderApp, err := EnsureBuilder(ctx, org, region, recreateBuilder)
+	p := newProvisioner(org)
+	builderMachine, builderApp, err := p.EnsureBuilder(ctx, region, recreateBuilder)
 	return builderMachine, builderApp, err
 }
 
