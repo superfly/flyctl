@@ -86,6 +86,9 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					}
 					provisioner := newProvisioner(org)
 					builderMachine, builderApp, err = provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
+					if err != nil {
+						return nil, err
+					}
 				}
 
 				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, builderApp, builderMachine)
