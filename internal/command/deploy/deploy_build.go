@@ -107,7 +107,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		opts := imgsrc.RefOptions{
 			AppName:    appConfig.AppName,
 			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBuildOnly(ctx),
+			Publish:    flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}
