@@ -14,6 +14,7 @@ import (
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
+	"github.com/moby/buildkit/worker/label"
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -326,10 +327,19 @@ func newDeploymentImage(ctx context.Context, c *client.Client, res *client.Solve
 		}
 	}
 
+	var builderHostname string
+	workers, err := c.ListWorkers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range workers {
+		builderHostname = w.Labels[label.Hostname]
+	}
 	image := &DeploymentImage{
-		ID:   id,
-		Tag:  tag,
-		Size: descriptor.Bytes(),
+		ID:        id,
+		Tag:       tag,
+		Size:      descriptor.Bytes(),
+		BuilderID: builderHostname,
 	}
 
 	return image, nil
