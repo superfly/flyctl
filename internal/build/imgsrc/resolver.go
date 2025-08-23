@@ -118,12 +118,13 @@ func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type DeploymentImage struct {
-	ID      string
-	Tag     string
-	Digest  string
-	Size    int64
-	BuildID string
-	Labels  map[string]string
+	ID        string
+	Tag       string
+	Digest    string
+	Size      int64
+	BuildID   string
+	BuilderID string
+	Labels    map[string]string
 }
 
 func (image *DeploymentImage) String() string {
@@ -292,6 +293,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 				// we should only set the image's buildID if we push the build info to web
 				img.BuildID = buildResult.BuildId
 			}
+			img.BuilderID = bld.BuilderMeta.RemoteMachineId
 
 			return img, nil
 		}
