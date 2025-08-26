@@ -33,6 +33,11 @@ func newConnect() (cmd *cobra.Command) {
 }
 
 func runConnect(ctx context.Context) (err error) {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	io := iostreams.FromContext(ctx)
 
 	localProxyPort := "16380"
