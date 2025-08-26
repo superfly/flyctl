@@ -8,6 +8,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -276,4 +277,31 @@ func ResolveOrganizationSlug(ctx context.Context, inputSlug string) (string, err
 
 	// Return the canonical slug from the API response
 	return resp.Organization.RawSlug, nil
+}
+
+// detectTokenHasMacaroon determines if the current context has macaroon-style tokens.
+// MPG commands require macaroon tokens to function properly.
+func detectTokenHasMacaroon(ctx context.Context) bool {
+	tokens := config.Tokens(ctx)
+	if tokens == nil {
+		return false
+	}
+
+	// Check for macaroon tokens (newer style)
+	return len(tokens.GetMacaroonTokens()) > 0
+}
+
+// validateMPGTokenCompatibility checks if the current authentication tokens are compatible
+// with MPG commands. MPG requires macaroon-style tokens and cannot work with older bearer tokens.
+// Returns an error if bearer tokens are detected, suggesting the user upgrade their tokens.
+func validateMPGTokenCompatibility(ctx context.Context) error {
+	if !detectTokenHasMacaroon(ctx) {
+		return fmt.Errorf(`MPG commands require updated tokens but found older-style tokens.
+
+Please upgrade your authentication by running:
+  flyctl auth logout
+  flyctl auth login
+`)
+	}
+	return nil
 }
