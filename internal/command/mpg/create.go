@@ -69,6 +69,11 @@ func newCreate() *cobra.Command {
 }
 
 func runCreate(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	var (
 		io      = iostreams.FromContext(ctx)
 		appName = flag.GetString(ctx, "name")

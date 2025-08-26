@@ -36,6 +36,11 @@ This action is not reversible.`
 }
 
 func runDestroy(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	var (
 		clusterId  = flag.FirstArg(ctx)
 		uiexClient = uiexutil.ClientFromContext(ctx)

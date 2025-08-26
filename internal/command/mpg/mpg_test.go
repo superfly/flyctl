@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/command_context"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -782,4 +784,149 @@ func TestCreateCommand_RegionValidation(t *testing.T) {
 	valid, err = service.IsValidMPGRegion(ctx, "test-org", "invalid")
 	require.NoError(t, err)
 	assert.False(t, valid, "Should not find invalid region")
+}
+
+// Test actual MPG token validation functions
+func TestMPGTokenValidation(t *testing.T) {
+	t.Run("detectTokenHasMacaroon with actual contexts", func(t *testing.T) {
+		// Test case 1: Context with no config (should handle gracefully)
+		emptyCtx := context.Background()
+		// This should panic or return false - let's catch the panic
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// Expected panic due to no config in context
+					t.Logf("Expected panic caught: %v", r)
+				}
+			}()
+			result := detectTokenHasMacaroon(emptyCtx)
+			// If we get here without panicking, it should return false
+			assert.False(t, result, "Should return false when config is nil")
+		}()
+
+		// Test case 2: Context with nil tokens
+		configWithNilTokens := &config.Config{
+			Tokens: nil,
+		}
+		ctxWithNilTokens := config.NewContext(context.Background(), configWithNilTokens)
+		result := detectTokenHasMacaroon(ctxWithNilTokens)
+		assert.False(t, result, "Should return false when tokens are nil")
+
+		// Test case 3: Context with empty tokens (no macaroons)
+		emptyTokens := tokens.Parse("") // Parse empty string creates empty tokens
+		configWithEmptyTokens := &config.Config{
+			Tokens: emptyTokens,
+		}
+		ctxWithEmptyTokens := config.NewContext(context.Background(), configWithEmptyTokens)
+		result = detectTokenHasMacaroon(ctxWithEmptyTokens)
+		assert.False(t, result, "Should return false when no macaroon tokens exist")
+
+		// Test case 4: Context with bearer tokens only (no macaroons)
+		bearerTokens := tokens.Parse("some_bearer_token_here") // This won't be recognized as macaroon
+		configWithBearerTokens := &config.Config{
+			Tokens: bearerTokens,
+		}
+		ctxWithBearerTokens := config.NewContext(context.Background(), configWithBearerTokens)
+		result = detectTokenHasMacaroon(ctxWithBearerTokens)
+		assert.False(t, result, "Should return false when only bearer tokens exist")
+
+		// Test case 5: Context with macaroon tokens
+		macaroonTokens := tokens.Parse("fm1r_test_macaroon_token,fm2_another_macaroon") // fm1r and fm2 prefixes are macaroon tokens
+		configWithMacaroonTokens := &config.Config{
+			Tokens: macaroonTokens,
+		}
+		ctxWithMacaroonTokens := config.NewContext(context.Background(), configWithMacaroonTokens)
+		result = detectTokenHasMacaroon(ctxWithMacaroonTokens)
+		assert.True(t, result, "Should return true when macaroon tokens exist")
+
+		// Test case 6: Context with mixed tokens (including macaroons)
+		mixedTokens := tokens.Parse("bearer_token,fm1a_macaroon_token,oauth_token")
+		configWithMixedTokens := &config.Config{
+			Tokens: mixedTokens,
+		}
+		ctxWithMixedTokens := config.NewContext(context.Background(), configWithMixedTokens)
+		result = detectTokenHasMacaroon(ctxWithMixedTokens)
+		assert.True(t, result, "Should return true when macaroon tokens exist among mixed tokens")
+	})
+
+	t.Run("validateMPGTokenCompatibility with actual contexts", func(t *testing.T) {
+		// Test case 1: Context with nil tokens - should fail
+		configWithNilTokens := &config.Config{
+			Tokens: nil,
+		}
+		ctxWithNilTokens := config.NewContext(context.Background(), configWithNilTokens)
+		err := validateMPGTokenCompatibility(ctxWithNilTokens)
+		assert.Error(t, err, "Should return error when no macaroon tokens")
+		assert.Contains(t, err.Error(), "MPG commands require updated tokens")
+		assert.Contains(t, err.Error(), "flyctl auth logout")
+		assert.Contains(t, err.Error(), "flyctl auth login")
+
+		// Test case 2: Context with empty tokens - should fail
+		emptyTokens := tokens.Parse("")
+		configWithEmptyTokens := &config.Config{
+			Tokens: emptyTokens,
+		}
+		ctxWithEmptyTokens := config.NewContext(context.Background(), configWithEmptyTokens)
+		err = validateMPGTokenCompatibility(ctxWithEmptyTokens)
+		assert.Error(t, err, "Should return error when no macaroon tokens")
+		assert.Contains(t, err.Error(), "MPG commands require updated tokens")
+
+		// Test case 3: Context with bearer tokens only - should fail
+		bearerTokens := tokens.Parse("some_bearer_token")
+		configWithBearerTokens := &config.Config{
+			Tokens: bearerTokens,
+		}
+		ctxWithBearerTokens := config.NewContext(context.Background(), configWithBearerTokens)
+		err = validateMPGTokenCompatibility(ctxWithBearerTokens)
+		assert.Error(t, err, "Should return error when no macaroon tokens")
+		assert.Contains(t, err.Error(), "MPG commands require updated tokens")
+
+		// Test case 4: Context with macaroon tokens - should pass
+		macaroonTokens := tokens.Parse("fm1r_test_macaroon_token")
+		configWithMacaroonTokens := &config.Config{
+			Tokens: macaroonTokens,
+		}
+		ctxWithMacaroonTokens := config.NewContext(context.Background(), configWithMacaroonTokens)
+		err = validateMPGTokenCompatibility(ctxWithMacaroonTokens)
+		assert.NoError(t, err, "Should not return error when macaroon tokens exist")
+
+		// Test case 5: Context with mixed tokens including macaroons - should pass
+		mixedTokens := tokens.Parse("bearer_token,fm1a_macaroon_token,oauth_token")
+		configWithMixedTokens := &config.Config{
+			Tokens: mixedTokens,
+		}
+		ctxWithMixedTokens := config.NewContext(context.Background(), configWithMixedTokens)
+		err = validateMPGTokenCompatibility(ctxWithMixedTokens)
+		assert.NoError(t, err, "Should not return error when macaroon tokens exist among mixed tokens")
+	})
+
+	t.Run("MPG commands reject non-macaroon tokens", func(t *testing.T) {
+		// This test verifies that actual MPG command functions call the validation
+		// and properly reject contexts without macaroon tokens
+
+		// Create a context with bearer tokens only (no macaroons)
+		bearerTokens := tokens.Parse("some_bearer_token")
+		configWithBearerTokens := &config.Config{
+			Tokens: bearerTokens,
+		}
+		ctxWithBearerTokens := config.NewContext(context.Background(), configWithBearerTokens)
+
+		// Test that the actual run functions would reject this context
+		// We can't easily test the full run functions due to their dependencies,
+		// but we can verify the validation function they call would fail
+		err := validateMPGTokenCompatibility(ctxWithBearerTokens)
+		assert.Error(t, err, "MPG commands should reject contexts with only bearer tokens")
+		assert.Contains(t, err.Error(), "MPG commands require updated tokens")
+		
+		// Create a context with macaroon tokens
+		macaroonTokens := tokens.Parse("fm1r_macaroon_token")
+		configWithMacaroonTokens := &config.Config{
+			Tokens: macaroonTokens,
+		}
+		ctxWithMacaroonTokens := config.NewContext(context.Background(), configWithMacaroonTokens)
+
+		// Test that the validation would pass for macaroon tokens
+		err = validateMPGTokenCompatibility(ctxWithMacaroonTokens)
+		assert.NoError(t, err, "MPG commands should accept contexts with macaroon tokens")
+	})
 }

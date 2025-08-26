@@ -40,6 +40,11 @@ If no organization is specified, the user's personal organization is used.`
 }
 
 func runList(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
