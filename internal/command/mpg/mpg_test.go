@@ -917,7 +917,7 @@ func TestMPGTokenValidation(t *testing.T) {
 		err := validateMPGTokenCompatibility(ctxWithBearerTokens)
 		assert.Error(t, err, "MPG commands should reject contexts with only bearer tokens")
 		assert.Contains(t, err.Error(), "MPG commands require updated tokens")
-		
+
 		// Create a context with macaroon tokens
 		macaroonTokens := tokens.Parse("fm1r_macaroon_token")
 		configWithMacaroonTokens := &config.Config{
