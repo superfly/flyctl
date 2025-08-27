@@ -607,6 +607,7 @@ func deployToMachines(
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
 		BuildID:               img.BuildID,
+		BuilderID:             img.BuilderID,
 	}
 
 	var path = flag.GetString(ctx, "export-manifest")
