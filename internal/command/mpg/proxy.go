@@ -43,6 +43,11 @@ func newProxy() (cmd *cobra.Command) {
 }
 
 func runProxy(ctx context.Context) (err error) {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	localProxyPort := "16380"
 	_, params, _, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
