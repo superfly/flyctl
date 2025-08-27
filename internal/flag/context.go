@@ -204,3 +204,11 @@ func GetBuildkitAddr(ctx context.Context) string {
 	}
 	return addr
 }
+
+func GetBuildkitImage(ctx context.Context) string {
+	addr := GetString(ctx, "buildkit-image")
+	if addr == "" {
+		addr = env.First("BUILDKIT_IMAGE")
+	}
+	return addr
+}
