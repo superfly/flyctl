@@ -154,7 +154,8 @@ type Resolver struct {
 	apiClient       flyutil.Client
 	heartbeatFn     func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
 	recreateBuilder bool
-	provisioner     *Provisioner
+	// provisioner is responsible for provisioning a builder machine remotely.
+	provisioner *Provisioner
 	// dockerFactory is a factory for creating docker clients. It could be nil if this build doesn't need Docker Engine.
 	dockerFactory *dockerClientFactory
 }
@@ -662,11 +663,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "start_heartbeat")
 	defer span.End()
 
-	if r.dockerFactory == nil {
-		return nil, nil
-	}
-
-	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() {
+	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() || r.provisioner.UseBuildkit() {
 		span.AddEvent("won't check heartbeart of non-remote build")
 		return nil, nil
 	}
@@ -805,10 +802,7 @@ func NewResolver(
 		opt(resolver)
 	}
 
-	if resolver.provisioner == nil {
-		resolver.dockerFactory = newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder)
-	}
-
+	resolver.dockerFactory = newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder)
 	return resolver
 }
 

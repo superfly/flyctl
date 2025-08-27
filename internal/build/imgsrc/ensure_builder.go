@@ -101,7 +101,6 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		builderMachine, err := p.validateBuilder(ctx, builderApp)
 		if err == nil {
 			span.AddEvent("builder app already exists and is valid")
-			fmt.Printf("XXX GOOD BUILDER\n")
 			return builderMachine, builderApp, nil
 		}
 
@@ -202,18 +201,22 @@ const (
 	InvalidMachineCount
 	BuilderMachineNotStarted
 	ShouldReplaceBuilderMachine
+
+	buildkitGRPCPort = 1234
 )
 
+// validateBuilder returns a machine if it is availabe for building images.
 func (p *Provisioner) validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	machine, err := p.validateBuilderMachine(ctx, app)
 	if err != nil {
 		return nil, err
 	}
 
-	if p.UseBuildkit() && len(machine.Config.Services) == 1 && machine.Config.Services[0].InternalPort == 1234 {
+	if p.UseBuildkit() && len(machine.Config.Services) == 1 && machine.Config.Services[0].InternalPort == buildkitGRPCPort {
 		return machine, nil
 	}
 
+	// If the provisioner assumes Builtkit, but the machine isn't configured so, replace the machine.
 	return nil, ShouldReplaceBuilderMachine
 }
 
