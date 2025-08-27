@@ -2,10 +2,8 @@ package secrets
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -40,16 +38,12 @@ func runDeploy(ctx context.Context) (err error) {
 		return err
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
+	ctx, err = setFlapsClient(ctx, app)
 	if err != nil {
-		return flyerr.GenericErr{
-			Err: fmt.Sprintf("could not create flaps client: %v", err),
-		}
+		return err
 	}
 
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err

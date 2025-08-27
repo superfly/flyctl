@@ -37,6 +37,11 @@ func runImport(ctx context.Context) (err error) {
 		return
 	}
 
+	ctx, err = setFlapsClient(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	secrets, err := parseSecrets(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("Failed to parse secrets from stdin: %w", err)

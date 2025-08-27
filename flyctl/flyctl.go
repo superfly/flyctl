@@ -115,7 +115,7 @@ func loadConfig() error {
 	return err
 }
 
-var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
+var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigAppSecretsMinvers, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
 func saveConfig() error {
 	out := map[string]interface{}{}
