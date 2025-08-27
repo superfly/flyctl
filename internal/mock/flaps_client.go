@@ -18,7 +18,7 @@ type FlapsClient struct {
 	CreateVolumeFunc         func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc func(ctx context.Context, volumeId string) error
 	DeleteMetadataFunc       func(ctx context.Context, machineID, key string) error
-	DeleteAppSecretFunc      func(ctx context.Context, name string) error
+	DeleteAppSecretFunc      func(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteSecretKeyFunc      func(ctx context.Context, name string) error
 	DeleteVolumeFunc         func(ctx context.Context, volumeId string) (*fly.Volume, error)
 	DestroyFunc              func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
@@ -53,6 +53,7 @@ type FlapsClient struct {
 	SuspendFunc              func(ctx context.Context, machineID, nonce string) (err error)
 	UncordonFunc             func(ctx context.Context, machineID string, nonce string) (err error)
 	UpdateFunc               func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
+	UpdateAppSecretsFunc     func(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolumeFunc         func(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	WaitFunc                 func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error)
 	WaitForAppFunc           func(ctx context.Context, name string) error
@@ -82,7 +83,7 @@ func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string)
 	return m.DeleteMetadataFunc(ctx, machineID, key)
 }
 
-func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) (err error) {
+func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecret, err error) {
 	return m.DeleteAppSecretFunc(ctx, name)
 }
 
@@ -220,6 +221,10 @@ func (m *FlapsClient) Uncordon(ctx context.Context, machineID string, nonce stri
 
 func (m *FlapsClient) Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 	return m.UpdateFunc(ctx, builder, nonce)
+}
+
+func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, values map[string]*string) (out *fly.UpdateAppSecretsResp, err error) {
+	return m.UpdateAppSecretsFunc(ctx, values)
 }
 
 func (m *FlapsClient) UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {

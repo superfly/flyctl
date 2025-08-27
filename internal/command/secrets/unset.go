@@ -2,12 +2,15 @@ package secrets
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -37,13 +40,29 @@ func runUnset(ctx context.Context) (err error) {
 		return err
 	}
 
+	ctx, err = setFlapsClient(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	return UnsetSecretsAndDeploy(ctx, app, flag.Args(ctx), flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
 
 func UnsetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets []string, stage bool, detach bool) error {
-	client := flyutil.ClientFromContext(ctx)
-	if _, err := client.UnsetSecrets(ctx, app.Name, secrets); err != nil {
-		return err
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	req := map[string]*string{}
+	for _, name := range secrets {
+		req[name] = nil
+	}
+
+	resp, err := flapsClient.UpdateAppSecrets(ctx, req)
+	if err != nil {
+		return fmt.Errorf("update secrets: %w", err)
+	}
+
+	if err := appsecrets.SetAppSecretsMinvers(ctx, app.ID, resp.Version); err != nil {
+		return fmt.Errorf("update secrets: %w", err)
 	}
 
 	return DeploySecrets(ctx, app, stage, detach)

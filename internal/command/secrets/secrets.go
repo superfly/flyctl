@@ -12,6 +12,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -50,6 +52,43 @@ func New() *cobra.Command {
 	return secrets
 }
 
+// getFlapsClient builds and returns a flaps client for the App from the context.
+// Note: it does not return a context with the flaps client set.
+func getFlapsClient(ctx context.Context) (flapsutil.FlapsClient, error) {
+	client := flyutil.ClientFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("get app: %w", err)
+	}
+
+	ctx, err = setFlapsClient(ctx, app)
+	if err != nil {
+		return nil, err
+	}
+
+	return flapsutil.ClientFromContext(ctx), nil
+}
+
+// setFlapsClient builds a flaps client for app and stores it in a new context.
+// On error the old context is returned along with the error.
+func setFlapsClient(ctx context.Context, app *fly.AppCompact) (context.Context, error) {
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
+	if err != nil {
+		return ctx, flyerr.GenericErr{
+			Err: fmt.Sprintf("could not create flaps client: %v", err),
+		}
+	}
+
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	return ctx, nil
+}
+
+// DeploySecrets deploys machines with the new secret if this step is not to be skipped.
+// Note: setFlapsClient should be called before calling this function.
 func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
 
@@ -58,14 +97,10 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach 
 		return nil
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		return fmt.Errorf("DeploySecrets requires setFlapsClient to be called")
 	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
