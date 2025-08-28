@@ -595,7 +595,7 @@ func BuildkitAddr() String {
 func BuildkitImage() String {
 	return String{
 		Name:        "buildkit-image",
-		Description: "Address of remote buildkit daemon (e.g. tcp://127.0.0.1:1234 or unix:///path/to/socket)",
+		Description: "Image to use for remote buildkit daemon",
 		EnvName:     "BUILDKIT_IMAGE",
 	}
 }
