@@ -149,9 +149,15 @@ func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type Resolver struct {
+	// appName is the name of the app that the resolver is going to build.
+	appName         string
+	apiClient       flyutil.Client
+	heartbeatFn     func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
+	recreateBuilder bool
+	// provisioner is responsible for provisioning a builder machine remotely.
+	provisioner *Provisioner
+	// dockerFactory is a factory for creating docker clients. It could be nil if this build doesn't need Docker Engine.
 	dockerFactory *dockerClientFactory
-	apiClient     flyutil.Client
-	heartbeatFn   func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
 }
 
 type StopSignal struct {
@@ -219,7 +225,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	ctx, span := tracing.GetTracer().Start(ctx, "build_image", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
-	if !r.dockerFactory.mode.IsAvailable() {
+	if r.dockerFactory != nil && !r.dockerFactory.mode.IsAvailable() {
 		err := errors.New("docker is unavailable to build the deployment image")
 		tracing.RecordError(span, err, "docker is unavailable to build the deployment image")
 		return nil, err
@@ -243,13 +249,16 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		builderScope = DepotBuilderScopeApp
 	default:
 		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
-
 	}
 
-	if buildkitAddr := flag.GetBuildkitAddr(ctx); buildkitAddr != "" {
-		strategies = append(strategies, NewBuildkitBuilder(buildkitAddr))
+	if r.provisioner.UseBuildkit() {
+		strategies = append(strategies, NewBuildkitBuilder(flag.GetBuildkitAddr(ctx), r.provisioner))
 	} else if r.dockerFactory.mode.UseNixpacks() {
-		strategies = append(strategies, &nixpacksBuilder{})
+		org, err := r.apiClient.GetOrganizationByApp(ctx, opts.AppName)
+		if err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, &nixpacksBuilder{provisioner: NewProvisioner(org)})
 	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
 		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
@@ -347,17 +356,19 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	client := flyutil.ClientFromContext(ctx)
 
 	builderType := "remote"
-	switch {
-	case r.dockerFactory.mode.PrefersLocal():
-		builderType = "local"
-	case r.dockerFactory.mode.UseDepot():
-		builderType = "depot.dev"
-	case r.dockerFactory.mode.UseNixpacks():
-		builderType = "local"
+	if r.dockerFactory != nil {
+		switch {
+		case r.dockerFactory.mode.PrefersLocal():
+			builderType = "local"
+		case r.dockerFactory.mode.UseDepot():
+			builderType = "depot.dev"
+		case r.dockerFactory.mode.UseNixpacks():
+			builderType = "local"
+		}
 	}
 
 	input := fly.CreateBuildInput{
-		AppName:             r.dockerFactory.appName,
+		AppName:             r.appName,
 		BuilderType:         builderType,
 		ImageOpts:           *imageOpts,
 		MachineId:           "",
@@ -559,7 +570,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	}
 	input := fly.FinishBuildInput{
 		BuildId:             build.BuildId,
-		AppName:             r.dockerFactory.appName,
+		AppName:             r.appName,
 		MachineId:           "",
 		Status:              status,
 		Logs:                limitLogs(logs),
@@ -652,7 +663,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "start_heartbeat")
 	defer span.End()
 
-	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() {
+	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() || r.provisioner.UseBuildkit() {
 		span.AddEvent("won't check heartbeart of non-remote build")
 		return nil, nil
 	}
@@ -769,12 +780,30 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *Resolver {
-	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder),
-		apiClient:     apiClient,
-		heartbeatFn:   heartbeat,
+func WithProvisioner(provisioner *Provisioner) func(resolver *Resolver) {
+	return func(resolver *Resolver) {
+		resolver.provisioner = provisioner
 	}
+}
+
+func NewResolver(
+	daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams,
+	connectOverWireguard, recreateBuilder bool,
+	opts ...func(resolver *Resolver),
+) *Resolver {
+	resolver := &Resolver{
+		appName:         appName,
+		apiClient:       apiClient,
+		heartbeatFn:     heartbeat,
+		recreateBuilder: recreateBuilder,
+	}
+
+	for _, opt := range opts {
+		opt(resolver)
+	}
+
+	resolver.dockerFactory = newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder)
+	return resolver
 }
 
 type imageBuilder interface {
