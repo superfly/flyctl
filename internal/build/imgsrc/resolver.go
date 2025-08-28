@@ -156,7 +156,8 @@ type Resolver struct {
 	recreateBuilder bool
 	// provisioner is responsible for provisioning a builder machine remotely.
 	provisioner *Provisioner
-	// dockerFactory is a factory for creating docker clients. It could be nil if this build doesn't need Docker Engine.
+	// dockerFactory is a factory for creating docker clients.
+	// Some strategies don't need it, but it won't be nil.
 	dockerFactory *dockerClientFactory
 }
 
@@ -225,7 +226,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	ctx, span := tracing.GetTracer().Start(ctx, "build_image", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
-	if r.dockerFactory != nil && !r.dockerFactory.mode.IsAvailable() {
+	if !r.dockerFactory.mode.IsAvailable() {
 		err := errors.New("docker is unavailable to build the deployment image")
 		tracing.RecordError(span, err, "docker is unavailable to build the deployment image")
 		return nil, err
@@ -356,15 +357,13 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	client := flyutil.ClientFromContext(ctx)
 
 	builderType := "remote"
-	if r.dockerFactory != nil {
-		switch {
-		case r.dockerFactory.mode.PrefersLocal():
-			builderType = "local"
-		case r.dockerFactory.mode.UseDepot():
-			builderType = "depot.dev"
-		case r.dockerFactory.mode.UseNixpacks():
-			builderType = "local"
-		}
+	switch {
+	case r.dockerFactory.mode.PrefersLocal():
+		builderType = "local"
+	case r.dockerFactory.mode.UseDepot():
+		builderType = "depot.dev"
+	case r.dockerFactory.mode.UseNixpacks():
+		builderType = "local"
 	}
 
 	input := fly.CreateBuildInput{

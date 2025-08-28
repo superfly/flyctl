@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -23,10 +21,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	buildkitclient "github.com/moby/buildkit/client"
 )
 
 func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error {
@@ -50,56 +44,6 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	if found != config {
 		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, config, appConfig.ConfigFilePath())
 	}
-	return nil
-}
-
-func getBuildkitClient(ctx context.Context, addr string, appConfig *appconfig.Config, client flyutil.Client) (*buildkitclient.Client, error) {
-	bkclient, err := buildkitclient.New(ctx, addr)
-	if err != nil {
-		return bkclient, nil
-	}
-
-	_, err = bkclient.Info(ctx)
-	if err == nil {
-		return bkclient, nil
-	}
-	if status.Code(err) != codes.Unavailable {
-		return nil, err
-	}
-
-	app, err := client.GetAppCompact(ctx, appConfig.AppName)
-	if err != nil {
-		return nil, err
-	}
-	_, dialer, err := agent.BringUpAgent(ctx, client, app, app.Network, true)
-	if err != nil {
-		return nil, err
-	}
-
-	bkclient, err = buildkitclient.New(ctx, addr, buildkitclient.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-		return dialer.DialContext(ctx, "tcp", addr)
-	}))
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = bkclient.Info(ctx)
-	return bkclient, err
-}
-
-func provisionNewBuilder(ctx context.Context, fly flyutil.Client, appName string) error {
-	org, err := fly.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	provisioner := imgsrc.NewProvisioner(org)
-	machine, app, err := provisioner.EnsureBuilder(ctx, "", false)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Using remote builder machine %s in app %s\n", machine.ID, app.Name)
-
 	return nil
 }
 
