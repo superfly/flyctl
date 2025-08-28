@@ -212,11 +212,15 @@ func (p *Provisioner) validateBuilder(ctx context.Context, app *fly.App) (*fly.M
 		return nil, err
 	}
 
-	if p.UseBuildkit() && len(machine.Config.Services) == 1 && machine.Config.Services[0].InternalPort == buildkitGRPCPort {
+	// Don't run extra checks for non-Buildkit cases.
+	if !p.UseBuildkit() {
 		return machine, nil
 	}
 
-	// If the provisioner assumes Builtkit, but the machine isn't configured so, replace the machine.
+	// If not, make sure the machine is configured for Buildkit.
+	if len(machine.Config.Services) == 1 && machine.Config.Services[0].InternalPort == buildkitGRPCPort {
+		return machine, nil
+	}
 	return nil, ShouldReplaceBuilderMachine
 }
 
