@@ -92,7 +92,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 		if err != nil {
 			return nil, err
 		}
-		buildkitAddr = app.Name + ".flycast:1234"
+		buildkitAddr = fmt.Sprintf("%s.flycast:%d", app.Name, buildkitGRPCPort)
 	}
 
 	buildState.BuilderInitStart()
