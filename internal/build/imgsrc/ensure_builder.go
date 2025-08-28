@@ -415,6 +415,8 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 			{
 				InternalPort: 1234,
 				Ports:        []fly.MachinePort{{Port: fly.IntPointer(1234)}},
+				Autostart:    fly.BoolPointer(true),
+				Autostop:     fly.Pointer(fly.MachineAutostopStop),
 			},
 		}
 	} else {
