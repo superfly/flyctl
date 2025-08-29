@@ -127,14 +127,14 @@ type DeploymentImage struct {
 	Labels    map[string]string
 }
 
-func (image *DeploymentImage) String() string {
-	if image.Digest == "" {
-		return image.Tag
+func (di *DeploymentImage) String() string {
+	if di.Digest == "" {
+		return di.Tag
 	}
-	return fmt.Sprintf("%s@%s", image.Tag, image.Digest)
+	return fmt.Sprintf("%s@%s", di.Tag, di.Digest)
 }
 
-func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
+func (di *DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("image.id", di.ID),
 		attribute.String("image.tag", di.Tag),
@@ -665,7 +665,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	defer span.End()
 
 	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() || r.provisioner.UseBuildkit() {
-		span.AddEvent("won't check heartbeart of non-remote build")
+		span.AddEvent("won't check heartbeat of non-remote build")
 		return nil, nil
 	}
 
