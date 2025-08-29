@@ -71,6 +71,7 @@ func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, strea
 	if err != nil {
 		return nil, "", err
 	}
+	build.BuilderMeta.RemoteMachineId = image.BuilderID
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 	span.SetAttributes(image.ToSpanAttributes()...)
 	return image, "", nil

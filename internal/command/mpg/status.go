@@ -35,6 +35,11 @@ func newStatus() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	uiexClient := uiexutil.ClientFromContext(ctx)
