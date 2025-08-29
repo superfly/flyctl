@@ -83,7 +83,7 @@ func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string)
 	return m.DeleteMetadataFunc(ctx, machineID, key)
 }
 
-func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecret, err error) {
+func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error) {
 	return m.DeleteAppSecretFunc(ctx, name)
 }
 

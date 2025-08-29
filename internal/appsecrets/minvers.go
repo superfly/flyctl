@@ -19,29 +19,29 @@ func getMinvers() (config.AppSecretsMinvers, error) {
 	return minvers, nil
 }
 
-// GetAppSecretsMinvers returns the minimum secrets version for appID if known or nil.
-func GetAppSecretsMinvers(appID string) (*uint64, error) {
+// GetAppSecretsMinvers returns the minimum secrets version for appName if known or nil.
+func GetAppSecretsMinvers(appName string) (*uint64, error) {
 	minvers, err := getMinvers()
 	if err != nil {
 		return nil, err
 	}
 
-	if v, ok := minvers[appID]; ok {
+	if v, ok := minvers[appName]; ok {
 		return &v, nil
 	}
 	return nil, nil
 }
 
-func setAppSecretsMinvers(ctx context.Context, appID string, v *uint64) error {
+func setAppSecretsMinvers(ctx context.Context, appName string, v *uint64) error {
 	minvers, err := getMinvers()
 	if err != nil {
 		return err
 	}
 
 	if v == nil {
-		delete(minvers, appID)
+		delete(minvers, appName)
 	} else {
-		minvers[appID] = *v
+		minvers[appName] = *v
 	}
 
 	viper.Set(flyctl.ConfigAppSecretsMinvers, minvers)
@@ -53,12 +53,12 @@ func setAppSecretsMinvers(ctx context.Context, appID string, v *uint64) error {
 	return nil
 }
 
-// SetAppSecretsMinvers sets the minimum secrets version for appID and saves it.
-func SetAppSecretsMinvers(ctx context.Context, appID string, v uint64) error {
-	return setAppSecretsMinvers(ctx, appID, &v)
+// SetAppSecretsMinvers sets the minimum secrets version for appName and saves it.
+func SetAppSecretsMinvers(ctx context.Context, appName string, v uint64) error {
+	return setAppSecretsMinvers(ctx, appName, &v)
 }
 
-// DeleteAppSecretsMinvers removes the minimum secrets version for appID and saves it.
-func DeleteAppSecretsMinvers(ctx context.Context, appID string) error {
-	return setAppSecretsMinvers(ctx, appID, nil)
+// DeleteAppSecretsMinvers removes the minimum secrets version for appName and saves it.
+func DeleteAppSecretsMinvers(ctx context.Context, appName string) error {
+	return setAppSecretsMinvers(ctx, appName, nil)
 }

@@ -6,8 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -73,6 +75,14 @@ func runAttach(ctx context.Context) error {
 			appName, appOrgSlug, clusterId, clusterOrgSlug)
 	}
 
+	// XXX TODO: this also does an app lookup, of app compact.
+	// which is wasteful. can we use the app compact instead of getting the app basic above?
+	// or vice versa? we shouldnt need to look up the app twice here!
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, appName)
+	if err != nil {
+		return err
+	}
+
 	variableName := flag.GetString(ctx, "variable-name")
 
 	if variableName == "" {
@@ -80,7 +90,7 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Check if the app already has the secret variable set
-	secrets, err := client.GetAppSecrets(ctx, appName)
+	secrets, err := appsecrets.List(ctx, flapsClient, app.Name)
 	if err != nil {
 		return fmt.Errorf("failed retrieving secrets for app %s: %w", appName, err)
 	}
@@ -94,8 +104,7 @@ func runAttach(ctx context.Context) error {
 	s := map[string]string{}
 	s[variableName] = response.Credentials.ConnectionUri
 
-	_, err = client.SetSecrets(ctx, app.Name, s)
-	if err != nil {
+	if err := appsecrets.Update(ctx, flapsClient, app.Name, s, nil); err != nil {
 		return err
 	}
 

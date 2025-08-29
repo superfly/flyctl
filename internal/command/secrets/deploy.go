@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newDeploy() (cmd *cobra.Command) {
@@ -31,19 +30,12 @@ func newDeploy() (cmd *cobra.Command) {
 }
 
 func runDeploy(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	ctx, err = setFlapsClient(ctx, app)
-	if err != nil {
-		return err
-	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
