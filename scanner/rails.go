@@ -373,7 +373,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// ensure fly.toml exists.  If present, the rails dockerfile generator will
-	// add volumes, processes, release command and potentailly other configuration.
+	// add volumes, processes, release command and potentially other configuration.
 	flyToml := "fly.toml"
 	_, err = os.Stat(flyToml)
 	if os.IsNotExist(err) {

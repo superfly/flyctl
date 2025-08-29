@@ -665,7 +665,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	defer span.End()
 
 	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() || r.provisioner.UseBuildkit() {
-		span.AddEvent("won't check heartbeart of non-remote build")
+		span.AddEvent("won't check heartbeat of non-remote build")
 		return nil, nil
 	}
 

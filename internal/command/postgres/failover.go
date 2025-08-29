@@ -356,7 +356,7 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 		return fmt.Errorf("old leader %s could not be started: %s", leader.ID, mach.Message)
 	}
 
-	fmt.Println("Old leader started succesfully")
+	fmt.Println("Old leader started successfully")
 
 	return nil
 }
