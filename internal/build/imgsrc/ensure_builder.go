@@ -209,7 +209,8 @@ const (
 func (p *Provisioner) validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	machine, err := p.validateBuilderMachine(ctx, app)
 	if err != nil {
-		return nil, err
+		// validateBuilderMachine returns a machine even if there is an error.
+		return machine, err
 	}
 
 	// Don't run extra checks for non-Buildkit cases.
