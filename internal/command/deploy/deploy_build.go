@@ -109,6 +109,9 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	var provisioner *imgsrc.Provisioner
 	buildkitAddr := flag.GetBuildkitAddr(ctx)
 	buildkitImage := flag.GetBuildkitImage(ctx)
+	if flag.GetBool(ctx, "buildkit") && buildkitImage == "" && buildkitAddr == "" {
+		buildkitImage = imgsrc.DefaultBuildkitImage
+	}
 	if buildkitAddr != "" || buildkitImage != "" {
 		provisioner = imgsrc.NewBuildkitProvisioner(org, buildkitAddr, buildkitImage)
 	} else {

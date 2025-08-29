@@ -68,6 +68,7 @@ func newUpdate() *cobra.Command {
 		},
 		flag.BuildkitAddr(),
 		flag.BuildkitImage(),
+		flag.Buildkit(),
 	)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
