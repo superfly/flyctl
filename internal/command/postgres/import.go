@@ -9,9 +9,9 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -88,22 +88,13 @@ func runImport(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	// Resolve target app
-	app, err := client.GetAppCompact(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to resolve app: %w", err)
 	}
 
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("The target app must be a Postgres app")
-	}
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
 	machines, err := flapsClient.ListActive(ctx)
@@ -135,9 +126,8 @@ func runImport(ctx context.Context) error {
 	}
 
 	// Set sourceURI as a secret
-	_, err = client.SetSecrets(ctx, app.Name, map[string]string{
-		"SOURCE_DATABASE_URI": sourceURI,
-	})
+	upd := map[string]string{"SOURCE_DATABASE_URI": sourceURI}
+	err = appsecrets.Update(ctx, flapsClient, app.Name, upd, nil)
 	if err != nil {
 		return fmt.Errorf("failed to set secrets: %s", err)
 	}
@@ -207,9 +197,9 @@ func runImport(ctx context.Context) error {
 	}
 
 	// Unset secret
-	_, err = client.UnsetSecrets(ctx, app.Name, []string{"SOURCE_DATABASE_URI"})
+	err = appsecrets.Update(ctx, flapsClient, app.Name, nil, []string{"SOURCE_DATABASE_URI"})
 	if err != nil {
-		return fmt.Errorf("failed to set secrets: %s", err)
+		return fmt.Errorf("failed to unset secrets: %s", err)
 	}
 
 	return nil

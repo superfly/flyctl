@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
@@ -363,6 +364,10 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		}
 	}()
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return nil, nil, err
+	}
 	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
 		Region: region,
 		Config: &fly.MachineConfig{
@@ -411,6 +416,7 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 			},
 			Image: lo.Ternary(org.RemoteBuilderImage != "", org.RemoteBuilderImage, "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"),
 		},
+		MinSecretsVersion: minvers,
 	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error launching builder machine")

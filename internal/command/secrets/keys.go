@@ -1,17 +1,11 @@
 package secrets
 
 import (
-	"context"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 type SecretType = string
@@ -53,23 +47,4 @@ func newKeys() *cobra.Command {
 // secretTypeToString converts from a standard sType to flyctl's abbreviated string form.
 func secretTypeToString(sType string) string {
 	return strings.TrimPrefix(strings.ToLower(sType), "secret_type_kms_")
-}
-
-// getFlapsClient builds and returns a flaps client for the App from the context.
-func getFlapsClient(ctx context.Context) (*flaps.Client, error) {
-	client := flyutil.ClientFromContext(ctx)
-	appName := appconfig.NameFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return nil, fmt.Errorf("get app: %w", err)
-	}
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not create flaps client: %w", err)
-	}
-	return flapsClient, nil
 }

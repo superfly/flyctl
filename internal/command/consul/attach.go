@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -44,7 +45,7 @@ func runAttach(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -55,6 +56,6 @@ func runAttach(ctx context.Context) error {
 	secretsToSet := map[string]string{
 		secretName: consulPayload.ConsulURL,
 	}
-	err = secrets.SetSecretsAndDeploy(ctx, appCompact, secretsToSet, false, false)
+	err = secrets.SetSecretsAndDeploy(ctx, flapsClient, app, secretsToSet, false, false)
 	return err
 }

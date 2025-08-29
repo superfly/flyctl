@@ -7,8 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -52,7 +54,8 @@ func runKeyDelete(ctx context.Context) (err error) {
 		return err
 	}
 
-	flapsClient, err := getFlapsClient(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, appName)
 	if err != nil {
 		return err
 	}

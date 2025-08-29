@@ -58,8 +58,8 @@ func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, machineID, key str
 	return fmt.Errorf("failed to delete metadata %s", key)
 }
 
-func (m *mockFlapsClient) DeleteAppSecret(ctx context.Context, name string) error {
-	return fmt.Errorf("failed to delete app secret %s", name)
+func (m *mockFlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error) {
+	return nil, fmt.Errorf("failed to delete app secret %s", name)
 }
 
 func (m *mockFlapsClient) DeleteSecretKey(ctx context.Context, name string) error {
@@ -243,6 +243,10 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, machineID string, nonce 
 
 func (m *mockFlapsClient) Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 	return nil, fmt.Errorf("failed to update %s", builder.ID)
+}
+
+func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+	return nil, fmt.Errorf("failed to update app secret %v", values)
 }
 
 func (m *mockFlapsClient) UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {

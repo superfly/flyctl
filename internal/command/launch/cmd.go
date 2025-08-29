@@ -16,13 +16,14 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -468,8 +469,8 @@ func run(ctx context.Context) (err error) {
 				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
 			}
 
-			apiClient := flyutil.ClientFromContext(parentCtx)
-			_, err := apiClient.SetSecrets(parentCtx, parentConfig.AppName, exports)
+			flapsClient := flapsutil.ClientFromContext(parentCtx) // TODO: XXX will this work and match the parentConfig appname?
+			err := appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
 			if err != nil {
 				return err
 			}
