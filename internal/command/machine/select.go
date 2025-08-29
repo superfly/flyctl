@@ -18,7 +18,7 @@ import (
 )
 
 // We now prompt for a machine automatically when no machine IDs are
-// provided. This flag is retained for backward compatability.
+// provided. This flag is retained for backward compatibility.
 var selectFlag = flag.Bool{
 	Name:        "select",
 	Description: "Select from a list of machines",
