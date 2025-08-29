@@ -17,6 +17,7 @@ const (
 
 	ConfigWireGuardState      = "wire_guard_state"
 	ConfigWireGuardWebsockets = "wire_guard_websockets"
+	ConfigAppSecretsMinvers   = "app_secrets_minvers"
 
 	ConfigRegistryHost = "registry_host"
 )
