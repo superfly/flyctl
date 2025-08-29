@@ -298,48 +298,48 @@ func (c *Config) InternalPort() int {
 	return 0
 }
 
-func (cfg *Config) BuildStrategies() []string {
+func (c *Config) BuildStrategies() []string {
 	strategies := []string{}
 
-	if cfg == nil || cfg.Build == nil {
+	if c == nil || c.Build == nil {
 		return strategies
 	}
 
-	if cfg.Build.Image != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+	if c.Build.Image != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", c.Build.Image))
 	}
-	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
+	if c.Build.Builder != "" || len(c.Build.Buildpacks) > 0 {
 		strategies = append(strategies, "a buildpack")
 	}
-	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
-		if cfg.Build.Dockerfile != "" {
-			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+	if c.Build.Dockerfile != "" || c.Build.DockerBuildTarget != "" {
+		if c.Build.Dockerfile != "" {
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", c.Build.Dockerfile))
 		} else {
 			strategies = append(strategies, "a dockerfile")
 		}
 	}
-	if cfg.Build.Builtin != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
+	if c.Build.Builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", c.Build.Builtin))
 	}
 
 	return strategies
 }
 
-func (cfg *Config) URL() *url.URL {
+func (c *Config) URL() *url.URL {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   cfg.AppName + ".fly.dev",
+		Host:   c.AppName + ".fly.dev",
 		Path:   "/",
 	}
 
 	// HTTPService always listen on https, even if ForceHTTPS is false
-	if cfg.HTTPService != nil && cfg.HTTPService.InternalPort > 0 {
+	if c.HTTPService != nil && c.HTTPService.InternalPort > 0 {
 		return u
 	}
 
 	var httpPorts []int
 	var httpsPorts []int
-	for _, service := range cfg.Services {
+	for _, service := range c.Services {
 		for _, port := range service.Ports {
 			if port.Port == nil || !slices.Contains(port.Handlers, "http") {
 				continue
@@ -374,10 +374,10 @@ func (cfg *Config) URL() *url.URL {
 
 // MergeFiles merges the provided files with the files in the config wherein the provided files
 // take precedence.
-func (cfg *Config) MergeFiles(files []*fly.File) error {
+func (c *Config) MergeFiles(files []*fly.File) error {
 	// First convert the Config files to Machine files.
-	cfgFiles := make([]*fly.File, 0, len(cfg.Files))
-	for _, f := range cfg.Files {
+	cfgFiles := make([]*fly.File, 0, len(c.Files))
+	for _, f := range c.Files {
 		machineFile, err := f.toMachineFile()
 		if err != nil {
 			return err
@@ -392,29 +392,29 @@ func (cfg *Config) MergeFiles(files []*fly.File) error {
 	fly.MergeFiles(mConfig, files)
 
 	// Persist the merged files back to the config to be used later for deploying.
-	cfg.MergedFiles = mConfig.Files
+	c.MergedFiles = mConfig.Files
 
 	return nil
 }
 
-func (cfg *Config) DeployStrategy() string {
-	if cfg.Deploy == nil {
+func (c *Config) DeployStrategy() string {
+	if c.Deploy == nil {
 		return ""
 	}
-	return cfg.Deploy.Strategy
+	return c.Deploy.Strategy
 }
 
 // DetectComposeFile returns Build.Compose.File if set, otherwise looks for
 // well-known compose filenames in the directory containing the config file.
 // Returns the first found filename or empty string.
-func (cfg *Config) DetectComposeFile() string {
+func (c *Config) DetectComposeFile() string {
 	// If compose file is explicitly set, return it
-	if cfg.Build != nil && cfg.Build.Compose != nil && cfg.Build.Compose.File != "" {
-		return cfg.Build.Compose.File
+	if c.Build != nil && c.Build.Compose != nil && c.Build.Compose.File != "" {
+		return c.Build.Compose.File
 	}
 
 	// Otherwise, detect well-known filenames
-	configDir := filepath.Dir(cfg.configFilePath)
+	configDir := filepath.Dir(c.configFilePath)
 
 	for _, filename := range WellKnownComposeFilenames {
 		path := filepath.Join(configDir, filename)
