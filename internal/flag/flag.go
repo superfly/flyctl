@@ -592,6 +592,14 @@ func BuildkitAddr() String {
 	}
 }
 
+func BuildkitImage() String {
+	return String{
+		Name:        "buildkit-image",
+		Description: "Image to use for remote buildkit daemon",
+		EnvName:     "BUILDKIT_IMAGE",
+	}
+}
+
 func Strategy() String {
 	return String{
 		Name:        "strategy",
