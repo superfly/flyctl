@@ -12,6 +12,7 @@ linters:
     - staticcheck
     - unconvert
     - unused
+    - misspell
   settings:
     errcheck:
       exclude-functions:
