@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 
 	"github.com/containerd/containerd/api/services/content/v1"
 	"github.com/moby/buildkit/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -21,11 +23,22 @@ import (
 var _ imageBuilder = (*BuildkitBuilder)(nil)
 
 type BuildkitBuilder struct {
+	// addr is the address of the Buildkit daemon.
+	// The client may need a WireGuard connection to reach the address.
 	addr string
+
+	// provisioner is used to provision a builder machine if needed.
+	provisioner *Provisioner
 }
 
-func NewBuildkitBuilder(addr string) *BuildkitBuilder {
-	return &BuildkitBuilder{addr: addr}
+// NewBuildkitBuilder creates a builder that directly uses Buildkit instead of Docker Engine.
+// addr is the address of the deamon (e.g. "foobar.flycast:1234" which is optional).
+func NewBuildkitBuilder(addr string, provisioner *Provisioner) *BuildkitBuilder {
+	if !provisioner.UseBuildkit() {
+		panic("provisioner must be configured to use Buildkit")
+	}
+
+	return &BuildkitBuilder{addr: addr, provisioner: provisioner}
 }
 
 func (r *BuildkitBuilder) Name() string { return "Buildkit" }
@@ -76,18 +89,29 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 		span.End()
 	}()
 
+	buildkitAddr := r.addr
+	if buildkitAddr == "" {
+		_, app, err := r.provisioner.EnsureBuilder(
+			ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), flag.GetRecreateBuilder(ctx),
+		)
+		if err != nil {
+			return nil, err
+		}
+		buildkitAddr = fmt.Sprintf("%s.flycast:%d", app.Name, buildkitGRPCPort)
+	}
+
 	buildState.BuilderInitStart()
 	defer buildState.BuilderInitFinish()
-	buildState.SetBuilderMetaPart1("buildkit", r.addr, "")
+	buildState.SetBuilderMetaPart1("buildkit", buildkitAddr, "")
 
-	msg := fmt.Sprintf("Connecting to buildkit daemon at %s...\n", r.addr)
+	msg := fmt.Sprintf("Connecting to buildkit daemon at %s...\n", buildkitAddr)
 	if streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)
 	} else {
 		fmt.Fprintln(streams.ErrOut, msg)
 	}
 
-	buildkitClient, err := client.New(ctx, r.addr)
+	buildkitClient, err := client.New(ctx, buildkitAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create buildkit client: %w", err)
 	}
@@ -104,17 +128,17 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 		if err != nil {
 			return nil, fmt.Errorf("failed wireguard connection: %w", err)
 		}
-		buildkitClient, err = client.New(ctx, r.addr, client.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
+		buildkitClient, err = client.New(ctx, buildkitAddr, client.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return dialer.DialContext(ctx, "tcp", addr)
 		}))
 		if err != nil {
-			return nil, fmt.Errorf("failed to connect to buildkit daemon at %s via wireguard: %w", r.addr, err)
+			return nil, fmt.Errorf("failed to connect to buildkit daemon at %s via wireguard: %w", buildkitAddr, err)
 		}
 		terminal.Debug("Successfully connected via wireguard")
 	}
 
 	streams.StopProgressIndicator()
-	cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("Connected to buildkit daemon at %s", r.addr))
+	cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("Connected to buildkit daemon at %s", buildkitAddr))
 
 	buildState.BuildAndPushStart()
 	defer buildState.BuildAndPushFinish()
