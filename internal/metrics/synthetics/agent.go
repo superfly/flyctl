@@ -78,7 +78,7 @@ type ProbeMessage struct {
 
 func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs) error {
 	logger := logger.FromContext(ctx)
-	logger.Debug("proccessing probes")
+	logger.Debug("processing probes")
 
 	probeMessage := ProbeMessage{}
 	err := json.Unmarshal(probeMessageJSON, &probeMessage)

@@ -182,7 +182,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 }
 
 // initBuilder returns a Depot machine to build a container image.
-// Note that the caller is reponsible for passing a context with a resonable timeout.
+// Note that the caller is responsible for passing a context with a resonable timeout.
 // Otherwise, the function cloud block indefinitely.
 func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")

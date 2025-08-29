@@ -239,7 +239,7 @@ func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 
 // updateMachineConfig applies configuration options from the optional MachineConfig passed in, then the base config, into a new MachineConfig
 func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig, error) {
-	// For flattened app configs there is only one proces name and it is the group it was flattened for
+	// For flattened app configs there is only one process name and it is the group it was flattened for
 	processGroup := c.DefaultProcessName()
 
 	mConfig := &fly.MachineConfig{}

@@ -267,7 +267,7 @@ var redisRegStr = "^[^#]*redis"
 
 // extractConnections detects the database connection of a laravel fly app
 // by checking the .env file in the project's base directory for connection keywords.
-// This ignores commented out lines and prioritizes the first connection occurance over others.
+// This ignores commented out lines and prioritizes the first connection occurrence over others.
 //
 // Returns three variables:
 //

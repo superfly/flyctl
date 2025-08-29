@@ -51,9 +51,7 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	var name string
-
-	name = flag.FirstArg(ctx)
+	var name = flag.FirstArg(ctx)
 
 	if user.EnablePaidHobby {
 		fmt.Fprintf(io.Out, "New organizations start on the Pay As You Go plan.\n\n")
