@@ -13,7 +13,10 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"go.uber.org/mock/gomock"
 )
+
+//go:generate go run go.uber.org/mock/mockgen -package imgsrc -destination flaps_mock_test.go github.com/superfly/flyctl/internal/flapsutil FlapsClient
 
 func TestValidateBuilder(t *testing.T) {
 	ctx := context.Background()
@@ -145,6 +148,26 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
 	assert.Equal(t, 1, machineRetries)
+}
+
+func TestValidateBuilderNotStarted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := NewMockFlapsClient(ctrl)
+
+	ctx := context.Background()
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+
+	provisioner := NewProvisioner(&fly.Organization{})
+	provisioner.useVolume = false
+
+	client.EXPECT().List(gomock.Any(), gomock.Any()).Return([]*fly.Machine{
+		{State: "stopped"},
+	}, nil)
+	machine, err := provisioner.validateBuilder(ctx, &fly.App{})
+	assert.ErrorIs(t, err, BuilderMachineNotStarted)
+	assert.NotNil(t, machine, "Go functions usually return either a value or an error, but this is not")
 }
 
 func TestCreateBuilder(t *testing.T) {
