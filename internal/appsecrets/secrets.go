@@ -22,7 +22,7 @@ func List(ctx context.Context, client flapsutil.FlapsClient, appName string) ([]
 // It is not an error to unset a secret that does not exist.
 // Update will keep track of the secrets minvers for appName after successfully changing secrets.
 func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, setSecrets map[string]string, unsetSecrets []string) error {
-	var update map[string]*string
+	update := map[string]*string{}
 	for name, value := range setSecrets {
 		value := value
 		update[name] = &value
