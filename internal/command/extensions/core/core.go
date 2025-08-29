@@ -449,9 +449,9 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 
 func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension, overrideSecretKeyNamesMap map[string]string) (err error) {
 	var (
-		io              = iostreams.FromContext(ctx)
-		client          = flyutil.ClientFromContext(ctx).GenqClient()
-		setSecrets bool = true
+		io         = iostreams.FromContext(ctx)
+		client     = flyutil.ClientFromContext(ctx).GenqClient()
+		setSecrets = true
 	)
 
 	environment := extension.Data.Environment
@@ -556,7 +556,7 @@ func Status(ctx context.Context, provider gql.AddOnType) (err error) {
 		},
 	}
 
-	var cols []string = []string{"Name", "Primary Region", "Status"}
+	var cols = []string{"Name", "Primary Region", "Status"}
 
 	if app != nil {
 		obj[0] = append(obj[0], app.Name)

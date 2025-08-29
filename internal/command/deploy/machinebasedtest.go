@@ -160,7 +160,7 @@ func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine,
 			return nil, err
 		}
 		if len(logs) == 0 {
-			return nil, fmt.Errorf(ErrNoLogsFound)
+			return nil, errors.New(ErrNoLogsFound)
 		}
 
 		return logs, nil
