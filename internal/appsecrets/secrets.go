@@ -11,7 +11,7 @@ import (
 // List returns a list of app secrets. client must be a flaps client for appName.
 // List will use the best known minvers for appName when listing secrets.
 func List(ctx context.Context, client flapsutil.FlapsClient, appName string) ([]fly.AppSecret, error) {
-	minver, err := GetAppSecretsMinvers(appName)
+	minver, err := GetMinvers(appName)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 		return err
 	}
 
-	if err := SetAppSecretsMinvers(ctx, appName, resp.Version); err != nil {
+	if err := SetMinvers(ctx, appName, resp.Version); err != nil {
 		return err
 	}
 	return nil

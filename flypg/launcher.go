@@ -246,9 +246,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Path:   volumePath,
 		})
 
+		minvers, err := appsecrets.GetMinvers(app.Name)
+		if err != nil {
+			return err
+		}
 		launchInput := fly.LaunchMachineInput{
-			Region: config.Region,
-			Config: machineConf,
+			Region:            config.Region,
+			Config:            machineConf,
+			MinSecretsVersion: minvers,
 		}
 
 		machine, err := flapsClient.Launch(ctx, launchInput)

@@ -20,7 +20,7 @@ func getMinvers() (config.AppSecretsMinvers, error) {
 }
 
 // GetAppSecretsMinvers returns the minimum secrets version for appName if known or nil.
-func GetAppSecretsMinvers(appName string) (*uint64, error) {
+func GetMinvers(appName string) (*uint64, error) {
 	minvers, err := getMinvers()
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func GetAppSecretsMinvers(appName string) (*uint64, error) {
 	return nil, nil
 }
 
-func setAppSecretsMinvers(ctx context.Context, appName string, v *uint64) error {
+func setMinvers(ctx context.Context, appName string, v *uint64) error {
 	minvers, err := getMinvers()
 	if err != nil {
 		return err
@@ -53,12 +53,12 @@ func setAppSecretsMinvers(ctx context.Context, appName string, v *uint64) error 
 	return nil
 }
 
-// SetAppSecretsMinvers sets the minimum secrets version for appName and saves it.
-func SetAppSecretsMinvers(ctx context.Context, appName string, v uint64) error {
-	return setAppSecretsMinvers(ctx, appName, &v)
+// SetMinvers sets the minimum secrets version for appName and saves it.
+func SetMinvers(ctx context.Context, appName string, v uint64) error {
+	return setMinvers(ctx, appName, &v)
 }
 
 // DeleteAppSecretsMinvers removes the minimum secrets version for appName and saves it.
 func DeleteAppSecretsMinvers(ctx context.Context, appName string) error {
-	return setAppSecretsMinvers(ctx, appName, nil)
+	return setMinvers(ctx, appName, nil)
 }
