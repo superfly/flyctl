@@ -119,7 +119,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 }
 
 func articleFor(w string) string {
-	var article string = "a"
+	var article = "a"
 	if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(w)); matched {
 		article += "n"
 	}
