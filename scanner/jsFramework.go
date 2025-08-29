@@ -183,7 +183,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.ObjectStorageDesired = true
 	}
 
-	// if prisma is used, provider is definative
+	// if prisma is used, provider is definitive
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
 			srcInfo.DatabaseDesired = DatabaseKindPostgres

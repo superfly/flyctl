@@ -205,7 +205,7 @@ const (
 	buildkitGRPCPort = 1234
 )
 
-// validateBuilder returns a machine if it is availabe for building images.
+// validateBuilder returns a machine if it is available for building images.
 func (p *Provisioner) validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	machine, err := p.validateBuilderMachine(ctx, app)
 	if err != nil {
