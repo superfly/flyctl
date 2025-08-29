@@ -126,6 +126,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 	ensureBuilder := false
 	if r.addr == "" || recreateBuilder {
+		updateProgress(ctx, "Updating remote builder...")
 		_, builderApp, err := r.provisioner.EnsureBuilder(
 			ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder,
 		)
@@ -148,14 +149,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 		}))
 	}
 
-	streams := iostreams.FromContext(ctx)
-	msg := fmt.Sprintf("Connecting to buildkit daemon at %s...\n", r.addr)
-	if streams.IsInteractive() {
-		streams.ChangeProgressIndicatorMsg(msg)
-	} else {
-		fmt.Fprintln(streams.ErrOut, msg)
-	}
-
+	updateProgress(ctx, "Connecting to buildkit daemon at %s...", r.addr)
 	buildkitClient, err := client.New(ctx, r.addr, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create buildkit client: %w", err)
@@ -176,6 +170,16 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 		}
 	}
 	return buildkitClient, nil
+}
+
+func updateProgress(ctx context.Context, msg string, a ...any) {
+	msg = fmt.Sprintf(msg+"\n", a...)
+	streams := iostreams.FromContext(ctx)
+	if streams.IsInteractive() {
+		streams.ChangeProgressIndicatorMsg(msg)
+	} else {
+		fmt.Fprintln(streams.ErrOut, msg)
+	}
 }
 
 func readContent(ctx context.Context, contentClient content.ContentClient, desc *Descriptor) (string, error) {
