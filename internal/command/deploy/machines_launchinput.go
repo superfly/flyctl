@@ -19,6 +19,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 	if err != nil {
 		// TODO: XXX handle error or at least log it..
 		// ... fallthrough for now ...
+		_ = err
 	}
 
 	mConfig := machine.CloneConfig(origMachineRaw.Config)

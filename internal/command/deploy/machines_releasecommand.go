@@ -275,6 +275,7 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	if err != nil {
 		// XXX TODO: handle errors
 		// ... fallthrough ...
+		_ = err
 	}
 	return &fly.LaunchMachineInput{
 		Config:            mConfig,
