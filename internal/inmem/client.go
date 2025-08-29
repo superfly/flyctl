@@ -296,7 +296,7 @@ func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAd
 	return nil, nil // TODO
 }
 
-func (c *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
 	panic("TODO")
 }
 

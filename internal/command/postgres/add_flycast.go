@@ -72,8 +72,8 @@ func doAddFlycast(ctx context.Context) error {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	var bouncerPort int = 5432
-	var pgPort int = 5433
+	var bouncerPort = 5432
+	var pgPort = 5433
 	for _, machine := range machines {
 		for _, service := range machine.Config.Services {
 			if service.InternalPort == 5432 || service.InternalPort == 5433 {

@@ -59,7 +59,7 @@ func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, err
 		return c, nil
 	}
 
-	// TOOD: log this instead
+	// TODO: log this instead
 	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
