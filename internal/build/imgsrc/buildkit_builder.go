@@ -27,11 +27,11 @@ type BuildkitBuilder struct {
 	// The client may need a WireGuard connection to reach the address.
 	addr string
 
-	// privisioner is used to provision a builder machine if needed.
+	// provisioner is used to provision a builder machine if needed.
 	provisioner *Provisioner
 }
 
-// NewBuildkitBuilder creates a builder that directly uses Builtkit instead of Docker Engine.
+// NewBuildkitBuilder creates a builder that directly uses Buildkit instead of Docker Engine.
 // addr is the address of the deamon (e.g. "foobar.flycast:1234" which is optional).
 func NewBuildkitBuilder(addr string, provisioner *Provisioner) *BuildkitBuilder {
 	if !provisioner.UseBuildkit() {
