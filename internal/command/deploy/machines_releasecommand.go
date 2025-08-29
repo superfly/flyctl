@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
@@ -270,10 +271,16 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		// XXX TODO: handle errors
+		// ... fallthrough ...
+	}
 	return &fly.LaunchMachineInput{
-		Config:     mConfig,
-		Region:     origMachineRaw.Region,
-		SkipLaunch: true,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		SkipLaunch:        true,
+		MinSecretsVersion: minvers,
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
@@ -14,14 +15,21 @@ import (
 )
 
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		// TODO: XXX handle error or at least log it..
+		// ... fallthrough for now ...
+	}
+
 	mConfig := machine.CloneConfig(origMachineRaw.Config)
 	md.setMachineReleaseData(mConfig)
 
 	return &fly.LaunchMachineInput{
-		ID:         origMachineRaw.ID,
-		Config:     mConfig,
-		Region:     origMachineRaw.Region,
-		SkipLaunch: skipLaunch(origMachineRaw, mConfig),
+		ID:                origMachineRaw.ID,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		SkipLaunch:        skipLaunch(origMachineRaw, mConfig),
+		MinSecretsVersion: minvers,
 	}
 }
 
@@ -65,10 +73,16 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 		return nil, err
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
-		Region:     region,
-		Config:     mConfig,
-		SkipLaunch: skipLaunch(nil, mConfig),
+		Region:            region,
+		Config:            mConfig,
+		SkipLaunch:        skipLaunch(nil, mConfig),
+		MinSecretsVersion: minvers,
 	}, nil
 }
 
@@ -219,12 +233,18 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
 		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
+		MinSecretsVersion:   minvers,
 	}, nil
 }
 
