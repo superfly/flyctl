@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 
 	"github.com/containerd/containerd/api/services/content/v1"
 	"github.com/moby/buildkit/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -88,7 +90,9 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 
 	buildkitAddr := r.addr
 	if buildkitAddr == "" {
-		_, app, err := r.provisioner.EnsureBuilder(ctx, "", false)
+		_, app, err := r.provisioner.EnsureBuilder(
+			ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), flag.GetRecreateBuilder(ctx),
+		)
 		if err != nil {
 			return nil, err
 		}
