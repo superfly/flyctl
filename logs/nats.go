@@ -8,6 +8,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
 )
@@ -46,8 +47,8 @@ func NewNatsStream(ctx context.Context, apiClient WebClient, opts *LogOptions) (
 }
 
 // natsLogStream implements LogStream
-func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
-	out := make(chan LogEntry)
+func (s *natsLogStream) Stream(ctx context.Context, opts *LogOptions) <-chan fly.LogEntry {
+	out := make(chan fly.LogEntry)
 
 	go func() {
 		defer close(out)
@@ -96,14 +97,14 @@ func (d *natsDialer) Dial(network, address string) (net.Conn, error) {
 	return d.Dialer.DialContext(d.ctx, network, address)
 }
 
-func fromNats(ctx context.Context, out chan<- LogEntry, nc *nats.Conn, opts *LogOptions) (err error) {
+func fromNats(ctx context.Context, out chan<- fly.LogEntry, nc *nats.Conn, opts *LogOptions) (err error) {
 	var sub *nats.Subscription
 	if sub, err = nc.SubscribeSync(opts.toNatsSubject()); err != nil {
 		return
 	}
 	defer sub.Unsubscribe()
 
-	var log natsLog
+	var log fly.AppLogEntry
 	for {
 		var msg *nats.Msg
 		if msg, err = sub.NextMsgWithContext(ctx); err != nil {
@@ -116,18 +117,7 @@ func fromNats(ctx context.Context, out chan<- LogEntry, nc *nats.Conn, opts *Log
 			break
 		}
 
-		out <- LogEntry{
-			Instance:  log.Fly.App.Instance,
-			Level:     log.Log.Level,
-			Message:   log.Message,
-			Region:    log.Fly.Region,
-			Timestamp: log.Timestamp,
-			Meta: Meta{
-				Instance: log.Fly.App.Instance,
-				Region:   log.Fly.Region,
-				Event:    struct{ Provider string }{log.Event.Provider},
-			},
-		}
+		out <- log.LogEntry()
 	}
 
 	return
