@@ -7,6 +7,7 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
@@ -240,6 +241,15 @@ func hasContainerFiles(mConfig *fly.MachineConfig) bool {
 }
 
 func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
+	if mConfig == nil {
+		return
+	}
+
+	// Set the release metadata if not already set
+	if mConfig.Metadata == nil {
+		mConfig.Metadata = make(map[string]string)
+	}
+
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
 		fly.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
 		fly.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
