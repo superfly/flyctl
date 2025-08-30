@@ -3,7 +3,6 @@ package scale
 import (
 	"context"
 	"fmt"
-
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -64,8 +63,12 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 			Region: machine.Region,
 			Config: machine.Config,
 		}
+		
 		if err := mach.Update(ctx, machine, input); err != nil {
-			return nil, err
+			fix_err := err.(mach.InvalidConfigErr).AttemptFix( ctx, machine, input ) 
+			if fix_err!=nil{
+				return nil, err
+			}
 		}
 	}
 
