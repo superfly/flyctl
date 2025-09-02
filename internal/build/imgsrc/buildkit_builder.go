@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -83,7 +82,6 @@ func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, strea
 
 func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (i *DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "buildkit_build", trace.WithAttributes(opts.ToSpanAttributes()...))
-	ctx = appconfig.WithName(ctx, opts.AppName)
 	defer func() {
 		if err != nil {
 			span.RecordError(err)
@@ -103,7 +101,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 
 	streams.StartProgressIndicator()
 
-	buildkitClient, err := r.connectClient(ctx, appToAppCompact(app))
+	buildkitClient, err := r.connectClient(ctx, appToAppCompact(app), opts.AppName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create buildkit client: %w", err)
 	}
@@ -122,7 +120,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
-func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact) (*client.Client, error) {
+func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact, appName string) (*client.Client, error) {
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 	ensureBuilder := false
 	if r.addr == "" || recreateBuilder {
@@ -157,14 +155,14 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 	_, err = buildkitClient.Info(ctx)
 	if err != nil {
 		if app == nil { // Retry with Wireguard connection
-			app, err = apiClient.GetAppCompact(ctx, appconfig.NameFromContext(ctx))
+			app, err = apiClient.GetAppCompact(ctx, appName)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get app: %w", err)
 			}
-			return r.connectClient(ctx, app)
+			return r.connectClient(ctx, app, appName)
 		} else if !ensureBuilder && r.provisioner.buildkitImage != "" { // Retry with ensureBuilder
 			r.addr = ""
-			return r.connectClient(ctx, nil)
+			return r.connectClient(ctx, nil, appName)
 		} else {
 			return nil, fmt.Errorf("failed to connect to buildkit: %w", err)
 		}
