@@ -46,6 +46,7 @@ func (p *Provisioner) UseBuildkit() bool {
 }
 
 const defaultImage = "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"
+const DefaultBuildkitImage = "docker-hub-mirror.fly.io/flyio/buildkit@sha256:0fe49e6f506f0961cb2fc45d56171df0e852229facf352f834090345658b7e1c"
 
 func (p *Provisioner) image() string {
 	if p.buildkitImage != "" {
@@ -58,6 +59,9 @@ func (p *Provisioner) image() string {
 }
 
 func appToAppCompact(app *fly.App) *fly.AppCompact {
+	if app == nil {
+		return nil
+	}
 	return &fly.AppCompact{
 		ID:       app.ID,
 		Name:     app.Name,

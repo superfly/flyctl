@@ -589,6 +589,7 @@ func BuildkitAddr() String {
 		Name:        "buildkit-addr",
 		Description: "Address of remote buildkit daemon (e.g. tcp://127.0.0.1:1234 or unix:///path/to/socket)",
 		EnvName:     "BUILDKIT_ADDR",
+		Hidden:      true,
 	}
 }
 
@@ -597,6 +598,14 @@ func BuildkitImage() String {
 		Name:        "buildkit-image",
 		Description: "Image to use for remote buildkit daemon",
 		EnvName:     "BUILDKIT_IMAGE",
+		Hidden:      true,
+	}
+}
+
+func Buildkit() Bool {
+	return Bool{
+		Name:        "buildkit",
+		Description: "Deploy using buildkit-based remote builder",
 	}
 }
 
