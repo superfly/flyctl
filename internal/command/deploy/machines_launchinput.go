@@ -284,6 +284,10 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	} else {
 		delete(mConfig.Metadata, fly.MachineConfigMetadataKeyFlyManagedPostgres)
 	}
+
+	if md.builderID != "" {
+		mConfig.Metadata["fly_builder_id"] = md.builderID
+	}
 }
 
 // Skip launching currently-stopped or suspended machines if:

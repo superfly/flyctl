@@ -54,6 +54,8 @@ var CommonFlags = flag.Set{
 	flag.DepotScope(),
 	flag.Nixpacks(),
 	flag.BuildkitAddr(),
+	flag.BuildkitImage(),
+	flag.Buildkit(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
 	flag.BpVolume(),
@@ -184,6 +186,7 @@ var CommonFlags = flag.Set{
 		Default:     "auto",
 		NoOptDefVal: "true",
 		Description: "Experimental: Use pooled builder from Fly.io",
+		Hidden:      true,
 	},
 }
 
@@ -557,7 +560,7 @@ func deployToMachines(
 		deployRetries = int(retries)
 
 	default:
-		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		var invalidRetriesErr = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
 		retries, err := strconv.Atoi(retriesFlag)
 		if err != nil {
 			return invalidRetriesErr
@@ -607,6 +610,7 @@ func deployToMachines(
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
 		BuildID:               img.BuildID,
+		BuilderID:             img.BuilderID,
 	}
 
 	var path = flag.GetString(ctx, "export-manifest")

@@ -45,6 +45,11 @@ func newAttach() *cobra.Command {
 }
 
 func runAttach(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	var (
 		clusterId  = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)

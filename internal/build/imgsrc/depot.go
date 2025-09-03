@@ -14,6 +14,7 @@ import (
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
+	"github.com/moby/buildkit/worker/label"
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -181,7 +182,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 }
 
 // initBuilder returns a Depot machine to build a container image.
-// Note that the caller is reponsible for passing a context with a resonable timeout.
+// Note that the caller is responsible for passing a context with a resonable timeout.
 // Otherwise, the function cloud block indefinitely.
 func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
@@ -326,10 +327,19 @@ func newDeploymentImage(ctx context.Context, c *client.Client, res *client.Solve
 		}
 	}
 
+	var builderHostname string
+	workers, err := c.ListWorkers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range workers {
+		builderHostname = w.Labels[label.Hostname]
+	}
 	image := &DeploymentImage{
-		ID:   id,
-		Tag:  tag,
-		Size: descriptor.Bytes(),
+		ID:        id,
+		Tag:       tag,
+		Size:      descriptor.Bytes(),
+		BuilderID: builderHostname,
 	}
 
 	return image, nil

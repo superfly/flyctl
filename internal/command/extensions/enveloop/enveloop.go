@@ -8,12 +8,12 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		short = "Provision and manage Enveloop projects"
+		short = "Manage Enveloop projects"
 		long  = short + "\n"
 	)
 
 	cmd = command.New("enveloop", short, long, nil)
-	cmd.AddCommand(create(), list(), dashboard(), destroy(), status())
+	cmd.AddCommand(list(), dashboard(), destroy(), status())
 
 	return cmd
 }

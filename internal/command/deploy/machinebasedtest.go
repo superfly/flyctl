@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -148,7 +149,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	return nil
 }
 
-const ErrNoLogsFound = "no logs found"
+var errNoLogsFound = errors.New("no logs found")
 
 func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine, timeout time.Duration) error {
 	b := backoff.NewExponentialBackOff()
@@ -161,7 +162,7 @@ func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine,
 			return nil, err
 		}
 		if len(logs) == 0 {
-			return nil, fmt.Errorf(ErrNoLogsFound)
+			return nil, errNoLogsFound
 		}
 
 		return logs, nil
