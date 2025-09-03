@@ -518,8 +518,8 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		return nil, nil, err
 	}
 	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
-		Region: region,
-		Config: config,
+		Region:            region,
+		Config:            config,
 		MinSecretsVersion: minvers,
 	})
 	if retErr != nil {

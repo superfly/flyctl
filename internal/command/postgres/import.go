@@ -165,10 +165,16 @@ func runImport(ctx context.Context) error {
 	}
 	machineConfig.Image = imageRef
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	ephemeralInput := &mach.EphemeralInput{
 		LaunchInput: fly.LaunchMachineInput{
-			Region: region.Code,
-			Config: machineConfig,
+			Region:            region.Code,
+			Config:            machineConfig,
+			MinSecretsVersion: minvers,
 		},
 		What: "to run the import process",
 	}
