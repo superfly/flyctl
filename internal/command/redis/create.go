@@ -94,7 +94,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var enableEviction bool = false
+	var enableEviction = false
 
 	if flag.GetBool(ctx, "enable-eviction") {
 		enableEviction = true

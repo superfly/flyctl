@@ -560,7 +560,7 @@ func deployToMachines(
 		deployRetries = int(retries)
 
 	default:
-		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		var invalidRetriesErr = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
 		retries, err := strconv.Atoi(retriesFlag)
 		if err != nil {
 			return invalidRetriesErr

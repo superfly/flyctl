@@ -97,7 +97,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var defaultDimensionCount int = 128
+	var defaultDimensionCount = 128
 
 	var options = gql.AddOnOptions{
 		"similarity_function": function.Identifier,

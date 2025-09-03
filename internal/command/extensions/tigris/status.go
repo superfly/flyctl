@@ -52,7 +52,7 @@ func runStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"Name", "Status"}
+	var cols = []string{"Name", "Status"}
 
 	optionKeys := []string{"public", "shadow_bucket.write_through", "shadow_bucket.name", "shadow_bucket.endpoint"}
 
@@ -86,7 +86,7 @@ func runStatus(ctx context.Context) (err error) {
 			}
 		}
 		obj[0] = append(obj[0], value)
-		colName := strings.Title(strings.Replace(strings.Join(keys, " "), "_", " ", -1))
+		colName := strings.Title(strings.ReplaceAll(strings.Join(keys, " "), "_", " "))
 		cols = append(cols, colName)
 	}
 

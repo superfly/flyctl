@@ -151,7 +151,7 @@ func (e InvalidConfigErr) Suggestion() string {
 		validNumCpus := cpusPerKind[e.guest.CPUKind]
 		return fmt.Sprintf("Valid numbers are %v", validNumCpus)
 	case invalidMemorySize:
-		var incrementSize int = 1024
+		var incrementSize = 1024
 		switch e.guest.CPUKind {
 		case "shared":
 			incrementSize = 256

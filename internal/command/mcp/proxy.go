@@ -178,7 +178,7 @@ func runInspect(ctx context.Context) error {
 			proxyInfo.Password, _ = mcpConfig["password"].(string)
 		}
 	} else if len(configPaths) > 1 {
-		return fmt.Errorf("multiple MCP client configuration files specifed. Please specify at most one")
+		return fmt.Errorf("multiple MCP client configuration files specified. Please specify at most one")
 	}
 
 	return runProxyOrInspect(ctx, proxyInfo, true)

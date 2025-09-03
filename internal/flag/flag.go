@@ -36,7 +36,7 @@ func makeAlias[T any](template T, name string) T {
 	useAliasShortHandField := reflect.ValueOf(template).FieldByName("UseAliasShortHand")
 	if useAliasShortHandField.IsValid() {
 		useAliasShortHand := useAliasShortHandField.Interface().(bool)
-		if useAliasShortHand == true {
+		if useAliasShortHand {
 			value.FieldByName("Shorthand").SetString(string(name[0]))
 		}
 	}
