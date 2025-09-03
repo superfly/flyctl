@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -207,9 +208,14 @@ func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMac
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
 	return &fly.LaunchMachineInput{
-		Config: mConfig,
-		Region: origMachineRaw.Region,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		MinSecretsVersion: minvers,
 	}, nil
 }
 

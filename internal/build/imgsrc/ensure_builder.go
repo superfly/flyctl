@@ -9,6 +9,7 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
@@ -512,9 +513,14 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		}
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return nil, nil, err
+	}
 	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
 		Region: region,
 		Config: config,
+		MinSecretsVersion: minvers,
 	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error launching builder machine")
