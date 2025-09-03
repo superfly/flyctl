@@ -300,10 +300,11 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, re
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName:           groupName,
-				Region:              region,
-				Delta:               delta,
-				Machines:            perRegionMachines[region],
+				GroupName: groupName,
+				Region:    region,
+				Delta:     delta,
+				Machines:  perRegionMachines[region],
+				// XXX minvers
 				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
 				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
@@ -329,9 +330,10 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, re
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName:           groupName,
-				Region:              region,
-				Delta:               delta,
+				GroupName: groupName,
+				Region:    region,
+				Delta:     delta,
+				// XXX minvers
 				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
 				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),

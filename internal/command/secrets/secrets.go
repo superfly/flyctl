@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -50,6 +49,7 @@ func New() *cobra.Command {
 	return secrets
 }
 
+// DeploySecrets deploys machines with the new secret if this step is not to be skipped.
 func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
 
@@ -58,16 +58,11 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach 
 		return nil
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		return fmt.Errorf("flaps client missing from context")
+	}
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err

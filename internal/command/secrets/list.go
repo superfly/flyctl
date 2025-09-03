@@ -5,11 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -37,12 +37,16 @@ actual value of the secret is only available to the application.`
 }
 
 func runList(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
-	secrets, err := client.GetAppSecrets(ctx, appName)
-	cfg := config.FromContext(ctx)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
+	if err != nil {
+		return err
+	}
 
+	cfg := config.FromContext(ctx)
+	out := iostreams.FromContext(ctx).Out
+
+	secrets, err := appsecrets.List(ctx, flapsClient, app.Name)
 	if err != nil {
 		return err
 	}
@@ -53,14 +57,12 @@ func runList(ctx context.Context) (err error) {
 		rows = append(rows, []string{
 			secret.Name,
 			secret.Digest,
-			format.RelativeTime(secret.CreatedAt),
 		})
 	}
 
 	headers := []string{
 		"Name",
 		"Digest",
-		"Created At",
 	}
 	if cfg.JSONOutput {
 		return render.JSON(out, secrets)
