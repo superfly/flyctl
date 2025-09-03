@@ -55,6 +55,7 @@ var CommonFlags = flag.Set{
 	flag.Nixpacks(),
 	flag.BuildkitAddr(),
 	flag.BuildkitImage(),
+	flag.Buildkit(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
 	flag.BpVolume(),
@@ -185,6 +186,7 @@ var CommonFlags = flag.Set{
 		Default:     "auto",
 		NoOptDefVal: "true",
 		Description: "Experimental: Use pooled builder from Fly.io",
+		Hidden:      true,
 	},
 }
 
