@@ -8,6 +8,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
@@ -51,6 +52,11 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		return nil, err
 	}
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, machine := range machines {
 		if sizeName != "" {
 			machine.Config.Guest.SetSize(sizeName)
@@ -60,9 +66,10 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		}
 
 		input := &fly.LaunchMachineInput{
-			Name:   machine.Name,
-			Region: machine.Region,
-			Config: machine.Config,
+			Name:              machine.Name,
+			Region:            machine.Region,
+			Config:            machine.Config,
+			MinSecretsVersion: minvers,
 		}
 		if err := mach.Update(ctx, machine, input); err != nil {
 			return nil, err

@@ -18,7 +18,7 @@ type FlapsClient interface {
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
-	DeleteAppSecret(ctx context.Context, name string) error
+	DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteSecretKey(ctx context.Context, name string) error
 	DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
@@ -53,6 +53,7 @@ type FlapsClient interface {
 	Suspend(ctx context.Context, machineID, nonce string) error
 	Uncordon(ctx context.Context, machineID string, nonce string) (err error)
 	Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
+	UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	Wait(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error)
 	WaitForApp(ctx context.Context, name string) error
