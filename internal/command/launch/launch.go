@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
@@ -50,11 +51,13 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	planStep := plan.GetPlanStep(ctx)
 
+	var flapsClient flapsutil.FlapsClient
 	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
-		app, err := state.createApp(ctx)
+		f, app, err := state.createApp(ctx)
 		if err != nil {
 			return err
 		}
+		flapsClient = f
 
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
 		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
@@ -64,6 +67,15 @@ func (state *launchState) Launch(ctx context.Context) error {
 			return nil
 		}
 	}
+
+	if flapsClient == nil {
+		// XXX TODO is state.appConfig.AppName valid here?
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: state.appConfig.AppName})
+		if err != nil {
+			return err
+		}
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
@@ -183,8 +195,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 			secrets[key] = value
 		}
 
-		client := flyutil.ClientFromContext(ctx)
-		if _, err := client.SetSecrets(ctx, state.appConfig.AppName, secrets); err != nil {
+		if err := appsecrets.Update(ctx, flapsClient, state.appConfig.AppName, secrets, nil); err != nil {
 			return err
 		}
 	}
@@ -320,11 +331,11 @@ func (state *launchState) updateConfig(ctx context.Context) {
 }
 
 // createApp creates the fly.io app for the plan
-func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
+func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient, *fly.App, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
@@ -333,15 +344,15 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		Machines:        true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return app, nil
+	return f, app, nil
 }
