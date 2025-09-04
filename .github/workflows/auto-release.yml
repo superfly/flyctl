@@ -26,3 +26,4 @@ jobs:
           WITH_V: true
           VERBOSE: true
           DEFAULT_BUMP: "patch"
+          GIT_API_TAGGING: false
