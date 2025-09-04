@@ -156,7 +156,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		env:                 cfg.envVariables,
 		VMSize:              os.Getenv("FLY_PREFLIGHT_TEST_VM_SIZE"),
 	}
-	testEnv.verifyTestOrgExistsAndMintToken()
+	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
 		testEnv.FlyAllowExitFailure("agent stop")
 	})
@@ -274,9 +274,7 @@ func (f *FlyctlTestEnv) DebugPrintHistory() {
 	}
 }
 
-// Verify that the test org `f.orgSlug` exists, and create a macaroon
-// for the test org and switch to using it as the access token for future commands.
-func (f *FlyctlTestEnv) verifyTestOrgExistsAndMintToken() {
+func (f *FlyctlTestEnv) verifyTestOrgExists() {
 	result := f.Fly("orgs list --json")
 	result.AssertSuccessfulExit()
 	var orgMap map[string]string
@@ -284,23 +282,6 @@ func (f *FlyctlTestEnv) verifyTestOrgExistsAndMintToken() {
 	if _, present := orgMap[f.orgSlug]; !present {
 		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
-
-	// We started with an fo1_ access token. Create an org-specific macaroon for all further operations.
-	result = f.Fly("tokens create org -x 24h -o %s -j", f.orgSlug)
-	result.AssertSuccessfulExit()
-	var tokMap map[string]string
-	result.StdOutJSON(&tokMap)
-	tok, present := tokMap["token"]
-	if !present {
-		f.Fatalf("could not create org token for %q", f.orgSlug)
-	}
-
-	// We'll use both the org token and the fo1_ token and let the API auth handler pick out what it needs.
-	//
-	// Endpoints like flaps secrets want a macaroon to talk to petsem. Endpoints in graphql for generating
-	// deploy tokens want the fo1_ token.
-	f.originalAccessToken = tok + "," + f.originalAccessToken
-	f.ResetAuthAccessToken()
 }
 
 func (f *FlyctlTestEnv) CreateRandomAppName() string {
