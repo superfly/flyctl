@@ -295,7 +295,11 @@ func (f *FlyctlTestEnv) verifyTestOrgExistsAndMintToken() {
 		f.Fatalf("could not create org token for %q", f.orgSlug)
 	}
 
-	f.originalAccessToken = tok
+	// We'll use both the org token and the fo1_ token and let the API auth handler pick out what it needs.
+	//
+	// Endpoints like flaps secrets want a macaroon to talk to petsem. Endpoints in graphql for generating
+	// deploy tokens want the fo1_ token.
+	f.originalAccessToken = tok + "," + f.originalAccessToken
 	f.ResetAuthAccessToken()
 }
 
