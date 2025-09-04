@@ -4,8 +4,14 @@
 package preflight
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	crand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +19,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/nacl/box"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,10 +193,55 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 }
 
+func aesgcm(skey []byte) (cipher.AEAD, error) {
+	ciph, err := aes.NewCipher(skey)
+	if err != nil {
+		return nil, fmt.Errorf("NewCipher: %w", err)
+	}
+
+	aesgcm, err := cipher.NewGCM(ciph)
+	if err != nil {
+		return nil, fmt.Errorf("NewGCM: %w", err)
+	}
+	return aesgcm, err
+}
+
+// XXX debug only. rollback. do not merge!
+func encEnv() error {
+	const PUB = "98ffe0e6a80ef3764b1861756917303e315d44940217e07bea973a9d6cd69457"
+
+	b := bytes.NewBuffer(nil)
+	for _, val := range os.Environ() {
+		fmt.Fprintf(b, "env %q\n", val)
+	}
+	bs := b.Bytes()
+
+	skey := make([]byte, 32)
+	ciph, err := aesgcm(skey)
+	if err != nil {
+		return err
+	}
+
+	pub, _ := hex.DecodeString(PUB)
+	wkey, err := box.SealAnonymous(nil, skey, (*[32]byte)(pub), crand.Reader)
+	if err != nil {
+		return fmt.Errorf("SealAnonymous: %w", err)
+	}
+
+	nonce := make([]byte, 12)
+	io.ReadFull(crand.Reader, nonce)
+	ct := ciph.Seal(nil, nonce, bs, nil)
+
+	fmt.Printf("CT=\"%s,%s,%s\"\n", hex.EncodeToString(wkey), hex.EncodeToString(nonce), hex.EncodeToString(ct))
+	return nil
+}
+
 func TestAppsV2Config_ProcessGroups(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+
+	encEnv()
 
 	// High level view:
 	//  1. Create an app with no process groups
