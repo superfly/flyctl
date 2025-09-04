@@ -67,6 +67,7 @@ func testLaunchInputForBasic(t *testing.T) {
 				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
+		MinSecretsVersion: nil,
 	}
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
@@ -521,6 +522,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 				},
 			},
 		},
+		MinSecretsVersion: nil,
 	}
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
