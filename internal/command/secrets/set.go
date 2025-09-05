@@ -36,7 +36,7 @@ func newSet() (cmd *cobra.Command) {
 
 func runSet(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}

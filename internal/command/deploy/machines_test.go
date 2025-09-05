@@ -149,7 +149,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		MinSecretsVersion: nil,
 	}, li)
 
-	got := md.launchInputForReleaseCommand(nil)
+	got, err := md.launchInputForReleaseCommand(nil)
+	assert.NoError(t, err)
 
 	// New release command machine
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -201,7 +202,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		},
 	}
 
-	got = md.launchInputForReleaseCommand(origMachine)
+	got, err = md.launchInputForReleaseCommand(origMachine)
+	assert.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
 		Config: &fly.MachineConfig{
@@ -333,7 +335,8 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		},
 	}
 
-	got := md.launchInputForRestart(origMachine)
+	got, err := md.launchInputForRestart(origMachine)
+	assert.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
 		ID: "OrigID",
@@ -381,7 +384,9 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		},
 	}
 
-	got := md.launchInputForRestart(origMachine)
+	got, err := md.launchInputForRestart(origMachine)
+	assert.NoError(t, err)
+
 	assert.Equal(t, &fly.LaunchMachineInput{
 		ID: "OrigID",
 		Config: &fly.MachineConfig{

@@ -233,7 +233,11 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	ctx, span := tracing.GetTracer().Start(ctx, "create_release_cmd_machine")
 	defer span.End()
 
-	launchInput := md.launchInputForReleaseCommand(nil)
+	launchInput, err := md.launchInputForReleaseCommand(nil)
+	if err != nil {
+		return err
+	}
+
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
@@ -252,7 +256,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	return nil
 }
 
-func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	if origMachineRaw == nil {
 		origMachineRaw = &fly.Machine{
 			Region: md.appConfig.PrimaryRegion,
@@ -273,16 +277,14 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 
 	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
 	if err != nil {
-		// XXX TODO: handle errors
-		// ... fallthrough ...
-		_ = err
+		return nil, err
 	}
 	return &fly.LaunchMachineInput{
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
 		SkipLaunch:        true,
 		MinSecretsVersion: minvers,
-	}
+	}, nil
 }
 
 func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {

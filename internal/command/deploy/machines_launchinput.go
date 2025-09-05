@@ -14,12 +14,10 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
 	if err != nil {
-		// TODO: XXX handle error or at least log it..
-		// ... fallthrough for now ...
-		_ = err
+		return nil, err
 	}
 
 	mConfig := machine.CloneConfig(origMachineRaw.Config)
@@ -31,7 +29,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 		Region:            origMachineRaw.Region,
 		SkipLaunch:        skipLaunch(origMachineRaw, mConfig),
 		MinSecretsVersion: minvers,
-	}
+	}, nil
 }
 
 func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {

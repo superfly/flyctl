@@ -70,7 +70,7 @@ func runKeysList(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
 
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, appName)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}

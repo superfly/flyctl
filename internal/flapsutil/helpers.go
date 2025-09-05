@@ -8,16 +8,15 @@ import (
 	"github.com/superfly/fly-go/flaps"
 
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 // SetClient builds a flaps client for appName and stores it in a new context which is returned.
 // It also returns the flaps client and the AppCompact for appName, which it must lookup.
+// If app is passed in, it is used, otherwise it is resolved from appName.
 // On error the old context is returned along with the error.
 // The context must already have the flyutil client set.
-func SetClient(ctx context.Context, appName string) (context.Context, FlapsClient, *fly.AppCompact, error) {
-	client := flyutil.ClientFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+func SetClient(ctx context.Context, app *fly.AppCompact, appName string) (context.Context, FlapsClient, *fly.AppCompact, error) {
+	app, err := resolveApp(ctx, app, appName)
 	if err != nil {
 		return ctx, nil, nil, fmt.Errorf("get app %s: %w", appName, err)
 	}

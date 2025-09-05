@@ -88,7 +88,7 @@ func runImport(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return fmt.Errorf("failed to resolve app: %w", err)
 	}

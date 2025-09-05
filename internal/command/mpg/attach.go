@@ -67,7 +67,7 @@ func runAttach(ctx context.Context) error {
 	clusterOrgSlug := response.Data.Organization.Slug
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -80,10 +80,7 @@ func runAttach(ctx context.Context) error {
 			appName, appOrgSlug, clusterId, clusterOrgSlug)
 	}
 
-	// XXX TODO: this also does an app lookup, of app compact.
-	// which is wasteful. can we use the app compact instead of getting the app basic above?
-	// or vice versa? we shouldnt need to look up the app twice here!
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, appName)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, app, appName)
 	if err != nil {
 		return err
 	}

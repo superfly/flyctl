@@ -45,7 +45,7 @@ func runAttach(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}

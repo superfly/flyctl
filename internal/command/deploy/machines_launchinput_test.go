@@ -94,7 +94,8 @@ func testLaunchInputForBasic(t *testing.T) {
 	want.Config.Metadata["fly_release_id"] = "new_release_id"
 	want.Config.Metadata["fly_release_version"] = "4"
 	want.Config.Metadata["user-added-me"] = "keep it"
-	li = md.launchInputForRestart(origMachineRaw)
+	li, err = md.launchInputForRestart(origMachineRaw)
+	assert.NoError(t, err)
 	assert.Equal(t, want, li)
 
 	// Now updating the machines must include changes to appConfig
@@ -449,7 +450,8 @@ func testLaunchInputForUpdateKeepUnmanagedFields(t *testing.T) {
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, li.Config.DNS)
 	assert.Equal(t, []fly.MachineProcess{{CmdOverride: []string{"foo"}}}, li.Config.Processes)
 
-	li = md.launchInputForRestart(origMachineRaw)
+	li, err = md.launchInputForRestart(origMachineRaw)
+	assert.NoError(t, err)
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.Equal(t, "ord", li.Region)
 	assert.Equal(t, "24/7", li.Config.Schedule)
