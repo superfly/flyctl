@@ -48,7 +48,7 @@ func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string)
 	panic("TODO")
 }
 
-func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) error {
+func (m *FlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error) {
 	panic("TODO")
 }
 
@@ -205,6 +205,10 @@ func (m *FlapsClient) Uncordon(ctx context.Context, machineID string, nonce stri
 }
 
 func (m *FlapsClient) Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
 	panic("TODO")
 }
 

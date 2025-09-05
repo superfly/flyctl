@@ -16,13 +16,14 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -468,8 +469,13 @@ func run(ctx context.Context) (err error) {
 				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
 			}
 
-			apiClient := flyutil.ClientFromContext(parentCtx)
-			_, err := apiClient.SetSecrets(parentCtx, parentConfig.AppName, exports)
+			// This might be duplicate work? Is there a saner place to build the client and stash it in the context?
+			parentCtx, flapsClient, _, err := flapsutil.SetClient(parentCtx, nil, parentConfig.AppName)
+			if err != nil {
+				return fmt.Errorf("making client for %s: %w", parentConfig.AppName, err)
+			}
+
+			err = appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
 			if err != nil {
 				return err
 			}

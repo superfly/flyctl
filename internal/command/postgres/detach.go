@@ -9,9 +9,11 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -48,24 +50,24 @@ func runDetach(ctx context.Context) error {
 		appName   = appconfig.NameFromContext(ctx)
 	)
 
+	ctx, appFlapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	if err != nil {
+		return err
+	}
+
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get postgres app: %w", err)
-	}
-
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get app: %w", err)
 	}
 
 	ctx, err = apps.BuildContext(ctx, pgApp)
 	if err != nil {
 		return err
 	}
-	return runMachineDetach(ctx, app, pgApp)
+	return runMachineDetach(ctx, appFlapsClient, app, pgApp)
 }
 
-func runMachineDetach(ctx context.Context, app *fly.AppCompact, pgApp *fly.AppCompact) error {
+func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -90,11 +92,11 @@ func runMachineDetach(ctx context.Context, app *fly.AppCompact, pgApp *fly.AppCo
 		return err
 	}
 
-	return detachAppFromPostgres(ctx, leader.PrivateIP, app, pgApp)
+	return detachAppFromPostgres(ctx, leader.PrivateIP, appFlapsClient, app, pgApp)
 }
 
 // TODO - This process needs to be re-written to suppport non-interactive terminals.
-func detachAppFromPostgres(ctx context.Context, leaderIP string, app *fly.AppCompact, pgApp *fly.AppCompact) error {
+func detachAppFromPostgres(ctx context.Context, leaderIP string, appFlapsClient flapsutil.FlapsClient, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -142,16 +144,14 @@ func detachAppFromPostgres(ctx context.Context, leaderIP string, app *fly.AppCom
 	}
 
 	// Remove secret from consumer app.
-	_, err = client.UnsetSecrets(ctx, app.Name, []string{targetAttachment.EnvironmentVariableName})
+	err = appsecrets.Update(ctx, appFlapsClient, app.Name, nil, []string{targetAttachment.EnvironmentVariableName})
 	if err != nil {
-		// This will error if secret doesn't exist, so just send to stdout.
-		fmt.Fprintln(io.Out, err.Error())
-	} else {
-		fmt.Fprintf(io.Out, "Secret %q was scheduled to be removed from app %s\n",
-			targetAttachment.EnvironmentVariableName,
-			app.Name,
-		)
+		return err
 	}
+	fmt.Fprintf(io.Out, "Secret %q was scheduled to be removed from app %s\n",
+		targetAttachment.EnvironmentVariableName,
+		app.Name,
+	)
 
 	input := fly.DetachPostgresClusterInput{
 		AppID:                       app.Name,
@@ -159,7 +159,7 @@ func detachAppFromPostgres(ctx context.Context, leaderIP string, app *fly.AppCom
 		PostgresClusterAttachmentId: targetAttachment.ID,
 	}
 
-	if err = client.DetachPostgresCluster(ctx, input); err != nil {
+	if err := client.DetachPostgresCluster(ctx, input); err != nil {
 		return err
 	}
 	fmt.Fprintln(io.Out, "Detach completed successfully!")

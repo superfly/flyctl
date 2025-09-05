@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -145,14 +146,20 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	// Perform update
 	input := &fly.LaunchMachineInput{
-		Name:             machine.Name,
-		Region:           machine.Region,
-		Config:           machineConf,
-		SkipLaunch:       len(machineConf.Standbys) > 0 || skipStart,
-		SkipHealthChecks: skipHealthChecks,
-		Timeout:          flag.GetInt(ctx, "wait-timeout"),
+		Name:              machine.Name,
+		Region:            machine.Region,
+		Config:            machineConf,
+		SkipLaunch:        len(machineConf.Standbys) > 0 || skipStart,
+		SkipHealthChecks:  skipHealthChecks,
+		Timeout:           flag.GetInt(ctx, "wait-timeout"),
+		MinSecretsVersion: minvers,
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
 		var timeoutErr mach.WaitTimeoutErr

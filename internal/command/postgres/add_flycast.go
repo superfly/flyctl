@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
@@ -124,8 +125,15 @@ func doAddFlycast(ctx context.Context) error {
 			},
 		}
 
+		appName := appconfig.NameFromContext(ctx)
+		minvers, err := appsecrets.GetMinvers(appName)
+		if err != nil {
+			return err
+		}
+
 		err = mach.Update(ctx, machine, &fly.LaunchMachineInput{
-			Config: conf,
+			Config:            conf,
+			MinSecretsVersion: minvers,
 		})
 		if err != nil {
 			return err

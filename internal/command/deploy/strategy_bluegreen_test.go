@@ -32,6 +32,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 						"check1": {},
 					},
 				},
+				MinSecretsVersion: nil,
 			},
 		})
 	}

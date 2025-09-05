@@ -31,6 +31,7 @@ const (
 	SendMetricsFileKey         = "send_metrics"
 	SyntheticsAgentFileKey     = "synthetics_agent"
 	AutoUpdateFileKey          = "auto_update"
+	AppSecretsMinverFileKey    = "app_secrets_minvers"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
 	APITokenEnvKey             = "FLY_API_TOKEN"

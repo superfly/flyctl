@@ -6,8 +6,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -78,7 +80,8 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		}
 	}
 
-	flapsClient, err := getFlapsClient(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}

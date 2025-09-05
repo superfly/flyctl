@@ -15,7 +15,9 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -173,8 +175,8 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 	}
 
 	if len(secrets) > 0 {
-		apiClient := flyutil.ClientFromContext(ctx)
-		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil)
 		if err != nil {
 			return err
 		}

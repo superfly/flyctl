@@ -10,6 +10,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -128,11 +129,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 	}
 
-	secrets, err := l.setSecrets(ctx, config)
-	if err != nil {
-		return err
-	}
-
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
 		AppName:    app.Name,
@@ -141,6 +137,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		return err
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+	secrets, err := l.setSecrets(ctx, config)
+	if err != nil {
+		return err
+	}
 
 	nodes := make([]*fly.Machine, 0)
 
@@ -245,9 +246,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Path:   volumePath,
 		})
 
+		minvers, err := appsecrets.GetMinvers(app.Name)
+		if err != nil {
+			return err
+		}
 		launchInput := fly.LaunchMachineInput{
-			Region: config.Region,
-			Config: machineConf,
+			Region:            config.Region,
+			Config:            machineConf,
+			MinSecretsVersion: minvers,
 		}
 
 		machine, err := flapsClient.Launch(ctx, launchInput)
@@ -421,6 +427,10 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 }
 
 func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (map[string]string, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		return nil, fmt.Errorf("missing flaps client in context")
+	}
 	out := iostreams.FromContext(ctx).Out
 
 	fmt.Fprintf(out, "Setting secrets on app %s...\n", config.AppName)
@@ -494,8 +504,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		secrets["OPERATOR_PASSWORD"] = config.Password
 	}
 
-	_, err = l.client.SetSecrets(ctx, config.AppName, secrets)
-
+	err = appsecrets.Update(ctx, flapsClient, config.AppName, secrets, nil)
 	return secrets, err
 }
 

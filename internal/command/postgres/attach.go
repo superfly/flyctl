@@ -11,9 +11,11 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -211,6 +213,11 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		superuser = params.SuperUser
 	)
 
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
+	if err != nil {
+		return err
+	}
+
 	if dbName == "" {
 		dbName = appName
 	}
@@ -240,7 +247,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 
 	fmt.Fprintln(io.Out, "Checking for existing attachments")
 
-	secrets, err := client.GetAppSecrets(ctx, input.AppID)
+	secrets, err := appsecrets.List(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -323,7 +330,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
-	_, err = client.SetSecrets(ctx, input.AppID, s)
+	err = appsecrets.Update(ctx, flapsClient, appName, s, nil)
 	if err != nil {
 		return err
 	}

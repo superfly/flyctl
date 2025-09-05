@@ -8,9 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -66,7 +68,9 @@ type jsonSecret struct {
 func runKeysList(ctx context.Context) (err error) {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	flapsClient, err := getFlapsClient(ctx)
+
+	appName := appconfig.NameFromContext(ctx)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}

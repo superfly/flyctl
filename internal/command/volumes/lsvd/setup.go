@@ -9,11 +9,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	extensions "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -32,10 +33,14 @@ func newSetup() *cobra.Command {
 
 func runSetup(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	client := flyutil.ClientFromContext(ctx)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	if err != nil {
+		return err
+	}
+
 	io := iostreams.FromContext(ctx)
 
-	secrets, err := client.GetAppSecrets(ctx, appName)
+	secrets, err := appsecrets.List(ctx, flapsClient, app.Name)
 	if err != nil {
 		return err
 	}
@@ -200,18 +205,8 @@ func runSetup(ctx context.Context) error {
 		deletedSecrets = append(deletedSecrets, "FLY_LSVD_MOUNT_POINT")
 	}
 
-	if len(deletedSecrets) > 0 {
-		_, err = client.UnsetSecrets(ctx, appName, deletedSecrets)
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(newSecrets) > 0 {
-		_, err = client.SetSecrets(ctx, appName, newSecrets)
-		if err != nil {
-			return err
-		}
+	if err := appsecrets.Update(ctx, flapsClient, app.Name, newSecrets, deletedSecrets); err != nil {
+		return err
 	}
 
 	fmt.Fprintln(
