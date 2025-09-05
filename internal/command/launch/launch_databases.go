@@ -10,11 +10,13 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -321,8 +323,8 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		"DATABASE_URL": cluster.Credentials.ConnectionUri,
 	}
 
-	client := flyutil.ClientFromContext(ctx)
-	if _, err := client.SetSecrets(ctx, state.Plan.AppName, secrets); err != nil {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil); err != nil {
 		return fmt.Errorf("failed setting database secrets: %w", err)
 	}
 
