@@ -136,6 +136,8 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 				tracing.RecordError(span, err, "error deleting invalid builder app")
 				return nil, nil, err
 			}
+
+			_ = appsecrets.DeleteMinvers(ctx, builderApp.Name)
 		}
 	} else {
 		span.AddEvent("recreating builder")
@@ -146,6 +148,8 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 				tracing.RecordError(span, err, "error deleting existing builder app")
 				return nil, nil, err
 			}
+
+			_ = appsecrets.DeleteMinvers(ctx, org.RemoteBuilderApp.Name)
 		}
 	}
 
@@ -371,6 +375,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		if retErr != nil {
 			span.AddEvent("cleaning up new builder app due to error")
 			client.DeleteApp(ctx, builderName)
+			_ = appsecrets.DeleteMinvers(ctx, builderName)
 		}
 	}()
 
