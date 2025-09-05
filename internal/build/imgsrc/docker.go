@@ -29,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -327,6 +328,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
 				return nil, err
 			}
+
+			_ = appsecrets.DeleteMinvers(ctx, app.Name)
 
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
 			machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, false)

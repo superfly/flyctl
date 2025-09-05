@@ -11,6 +11,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -71,7 +72,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(appName, machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -258,7 +259,7 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
@@ -271,6 +272,11 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, re
 		}
 		return max(count, 0)
 	})
+
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return nil, err
+	}
 
 	for groupName, groupMachines := range machineGroups {
 		expected, ok := expectedCounts[groupName]
@@ -304,7 +310,7 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, re
 				Region:              region,
 				Delta:               delta,
 				Machines:            perRegionMachines[region],
-				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
 				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
 			})
@@ -332,7 +338,7 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, re
 				GroupName:           groupName,
 				Region:              region,
 				Delta:               delta,
-				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
 				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
 			})
