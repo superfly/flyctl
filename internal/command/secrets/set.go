@@ -66,9 +66,6 @@ func runSet(ctx context.Context) (err error) {
 	return SetSecretsAndDeploy(ctx, flapsClient, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
 
-// TODO: XXX: delete minvers when app is deleted
-// TODO: XXX: use minvers for deploys
-
 func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets map[string]string, stage bool, detach bool) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
 		return fmt.Errorf("update secrets: %w", err)
