@@ -12,6 +12,7 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -94,6 +95,8 @@ func RunDestroy(ctx context.Context) error {
 		if err := client.DeleteApp(ctx, appName); err != nil {
 			return err
 		}
+
+		_ = appsecrets.DeleteMinvers(ctx, appName)
 
 		fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
 	}

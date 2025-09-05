@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -134,12 +135,18 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Orga
 		}
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return err
+	}
+
 	for _, machine := range machines {
 		input := &fly.LaunchMachineInput{
-			Name:             machine.Name,
-			Region:           machine.Region,
-			Config:           machine.Config,
-			SkipHealthChecks: skipHealthChecks,
+			Name:              machine.Name,
+			Region:            machine.Region,
+			Config:            machine.Config,
+			SkipHealthChecks:  skipHealthChecks,
+			MinSecretsVersion: minvers,
 		}
 		mach.Update(ctx, machine, input)
 	}

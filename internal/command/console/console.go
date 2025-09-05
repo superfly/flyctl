@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -395,10 +396,16 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 		machConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	input := &machine.EphemeralInput{
 		LaunchInput: fly.LaunchMachineInput{
-			Config: machConfig,
-			Region: config.FromContext(ctx).Region,
+			Config:            machConfig,
+			Region:            config.FromContext(ctx).Region,
+			MinSecretsVersion: minvers,
 		},
 		What: "to run the console",
 	}
