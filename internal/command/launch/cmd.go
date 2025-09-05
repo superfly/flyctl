@@ -469,8 +469,13 @@ func run(ctx context.Context) (err error) {
 				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
 			}
 
-			flapsClient := flapsutil.ClientFromContext(parentCtx) // TODO: XXX will this work and match the parentConfig appname?
-			err := appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
+			// This might be duplicate work? Is there a saner place to build the client and stash it in the context?
+			parentCtx, flapsClient, _, err := flapsutil.SetClient(parentCtx, nil, parentConfig.AppName)
+			if err != nil {
+				return fmt.Errorf("making client for %s: %w", parentConfig.AppName, err)
+			}
+
+			err = appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
 			if err != nil {
 				return err
 			}
