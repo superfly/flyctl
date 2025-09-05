@@ -8,10 +8,12 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -45,10 +47,9 @@ func newRenewSSHCerts() *cobra.Command {
 func runRefreshSSHCerts(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
@@ -62,10 +63,10 @@ func runRefreshSSHCerts(ctx context.Context) error {
 		return err
 	}
 
-	return refreshSSHCerts(ctx, app)
+	return refreshSSHCerts(ctx, flapsClient, app)
 }
 
-func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
+func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = flyutil.ClientFromContext(ctx)
@@ -106,7 +107,7 @@ func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
 		"SSH_CERT": cert.Certificate,
 	}
 
-	_, err = client.SetSecrets(ctx, app.Name, secrets)
+	err = appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil)
 	if err != nil {
 		return fmt.Errorf("failed to set ssh secrets: %w", err)
 	}
