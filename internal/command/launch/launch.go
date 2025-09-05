@@ -69,7 +69,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if flapsClient == nil {
-		// XXX TODO is state.appConfig.AppName valid here?
 		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: state.appConfig.AppName})
 		if err != nil {
 			return err
