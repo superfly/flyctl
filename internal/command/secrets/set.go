@@ -9,10 +9,11 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func newSet() (cmd *cobra.Command) {
@@ -34,9 +35,8 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
@@ -63,13 +63,15 @@ func runSet(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+	return SetSecretsAndDeploy(ctx, flapsClient, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
 
-func SetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets map[string]string, stage bool, detach bool) error {
-	client := flyutil.ClientFromContext(ctx)
-	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
-		return err
+// TODO: XXX: delete minvers when app is deleted
+// TODO: XXX: use minvers for deploys
+
+func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets map[string]string, stage bool, detach bool) error {
+	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
+		return fmt.Errorf("update secrets: %w", err)
 	}
 
 	return DeploySecrets(ctx, app, stage, detach)
