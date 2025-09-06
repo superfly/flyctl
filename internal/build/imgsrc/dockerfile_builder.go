@@ -503,7 +503,9 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 			options.Session,
 			// To pull images from local Docker Engine with Fly's access token,
 			// we need to pass the provider. Remote builders don't need that.
-			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
+			newBuildkitAuthProvider(func() string {
+				return config.Tokens(ctx).Docker()
+			}),
 			secretsprovider.FromMap(secrets),
 		)
 
