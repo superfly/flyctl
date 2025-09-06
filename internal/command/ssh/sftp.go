@@ -358,7 +358,7 @@ func extractZip(src, dest string) error {
 	// Extract files
 	for _, f := range r.File {
 		path := filepath.Join(dest, f.Name)
-		
+
 		// Security check: ensure path is within destination
 		if !strings.HasPrefix(path, filepath.Clean(dest)+string(os.PathSeparator)) {
 			return fmt.Errorf("invalid file path: %s", f.Name)
@@ -438,7 +438,7 @@ func runPut(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if localInfo.IsDir() {
 		recursive := flag.GetBool(ctx, "recursive")
 		if !recursive {
