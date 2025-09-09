@@ -116,11 +116,12 @@ func (mr *MockFlapsClientMockRecorder) CreateVolumeSnapshot(ctx, volumeId any) *
 }
 
 // DeleteAppSecret mocks base method.
-func (m *MockFlapsClient) DeleteAppSecret(ctx context.Context, name string) error {
+func (m *MockFlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAppSecret", ctx, name)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*fly.DeleteAppSecretResp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteAppSecret indicates an expected call of DeleteAppSecret.
@@ -644,6 +645,21 @@ func (m *MockFlapsClient) Update(ctx context.Context, builder fly.LaunchMachineI
 func (mr *MockFlapsClientMockRecorder) Update(ctx, builder, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockFlapsClient)(nil).Update), ctx, builder, nonce)
+}
+
+// UpdateAppSecrets mocks base method.
+func (m *MockFlapsClient) UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAppSecrets", ctx, values)
+	ret0, _ := ret[0].(*fly.UpdateAppSecretsResp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAppSecrets indicates an expected call of UpdateAppSecrets.
+func (mr *MockFlapsClientMockRecorder) UpdateAppSecrets(ctx, values any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).UpdateAppSecrets), ctx, values)
 }
 
 // UpdateVolume mocks base method.

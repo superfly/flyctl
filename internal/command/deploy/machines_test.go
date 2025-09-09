@@ -54,6 +54,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
+		MinSecretsVersion: nil,
 	}, li)
 }
 
@@ -145,9 +146,11 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				},
 			},
 		},
+		MinSecretsVersion: nil,
 	}, li)
 
-	got := md.launchInputForReleaseCommand(nil)
+	got, err := md.launchInputForReleaseCommand(nil)
+	assert.NoError(t, err)
 
 	// New release command machine
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -178,7 +181,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: fly.MachinePresets["shared-cpu-2x"],
 		},
-		SkipLaunch: true,
+		SkipLaunch:        true,
+		MinSecretsVersion: nil,
 	}, got)
 
 	// Update existing release command machine
@@ -198,7 +202,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		},
 	}
 
-	got = md.launchInputForReleaseCommand(origMachine)
+	got, err = md.launchInputForReleaseCommand(origMachine)
+	assert.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
 		Config: &fly.MachineConfig{
@@ -228,7 +233,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: fly.MachinePresets["shared-cpu-2x"],
 		},
-		SkipLaunch: true,
+		SkipLaunch:        true,
+		MinSecretsVersion: nil,
 	}, got)
 }
 
@@ -268,6 +274,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Name:   "data",
 			}},
 		},
+		MinSecretsVersion: nil,
 	}, li)
 
 	origMachine := &fly.Machine{
@@ -302,6 +309,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				Path:   "/data",
 			}},
 		},
+		MinSecretsVersion: nil,
 	}, li)
 }
 
@@ -327,7 +335,8 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		},
 	}
 
-	got := md.launchInputForRestart(origMachine)
+	got, err := md.launchInputForRestart(origMachine)
+	assert.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
 		ID: "OrigID",
@@ -341,6 +350,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
+		MinSecretsVersion: nil,
 	}, got)
 }
 
@@ -374,7 +384,9 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		},
 	}
 
-	got := md.launchInputForRestart(origMachine)
+	got, err := md.launchInputForRestart(origMachine)
+	assert.NoError(t, err)
+
 	assert.Equal(t, &fly.LaunchMachineInput{
 		ID: "OrigID",
 		Config: &fly.MachineConfig{
@@ -387,5 +399,6 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
+		MinSecretsVersion: nil,
 	}, got)
 }
