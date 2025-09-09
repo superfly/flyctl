@@ -67,7 +67,7 @@ func runAttach(ctx context.Context) error {
 	clusterOrgSlug := response.Data.Organization.Slug
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -80,7 +80,7 @@ func runAttach(ctx context.Context) error {
 			appName, appOrgSlug, clusterId, clusterOrgSlug)
 	}
 
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, app, appName)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
