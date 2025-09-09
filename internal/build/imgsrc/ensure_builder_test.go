@@ -13,13 +13,20 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/state"
 	"go.uber.org/mock/gomock"
 )
 
 //go:generate go run go.uber.org/mock/mockgen -package imgsrc -destination flaps_mock_test.go github.com/superfly/flyctl/internal/flapsutil FlapsClient
 
-func TestValidateBuilder(t *testing.T) {
+func testingContext(t *testing.T) context.Context {
 	ctx := context.Background()
+	ctx = state.WithConfigDirectory(ctx, t.TempDir())
+	return ctx
+}
+
+func TestValidateBuilder(t *testing.T) {
+	ctx := testingContext(t)
 	p := NewProvisioner(&fly.Organization{})
 
 	hasVolumes := false
@@ -63,7 +70,7 @@ func TestValidateBuilder(t *testing.T) {
 }
 
 func TestValidateBuilderAPIErrors(t *testing.T) {
-	ctx := context.Background()
+	ctx := testingContext(t)
 	p := NewProvisioner(&fly.Organization{})
 
 	maxVolumeRetries := 3
@@ -156,7 +163,7 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 
 	client := NewMockFlapsClient(ctrl)
 
-	ctx := context.Background()
+	ctx := testingContext(t)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 
 	provisioner := NewProvisioner(&fly.Organization{})
@@ -171,7 +178,7 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 }
 
 func TestCreateBuilder(t *testing.T) {
-	ctx := context.Background()
+	ctx := testingContext(t)
 	org := &fly.Organization{
 		Slug: "bigorg",
 	}
@@ -285,7 +292,7 @@ func TestCreateBuilder(t *testing.T) {
 
 func TestRestartBuilderMachine(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := testingContext(t)
 
 	couldNotReserveResources := false
 	flapsClient := mock.FlapsClient{
