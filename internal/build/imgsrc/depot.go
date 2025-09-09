@@ -288,7 +288,9 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		}
 		solverOptions.Session = append(
 			solverOptions.Session,
-			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
+			newBuildkitAuthProvider(func() string {
+				return config.Tokens(ctx).Docker()
+			}),
 			secretsprovider.FromMap(secrets),
 		)
 
