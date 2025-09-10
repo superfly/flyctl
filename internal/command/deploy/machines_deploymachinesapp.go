@@ -1382,9 +1382,9 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
-				if ipAddr.Type == "v4" || ipAddr.Type == "shared_v4" {
+				if (ipAddr.Type == "v4" && ipAddr.Region == "global") || ipAddr.Type == "shared_v4" {
 					numIPv4 += 1
-				} else if ipAddr.Type == "v6" {
+				} else if ipAddr.Type == "v6" && ipAddr.Region == "global" {
 					numIPv6 += 1
 				}
 			}
