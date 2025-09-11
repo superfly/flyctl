@@ -21,11 +21,14 @@ import (
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
-func TestAppsV2Example(t *testing.T) {
+func TestAppsV2Example(tt *testing.T) {
+	t := testLogger{tt}
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	appUrl := fmt.Sprintf("https://%s.fly.dev", appName)
 
+	t.Logf("Launch %s in %s", appName, f.PrimaryRegion())
 	result := f.Fly(
 		"launch --org %s --name %s --region %s --image nginx --internal-port 80 --now --auto-confirm --ha=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
@@ -34,6 +37,7 @@ func TestAppsV2Example(t *testing.T) {
 	require.Contains(f, result.StdOutString(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 
+	t.Logf("Check %s is running", appUrl)
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(appUrl)
 		return err == nil && resp.StatusCode == http.StatusOK
@@ -59,6 +63,7 @@ func TestAppsV2Example(t *testing.T) {
 	if len(f.OtherRegions()) > 0 {
 		secondReg = f.OtherRegions()[0]
 	}
+	t.Logf("Clone to %s", secondReg)
 	f.Fly("m clone --region %s %s", secondReg, firstMachine.ID)
 
 	result = f.Fly("status")
@@ -68,6 +73,7 @@ func TestAppsV2Example(t *testing.T) {
 	if len(f.OtherRegions()) > 1 {
 		thirdReg = f.OtherRegions()[1]
 	}
+	t.Logf("Clone to %s", thirdReg)
 	f.Fly("m clone --region %s %s", thirdReg, firstMachine.ID)
 
 	result = f.Fly("status")
