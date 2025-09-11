@@ -48,7 +48,7 @@ func runList(ctx context.Context) (err error) {
 	client := flyutil.ClientFromContext(ctx)
 	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
-	org, err := getOrg(ctx)
+	org, err := flyutil.OrgFromContextBySlug(ctx, flag.GetOrg(ctx))
 	if err != nil {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
@@ -102,16 +102,4 @@ func runList(ctx context.Context) (err error) {
 	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
 
 	return
-}
-
-func getOrg(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
-
-	orgName := flag.GetOrg(ctx)
-
-	if orgName == "" {
-		return nil, nil
-	}
-
-	return client.GetOrganizationBySlug(ctx, orgName)
 }
