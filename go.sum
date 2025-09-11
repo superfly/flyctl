@@ -641,6 +641,8 @@ github.com/superfly/macaroon v0.3.0 h1:tdRq5VqBCNJIlvYByZZ3bGDOKX/v0llQM/Ljd27Db
 github.com/superfly/macaroon v0.3.0/go.mod h1:ZAmlRD/Hmp/ddTxE8IonZ7NdTny2DcOffRvZhapQwJw=
 github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0 h1:0GZOxvuQ2u3XUY7Hr8N02zn4ZN9Iz2xgi3aNNaUpRO4=
 github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0/go.mod h1:w38ieJ28pCyIpQJzuDOKfN5z6Q6R92vOkAYtUv6FL9k=
+github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a h1:a6TNDN9CgG+cYjaeN8l2mc4kSz2iMiCDQxPEyltUV/I=
+github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a/go.mod h1:EbW0wDK/qEUYI0A5bqq0C2kF8JTQwWONmGDBbzsxxHo=
 github.com/tj/assert v0.0.0-20171129193455-018094318fb0/go.mod h1:mZ9/Rh9oLWpLLDRpvE+3b7gP/C2YyLFYxNmcLnPTMe0=
 github.com/tj/assert v0.0.3 h1:Df/BlaZ20mq6kuai7f5z2TvPFiwC3xaWJSDQNiIS3Rk=
 github.com/tj/assert v0.0.3/go.mod h1:Ne6X72Q+TB1AteidzQncjw9PabbMp4PBMZ1k+vd1Pvk=
