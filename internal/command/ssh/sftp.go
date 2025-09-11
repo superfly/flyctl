@@ -760,6 +760,77 @@ func (sc *sftpContext) chmod(args ...string) error {
 	return nil
 }
 
+func (sc *sftpContext) rm(args ...string) error {
+	if len(args) < 2 {
+		sc.out("rm <file>")
+		return nil
+	}
+
+	rpath := sc.wd
+
+	rarg := args[1]
+	if rarg[0] == '/' {
+		rpath = rarg
+	} else {
+		rpath = sc.wd + rarg
+	}
+
+	if rarg := args[1]; rarg != "" {
+		if rarg[0] == '/' {
+			rpath = rarg
+		} else {
+			rpath = sc.wd + rarg
+		}
+	}
+
+	if _, err := sc.ftp.Stat(rpath); err != nil {
+		sc.out("rm %s: %s does not exist on VM", rpath, rpath)
+		return nil
+	}
+
+	if err := sc.ftp.Remove(rpath); err != nil {
+		sc.out("rm %s: could not delete file", rpath)
+		return nil
+	}
+
+	return nil
+}
+
+func (sc *sftpContext) uploadFile(lpath string, rpath string, permbits int64) {
+	if _, err := sc.ftp.Stat(rpath); err == nil {
+		sc.out("put %s -> %s: file exists on VM", lpath, rpath)
+		return
+	}
+
+	f, err := os.Open(lpath)
+	if err != nil {
+		sc.out("put %s -> %s: open local file: %s", lpath, rpath, err)
+		return
+	}
+	// Safe to ignore the error because this file is for reading.
+	defer f.Close() // skipcq: GO-S2307
+
+	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+	if err != nil {
+		sc.out("put %s -> %s: create remote file: %s", lpath, rpath, err)
+		return
+	}
+	defer rf.Close()
+
+	bytes, err := rf.ReadFrom(f)
+	if err != nil {
+		sc.out("put %s -> %s: copy file file: %s (%d bytes written)", lpath, rpath, err, bytes)
+		return
+	}
+
+	sc.out("put %s -> %s: %d bytes written", lpath, rpath, bytes)
+
+	if err = sc.ftp.Chmod(rpath, fs.FileMode(permbits)); err != nil {
+		sc.out("put %s -> %s: set permissions: %s", lpath, rpath, err)
+		return
+	}
+}
+
 func (sc *sftpContext) put(args ...string) error {
 	fgs := goflag.NewFlagSet("put", goflag.ContinueOnError)
 
@@ -782,46 +853,65 @@ func (sc *sftpContext) put(args ...string) error {
 		return nil
 	}
 
-	rpath := sc.wd + path.Base(lpath)
-	if rarg := fgs.Arg(1); rarg != "" {
-		if rarg[0] == '/' {
-			rpath = rarg
-		} else {
-			rpath = sc.wd + rarg
+	matches, err := filepath.Glob(lpath)
+	if err != nil {
+		sc.out("put: match glob %s: %s", lpath, err)
+		return nil
+	}
+
+	if len(matches) == 0 {
+		sc.out("put: no local files matched the pattern %s", lpath)
+		return nil
+	}
+
+	rarg := fgs.Arg(1)
+
+	if len(matches) == 1 {
+		lpath = filepath.ToSlash(matches[0])
+
+		rpath := sc.wd + path.Base(lpath)
+		if rarg != "" {
+			if rarg[0] == '/' {
+				rpath = rarg
+			} else {
+				rpath = sc.wd + rarg
+			}
 		}
-	}
 
-	if _, err = sc.ftp.Stat(rpath); err == nil {
-		sc.out("put %s -> %s: file exists on VM", lpath, rpath)
-		return nil
-	}
+		sc.out("put %s -> %s: matched 1 file, uploading...", lpath, rpath)
+		sc.uploadFile(lpath, rpath, permbits)
+	} else {
+		rdir := sc.wd
+		if rarg != "" {
+			if rarg[0] == '/' {
+				rdir = rarg
+			} else {
+				rdir = sc.wd + rarg
+			}
+		}
+		rdir = filepath.ToSlash(rdir)
 
-	f, err := os.Open(lpath)
-	if err != nil {
-		sc.out("put %s -> %s: open local file: %s", lpath, rpath, err)
-		return nil
-	}
-	// Safe to ignore the error because this file is for reading.
-	defer f.Close() // skipcq: GO-S2307
+		inf, err := sc.ftp.Stat(rdir)
+		if err != nil {
+			sc.out("put %s -> %s: check remote path: %s", lpath, rdir, err)
+			return nil
+		}
 
-	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
-	if err != nil {
-		sc.out("put %s -> %s: create remote file: %s", lpath, rpath, err)
-		return nil
-	}
-	defer rf.Close()
+		if !inf.IsDir() {
+			sc.out("put %s -> %s: remote path %s is not a directory", lpath, rdir, rdir)
+			return nil
+		}
 
-	bytes, err := rf.ReadFrom(f)
-	if err != nil {
-		sc.out("put %s -> %s: copy file file: %s (%d bytes written)", lpath, rpath, err, bytes)
-		return nil
-	}
+		n := len(matches)
+		sc.out("put %s -> %s: matched %d files, uploading...", lpath, rdir, n)
 
-	sc.out("%d bytes written", bytes)
-
-	if err = sc.ftp.Chmod(rpath, fs.FileMode(permbits)); err != nil {
-		sc.out("put %s -> %s: set permissions: %s", lpath, rpath, err)
-		return nil
+		for i, file := range matches {
+			file = filepath.ToSlash(file)
+			filename := path.Base(file)
+			rpath := path.Join(rdir, filename)
+			sc.out("put %s -> %s: uploading file %d/%d", file, rpath, i+1, n)
+			sc.uploadFile(file, rpath, permbits)
+		}
 	}
 
 	return nil
@@ -969,8 +1059,13 @@ func runShell(ctx context.Context) error {
 				return err
 			}
 
+		case "rm":
+			if err = sc.rm(args...); err != nil {
+				return err
+			}
+
 		default:
-			out("unrecognized command; try 'cd', 'ls', 'get', 'put', or 'chmod'")
+			out("unrecognized command; try 'cd', 'ls', 'get', 'put', 'chmod' or 'rm'")
 		}
 	}
 
