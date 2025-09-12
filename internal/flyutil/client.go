@@ -51,6 +51,7 @@ type Client interface {
 	GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
 	GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error)
+	GetAppCNAMETarget(ctx context.Context, appName string) (string, error)
 	GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error)
 	GetAppLimitedAccessTokens(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
 	GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
@@ -58,7 +59,6 @@ type Client interface {
 	GetAppNameStateFromVolume(ctx context.Context, volID string) (*string, *string, error)
 	GetAppNetwork(ctx context.Context, appName string) (*string, error)
 	GetAppReleasesMachines(ctx context.Context, appName, status string, limit int) ([]fly.Release, error)
-	GetAppSecrets(ctx context.Context, appName string) ([]fly.Secret, error)
 	GetApps(ctx context.Context, role *string) ([]fly.App, error)
 	GetAppsForOrganization(ctx context.Context, orgID string) ([]fly.App, error)
 	GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error)
@@ -99,9 +99,7 @@ type Client interface {
 	Run(req *graphql.Request) (fly.Query, error)
 	RunWithContext(ctx context.Context, req *graphql.Request) (fly.Query, error)
 	SetGenqClient(client genq.Client)
-	SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error)
 	UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
-	UnsetSecrets(ctx context.Context, appName string, keys []string) (*fly.Release, error)
 	ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error)
 }
 

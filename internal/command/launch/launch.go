@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/docker/go-units"
@@ -11,6 +13,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
@@ -48,11 +51,13 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	planStep := plan.GetPlanStep(ctx)
 
+	var flapsClient flapsutil.FlapsClient
 	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
-		app, err := state.createApp(ctx)
+		f, app, err := state.createApp(ctx)
 		if err != nil {
 			return err
 		}
+		flapsClient = f
 
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
 		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
@@ -62,6 +67,14 @@ func (state *launchState) Launch(ctx context.Context) error {
 			return nil
 		}
 	}
+
+	if flapsClient == nil {
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: state.appConfig.AppName})
+		if err != nil {
+			return err
+		}
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
@@ -98,15 +111,53 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
-	// Override internal port if requested using --internal-port flag
-	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
-		state.appConfig.SetInternalPort(n)
-	}
-
 	// Sentry
 	if !flag.GetBool(ctx, "no-create") {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
+		}
+	}
+
+	// if the user specified a command, set it in the app config
+	if flag.GetString(ctx, "command") != "" {
+		if state.appConfig.Processes == nil {
+			state.appConfig.Processes = make(map[string]string)
+		}
+
+		state.appConfig.Processes["app"] = flag.GetString(ctx, "command")
+	}
+
+	volumes := flag.GetStringSlice(ctx, "volume")
+	if len(volumes) > 0 {
+		v := volumes[0]
+		splittedIDDestOpts := strings.Split(v, ":")
+
+		if len(splittedIDDestOpts) < 2 {
+			re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+			m := re.FindStringSubmatch(splittedIDDestOpts[0])
+
+			if len(m) > 0 {
+				state.appConfig.Mounts = []appconfig.Mount{
+					{
+						Source:      m[3], // last part of path
+						Destination: m[2], // full path
+					},
+				}
+			}
+		} else {
+			// if the user specified a volume, set it in the app config
+			state.appConfig.Mounts = []appconfig.Mount{
+				{
+					Source:      splittedIDDestOpts[0],
+					Destination: splittedIDDestOpts[1],
+				},
+			}
+
+			if len(splittedIDDestOpts) > 2 {
+				if err := ParseMountOptions(&state.appConfig.Mounts[0], splittedIDDestOpts[2]); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -130,6 +181,24 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
+	// Add secrets to the app
+	if secretsFlag := flag.GetStringArray(ctx, "secret"); len(secretsFlag) > 0 {
+		secrets := make(map[string]string, len(secretsFlag))
+		for _, secret := range secretsFlag {
+			kv := strings.SplitN(secret, "=", 2)
+			if len(kv) != 2 {
+				return fmt.Errorf("invalid secret format: %s, expected NAME=VALUE", secret)
+			}
+			key := strings.TrimSpace(kv[0])
+			value := strings.TrimSpace(kv[1])
+			secrets[key] = value
+		}
+
+		if err := appsecrets.Update(ctx, flapsClient, state.appConfig.AppName, secrets, nil); err != nil {
+			return err
+		}
+	}
+
 	if state.sourceInfo != nil {
 		if state.appConfig.Deploy != nil && state.appConfig.Deploy.SeedCommand != "" {
 			ctx = appconfig.WithSeedCommand(ctx, state.appConfig.Deploy.SeedCommand)
@@ -137,6 +206,47 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 		if err := state.firstDeploy(ctx); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func ParseMountOptions(mount *appconfig.Mount, options string) error {
+	if options == "" {
+		return nil
+	}
+
+	pairs := strings.Split(options, ",")
+	for _, pair := range pairs {
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			return fmt.Errorf("invalid mount option: %s", pair)
+		}
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+
+		switch key {
+		case "initial_size":
+			mount.InitialSize = value
+		case "snapshot_retention":
+			ret, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for snapshot_retention: %s", value)
+			}
+			mount.SnapshotRetention = &ret
+		case "auto_extend_size_threshold":
+			threshold, err := strconv.Atoi(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for auto_extend_size_threshold: %s", value)
+			}
+			mount.AutoExtendSizeThreshold = threshold
+		case "auto_extend_size_increment":
+			mount.AutoExtendSizeIncrement = value
+		case "auto_extend_size_limit":
+			mount.AutoExtendSizeLimit = value
+		default:
+			return fmt.Errorf("unknown mount option: %s", key)
 		}
 	}
 
@@ -220,11 +330,11 @@ func (state *launchState) updateConfig(ctx context.Context) {
 }
 
 // createApp creates the fly.io app for the plan
-func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
+func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient, *fly.App, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
@@ -233,15 +343,15 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		Machines:        true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return app, nil
+	return f, app, nil
 }

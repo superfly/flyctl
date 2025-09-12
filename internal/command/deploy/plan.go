@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -289,6 +290,11 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			}
 
 			currentState, err := md.appState(ctx, oldAppState)
+			// sort machines by id so we always have the same order when retrying
+			// This is needed for rolling deploys so we can start from the same machine
+			sort.Slice(currentState.Machines, func(i, j int) bool {
+				return currentState.Machines[i].ID < currentState.Machines[j].ID
+			})
 			if err != nil {
 				span.RecordError(updateErr)
 				return fmt.Errorf("failed to get current app state: %w", err)
@@ -328,7 +334,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 	ctx, span := tracing.GetTracer().Start(ctx, "update_process_group")
 	defer span.End()
 
-	group := errgroup.Group{}
+	group, gCtx := errgroup.WithContext(ctx)
 	group.SetLimit(poolSize)
 
 	for _, machPair := range machineTuples {
@@ -352,6 +358,11 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 
 			sl := machineLogger.getLoggerFromID(machineID)
 
+			if err := gCtx.Err(); err != nil {
+				sl.LogStatus(statuslogger.StatusFailure, "skipping machine update due to earlier failure")
+				return err
+			}
+
 			checkResult, ok := healthChecksPassed.Load(machineID)
 			// this shouldn't happen, we ensure that the machine is in the map but just in case
 			if !ok {
@@ -362,7 +373,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			}
 			machineCheckResult := checkResult.(*healthcheckResult)
 
-			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
+			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
 				span.RecordError(err)
@@ -471,6 +482,7 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 				sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for %s: %v", machine.ID, err))
 				return err
 			}
+			machine.LeaseNonce = ""
 
 			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Cleared lease for %s", machine.ID))
 			return nil
@@ -734,7 +746,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 }
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
-	leaseTimeout := int(md.leaseTimeout)
+	leaseTimeout := int(md.leaseTimeout.Seconds())
 	lease, err := md.flapsClient.AcquireLease(ctx, machID, &leaseTimeout)
 	if err != nil {
 		// TODO: tell users how to manually clear the lease

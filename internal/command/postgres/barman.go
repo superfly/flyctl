@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -245,10 +246,16 @@ func runBarmanCreate(ctx context.Context) error {
 		Path:   volumePath,
 	})
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	launchInput := fly.LaunchMachineInput{
-		Name:   "barman",
-		Region: volInput.Region,
-		Config: &machineConfig,
+		Name:              "barman",
+		Region:            volInput.Region,
+		Config:            &machineConfig,
+		MinSecretsVersion: minvers,
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning barman machine with image %s\n", machineConfig.Image)
@@ -468,7 +475,7 @@ func runConsole(ctx context.Context, cmd string) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := ssh.BringUpAgent(ctx, client, app, "", false)
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, "", false)
 	if err != nil {
 		return err
 	}

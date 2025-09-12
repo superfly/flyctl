@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -25,20 +26,29 @@ func newConnect() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runConnect, command.RequireSession, command.RequireUiex)
 
 	flag.Add(cmd,
-		flag.Org(),
+		flag.MPGCluster(),
 	)
 
 	return cmd
 }
 
 func runConnect(ctx context.Context) (err error) {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
 	io := iostreams.FromContext(ctx)
 
 	localProxyPort := "16380"
 
-	cluster, params, password, err := getMpgProxyParams(ctx, localProxyPort)
+	cluster, params, credentials, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
 		return err
+	}
+
+	if cluster.Status != "ready" {
+		fmt.Fprintf(io.ErrOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
 	}
 
 	psqlPath, err := exec.LookPath("psql")
@@ -52,8 +62,11 @@ func runConnect(ctx context.Context) (err error) {
 		return err
 	}
 
-	name := fmt.Sprintf("pgdb-%s", cluster.Id)
-	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=require", name, password, localProxyPort, name)
+	user := credentials.User
+	password := credentials.Password
+	db := credentials.DBName
+
+	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
 	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut

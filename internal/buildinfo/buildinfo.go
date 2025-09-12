@@ -116,8 +116,8 @@ func BuildTime() time.Time {
 
 func Commit() string {
 	info, _ := debug.ReadBuildInfo()
-	var rev string = "<none>"
-	var dirty string = ""
+	var rev = "<none>"
+	var dirty = ""
 	for _, v := range info.Settings {
 		if v.Key == "vcs.revision" {
 			rev = v.Value

@@ -20,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
 )
 
 type LeasableMachine interface {
@@ -324,16 +323,6 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
 	defer cancel()
 
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
-	for _, s := range lm.Machine().Config.Services {
-		checkDefs = append(checkDefs, s.Checks...)
-	}
-	shortestInterval := 120 * time.Second
-	for _, c := range checkDefs {
-		if c.Interval != nil && c.Interval.Duration < shortestInterval {
-			shortestInterval = c.Interval.Duration
-		}
-	}
 	b := &backoff.Backoff{
 		Min:    1 * time.Second,
 		Max:    2 * time.Second,
@@ -554,19 +543,26 @@ func (lm *leasableMachine) resetLease() {
 
 func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration) {
 	minInterval := 60 * time.Second
-
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
-	for _, s := range lm.Machine().Config.Services {
-		checkDefs = append(checkDefs, s.Checks...)
-	}
 	minGracePeriod := time.Second
-	for _, c := range checkDefs {
+
+	for _, c := range lm.Machine().Config.Checks {
 		if c.Interval != nil && c.Interval.Duration < minInterval {
 			minInterval = c.Interval.Duration
 		}
 
 		if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
 			minGracePeriod = c.GracePeriod.Duration
+		}
+	}
+	for _, s := range lm.Machine().Config.Services {
+		for _, c := range s.Checks {
+			if c.Interval != nil && c.Interval.Duration < minInterval {
+				minInterval = c.Interval.Duration
+			}
+
+			if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
+				minGracePeriod = c.GracePeriod.Duration
+			}
 		}
 	}
 

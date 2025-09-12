@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -61,6 +62,14 @@ func newUpdate() *cobra.Command {
 			Description: "Seconds to wait for individual machines to transition states and become healthy. (default 300)",
 			Default:     300,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Hidden:      false,
+		},
+		flag.BuildkitAddr(),
+		flag.BuildkitImage(),
+		flag.Buildkit(),
 	)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
@@ -137,14 +146,20 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	// Perform update
 	input := &fly.LaunchMachineInput{
-		Name:             machine.Name,
-		Region:           machine.Region,
-		Config:           machineConf,
-		SkipLaunch:       len(machineConf.Standbys) > 0 || skipStart,
-		SkipHealthChecks: skipHealthChecks,
-		Timeout:          flag.GetInt(ctx, "wait-timeout"),
+		Name:              machine.Name,
+		Region:            machine.Region,
+		Config:            machineConf,
+		SkipLaunch:        len(machineConf.Standbys) > 0 || skipStart,
+		SkipHealthChecks:  skipHealthChecks,
+		Timeout:           flag.GetInt(ctx, "wait-timeout"),
+		MinSecretsVersion: minvers,
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
 		var timeoutErr mach.WaitTimeoutErr

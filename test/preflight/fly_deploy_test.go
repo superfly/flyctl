@@ -111,7 +111,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 [experimental]
   entrypoint = "/bin/false"
 `
-	f.WriteFlyToml(appConfig)
+	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
 	deployRes := f.FlyAllowExitFailure("deploy")
 	output := deployRes.StdErrString()
@@ -129,7 +129,7 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 [deploy]
   release_command = "/bin/false"
 `
-	f.WriteFlyToml(appConfig)
+	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
 	deployRes := f.FlyAllowExitFailure("deploy")
 	output := deployRes.StdErrString()
@@ -330,7 +330,7 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
    			entrypoint = ["/bin/sh", "-c"]
 			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
 		`
-	f.WriteFlyToml(appConfig)
+	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
 	deployRes := f.Fly("deploy")
 	output := deployRes.StdOutString()
@@ -348,7 +348,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 			entrypoint = ["/bin/sh", "-c"]
 			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
 		`
-	f.WriteFlyToml(appConfig)
+	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
 	deployRes := f.Fly("deploy")
 	output := deployRes.StdOutString()
@@ -366,7 +366,7 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
    			entrypoint = ["/bin/sh", "-c"]
 			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
 		`
-	f.WriteFlyToml(appConfig)
+	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
 	deployRes := f.Fly("deploy")
 	output := deployRes.StdOutString()

@@ -36,7 +36,7 @@ func makeAlias[T any](template T, name string) T {
 	useAliasShortHandField := reflect.ValueOf(template).FieldByName("UseAliasShortHand")
 	if useAliasShortHandField.IsValid() {
 		useAliasShortHand := useAliasShortHandField.Interface().(bool)
-		if useAliasShortHand == true {
+		if useAliasShortHand {
 			value.FieldByName("Shorthand").SetString(string(name[0]))
 		}
 	}
@@ -320,6 +320,13 @@ func Org() String {
 	}
 }
 
+func MPGCluster() String {
+	return String{
+		Name:        "cluster",
+		Description: "The target cluster ID",
+	}
+}
+
 // Region returns a region string flag.
 func Region() String {
 	return String{
@@ -574,6 +581,31 @@ func Nixpacks() Bool {
 		Name:        "nixpacks",
 		Default:     false,
 		Description: "Deploy using nixpacks to build the image",
+	}
+}
+
+func BuildkitAddr() String {
+	return String{
+		Name:        "buildkit-addr",
+		Description: "Address of remote buildkit daemon (e.g. tcp://127.0.0.1:1234 or unix:///path/to/socket)",
+		EnvName:     "BUILDKIT_ADDR",
+		Hidden:      true,
+	}
+}
+
+func BuildkitImage() String {
+	return String{
+		Name:        "buildkit-image",
+		Description: "Image to use for remote buildkit daemon",
+		EnvName:     "BUILDKIT_IMAGE",
+		Hidden:      true,
+	}
+}
+
+func Buildkit() Bool {
+	return Bool{
+		Name:        "buildkit",
+		Description: "Deploy using buildkit-based remote builder",
 	}
 }
 

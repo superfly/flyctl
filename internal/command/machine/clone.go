@@ -12,6 +12,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -255,11 +256,17 @@ func runMachineClone(ctx context.Context) (err error) {
 		)
 	}
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	input := fly.LaunchMachineInput{
-		Name:       flag.GetString(ctx, "name"),
-		Region:     region,
-		Config:     targetConfig,
-		SkipLaunch: len(targetConfig.Standbys) > 0,
+		Name:              flag.GetString(ctx, "name"),
+		Region:            region,
+		Config:            targetConfig,
+		SkipLaunch:        len(targetConfig.Standbys) > 0,
+		MinSecretsVersion: minvers,
 	}
 
 	fmt.Fprintf(out, "Provisioning a new Machine with image %s...\n", source.Config.Image)

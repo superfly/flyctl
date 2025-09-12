@@ -6,9 +6,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -79,12 +80,13 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		}
 	}
 
-	flapsClient, err := getFlapsClient(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecrets(ctx)
+	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -93,13 +95,13 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	// while finding the highest version with the same prefix.
 	bestVer := KeyverUnspec
 	for _, secret := range secrets {
-		if label == secret.Label {
+		if label == secret.Name {
 			if !flag.GetBool(ctx, "force") {
 				return fmt.Errorf("refusing to overwrite existing key")
 			}
 		}
 
-		ver2, prefix2, err := SplitLabelKeyver(secret.Label)
+		ver2, prefix2, err := SplitLabelKeyver(secret.Name)
 		if err != nil {
 			continue
 		}
@@ -111,7 +113,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		semType2, _ := SecretTypeToSemanticType(secret.Type)
 		if semType2 != semType {
 			typs := secretTypeToString(secret.Type)
-			return fmt.Errorf("key %v (%v) has conflicting type %v (%v)", prefix, secret.Label, semType2, typs)
+			return fmt.Errorf("key %v (%v) has conflicting type %v (%v)", prefix, secret.Name, semType2, typs)
 		}
 
 		if CompareKeyver(ver2, bestVer) > 0 {
@@ -136,9 +138,9 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	}
 
 	if gen {
-		err = flapsClient.GenerateSecret(ctx, label, typ)
+		_, err = flapsClient.GenerateSecretKey(ctx, label, typ)
 	} else {
-		err = flapsClient.CreateSecret(ctx, label, typ, fly.CreateSecretRequest{Value: val})
+		_, err = flapsClient.SetSecretKey(ctx, label, typ, val)
 	}
 	if err != nil {
 		return err

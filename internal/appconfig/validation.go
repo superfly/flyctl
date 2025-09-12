@@ -21,24 +21,24 @@ var (
 	MachinesDeployStrategies = []string{"canary", "rolling", "immediate", "bluegreen"}
 )
 
-func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {
-	if cfg == nil {
+func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
+	if c == nil {
 		return errors.New("App config file not found"), ""
 	}
 
 	validators := []func() (string, error){
-		cfg.validateBuildStrategies,
-		cfg.validateDeploySection,
-		cfg.validateChecksSection,
-		cfg.validateServicesSection,
-		cfg.validateProcessesSection,
-		cfg.validateMachineConversion,
-		cfg.validateConsoleCommand,
-		cfg.validateMounts,
-		cfg.validateRestartPolicy,
+		c.validateBuildStrategies,
+		c.validateDeploySection,
+		c.validateChecksSection,
+		c.validateServicesSection,
+		c.validateProcessesSection,
+		c.validateMachineConversion,
+		c.validateConsoleCommand,
+		c.validateMounts,
+		c.validateRestartPolicy,
 	}
 
-	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
+	extra_info = fmt.Sprintf("Validating %s\n", c.ConfigFilePath())
 
 	for _, vFunc := range validators {
 		info, vErr := vFunc()
@@ -48,8 +48,8 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		}
 	}
 
-	if cfg.v2UnmarshalError != nil {
-		err = cfg.v2UnmarshalError
+	if c.v2UnmarshalError != nil {
+		err = c.v2UnmarshalError
 	}
 
 	if err != nil {
@@ -61,13 +61,13 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	return nil, extra_info
 }
 
-func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extraInfo string) {
+func (c *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extraInfo string) {
 	if len(groups) == 0 {
-		return cfg.Validate(ctx)
+		return c.Validate(ctx)
 	}
 	var config *Config
 	for _, group := range groups {
-		config, err = cfg.Flatten(group)
+		config, err = c.Flatten(group)
 		if err != nil {
 			return
 		}
@@ -79,8 +79,8 @@ func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err err
 	return
 }
 
-func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
-	buildStrats := cfg.BuildStrategies()
+func (c *Config) validateBuildStrategies() (extraInfo string, err error) {
+	buildStrats := c.BuildStrategies()
 	if len(buildStrats) > 1 {
 		// TODO: validate that most users are not affected by this and/or fixing this, then make it fail validation
 		msg := fmt.Sprintf("%s more than one build configuration found: [%s]", aurora.Yellow("WARN"), strings.Join(buildStrats, ", "))
@@ -90,17 +90,17 @@ func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
 	return
 }
 
-func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
-	if cfg.Deploy == nil {
+func (c *Config) validateDeploySection() (extraInfo string, err error) {
+	if c.Deploy == nil {
 		return
 	}
 
-	if _, vErr := shlex.Split(cfg.Deploy.ReleaseCommand); vErr != nil {
-		extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", cfg.Deploy.ReleaseCommand)
+	if _, vErr := shlex.Split(c.Deploy.ReleaseCommand); vErr != nil {
+		extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", c.Deploy.ReleaseCommand)
 		err = ValidationError
 	}
 
-	if s := cfg.Deploy.Strategy; s != "" {
+	if s := c.Deploy.Strategy; s != "" {
 		if !slices.Contains(MachinesDeployStrategies, s) {
 			extraInfo += fmt.Sprintf(
 				"unsupported deployment strategy '%s'; Apps v2 supports the following strategies: %s", s,
@@ -109,7 +109,7 @@ func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
 			err = ValidationError
 		}
 
-		if s == "canary" && len(cfg.Mounts) > 0 {
+		if s == "canary" && len(c.Mounts) > 0 {
 			extraInfo += "error canary deployment strategy is not supported when using mounted volumes"
 			err = ValidationError
 		}
@@ -118,8 +118,8 @@ func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
 	return
 }
 
-func (cfg *Config) validateChecksSection() (extraInfo string, err error) {
-	for name, check := range cfg.Checks {
+func (c *Config) validateChecksSection() (extraInfo string, err error) {
+	for name, check := range c.Checks {
 		if _, vErr := check.toMachineCheck(); vErr != nil {
 			extraInfo += fmt.Sprintf("Can't process top level check '%s': %s\n", name, vErr)
 			err = ValidationError
@@ -140,13 +140,13 @@ func (cfg *Config) validateChecksSection() (extraInfo string, err error) {
 	return
 }
 
-func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
-	validGroupNames := cfg.ProcessNames()
+func (c *Config) validateServicesSection() (extraInfo string, err error) {
+	validGroupNames := c.ProcessNames()
 	// The following is different than len(validGroupNames) because
 	// it can be zero when there is no [processes] section
-	processCount := len(cfg.Processes)
+	processCount := len(c.Processes)
 
-	for _, service := range cfg.AllServices() {
+	for _, service := range c.AllServices() {
 		switch {
 		case len(service.Processes) == 0 && processCount > 0:
 			extraInfo += fmt.Sprintf(
@@ -219,8 +219,8 @@ func validateSingleServiceCheckDuration(d *fly.Duration, zeroOK bool, proto, des
 	return
 }
 
-func (cfg *Config) validateProcessesSection() (extraInfo string, err error) {
-	for processName, cmdStr := range cfg.Processes {
+func (c *Config) validateProcessesSection() (extraInfo string, err error) {
+	for processName, cmdStr := range c.Processes {
 		if cmdStr == "" {
 			continue
 		}
@@ -238,9 +238,9 @@ func (cfg *Config) validateProcessesSection() (extraInfo string, err error) {
 	return extraInfo, err
 }
 
-func (cfg *Config) validateMachineConversion() (extraInfo string, err error) {
-	for _, name := range cfg.ProcessNames() {
-		if _, vErr := cfg.ToMachineConfig(name, nil); err != nil {
+func (c *Config) validateMachineConversion() (extraInfo string, err error) {
+	for _, name := range c.ProcessNames() {
+		if _, vErr := c.ToMachineConfig(name, nil); err != nil {
 			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
 			err = ValidationError
 		}
@@ -248,21 +248,21 @@ func (cfg *Config) validateMachineConversion() (extraInfo string, err error) {
 	return
 }
 
-func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
-	if _, vErr := shlex.Split(cfg.ConsoleCommand); vErr != nil {
-		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", cfg.ConsoleCommand)
+func (c *Config) validateConsoleCommand() (extraInfo string, err error) {
+	if _, vErr := shlex.Split(c.ConsoleCommand); vErr != nil {
+		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", c.ConsoleCommand)
 		err = ValidationError
 	}
 	return
 }
 
-func (cfg *Config) validateMounts() (extraInfo string, err error) {
-	if cfg.configFilePath == "--flatten--" && len(cfg.Mounts) > 1 {
-		extraInfo += fmt.Sprintf("group '%s' has more than one [[mounts]] section defined\n", cfg.defaultGroupName)
+func (c *Config) validateMounts() (extraInfo string, err error) {
+	if c.configFilePath == "--flatten--" && len(c.Mounts) > 1 {
+		extraInfo += fmt.Sprintf("group '%s' has more than one [[mounts]] section defined\n", c.defaultGroupName)
 		err = ValidationError
 	}
 
-	for _, m := range cfg.Mounts {
+	for _, m := range c.Mounts {
 		if m.InitialSize != "" {
 			v, vErr := helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
 			switch {
@@ -327,13 +327,13 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 	return
 }
 
-func (cfg *Config) validateRestartPolicy() (extraInfo string, err error) {
-	if cfg.Restart == nil {
+func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
+	if c.Restart == nil {
 		return
 	}
 
-	for _, restart := range cfg.Restart {
-		validGroupNames := cfg.ProcessNames()
+	for _, restart := range c.Restart {
+		validGroupNames := c.ProcessNames()
 
 		// first make sure restart.Processes matches a valid process name.
 		for _, processName := range restart.Processes {

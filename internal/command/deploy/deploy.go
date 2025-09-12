@@ -53,6 +53,9 @@ var CommonFlags = flag.Set{
 	flag.Depot(),
 	flag.DepotScope(),
 	flag.Nixpacks(),
+	flag.BuildkitAddr(),
+	flag.BuildkitImage(),
+	flag.Buildkit(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
 	flag.BpVolume(),
@@ -178,6 +181,13 @@ var CommonFlags = flag.Set{
 		Description: "Number of times to retry a deployment if it fails",
 		Default:     "auto",
 	},
+	flag.String{
+		Name:        "builder-pool",
+		Default:     "auto",
+		NoOptDefVal: "true",
+		Description: "Experimental: Use pooled builder from Fly.io",
+		Hidden:      true,
+	},
 }
 
 type Command struct {
@@ -198,6 +208,7 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
+		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -247,7 +258,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
@@ -545,7 +560,7 @@ func deployToMachines(
 		deployRetries = int(retries)
 
 	default:
-		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		var invalidRetriesErr = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
 		retries, err := strconv.Atoi(retriesFlag)
 		if err != nil {
 			return invalidRetriesErr
@@ -595,6 +610,7 @@ func deployToMachines(
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
 		BuildID:               img.BuildID,
+		BuilderID:             img.BuilderID,
 	}
 
 	var path = flag.GetString(ctx, "export-manifest")

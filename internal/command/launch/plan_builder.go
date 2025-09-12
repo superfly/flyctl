@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -224,17 +225,47 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	}
 
 	if srcInfo != nil {
+		ldClient, err := launchdarkly.NewServiceClient()
+		if err != nil {
+			return nil, nil, err
+		}
+		mpgEnabled := ldClient.ManagedPostgresEnabled()
+
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
 		if !flag.GetBool(ctx, "no-db") {
 			switch srcInfo.DatabaseDesired {
 			case scanner.DatabaseKindPostgres:
-				lp.Postgres = plan.DefaultPostgres(lp)
+				lp.Postgres, err = plan.DefaultPostgres(ctx, lp, mpgEnabled)
+				if err != nil {
+					return nil, nil, err
+				}
 				planSource.postgresSource = scannerSource
+
+				// We offer switching to MPG if interactive session and the region is not the same as the MPG region
+				// App should launch in the MPG region
+				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+					lp.RegionCode = lp.Postgres.ManagedPostgres.Region
+				}
 			case scanner.DatabaseKindMySQL:
 				// TODO
 			case scanner.DatabaseKindSqlite:
 				// TODO
+			}
+		}
+		// Force Postgres provisioning if --db flag is set
+		dbFlag := flag.GetString(ctx, "db")
+		if dbFlag != "" {
+			lp.Postgres, err = plan.DefaultPostgres(ctx, lp, mpgEnabled)
+			if err != nil {
+				return nil, nil, err
+			}
+			planSource.postgresSource = "forced by --db flag"
+
+			// We offer switching to MPG if interactive session and the region is not the same as the MPG region
+			// App should launch in the MPG region
+			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+				lp.RegionCode = lp.Postgres.ManagedPostgres.Region
 			}
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {

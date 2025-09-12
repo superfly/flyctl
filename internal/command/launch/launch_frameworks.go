@@ -15,7 +15,9 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -23,6 +25,10 @@ import (
 )
 
 func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
+	if flag.GetBool(ctx, "no-github-workflow") || flag.GetString(ctx, "from") != "" {
+		return nil
+	}
+
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
 	if state.sourceInfo.GitHubActions.Secrets {
@@ -111,9 +117,13 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
 				continue
 			}
-			confirm, err := prompt.ConfirmOverwrite(ctx, path)
-			if !confirm || err != nil {
-				continue
+			if !flag.GetBool(ctx, "yes") {
+				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if !confirm || err != nil {
+					continue
+				}
+			} else {
+				fmt.Fprintf(io.Out, "You specified --yes, overwriting %s\n", path)
 			}
 		}
 
@@ -165,8 +175,8 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 	}
 
 	if len(secrets) > 0 {
-		apiClient := flyutil.ClientFromContext(ctx)
-		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil)
 		if err != nil {
 			return err
 		}
