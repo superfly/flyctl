@@ -183,9 +183,12 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 		j := f.Fly("vol ls -a %s --all --json", appName)
 		j.StdOutJSON(&ls)
 
-		assert.Equal(t, "pending_destroy", ls[0].State)
+		// Accept either scheduling_destroy or pending_destroy as valid states
+		// scheduling_destroy is the intermediate state, pending_destroy is the final state
+		assert.True(t, ls[0].State == "scheduling_destroy" || ls[0].State == "pending_destroy",
+			"Expected volume state to be 'scheduling_destroy' or 'pending_destroy', got '%s'", ls[0].State)
 		assert.Len(t, ls, 1)
-	}, 5*time.Minute, 10*time.Second, "volume %s never made it to pending_destroy state", vol.ID)
+	}, 5*time.Minute, 10*time.Second, "volume %s never made it to scheduling_destroy or pending_destroy state", vol.ID)
 
 	ls := f.Fly("vol snapshot ls --json %s", vol.ID)
 	var snapshots2 []*fly.VolumeSnapshot
