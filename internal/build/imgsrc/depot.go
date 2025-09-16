@@ -109,7 +109,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		tracing.RecordError(span, err, "failed to build image")
 		return nil, "", errors.Wrap(err, "error building")
 	}
-
+	build.BuilderMeta.RemoteMachineId = image.BuilderID
 	build.ImageBuildFinish()
 	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
@@ -288,7 +288,9 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		}
 		solverOptions.Session = append(
 			solverOptions.Session,
-			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
+			newBuildkitAuthProvider(func() string {
+				return config.Tokens(ctx).Docker()
+			}),
 			secretsprovider.FromMap(secrets),
 		)
 

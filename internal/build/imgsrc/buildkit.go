@@ -33,14 +33,14 @@ func buildkitEnabled(docker *dockerclient.Client) (buildkitEnabled bool, err err
 	return buildkitEnabled, nil
 }
 
-func newBuildkitAuthProvider(token string) session.Attachable {
+func newBuildkitAuthProvider(tokenGetter func() string) session.Attachable {
 	return &buildkitAuthProvider{
-		token: token,
+		tokenGetter: tokenGetter,
 	}
 }
 
 type buildkitAuthProvider struct {
-	token string
+	tokenGetter func() string
 }
 
 func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
@@ -48,7 +48,11 @@ func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
 }
 
 func (ap *buildkitAuthProvider) Credentials(ctx context.Context, req *auth.CredentialsRequest) (*auth.CredentialsResponse, error) {
-	auths := authConfigs(ap.token)
+	token := ""
+	if ap.tokenGetter != nil {
+		token = ap.tokenGetter()
+	}
+	auths := authConfigs(token)
 	res := &auth.CredentialsResponse{}
 	if a, ok := auths[req.Host]; ok {
 		res.Username = a.Username

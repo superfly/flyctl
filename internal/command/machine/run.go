@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -376,10 +377,16 @@ func runMachineRun(ctx context.Context) error {
 		},
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return err
+	}
+
 	input := fly.LaunchMachineInput{
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
-		LSVD:   flag.GetBool(ctx, "lsvd"),
+		Name:              flag.GetString(ctx, "name"),
+		Region:            flag.GetString(ctx, "region"),
+		LSVD:              flag.GetBool(ctx, "lsvd"),
+		MinSecretsVersion: minvers,
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
