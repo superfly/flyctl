@@ -414,7 +414,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 					return
 				}
 
-				status := updateMachine.TopLevelChecks()
+				status := updateMachine.AllHealthChecks()
 				bg.healthLock.Lock()
 				machineIDToHealthStatus[m.FormattedMachineId()] = status
 				bg.healthLock.Unlock()
@@ -628,43 +628,6 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	return nil
 }
 
-func (bg *blueGreen) attachCustomTopLevelChecks() {
-	for _, entry := range bg.blueMachines {
-		for _, service := range entry.launchInput.Config.Services {
-			servicePort := service.InternalPort
-			serviceProtocol := service.Protocol
-
-			for _, check := range service.Checks {
-				cc := fly.MachineCheck{
-					Port:              check.Port,
-					Type:              check.Type,
-					Interval:          check.Interval,
-					Timeout:           check.Timeout,
-					GracePeriod:       check.GracePeriod,
-					HTTPMethod:        check.HTTPMethod,
-					HTTPPath:          check.HTTPPath,
-					HTTPProtocol:      check.HTTPProtocol,
-					HTTPSkipTLSVerify: check.HTTPSkipTLSVerify,
-					HTTPHeaders:       check.HTTPHeaders,
-				}
-
-				if cc.Port == nil {
-					cc.Port = &servicePort
-				}
-
-				if cc.Type == nil {
-					cc.Type = &serviceProtocol
-				}
-
-				if entry.launchInput.Config.Checks == nil {
-					entry.launchInput.Config.Checks = make(map[string]fly.MachineCheck)
-				}
-				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
-			}
-		}
-	}
-}
-
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "bluegreen")
 	defer span.End()
@@ -695,8 +658,6 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		tracing.RecordError(span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
 		return err
 	}
-
-	bg.attachCustomTopLevelChecks()
 
 	totalChecks := 0
 	for _, entry := range bg.blueMachines {
