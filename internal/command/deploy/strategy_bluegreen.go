@@ -659,17 +659,24 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return err
 	}
 
-	totalChecks := 0
+	totalMachinesWithChecks := 0
 	for _, entry := range bg.blueMachines {
-		if len(entry.launchInput.Config.Checks) == 0 {
+		machineChecks := len(entry.launchInput.Config.Checks)
+
+		// Also count service-level checks
+		for _, service := range entry.launchInput.Config.Services {
+			machineChecks += len(service.Checks)
+		}
+
+		if machineChecks == 0 {
 			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check its health.", entry.leasableMachine.FormattedMachineId())
 			continue
 		}
 
-		totalChecks++
+		totalMachinesWithChecks++
 	}
 
-	if totalChecks == 0 && len(bg.blueMachines) != 0 {
+	if totalMachinesWithChecks == 0 && len(bg.blueMachines) != 0 {
 		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
 		return ErrValidationError
 	}
