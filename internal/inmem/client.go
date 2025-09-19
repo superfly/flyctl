@@ -296,7 +296,7 @@ func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAd
 	return nil, nil // TODO
 }
 
-func (c *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
 	panic("TODO")
 }
 
@@ -321,7 +321,11 @@ func (m *Client) GetNearestRegion(ctx context.Context) (*fly.Region, error) {
 }
 
 func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
-	panic("TODO")
+	app, err := m.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+	return &fly.Organization{ID: app.Organization.ID}, nil
 }
 
 func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {

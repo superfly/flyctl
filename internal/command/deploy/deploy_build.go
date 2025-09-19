@@ -82,7 +82,14 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"), useManagedBuilder)
+	daemonType := imgsrc.NewDockerDaemonType(
+		!flag.GetRemoteOnly(ctx),
+		!flag.GetLocalOnly(ctx),
+		env.IsCI(),
+		depotBool,
+		flag.GetBool(ctx, "nixpacks"),
+		useManagedBuilder,
+	)
 
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
@@ -94,7 +101,27 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		terminal.Warnf("%s", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, useWG, recreateBuilder)
+	org, err := client.GetOrganizationByApp(ctx, appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
+	var provisioner *imgsrc.Provisioner
+	buildkitAddr := flag.GetBuildkitAddr(ctx)
+	buildkitImage := flag.GetBuildkitImage(ctx)
+	if flag.GetBool(ctx, "buildkit") && buildkitImage == "" && buildkitAddr == "" {
+		buildkitImage = imgsrc.DefaultBuildkitImage
+	}
+	if buildkitAddr != "" || buildkitImage != "" {
+		provisioner = imgsrc.NewBuildkitProvisioner(org, buildkitAddr, buildkitImage)
+	} else {
+		provisioner = imgsrc.NewProvisioner(org)
+	}
+	resolver := imgsrc.NewResolver(
+		daemonType, client, appConfig.AppName, io,
+		useWG, recreateBuilder,
+		imgsrc.WithProvisioner(provisioner),
+	)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -107,7 +134,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		opts := imgsrc.RefOptions{
 			AppName:    appConfig.AppName,
 			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBuildOnly(ctx),
+			Publish:    flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}

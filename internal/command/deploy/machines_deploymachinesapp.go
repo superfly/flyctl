@@ -222,9 +222,18 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_machines")
 	defer span.End()
 
+	var jerr error
 	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
-		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForRestart(lm.Machine())}
+		launchInput, err := md.launchInputForRestart(lm.Machine())
+		if err != nil {
+			jerr = errors.Join(jerr, err)
+			return nil
+		}
+		return &machineUpdateEntry{leasableMachine: lm, launchInput: launchInput}
 	})
+	if jerr != nil {
+		return jerr
+	}
 
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
@@ -1373,9 +1382,9 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
-				if ipAddr.Type == "v4" || ipAddr.Type == "shared_v4" {
+				if (ipAddr.Type == "v4" && ipAddr.Region == "global") || ipAddr.Type == "shared_v4" {
 					numIPv4 += 1
-				} else if ipAddr.Type == "v6" {
+				} else if ipAddr.Type == "v6" && ipAddr.Region == "global" {
 					numIPv6 += 1
 				}
 			}

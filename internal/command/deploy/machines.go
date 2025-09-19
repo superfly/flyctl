@@ -76,6 +76,7 @@ type MachineDeploymentArgs struct {
 	RestartMaxRetries     int
 	DeployRetries         int
 	BuildID               string
+	BuilderID             string
 }
 
 func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
@@ -155,6 +156,7 @@ type machineDeployment struct {
 	tigrisStatics         *statics.DeployerState
 	deployRetries         int
 	buildID               string
+	builderID             string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -282,6 +284,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		processGroups:         args.ProcessGroups,
 		deployRetries:         args.DeployRetries,
 		buildID:               args.BuildID,
+		builderID:             args.BuilderID,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
@@ -419,6 +422,9 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 			m.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 			if m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup] == "" {
 				m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup] = md.appConfig.DefaultProcessName()
+			}
+			if md.builderID != "" {
+				m.Config.Metadata["fly_builder_id"] = md.builderID
 			}
 		}
 	}

@@ -54,10 +54,18 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
 	}
 
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+
 	ldClient := launchdarkly.ClientFromContext(ctx)
 	useManagedBuilder := ldClient.ManagedBuilderEnabled()
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"), useManagedBuilder)
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx), false)
+	resolver := imgsrc.NewResolver(
+		daemonType, client, appName, io, flag.GetWireguard(ctx), false,
+		imgsrc.WithProvisioner(imgsrc.NewProvisioner(org)),
+	)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
