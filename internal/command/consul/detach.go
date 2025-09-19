@@ -44,6 +44,10 @@ func runDetach(ctx context.Context) error {
 		return err
 	}
 	secretsToUnset := []string{secretName}
-	err = secrets.UnsetSecretsAndDeploy(ctx, flapsClient, app, secretsToUnset, false, false)
+	err = secrets.UnsetSecretsAndDeploy(ctx, flapsClient, app, secretsToUnset, secrets.DeploymentArgs{
+		Stage:    false,
+		Detach:   false,
+		CheckDNS: true,
+	})
 	return err
 }
