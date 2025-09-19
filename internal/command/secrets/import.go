@@ -44,5 +44,9 @@ func runImport(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	return SetSecretsAndDeploy(ctx, flapsClient, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+	return SetSecretsAndDeploy(ctx, flapsClient, app, secrets, DeploymentArgs{
+		Stage:    flag.GetBool(ctx, "stage"),
+		Detach:   flag.GetBool(ctx, "detach"),
+		CheckDNS: flag.GetBool(ctx, "dns-checks"),
+	})
 }

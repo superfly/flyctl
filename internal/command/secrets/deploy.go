@@ -24,6 +24,11 @@ func newDeploy() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Detach(),
+		flag.Bool{
+			Name:        "dns-checks",
+			Description: "Perform DNS checks during deployment",
+			Default:     true,
+		},
 	)
 
 	return cmd
@@ -49,5 +54,9 @@ func runDeploy(ctx context.Context) (err error) {
 		}
 	}
 
-	return DeploySecrets(ctx, app, false, flag.GetBool(ctx, "detach"))
+	return DeploySecrets(ctx, app, DeploymentArgs{
+		Stage:    false,
+		Detach:   flag.GetBool(ctx, "detach"),
+		CheckDNS: flag.GetBool(ctx, "dns-checks"),
+	})
 }
