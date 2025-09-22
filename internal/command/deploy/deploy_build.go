@@ -174,8 +174,28 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	if appConfig.Experimental != nil {
 		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+	}
 
-		opts.UseZstd = appConfig.Experimental.UseZstd
+	// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
+	opts.Compression = "gzip"
+
+	if ldClient.UseZstdEnabled() {
+		opts.Compression = "zstd"
+	}
+
+	if appConfig.Experimental != nil && appConfig.Experimental.Compression != "" {
+		if err := appConfig.ValidateCompression(appConfig.Experimental.Compression); err != nil {
+			return nil, err
+		}
+		opts.Compression = appConfig.Experimental.Compression
+	}
+
+	if flag.IsSpecified(ctx, "compression") {
+		cliCompression := flag.GetString(ctx, "compression")
+		if err := appconfig.ValidateCompression(cliCompression); err != nil {
+			return nil, err
+		}
+		opts.Compression = cliCompression
 	}
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.

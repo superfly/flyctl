@@ -215,3 +215,7 @@ func (ldClient *Client) getManagedBuilderEnabled() bool {
 func (ldClient *Client) ManagedBuilderEnabled() bool {
 	return ldClient.getManagedBuilderEnabled()
 }
+
+func (ldClient *Client) UseZstdEnabled() bool {
+	return ldClient.GetFeatureFlagValue("use-zstd-for-docker-images", false).(bool)
+}
