@@ -9,6 +9,7 @@ import (
 	"github.com/dustin/go-humanize"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/certificate"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -180,11 +181,17 @@ func runCertificatesShow(ctx context.Context) error {
 
 	printCertificate(ctx, cert)
 
+	// Display validation errors if any exist
+	if len(cert.ValidationErrors) > 0 {
+		io := iostreams.FromContext(ctx)
+		certificate.DisplayValidationErrors(io, cert.ValidationErrors)
+	}
+
 	if cert.ClientStatus == "Ready" {
 		return nil
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, false)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplaySkip)
 }
 
 func runCertificatesCheck(ctx context.Context) error {
@@ -199,11 +206,17 @@ func runCertificatesCheck(ctx context.Context) error {
 
 	printCertificate(ctx, cert)
 
+	// Display validation errors if any exist
+	if len(cert.ValidationErrors) > 0 {
+		io := iostreams.FromContext(ctx)
+		certificate.DisplayValidationErrors(io, cert.ValidationErrors)
+	}
+
 	if cert.ClientStatus == "Ready" {
 		return nil
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, false)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplaySkip)
 }
 
 func runCertificatesAdd(ctx context.Context) error {
@@ -216,7 +229,7 @@ func runCertificatesAdd(ctx context.Context) error {
 		return err
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, true)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplayForce)
 }
 
 func runCertificatesRemove(ctx context.Context) error {
@@ -262,10 +275,18 @@ func runCertificatesSetup(ctx context.Context) error {
 		return err
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, true)
+	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplayForce)
 }
 
-func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck, forcePrintDns bool) error {
+type DNSDisplayMode int
+
+const (
+	DNSDisplayAuto  DNSDisplayMode = iota // Show setup steps if required
+	DNSDisplayForce                       // Always show setup steps
+	DNSDisplaySkip                        // Never show setup steps
+)
+
+func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck, dnsMode DNSDisplayMode) error {
 	io := iostreams.FromContext(ctx)
 
 	// print a blank line, easier to read!
@@ -274,7 +295,6 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
-	alternateHostname := getAlternateHostname(hostname)
 
 	// These are the IPs we have for the app
 	ips, err := apiClient.GetIPAddresses(ctx, appName)
@@ -349,62 +369,41 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		}
 	}
 
-	if cert.IsApex {
-		addDNSConfig := !configuredipV4 || !configuredipV6
-
-		if addDNSConfig || forcePrintDns {
-			printDNSSetupOptions(DNSSetupFlags{
-				Context:               ctx,
-				Hostname:              hostname,
-				Certificate:           cert,
-				IPv4Address:           ipV4,
-				IPv6Address:           ipV6,
-				CNAMETarget:           cnameTarget,
-				ExternalProxyDetected: externalProxyHint,
-			})
-		} else {
-			if cert.ClientStatus == "Ready" {
-				fmt.Fprintf(io.Out, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
-			} else {
-				fmt.Fprintf(io.Out, "Your certificate for %s is being issued. Status is %s. Make sure to create another certificate for %s when the current certificate is issued. \n", hostname, cert.ClientStatus, alternateHostname)
-			}
-		}
-	} else if cert.IsWildcard {
-		addDNSConfig := !configuredipV4 || !cert.AcmeDNSConfigured
-
-		if addDNSConfig || forcePrintDns {
-			printDNSSetupOptions(DNSSetupFlags{
-				Context:               ctx,
-				Hostname:              hostname,
-				Certificate:           cert,
-				IPv4Address:           ipV4,
-				IPv6Address:           ipV6,
-				CNAMETarget:           cnameTarget,
-				ExternalProxyDetected: externalProxyHint,
-			})
-		}
-	} else {
-		// This is not an apex domain
+	var addDNSConfig bool
+	switch {
+	case cert.IsApex:
+		addDNSConfig = !configuredipV4 || !configuredipV6
+	case cert.IsWildcard:
+		addDNSConfig = !configuredipV4 || !cert.AcmeDNSConfigured
+	default:
 		nothingConfigured := !(configuredipV4 && configuredipV6)
 		onlyV4Configured := configuredipV4 && !configuredipV6
+		addDNSConfig = nothingConfigured || onlyV4Configured
+	}
 
-		if nothingConfigured || onlyV4Configured || forcePrintDns {
-			printDNSSetupOptions(DNSSetupFlags{
-				Context:               ctx,
-				Hostname:              hostname,
-				Certificate:           cert,
-				IPv4Address:           ipV4,
-				IPv6Address:           ipV6,
-				CNAMETarget:           cnameTarget,
-				ExternalProxyDetected: externalProxyHint,
-			})
-		} else {
-			if cert.ClientStatus == "Ready" {
-				fmt.Fprintf(io.Out, "Your certificate for %s has been issued, make sure you create another certificate for %s \n", hostname, alternateHostname)
-			} else {
-				fmt.Fprintf(io.Out, "Your certificate for %s is being issued. Status is %s. Make sure to create another certificate for %s when the current certificate is issued. \n", hostname, cert.ClientStatus, alternateHostname)
-			}
-		}
+	switch {
+	case dnsMode == DNSDisplaySkip && addDNSConfig:
+		fmt.Fprintln(io.Out, "Your DNS is not yet configured correctly.")
+		fmt.Fprintf(io.Out, "Run %s to view DNS setup instructions.\n", colorize.Bold("fly certs setup "+hostname))
+	case dnsMode == DNSDisplayForce || (dnsMode == DNSDisplayAuto && addDNSConfig):
+		printDNSSetupOptions(DNSSetupFlags{
+			Context:               ctx,
+			Hostname:              hostname,
+			Certificate:           cert,
+			IPv4Address:           ipV4,
+			IPv6Address:           ipV6,
+			CNAMETarget:           cnameTarget,
+			ExternalProxyDetected: externalProxyHint,
+		})
+	case cert.ClientStatus == "Ready":
+		fmt.Fprintf(io.Out, "Your certificate for %s has been issued. \n", hostname)
+	default:
+		fmt.Fprintf(io.Out, "Your certificate for %s is being issued. Status is %s. \n", hostname, cert.ClientStatus)
+	}
+
+	if dnsMode != DNSDisplaySkip && !cert.IsWildcard && needsAlternateHostname(hostname) {
+		alternateHostname := getAlternateHostname(hostname)
+		fmt.Fprintf(io.Out, "Make sure to create another certificate for %s. \n", alternateHostname)
 	}
 
 	return nil
@@ -603,6 +602,10 @@ func printCertificates(ctx context.Context, certs []fly.AppCertificateCompact) e
 	}
 
 	return nil
+}
+
+func needsAlternateHostname(hostname string) bool {
+	return strings.Split(hostname, ".")[0] == "www" || len(strings.Split(hostname, ".")) == 2
 }
 
 func getAlternateHostname(hostname string) string {
