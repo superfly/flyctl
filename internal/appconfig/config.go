@@ -188,7 +188,14 @@ type Experimental struct {
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
 	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
-	UseZstd        bool     `toml:"use_zstd,omitempty" json:"use_zstd,omitempty"`
+	Compression    string   `toml:"compression,omitempty" json:"compression,omitempty"`
+}
+
+func ValidateCompression(compression string) error {
+	if compression != "" && compression != "zstd" && compression != "gzip" {
+		return fmt.Errorf("invalid compression algorithm '%s'. Must be 'zstd' or 'gzip'", compression)
+	}
+	return nil
 }
 
 type Attached struct {
