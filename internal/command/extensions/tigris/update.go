@@ -124,9 +124,14 @@ func runUpdate(ctx context.Context) (err error) {
 			return fmt.Errorf("You cannot specify both --custom-domain and --clear-custom-domain")
 		}
 
-		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
-
-		confirm, err := prompt.Confirm(ctx, "Continue with the update?")
+		confirm := false
+		if !flag.GetYes(ctx) {
+			fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
+			confirm, err = prompt.Confirm(ctx, "Continue with the update?")
+		} else {
+			fmt.Fprintf(io.Out, "By specifying the --yes flag you have agreed to set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
+			confirm = true
+		}
 
 		if err != nil || !confirm {
 			return err
