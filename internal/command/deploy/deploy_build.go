@@ -184,18 +184,11 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	}
 
 	if appConfig.Experimental != nil && appConfig.Experimental.Compression != "" {
-		if err := appConfig.ValidateCompression(appConfig.Experimental.Compression); err != nil {
-			return nil, err
-		}
 		opts.Compression = appConfig.Experimental.Compression
 	}
 
 	if flag.IsSpecified(ctx, "compression") {
-		cliCompression := flag.GetString(ctx, "compression")
-		if err := appconfig.ValidateCompression(cliCompression); err != nil {
-			return nil, err
-		}
-		opts.Compression = cliCompression
+		opts.Compression = flag.GetString(ctx, "compression")
 	}
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.

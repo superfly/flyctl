@@ -191,13 +191,6 @@ type Experimental struct {
 	Compression    string   `toml:"compression,omitempty" json:"compression,omitempty"`
 }
 
-func ValidateCompression(compression string) error {
-	if compression != "" && compression != "zstd" && compression != "gzip" {
-		return fmt.Errorf("invalid compression algorithm '%s'. Must be 'zstd' or 'gzip'", compression)
-	}
-	return nil
-}
-
 type Attached struct {
 	Secrets AttachedSecrets `toml:"secrets,omitempty" json:"secrets,omitempty"`
 }

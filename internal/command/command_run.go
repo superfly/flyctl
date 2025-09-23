@@ -109,18 +109,11 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 
 		if cfg != nil && cfg.Experimental != nil && cfg.Experimental.Compression != "" {
-			if err := cfg.ValidateCompression(cfg.Experimental.Compression); err != nil {
-				return nil, err
-			}
 			opts.Compression = cfg.Experimental.Compression
 		}
 
 		if flag.IsSpecified(ctx, "compression") {
-			cliCompression := flag.GetString(ctx, "compression")
-			if err := appconfig.ValidateCompression(cliCompression); err != nil {
-				return nil, err
-			}
-			opts.Compression = cliCompression
+			opts.Compression = flag.GetString(ctx, "compression")
 		}
 
 		img, err = resolver.BuildImage(ctx, io, opts)
