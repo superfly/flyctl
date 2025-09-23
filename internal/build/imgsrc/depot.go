@@ -249,8 +249,10 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	}
 
 	exportEntry.Attrs["compression"] = opts.Compression
-	exportEntry.Attrs["compression-level"] = "3"
-	exportEntry.Attrs["force-compression"] = "true"
+	if opts.Compression == "zstd" {
+		exportEntry.Attrs["compression-level"] = "9"
+		exportEntry.Attrs["force-compression"] = "true"
+	}
 
 	ch := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)

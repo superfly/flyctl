@@ -188,6 +188,7 @@ var CommonFlags = flag.Set{
 		Description: "Experimental: Use pooled builder from Fly.io",
 		Hidden:      true,
 	},
+	flag.Compression(),
 }
 
 type Command struct {
