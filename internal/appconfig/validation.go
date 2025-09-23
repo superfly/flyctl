@@ -36,6 +36,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateConsoleCommand,
 		c.validateMounts,
 		c.validateRestartPolicy,
+		c.validateCompression,
 	}
 
 	extra_info = fmt.Sprintf("Validating %s\n", c.ConfigFilePath())
@@ -349,6 +350,17 @@ func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
 		_, vErr := parseRestartPolicy(restart.Policy)
 		if vErr != nil {
 			extraInfo += fmt.Sprintf("%s\n", vErr)
+			err = ValidationError
+		}
+	}
+
+	return
+}
+
+func (c *Config) validateCompression() (extraInfo string, err error) {
+	if c.Experimental != nil && c.Experimental.Compression != "" {
+		if c.Experimental.Compression != "zstd" && c.Experimental.Compression != "gzip" {
+			extraInfo += fmt.Sprintf("invalid compression algorithm '%s'. Must be 'zstd' or 'gzip'", c.Experimental.Compression)
 			err = ValidationError
 		}
 	}
