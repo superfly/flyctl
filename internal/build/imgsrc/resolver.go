@@ -55,6 +55,7 @@ type ImageOptions struct {
 	BuildpacksVolumes    []string
 	UseOverlaybd         bool
 	Compression          string
+	CompressionLevel     int
 }
 
 func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {

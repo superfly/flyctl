@@ -219,3 +219,14 @@ func (ldClient *Client) ManagedBuilderEnabled() bool {
 func (ldClient *Client) UseZstdEnabled() bool {
 	return ldClient.GetFeatureFlagValue("use-zstd-for-docker-images", false).(bool)
 }
+
+func (ldClient *Client) GetCompressionStrength() int {
+	val := ldClient.GetFeatureFlagValue("compression-strength", 7)
+	if i, ok := val.(float64); ok { // LaunchDarkly returns numbers as float64
+		return int(i)
+	}
+	if i, ok := val.(int); ok {
+		return i
+	}
+	return 7 // Default value
+}

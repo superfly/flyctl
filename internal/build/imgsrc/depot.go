@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	depotbuild "github.com/depot/depot-go/build"
@@ -250,7 +251,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 
 	exportEntry.Attrs["compression"] = opts.Compression
 	if opts.Compression == "zstd" {
-		exportEntry.Attrs["compression-level"] = "9"
+		exportEntry.Attrs["compression-level"] = strconv.Itoa(opts.CompressionLevel)
 		exportEntry.Attrs["force-compression"] = "true"
 	}
 

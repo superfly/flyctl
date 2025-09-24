@@ -617,6 +617,14 @@ func Compression() String {
 	}
 }
 
+func CompressionLevel() Int {
+	return Int{
+		Name:        "compression-level",
+		Description: `Compression level to use for the image. Defaults to 7.`,
+		Default:     7,
+	}
+}
+
 func Strategy() String {
 	return String{
 		Name:        "strategy",

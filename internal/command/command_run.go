@@ -116,6 +116,18 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 			opts.Compression = flag.GetString(ctx, "compression")
 		}
 
+		// Determine compression level based on CLI flags, then app config, then LaunchDarkly, then default to 7
+
+		opts.CompressionLevel = ldClient.GetCompressionStrength()
+
+		if cfg != nil && cfg.Experimental != nil && cfg.Experimental.CompressionLevel != nil {
+			opts.CompressionLevel = *cfg.Experimental.CompressionLevel
+		}
+
+		if flag.IsSpecified(ctx, "compression-level") {
+			opts.CompressionLevel = flag.GetInt(ctx, "compression-level")
+		}
+
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
 			return nil, err
