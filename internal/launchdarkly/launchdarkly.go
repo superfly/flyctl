@@ -221,7 +221,8 @@ func (ldClient *Client) UseZstdEnabled() bool {
 }
 
 func (ldClient *Client) GetCompressionStrength() int {
-	val := ldClient.GetFeatureFlagValue("compression-strength", 7)
+	val := ldClient.GetFeatureFlagValue("flyctl-compression-strength", 7)
+
 	if i, ok := val.(float64); ok { // LaunchDarkly returns numbers as float64
 		return int(i)
 	}
