@@ -52,7 +52,7 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 // Sync sets the min version for the app to the current min version, allowing
 // any previously set secret to be visible in deploys.
 func Sync(ctx context.Context, client flapsutil.FlapsClient, appName string) error {
-	// This is somewhat of a hack -- we unset an non-existant secret and
+	// This is somewhat of a hack -- we unset an non-existent secret and
 	// we get back the latest min version after the unset.
 	rand := make([]byte, 8)
 	_, _ = crand.Read(rand)
