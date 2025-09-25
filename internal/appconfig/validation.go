@@ -13,13 +13,13 @@ import (
 	"github.com/logrusorgru/aurora"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/flag/validation"
+	"github.com/superfly/flyctl/internal/sentry"
 )
 
 var (
-	ValidationError          = errors.New("invalid app configuration")
-	MachinesDeployStrategies = []string{"canary", "rolling", "immediate", "bluegreen"}
+	ValidationError            = errors.New("invalid app configuration")
+	MachinesDeployStrategies   = []string{"canary", "rolling", "immediate", "bluegreen"}
 	validCompressionAlgorithms = []string{"zstd", "gzip"}
 )
 
