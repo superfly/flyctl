@@ -45,6 +45,7 @@ func New() *cobra.Command {
 	secrets.AddCommand(
 		newList(),
 		newSet(),
+		newSync(),
 		newUnset(),
 		newImport(),
 		newDeploy(),
