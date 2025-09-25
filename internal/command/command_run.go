@@ -101,13 +101,30 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 		opts.BuildArgs = extraArgs
 
-		if cfg != nil && cfg.Experimental != nil {
-			opts.UseZstd = cfg.Experimental.UseZstd
+		// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
+		opts.Compression = "gzip"
+
+		if ldClient.UseZstdEnabled() {
+			opts.Compression = "zstd"
 		}
 
-		// use-zstd passed through flags takes precedence over the one set in config
-		if flag.IsSpecified(ctx, "use-zstd") {
-			opts.UseZstd = flag.GetBool(ctx, "use-zstd")
+		if cfg != nil && cfg.Experimental != nil && cfg.Experimental.Compression != "" {
+			opts.Compression = cfg.Experimental.Compression
+		}
+
+		if flag.IsSpecified(ctx, "compression") {
+			opts.Compression = flag.GetString(ctx, "compression")
+		}
+
+		// Determine compression level based on CLI flags, then app config, then LaunchDarkly, then default to 7
+		opts.CompressionLevel = ldClient.GetCompressionStrength()
+
+		if cfg != nil && cfg.Experimental != nil && cfg.Experimental.CompressionLevel != nil {
+			opts.CompressionLevel = *cfg.Experimental.CompressionLevel
+		}
+
+		if flag.IsSpecified(ctx, "compression-level") {
+			opts.CompressionLevel = flag.GetInt(ctx, "compression-level")
 		}
 
 		img, err = resolver.BuildImage(ctx, io, opts)

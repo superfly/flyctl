@@ -13,12 +13,14 @@ import (
 	"github.com/logrusorgru/aurora"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
 var (
-	ValidationError          = errors.New("invalid app configuration")
-	MachinesDeployStrategies = []string{"canary", "rolling", "immediate", "bluegreen"}
+	ValidationError            = errors.New("invalid app configuration")
+	MachinesDeployStrategies   = []string{"canary", "rolling", "immediate", "bluegreen"}
+	validCompressionAlgorithms = []string{"zstd", "gzip"}
 )
 
 func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
@@ -36,6 +38,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateConsoleCommand,
 		c.validateMounts,
 		c.validateRestartPolicy,
+		c.validateCompression,
 	}
 
 	extra_info = fmt.Sprintf("Validating %s\n", c.ConfigFilePath())
@@ -350,6 +353,24 @@ func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
 		if vErr != nil {
 			extraInfo += fmt.Sprintf("%s\n", vErr)
 			err = ValidationError
+		}
+	}
+
+	return
+}
+
+func (c *Config) validateCompression() (extraInfo string, err error) {
+	if c.Experimental != nil && c.Experimental.Compression != "" {
+		if !slices.Contains(validCompressionAlgorithms, c.Experimental.Compression) {
+			extraInfo += fmt.Sprintf("invalid compression algorithm '%s'. Must be one of: %s", c.Experimental.Compression, strings.Join(validCompressionAlgorithms, ", "))
+			err = ValidationError
+		}
+
+		if c.Experimental.CompressionLevel != nil {
+			if vErr := validation.ValidateCompressionLevelFlag(*c.Experimental.CompressionLevel); vErr != nil {
+				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
+				err = ValidationError
+			}
 		}
 	}
 
