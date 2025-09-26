@@ -2,6 +2,9 @@ package appsecrets
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/hex"
+	"fmt"
 
 	"github.com/superfly/fly-go"
 
@@ -44,4 +47,16 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 		return err
 	}
 	return nil
+}
+
+// Sync sets the min version for the app to the current min version, allowing
+// any previously set secret to be visible in deploys.
+func Sync(ctx context.Context, client flapsutil.FlapsClient, appName string) error {
+	// This is somewhat of a hack -- we unset an non-existent secret and
+	// we get back the latest min version after the unset.
+	rand := make([]byte, 8)
+	_, _ = crand.Read(rand)
+	bogusDummySecret := fmt.Sprintf("BogusDummySecret_%s", hex.EncodeToString(rand))
+	unsetSecrets := []string{bogusDummySecret}
+	return Update(ctx, client, appName, nil, unsetSecrets)
 }
