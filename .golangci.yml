@@ -1,7 +1,7 @@
 version: "2"
 run:
   concurrency: 4
-  go: "1.21"
+  go: "1.24"
   issues-exit-code: 1
   tests: true
 linters:
@@ -52,7 +52,7 @@ linters:
     rules:
       - linters:
           - lll
-        source: '^//go:generate '
+        source: "^//go:generate "
     paths:
       - third_party$
       - builtin$
