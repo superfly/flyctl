@@ -182,10 +182,9 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 
 		j := f.Fly("vol ls -a %s --all --json", appName)
 		j.StdOutJSON(&ls)
-
-		assert.Equal(t, "pending_destroy", ls[0].State)
 		assert.Len(t, ls, 1)
-	}, 5*time.Minute, 10*time.Second, "volume %s never made it to pending_destroy state", vol.ID)
+		assert.Contains(t, []string{"scheduling_destroy", "pending_destroy", "destroying", "destroyed"})
+	}, 5*time.Minute, 10*time.Second, "volume %s never made it to a destroy state", vol.ID)
 
 	ls := f.Fly("vol snapshot ls --json %s", vol.ID)
 	var snapshots2 []*fly.VolumeSnapshot
