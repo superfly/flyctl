@@ -179,16 +179,17 @@ type Build struct {
 }
 
 type Experimental struct {
-	Cmd            []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
-	Entrypoint     []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Exec           []string `toml:"exec,omitempty" json:"exec,omitempty"`
-	AutoRollback   bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
-	EnableConsul   bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
-	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
-	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
-	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
-	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
-	UseZstd        bool     `toml:"use_zstd,omitempty" json:"use_zstd,omitempty"`
+	Cmd              []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint       []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec             []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback     bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul     bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd       bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	LazyLoadImages   bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
+	Attached         Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+	MachineConfig    string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
+	Compression      string   `toml:"compression,omitempty" json:"compression,omitempty"`
+	CompressionLevel *int     `toml:"compression_level,omitempty" json:"compression_level,omitempty"`
 }
 
 type Attached struct {
