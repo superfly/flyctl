@@ -101,8 +101,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 		opts.BuildArgs = extraArgs
 
-		// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
-		opts.Compression, opts.CompressionLevel = appconfig.DetermineCompression("gzip", ldClient, cfg, ctx)
+		opts.Compression, opts.CompressionLevel = appconfig.DetermineCompression(ldClient, cfg, ctx)
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {

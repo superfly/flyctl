@@ -7,22 +7,32 @@ import (
 	"github.com/superfly/flyctl/internal/launchdarkly"
 )
 
-func DetermineCompression(defaultCompression string, ldClient *launchdarkly.Client, appConfig *Config, ctx context.Context) (compression string, compressionLevel int) {
-	compression = defaultCompression
+func DetermineCompression(ldClient *launchdarkly.Client, appConfig *Config, ctx context.Context) (compression string, compressionLevel int) {
+	// Set default values
+	compression = "gzip"
+	compressionLevel = 7
+
+	// LaunchDarkly provides the base settings
 	if ldClient.UseZstdEnabled() {
 		compression = "zstd"
 	}
-	if appConfig.Experimental != nil && appConfig.Experimental.Compression != "" {
-		compression = appConfig.Experimental.Compression
-	}
-	if flag.IsSpecified(ctx, "compression") {
-		compression = flag.GetString(ctx, "compression")
+	if strength, ok := ldClient.GetCompressionStrength().(float64); ok {
+		compressionLevel = int(strength)
 	}
 
-	compressionLevel = 7
-	compressionLevel = ldClient.GetCompressionStrength()
-	if appConfig.Experimental != nil && appConfig.Experimental.CompressionLevel != nil {
-		compressionLevel = *appConfig.Experimental.CompressionLevel
+	// fly.toml overrides LaunchDarkly
+	if appConfig.Experimental != nil {
+		if appConfig.Experimental.Compression != "" {
+			compression = appConfig.Experimental.Compression
+		}
+		if appConfig.Experimental.CompressionLevel != nil {
+			compressionLevel = *appConfig.Experimental.CompressionLevel
+		}
+	}
+
+	// CLI flags override everything
+	if flag.IsSpecified(ctx, "compression") {
+		compression = flag.GetString(ctx, "compression")
 	}
 	if flag.IsSpecified(ctx, "compression-level") {
 		compressionLevel = flag.GetInt(ctx, "compression-level")
