@@ -75,6 +75,7 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 		attribute.StringSlice("imageoptions.buildpacks", io.Buildpacks),
 		attribute.StringSlice("imageoptions.buildpacks_volumes", io.BuildpacksVolumes),
 		attribute.String("imageoptions.compression", io.Compression),
+		attribute.Int("imageoptions.compressionLevel", io.CompressionLevel),
 	}
 
 	if io.BuildArgs != nil {
