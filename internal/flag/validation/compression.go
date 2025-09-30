@@ -20,7 +20,7 @@ func ValidateCompressionFlag(compression string) error {
 }
 
 // ValidateCompressionLevelFlag checks if the --compression-level flag has a value between 0 and 9.
-// This is what is currently supported by Builder (they map these to proper zstd compression levels)
+// This is what is currently supported by Depot Builder (they map these to proper zstd compression levels)
 func ValidateCompressionLevelFlag(level int) error {
 	if level < 0 || level > 9 {
 		return flyerr.GenericErr{

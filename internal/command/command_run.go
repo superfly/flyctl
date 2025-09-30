@@ -101,7 +101,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 		opts.BuildArgs = extraArgs
 
-		opts.Compression, opts.CompressionLevel = appconfig.DetermineCompression(ldClient, cfg, ctx)
+		opts.Compression, opts.CompressionLevel = cfg.DetermineCompression(ctx)
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
