@@ -177,7 +177,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n " +
 					"Validation for _services without ports_ will hard fail after February 15, 2024.",
 			)
-			//err = ValidationError
+			// err = ValidationError
 		}
 
 		for _, check := range service.TCPChecks {
@@ -359,7 +359,7 @@ func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
 }
 
 func (c *Config) validateCompression() (extraInfo string, err error) {
-	if c.Experimental != nil {
+	if c.Build != nil {
 		if c.Build.Compression != "" {
 			if vErr := validation.ValidateCompressionFlag(c.Build.Compression); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
