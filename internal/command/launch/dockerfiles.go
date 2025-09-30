@@ -103,7 +103,7 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 				} else {
 					f.Write(linebreak)
 				}
-				_, err := f.WriteString(fmt.Sprintf("# flyctl launch added from %s\n", relFile))
+				_, err := fmt.Fprintf(f, "# flyctl launch added from %s\n", relFile)
 				if err != nil {
 					return "", err
 				}
