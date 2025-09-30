@@ -49,6 +49,11 @@ func newCreate() *cobra.Command {
 			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
+			Name:        "scheduled-snapshots",
+			Description: "Enable scheduled automatic snapshots",
+			Default:     true,
+		},
+		flag.Bool{
 			Name:        "no-encryption",
 			Description: "Do not encrypt the volume contents. Volume contents are encrypted by default.",
 			Default:     false,
@@ -162,6 +167,11 @@ func runCreate(ctx context.Context) error {
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
 		FSType:              fsType,
 	}
+
+	if flag.IsSpecified(ctx, "scheduled-snapshots") {
+		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
+	}
+
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
 		volume, err := flapsClient.CreateVolume(ctx, input)
