@@ -50,6 +50,7 @@ jobs:
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
+          FLY_PREFLIGHT_TEST_LOG_LEVEL: debug
           FLY_FORCE_TRACE: "true"
         run: |
           (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
