@@ -59,7 +59,11 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
-		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
+		org, err := apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
+		}
+		return org, nil
 	})
 }
 
