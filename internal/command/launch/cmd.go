@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -314,6 +315,14 @@ func run(ctx context.Context) (err error) {
 
 	// Validate conflicting postgres flags
 	if err := validatePostgresFlags(ctx); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionFlag(flag.GetString(ctx, "compression")); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionLevelFlag(flag.GetInt(ctx, "compression-level")); err != nil {
 		return err
 	}
 
