@@ -360,15 +360,15 @@ func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
 
 func (c *Config) validateCompression() (extraInfo string, err error) {
 	if c.Experimental != nil {
-		if c.Experimental.Compression != "" {
-			if vErr := validation.ValidateCompressionFlag(c.Experimental.Compression); vErr != nil {
+		if c.Build.Compression != "" {
+			if vErr := validation.ValidateCompressionFlag(c.Build.Compression); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
 				err = ValidationError
 			}
 		}
 
-		if c.Experimental.CompressionLevel != nil {
-			if vErr := validation.ValidateCompressionLevelFlag(*c.Experimental.CompressionLevel); vErr != nil {
+		if c.Build.CompressionLevel != nil {
+			if vErr := validation.ValidateCompressionLevelFlag(*c.Build.CompressionLevel); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
 				err = ValidationError
 			}

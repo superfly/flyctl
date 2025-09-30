@@ -179,20 +179,20 @@ type Build struct {
 	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
 	DockerBuildTarget string            `toml:"build-target,omitempty" json:"build-target,omitempty"`
 	Compose           *BuildCompose     `toml:"compose,omitempty" json:"compose,omitempty"`
+	Compression       string            `toml:"compression,omitempty" json:"compression,omitempty"`
+	CompressionLevel  *int              `toml:"compression_level,omitempty" json:"compression_level,omitempty"`
 }
 
 type Experimental struct {
-	Cmd              []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
-	Entrypoint       []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Exec             []string `toml:"exec,omitempty" json:"exec,omitempty"`
-	AutoRollback     bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
-	EnableConsul     bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
-	EnableEtcd       bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
-	LazyLoadImages   bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
-	Attached         Attached `toml:"attached,omitempty" json:"attached,omitempty"`
-	MachineConfig    string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
-	Compression      string   `toml:"compression,omitempty" json:"compression,omitempty"`
-	CompressionLevel *int     `toml:"compression_level,omitempty" json:"compression_level,omitempty"`
+	Cmd            []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint     []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec           []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback   bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul   bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
+	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
 }
 
 type Attached struct {
@@ -267,11 +267,11 @@ func (c *Config) DetermineCompression(ctx context.Context) (compression string, 
 
 	// fly.toml overrides LaunchDarkly
 	if c.Experimental != nil {
-		if c.Experimental.Compression != "" {
-			compression = c.Experimental.Compression
+		if c.Build.Compression != "" {
+			compression = c.Build.Compression
 		}
-		if c.Experimental.CompressionLevel != nil {
-			compressionLevel = *c.Experimental.CompressionLevel
+		if c.Build.CompressionLevel != nil {
+			compressionLevel = *c.Build.CompressionLevel
 		}
 	}
 
