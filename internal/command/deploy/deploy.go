@@ -60,6 +60,7 @@ var CommonFlags = flag.Set{
 	flag.BpDockerHost(),
 	flag.BpVolume(),
 	flag.RecreateBuilder(),
+	flag.UseRemoteDeployment(),
 	flag.Yes(),
 	flag.VMSizeFlags,
 	flag.Env(),
@@ -385,6 +386,12 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	if flag.GetBuildOnly(ctx) {
 		return nil
+	}
+
+	// Exit early if remote deployment is requested
+	if flag.GetUseRemoteDeployment(ctx) {
+		fmt.Fprintln(io.Out, "Skipping local Machines deployment due to --use-remote-deployment")
+		return newRemoteDeployment(ctx, appConfig, img)
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)

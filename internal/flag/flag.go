@@ -496,6 +496,15 @@ func GetBuildOnly(ctx context.Context) bool {
 	return GetBool(ctx, buildOnlyName)
 }
 
+// UseRemoteDeployment enables remote deployment path selection for the deploy command.
+func UseRemoteDeployment() Bool {
+	return Bool{
+		Name:        "use-remote-deployment",
+		Description: "Use remote deployment backend",
+		Default:     false,
+	}
+}
+
 const pushName = "push"
 
 // Push returns a boolean flag to force pushing a build image to the registry

@@ -212,3 +212,8 @@ func GetBuildkitImage(ctx context.Context) string {
 	}
 	return addr
 }
+
+// GetUseRemoteDeployment returns the value of --use-remote-deployment.
+func GetUseRemoteDeployment(ctx context.Context) bool {
+	return GetBool(ctx, "use-remote-deployment")
+}

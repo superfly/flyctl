@@ -1,0 +1,79 @@
+package uiex
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/launchdarkly/eventsource"
+	"github.com/superfly/flyctl/internal/config"
+)
+
+type RemoteDeploymentStrategy string
+
+const (
+	RemoteDeploymentStrategyRolling RemoteDeploymentStrategy = "rolling"
+)
+
+type RemoteDeploymentRequest struct {
+	Organization string                   `json:"organization"`
+	Config       any                      `json:"config"`
+	Image        string                   `json:"image"`
+	Strategy     RemoteDeploymentStrategy `json:"strategy"`
+}
+
+// CreateDeploy creates a new remote deploy for the given app and returns an SSE event stream.
+// POST /api/v1/apps/{app_name}/deploy
+func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteDeploymentRequest) (<-chan string, error) {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/apps/%s/deploy", c.baseUrl, appName)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return nil, fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "text/event-stream")
+
+	out := make(chan string)
+
+	go func() {
+		defer close(out)
+
+		res, err := c.httpClient.Do(req)
+		if err != nil {
+			return
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode < 200 || res.StatusCode >= 300 {
+			_, _ = io.ReadAll(res.Body)
+			return
+		}
+
+		dec := eventsource.NewDecoder(res.Body)
+		for {
+			ev, err := dec.Decode()
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				return
+			}
+			if ev != nil && len(ev.Data()) > 0 {
+				out <- string(ev.Data())
+			}
+		}
+	}()
+
+	return out, nil
+}
