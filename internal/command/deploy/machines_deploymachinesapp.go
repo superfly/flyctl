@@ -60,7 +60,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 		fullOrg, err := md.apiClient.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to ger org for deployment: %w", err)
 		}
 
 		md.tigrisStatics = statics.Deployer(md.appConfig, fullApp, fullOrg, md.releaseVersion)
