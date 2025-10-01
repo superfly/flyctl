@@ -97,29 +97,29 @@ func testVolumeLs(t *testing.T) {
 	f.Fly("vol destroy -y %s", destroyed.ID)
 
 	// Deleted volumes shouldn't be shown.
-	assert.EventuallyWithT(f, func(c *assert.CollectT) {
+	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		lsRes := f.Fly("vol ls -a %s --json", appName)
 		var ls []*fly.Volume
 		lsRes.StdOutJSON(&ls)
-		assert.Lenf(f, ls, 1, "volume %s is still visible", destroyed.ID)
-		assert.Equal(f, kept.ID, ls[0].ID)
+		assert.Lenf(t, ls, 1, "volume %s is still visible", destroyed.ID)
+		assert.Equal(t, kept.ID, ls[0].ID)
 	}, 5*time.Minute, 10*time.Second)
 
 	// Deleted volumes should be shown with --all.
-	assert.EventuallyWithT(f, func(c *assert.CollectT) {
+	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		lsAllRes := f.Fly("vol ls --all -a %s --json", appName)
 
 		var lsAll []*fly.Volume
 		lsAllRes.StdOutJSON(&lsAll)
 
-		assert.Len(f, lsAll, 2)
+		assert.Len(t, lsAll, 2)
 
 		var lsAllIds []string
 		for _, v := range lsAll {
 			lsAllIds = append(lsAllIds, v.ID)
 		}
-		assert.Contains(f, lsAllIds, kept.ID)
-		assert.Contains(f, lsAllIds, destroyed.ID)
+		assert.Contains(t, lsAllIds, kept.ID)
+		assert.Contains(t, lsAllIds, destroyed.ID)
 	}, 5*time.Minute, 10*time.Second)
 }
 
