@@ -42,7 +42,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	org, err := state.Org(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get org for launch: %w", err)
 	}
 	if !planValidateHighAvailability(ctx, state.Plan, org, !state.warnedNoCcHa) {
 		state.Plan.HighAvailability = false
@@ -340,7 +340,8 @@ func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient,
 	apiClient := flyutil.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get org for app: %w", err)
+
 	}
 	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,

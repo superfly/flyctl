@@ -59,7 +59,11 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
-		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
+		org, err := apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
+		}
+		return org, nil
 	})
 }
 
@@ -103,7 +107,8 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
 	}
 
-	org, err := state.Org(ctx)
+	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+	org, err := gql.GetOrganization(ctx, genqClient, state.Plan.OrgSlug)
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +123,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis, org)
+	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +134,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	}
 
 	rows := [][]string{
-		{"Organization", org.Name, state.PlanSource.orgSource},
+		{"Organization", org.Organization.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
 		{"App Machines", guestStr, state.PlanSource.computeSource},

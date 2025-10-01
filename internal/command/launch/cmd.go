@@ -459,7 +459,7 @@ func run(ctx context.Context) (err error) {
 
 	err = state.Launch(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to launch %+v: %w", state.Plan, err)
 	}
 
 	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {

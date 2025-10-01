@@ -74,7 +74,7 @@ require (
 	github.com/spf13/pflag v1.0.9
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
-	github.com/superfly/fly-go v0.1.54
+	github.com/superfly/fly-go v0.1.55-0.20250930234843-3142f94c5f3e
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.3.0
