@@ -86,6 +86,11 @@ func runList(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
 
+	// sort snapshots from oldest to newest
+	sort.Slice(snapshots, func(i, j int) bool {
+		return snapshots[i].CreatedAt.Before(snapshots[j].CreatedAt)
+	})
+
 	if cfg.JSONOutput {
 		return render.JSON(io.Out, snapshots)
 	}
@@ -94,11 +99,6 @@ func runList(ctx context.Context) error {
 		fmt.Fprintf(io.ErrOut, "No snapshots available for volume %s\n", volID)
 		return nil
 	}
-
-	// sort snapshots from newest to oldest
-	sort.Slice(snapshots, func(i, j int) bool {
-		return snapshots[i].CreatedAt.After(snapshots[j].CreatedAt)
-	})
 
 	rows := make([][]string, 0, len(snapshots))
 	for _, snapshot := range snapshots {
