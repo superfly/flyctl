@@ -111,14 +111,19 @@ func runList(ctx context.Context) error {
 		if snapshot.RetentionDays != nil {
 			retentionDays = strconv.Itoa(*snapshot.RetentionDays)
 		}
+
+		storedSize := humanize.IBytes(uint64(snapshot.Size))
+		volSize := humanize.IBytes(uint64(snapshot.VolumeSize))
+
 		rows = append(rows, []string{
 			id,
 			snapshot.Status,
-			strconv.Itoa(snapshot.Size),
+			storedSize,
+			volSize,
 			timeToString(snapshot.CreatedAt),
 			retentionDays,
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At", "Retention Days")
+	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Stored Size", "Vol Size", "Created At", "Retention Days")
 }
