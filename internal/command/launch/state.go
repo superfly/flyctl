@@ -107,7 +107,8 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
 	}
 
-	org, err := state.Org(ctx)
+	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+	org, err := gql.GetOrganization(ctx, genqClient, state.Plan.OrgSlug)
 	if err != nil {
 		return "", err
 	}
@@ -122,7 +123,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis, org)
+	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis)
 	if err != nil {
 		return "", err
 	}
@@ -133,7 +134,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	}
 
 	rows := [][]string{
-		{"Organization", org.Name, state.PlanSource.orgSource},
+		{"Organization", org.Organization.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
 		{"App Machines", guestStr, state.PlanSource.computeSource},

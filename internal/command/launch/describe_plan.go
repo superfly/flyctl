@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/redis"
@@ -54,17 +53,17 @@ func describeSupabasePostgresPlan(p *plan.SupabasePostgresPlan, launchPlan *plan
 	return fmt.Sprintf("(Supabase) %s in %s", p.GetDbName(launchPlan), p.GetRegion(launchPlan)), nil
 }
 
-func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *fly.Organization) (string, error) {
+func describeRedisPlan(ctx context.Context, p plan.RedisPlan) (string, error) {
 
 	switch provider := p.Provider().(type) {
 	case *plan.UpstashRedisPlan:
-		return describeUpstashRedisPlan(ctx, provider, org)
+		return describeUpstashRedisPlan(ctx, provider)
 	}
 	return descriptionNone, nil
 }
 
-func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org *fly.Organization) (string, error) {
-	plan, err := redis.DeterminePlan(ctx, org)
+func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan) (string, error) {
+	plan, err := redis.DeterminePlan(ctx)
 	if err != nil {
 		return "<plan not found, this is an error>", fmt.Errorf("redis plan not found: %w", err)
 	}
