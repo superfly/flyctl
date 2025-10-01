@@ -10,7 +10,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -59,14 +58,12 @@ func runList(ctx context.Context) error {
 	volID := flag.FirstArg(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
-	var volState string
 	if appName == "" {
-		n, s, err := client.GetAppNameStateFromVolume(ctx, volID)
+		n, err := client.GetAppNameFromVolume(ctx, volID)
 		if err != nil {
 			return fmt.Errorf("failed getting app name from volume: %w", err)
 		}
 		appName = *n
-		volState = *s
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -76,13 +73,7 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	var snapshots []fly.VolumeSnapshot
-	switch volState {
-	case "pending_destroy", "deleted":
-		snapshots, err = client.GetSnapshotsFromVolume(ctx, volID)
-	default:
-		snapshots, err = flapsClient.GetVolumeSnapshots(ctx, volID)
-	}
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
