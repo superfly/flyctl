@@ -141,6 +141,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 
 fragment AppData on App {

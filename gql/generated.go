@@ -512,6 +512,9 @@ func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool {
 // GetName returns AppDataOrganization.Name, and is useful for accessing the field via an interface.
 func (v *AppDataOrganization) GetName() string { return v.OrganizationData.Name }
 
+// GetBillable returns AppDataOrganization.Billable, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetBillable() bool { return v.OrganizationData.Billable }
+
 func (v *AppDataOrganization) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -551,6 +554,8 @@ type __premarshalAppDataOrganization struct {
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 
 	Name string `json:"name"`
+
+	Billable bool `json:"billable"`
 }
 
 func (v *AppDataOrganization) MarshalJSON() ([]byte, error) {
@@ -571,6 +576,7 @@ func (v *AppDataOrganization) __premarshalJSON() (*__premarshalAppDataOrganizati
 	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
 	retval.Name = v.OrganizationData.Name
+	retval.Billable = v.OrganizationData.Billable
 	return &retval, nil
 }
 
@@ -2382,6 +2388,9 @@ func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
 // GetName returns GetOrganizationOrganization.Name, and is useful for accessing the field via an interface.
 func (v *GetOrganizationOrganization) GetName() string { return v.OrganizationData.Name }
 
+// GetBillable returns GetOrganizationOrganization.Billable, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetBillable() bool { return v.OrganizationData.Billable }
+
 func (v *GetOrganizationOrganization) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2421,6 +2430,8 @@ type __premarshalGetOrganizationOrganization struct {
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 
 	Name string `json:"name"`
+
+	Billable bool `json:"billable"`
 }
 
 func (v *GetOrganizationOrganization) MarshalJSON() ([]byte, error) {
@@ -2441,6 +2452,7 @@ func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrgani
 	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
 	retval.Name = v.OrganizationData.Name
+	retval.Billable = v.OrganizationData.Billable
 	return &retval, nil
 }
 
@@ -2648,7 +2660,8 @@ type OrganizationData struct {
 	// Whether the organization can provision beta extensions
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 	// Organization name
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Billable bool   `json:"billable"`
 }
 
 // GetId returns OrganizationData.Id, and is useful for accessing the field via an interface.
@@ -2671,6 +2684,9 @@ func (v *OrganizationData) GetProvisionsBetaExtensions() bool { return v.Provisi
 
 // GetName returns OrganizationData.Name, and is useful for accessing the field via an interface.
 func (v *OrganizationData) GetName() string { return v.Name }
+
+// GetBillable returns OrganizationData.Billable, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetBillable() bool { return v.Billable }
 
 type PlatformVersionEnum string
 
@@ -3419,6 +3435,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 `
 
@@ -3722,6 +3739,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 `
 
@@ -3835,6 +3853,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 `
 
@@ -3905,6 +3924,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 `
 
@@ -3965,6 +3985,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 `
 
@@ -4078,6 +4099,7 @@ fragment OrganizationData on Organization {
 	addOnSsoLink
 	provisionsBetaExtensions
 	name
+	billable
 }
 `
 

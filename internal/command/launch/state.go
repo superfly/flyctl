@@ -56,6 +56,15 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 	return val, nil
 }
 
+func (state *launchState) orgCompact(ctx context.Context) (*gql.GetOrganizationOrganization, error) {
+	client := flyutil.ClientFromContext(ctx).GenqClient()
+	res, err := gql.GetOrganization(ctx, client, state.Plan.OrgSlug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
+	}
+	return &res.Organization, nil
+}
+
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
@@ -107,8 +116,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
 	}
 
-	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
-	org, err := gql.GetOrganization(ctx, genqClient, state.Plan.OrgSlug)
+	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -134,7 +142,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	}
 
 	rows := [][]string{
-		{"Organization", org.Organization.Name, state.PlanSource.orgSource},
+		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
 		{"App Machines", guestStr, state.PlanSource.computeSource},
@@ -188,7 +196,7 @@ func (state *launchState) validateExtensions(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	noConfirm := !io.IsInteractive() || flag.GetBool(ctx, "now")
 
-	org, err := state.Org(ctx)
+	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return err
 	}
