@@ -140,6 +140,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 
 fragment AppData on App {

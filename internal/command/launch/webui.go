@@ -97,7 +97,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 				region = r
 			}
 
-			org, err := state.Org(ctx)
+			org, err := state.orgCompact(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to get organization: %w", err)
 			}
