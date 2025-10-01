@@ -102,6 +102,7 @@ func runList(ctx context.Context) error {
 	}
 
 	rows := make([][]string, 0, len(snapshots))
+	var totalStoredSize uint64
 	for _, snapshot := range snapshots {
 		id := snapshot.ID
 		if id == "" {
@@ -115,6 +116,7 @@ func runList(ctx context.Context) error {
 
 		storedSize := humanize.IBytes(uint64(snapshot.Size))
 		volSize := humanize.IBytes(uint64(snapshot.VolumeSize))
+		totalStoredSize += uint64(snapshot.Size)
 
 		rows = append(rows, []string{
 			id,
@@ -136,6 +138,8 @@ func runList(ctx context.Context) error {
 		tablewriter.ALIGN_RIGHT,   // Retention Days
 	})
 	table.Render()
+
+	fmt.Fprintf(io.Out, "\nTotal stored size: %s\n", humanize.IBytes(totalStoredSize))
 
 	return nil
 }
