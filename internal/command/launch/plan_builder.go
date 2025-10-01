@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -799,7 +800,7 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
-func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *fly.Organization, print bool) bool {
+func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *gql.GetOrganizationOrganization, print bool) bool {
 	if !org.Billable && p.HighAvailability {
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
