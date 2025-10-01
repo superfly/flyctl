@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -125,5 +126,16 @@ func runList(ctx context.Context) error {
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Stored Size", "Vol Size", "Created At", "Retention Days")
+	table := render.NewTable(io.Out, "Snapshots", rows, "ID", "Status", "Stored Size", "Vol Size", "Created At", "Retention Days")
+	table.SetColumnAlignment([]int{
+		tablewriter.ALIGN_DEFAULT, // ID
+		tablewriter.ALIGN_DEFAULT, // Status
+		tablewriter.ALIGN_RIGHT,   // Stored Size
+		tablewriter.ALIGN_RIGHT,   // Vol Size
+		tablewriter.ALIGN_DEFAULT, // Created At
+		tablewriter.ALIGN_RIGHT,   // Retention Days
+	})
+	table.Render()
+
+	return nil
 }
