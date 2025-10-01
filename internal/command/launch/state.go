@@ -56,6 +56,15 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 	return val, nil
 }
 
+func (state *launchState) orgCompact(ctx context.Context) (*gql.GetOrganizationOrganization, error) {
+	client := flyutil.ClientFromContext(ctx).GenqClient()
+	res, err := gql.GetOrganization(ctx, client, state.Plan.OrgSlug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
+	}
+	return &res.Organization, nil
+}
+
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
@@ -103,7 +112,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
 	}
 
-	org, err := state.Org(ctx)
+	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +127,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis, org)
+	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis)
 	if err != nil {
 		return "", err
 	}
@@ -183,7 +192,7 @@ func (state *launchState) validateExtensions(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	noConfirm := !io.IsInteractive() || flag.GetBool(ctx, "now")
 
-	org, err := state.Org(ctx)
+	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return err
 	}
