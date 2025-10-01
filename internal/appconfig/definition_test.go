@@ -304,10 +304,11 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 		"mounts": []any{map[string]any{
-			"source":             "data",
-			"destination":        "/data",
-			"initial_size":       "30gb",
-			"snapshot_retention": int64(17),
+			"source":              "data",
+			"destination":         "/data",
+			"initial_size":        "30gb",
+			"snapshot_retention":  int64(17),
+			"scheduled_snapshots": true,
 		}},
 		"processes": map[string]any{
 			"web":  "run web",

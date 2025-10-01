@@ -101,14 +101,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 		opts.BuildArgs = extraArgs
 
-		if cfg != nil && cfg.Experimental != nil {
-			opts.UseZstd = cfg.Experimental.UseZstd
-		}
-
-		// use-zstd passed through flags takes precedence over the one set in config
-		if flag.IsSpecified(ctx, "use-zstd") {
-			opts.UseZstd = flag.GetBool(ctx, "use-zstd")
-		}
+		opts.Compression, opts.CompressionLevel = cfg.DetermineCompression(ctx)
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {

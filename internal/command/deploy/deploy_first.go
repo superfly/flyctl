@@ -154,6 +154,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				ComputeRequirements: guest,
 				ComputeImage:        md.img,
 				SnapshotRetention:   m.SnapshotRetention,
+				AutoBackupEnabled:   m.ScheduledSnapshots,
 			}
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)

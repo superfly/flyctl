@@ -235,6 +235,12 @@ func ParseMountOptions(mount *appconfig.Mount, options string) error {
 				return fmt.Errorf("invalid value for snapshot_retention: %s", value)
 			}
 			mount.SnapshotRetention = &ret
+		case "scheduled_snapshots":
+			ret, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("invalid value for scheduled_snapshots: %s", value)
+			}
+			mount.ScheduledSnapshots = &ret
 		case "auto_extend_size_threshold":
 			threshold, err := strconv.Atoi(value)
 			if err != nil {
