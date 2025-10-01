@@ -40,11 +40,11 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
-	org, err := state.Org(ctx)
+	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get org for launch: %w", err)
 	}
-	if !planValidateHighAvailability(ctx, state.Plan, org, !state.warnedNoCcHa) {
+	if !planValidateHighAvailability(ctx, state.Plan, org.Billable, !state.warnedNoCcHa) {
 		state.Plan.HighAvailability = false
 		state.warnedNoCcHa = true
 	}
@@ -332,13 +332,14 @@ func (state *launchState) updateConfig(ctx context.Context) {
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient, *fly.App, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
-	org, err := state.Org(ctx)
+
+	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get org for app: %w", err)
 
 	}
 	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.ID,
+		OrganizationID:  org.Id,
 		Name:            state.Plan.AppName,
 		PreferredRegion: &state.Plan.RegionCode,
 		Machines:        true,
