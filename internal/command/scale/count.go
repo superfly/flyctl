@@ -16,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 func newScaleCount() *cobra.Command {

@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 // UserURLCallback is a function that opens a URL in the user's browser. This is
