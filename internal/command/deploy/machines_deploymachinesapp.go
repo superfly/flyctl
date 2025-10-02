@@ -32,7 +32,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
+	"maps"
 	"golang.org/x/sync/errgroup"
 )
 
