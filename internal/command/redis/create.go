@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
+	"slices"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
