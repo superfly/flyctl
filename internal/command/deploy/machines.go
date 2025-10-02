@@ -27,7 +27,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 const (
@@ -412,7 +412,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 			s = "s"
 		}
 
-		filtersAppliedStr := strings.Join(maps.Keys(filtersApplied), "/")
+		filtersAppliedStr := strings.Join(slices.Collect(maps.Keys(filtersApplied)), "/")
 
 		fmt.Fprintf(md.io.ErrOut, "%s filter%s applied, deploying to %d/%d machines\n", filtersAppliedStr, s, len(machines), nMachines)
 	}

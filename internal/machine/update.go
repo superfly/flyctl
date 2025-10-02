@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/maps"
+	"maps"
 )
 
 var cpusPerKind = map[string][]int{

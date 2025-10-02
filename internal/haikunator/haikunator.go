@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/helpers"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 var adjectives = strings.Fields(`
