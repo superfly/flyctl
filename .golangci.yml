@@ -41,7 +41,6 @@ linters:
         - -QF1002 # could use tagged switch
         - -QF1003 # could use tagged switch on app
         - -QF1008 # could remove embedded field ... from selector
-        - -QF1012 # Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...))
   exclusions:
     generated: lax
     presets:
