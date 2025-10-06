@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -112,7 +113,7 @@ func runBackupRestore(ctx context.Context) error {
 		return fmt.Errorf("backups are only supported on Flexclusters")
 	}
 
-	enabled, err := isBackupEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -242,7 +243,7 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("backups are only supported on Flexclusters")
 	}
 
-	enabled, err := isBackupEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -302,7 +303,7 @@ func runBackupEnable(ctx context.Context) error {
 		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
@@ -312,7 +313,7 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	// Check to see if backups are already enabled
-	enabled, err := isBackupEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -320,13 +321,6 @@ func runBackupEnable(ctx context.Context) error {
 	// Short-circuit if backups are already enabled.
 	if enabled {
 		return fmt.Errorf("backups are already enabled")
-	}
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}
 
 	machines, err := flapsClient.ListActive(ctx)
@@ -374,7 +368,7 @@ func runBackupEnable(ctx context.Context) error {
 		flypg.BarmanSecretName: pgInput.BarmanSecret,
 	}
 
-	if _, err := client.SetSecrets(ctx, appName, secrets); err != nil {
+	if err := appsecrets.Update(ctx, flapsClient, appName, secrets, nil); err != nil {
 		return fmt.Errorf("failed to set secrets: %w", err)
 	}
 
@@ -431,7 +425,7 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("backups are only supported on Flexclusters")
 	}
 
-	enabled, err := isBackupEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -465,12 +459,8 @@ func resolveRestoreTarget(ctx context.Context) string {
 	return target
 }
 
-func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
-	var (
-		client = flyutil.ClientFromContext(ctx)
-	)
-
-	secrets, err := client.GetAppSecrets(ctx, appName)
+func isBackupEnabled(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (bool, error) {
+	secrets, err := appsecrets.List(ctx, flapsClient, appName)
 	if err != nil {
 		return false, err
 	}
@@ -576,7 +566,7 @@ func runBackupConfigShow(ctx context.Context) error {
 		return fmt.Errorf("backups are only supported on Flexclusters")
 	}
 
-	enabled, err := isBackupEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -623,7 +613,7 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		return err
 	}
 
-	enabled, err := isBackupEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}

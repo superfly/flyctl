@@ -53,6 +53,7 @@ type Client struct {
 	GetAppCompactFunc                      func(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetDeployerAppByOrgFunc                func(ctx context.Context, orgID string) (*fly.App, error)
 	GetAppCurrentReleaseMachinesFunc       func(ctx context.Context, appName string) (*fly.Release, error)
+	GetAppCNAMETargetFunc                  func(ctx context.Context, appName string) (string, error)
 	GetAppHostIssuesFunc                   func(ctx context.Context, appName string) ([]fly.HostIssue, error)
 	GetAppLimitedAccessTokensFunc          func(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
 	GetAppLogsFunc                         func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
@@ -71,7 +72,7 @@ type Client struct {
 	GetDomainsFunc                         func(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddressesFunc                     func(ctx context.Context, appName string) ([]fly.IPAddress, error)
 	GetEgressIPAddressesFunc               func(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
-	GetLatestImageDetailsFunc              func(ctx context.Context, image string) (*fly.ImageVersion, error)
+	GetLatestImageDetailsFunc              func(ctx context.Context, image string, flyVersion string) (*fly.ImageVersion, error)
 	GetLatestImageTagFunc                  func(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificatesFunc              func(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
 	GetMachineFunc                         func(ctx context.Context, machineId string) (*fly.GqlMachine, error)
@@ -263,6 +264,10 @@ func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName strin
 	return m.GetAppCurrentReleaseMachinesFunc(ctx, appName)
 }
 
+func (m *Client) GetAppCNAMETarget(ctx context.Context, appName string) (string, error) {
+	return m.GetAppCNAMETargetFunc(ctx, appName)
+}
+
 func (m *Client) GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error) {
 	return m.GetAppHostIssuesFunc(ctx, appName)
 }
@@ -335,8 +340,8 @@ func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[
 	return m.GetEgressIPAddressesFunc(ctx, appName)
 }
 
-func (m *Client) GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error) {
-	return m.GetLatestImageDetailsFunc(ctx, image)
+func (m *Client) GetLatestImageDetails(ctx context.Context, image string, flyVersion string) (*fly.ImageVersion, error) {
+	return m.GetLatestImageDetailsFunc(ctx, image, flyVersion)
 }
 
 func (m *Client) GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error) {

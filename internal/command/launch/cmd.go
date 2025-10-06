@@ -16,13 +16,15 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/validation"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -37,10 +39,10 @@ func New() (cmd *cobra.Command) {
 		short = `Create and configure a new app from source code or a Docker image`
 	)
 
-	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
+	cmd = command.New("launch", short, long, run, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(cmd,
+	flags := []flag.Flag{
 		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
 		// the launch command in CI environments. We may want to rescind this decision down the line, because
 		// the list of flags is long, but it follows from the precedent of already offering some deployment flags.
@@ -129,6 +131,11 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
+			Name:        "no-github-workflow",
+			Description: "Skip automatically provisioning a GitHub fly deploy workflow",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
@@ -150,7 +157,32 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 			Hidden:      true,
 		},
-	)
+		flag.String{
+			Name:        "auto-stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend'",
+			Default:     "stop",
+		},
+		flag.String{
+			Name:        "command",
+			Description: "The command to override the Docker CND.",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
+		},
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "db",
+			Description: "Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+			NoOptDefVal: "true",
+		},
+	}
+
+	flag.Add(cmd, flags...)
 
 	cmd.AddCommand(newSessions())
 	cmd.AddCommand(NewPlan())
@@ -256,7 +288,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
 	defer span.End()
@@ -285,6 +321,19 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if err := warnLegacyBehavior(ctx); err != nil {
+		return err
+	}
+
+	// Validate conflicting postgres flags
+	if err := validatePostgresFlags(ctx); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionFlag(flag.GetString(ctx, "compression")); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionLevelFlag(flag.GetInt(ctx, "compression-level")); err != nil {
 		return err
 	}
 
@@ -354,6 +403,11 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	// Override internal port if requested using --internal-port flag
+	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+		launchManifest.Plan.HttpServicePort = n
+	}
+
 	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
 
 	status.AppName = launchManifest.Plan.AppName
@@ -368,7 +422,7 @@ func run(ctx context.Context) (err error) {
 		status.VM.ProcessN = len(vm.Processes)
 	}
 
-	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.SupabasePostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
 	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
 	status.HasSentry = launchManifest.Plan.Sentry
 
@@ -449,8 +503,13 @@ func run(ctx context.Context) (err error) {
 				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
 			}
 
-			apiClient := flyutil.ClientFromContext(parentCtx)
-			_, err := apiClient.SetSecrets(parentCtx, parentConfig.AppName, exports)
+			// This might be duplicate work? Is there a saner place to build the client and stash it in the context?
+			parentCtx, flapsClient, _, err := flapsutil.SetClient(parentCtx, nil, parentConfig.AppName)
+			if err != nil {
+				return fmt.Errorf("making client for %s: %w", parentConfig.AppName, err)
+			}
+
+			err = appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
 			if err != nil {
 				return err
 			}
@@ -484,5 +543,40 @@ func warnLegacyBehavior(ctx context.Context) error {
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
 		}
 	}
+	return nil
+}
+
+// validatePostgresFlags checks for conflicting postgres-related flags
+func validatePostgresFlags(ctx context.Context) error {
+	dbFlag := flag.GetString(ctx, "db")
+	noDb := flag.GetBool(ctx, "no-db")
+
+	// Normalize db flag values
+	switch dbFlag {
+	case "true", "1", "yes":
+		dbFlag = "true"
+	case "mpg", "managed":
+		dbFlag = "mpg"
+	case "upg", "unmanaged", "legacy":
+		dbFlag = "upg"
+	case "false", "0", "no", "":
+		dbFlag = ""
+	default:
+		if dbFlag != "" {
+			return flyerr.GenericErr{
+				Err:     fmt.Sprintf("Invalid value '%s' for --db flag", dbFlag),
+				Suggest: "Valid options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+			}
+		}
+	}
+
+	// Check if db flag conflicts with --no-db
+	if dbFlag != "" && noDb {
+		return flyerr.GenericErr{
+			Err:     "Cannot specify both --db and --no-db",
+			Suggest: "Remove either --db or --no-db",
+		}
+	}
+
 	return nil
 }

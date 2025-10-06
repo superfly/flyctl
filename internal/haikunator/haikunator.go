@@ -4,11 +4,11 @@ import (
 	"crypto/rand"
 	"math/big"
 	rand2 "math/rand"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/superfly/flyctl/helpers"
-	"golang.org/x/exp/slices"
 )
 
 var adjectives = strings.Fields(`

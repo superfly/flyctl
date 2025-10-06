@@ -141,8 +141,7 @@ func runWireguardCreate(ctx context.Context) error {
 		name = args[2]
 	}
 
-	// TODO: allow custom network
-	network := ""
+	network := flag.GetString(ctx, "network")
 
 	state, err := wireguard.Create(apiClient, org, region, name, network, "static")
 	if err != nil {
