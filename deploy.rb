@@ -24,6 +24,12 @@ DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
 CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
 FLYIO_BRANCH_NAME = "flyio-new-files"
 
+CUSTOM_COMMAND = get_env("CUSTOM_COMMAND")
+DEPLOY_IMAGE_REF = get_env("DEPLOY_IMAGE_REF")
+SKIP_BUILD = !get_env("SKIP_BUILD").nil?
+
+DO_SKIP_BUILD = SKIP_BUILD || !CUSTOM_COMMAND.nil? || !DEPLOY_IMAGE_REF.nil?
+
 DEPLOY_TRIGGER = get_env("DEPLOY_TRIGGER")
 DEPLOYER_FLY_CONFIG_PATH = get_env("DEPLOYER_FLY_CONFIG_PATH")
 DEPLOYER_SOURCE_CWD = get_env("DEPLOYER_SOURCE_CWD")
@@ -74,7 +80,9 @@ if !DEPLOY_ONLY
   steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"}) if DEPLOY_CUSTOMIZE
 else
   # only deploying, so we need to send the artifacts right away
-  steps.push({id: Step::BUILD, description: "Build image"})
+  if !DO_SKIP_BUILD
+    steps.push({id: Step::BUILD, description: "Build image"})
+  end
   steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
   artifact Artifact::META, { steps: steps }
 end
@@ -280,7 +288,9 @@ if !DEPLOY_ONLY
   SENTRY = manifest.dig("plan", "sentry") == true
 
   steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
-  steps.push({id: Step::BUILD, description: "Build image"})
+  if !DO_SKIP_BUILD
+    steps.push({id: Step::BUILD, description: "Build image"})
+  end
   steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
   steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
   steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
@@ -311,20 +321,32 @@ if !DEPLOY_ONLY
 end
 
 # TODO: better error if missing config
-fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
+fly_config = manifest && manifest.dig("config")
+if !fly_config && CUSTOM_COMMAND.nil?
+  fly_config = JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
+end
+
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
-image_ref = in_step Step::BUILD do
-  image_tag = "deployment-#{SecureRandom.hex(16)}"
-  if (image_ref = fly_config.dig("build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
-    info("Skipping build, using image defined in fly config: #{image_ref}")
-    image_ref
+image_ref = if !DEPLOY_IMAGE_REF.nil?
+  DEPLOY_IMAGE_REF
+else
+  if DO_SKIP_BUILD
+    nil
   else
-    image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+    in_step Step::BUILD do
+      image_tag = "deployment-#{SecureRandom.hex(16)}"
+      if (image_ref = fly_config.dig("build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
+        info("Skipping build, using image defined in fly config: #{image_ref}")
+        image_ref
+      else
+        image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
-    artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
-    image_ref
+        exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
+        artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
+        image_ref
+      end
+    end
   end
 end
 
@@ -427,7 +449,11 @@ end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} --depot-scope=app #{CONFIG_COMMAND_STRING}")
+    if CUSTOM_COMMAND.nil?
+      exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} --depot-scope=app #{CONFIG_COMMAND_STRING}")
+    else
+      exec_capture(CUSTOM_COMMAND)
+    end
   end
 end
 
