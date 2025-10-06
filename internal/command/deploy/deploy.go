@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
@@ -189,6 +190,8 @@ var CommonFlags = flag.Set{
 		Description: "Experimental: Use pooled builder from Fly.io",
 		Hidden:      true,
 	},
+	flag.Compression(),
+	flag.CompressionLevel(),
 }
 
 type Command struct {
@@ -293,6 +296,14 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
+
+	if err := validation.ValidateCompressionFlag(flag.GetString(ctx, "compression")); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionLevelFlag(flag.GetInt(ctx, "compression-level")); err != nil {
+		return err
+	}
 
 	var manifestPath = flag.GetString(ctx, "from-manifest")
 

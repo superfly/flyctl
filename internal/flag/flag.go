@@ -619,6 +619,22 @@ func Buildkit() Bool {
 	}
 }
 
+func Compression() String {
+	return String{
+		Name:        "compression",
+		Description: `Compression algorithm to use for the image. Options are "zstd" or "gzip". Defaults to "gzip".`,
+		Default:     "gzip",
+	}
+}
+
+func CompressionLevel() Int {
+	return Int{
+		Name:        "compression-level",
+		Description: `Compression level to use for the image. Defaults to 7.`,
+		Default:     7,
+	}
+}
+
 func Strategy() String {
 	return String{
 		Name:        "strategy",
