@@ -1,10 +1,10 @@
 # Based on https://github.com/denoland/deno_docker/blob/main/alpine.dockerfile
 
-ARG DENO_VERSION=2.0.4
+ARG DENO_VERSION=2.4.5
 ARG BIN_IMAGE=denoland/deno:bin-${DENO_VERSION}
 FROM ${BIN_IMAGE} AS bin
 
-FROM frolvlad/alpine-glibc:alpine-3.13
+FROM frolvlad/alpine-glibc:alpine-3.22
 
 RUN apk --no-cache add ca-certificates
 

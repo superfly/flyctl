@@ -29,18 +29,10 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	// TODO(Allison): Do we want to make the executive decision to just *always* deploy?
 	// Feedback(Sam): scanners need the abiiity to abort the deploy if they detect a problem
 
-	deployNow := true
-	// deployNow := false
-	// promptForDeploy := true
-
-	if state.sourceInfo.SkipDeploy || flag.GetBool(ctx, "no-deploy") {
-		deployNow = false
-		// promptForDeploy = false
-	}
+	deployNow := !(state.sourceInfo.SkipDeploy || flag.GetBool(ctx, "no-deploy"))
 
 	if flag.GetBool(ctx, "now") {
 		deployNow = true
-		// promptForDeploy = false
 	}
 
 	if flag.GetBool(ctx, "no-create") {

@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func create() (cmd *cobra.Command) {
@@ -96,7 +97,15 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
+		ctx, _, _, err = flapsutil.SetClient(ctx, nil, extension.App.Name)
+		if err != nil {
+			return err
+		}
+		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+			Stage:    false,
+			Detach:   false,
+			CheckDNS: true,
+		})
 	}
 
 	return err

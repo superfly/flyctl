@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -58,14 +58,12 @@ func runList(ctx context.Context) error {
 	volID := flag.FirstArg(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
-	var volState string
 	if appName == "" {
-		n, s, err := client.GetAppNameStateFromVolume(ctx, volID)
+		n, err := client.GetAppNameFromVolume(ctx, volID)
 		if err != nil {
 			return fmt.Errorf("failed getting app name from volume: %w", err)
 		}
 		appName = *n
-		volState = *s
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -75,16 +73,15 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	var snapshots []fly.VolumeSnapshot
-	switch volState {
-	case "pending_destroy", "deleted":
-		snapshots, err = client.GetSnapshotsFromVolume(ctx, volID)
-	default:
-		snapshots, err = flapsClient.GetVolumeSnapshots(ctx, volID)
-	}
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
+
+	// sort snapshots from oldest to newest
+	sort.Slice(snapshots, func(i, j int) bool {
+		return snapshots[i].CreatedAt.Before(snapshots[j].CreatedAt)
+	})
 
 	if cfg.JSONOutput {
 		return render.JSON(io.Out, snapshots)
@@ -95,12 +92,8 @@ func runList(ctx context.Context) error {
 		return nil
 	}
 
-	// sort snapshots from newest to oldest
-	sort.Slice(snapshots, func(i, j int) bool {
-		return snapshots[i].CreatedAt.After(snapshots[j].CreatedAt)
-	})
-
 	rows := make([][]string, 0, len(snapshots))
+	var totalStoredSize uint64
 	for _, snapshot := range snapshots {
 		id := snapshot.ID
 		if id == "" {
@@ -111,14 +104,33 @@ func runList(ctx context.Context) error {
 		if snapshot.RetentionDays != nil {
 			retentionDays = strconv.Itoa(*snapshot.RetentionDays)
 		}
+
+		storedSize := humanize.IBytes(uint64(snapshot.Size))
+		volSize := humanize.IBytes(uint64(snapshot.VolumeSize))
+		totalStoredSize += uint64(snapshot.Size)
+
 		rows = append(rows, []string{
 			id,
 			snapshot.Status,
-			strconv.Itoa(snapshot.Size),
+			storedSize,
+			volSize,
 			timeToString(snapshot.CreatedAt),
 			retentionDays,
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At", "Retention Days")
+	table := render.NewTable(io.Out, "Snapshots", rows, "ID", "Status", "Stored Size", "Vol Size", "Created At", "Retention Days")
+	table.SetColumnAlignment([]int{
+		tablewriter.ALIGN_DEFAULT, // ID
+		tablewriter.ALIGN_DEFAULT, // Status
+		tablewriter.ALIGN_RIGHT,   // Stored Size
+		tablewriter.ALIGN_RIGHT,   // Vol Size
+		tablewriter.ALIGN_DEFAULT, // Created At
+		tablewriter.ALIGN_RIGHT,   // Retention Days
+	})
+	table.Render()
+
+	fmt.Fprintf(io.Out, "\nTotal stored size: %s\n", humanize.IBytes(totalStoredSize))
+
+	return nil
 }

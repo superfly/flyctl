@@ -61,7 +61,7 @@ func MoveBucket(
 		return err
 	}
 
-	_, err = gql.DeleteAddOn(ctx, client.GenqClient(), prevBucket.Name)
+	_, err = gql.DeleteAddOn(ctx, client.GenqClient(), prevBucket.Name, string(gql.AddOnTypeTigris))
 	if err != nil {
 		return err
 	}

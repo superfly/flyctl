@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/state"
 )
 
@@ -36,8 +37,35 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx), false)
+	appCompact, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start the feature flag client, if we haven't already
+	if launchdarkly.ClientFromContext(ctx) == nil {
+		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
+			OrganizationID: appCompact.Organization.InternalNumericID,
+			UserID:         0,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create feature flag client: %w", err)
+		}
+		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
+	}
+
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+
+	ldClient := launchdarkly.ClientFromContext(ctx)
+	useManagedBuilder := ldClient.ManagedBuilderEnabled()
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"), useManagedBuilder)
+	resolver := imgsrc.NewResolver(
+		daemonType, client, appName, io, flag.GetWireguard(ctx), false,
+		imgsrc.WithProvisioner(imgsrc.NewProvisioner(org)),
+	)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
@@ -73,14 +101,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 		opts.BuildArgs = extraArgs
 
-		if cfg != nil && cfg.Experimental != nil {
-			opts.UseZstd = cfg.Experimental.UseZstd
-		}
-
-		// use-zstd passed through flags takes precedence over the one set in config
-		if flag.IsSpecified(ctx, "use-zstd") {
-			opts.UseZstd = flag.GetBool(ctx, "use-zstd")
-		}
+		opts.Compression, opts.CompressionLevel = cfg.DetermineCompression(ctx)
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
@@ -108,7 +129,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		return nil, errors.New("could not find an image to deploy")
 	}
 
-	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
+	fmt.Fprintf(io.Out, "Image: %s\n", img.String())
 	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil

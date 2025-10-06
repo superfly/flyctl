@@ -4,7 +4,7 @@ Welcome to our Code Server for Phoenix Apps.
 
 ## Development
 
-Right now this editor is running at ${FLY_CODE_URL}. 
+Right now this editor is running at ${FLY_CODE_URL}.
 
 You need to start the development server to see yout app running at ${FLY_DEVELOPMENT_URL}.
 
@@ -16,9 +16,9 @@ mix phx.server
 
 Looks like we're ready to deploy!
 
-To deploy you just need to run `fly launch --no-deploy`, create your secret key and create a volume. 
+To deploy you just need to run `fly launch --no-deploy`, create your secret key and create a volume.
 
-Run `fly launch --no-deploy` and make sure to say yes to copy the configuration file 
+Run `fly launch --no-deploy` and make sure to say yes to copy the configuration file
 to the new app so you wont have to do anything.
 
 ```sh
@@ -41,15 +41,15 @@ Wrote config file fly.toml
 Your app is ready. Deploy with `flyctl deploy`
 ```
 
-Let's got create your secret key. Elixir has a mix task that can generate a new 
+Let's got create your secret key. Elixir has a mix task that can generate a new
 Phoenix key base secret. Let's use that.
 
 ```bash
 mix phx.gen.secret
 ```
 
-It generates a long string of random text. Let's store that as a secret for our app. 
-When we run this command in our project folder, `flyctl` uses the `fly.toml` 
+It generates a long string of random text. Let's store that as a secret for our app.
+When we run this command in our project folder, `flyctl` uses the `fly.toml`
 file to know which app we are setting the value on.
 
 ```sh

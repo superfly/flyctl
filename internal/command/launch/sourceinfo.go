@@ -78,7 +78,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 
 	if srcInfo == nil {
 		var colorFn func(arg interface{}) aurora.Value
-		noBlank := flag.GetBool(ctx, "no-blank")
+		noBlank := planStep == "propose" || flag.GetBool(ctx, "no-blank")
 		if noBlank {
 			colorFn = aurora.Red
 		} else {
@@ -98,6 +98,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 					fmt.Fprintln(io.Out, e.Name())
 				}
 			}
+
 			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
 		}
 		return srcInfo, nil, err
@@ -128,7 +129,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 }
 
 func articleFor(w string) string {
-	var article string = "a"
+	var article = "a"
 	if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(w)); matched {
 		article += "n"
 	}
