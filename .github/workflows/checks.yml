@@ -34,8 +34,6 @@ jobs:
           extra_args: --all-files --hook-stage=manual
 
   lint:
-    strategy:
-      fail-fast: false
     name: lint
     runs-on: ubuntu-latest
     steps:
@@ -43,8 +41,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
-          # check-latest: true
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.61.0
-          working-directory: .
+          version: v2.4.0

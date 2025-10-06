@@ -52,7 +52,7 @@ func (m Meta) Validate() error {
 	}
 
 	if m.Release.Version == nil {
-		return errors.New("missing version number. make sure there's a verison in release.json")
+		return errors.New("missing version number. make sure there's a version in release.json")
 	}
 
 	if len(m.Assets) == 0 {

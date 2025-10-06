@@ -183,7 +183,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.ObjectStorageDesired = true
 	}
 
-	// if prisma is used, provider is definative
+	// if prisma is used, provider is definitive
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
 			srcInfo.DatabaseDesired = DatabaseKindPostgres
@@ -191,6 +191,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			srcInfo.DatabaseDesired = DatabaseKindMySQL
 		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
 			srcInfo.DatabaseDesired = DatabaseKindSqlite
+			srcInfo.ObjectStorageDesired = true
 		}
 	}
 
@@ -247,6 +248,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Nust"
 	} else if devdeps["nuxt"] != nil || deps["nuxt"] != nil {
 		srcInfo.Family = "Nuxt"
+	} else if checksPass(sourceDir, fileExists("shopify.app.toml")) {
+		srcInfo.Family = "Shopify"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
 	} else if devdeps["@sveltejs/kit"] != nil {
@@ -278,15 +281,30 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		}
 	}
 
-	// generate Dockerfile if it doesn't already exist
+	// add litestream if object storage is present and database is sqlite3
+	if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
+		flags = append(flags, "--litestream")
+	}
+
+	// run dockerfile-node if Dockerfile doesn't already exist, or there is a database to be set up
 	_, err = os.Stat("Dockerfile")
-	if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || srcInfo.DatabaseDesired == DatabaseKindSqlite || srcInfo.DatabaseDesired == DatabaseKindPostgres {
 		var args []string
+
+		// add --skip flag if Dockerfile already exists
+		if err == nil {
+			flags = append([]string{"--skip"}, flags...)
+		}
 
 		_, err = os.Stat("node_modules")
 		if errors.Is(err, fs.ErrNotExist) {
 			// no existing node_modules directory: run package directly
 			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
+
+			// add additional flags from launch command
+			if len(flags) > 0 {
+				args = append(args, flags...)
+			}
 		} else {
 			// build command to install package using preferred package manager
 			args = []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
@@ -335,7 +353,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app."
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				}
 			}
 		}
 
@@ -383,12 +409,20 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
-			cmd.Stdin = nil
+			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app.\n"
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				}
 			}
 		}
 	}
@@ -412,13 +446,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 	srcInfo.Family = family
 
 	// provide some advice
-	srcInfo.DeployDocs += fmt.Sprintf(`
+	if srcInfo.DeployDocs == "" {
+		srcInfo.DeployDocs = fmt.Sprintf(`
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your %s app.
 `, srcInfo.Family)
+	}
 
 	return nil
 }

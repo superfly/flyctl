@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net"
 	"slices"
@@ -12,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
@@ -32,7 +33,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -222,9 +222,18 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_machines")
 	defer span.End()
 
+	var jerr error
 	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
-		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForRestart(lm.Machine())}
+		launchInput, err := md.launchInputForRestart(lm.Machine())
+		if err != nil {
+			jerr = errors.Join(jerr, err)
+			return nil
+		}
+		return &machineUpdateEntry{leasableMachine: lm, launchInput: launchInput}
 	})
+	if jerr != nil {
+		return jerr
+	}
 
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
@@ -317,7 +326,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, processGroupMachineDiff ProcessGroupsDiff) (err error) {
 	groupsWithAutostopEnabled := make(map[string]bool)
 	groupsWithAutosuspendEnabled := make(map[string]bool)
-	groups := maps.Keys(processGroupMachineDiff.groupsNeedingMachines)
+	groups := slices.Collect(maps.Keys(processGroupMachineDiff.groupsNeedingMachines))
 	total := len(groups)
 	slices.Sort(groups)
 
@@ -425,7 +434,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	defer span.End()
 
 	if !md.skipReleaseCommand {
-		if err := md.runReleaseCommand(ctx); err != nil {
+		if err := md.runReleaseCommands(ctx); err != nil {
 			return fmt.Errorf("release command failed - aborting deployment. %w", err)
 		}
 	}
@@ -960,6 +969,14 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 	return updatePool.Wait()
 }
 
+// releaseLease releases the lease and log the error if any.
+func releaseLease(ctx context.Context, m machine.LeasableMachine) {
+	err := m.ReleaseLease(ctx)
+	if err != nil {
+		terminal.Warnf("failed to release lease for machine %s: %s", m.FormattedMachineId(), err)
+	}
+}
+
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_by_replace", trace.WithAttributes(attribute.String("id", e.launchInput.ID)))
 	defer span.End()
@@ -981,7 +998,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
 	return nil
 }
@@ -1059,7 +1076,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 
 	// Don't wait for SkipLaunch machines, they are created but not started
 	if launchInput.SkipLaunch {
@@ -1359,16 +1376,15 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
 		b.MaxInterval = 5 * time.Second
-		b.MaxElapsedTime = 60 * time.Second
 
-		return backoff.Retry(func() error {
+		_, err = backoff.Retry(ctx, func() (any, error) {
 			m := new(dns.Msg)
 
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
-				if ipAddr.Type == "v4" || ipAddr.Type == "shared_v4" {
+				if (ipAddr.Type == "v4" && ipAddr.Region == "global") || ipAddr.Type == "shared_v4" {
 					numIPv4 += 1
-				} else if ipAddr.Type == "v6" {
+				} else if ipAddr.Type == "v6" && ipAddr.Region == "global" {
 					numIPv6 += 1
 				}
 			}
@@ -1381,11 +1397,11 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
-				return err
+				return nil, err
 			} else if len(answerv4.Answer) != numIPv4 {
 				span.SetAttributes(attribute.String("v4_answer", answerv4.String()))
 				tracing.RecordError(span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
-				return fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
+				return nil, fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
 			}
 
 			m.SetQuestion(fqdn, dns.TypeAAAA)
@@ -1393,16 +1409,16 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
-				return err
+				return nil, err
 			} else if len(answerv6.Answer) != numIPv6 {
 				span.SetAttributes(attribute.String("v6_answer", answerv6.String()))
 				tracing.RecordError(span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
-				return fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
+				return nil, fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
 			}
 
-			return nil
-		}, backoff.WithContext(b, ctx))
-
+			return nil, nil
+		}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(60*time.Second))
+		return err
 	} else {
 		return nil
 	}

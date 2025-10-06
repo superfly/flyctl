@@ -142,6 +142,11 @@ func GetOrg(ctx context.Context) string {
 	return org
 }
 
+// GetMPGClusterID is shorthand for GetString(ctx, "cluster").
+func GetMPGClusterID(ctx context.Context) string {
+	return GetString(ctx, flagnames.MPGClusterID)
+}
+
 // GetRegion is shorthand for GetString(ctx, Region).
 func GetRegion(ctx context.Context) string {
 	return GetString(ctx, flagnames.Region)
@@ -190,4 +195,20 @@ func GetFlagsName(ctx context.Context, ignoreFlags []string) []string {
 
 func GetProcessGroup(ctx context.Context) string {
 	return GetString(ctx, flagnames.ProcessGroup)
+}
+
+func GetBuildkitAddr(ctx context.Context) string {
+	addr := GetString(ctx, "buildkit-addr")
+	if addr == "" {
+		addr = env.First("BUILDKIT_ADDR")
+	}
+	return addr
+}
+
+func GetBuildkitImage(ctx context.Context) string {
+	addr := GetString(ctx, "buildkit-image")
+	if addr == "" {
+		addr = env.First("BUILDKIT_IMAGE")
+	}
+	return addr
 }

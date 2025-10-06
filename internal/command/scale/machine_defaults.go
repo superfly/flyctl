@@ -68,7 +68,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 		defaults.existingVolumes = lo.MapValues(
 			lo.GroupBy(
 				lo.FilterMap(volumes, func(v fly.Volume, _ int) (*fly.Volume, bool) {
-					return &v, !v.IsAttached()
+					return &v, !v.IsAttached() && v.HostStatus == "ok"
 				}),
 				func(v *fly.Volume) string { return v.Name },
 			),

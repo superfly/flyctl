@@ -313,6 +313,12 @@ func WaitForProvision(ctx context.Context, name string, provider string) error {
 			return err
 		}
 
+		// Validate that the returned add-on matches the expected provider type
+		if resp.AddOn.AddOnProvider.Name != provider {
+			return fmt.Errorf("found add-on '%s' with provider '%s', but expected provider '%s'",
+				resp.AddOn.Name, resp.AddOn.AddOnProvider.Name, provider)
+		}
+
 		if resp.AddOn.Status == "error" {
 			if resp.AddOn.ErrorMessage != "" {
 				return errors.New(resp.AddOn.ErrorMessage)
@@ -387,6 +393,12 @@ func OpenDashboard(ctx context.Context, extensionName string, provider gql.AddOn
 		return err
 	}
 
+	// Validate that the returned add-on matches the expected provider type
+	if result.AddOn.AddOnProvider.Name != string(provider) {
+		return fmt.Errorf("found add-on '%s' with provider '%s', but expected provider '%s'",
+			result.AddOn.Name, result.AddOn.AddOnProvider.Name, provider)
+	}
+
 	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
 	if err != nil {
 		return err
@@ -406,6 +418,12 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx), string(provider))
 		if err != nil {
 			return nil, nil, err
+		}
+
+		// Validate that the returned add-on matches the expected provider type
+		if response.AddOn.AddOnProvider.Name != string(provider) {
+			return nil, nil, fmt.Errorf("found add-on '%s' with provider '%s', but expected provider '%s'",
+				response.AddOn.Name, response.AddOn.AddOnProvider.Name, provider)
 		}
 
 		addOn = &response.AddOn.AddOnData
@@ -431,9 +449,9 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 
 func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension, overrideSecretKeyNamesMap map[string]string) (err error) {
 	var (
-		io              = iostreams.FromContext(ctx)
-		client          = flyutil.ClientFromContext(ctx).GenqClient()
-		setSecrets bool = true
+		io         = iostreams.FromContext(ctx)
+		client     = flyutil.ClientFromContext(ctx).GenqClient()
+		setSecrets = true
 	)
 
 	environment := extension.Data.Environment
@@ -512,7 +530,14 @@ func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
+
+	viewerUser, ok := tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser)
+	if ok {
+		return viewerUser.AgreedToProviderTos, nil
+	} else {
+		// If we are unable to determine if the user has agreed to the provider ToS, return false
+		return false, nil
+	}
 }
 
 func Status(ctx context.Context, provider gql.AddOnType) (err error) {
@@ -531,7 +556,7 @@ func Status(ctx context.Context, provider gql.AddOnType) (err error) {
 		},
 	}
 
-	var cols []string = []string{"Name", "Primary Region", "Status"}
+	var cols = []string{"Name", "Primary Region", "Status"}
 
 	if app != nil {
 		obj[0] = append(obj[0], app.Name)
@@ -663,4 +688,5 @@ var PlatformMap = map[string]string{
 	"Remix":         "javascript-remix",
 	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
+	"Shopify":       "javascript-remix",
 }

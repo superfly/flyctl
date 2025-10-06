@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
-	"golang.org/x/exp/maps"
 )
 
 // UserURLCallback is a function that opens a URL in the user's browser. This is
@@ -42,7 +43,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
 	}
 
-	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb)
+	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb, 30*time.Second)
 	if err != nil {
 		log.Debugf("failed to update discharge tokens: %s", err)
 	}
@@ -141,7 +142,7 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 				// don't continue. might have been partial success
 			}
 
-			updated2, err := refreshDischargeTokens(ctx, localCopy, uucb)
+			updated2, err := refreshDischargeTokens(ctx, localCopy, uucb, 2*time.Minute)
 			if err != nil {
 				logger.Debugf("failed to update discharge tokens: %s", err)
 				// don't continue. might have been partial success
@@ -181,11 +182,21 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 // the user's browser. Set the UserURLCallback package variable if you want to
 // support this.
 //
-// Don't call this when other goroutines might also be accessing t.
-func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback) (bool, error) {
-	updateOpts := []tokens.UpdateOption{tokens.WithDebugger(logger.FromContext(ctx))}
+// Don't call this when other goroutines might also be accessing it.
+func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback, advancePrune time.Duration) (bool, error) {
+	updateOpts := []tokens.UpdateOption{
+		tokens.WithDebugger(logger.FromContext(ctx)),
+		tokens.WithAdvancePrune(advancePrune),
+	}
 
 	if uucb != nil {
+		// Update without UserURLCallback to fetch tokens in parallel.
+		updated, err := t.Update(ctx, updateOpts...)
+		if err == nil || !strings.Contains(err.Error(), "missing user-url callback") {
+			return updated, err
+		}
+
+		// Retry with UserURLCallback if we received a 'missing user-url callback' error.
 		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
 	}
 
@@ -277,7 +288,7 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		defer wgLock.Unlock()
 		macToks = append(macToks, m)
 	}
-	for _, graphID := range maps.Values(graphIDByNumericID) {
+	for graphID := range maps.Values(graphIDByNumericID) {
 		graphID := graphID
 
 		wg.Add(1)

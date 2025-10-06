@@ -3,20 +3,32 @@
 package appconfig
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 )
 
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.
 	DefaultConfigFileName = "fly.toml"
 )
+
+// Well-known docker compose filenames in order of preference
+var WellKnownComposeFilenames = []string{
+	"compose.yaml",
+	"compose.yml",
+	"docker-compose.yaml",
+	"docker-compose.yml",
+}
 
 type RestartPolicy string
 
@@ -58,6 +70,15 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
+	// Pilot Container support: configuration, including the set of containers, can either
+	// be specified in a separate file or in the fly.toml file itself.  If containers are
+	// defined, one container can be identified as the "app" container, which is the
+	// the one where the image is replaced upon deploy.  If no container is identified,
+	// this will default to the "app" container, and if that is not present, the first
+	// container in the list will be used.
+	MachineConfig string `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
+	Container     string `toml:"container,omitempty" json:"container,omitempty"`
+
 	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
 
 	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
@@ -93,6 +114,7 @@ type Deploy struct {
 	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
 	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	ReleaseCommandCompute *Compute      `toml:"release_command_vm,omitempty" json:"release_command_vm,omitempty"`
+	SeedCommand           string        `toml:"seed_command,omitempty" json:"seed_command,omitempty"`
 }
 
 type File struct {
@@ -136,10 +158,15 @@ type Mount struct {
 	Destination             string   `toml:"destination,omitempty" json:"destination,omitempty"`
 	InitialSize             string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
 	SnapshotRetention       *int     `toml:"snapshot_retention,omitempty" json:"snapshot_retention,omitempty"`
+	ScheduledSnapshots      *bool    `toml:"scheduled_snapshots,omitempty" json:"scheduled_snapshots,omitempty"`
 	AutoExtendSizeThreshold int      `toml:"auto_extend_size_threshold,omitempty" json:"auto_extend_size_threshold,omitempty"`
 	AutoExtendSizeIncrement string   `toml:"auto_extend_size_increment,omitempty" json:"auto_extend_size_increment,omitempty"`
 	AutoExtendSizeLimit     string   `toml:"auto_extend_size_limit,omitempty" json:"auto_extend_size_limit,omitempty"`
 	Processes               []string `toml:"processes,omitempty" json:"processes,omitempty"`
+}
+
+type BuildCompose struct {
+	File string `toml:"file,omitempty" json:"file,omitempty"`
 }
 
 type Build struct {
@@ -152,6 +179,9 @@ type Build struct {
 	Dockerfile        string            `toml:"dockerfile,omitempty" json:"dockerfile,omitempty"`
 	Ignorefile        string            `toml:"ignorefile,omitempty" json:"ignorefile,omitempty"`
 	DockerBuildTarget string            `toml:"build-target,omitempty" json:"build-target,omitempty"`
+	Compose           *BuildCompose     `toml:"compose,omitempty" json:"compose,omitempty"`
+	Compression       string            `toml:"compression,omitempty" json:"compression,omitempty"`
+	CompressionLevel  *int              `toml:"compression_level,omitempty" json:"compression_level,omitempty"`
 }
 
 type Experimental struct {
@@ -164,7 +194,6 @@ type Experimental struct {
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
 	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
-	UseZstd        bool     `toml:"use_zstd,omitempty" json:"use_zstd,omitempty"`
 }
 
 type Attached struct {
@@ -223,6 +252,41 @@ func (c *Config) DetermineIPType(ipType string) string {
 	return "shared"
 }
 
+func (c *Config) DetermineCompression(ctx context.Context) (compression string, compressionLevel int) {
+	// Set default values
+	compression = "gzip"
+	compressionLevel = 7
+
+	// LaunchDarkly provides the base settings
+	ldClient := launchdarkly.ClientFromContext(ctx)
+	if ldClient.UseZstdEnabled() {
+		compression = "zstd"
+	}
+	if strength, ok := ldClient.GetCompressionStrength().(float64); ok {
+		compressionLevel = int(strength)
+	}
+
+	// fly.toml overrides LaunchDarkly
+	if c.Build != nil {
+		if c.Build.Compression != "" {
+			compression = c.Build.Compression
+		}
+		if c.Build.CompressionLevel != nil {
+			compressionLevel = *c.Build.CompressionLevel
+		}
+	}
+
+	// CLI flags override everything
+	if flag.IsSpecified(ctx, "compression") {
+		compression = flag.GetString(ctx, "compression")
+	}
+	if flag.IsSpecified(ctx, "compression-level") {
+		compressionLevel = flag.GetInt(ctx, "compression-level")
+	}
+
+	return
+}
+
 // IsUsingGPU returns true if any VMs have a gpu-kind set.
 func (c *Config) IsUsingGPU() bool {
 	for _, vm := range c.Compute {
@@ -274,48 +338,48 @@ func (c *Config) InternalPort() int {
 	return 0
 }
 
-func (cfg *Config) BuildStrategies() []string {
+func (c *Config) BuildStrategies() []string {
 	strategies := []string{}
 
-	if cfg == nil || cfg.Build == nil {
+	if c == nil || c.Build == nil {
 		return strategies
 	}
 
-	if cfg.Build.Image != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+	if c.Build.Image != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", c.Build.Image))
 	}
-	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
+	if c.Build.Builder != "" || len(c.Build.Buildpacks) > 0 {
 		strategies = append(strategies, "a buildpack")
 	}
-	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
-		if cfg.Build.Dockerfile != "" {
-			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+	if c.Build.Dockerfile != "" || c.Build.DockerBuildTarget != "" {
+		if c.Build.Dockerfile != "" {
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", c.Build.Dockerfile))
 		} else {
 			strategies = append(strategies, "a dockerfile")
 		}
 	}
-	if cfg.Build.Builtin != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", cfg.Build.Builtin))
+	if c.Build.Builtin != "" {
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" builtin image", c.Build.Builtin))
 	}
 
 	return strategies
 }
 
-func (cfg *Config) URL() *url.URL {
+func (c *Config) URL() *url.URL {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   cfg.AppName + ".fly.dev",
+		Host:   c.AppName + ".fly.dev",
 		Path:   "/",
 	}
 
 	// HTTPService always listen on https, even if ForceHTTPS is false
-	if cfg.HTTPService != nil && cfg.HTTPService.InternalPort > 0 {
+	if c.HTTPService != nil && c.HTTPService.InternalPort > 0 {
 		return u
 	}
 
 	var httpPorts []int
 	var httpsPorts []int
-	for _, service := range cfg.Services {
+	for _, service := range c.Services {
 		for _, port := range service.Ports {
 			if port.Port == nil || !slices.Contains(port.Handlers, "http") {
 				continue
@@ -350,10 +414,10 @@ func (cfg *Config) URL() *url.URL {
 
 // MergeFiles merges the provided files with the files in the config wherein the provided files
 // take precedence.
-func (cfg *Config) MergeFiles(files []*fly.File) error {
+func (c *Config) MergeFiles(files []*fly.File) error {
 	// First convert the Config files to Machine files.
-	cfgFiles := make([]*fly.File, 0, len(cfg.Files))
-	for _, f := range cfg.Files {
+	cfgFiles := make([]*fly.File, 0, len(c.Files))
+	for _, f := range c.Files {
 		machineFile, err := f.toMachineFile()
 		if err != nil {
 			return err
@@ -368,14 +432,36 @@ func (cfg *Config) MergeFiles(files []*fly.File) error {
 	fly.MergeFiles(mConfig, files)
 
 	// Persist the merged files back to the config to be used later for deploying.
-	cfg.MergedFiles = mConfig.Files
+	c.MergedFiles = mConfig.Files
 
 	return nil
 }
 
-func (cfg *Config) DeployStrategy() string {
-	if cfg.Deploy == nil {
+func (c *Config) DeployStrategy() string {
+	if c.Deploy == nil {
 		return ""
 	}
-	return cfg.Deploy.Strategy
+	return c.Deploy.Strategy
+}
+
+// DetectComposeFile returns Build.Compose.File if set, otherwise looks for
+// well-known compose filenames in the directory containing the config file.
+// Returns the first found filename or empty string.
+func (c *Config) DetectComposeFile() string {
+	// If compose file is explicitly set, return it
+	if c.Build != nil && c.Build.Compose != nil && c.Build.Compose.File != "" {
+		return c.Build.Compose.File
+	}
+
+	// Otherwise, detect well-known filenames
+	configDir := filepath.Dir(c.configFilePath)
+
+	for _, filename := range WellKnownComposeFilenames {
+		path := filepath.Join(configDir, filename)
+		if _, err := os.Stat(path); err == nil {
+			return filename
+		}
+	}
+
+	return ""
 }

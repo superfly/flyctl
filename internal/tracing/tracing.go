@@ -39,11 +39,6 @@ func getCollectorUrl() string {
 	if url != "" {
 		return url
 	}
-
-	if buildinfo.IsDev() {
-		return "fly-otel-collector-dev.fly.dev"
-	}
-
 	return "fly-otel-collector-prod.fly.dev"
 }
 
