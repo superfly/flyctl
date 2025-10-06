@@ -51,10 +51,6 @@ func newCreate() *cobra.Command {
 			Description: "The superuser password. The password will be generated for you if you leave this blank",
 		},
 		flag.Int{
-			Name:        "vm-memory",
-			Description: "the memory of the VM in MB",
-		},
-		flag.Int{
 			Name:        "initial-cluster-size",
 			Description: "Initial cluster size",
 		},
