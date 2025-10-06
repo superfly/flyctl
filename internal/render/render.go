@@ -24,9 +24,10 @@ func TitledJSON(w io.Writer, title string, v interface{}) error {
 	})
 }
 
-// Table renders the table defined by the given properties into w. Both title &
-// cols are optional.
-func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
+// NewTable creates and configures a new tablewriter.Table with our default
+// settings. The caller can make other configuration changes before calling
+// table.Render() on the returned Table.
+func NewTable(w io.Writer, title string, rows [][]string, cols ...string) *tablewriter.Table {
 	if title != "" {
 		fmt.Fprintln(w, aurora.Bold(title))
 	}
@@ -48,6 +49,14 @@ func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
 	table.SetTablePadding("\t")
 
 	table.AppendBulk(rows)
+
+	return table
+}
+
+// Table renders the table defined by the given properties into w. Both title &
+// cols are optional.
+func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
+	table := NewTable(w, title, rows, cols...)
 
 	table.Render()
 

@@ -110,7 +110,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		if retErr != nil {
 			client := flyutil.ClientFromContext(ctx).GenqClient()
 			// Using context.Background() here in case the error is that the context is canceled.
-			_, err := gql.DeleteAddOn(context.Background(), client, extName)
+			_, err := gql.DeleteAddOn(context.Background(), client, extName, string(gql.AddOnTypeTigris))
 			if err != nil {
 				fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Failed to delete extension: %v\n", err)
 			}
@@ -128,6 +128,9 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 
 	// TODO(allison): I'd really like ProvisionExtension to return the extension's ID, but for now we can just refetch it
 	extFull, err := gql.GetAddOn(ctx, client.GenqClient(), extName, string(gql.AddOnTypeTigris))
+	if err != nil {
+		return "", err
+	}
 
 	// Update the addon with the tokenized key and the name of the app
 	_, err = gql.UpdateAddOn(ctx, client.GenqClient(), extFull.AddOn.Id, extFull.AddOn.AddOnPlan.Id, []string{}, extFull.AddOn.Options, map[string]interface{}{

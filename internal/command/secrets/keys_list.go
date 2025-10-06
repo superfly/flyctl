@@ -8,9 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -36,12 +38,12 @@ name and version.`
 	return cmd
 }
 
-func compareSecrets(a, b fly.ListSecret) int {
-	aver, aprefix, err1 := SplitLabelKeyver(a.Label)
+func compareSecrets(a, b fly.SecretKey) int {
+	aver, aprefix, err1 := SplitLabelKeyver(a.Name)
 	if err1 != nil {
 		return -1
 	}
-	bver, bprefix, err2 := SplitLabelKeyver(b.Label)
+	bver, bprefix, err2 := SplitLabelKeyver(b.Name)
 	if err2 != nil {
 		return 1
 	}
@@ -66,12 +68,14 @@ type jsonSecret struct {
 func runKeysList(ctx context.Context) (err error) {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	flapsClient, err := getFlapsClient(ctx)
+
+	appName := appconfig.NameFromContext(ctx)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecrets(ctx)
+	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -85,12 +89,12 @@ func runKeysList(ctx context.Context) (err error) {
 			continue
 		}
 
-		ver, prefix, err := SplitLabelKeyver(secret.Label)
+		ver, prefix, err := SplitLabelKeyver(secret.Name)
 		if err != nil {
 			continue
 		}
 		jsecret := jsonSecret{
-			Label:   secret.Label,
+			Label:   secret.Name,
 			Name:    prefix,
 			Version: ver.String(),
 			SemType: string(semType),

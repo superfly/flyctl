@@ -31,6 +31,7 @@ const (
 	SendMetricsFileKey         = "send_metrics"
 	SyntheticsAgentFileKey     = "synthetics_agent"
 	AutoUpdateFileKey          = "auto_update"
+	AppSecretsMinverFileKey    = "app_secrets_minvers"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
 	APITokenEnvKey             = "FLY_API_TOKEN"
@@ -97,6 +98,9 @@ type Config struct {
 
 	// LocalOnly denotes whether the user wants only local operations.
 	LocalOnly bool
+
+	// DisableManagedBuilders will make docker daemon type never be managed
+	DisableManagedBuilders bool
 
 	// Tokens is the user's authentication token(s). They are used differently
 	// depending on where they need to be sent.
@@ -167,15 +171,17 @@ func (cfg *Config) applyFile(path string) (err error) {
 	defer cfg.mu.Unlock()
 
 	var w struct {
-		AccessToken     string `yaml:"access_token"`
-		MetricsToken    string `yaml:"metrics_token"`
-		SendMetrics     bool   `yaml:"send_metrics"`
-		AutoUpdate      bool   `yaml:"auto_update"`
-		SyntheticsAgent bool   `yaml:"synthetics_agent"`
+		AccessToken            string `yaml:"access_token"`
+		MetricsToken           string `yaml:"metrics_token"`
+		SendMetrics            bool   `yaml:"send_metrics"`
+		AutoUpdate             bool   `yaml:"auto_update"`
+		SyntheticsAgent        bool   `yaml:"synthetics_agent"`
+		DisableManagedBuilders bool   `yaml:"disable_managed_builders"`
 	}
 	w.SendMetrics = true
 	w.AutoUpdate = true
 	w.SyntheticsAgent = true
+	w.DisableManagedBuilders = false
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.Tokens = tokens.ParseFromFile(w.AccessToken, path)
@@ -183,6 +189,7 @@ func (cfg *Config) applyFile(path string) (err error) {
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
 		cfg.SyntheticsAgent = w.SyntheticsAgent
+		cfg.DisableManagedBuilders = w.DisableManagedBuilders
 	}
 
 	return

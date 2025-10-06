@@ -91,6 +91,7 @@ if GIT_REPO_URL
     in_step Step::GIT_PULL do
       ref = get_env("GIT_REF")
       artifact Artifact::GIT_INFO, { repository: GIT_REPO, reference: ref }
+
       exec_capture("git init", log: false)
 
       redacted_repo_url = GIT_REPO_URL.dup

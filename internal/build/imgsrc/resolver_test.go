@@ -12,6 +12,19 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 )
 
+func TestDeploymentImage(t *testing.T) {
+	image := &DeploymentImage{
+		ID:     "img_8rlxp2nzn32np3jq",
+		Tag:    "docker-hub-mirror.fly.io/flyio/postgres-flex:16",
+		Digest: "sha256:f107dbfaa732063b31ee94aa728c4f5648a672259fd62bfaa245f9b7a53b5479",
+		Size:   123,
+	}
+	assert.Equal(t, "docker-hub-mirror.fly.io/flyio/postgres-flex:16@sha256:f107dbfaa732063b31ee94aa728c4f5648a672259fd62bfaa245f9b7a53b5479", image.String())
+
+	image.Digest = ""
+	assert.Equal(t, "docker-hub-mirror.fly.io/flyio/postgres-flex:16", image.String())
+}
+
 func TestHeartbeat(t *testing.T) {
 	dc, err := client.NewClientWithOpts()
 	assert.NoError(t, err)
@@ -46,6 +59,7 @@ func TestStartHeartbeat(t *testing.T) {
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
 			return nil
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
@@ -80,6 +94,7 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 			}
 			return nil
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
@@ -110,6 +125,7 @@ func TestStartHeartbeatNoEndpoint(t *testing.T) {
 				StatusCode: http.StatusNotFound,
 			}
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)
@@ -140,6 +156,7 @@ func TestStartHeartbeatWError(t *testing.T) {
 				StatusCode: http.StatusBadRequest,
 			}
 		},
+		provisioner: &Provisioner{},
 	}
 
 	_, err = resolver.StartHeartbeat(ctx)

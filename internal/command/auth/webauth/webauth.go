@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -45,7 +46,33 @@ func SaveToken(ctx context.Context, token string) error {
 }
 
 func RunWebLogin(ctx context.Context, signup bool) (string, error) {
-	auth, err := fly.StartCLISessionWebAuth(state.Hostname(ctx), signup)
+	args := map[string]interface{}{
+		"signup": signup,
+		"target": "auth",
+	}
+
+	var (
+		lockOrg      = os.Getenv("FLY_TOKEN_LOCK_ORG")
+		lockApp      = os.Getenv("FLY_TOKEN_LOCK_APP")
+		lockInstance = os.Getenv("FLY_TOKEN_LOCK_INSTANCE")
+		metadata     map[string]interface{}
+	)
+
+	if lockOrg != "" || lockApp != "" || lockInstance != "" {
+		metadata = map[string]interface{}{}
+		args["metadata"] = metadata
+	}
+	if lockOrg != "" {
+		metadata["lock_organization"] = lockOrg
+	}
+	if lockApp != "" {
+		metadata["lock_app"] = lockApp
+	}
+	if lockInstance != "" {
+		metadata["lock_instance"] = lockInstance
+	}
+
+	auth, err := fly.StartCLISession(state.Hostname(ctx), args)
 	if err != nil {
 		return "", err
 	}
