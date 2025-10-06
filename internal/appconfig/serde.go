@@ -18,7 +18,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s
@@ -52,6 +52,32 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	cfg.configFilePath = path
 	// cfg.WriteToFile("patched-fly.toml")
 	return cfg, nil
+}
+
+// LoadConfigAsMap loads the config as a map, which is useful for strict validation.
+func LoadConfigAsMap(path string) (rawConfig map[string]any, err error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// First unmarshal to get raw config map
+	rawConfig = map[string]any{}
+	if strings.HasSuffix(path, ".json") {
+		err = json.Unmarshal(buf, &rawConfig)
+	} else if strings.HasSuffix(path, ".yaml") {
+		err = yaml.Unmarshal(buf, &rawConfig)
+		if err == nil {
+			stringifyYAMLMapKeys(rawConfig)
+		}
+	} else {
+		err = toml.Unmarshal(buf, &rawConfig)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return patchRoot(rawConfig)
 }
 
 func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {

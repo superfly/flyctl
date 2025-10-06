@@ -49,6 +49,11 @@ func newCreate() *cobra.Command {
 			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
+			Name:        "scheduled-snapshots",
+			Description: "Enable scheduled automatic snapshots",
+			Default:     true,
+		},
+		flag.Bool{
 			Name:        "no-encryption",
 			Description: "Do not encrypt the volume contents. Volume contents are encrypted by default.",
 			Default:     false,
@@ -57,6 +62,11 @@ func newCreate() *cobra.Command {
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes to help ensure availability",
 			Default:     true,
+		},
+		flag.Bool{
+			Name:        "unique-zone-app-wide",
+			Description: "Checks all volumes in app for unique zone handling, instead of only volumes with the same name (which is the default)",
+			Default:     false,
 		},
 		flag.String{
 			Name:        "snapshot-id",
@@ -151,11 +161,17 @@ func runCreate(ctx context.Context) error {
 		SizeGb:              fly.Pointer(flag.GetInt(ctx, "size")),
 		Encrypted:           fly.Pointer(!flag.GetBool(ctx, "no-encryption")),
 		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
 		FSType:              fsType,
 	}
+
+	if flag.IsSpecified(ctx, "scheduled-snapshots") {
+		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
+	}
+
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
 		volume, err := flapsClient.CreateVolume(ctx, input)

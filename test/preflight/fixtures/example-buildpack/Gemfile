@@ -11,4 +11,4 @@ gem "rack"
 # https://bugs.ruby-lang.org/issues/17303
 gem "puma"
 
-gem "sinatra"
+gem "sinatra", "~> 4.1"

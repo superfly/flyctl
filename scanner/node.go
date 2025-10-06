@@ -50,12 +50,12 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	vars := make(map[string]interface{})
 
-	var yarnVersion string = "latest"
+	var yarnVersion = "latest"
 
 	// node-build requires a version, so either use the same version as install locally,
 	// or default to an LTS version
-	var nodeLtsVersion string = "18.16.0"
-	var nodeVersion string = nodeLtsVersion
+	var nodeLtsVersion = "18.16.0"
+	var nodeVersion = nodeLtsVersion
 
 	out, err := exec.Command("node", "-v").Output()
 

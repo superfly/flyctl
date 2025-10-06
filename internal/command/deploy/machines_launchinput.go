@@ -7,21 +7,29 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	mConfig := machine.CloneConfig(origMachineRaw.Config)
 	md.setMachineReleaseData(mConfig)
 
 	return &fly.LaunchMachineInput{
-		ID:         origMachineRaw.ID,
-		Config:     mConfig,
-		Region:     origMachineRaw.Region,
-		SkipLaunch: skipLaunch(origMachineRaw, mConfig),
-	}
+		ID:                origMachineRaw.ID,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		SkipLaunch:        skipLaunch(origMachineRaw, mConfig),
+		MinSecretsVersion: minvers,
+	}, nil
 }
 
 func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
@@ -59,10 +67,21 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	// Update container image
+	if err = md.updateContainerImage(mConfig); err != nil {
+		return nil, err
+	}
+
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
-		Region:     region,
-		Config:     mConfig,
-		SkipLaunch: skipLaunch(nil, mConfig),
+		Region:            region,
+		Config:            mConfig,
+		SkipLaunch:        skipLaunch(nil, mConfig),
+		MinSecretsVersion: minvers,
 	}, nil
 }
 
@@ -85,6 +104,35 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()
+
+	// Update container image
+	if err = md.updateContainerImage(mConfig); err != nil {
+		return nil, err
+	}
+
+	// Ensure container files are re-processed if they reference local files
+	// This is necessary because local files may have been updated since initial parsing
+	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != nil)) && hasContainerFiles(mConfig) {
+		// Re-parse the container config to get fresh file content
+		composePath := ""
+		if md.appConfig.Build != nil && md.appConfig.Build.Compose != nil {
+			// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+			composePath = md.appConfig.DetectComposeFile()
+		}
+		tempConfig := &fly.MachineConfig{}
+		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath(), md.appConfig.Container)
+		if err == nil && len(tempConfig.Containers) > 0 {
+			// Apply container files from the re-parsed config
+			for _, container := range mConfig.Containers {
+				for _, tempContainer := range tempConfig.Containers {
+					if container.Name == tempContainer.Name && len(tempContainer.Files) > 0 {
+						// Update container files with fresh content
+						container.Files = tempContainer.Files
+					}
+				}
+			}
+		}
+	}
 
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
@@ -184,13 +232,30 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
 		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
+		MinSecretsVersion:   minvers,
 	}, nil
+}
+
+// hasContainerFiles returns true if any container has file configurations
+// that might need refreshing from local sources
+func hasContainerFiles(mConfig *fly.MachineConfig) bool {
+	for _, container := range mConfig.Containers {
+		if len(container.Files) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
@@ -217,6 +282,10 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	} else {
 		delete(mConfig.Metadata, fly.MachineConfigMetadataKeyFlyManagedPostgres)
 	}
+
+	if md.builderID != "" {
+		mConfig.Metadata["fly_builder_id"] = md.builderID
+	}
 }
 
 // Skip launching currently-stopped or suspended machines if:
@@ -241,4 +310,17 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 		}
 	}
 	return false
+}
+
+// updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
+func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
+	if len(mConfig.Containers) != 0 {
+		for i := range mConfig.Containers {
+			if mConfig.Containers[i].Image == "." {
+				mConfig.Containers[i].Image = mConfig.Image
+			}
+		}
+	}
+
+	return nil
 }

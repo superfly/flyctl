@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -23,6 +22,11 @@ var sharedFlags = flag.Set{
 	flag.Bool{
 		Name:        "stage",
 		Description: "Set secrets but skip deployment for machine apps",
+	},
+	flag.Bool{
+		Name:        "dns-checks",
+		Description: "Perform DNS checks during deployment",
+		Default:     true,
 	},
 }
 
@@ -41,6 +45,7 @@ func New() *cobra.Command {
 	secrets.AddCommand(
 		newList(),
 		newSet(),
+		newSync(),
 		newUnset(),
 		newImport(),
 		newDeploy(),
@@ -50,24 +55,26 @@ func New() *cobra.Command {
 	return secrets
 }
 
-func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
+type DeploymentArgs struct {
+	Stage    bool
+	Detach   bool
+	CheckDNS bool
+}
+
+// DeploySecrets deploys machines with the new secret if this step is not to be skipped.
+func DeploySecrets(ctx context.Context, app *fly.AppCompact, args DeploymentArgs) error {
 	out := iostreams.FromContext(ctx).Out
 
-	if stage {
+	if args.Stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
 		return nil
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		return fmt.Errorf("flaps client missing from context")
+	}
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
@@ -88,7 +95,8 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach 
 	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
 		AppCompact:       app,
 		RestartOnly:      true,
-		SkipHealthChecks: detach,
+		SkipHealthChecks: args.Detach,
+		SkipDNSChecks:    args.Detach || !args.CheckDNS,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
