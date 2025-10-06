@@ -7,8 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -52,12 +54,13 @@ func runKeyDelete(ctx context.Context) (err error) {
 		return err
 	}
 
-	flapsClient, err := getFlapsClient(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
 	if err != nil {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecrets(ctx)
+	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -66,7 +69,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 	var rerr error
 	out := iostreams.FromContext(ctx).Out
 	for _, secret := range secrets {
-		ver2, prefix2, err := SplitLabelKeyver(secret.Label)
+		ver2, prefix2, err := SplitLabelKeyver(secret.Name)
 		if err != nil {
 			continue
 		}
@@ -87,7 +90,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 		}
 
 		if !flag.GetBool(ctx, "force") {
-			confirm, err := prompt.Confirm(ctx, fmt.Sprintf("delete secrets key %s?", secret.Label))
+			confirm, err := prompt.Confirm(ctx, fmt.Sprintf("delete secrets key %s?", secret.Name))
 			if err != nil {
 				rerr = errors.Join(rerr, err)
 				continue
@@ -97,15 +100,15 @@ func runKeyDelete(ctx context.Context) (err error) {
 			}
 		}
 
-		err = flapsClient.DeleteSecret(ctx, secret.Label)
+		err = flapsClient.DeleteSecretKey(ctx, secret.Name)
 		if err != nil {
 			var ferr *flaps.FlapsError
 			if errors.As(err, &ferr) && ferr.ResponseStatusCode == 404 {
 				err = fmt.Errorf("not found")
 			}
-			rerr = errors.Join(rerr, fmt.Errorf("deleting %v: %w", secret.Label, err))
+			rerr = errors.Join(rerr, fmt.Errorf("deleting %v: %w", secret.Name, err))
 		} else {
-			fmt.Fprintf(out, "Deleted %v\n", secret.Label)
+			fmt.Fprintf(out, "Deleted %v\n", secret.Name)
 		}
 	}
 	return rerr

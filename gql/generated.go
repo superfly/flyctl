@@ -455,6 +455,8 @@ type AppData struct {
 	Deployed bool   `json:"deployed"`
 	// Fly platform version
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+	// Target to use for for CNAME DNS records
+	CnameTarget string `json:"cnameTarget"`
 	// Secrets set on the application
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 	// Organization that owns this app
@@ -472,6 +474,9 @@ func (v *AppData) GetDeployed() bool { return v.Deployed }
 
 // GetPlatformVersion returns AppData.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *AppData) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
+
+// GetCnameTarget returns AppData.CnameTarget, and is useful for accessing the field via an interface.
+func (v *AppData) GetCnameTarget() string { return v.CnameTarget }
 
 // GetSecrets returns AppData.Secrets, and is useful for accessing the field via an interface.
 func (v *AppData) GetSecrets() []AppDataSecretsSecret { return v.Secrets }
@@ -503,6 +508,12 @@ func (v *AppDataOrganization) GetAddOnSsoLink() string { return v.OrganizationDa
 func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool {
 	return v.OrganizationData.ProvisionsBetaExtensions
 }
+
+// GetName returns AppDataOrganization.Name, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetName() string { return v.OrganizationData.Name }
+
+// GetBillable returns AppDataOrganization.Billable, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetBillable() bool { return v.OrganizationData.Billable }
 
 func (v *AppDataOrganization) UnmarshalJSON(b []byte) error {
 
@@ -541,6 +552,10 @@ type __premarshalAppDataOrganization struct {
 	AddOnSsoLink string `json:"addOnSsoLink"`
 
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+
+	Name string `json:"name"`
+
+	Billable bool `json:"billable"`
 }
 
 func (v *AppDataOrganization) MarshalJSON() ([]byte, error) {
@@ -560,6 +575,8 @@ func (v *AppDataOrganization) __premarshalJSON() (*__premarshalAppDataOrganizati
 	retval.PaidPlan = v.OrganizationData.PaidPlan
 	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
+	retval.Name = v.OrganizationData.Name
+	retval.Billable = v.OrganizationData.Billable
 	return &retval, nil
 }
 
@@ -726,6 +743,9 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) GetPlatformVersion() PlatformVer
 	return v.AppData.PlatformVersion
 }
 
+// GetCnameTarget returns CreateAppCreateAppCreateAppPayloadApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *CreateAppCreateAppCreateAppPayloadApp) GetCnameTarget() string { return v.AppData.CnameTarget }
+
 // GetSecrets returns CreateAppCreateAppCreateAppPayloadApp.Secrets, and is useful for accessing the field via an interface.
 func (v *CreateAppCreateAppCreateAppPayloadApp) GetSecrets() []AppDataSecretsSecret {
 	return v.AppData.Secrets
@@ -774,6 +794,8 @@ type __premarshalCreateAppCreateAppCreateAppPayloadApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -796,6 +818,7 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) __premarshalJSON() (*__premarsha
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1576,6 +1599,9 @@ func (v *GetAddOnAddOnApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAddOnAddOnApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetCnameTarget returns GetAddOnAddOnApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetCnameTarget() string { return v.AppData.CnameTarget }
+
 // GetSecrets returns GetAddOnAddOnApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
 
@@ -1616,6 +1642,8 @@ type __premarshalGetAddOnAddOnApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1636,6 +1664,7 @@ func (v *GetAddOnAddOnApp) __premarshalJSON() (*__premarshalGetAddOnAddOnApp, er
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1862,6 +1891,9 @@ func (v *GetAppApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetCnameTarget returns GetAppApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetCnameTarget() string { return v.AppData.CnameTarget }
+
 // GetSecrets returns GetAppApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
 
@@ -1902,6 +1934,8 @@ type __premarshalGetAppApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1922,6 +1956,7 @@ func (v *GetAppApp) __premarshalJSON() (*__premarshalGetAppApp, error) {
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1958,6 +1993,9 @@ func (v *GetAppWithAddonsApp) GetDeployed() bool { return v.AppData.Deployed }
 func (v *GetAppWithAddonsApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
 }
+
+// GetCnameTarget returns GetAppWithAddonsApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetCnameTarget() string { return v.AppData.CnameTarget }
 
 // GetSecrets returns GetAppWithAddonsApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
@@ -2001,6 +2039,8 @@ type __premarshalGetAppWithAddonsApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -2022,6 +2062,7 @@ func (v *GetAppWithAddonsApp) __premarshalJSON() (*__premarshalGetAppWithAddonsA
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -2183,6 +2224,11 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetPlatformVersion() PlatformVe
 	return v.AppData.PlatformVersion
 }
 
+// GetCnameTarget returns GetAppsByRoleAppsAppConnectionNodesApp.CnameTarget, and is useful for accessing the field via an interface.
+func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetCnameTarget() string {
+	return v.AppData.CnameTarget
+}
+
 // GetSecrets returns GetAppsByRoleAppsAppConnectionNodesApp.Secrets, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetSecrets() []AppDataSecretsSecret {
 	return v.AppData.Secrets
@@ -2227,6 +2273,8 @@ type __premarshalGetAppsByRoleAppsAppConnectionNodesApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	CnameTarget string `json:"cnameTarget"`
+
 	Secrets []AppDataSecretsSecret `json:"secrets"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -2247,6 +2295,7 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) __premarshalJSON() (*__premarsh
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.CnameTarget = v.AppData.CnameTarget
 	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -2336,6 +2385,12 @@ func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
 	return v.OrganizationData.ProvisionsBetaExtensions
 }
 
+// GetName returns GetOrganizationOrganization.Name, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetName() string { return v.OrganizationData.Name }
+
+// GetBillable returns GetOrganizationOrganization.Billable, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetBillable() bool { return v.OrganizationData.Billable }
+
 func (v *GetOrganizationOrganization) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2373,6 +2428,10 @@ type __premarshalGetOrganizationOrganization struct {
 	AddOnSsoLink string `json:"addOnSsoLink"`
 
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+
+	Name string `json:"name"`
+
+	Billable bool `json:"billable"`
 }
 
 func (v *GetOrganizationOrganization) MarshalJSON() ([]byte, error) {
@@ -2392,6 +2451,8 @@ func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrgani
 	retval.PaidPlan = v.OrganizationData.PaidPlan
 	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
+	retval.Name = v.OrganizationData.Name
+	retval.Billable = v.OrganizationData.Billable
 	return &retval, nil
 }
 
@@ -2598,6 +2659,9 @@ type OrganizationData struct {
 	AddOnSsoLink string `json:"addOnSsoLink"`
 	// Whether the organization can provision beta extensions
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+	// Organization name
+	Name     string `json:"name"`
+	Billable bool   `json:"billable"`
 }
 
 // GetId returns OrganizationData.Id, and is useful for accessing the field via an interface.
@@ -2617,6 +2681,12 @@ func (v *OrganizationData) GetAddOnSsoLink() string { return v.AddOnSsoLink }
 
 // GetProvisionsBetaExtensions returns OrganizationData.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
 func (v *OrganizationData) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
+
+// GetName returns OrganizationData.Name, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetName() string { return v.Name }
+
+// GetBillable returns OrganizationData.Billable, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetBillable() bool { return v.Billable }
 
 type PlatformVersionEnum string
 
@@ -3001,11 +3071,15 @@ func (v *__CreateTosAgreementInput) GetProviderName() string { return v.Provider
 
 // __DeleteAddOnInput is used internally by genqlient
 type __DeleteAddOnInput struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
 }
 
 // GetName returns __DeleteAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__DeleteAddOnInput) GetName() string { return v.Name }
+
+// GetProvider returns __DeleteAddOnInput.Provider, and is useful for accessing the field via an interface.
+func (v *__DeleteAddOnInput) GetProvider() string { return v.Provider }
 
 // __FlyctlConfigCurrentReleaseInput is used internally by genqlient
 type __FlyctlConfigCurrentReleaseInput struct {
@@ -3345,6 +3419,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3359,6 +3434,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 `
 
@@ -3509,8 +3586,8 @@ func CreateTosAgreement(
 
 // The mutation executed by DeleteAddOn.
 const DeleteAddOn_Operation = `
-mutation DeleteAddOn ($name: String) {
-	deleteAddOn(input: {name:$name}) {
+mutation DeleteAddOn ($name: String, $provider: String) {
+	deleteAddOn(input: {name:$name,provider:$provider}) {
 		deletedAddOnName
 	}
 }
@@ -3520,12 +3597,14 @@ func DeleteAddOn(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	name string,
+	provider string,
 ) (data_ *DeleteAddOnResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "DeleteAddOn",
 		Query:  DeleteAddOn_Operation,
 		Variables: &__DeleteAddOnInput{
-			Name: name,
+			Name:     name,
+			Provider: provider,
 		},
 	}
 
@@ -3644,6 +3723,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3658,6 +3738,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 `
 
@@ -3755,6 +3837,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3769,6 +3852,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 `
 
@@ -3814,6 +3899,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3837,6 +3923,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 `
 
@@ -3881,6 +3969,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -3895,6 +3984,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 `
 
@@ -4007,6 +4098,8 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
 }
 `
 

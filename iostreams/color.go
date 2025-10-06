@@ -2,6 +2,8 @@ package iostreams
 
 import (
 	"fmt"
+	"github.com/samber/lo"
+	"math"
 	"os"
 	"strings"
 
@@ -48,16 +50,28 @@ func Is256ColorSupported() bool {
 		strings.Contains(colorterm, "truecolor")
 }
 
-func NewColorScheme(enabled, is256enabled bool) *ColorScheme {
+func IsTrueColor() bool {
+	term := os.Getenv("TERM")
+	colorterm := os.Getenv("COLORTERM")
+
+	return strings.Contains(term, "24bit") ||
+		strings.Contains(term, "truecolor") ||
+		strings.Contains(colorterm, "24bit") ||
+		strings.Contains(colorterm, "truecolor")
+}
+
+func NewColorScheme(enabled, is256enabled, trueColor bool) *ColorScheme {
 	return &ColorScheme{
 		enabled:      enabled,
 		is256enabled: is256enabled,
+		trueColor:    trueColor,
 	}
 }
 
 type ColorScheme struct {
 	enabled      bool
 	is256enabled bool
+	trueColor    bool
 }
 
 func (c *ColorScheme) Bold(t string) string {
@@ -183,4 +197,25 @@ func (c *ColorScheme) ColorFromString(s string) func(string) string {
 	}
 
 	return fn
+}
+
+// RedGreenGradient wraps a string in an ANSI red-green color gradient at a value between 0-1.
+func (c *ColorScheme) RedGreenGradient(s string, value float64) string {
+	if !c.enabled {
+		return s
+	}
+	value = lo.Clamp(value, 0, 1)
+	if c.trueColor {
+		return fmt.Sprintf("\x1b[38;2;%d;%d;%dm%s\x1b[0m",
+			int(math.Min(255, 2*255*(1-value))),
+			int(math.Min(255, 2*255*value)),
+			0,
+			s,
+		)
+	}
+	colors := []string{"red", "yellow+h", "green", "green+h", "green+bh"}
+	if c.is256enabled {
+		colors = []string{"196", "202", "208", "214", "220", "190", "154", "118", "82", "46"}
+	}
+	return ansi.Color(s, colors[int(float64(len(colors)-1)*value)])
 }

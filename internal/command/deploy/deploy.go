@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
@@ -53,6 +54,9 @@ var CommonFlags = flag.Set{
 	flag.Depot(),
 	flag.DepotScope(),
 	flag.Nixpacks(),
+	flag.BuildkitAddr(),
+	flag.BuildkitImage(),
+	flag.Buildkit(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
 	flag.BpVolume(),
@@ -124,6 +128,10 @@ var CommonFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "primary-region",
+		Description: "Override primary region in fly.toml configuration.",
+	},
 	flag.StringSlice{
 		Name:        "regions",
 		Aliases:     []string{"only-regions"},
@@ -174,6 +182,15 @@ var CommonFlags = flag.Set{
 		Description: "Number of times to retry a deployment if it fails",
 		Default:     "auto",
 	},
+	flag.String{
+		Name:        "builder-pool",
+		Default:     "auto",
+		NoOptDefVal: "true",
+		Description: "Experimental: Use pooled builder from Fly.io",
+		Hidden:      true,
+	},
+	flag.Compression(),
+	flag.CompressionLevel(),
 }
 
 type Command struct {
@@ -194,6 +211,7 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
+		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -243,7 +261,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
@@ -273,6 +295,14 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
+
+	if err := validation.ValidateCompressionFlag(flag.GetString(ctx, "compression")); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionLevelFlag(flag.GetInt(ctx, "compression-level")); err != nil {
+		return err
+	}
 
 	var manifestPath = flag.GetString(ctx, "from-manifest")
 
@@ -518,10 +548,15 @@ func deployToMachines(
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
 	status.Image = img.Tag
-	status.PrimaryRegion = cfg.PrimaryRegion
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
 		status.Strategy = flag.GetString(ctx, "strategy")
+	}
+
+	if flag.IsSpecified(ctx, "primary-region") {
+		status.PrimaryRegion = flag.GetString(ctx, "primary-region")
+	} else {
+		status.PrimaryRegion = cfg.PrimaryRegion
 	}
 
 	status.FlyctlVersion = buildinfo.Info().Version.String()
@@ -536,7 +571,7 @@ func deployToMachines(
 		deployRetries = int(retries)
 
 	default:
-		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		var invalidRetriesErr = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
 		retries, err := strconv.Atoi(retriesFlag)
 		if err != nil {
 			return invalidRetriesErr
@@ -561,7 +596,7 @@ func deployToMachines(
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     cfg.PrimaryRegion,
+		PrimaryRegionFlag:     status.PrimaryRegion,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
@@ -586,6 +621,7 @@ func deployToMachines(
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
 		BuildID:               img.BuildID,
+		BuilderID:             img.BuilderID,
 	}
 
 	var path = flag.GetString(ctx, "export-manifest")
