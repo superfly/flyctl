@@ -78,6 +78,8 @@ func newPropose() *cobra.Command {
 			Description: "Don't allow a \"blank\" app (nothing could be detected)",
 			Default:     true,
 		},
+		flag.Compression(),
+		flag.CompressionLevel(),
 	)
 
 	return cmd
