@@ -28,10 +28,11 @@ type IOStreams struct {
 	ErrOut io.Writer
 
 	// the original (non-colorable) output stream
-	originalOut   io.Writer
-	colorEnabled  bool
-	is256enabled  bool
-	terminalTheme string
+	originalOut        io.Writer
+	colorEnabled       bool
+	is256enabled       bool
+	isTrueColorEnabled bool
+	terminalTheme      string
 
 	progressIndicatorEnabled bool
 	progressIndicator        *spinner.Spinner
@@ -57,6 +58,10 @@ func (s *IOStreams) ColorEnabled() bool {
 
 func (s *IOStreams) ColorSupport256() bool {
 	return s.is256enabled
+}
+
+func (s *IOStreams) ColorSupportTrueColor() bool {
+	return s.isTrueColorEnabled
 }
 
 func (s *IOStreams) DetectTerminalTheme() string {
@@ -290,7 +295,7 @@ func (s *IOStreams) TerminalWidth() int {
 }
 
 func (s *IOStreams) ColorScheme() *ColorScheme {
-	return NewColorScheme(s.ColorEnabled(), s.ColorSupport256())
+	return NewColorScheme(s.ColorEnabled(), s.ColorSupport256(), s.ColorSupportTrueColor())
 }
 
 func (s *IOStreams) ReadUserFile(fn string) ([]byte, error) {
@@ -371,13 +376,14 @@ func System() *IOStreams {
 	pagerCommand := os.Getenv("PAGER")
 
 	io := &IOStreams{
-		In:           os.Stdin,
-		originalOut:  os.Stdout,
-		Out:          colorableOut(os.Stdout),
-		ErrOut:       colorable.NewColorable(os.Stderr),
-		colorEnabled: EnvColorForced() || (!EnvColorDisabled() && stdoutIsTTY),
-		is256enabled: Is256ColorSupported(),
-		pagerCommand: pagerCommand,
+		In:                 os.Stdin,
+		originalOut:        os.Stdout,
+		Out:                colorableOut(os.Stdout),
+		ErrOut:             colorable.NewColorable(os.Stderr),
+		colorEnabled:       EnvColorForced() || (!EnvColorDisabled() && stdoutIsTTY),
+		is256enabled:       Is256ColorSupported(),
+		isTrueColorEnabled: IsTrueColor(),
+		pagerCommand:       pagerCommand,
 	}
 
 	if stdoutIsTTY && stderrIsTTY {

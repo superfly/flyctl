@@ -10,11 +10,13 @@ import (
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -53,8 +55,12 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "select",
 			Shorthand:   "s",
-			Description: "Select the machine on which to execute the console from a list.",
+			Description: "Select the machine and container on which to execute the console from a list.",
 			Default:     false,
+		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to connect to",
 		},
 		flag.String{
 			Name:        "user",
@@ -210,7 +216,7 @@ func runConsole(ctx context.Context) error {
 		defer cleanup()
 	}
 
-	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, *network, false)
+	_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, *network, false)
 	if err != nil {
 		return err
 	}
@@ -221,6 +227,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
+		Container:      flag.GetString(ctx, "container"),
 		AppNames:       []string{app.Name},
 	}
 	sshClient, err := ssh.Connect(params, machine.PrivateIP)
@@ -234,7 +241,7 @@ func runConsole(ctx context.Context) error {
 		consoleCommand = flag.GetString(ctx, "command")
 	}
 
-	return ssh.Console(ctx, sshClient, consoleCommand, true)
+	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
 }
 
 func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
@@ -389,10 +396,16 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 		machConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	input := &machine.EphemeralInput{
 		LaunchInput: fly.LaunchMachineInput{
-			Config: machConfig,
-			Region: config.FromContext(ctx).Region,
+			Config:            machConfig,
+			Region:            config.FromContext(ctx).Region,
+			MinSecretsVersion: minvers,
 		},
 		What: "to run the console",
 	}

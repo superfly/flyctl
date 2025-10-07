@@ -3,6 +3,7 @@ package scale
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"golang.org/x/exp/maps"
 )
 
 func newScaleCount() *cobra.Command {
@@ -75,7 +75,7 @@ func runScaleCount(ctx context.Context) error {
 		return err
 	}
 
-	unknownNames := lo.Filter(maps.Keys(groups), func(x string, _ int) bool {
+	unknownNames := lo.Filter(slices.Collect(maps.Keys(groups)), func(x string, _ int) bool {
 		return !slices.Contains(processNames, x)
 	})
 	if len(unknownNames) > 0 {

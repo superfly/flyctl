@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
@@ -94,7 +94,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var enableEviction bool = false
+	var enableEviction = false
 
 	if flag.GetBool(ctx, "enable-eviction") {
 		enableEviction = true
@@ -146,7 +146,7 @@ func Create(ctx context.Context, org *fly.Organization, name string, region *fly
 		}
 	}
 
-	plan, err := DeterminePlan(ctx, org)
+	plan, err := DeterminePlan(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisC
 	return &response.CreateAddOn.AddOn, nil
 }
 
-func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
+func DeterminePlan(ctx context.Context) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	planId := redisPlanPayAsYouGo

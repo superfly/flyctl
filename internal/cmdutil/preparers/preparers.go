@@ -132,7 +132,7 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			errorMessages = append(errorMessages, fmt.Sprintf("flags '%v' have different types", invalidTypes))
 		}
 		if len(errorMessages) > 1 {
-			err = fmt.Errorf("multiple errors occured:\n > %s\n", strings.Join(errorMessages, "\n > "))
+			err = fmt.Errorf("multiple errors occurred:\n > %s\n", strings.Join(errorMessages, "\n > "))
 		} else if len(errorMessages) == 1 {
 			err = fmt.Errorf("%s", errorMessages[0])
 		}

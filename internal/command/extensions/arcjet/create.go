@@ -67,7 +67,11 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
+		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+			Stage:    false,
+			Detach:   false,
+			CheckDNS: true,
+		})
 	}
 
 	return
