@@ -97,6 +97,11 @@ func newCreate() *cobra.Command {
 			Default:     "",
 			Hidden:      true,
 		},
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 		flag.Compression(),
 		flag.CompressionLevel(),
 	)
