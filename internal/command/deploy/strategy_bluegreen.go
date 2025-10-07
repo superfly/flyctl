@@ -175,7 +175,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 			}
 
 			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw, true)
-			defer greenMachine.ReleaseLease(ctx)
+			defer releaseLease(ctx, greenMachine)
 
 			lock.Lock()
 			defer lock.Unlock()
@@ -414,7 +414,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 					return
 				}
 
-				status := updateMachine.TopLevelChecks()
+				status := updateMachine.AllHealthChecks()
 				bg.healthLock.Lock()
 				machineIDToHealthStatus[m.FormattedMachineId()] = status
 				bg.healthLock.Unlock()
@@ -628,43 +628,6 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	return nil
 }
 
-func (bg *blueGreen) attachCustomTopLevelChecks() {
-	for _, entry := range bg.blueMachines {
-		for _, service := range entry.launchInput.Config.Services {
-			servicePort := service.InternalPort
-			serviceProtocol := service.Protocol
-
-			for _, check := range service.Checks {
-				cc := fly.MachineCheck{
-					Port:              check.Port,
-					Type:              check.Type,
-					Interval:          check.Interval,
-					Timeout:           check.Timeout,
-					GracePeriod:       check.GracePeriod,
-					HTTPMethod:        check.HTTPMethod,
-					HTTPPath:          check.HTTPPath,
-					HTTPProtocol:      check.HTTPProtocol,
-					HTTPSkipTLSVerify: check.HTTPSkipTLSVerify,
-					HTTPHeaders:       check.HTTPHeaders,
-				}
-
-				if cc.Port == nil {
-					cc.Port = &servicePort
-				}
-
-				if cc.Type == nil {
-					cc.Type = &serviceProtocol
-				}
-
-				if entry.launchInput.Config.Checks == nil {
-					entry.launchInput.Config.Checks = make(map[string]fly.MachineCheck)
-				}
-				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
-			}
-		}
-	}
-}
-
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "bluegreen")
 	defer span.End()
@@ -696,19 +659,24 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return err
 	}
 
-	bg.attachCustomTopLevelChecks()
-
-	totalChecks := 0
+	totalMachinesWithChecks := 0
 	for _, entry := range bg.blueMachines {
-		if len(entry.launchInput.Config.Checks) == 0 {
+		machineChecks := len(entry.launchInput.Config.Checks)
+
+		// Also count service-level checks
+		for _, service := range entry.launchInput.Config.Services {
+			machineChecks += len(service.Checks)
+		}
+
+		if machineChecks == 0 {
 			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check its health.", entry.leasableMachine.FormattedMachineId())
 			continue
 		}
 
-		totalChecks++
+		totalMachinesWithChecks++
 	}
 
-	if totalChecks == 0 && len(bg.blueMachines) != 0 {
+	if totalMachinesWithChecks == 0 && len(bg.blueMachines) != 0 {
 		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
 		return ErrValidationError
 	}

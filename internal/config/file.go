@@ -77,13 +77,22 @@ func SetWireGuardWebsocketsEnabled(path string, enabled bool) error {
 	})
 }
 
+type AppSecretsMinvers map[string]uint64
+
+func SetAppSecretsMinvers(path string, minvers AppSecretsMinvers) error {
+	return set(path, map[string]interface{}{
+		AppSecretsMinverFileKey: minvers,
+	})
+}
+
 // Clear clears the access token, metrics token, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {
 	return set(path, map[string]interface{}{
-		AccessTokenFileKey:    "",
-		MetricsTokenFileKey:   "",
-		WireGuardStateFileKey: map[string]interface{}{},
+		AccessTokenFileKey:      "",
+		MetricsTokenFileKey:     "",
+		WireGuardStateFileKey:   map[string]interface{}{},
+		AppSecretsMinverFileKey: AppSecretsMinvers{},
 	})
 }
 

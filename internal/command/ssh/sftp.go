@@ -15,6 +15,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -37,6 +38,7 @@ func NewSFTP() *cobra.Command {
 		newFind(),
 		newSFTPShell(),
 		newGet(),
+		newPut(),
 	)
 
 	return cmd
@@ -74,12 +76,52 @@ func newGet() *cobra.Command {
 	const (
 		long  = `The SFTP GET retrieves a file from a remote VM.`
 		short = long
-		usage = "get <path>"
+		usage = "get <remote-path> [local-path]"
 	)
 
 	cmd := command.New(usage, short, long, runGet, command.RequireSession, command.RequireAppName)
 
 	cmd.Args = cobra.MaximumNArgs(2)
+
+	flag.Add(cmd,
+		flag.Bool{
+			Name:        "recursive",
+			Shorthand:   "R",
+			Description: "Download directories recursively",
+			Default:     false,
+		},
+	)
+
+	stdArgsSSH(cmd)
+
+	return cmd
+}
+
+func newPut() *cobra.Command {
+	const (
+		long  = `The SFTP PUT uploads a file to a remote VM.`
+		short = long
+		usage = "put <local-path> [remote-path]"
+	)
+
+	cmd := command.New(usage, short, long, runPut, command.RequireSession, command.RequireAppName)
+
+	cmd.Args = cobra.RangeArgs(1, 2)
+
+	flag.Add(cmd,
+		flag.String{
+			Name:        "mode",
+			Shorthand:   "m",
+			Description: "File mode/permissions for the uploaded file (default: 0644)",
+			Default:     "0644",
+		},
+		flag.Bool{
+			Name:        "recursive",
+			Shorthand:   "R",
+			Description: "Upload directories recursively",
+			Default:     false,
+		},
+	)
 
 	stdArgsSSH(cmd)
 
@@ -100,12 +142,12 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, fmt.Errorf("get app network: %w", err)
 	}
 
-	agentclient, dialer, err := BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
 	if err != nil {
 		return nil, err
 	}
 
-	addr, err := lookupAddress(ctx, agentclient, dialer, app, false)
+	addr, container, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, false)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +158,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		Dialer:         dialer,
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,
+		Container:      container,
 		AppNames:       []string{app.Name},
 	}
 
@@ -183,6 +226,20 @@ func runGet(ctx context.Context) error {
 		return err
 	}
 
+	// Check if remote is a directory
+	remoteInfo, err := ftp.Stat(remote)
+	if err != nil {
+		return fmt.Errorf("get: remote path %s: %w", remote, err)
+	}
+
+	if remoteInfo.IsDir() {
+		recursive := flag.GetBool(ctx, "recursive")
+		if !recursive {
+			return fmt.Errorf("remote path %s is a directory. Use -R/--recursive flag to download directories", remote)
+		}
+		return runGetDir(ctx, ftp, remote, local)
+	}
+
 	rf, err := ftp.Open(remote)
 	if err != nil {
 		return fmt.Errorf("get: remote file %s: %w", remote, err)
@@ -202,6 +259,307 @@ func runGet(ctx context.Context) error {
 
 	fmt.Printf("%d bytes written to %s\n", bytes, local)
 	return f.Sync()
+}
+
+func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) error {
+	// Check if target directory already exists
+	if _, err := os.Stat(local); err == nil {
+		return fmt.Errorf("directory %s already exists. flyctl sftp doesn't override existing directories for safety", local)
+	}
+
+	// Create temporary ZIP file
+	tempZip, err := os.CreateTemp("", "flyctl-sftp-*.zip")
+	if err != nil {
+		return fmt.Errorf("create temporary zip file: %w", err)
+	}
+	defer os.Remove(tempZip.Name()) // Clean up temp file
+	defer tempZip.Close()
+
+	z := zip.NewWriter(tempZip)
+	walker := ftp.Walk(remote)
+	totalBytes := int64(0)
+
+	// Download all files into ZIP
+	for walker.Step() {
+		if err = walker.Err(); err != nil {
+			return fmt.Errorf("walk remote directory: %w", err)
+		}
+
+		rfpath := walker.Path()
+
+		inf, err := ftp.Stat(rfpath)
+		if err != nil {
+			fmt.Printf("warning: stat %s: %s\n", rfpath, err)
+			continue
+		}
+
+		if inf.IsDir() {
+			continue
+		}
+
+		rf, err := ftp.Open(rfpath)
+		if err != nil {
+			fmt.Printf("warning: open %s: %s\n", rfpath, err)
+			continue
+		}
+
+		// Create relative path for ZIP entry
+		relPath := strings.TrimPrefix(rfpath, remote)
+		relPath = strings.TrimPrefix(relPath, "/")
+		if relPath == "" {
+			relPath = filepath.Base(rfpath)
+		}
+
+		zf, err := z.Create(relPath)
+		if err != nil {
+			rf.Close()
+			fmt.Printf("warning: create zip entry %s: %s\n", relPath, err)
+			continue
+		}
+
+		bytes, err := rf.WriteTo(zf)
+		if err != nil {
+			fmt.Printf("warning: write %s: %s (%d bytes written)\n", relPath, err, bytes)
+		} else {
+			fmt.Printf("downloaded %s (%d bytes)\n", relPath, bytes)
+		}
+		totalBytes += bytes
+
+		rf.Close()
+	}
+
+	// Close ZIP writer and temp file
+	z.Close()
+	tempZip.Close()
+
+	// Extract ZIP to target directory
+	err = extractZip(tempZip.Name(), local)
+	if err != nil {
+		return fmt.Errorf("extract directory: %w", err)
+	}
+
+	fmt.Printf("extracted %d bytes to %s/\n", totalBytes, local)
+	return nil
+}
+
+func extractZip(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// Create destination directory
+	err = os.MkdirAll(dest, 0755)
+	if err != nil {
+		return err
+	}
+
+	// Extract files
+	for _, f := range r.File {
+		path := filepath.Join(dest, f.Name)
+
+		// Security check: ensure path is within destination
+		if !strings.HasPrefix(path, filepath.Clean(dest)+string(os.PathSeparator)) {
+			return fmt.Errorf("invalid file path: %s", f.Name)
+		}
+
+		if f.FileInfo().IsDir() {
+			err = os.MkdirAll(path, f.FileInfo().Mode())
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Create parent directories
+		err = os.MkdirAll(filepath.Dir(path), 0755)
+		if err != nil {
+			return err
+		}
+
+		// Extract file
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+
+		outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode())
+		if err != nil {
+			rc.Close()
+			return err
+		}
+
+		_, err = io.Copy(outFile, rc)
+		outFile.Close()
+		rc.Close()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func runPut(ctx context.Context) error {
+	args := flag.Args(ctx)
+
+	var local, remote string
+
+	switch len(args) {
+	case 0:
+		fmt.Printf("put <local-path> [remote-path]\n")
+		return nil
+
+	case 1:
+		local = args[0]
+		remote = filepath.Base(local)
+
+	default:
+		local = args[0]
+		remote = args[1]
+	}
+
+	// Parse file mode
+	modeStr := flag.GetString(ctx, "mode")
+	mode, err := strconv.ParseInt(modeStr, 8, 16)
+	if err != nil {
+		return fmt.Errorf("invalid file mode '%s': %w", modeStr, err)
+	}
+
+	// Check if local file exists and is readable
+	localInfo, err := os.Stat(local)
+	if err != nil {
+		return fmt.Errorf("local file %s: %w", local, err)
+	}
+
+	ftp, err := newSFTPConnection(ctx)
+	if err != nil {
+		return err
+	}
+
+	if localInfo.IsDir() {
+		recursive := flag.GetBool(ctx, "recursive")
+		if !recursive {
+			return fmt.Errorf("local path %s is a directory. Use -R/--recursive flag to upload directories", local)
+		}
+		return runPutDir(ctx, ftp, local, remote, fs.FileMode(mode))
+	}
+
+	// Check if remote file already exists
+	if _, err := ftp.Stat(remote); err == nil {
+		return fmt.Errorf("remote file %s already exists. flyctl sftp doesn't overwrite existing files for safety", remote)
+	}
+
+	// Open local file
+	localFile, err := os.Open(local)
+	if err != nil {
+		return fmt.Errorf("open local file %s: %w", local, err)
+	}
+	defer localFile.Close()
+
+	// Create remote file
+	remoteFile, err := ftp.OpenFile(remote, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+	if err != nil {
+		return fmt.Errorf("create remote file %s: %w", remote, err)
+	}
+	defer remoteFile.Close()
+
+	// Copy file contents
+	bytes, err := remoteFile.ReadFrom(localFile)
+	if err != nil {
+		return fmt.Errorf("copy file: %w (%d bytes written)", err, bytes)
+	}
+
+	// Set file permissions
+	if err = ftp.Chmod(remote, fs.FileMode(mode)); err != nil {
+		return fmt.Errorf("set file permissions: %w", err)
+	}
+
+	fmt.Printf("%d bytes uploaded to %s\n", bytes, remote)
+	return nil
+}
+
+func runPutDir(ctx context.Context, ftp *sftp.Client, localDir, remoteDir string, mode fs.FileMode) error {
+	// Check if remote directory already exists
+	if _, err := ftp.Stat(remoteDir); err == nil {
+		return fmt.Errorf("remote directory %s already exists. flyctl sftp doesn't overwrite existing directories for safety", remoteDir)
+	}
+
+	totalBytes := int64(0)
+	totalFiles := 0
+
+	err := filepath.Walk(localDir, func(localPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("walk local directory: %w", err)
+		}
+
+		// Create relative path for remote
+		relPath, err := filepath.Rel(localDir, localPath)
+		if err != nil {
+			return fmt.Errorf("get relative path: %w", err)
+		}
+
+		remotePath := filepath.Join(remoteDir, relPath)
+		// Convert to forward slashes for remote paths
+		remotePath = strings.ReplaceAll(remotePath, "\\", "/")
+
+		if info.IsDir() {
+			// Create remote directory
+			err := ftp.MkdirAll(remotePath)
+			if err != nil {
+				return fmt.Errorf("create remote directory %s: %w", remotePath, err)
+			}
+			fmt.Printf("created directory %s\n", remotePath)
+		} else {
+			// Create parent directories if they don't exist
+			remoteDir := filepath.Dir(remotePath)
+			remoteDir = strings.ReplaceAll(remoteDir, "\\", "/")
+			if remoteDir != "." {
+				err := ftp.MkdirAll(remoteDir)
+				if err != nil {
+					return fmt.Errorf("create parent directory %s: %w", remoteDir, err)
+				}
+			}
+
+			// Upload file
+			localFile, err := os.Open(localPath)
+			if err != nil {
+				return fmt.Errorf("open local file %s: %w", localPath, err)
+			}
+			defer localFile.Close()
+
+			remoteFile, err := ftp.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+			if err != nil {
+				return fmt.Errorf("create remote file %s: %w", remotePath, err)
+			}
+			defer remoteFile.Close()
+
+			bytes, err := remoteFile.ReadFrom(localFile)
+			if err != nil {
+				return fmt.Errorf("copy file %s: %w (%d bytes written)", localPath, err, bytes)
+			}
+
+			// Set file permissions
+			if err = ftp.Chmod(remotePath, mode); err != nil {
+				fmt.Printf("warning: set permissions for %s: %s\n", remotePath, err)
+			}
+
+			fmt.Printf("uploaded %s (%d bytes)\n", remotePath, bytes)
+			totalBytes += bytes
+			totalFiles++
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%d files uploaded (%d bytes total) to %s\n", totalFiles, totalBytes, remoteDir)
+	return nil
 }
 
 var completer = readline.NewPrefixCompleter(
