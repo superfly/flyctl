@@ -10,6 +10,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -33,6 +34,7 @@ func newVMSizes() (cmd *cobra.Command) {
 }
 
 func runMachineVMSizes(ctx context.Context) error {
+	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	type preset struct {
@@ -63,27 +65,35 @@ func runMachineVMSizes(ctx context.Context) error {
 		}
 	})
 
-	// Filter and display shared cpu sizes.
-	shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		return p.strings, p.guest.CPUKind == "shared" && p.guest.GPUKind == ""
-	})
-	if err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory"); err != nil {
-		return err
-	}
+	if cfg.JSONOutput {
+		vmSizes := make(map[string]*fly.MachineGuest, len(sortedPresets))
+		for _, preset := range sortedPresets {
+			vmSizes[preset.strings[0]] = preset.guest
+		}
+		return render.JSON(out, vmSizes)
+	} else {
+		// Filter and display shared cpu sizes.
+		shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+			return p.strings, p.guest.CPUKind == "shared" && p.guest.GPUKind == ""
+		})
+		if err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory"); err != nil {
+			return err
+		}
 
-	// Filter and display performance cpu sizes.
-	performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		return p.strings, p.guest.CPUKind == "performance" && p.guest.GPUKind == ""
-	})
-	if err := render.Table(out, "", performance, "Name", "CPU Cores", "Memory"); err != nil {
-		return err
-	}
+		// Filter and display performance cpu sizes.
+		performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+			return p.strings, p.guest.CPUKind == "performance" && p.guest.GPUKind == ""
+		})
+		if err := render.Table(out, "", performance, "Name", "CPU Cores", "Memory"); err != nil {
+			return err
+		}
 
-	// Filter and display gpu sizes.
-	gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		return p.strings, p.guest.GPUKind != ""
-	})
-	return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
+		// Filter and display gpu sizes.
+		gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+			return p.strings, p.guest.GPUKind != ""
+		})
+		return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
+	}
 }
 
 func cores(cores int) string {

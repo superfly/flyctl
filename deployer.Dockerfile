@@ -13,7 +13,7 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
     dpkg-reconfigure --frontend=noninteractive locales && \
     update-locale LANG=en_US.UTF-8
 
-ENV LANG en_US.UTF-8 
+ENV LANG en_US.UTF-8
 
 # configure git a bit
 RUN git config --global advice.detachedHead false && \
@@ -24,7 +24,7 @@ ENV DEFAULT_RUBY_VERSION=3.1.6 \
     DEFAULT_ERLANG_VERSION=26.2.5.2 \
     DEFAULT_ELIXIR_VERSION=1.16 \
     DEFAULT_BUN_VERSION=1.1.24 \
-    DEFAULT_PHP_VERSION=8.1.0 \ 
+    DEFAULT_PHP_VERSION=8.1.0 \
     DEFAULT_PYTHON_VERSION=3.12
 
 ARG NODE_BUILD_VERSION=5.3.8

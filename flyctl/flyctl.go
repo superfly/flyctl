@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/terminal"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var configDir string
@@ -115,7 +115,7 @@ func loadConfig() error {
 	return err
 }
 
-var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
+var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigAppSecretsMinvers, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
 func saveConfig() error {
 	out := map[string]interface{}{}

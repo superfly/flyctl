@@ -1,7 +1,7 @@
 name: Deployer tests
 on:
   push:
-  
+
 jobs:
   build-deployer:
     runs-on: ubuntu-latest
@@ -9,14 +9,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           check-latest: true
       - name: "Build flyctl"
         run: make build
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
@@ -25,14 +25,14 @@ jobs:
           registry: https://index.docker.io/v1/
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      
+
       - name: Upload flyctl for the deployer tests
         uses: actions/upload-artifact@v4
         with:
           name: deployer-flyctl
           path: bin/flyctl
           overwrite: true
-      
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -42,7 +42,7 @@ jobs:
           tags: flyio/deployer:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  
+
   deployer-tests:
     needs: build-deployer
     runs-on: ubuntu-latest
