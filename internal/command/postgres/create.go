@@ -29,6 +29,7 @@ func newCreate() *cobra.Command {
 	cmd := command.New("create", short, long, run,
 		command.RequireSession,
 	)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(
 		cmd,
