@@ -80,6 +80,11 @@ func newPropose() *cobra.Command {
 		},
 		flag.Compression(),
 		flag.CompressionLevel(),
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 	)
 
 	return cmd
@@ -184,6 +189,11 @@ func newGenerate() *cobra.Command {
 		},
 		flag.Compression(),
 		flag.CompressionLevel(),
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 	)
 
 	return cmd
