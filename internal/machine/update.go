@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -10,12 +11,11 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/maps"
 )
 
 var cpusPerKind = map[string][]int{
 	"shared":      {1, 2, 4, 6, 8},
-	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16},
+	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16, 32, 64, 128},
 }
 
 func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) error {
@@ -151,7 +151,7 @@ func (e InvalidConfigErr) Suggestion() string {
 		validNumCpus := cpusPerKind[e.guest.CPUKind]
 		return fmt.Sprintf("Valid numbers are %v", validNumCpus)
 	case invalidMemorySize:
-		var incrementSize int = 1024
+		var incrementSize = 1024
 		switch e.guest.CPUKind {
 		case "shared":
 			incrementSize = 256

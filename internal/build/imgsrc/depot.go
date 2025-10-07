@@ -8,13 +8,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	depotbuild "github.com/depot/depot-go/build"
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/moby/buildkit/util/progress/progressui"
+	"github.com/moby/buildkit/worker/label"
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -25,7 +26,6 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/retry"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -110,7 +110,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		tracing.RecordError(span, err, "failed to build image")
 		return nil, "", errors.Wrap(err, "error building")
 	}
-
+	build.BuilderMeta.RemoteMachineId = image.BuilderID
 	build.ImageBuildFinish()
 	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
@@ -119,9 +119,15 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	return image, "", nil
 }
 
-func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build, scope depotBuilderScope) (*DeploymentImage, error) {
+func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build, scope depotBuilderScope) (i *DeploymentImage, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "depot_build", trace.WithAttributes(opts.ToSpanAttributes()...))
-	defer span.End()
+	defer func() {
+		if retErr != nil {
+			streams.StopProgressIndicator()
+			span.RecordError(retErr)
+		}
+		span.End()
+	}()
 
 	buildState.BuilderInitStart()
 	buildState.SetBuilderMetaPart1(depotBuilderType, "", "")
@@ -135,10 +141,13 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		}
 	}
 
-	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams, scope)
+	// Building a container image may take multiple minutes.
+	// So we can only have the provisoning part in this context.
+	provisionCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	buildkit, build, buildErr := initBuilder(provisionCtx, buildState, opts.AppName, streams, scope)
 	if buildErr != nil {
-		streams.StopProgressIndicator()
-		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 	defer func() {
@@ -146,15 +155,10 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		build.Finish(buildErr)
 	}()
 
-	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancelConnect()
-
 	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
-	buildkitClient, buildErr = buildkit.Connect(connectCtx)
+	buildkitClient, buildErr = buildkit.Connect(provisionCtx)
 	if buildErr != nil {
-		streams.StopProgressIndicator()
-		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 
@@ -168,7 +172,6 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	res, buildErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
 	if buildErr != nil {
 		buildState.BuildAndPushFinish()
-		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 	buildState.BuildAndPushFinish()
@@ -176,14 +179,23 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	link = streams.CreateLink("Build Summary: ", build.BuildURL)
 	tb.Done(link)
 
-	return newDeploymentImage(res, opts.Tag)
+	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
-func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (*depotmachine.Machine, *depotbuild.Build, error) {
+// initBuilder returns a Depot machine to build a container image.
+// Note that the caller is responsible for passing a context with a resonable timeout.
+// Otherwise, the function cloud block indefinitely.
+func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
-	defer span.End()
 
-	defer buildState.BuilderInitFinish()
+	defer func() {
+		if retErr != nil {
+			streams.StopProgressIndicator()
+			span.RecordError(retErr)
+		}
+		buildState.BuilderInitFinish()
+		span.End()
+	}()
 
 	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
@@ -198,7 +210,6 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		BuilderScope: fly.StringPointer(builderScope.String()),
 	})
 	if err != nil {
-		streams.StopProgressIndicator()
 		return nil, nil, err
 	}
 
@@ -207,32 +218,14 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		return nil, nil, err
 	}
 
-	// Set the buildErr to any error that represents the build failing.
-	var buildErr error
-	var finalBuildErr error
-
 	span.AddEvent("Acquiring Depot machine")
-	var buildkit *depotmachine.Machine
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
-	defer cancel()
-
-	finalBuildErr = retry.Retry(timeoutCtx, func() error {
-		buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
-		if buildErr != nil {
-			span.RecordError(buildErr)
-			return buildErr
-		}
-
-		return nil
-	}, 2)
-
-	if finalBuildErr != nil {
-		streams.StopProgressIndicator()
-		return nil, nil, finalBuildErr
+	machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return buildkit, &build, err
+	return machine, &build, nil
 }
 
 func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOptions, dockerfilePath string) (*client.SolveResponse, error) {
@@ -256,11 +249,9 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		exportEntry.Attrs["push"] = "true"
 	}
 
-	if opts.UseZstd {
-		exportEntry.Attrs["compression"] = "zstd"
-		exportEntry.Attrs["compression-level"] = "3"
-		exportEntry.Attrs["force-compression"] = "true"
-	}
+	exportEntry.Attrs["compression"] = opts.Compression
+	exportEntry.Attrs["compression-level"] = strconv.Itoa(opts.CompressionLevel)
+	exportEntry.Attrs["force-compression"] = "true"
 
 	ch := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
@@ -296,23 +287,16 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		}
 		solverOptions.Session = append(
 			solverOptions.Session,
-			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
+			newBuildkitAuthProvider(func() string {
+				return config.Tokens(ctx).Docker()
+			}),
 			secretsprovider.FromMap(secrets),
 		)
 
 		res, err = buildkitClient.Solve(ctx, nil, solverOptions, ch)
 		return err
 	})
-
-	eg.Go(func() error {
-		display, err := progressui.NewDisplay(os.Stderr, progressui.AutoMode)
-		if err != nil {
-			return err
-		}
-
-		_, err = display.UpdateFrom(context.Background(), ch)
-		return err
-	})
+	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
 		span.RecordError(err)
@@ -322,7 +306,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	return res, nil
 }
 
-func newDeploymentImage(res *client.SolveResponse, tag string) (*DeploymentImage, error) {
+func newDeploymentImage(ctx context.Context, c *client.Client, res *client.SolveResponse, tag string) (*DeploymentImage, error) {
 	id := res.ExporterResponse["containerimage.digest"]
 	encoded := res.ExporterResponse["containerimage.descriptor"]
 	output, err := base64.StdEncoding.DecodeString(encoded)
@@ -336,10 +320,27 @@ func newDeploymentImage(res *client.SolveResponse, tag string) (*DeploymentImage
 		return nil, err
 	}
 
+	// Standard Buildkit doesn't attach manifest contents to the descriptor.
+	if descriptor.Annotations.RawManifest == "" {
+		descriptor.Annotations.RawManifest, err = readContent(ctx, c.ContentClient(), descriptor)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var builderHostname string
+	workers, err := c.ListWorkers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range workers {
+		builderHostname = w.Labels[label.Hostname]
+	}
 	image := &DeploymentImage{
-		ID:   id,
-		Tag:  tag,
-		Size: descriptor.Bytes(),
+		ID:        id,
+		Tag:       tag,
+		Size:      descriptor.Bytes(),
+		BuilderID: builderHostname,
 	}
 
 	return image, nil

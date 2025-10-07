@@ -2,11 +2,8 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,10 +15,13 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -256,6 +256,11 @@ func newRun() *cobra.Command {
 			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
 			Hidden:      false,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Hidden:      false,
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(0)
@@ -372,10 +377,16 @@ func runMachineRun(ctx context.Context) error {
 		},
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return err
+	}
+
 	input := fly.LaunchMachineInput{
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
-		LSVD:   flag.GetBool(ctx, "lsvd"),
+		Name:              flag.GetString(ctx, "name"),
+		Region:            flag.GetString(ctx, "region"),
+		LSVD:              flag.GetBool(ctx, "lsvd"),
+		MinSecretsVersion: minvers,
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -390,8 +401,8 @@ func runMachineRun(ctx context.Context) error {
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
 		imageOrPath = "ubuntu"
-	} else if imageOrPath == "" {
-		return fmt.Errorf("image argument can't be an empty string")
+	} else if flag.GetString(ctx, "dockerfile") != "" {
+		imageOrPath = "."
 	}
 
 	machineID := flag.GetString(ctx, "id")
@@ -409,6 +420,10 @@ func runMachineRun(ctx context.Context) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if imageOrPath == "" && len(machineConf.Containers) == 0 {
+		return fmt.Errorf("image argument can't be an empty string")
 	}
 
 	if flag.GetBool(ctx, "build-only") {
@@ -455,7 +470,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		_, dialer, err := ssh.BringUpAgent(ctx, client, app, *network, false)
+		_, dialer, err := agent.BringUpAgent(ctx, client, app, *network, false)
 		if err != nil {
 			return err
 		}
@@ -479,7 +494,7 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 
-		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
+		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true, "")
 		if destroy {
 			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
 		}
@@ -530,12 +545,13 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	}
 
 	if appc == nil {
+		shellAppName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
+		shellAppName = strings.TrimRight(shellAppName[:min(len(shellAppName), 63)], "-")
 		appc, err = client.CreateApp(ctx, fly.CreateAppInput{
 			OrganizationID: org.ID,
-			// i'll never find love again like the kind you give like the kind you send
-			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000)),
+			// I'll never find love again like the kind you give like the kind you send
+			Name: shellAppName,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
@@ -647,26 +663,34 @@ func determineMachineConfig(
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
-		var buf []byte
-		switch {
-		case strings.HasPrefix(emc, "{"):
-			buf = []byte(emc)
-		case strings.HasSuffix(emc, ".json"):
-			fo, err := os.Open(emc)
-			if err != nil {
-				return nil, err
-			}
-			buf, err = io.ReadAll(fo)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+	if mc := flag.GetString(ctx, "machine-config"); mc != "" {
+		if err := config.ParseConfig(machineConf, mc); err != nil {
+			return nil, err
+		}
+	}
+
+	// identify the container to use
+	// if no container is specified, look for "app" or the first container
+	var container *fly.ContainerConfig
+	if len(machineConf.Containers) > 0 {
+		match := flag.GetString(ctx, "container")
+		if match == "" {
+			match = "app"
 		}
 
-		if err := json.Unmarshal(buf, machineConf); err != nil {
-			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		for _, c := range machineConf.Containers {
+			if c.Name == match {
+				container = c
+				break
+			}
+		}
+
+		if container == nil {
+			if flag.GetString(ctx, "container") != "" {
+				return nil, fmt.Errorf("container %q not found", flag.GetString(ctx, "container"))
+			} else {
+				container = machineConf.Containers[0]
+			}
 		}
 	}
 
@@ -699,24 +723,28 @@ func determineMachineConfig(
 
 	if input.updating {
 		// Called from `update`. Command is specified by flag.
-		if command := flag.GetString(ctx, "command"); command != "" {
-			split, err := shlex.Split(command)
-			if err != nil {
-				return machineConf, errors.Wrap(err, "invalid command")
+		if flag.IsSpecified(ctx, "command") {
+			command := strings.TrimSpace(flag.GetString(ctx, "command"))
+			switch command {
+			case "":
+				machineConf.Init.Cmd = nil
+			default:
+				split, err := shlex.Split(command)
+				if err != nil {
+					return machineConf, errors.Wrap(err, "invalid command")
+				}
+				machineConf.Init.Cmd = split
 			}
-			machineConf.Init.Cmd = split
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
 		args := flag.Args(ctx)
 
-		if len(args) != 0 {
+		if len(args) > 1 {
 			machineConf.Init.Cmd = args[1:]
+		} else if input.interact {
+			machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 		}
-	}
-
-	if input.interact {
-		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
@@ -797,7 +825,12 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.Tag
+
+		if container != nil {
+			container.Image = img.String()
+		} else {
+			machineConf.Image = img.String()
+		}
 	}
 
 	// Service updates

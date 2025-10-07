@@ -90,3 +90,23 @@ func Test_parse_with_double_quotes(t *testing.T) {
 		"FOO": "BAR BAZ",
 	}, secrets)
 }
+
+// https://github.com/superfly/flyctl/issues/3002
+func Test_parse_with_spaces(t *testing.T) {
+	reader := strings.NewReader(`FOO = BAR`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"FOO": "BAR",
+	}, secrets)
+}
+
+// https://github.com/superfly/flyctl/issues/4291
+func Test_parse_with_comment(t *testing.T) {
+	reader := strings.NewReader(`FOO="BAR BAZ" # comment`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"FOO": "BAR BAZ",
+	}, secrets)
+}

@@ -328,7 +328,7 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 }
 
 func resolveChangeLog(ctx context.Context, changes map[string]string, settings *flypg.PGSettings) (diff.Changelog, error) {
-	// Verify that input values are within acceptible ranges.
+	// Verify that input values are within acceptable ranges.
 	// Stolon does not verify this, so we need to do it here.
 	for k, v := range changes {
 		for _, setting := range settings.Settings {

@@ -46,7 +46,7 @@ func runStatus(ctx context.Context) (err error) {
 
 	addOn := response.AddOn
 
-	var readRegions string = "None"
+	var readRegions = "None"
 
 	if len(addOn.ReadRegions) > 0 {
 		readRegions = strings.Join(addOn.ReadRegions, ",")
@@ -76,7 +76,7 @@ func runStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Private URL"}
+	var cols = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Private URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

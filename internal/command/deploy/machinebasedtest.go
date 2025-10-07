@@ -2,13 +2,15 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -147,25 +149,25 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	return nil
 }
 
-const ErrNoLogsFound = "no logs found"
+var errNoLogsFound = errors.New("no logs found")
 
 func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine, timeout time.Duration) error {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 1 * time.Second
 	b.MaxInterval = 10 * time.Second
-	b.MaxElapsedTime = timeout
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() ([]fly.LogEntry, error) {
 		logs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, mach.ID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(logs) == 0 {
-			return fmt.Errorf(ErrNoLogsFound)
+			return nil, errNoLogsFound
 		}
 
-		return nil
-	}, backoff.WithContext(b, ctx))
+		return logs, nil
+	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(timeout))
+	return err
 }
 
 func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconfig.ServiceMachineCheck, machineToTest *fly.Machine, sl statuslogger.StatusLine) (*fly.Machine, error) {
@@ -206,9 +208,14 @@ func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMac
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
 	return &fly.LaunchMachineInput{
-		Config: mConfig,
-		Region: origMachineRaw.Region,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		MinSecretsVersion: minvers,
 	}, nil
 }
 

@@ -1,11 +1,7 @@
 package appconfig
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -14,6 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/containerconfig"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -242,7 +239,7 @@ func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 
 // updateMachineConfig applies configuration options from the optional MachineConfig passed in, then the base config, into a new MachineConfig
 func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig, error) {
-	// For flattened app configs there is only one proces name and it is the group it was flattened for
+	// For flattened app configs there is only one process name and it is the group it was flattened for
 	processGroup := c.DefaultProcessName()
 
 	mConfig := &fly.MachineConfig{}
@@ -250,28 +247,24 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig = helpers.Clone(src)
 	}
 
+	// Extract machine config from fly.toml
+	var appMachineConfig string
 	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
-		emc := c.Experimental.MachineConfig
-		var buf []byte
-		switch {
-		case strings.HasPrefix(emc, "{"):
-			buf = []byte(emc)
-		case strings.HasSuffix(emc, ".json"):
-			fo, err := os.Open(emc)
-			if err != nil {
-				return nil, err
-			}
-			buf, err = io.ReadAll(fo)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("invalid machine config source: %q", emc)
-		}
+		appMachineConfig = c.Experimental.MachineConfig
+	}
 
-		if err := json.Unmarshal(buf, mConfig); err != nil {
-			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
-		}
+	if appMachineConfig == "" {
+		appMachineConfig = c.MachineConfig
+	}
+
+	// Parse container configuration (machine config or compose file) directly into mConfig
+	composePath := ""
+	if c.Build != nil && c.Build.Compose != nil {
+		// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+		composePath = c.DetectComposeFile()
+	}
+	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath(), c.Container); err != nil {
+		return nil, err
 	}
 
 	// Metrics
