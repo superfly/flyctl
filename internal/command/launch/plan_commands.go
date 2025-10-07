@@ -97,6 +97,8 @@ func newCreate() *cobra.Command {
 			Default:     "",
 			Hidden:      true,
 		},
+		flag.Compression(),
+		flag.CompressionLevel(),
 	)
 
 	return cmd
@@ -175,6 +177,8 @@ func newGenerate() *cobra.Command {
 			Default:     "",
 			Hidden:      true,
 		},
+		flag.Compression(),
+		flag.CompressionLevel(),
 	)
 
 	return cmd
