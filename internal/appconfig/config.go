@@ -267,7 +267,7 @@ func (c *Config) DetermineCompression(ctx context.Context) (compression string, 
 	}
 
 	// fly.toml overrides LaunchDarkly
-	if c.Build != nil {
+	if c != nil && c.Build != nil {
 		if c.Build.Compression != "" {
 			compression = c.Build.Compression
 		}
