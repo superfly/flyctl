@@ -56,7 +56,7 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 		Size:   int64(size),
 	}
 
-	if img.Manifest.Annotations != nil {
+	if img.Manifest != nil && img.Manifest.Annotations != nil {
 		if id, ok := img.Manifest.Annotations["fly_builder_id"]; ok {
 			di.BuilderID = id
 			build.BuilderMeta.RemoteMachineId = id
