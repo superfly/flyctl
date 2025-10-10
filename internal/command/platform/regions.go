@@ -73,10 +73,6 @@ func runRegions(ctx context.Context) error {
 			if region.GatewayAvailable {
 				gateway = "✓"
 			}
-			paidPlan := ""
-			if region.RequiresPaidPlan {
-				paidPlan = "✓"
-			}
 			gpuAvailable := ""
 			if slices.Contains(gpuRegions, region.Code) {
 				gpuAvailable = "✓"
@@ -91,10 +87,9 @@ func runRegions(ctx context.Context) error {
 				gateway,
 				gpuAvailable,
 				capacity,
-				paidPlan,
 			})
 		}
 	}
 
-	return render.Table(out, "", rows, "Name", "Code", "Gateway", "GPUs", "Capacity", "Launch Plan+")
+	return render.Table(out, "", rows, "Name", "Code", "Gateway", "GPUs", "Capacity")
 }
