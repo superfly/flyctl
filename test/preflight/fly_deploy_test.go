@@ -204,10 +204,11 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s", appName)
-	f.Fly("deploy --remote-only --ha=false")
+	// Retry deploy to handle registry propagation delays after image push
+	deployWithRetry(f, t, "deploy --remote-only --ha=false", 3, 5*time.Second)
 
 	t.Logf("deploy %s again", appName)
-	f.Fly("deploy --remote-only --strategy immediate --ha=false")
+	deployWithRetry(f, t, "deploy --remote-only --strategy immediate --ha=false", 3, 5*time.Second)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -243,7 +244,8 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s without WireGuard", appName)
-	f.Fly("deploy --remote-only --ha=false --wg=false")
+	// Retry deploy to handle registry propagation delays after image push
+	deployWithRetry(f, t, "deploy --remote-only --ha=false --wg=false", 3, 5*time.Second)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
