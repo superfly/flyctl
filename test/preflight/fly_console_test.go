@@ -54,8 +54,12 @@ CMD ["/bin/sleep", "inf"]
 		assert.Contains(t, result.StdOutString(), targetOutput, "console_command is still used")
 
 		// Because of the dockerfile, the image here is Alpine.
-		result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
-		assert.Contains(t, result.StdOutString(), "ID=alpine")
+		// Retry to handle potential timing issues with ephemeral machine startup
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
+			output := result.StdOutString()
+			assert.Contains(t, output, "ID=alpine", "Expected Alpine OS release info, got: %s", output)
+		}, 30*time.Second, 2*time.Second, "console command never returned Alpine OS info")
 	})
 
 	// All the tests above make ephemeral machines. They should be gone eventually.
