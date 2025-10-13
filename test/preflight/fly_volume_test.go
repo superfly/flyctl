@@ -202,7 +202,17 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 		j := f.Fly("vol ls -a %s --json", appName)
 		j.StdOutJSON(&ls)
 
-		assert.Len(t, ls, 1)
-		assert.Equal(t, "created", ls[0].State)
+		// Filter out destroyed/destroying volumes to count only active ones
+		var activeVolumes []*fly.Volume
+		for _, v := range ls {
+			if v.State != "destroyed" && v.State != "destroying" && v.State != "pending_destroy" && v.State != "scheduling_destroy" {
+				activeVolumes = append(activeVolumes, v)
+			}
+		}
+
+		assert.Len(t, activeVolumes, 1)
+		if len(activeVolumes) > 0 {
+			assert.Equal(t, "created", activeVolumes[0].State)
+		}
 	}, 5*time.Minute, 10*time.Second, "final volume %s never made it to created state", vol.ID)
 }
