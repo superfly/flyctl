@@ -448,7 +448,7 @@ func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, m
 			time.Sleep(retryDelay)
 		}
 
-		lastResult = f.FlyAllowExitFailure(deployCmd)
+		lastResult = f.FlyAllowExitFailure("%s", deployCmd)
 
 		// Check if deploy succeeded
 		if lastResult.ExitCode() == 0 {
