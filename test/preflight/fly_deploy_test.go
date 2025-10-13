@@ -441,7 +441,25 @@ func TestDeploy(t *testing.T) {
 	})
 }
 
-// deployWithRetry attempts to deploy with retries to handle registry propagation delays
+// deployWithRetry attempts to deploy an application with retries to handle registry propagation delays.
+//
+// Purpose:
+//   This function runs the provided deploy command, retrying up to maxRetries times if the deployment fails
+//   due to registry propagation delays (specifically, "Could not find image" errors). This helps ensure
+//   that transient errors caused by eventual consistency in image registries do not cause test failures.
+//
+// Parameters:
+//   f         - The Flyctl test environment used to execute commands.
+//   t         - The test logger (usually a *testing.T) for logging and test failure reporting.
+//   deployCmd - The deploy command to execute (as a string).
+//   maxRetries- The maximum number of retry attempts.
+//   retryDelay- The delay between retries (as a time.Duration).
+//
+// Retry behavior:
+//   If the deploy command fails with an exit code other than zero, the function checks the output for
+//   "Could not find image" errors. If such an error is found, it waits for retryDelay and retries the
+//   deploy command, up to maxRetries times. If a different error occurs, the function fails immediately.
+//   If all retries are exhausted, the function fails the test with the last error output.
 func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, maxRetries int, retryDelay time.Duration) {
 	var lastResult *testlib.FlyctlResult
 	for i := 0; i < maxRetries; i++ {
