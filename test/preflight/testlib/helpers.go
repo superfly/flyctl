@@ -26,7 +26,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-const defaultRegion = "iad"
+const defaultRegion = "sjc"
 
 func primaryRegionFromEnv() string {
 	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
