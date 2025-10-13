@@ -441,25 +441,16 @@ func TestDeploy(t *testing.T) {
 	})
 }
 
-// deployWithRetry attempts to deploy an application with retries to handle registry propagation delays.
-//
-// Purpose:
-//   This function runs the provided deploy command, retrying up to maxRetries times if the deployment fails
-//   due to registry propagation delays (specifically, "Could not find image" errors). This helps ensure
-//   that transient errors caused by eventual consistency in image registries do not cause test failures.
-//
-// Parameters:
-//   f         - The Flyctl test environment used to execute commands.
-//   t         - The test logger (usually a *testing.T) for logging and test failure reporting.
-//   deployCmd - The deploy command to execute (as a string).
-//   maxRetries- The maximum number of retry attempts.
-//   retryDelay- The delay between retries (as a time.Duration).
-//
-// Retry behavior:
-//   If the deploy command fails with an exit code other than zero, the function checks the output for
-//   "Could not find image" errors. If such an error is found, it waits for retryDelay and retries the
-//   deploy command, up to maxRetries times. If a different error occurs, the function fails immediately.
-//   If all retries are exhausted, the function fails the test with the last error output.
+const imageNotFoundError = "Could not find image"
+
+// isRegistryPropagationError checks if the error is due to registry propagation delay
+func isRegistryPropagationError(result *testlib.FlyctlResult) bool {
+	stdErr := result.StdErrString()
+	stdOut := result.StdOutString()
+	return strings.Contains(stdErr, imageNotFoundError) || strings.Contains(stdOut, imageNotFoundError)
+}
+
+// deployWithRetry attempts to deploy with retries to handle registry propagation delays
 func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, maxRetries int, retryDelay time.Duration) {
 	var lastResult *testlib.FlyctlResult
 	for i := 0; i < maxRetries; i++ {
@@ -475,17 +466,17 @@ func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, m
 			return
 		}
 
-		// Check if this is a "Could not find image" error that we should retry
-		stdErr := lastResult.StdErrString()
-		stdOut := lastResult.StdOutString()
-		if strings.Contains(stdErr, "Could not find image") || strings.Contains(stdOut, "Could not find image") {
-			t.Logf("Deploy failed with 'Could not find image' error, will retry...")
+		// Check if this is a registry propagation error that we should retry
+		if isRegistryPropagationError(lastResult) {
+			t.Logf("Deploy failed with '%s' error, will retry...", imageNotFoundError)
 			continue
 		}
 
+				}
+
 		// If it's a different error, fail immediately
 		t.Fatalf("Deploy failed with unexpected error (exit code %d):\nStdOut: %s\nStdErr: %s",
-			lastResult.ExitCode(), stdOut, stdErr)
+			lastResult.ExitCode(), lastResult.StdOutString(), lastResult.StdErrString())
 	}
 
 	// If we exhausted all retries, fail with the last result
