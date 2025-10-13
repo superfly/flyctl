@@ -272,10 +272,11 @@ func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s with Depot", appName)
-	f.Fly("deploy --depot --ha=false")
+	// Retry deploy to handle registry propagation delays after image push
+	deployWithRetry(f, t, "deploy --depot --ha=false", 3, 5*time.Second)
 
 	t.Logf("deploy %s again with Depot", appName)
-	f.Fly("deploy --depot --strategy immediate --ha=false")
+	deployWithRetry(f, t, "deploy --depot --strategy immediate --ha=false", 3, 5*time.Second)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -436,4 +437,38 @@ func TestDeploy(t *testing.T) {
 		t.Parallel()
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"))
 	})
+}
+
+// deployWithRetry attempts to deploy with retries to handle registry propagation delays
+func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, maxRetries int, retryDelay time.Duration) {
+	var lastResult *testlib.FlyctlResult
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			t.Logf("Retry %d/%d after %v (registry propagation delay)", i, maxRetries-1, retryDelay)
+			time.Sleep(retryDelay)
+		}
+
+		lastResult = f.FlyAllowExitFailure(deployCmd)
+
+		// Check if deploy succeeded
+		if lastResult.ExitCode() == 0 {
+			return
+		}
+
+		// Check if this is a "Could not find image" error that we should retry
+		stdErr := lastResult.StdErrString()
+		stdOut := lastResult.StdOutString()
+		if strings.Contains(stdErr, "Could not find image") || strings.Contains(stdOut, "Could not find image") {
+			t.Logf("Deploy failed with 'Could not find image' error, will retry...")
+			continue
+		}
+
+		// If it's a different error, fail immediately
+		t.Fatalf("Deploy failed with unexpected error (exit code %d):\nStdOut: %s\nStdErr: %s",
+			lastResult.ExitCode(), stdOut, stdErr)
+	}
+
+	// If we exhausted all retries, fail with the last result
+	t.Fatalf("Deploy failed after %d retries:\nStdOut: %s\nStdErr: %s",
+		maxRetries, lastResult.StdOutString(), lastResult.StdErrString())
 }
