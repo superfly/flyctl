@@ -29,6 +29,7 @@ type MockUiexClient struct {
 	CreateClusterFunc           func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
 	DestroyClusterFunc          func(ctx context.Context, orgSlug string, id string) error
 	CreateFlyManagedBuilderFunc func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	CreateDeployFunc            func(ctx context.Context, appName string, input uiex.RemoteDeploymentRequest) (<-chan *uiex.DeploymentEvent, error)
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
@@ -85,6 +86,14 @@ func (m *MockUiexClient) DestroyCluster(ctx context.Context, orgSlug string, id 
 		return m.DestroyClusterFunc(ctx, orgSlug, id)
 	}
 	return nil
+}
+
+func (m *MockUiexClient) CreateDeploy(ctx context.Context, appName string, input uiex.RemoteDeploymentRequest) (<-chan *uiex.DeploymentEvent, error) {
+	if m.CreateDeployFunc != nil {
+		return m.CreateDeployFunc(ctx, appName, input)
+	}
+
+	return nil, nil
 }
 
 // MockRegionProvider implements RegionProvider for testing

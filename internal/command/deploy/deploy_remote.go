@@ -3,9 +3,11 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -19,7 +21,7 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines_remote")
 	defer span.End()
 
-	io := iostreams.FromContext(ctx)
+	// io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	apiClient := flyutil.ClientFromContext(ctx)
@@ -38,7 +40,13 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 		Config:       appConfig,
 		Image:        img.Tag,
 		Strategy:     uiex.RemoteDeploymentStrategyRolling,
+		BuildId:      img.BuildID,
 	}
+
+	streams := iostreams.FromContext(ctx)
+	streams.StartProgressIndicator()
+
+	cmdfmt.PrintBegin(streams.ErrOut, "Waiting for the remote deployer.")
 
 	events, err := uiexClient.CreateDeploy(ctx, appName, req)
 	if err != nil {
@@ -46,7 +54,12 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 	}
 
 	for ev := range events {
-		fmt.Fprintln(io.Out, ev)
+		if ev.Type == uiex.DeploymentEventTypeStarted {
+			streams.StopProgressIndicator()
+			cmdfmt.PrintDone(streams.ErrOut, "Remote deployer ready.")
+		}
+
+		fmt.Println("ev", time.Now(), fmt.Sprintf("%+v", ev))
 	}
 
 	return nil
