@@ -204,10 +204,11 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s", appName)
-	f.Fly("deploy --remote-only --ha=false")
+	// Retry deploy to handle registry propagation delays after image push
+	deployWithRetry(f, t, "deploy --remote-only --ha=false", 3, 5*time.Second)
 
 	t.Logf("deploy %s again", appName)
-	f.Fly("deploy --remote-only --strategy immediate --ha=false")
+	deployWithRetry(f, t, "deploy --remote-only --strategy immediate --ha=false", 3, 5*time.Second)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -243,7 +244,8 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s without WireGuard", appName)
-	f.Fly("deploy --remote-only --ha=false --wg=false")
+	// Retry deploy to handle registry propagation delays after image push
+	deployWithRetry(f, t, "deploy --remote-only --ha=false --wg=false", 3, 5*time.Second)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -272,10 +274,11 @@ func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s with Depot", appName)
-	f.Fly("deploy --depot --ha=false")
+	// Retry deploy to handle registry propagation delays after image push
+	deployWithRetry(f, t, "deploy --depot --ha=false", 3, 5*time.Second)
 
 	t.Logf("deploy %s again with Depot", appName)
-	f.Fly("deploy --depot --strategy immediate --ha=false")
+	deployWithRetry(f, t, "deploy --depot --strategy immediate --ha=false", 3, 5*time.Second)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -436,4 +439,45 @@ func TestDeploy(t *testing.T) {
 		t.Parallel()
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"))
 	})
+}
+
+const imageNotFoundError = "Could not find image"
+
+// isRegistryPropagationError checks if the error is due to registry propagation delay
+func isRegistryPropagationError(result *testlib.FlyctlResult) bool {
+	stdErr := result.StdErrString()
+	stdOut := result.StdOutString()
+	return strings.Contains(stdErr, imageNotFoundError) || strings.Contains(stdOut, imageNotFoundError)
+}
+
+// deployWithRetry attempts to deploy with retries to handle registry propagation delays
+func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, maxRetries int, retryDelay time.Duration) {
+	var lastResult *testlib.FlyctlResult
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			t.Logf("Retry %d/%d after %v (registry propagation delay)", i, maxRetries-1, retryDelay)
+			time.Sleep(retryDelay)
+		}
+
+		lastResult = f.FlyAllowExitFailure("%s", deployCmd)
+
+		// Check if deploy succeeded
+		if lastResult.ExitCode() == 0 {
+			return
+		}
+
+		// Check if this is a registry propagation error that we should retry
+		if isRegistryPropagationError(lastResult) {
+			t.Logf("Deploy failed with '%s' error, will retry...", imageNotFoundError)
+			continue
+		}
+
+		// If it's a different error, fail immediately
+		t.Fatalf("Deploy failed with unexpected error (exit code %d):\nStdOut: %s\nStdErr: %s",
+			lastResult.ExitCode(), lastResult.StdOutString(), lastResult.StdErrString())
+	}
+
+	// If we exhausted all retries, fail with the last result
+	t.Fatalf("Deploy failed after %d retries:\nStdOut: %s\nStdErr: %s",
+		maxRetries, lastResult.StdOutString(), lastResult.StdErrString())
 }

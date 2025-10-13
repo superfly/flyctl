@@ -392,7 +392,25 @@ func TestLaunchCpusMem(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
+	const maxLaunchAttempts = 3
+	var launchResult *testlib.FlyctlResult
+	for attempt := 1; attempt <= maxLaunchAttempts; attempt++ {
+		launchResult = f.FlyAllowExitFailure("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
+		if launchResult.ExitCode() == 0 {
+			break
+		}
+
+		// Allow the intermittently slow LimitedAccessTokenConnection query to retry once more.
+		if !strings.Contains(launchResult.StdErrString(), "LimitedAccessTokenConnection") {
+			launchResult.AssertSuccessfulExit()
+		}
+
+		if attempt < maxLaunchAttempts {
+			time.Sleep(5 * time.Second)
+		}
+	}
+	launchResult.AssertSuccessfulExit()
+
 	machines := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(machines), 1)
 
