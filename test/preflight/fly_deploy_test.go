@@ -472,8 +472,6 @@ func deployWithRetry(f *testlib.FlyctlTestEnv, t testLogger, deployCmd string, m
 			continue
 		}
 
-				}
-
 		// If it's a different error, fail immediately
 		t.Fatalf("Deploy failed with unexpected error (exit code %d):\nStdOut: %s\nStdErr: %s",
 			lastResult.ExitCode(), lastResult.StdOutString(), lastResult.StdErrString())
