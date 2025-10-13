@@ -6,7 +6,7 @@ on:
       region:
         description: Region
         required: false
-        default: sjc
+        default: ord
         type: string
   workflow_call:
 
