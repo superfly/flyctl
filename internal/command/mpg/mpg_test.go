@@ -2,6 +2,7 @@ package mpg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -21,14 +22,16 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
-	ListMPGRegionsFunc          func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
-	ListManagedClustersFunc     func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
-	GetManagedClusterFunc       func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
-	GetManagedClusterByIdFunc   func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
-	CreateUserFunc              func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
-	CreateClusterFunc           func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
-	DestroyClusterFunc          func(ctx context.Context, orgSlug string, id string) error
-	CreateFlyManagedBuilderFunc func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	ListMPGRegionsFunc                func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
+	ListManagedClustersFunc           func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
+	GetManagedClusterFunc             func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
+	GetManagedClusterByIdFunc         func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
+	CreateUserFunc                    func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateClusterFunc                 func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
+	DestroyClusterFunc                func(ctx context.Context, orgSlug string, id string) error
+	ListManagedClusterBackupsFunc     func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
+	CreateManagedClusterBackupFunc    func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
+	CreateFlyManagedBuilderFunc       func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
@@ -85,6 +88,20 @@ func (m *MockUiexClient) DestroyCluster(ctx context.Context, orgSlug string, id 
 		return m.DestroyClusterFunc(ctx, orgSlug, id)
 	}
 	return nil
+}
+
+func (m *MockUiexClient) ListManagedClusterBackups(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error) {
+	if m.ListManagedClusterBackupsFunc != nil {
+		return m.ListManagedClusterBackupsFunc(ctx, clusterID)
+	}
+	return uiex.ListManagedClusterBackupsResponse{}, nil
+}
+
+func (m *MockUiexClient) CreateManagedClusterBackup(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error) {
+	if m.CreateManagedClusterBackupFunc != nil {
+		return m.CreateManagedClusterBackupFunc(ctx, clusterID, input)
+	}
+	return uiex.CreateManagedClusterBackupResponse{}, nil
 }
 
 // MockRegionProvider implements RegionProvider for testing
@@ -929,4 +946,69 @@ func TestMPGTokenValidation(t *testing.T) {
 		err = validateMPGTokenCompatibility(ctxWithMacaroonTokens)
 		assert.NoError(t, err, "MPG commands should accept contexts with macaroon tokens")
 	})
+}
+
+func TestBackupList(t *testing.T) {
+	// Setup context with output capture
+	ios, _, outBuf, _ := iostreams.Test()
+	ctx := context.Background()
+	ctx = iostreams.NewContext(ctx, ios)
+
+	// Add command context with a mock command
+	cmd := &cobra.Command{}
+	ctx = command_context.NewContext(ctx, cmd)
+
+	// Add macaroon tokens for MPG compatibility
+	macaroonTokens := tokens.Parse("fm1r_macaroon_token")
+	configWithMacaroonTokens := &config.Config{
+		Tokens:     macaroonTokens,
+		JSONOutput: true, // Enable JSON output for easier verification
+	}
+	ctx = config.NewContext(ctx, configWithMacaroonTokens)
+
+	// Set the cluster ID as first arg
+	flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flagSet.Bool("json", true, "JSON output")
+	flagSet.Bool("all", false, "Show all backups")
+	flagSet.Parse([]string{"test-cluster-123"})
+	ctx = flagctx.NewContext(ctx, flagSet)
+
+	// Mock uiex client that returns some backups
+	mockUiex := &MockUiexClient{
+		ListManagedClusterBackupsFunc: func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error) {
+			require.Equal(t, "test-cluster-123", clusterID)
+			return uiex.ListManagedClusterBackupsResponse{
+				Data: []uiex.ManagedClusterBackup{
+					{
+						Id:     "backup-1",
+						Status: "completed",
+						Type:   "full",
+						Start:  "2025-10-14T10:00:00Z",
+						Stop:   "2025-10-14T10:30:00Z",
+					},
+					{
+						Id:     "backup-2",
+						Status: "in_progress",
+						Type:   "incr",
+						Start:  "2025-10-14T12:00:00Z",
+						Stop:   "",
+					},
+				},
+			}, nil
+		},
+	}
+
+	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+
+	// Run the backup list command
+	err := runBackupList(ctx)
+	require.NoError(t, err)
+
+	// Parse the JSON output and verify we got 2 backups
+	var backups []uiex.ManagedClusterBackup
+	err = json.Unmarshal(outBuf.Bytes(), &backups)
+	require.NoError(t, err, "Should be able to parse JSON output")
+	require.Len(t, backups, 2, "Should return 2 backups")
+	assert.Equal(t, "backup-1", backups[0].Id)
+	assert.Equal(t, "backup-2", backups[1].Id)
 }
