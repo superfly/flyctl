@@ -328,6 +328,17 @@ end
 
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
+if CAN_CREATE_AND_PUSH_BRANCH
+  in_step Step::CREATE_AND_PUSH_BRANCH do
+    exec_capture("git checkout -b #{FLYIO_BRANCH_NAME}")
+    exec_capture("git config user.name \"Fly.io\"")
+    exec_capture("git config user.email \"noreply@fly.io\"")
+    exec_capture("git add .")
+    exec_capture("git commit -m \"New files from Fly.io Launch\" || echo \"No changes to commit\"")
+    exec_capture("git push -f origin #{FLYIO_BRANCH_NAME}")
+  end
+end
+
 image_ref = if !DEPLOY_IMAGE_REF.nil?
   DEPLOY_IMAGE_REF
 else
@@ -454,17 +465,6 @@ if DEPLOY_NOW
     else
       exec_capture(CUSTOM_COMMAND)
     end
-  end
-end
-
-if CAN_CREATE_AND_PUSH_BRANCH
-  in_step Step::CREATE_AND_PUSH_BRANCH do
-    exec_capture("git checkout -b #{FLYIO_BRANCH_NAME}")
-    exec_capture("git config user.name \"Fly.io\"")
-    exec_capture("git config user.email \"noreply@fly.io\"")
-    exec_capture("git add .")
-    exec_capture("git commit -m \"New files from Fly.io Launch\" || echo \"No changes to commit\"")
-    exec_capture("git push -f origin #{FLYIO_BRANCH_NAME}")
   end
 end
 
