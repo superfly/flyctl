@@ -33,7 +33,7 @@ var MPGPlans = map[string]PlanDetails{
 		Memory:     "33 GB",
 		PricePerMo: 962,
 	},
-	"performance": {
+	"Performance": {
 		Name:       "Performance",
 		CPU:        "Performance x 8",
 		Memory:     "64 GB",
