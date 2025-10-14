@@ -38,6 +38,14 @@ type ListManagedClusterBackupsResponse struct {
 	Data []ManagedClusterBackup `json:"data"`
 }
 
+type CreateManagedClusterBackupInput struct {
+	Type string `json:"type"`
+}
+
+type CreateManagedClusterBackupResponse struct {
+	Data ManagedClusterBackup `json:"data"`
+}
+
 type ManagedCluster struct {
 	Id            string                      `json:"id"`
 	Name          string                      `json:"name"`
@@ -389,6 +397,51 @@ func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string
 		return response, fmt.Errorf("access denied: you don't have permission to list backups for cluster %s", clusterID)
 	default:
 		return response, fmt.Errorf("failed to list backups (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
+// CreateManagedClusterBackup creates a new backup for a managed Postgres cluster
+func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID string, input CreateManagedClusterBackupInput) (CreateManagedClusterBackupResponse, error) {
+	var response CreateManagedClusterBackupResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.baseUrl, clusterID)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return response, fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s not found", clusterID)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to create backups for cluster %s", clusterID)
+	default:
+		return response, fmt.Errorf("failed to create backup (status %d): %s", res.StatusCode, string(body))
 	}
 }
 

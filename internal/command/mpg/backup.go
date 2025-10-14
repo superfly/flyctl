@@ -24,7 +24,10 @@ func newBackup() *cobra.Command {
 	cmd := command.New("backup", short, long, nil)
 	cmd.Aliases = []string{"backups"}
 
-	cmd.AddCommand(newBackupList())
+	cmd.AddCommand(
+		newBackupList(),
+		newBackupCreate(),
+	)
 
 	return cmd
 }
@@ -124,4 +127,66 @@ func runBackupList(ctx context.Context) error {
 	}
 
 	return render.Table(out, "", rows, "ID", "Start", "Status", "Type")
+}
+
+func newBackupCreate() *cobra.Command {
+	const (
+		long  = `Create a backup for a Managed Postgres cluster.`
+		short = "Create MPG cluster backup."
+		usage = "create [CLUSTER_ID]"
+	)
+
+	cmd := command.New(usage, short, long, runBackupCreate,
+		command.RequireSession,
+		command.RequireUiex,
+	)
+
+	cmd.Args = cobra.ExactArgs(1)
+
+	flag.Add(cmd,
+		flag.String{
+			Name:        "type",
+			Description: "Backup type: full or incr",
+			Default:     "full",
+		},
+	)
+
+	return cmd
+}
+
+func runBackupCreate(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	clusterID := flag.FirstArg(ctx)
+	if clusterID == "" {
+		// Should not happen due to cobra.ExactArgs(1), but good practice
+		return fmt.Errorf("cluster ID argument is required")
+	}
+
+	backupType := flag.GetString(ctx, "type")
+	if backupType != "full" && backupType != "incr" {
+		return fmt.Errorf("--type must be either 'full' or 'incr'")
+	}
+
+	fmt.Fprintf(out, "Creating %s backup for cluster %s...\n", backupType, clusterID)
+
+	input := uiex.CreateManagedClusterBackupInput{
+		Type: backupType,
+	}
+
+	response, err := uiexClient.CreateManagedClusterBackup(ctx, clusterID, input)
+	if err != nil {
+		return fmt.Errorf("failed to create backup: %w", err)
+	}
+
+	fmt.Fprintf(out, "Backup queued successfully!\n")
+	fmt.Fprintf(out, "  ID: %s\n", response.Data.Id)
+
+	return nil
 }
