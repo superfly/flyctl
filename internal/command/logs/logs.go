@@ -67,10 +67,20 @@ Use --no-tail to only fetch the logs in the buffer.
 func run(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 
+	regionCode := config.FromContext(ctx).Region
+	vmid := flag.GetString(ctx, "machine")
+
+	// When filtering by machine ID, ignore region filter since machine IDs are globally unique.
+	// This prevents region-locked NATS subscriptions when running on Fly.io machines where
+	// FLY_REGION is set, allowing logs to be retrieved from machines in any region.
+	if vmid != "" {
+		regionCode = ""
+	}
+
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),
-		RegionCode: config.FromContext(ctx).Region,
-		VMID:       flag.GetString(ctx, "machine"),
+		RegionCode: regionCode,
+		VMID:       vmid,
 		NoTail:     flag.GetBool(ctx, "no-tail"),
 	}
 
