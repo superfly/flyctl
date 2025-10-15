@@ -3,12 +3,12 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -41,26 +41,163 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 		Image:        img.Tag,
 		Strategy:     uiex.RemoteDeploymentStrategyRolling,
 		BuildId:      img.BuildID,
+		BuilderID:    img.BuilderID,
 	}
 
 	streams := iostreams.FromContext(ctx)
 	streams.StartProgressIndicator()
 
-	cmdfmt.PrintBegin(streams.ErrOut, "Waiting for the remote deployer.")
+	cmdfmt.PrintBegin(streams.ErrOut, "Waiting for the remote deployer")
 
-	events, err := uiexClient.CreateDeploy(ctx, appName, req)
+	response, err := uiexClient.CreateDeploy(ctx, appName, req)
 	if err != nil {
 		return err
 	}
 
-	for ev := range events {
-		if ev.Type == uiex.DeploymentEventTypeStarted {
-			streams.StopProgressIndicator()
-			cmdfmt.PrintDone(streams.ErrOut, "Remote deployer ready.")
+	var sl statuslogger.StatusLogger
+	var lineMachineMapping []string
+
+	findLineMachineMapping := func(machineID string) int {
+		for i, lineMachineID := range lineMachineMapping {
+			if lineMachineID == machineID {
+				return i
+			}
 		}
 
-		fmt.Println("ev", time.Now(), fmt.Sprintf("%+v", ev))
+		// We don't have it.
+		lineMachineMapping = append(lineMachineMapping, machineID)
+		return len(lineMachineMapping) - 1
 	}
 
-	return nil
+	for {
+		select {
+		case err := <-response.Errors:
+			if sl != nil {
+				sl.Destroy(false)
+			}
+
+			return err
+
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case ev, ok := <-response.Events:
+			if !ok {
+				// Channel is closed, so we're done
+				return nil
+			}
+
+			switch ev.Type {
+			case uiex.DeploymentEventTypeStarted:
+				streams.StopProgressIndicator()
+				cmdfmt.PrintDone(streams.ErrOut, "Remote deployer ready")
+
+			case uiex.DeploymentEventTypeProgress:
+				progress := ev.Data.(*uiex.DeploymentProgress)
+
+				switch progress.Type {
+				case uiex.DeploymentProgressTypeInfo:
+					info := progress.Data.(uiex.DeploymentProgressInfo)
+
+					var resume statuslogger.ResumeFn
+					if sl != nil {
+						resume = sl.Pause()
+					}
+
+					cmdfmt.PrintDone(streams.ErrOut, info)
+
+					if resume != nil {
+						resume()
+					}
+
+				case uiex.DeploymentProgressTypePlan:
+					plan := progress.Data.(uiex.DeploymentProgressPlan)
+
+					cmdfmt.PrintBegin(streams.ErrOut, "Need to create ", plan.Create, " machines")
+					cmdfmt.PrintBegin(streams.ErrOut, "Need to update ", plan.Update, " machines")
+					cmdfmt.PrintBegin(streams.ErrOut, "Need to destroy ", plan.Delete, " machines")
+
+					sl = statuslogger.Create(ctx, plan.Create+plan.Update+plan.Delete, true)
+
+				case uiex.DeploymentProgressTypeUpdate:
+					update := progress.Data.(uiex.DeploymentProgressUpdate)
+					machineID := update.MachineID
+					// TODO(AG): Check if machine ID is empty. Error if it is.
+
+					mapping := findLineMachineMapping(machineID)
+					line := sl.Line(mapping)
+					writeMachineUpdate(line, update)
+
+				default:
+					cmdfmt.PrintDone(streams.ErrOut, "Unknown progress event ", progress.Type)
+				}
+
+			case uiex.DeploymentEventTypeSuccess:
+				if sl != nil {
+					sl.Destroy(false)
+				}
+				cmdfmt.PrintDone(streams.ErrOut, "Deployment completed")
+
+			case uiex.DeploymentEventTypeError:
+				var resume statuslogger.ResumeFn
+				if sl != nil {
+					resume = sl.Pause()
+				}
+
+				cmdfmt.PrintDone(streams.ErrOut, "Deployment error ", ev.Data.(uiex.DeploymentEventError))
+
+				if resume != nil {
+					resume()
+				}
+
+			default:
+				cmdfmt.PrintDone(streams.ErrOut, "Unknown event ", ev.Type)
+			}
+		}
+	}
+}
+
+func writeMachineUpdate(line statuslogger.StatusLine, update uiex.DeploymentProgressUpdate) {
+	switch update.Type {
+	case "starting_update":
+		line.LogfStatus(statuslogger.StatusNone, "[%s] Preparing to update", update.MachineID)
+
+	case "acquiring_lease":
+		line.LogfStatus(statuslogger.StatusRunning, "[%s] Acquiring lease", update.MachineID)
+
+	case "lease_acquired":
+		line.LogfStatus(statuslogger.StatusRunning, "[%s] Updating", update.MachineID)
+
+	case "created":
+		line.LogfStatus(statuslogger.StatusRunning,
+			"[%s] Machine created for process group %q", update.MachineID, update.ProcessGroup)
+
+	case "starting_remove":
+		line.LogfStatus(statuslogger.StatusNone,
+			"[%s] Destroying machine for process group %q", update.MachineID, update.ProcessGroup)
+
+	case "removed":
+		line.LogfStatus(statuslogger.StatusSuccess,
+			"[%s] Machine destroyed for process group %q", update.MachineID, update.ProcessGroup)
+
+	case "updated":
+		line.LogfStatus(statuslogger.StatusRunning, "[%s] Releasing lease", update.MachineID)
+
+	case "lease_released":
+		line.LogfStatus(statuslogger.StatusRunning, "[%s] Lease released", update.MachineID)
+
+	case "waiting_for_started":
+		line.LogfStatus(statuslogger.StatusRunning,
+			"[%s] Waiting for machine to start (current state: %s)", update.MachineID, update.State)
+
+	case "started":
+		line.LogfStatus(statuslogger.StatusRunning, "[%s] Machine started", update.MachineID)
+
+	case "waiting_for_healthy":
+		line.LogfStatus(statuslogger.StatusRunning,
+			"[%s] Waiting for health checks (%d/%d)", update.MachineID, update.PassingChecks, update.TotalChecks)
+
+	case "healthy":
+		line.LogfStatus(statuslogger.StatusSuccess, "[%s] Done", update.MachineID)
+	}
 }

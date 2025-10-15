@@ -10,6 +10,7 @@ const (
 	DeploymentEventTypeStarted  DeploymentEventType = "started"
 	DeploymentEventTypeProgress DeploymentEventType = "progress"
 	DeploymentEventTypeSuccess  DeploymentEventType = "success"
+	DeploymentEventTypeError    DeploymentEventType = "error"
 )
 
 type DeploymentEvent struct {
@@ -38,11 +39,18 @@ func (e DeploymentEventSuccess) EventType() DeploymentEventType {
 	return DeploymentEventTypeSuccess
 }
 
+type DeploymentEventError string
+
+func (e DeploymentEventError) EventType() DeploymentEventType {
+	return DeploymentEventTypeError
+}
+
 type DeploymentProgressType string
 
 const (
 	DeploymentProgressTypeInfo   DeploymentProgressType = "info"
 	DeploymentProgressTypeUpdate DeploymentProgressType = "update"
+	DeploymentProgressTypePlan   DeploymentProgressType = "plan"
 )
 
 type DeploymentProgressSkeleton struct {
@@ -82,6 +90,16 @@ func (d DeploymentProgressUpdate) DataType() DeploymentProgressType {
 	return DeploymentProgressTypeUpdate
 }
 
+type DeploymentProgressPlan struct {
+	Create int `json:"create"`
+	Update int `json:"update"`
+	Delete int `json:"delete"`
+}
+
+func (d DeploymentProgressPlan) DataType() DeploymentProgressType {
+	return DeploymentProgressTypePlan
+}
+
 func UnmarshalDeploymentEvent(data []byte) (*DeploymentEvent, error) {
 	var skel DeploymentEventSkeleton
 	var evt DeploymentEvent
@@ -106,6 +124,12 @@ func UnmarshalDeploymentEvent(data []byte) (*DeploymentEvent, error) {
 	case DeploymentEventTypeSuccess:
 		var success DeploymentEventSuccess
 		evt.Data = &success
+	case DeploymentEventTypeError:
+		var deployErr DeploymentEventError
+		if err := json.Unmarshal(skel.Data, &deployErr); err != nil {
+			return nil, err
+		}
+		evt.Data = deployErr
 	}
 
 	return &evt, nil
@@ -134,6 +158,12 @@ func UnmarshalDeploymentProgress(data []byte) (*DeploymentProgress, error) {
 			return nil, err
 		}
 		progress.Data = update
+	case DeploymentProgressTypePlan:
+		var plan DeploymentProgressPlan
+		if err := json.Unmarshal(skel.Data, &plan); err != nil {
+			return nil, err
+		}
+		progress.Data = plan
 	}
 
 	return &progress, nil

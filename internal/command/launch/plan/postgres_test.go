@@ -66,8 +66,8 @@ func (m *mockUIEXClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug st
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
 }
 
-func (m *mockUIEXClient) CreateDeploy(ctx context.Context, appName string, input uiex.RemoteDeploymentRequest) (<-chan *uiex.DeploymentEvent, error) {
-	return nil, nil
+func (m *mockUIEXClient) CreateDeploy(ctx context.Context, appName string, input uiex.RemoteDeploymentRequest) (uiex.RemoteDeploymentResponse, error) {
+	return uiex.RemoteDeploymentResponse{}, nil
 }
 
 func TestDefaultPostgres_ForceTypes(t *testing.T) {

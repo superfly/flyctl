@@ -24,31 +24,39 @@ type RemoteDeploymentRequest struct {
 	Image        string                   `json:"image"`
 	Strategy     RemoteDeploymentStrategy `json:"strategy"`
 	BuildId      string                   `json:"build_id"`
+	BuilderID    string                   `json:"builder_id"`
+}
+
+type RemoteDeploymentResponse struct {
+	Events <-chan *DeploymentEvent
+	Errors <-chan error
 }
 
 // CreateDeploy creates a new remote deploy for the given app and returns an SSE event stream.
 // POST /api/v1/apps/{app_name}/deploy
-func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteDeploymentRequest) (<-chan *DeploymentEvent, error) {
+func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteDeploymentRequest) (RemoteDeploymentResponse, error) {
 	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/apps/%s/deploy", c.baseUrl, appName)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
-		return nil, fmt.Errorf("failed to encode request body: %w", err)
+		return RemoteDeploymentResponse{}, fmt.Errorf("failed to encode request body: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return RemoteDeploymentResponse{}, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 	// req.Header.Add("Accept", "text/event-stream")
 
 	out := make(chan *DeploymentEvent)
+	errors := make(chan error)
 
 	go func() {
 		defer close(out)
+		defer close(errors)
 
 		res, err := c.httpClient.Do(req)
 		if err != nil {
@@ -57,7 +65,8 @@ func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteD
 		defer res.Body.Close()
 
 		if res.StatusCode < 200 || res.StatusCode >= 300 {
-			_, _ = io.ReadAll(res.Body)
+			body, _ := io.ReadAll(res.Body)
+			errors <- fmt.Errorf("unexpected status code received from the deployment server %d: %s", res.StatusCode, string(body))
 			return
 		}
 
@@ -67,15 +76,17 @@ func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteD
 					return
 				}
 
-				// TODO(AG): Handle error
-				fmt.Println("error", err)
+				errors <- err
 				return
+			}
+
+			if ev.Type == "ping" {
+				continue
 			}
 
 			evt, err := UnmarshalDeploymentEvent([]byte(ev.Data))
 			if err != nil {
-				// TODO(AG): Handle error
-				fmt.Println("error", err)
+				errors <- err
 				return
 			}
 			out <- evt
@@ -83,5 +94,5 @@ func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteD
 
 	}()
 
-	return out, nil
+	return RemoteDeploymentResponse{Events: out, Errors: errors}, nil
 }

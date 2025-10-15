@@ -20,7 +20,7 @@ type Client interface {
 	CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 
 	// Deploys
-	CreateDeploy(ctx context.Context, appName string, input uiex.RemoteDeploymentRequest) (<-chan *uiex.DeploymentEvent, error)
+	CreateDeploy(ctx context.Context, appName string, input uiex.RemoteDeploymentRequest) (uiex.RemoteDeploymentResponse, error)
 }
 
 type contextKey struct{}
