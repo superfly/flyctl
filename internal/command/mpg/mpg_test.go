@@ -31,6 +31,7 @@ type MockUiexClient struct {
 	DestroyClusterFunc                func(ctx context.Context, orgSlug string, id string) error
 	ListManagedClusterBackupsFunc     func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
 	CreateManagedClusterBackupFunc    func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
+	RestoreManagedClusterBackupFunc   func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
 	CreateFlyManagedBuilderFunc       func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 }
 
@@ -102,6 +103,13 @@ func (m *MockUiexClient) CreateManagedClusterBackup(ctx context.Context, cluster
 		return m.CreateManagedClusterBackupFunc(ctx, clusterID, input)
 	}
 	return uiex.CreateManagedClusterBackupResponse{}, nil
+}
+
+func (m *MockUiexClient) RestoreManagedClusterBackup(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error) {
+	if m.RestoreManagedClusterBackupFunc != nil {
+		return m.RestoreManagedClusterBackupFunc(ctx, clusterID, input)
+	}
+	return uiex.RestoreManagedClusterBackupResponse{}, nil
 }
 
 // MockRegionProvider implements RegionProvider for testing

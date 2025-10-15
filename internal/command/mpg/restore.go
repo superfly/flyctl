@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -41,6 +43,7 @@ func runRestore(ctx context.Context) error {
 	}
 
 	out := iostreams.FromContext(ctx).Out
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
@@ -53,9 +56,20 @@ func runRestore(ctx context.Context) error {
 		return fmt.Errorf("--backup-id flag is required")
 	}
 
-	// TODO: Implement restore functionality
 	fmt.Fprintf(out, "Restoring cluster %s from backup %s...\n", clusterID, backupID)
-	fmt.Fprintf(out, "(Restore functionality not yet implemented)\n")
+
+	input := uiex.RestoreManagedClusterBackupInput{
+		BackupId: backupID,
+	}
+
+	response, err := uiexClient.RestoreManagedClusterBackup(ctx, clusterID, input)
+	if err != nil {
+		return fmt.Errorf("failed to restore backup: %w", err)
+	}
+
+	fmt.Fprintf(out, "Restore initiated successfully!\n")
+	fmt.Fprintf(out, "  Cluster ID: %s\n", response.Data.Id)
+	fmt.Fprintf(out, "  Cluster Name: %s\n", response.Data.Name)
 
 	return nil
 }

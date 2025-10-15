@@ -70,6 +70,10 @@ func (m *mockUIEXClient) CreateManagedClusterBackup(ctx context.Context, cluster
 	return uiex.CreateManagedClusterBackupResponse{}, nil
 }
 
+func (m *mockUIEXClient) RestoreManagedClusterBackup(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error) {
+	return uiex.RestoreManagedClusterBackupResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error) {
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
 }
