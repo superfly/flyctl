@@ -313,11 +313,21 @@ var (
 // Fetches all Fly regions and app's default region.
 // Only the first call to this function will issue an HTTP request using ctx.
 // Subsequent calls will return the same future as the first.
+// Deprecated regions are automatically filtered out.
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
 			client := flyutil.ClientFromContext(ctx)
 			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			if err != nil {
+				return RegionInfo{}, err
+			}
+
+			// Filter out deprecated regions
+			regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+				return !r.Deprecated
+			})
+
 			regionInfo := RegionInfo{
 				Regions:       regions,
 				DefaultRegion: defaultRegion,
