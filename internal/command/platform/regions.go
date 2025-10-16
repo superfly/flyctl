@@ -46,6 +46,12 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
+
+	// Filter out deprecated regions
+	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		return !r.Deprecated
+	})
+
 	sort.Slice(regions, func(i, j int) bool {
 		return regions[i].Name < regions[j].Name
 	})
