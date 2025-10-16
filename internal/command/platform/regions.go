@@ -37,6 +37,17 @@ func newRegions() (cmd *cobra.Command) {
 	return
 }
 
+// filterDeprecatedRegions filters out deprecated regions from the list
+func filterDeprecatedRegions(regions []fly.Region) []fly.Region {
+	filteredRegions := make([]fly.Region, 0, len(regions))
+	for _, r := range regions {
+		if !r.Deprecated {
+			filteredRegions = append(filteredRegions, r)
+		}
+	}
+	return filteredRegions
+}
+
 func runRegions(ctx context.Context) error {
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
@@ -46,16 +57,10 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
-	
+
 	// Filter out deprecated regions using the Deprecated field from fly-go
-	filteredRegions := make([]fly.Region, 0, len(regions))
-	for _, r := range regions {
-		if !r.Deprecated {
-			filteredRegions = append(filteredRegions, r)
-		}
-	}
-	regions = filteredRegions
-	
+	regions = filterDeprecatedRegions(regions)
+
 	sort.Slice(regions, func(i, j int) bool {
 		return regions[i].Name < regions[j].Name
 	})
