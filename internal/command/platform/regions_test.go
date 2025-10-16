@@ -3,8 +3,8 @@ package platform
 import (
 	"testing"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/stretchr/testify/assert"
+	fly "github.com/superfly/fly-go"
 )
 
 func TestDeprecatedRegionFiltering(t *testing.T) {

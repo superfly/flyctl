@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 // MockFlyClient implements the necessary methods for testing
