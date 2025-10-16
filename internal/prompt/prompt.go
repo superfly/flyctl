@@ -318,8 +318,17 @@ func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
 			client := flyutil.ClientFromContext(ctx)
 			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			
+			// Filter out deprecated regions using the Deprecated field from fly-go
+			filteredRegions := make([]fly.Region, 0, len(regions))
+			for _, r := range regions {
+				if !r.Deprecated {
+					filteredRegions = append(filteredRegions, r)
+				}
+			}
+			
 			regionInfo := RegionInfo{
-				Regions:       regions,
+				Regions:       filteredRegions,
 				DefaultRegion: defaultRegion,
 			}
 			return regionInfo, err

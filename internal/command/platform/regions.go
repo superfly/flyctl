@@ -46,6 +46,16 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
+	
+	// Filter out deprecated regions using the Deprecated field from fly-go
+	filteredRegions := make([]fly.Region, 0, len(regions))
+	for _, r := range regions {
+		if !r.Deprecated {
+			filteredRegions = append(filteredRegions, r)
+		}
+	}
+	regions = filteredRegions
+	
 	sort.Slice(regions, func(i, j int) bool {
 		return regions[i].Name < regions[j].Name
 	})
