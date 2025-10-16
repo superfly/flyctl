@@ -2019,6 +2019,11 @@ enum CertificateValidationErrorCodeEnum {
   CAA_RECORD_MISSING_FLY
 
   """
+  Conflicting service definitions found on port 443
+  """
+  CONFLICTING_PORT_443_SERVICES
+
+  """
   DNS records are not configured for this hostname
   """
   DNS_NOT_CONFIGURED
@@ -3588,6 +3593,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
+  
   """
   path: [String!]
 
@@ -7311,6 +7317,12 @@ type Mutations {
     """
     input: ReleaseIPAddressInput!
   ): ReleaseIPAddressPayload
+  releaseManagedServiceIpAddress(
+    """
+    Parameters for ReleaseManagedServiceIPAddress
+    """
+    input: ReleaseManagedServiceIPAddressInput!
+  ): ReleaseManagedServiceIPAddressPayload
   removeMachine(
     """
     Parameters for RemoveMachine
@@ -8891,12 +8903,8 @@ type Region {
   The IATA airport code for this region
   """
   code: String!
-  
-  """
-  Whether this region is deprecated
-  """
-  deprecated: Boolean!
   gatewayAvailable: Boolean!
+  deprecated: Boolean!
 
   """
   The latitude of this region
