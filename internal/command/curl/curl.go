@@ -90,8 +90,11 @@ func fetchRegionCodes(ctx context.Context) (codes []string, err error) {
 		return
 	}
 
+	// Filter out deprecated regions using the Deprecated field from fly-go and collect codes
 	for _, region := range regions {
-		codes = append(codes, region.Code)
+		if !region.Deprecated {
+			codes = append(codes, region.Code)
+		}
 	}
 	sort.Strings(codes)
 
