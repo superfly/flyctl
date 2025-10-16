@@ -8891,6 +8891,11 @@ type Region {
   The IATA airport code for this region
   """
   code: String!
+  
+  """
+  Whether this region is deprecated
+  """
+  deprecated: Boolean!
   gatewayAvailable: Boolean!
 
   """
