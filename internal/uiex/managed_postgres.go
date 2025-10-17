@@ -157,6 +157,7 @@ func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManag
 type CreateUserInput struct {
 	DbName   string `json:"db_name"`
 	UserName string `json:"user_name"`
+	AppName  string `json:"app_name"`
 }
 
 type DetailedErrors struct {
