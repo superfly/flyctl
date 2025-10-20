@@ -977,7 +977,7 @@ func TestBackupList(t *testing.T) {
 	// Set the cluster ID as first arg
 	flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	flagSet.Bool("json", true, "JSON output")
-	flagSet.Bool("all", false, "Show all backups")
+	flagSet.Bool("all", true, "Show all backups")
 	flagSet.Parse([]string{"test-cluster-123"})
 	ctx = flagctx.NewContext(ctx, flagSet)
 
