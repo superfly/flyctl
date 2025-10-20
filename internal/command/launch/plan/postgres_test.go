@@ -62,6 +62,18 @@ func (m *mockUIEXClient) DestroyCluster(ctx context.Context, orgSlug string, id 
 	return nil
 }
 
+func (m *mockUIEXClient) ListManagedClusterBackups(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error) {
+	return uiex.ListManagedClusterBackupsResponse{}, nil
+}
+
+func (m *mockUIEXClient) CreateManagedClusterBackup(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error) {
+	return uiex.CreateManagedClusterBackupResponse{}, nil
+}
+
+func (m *mockUIEXClient) RestoreManagedClusterBackup(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error) {
+	return uiex.RestoreManagedClusterBackupResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error) {
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
 }
