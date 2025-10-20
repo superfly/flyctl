@@ -22,17 +22,17 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
-	ListMPGRegionsFunc                func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
-	ListManagedClustersFunc           func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
-	GetManagedClusterFunc             func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
-	GetManagedClusterByIdFunc         func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
-	CreateUserFunc                    func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
-	CreateClusterFunc                 func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
-	DestroyClusterFunc                func(ctx context.Context, orgSlug string, id string) error
-	ListManagedClusterBackupsFunc     func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
-	CreateManagedClusterBackupFunc    func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
-	RestoreManagedClusterBackupFunc   func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
-	CreateFlyManagedBuilderFunc       func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
+	ListManagedClustersFunc         func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
+	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
+	GetManagedClusterByIdFunc       func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
+	CreateUserFunc                  func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateClusterFunc               func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
+	DestroyClusterFunc              func(ctx context.Context, orgSlug string, id string) error
+	ListManagedClusterBackupsFunc   func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
+	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
+	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
+	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
