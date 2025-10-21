@@ -79,6 +79,10 @@ func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Filter out deprecated regions
+		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+			return !r.Deprecated
+		})
 		return regions, nil
 	})
 	if err != nil {
