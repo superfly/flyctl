@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
@@ -89,6 +90,11 @@ func fetchRegionCodes(ctx context.Context) (codes []string, err error) {
 
 		return
 	}
+
+	// Filter out deprecated regions
+	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		return !r.Deprecated
+	})
 
 	for _, region := range regions {
 		codes = append(codes, region.Code)

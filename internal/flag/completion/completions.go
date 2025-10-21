@@ -104,6 +104,12 @@ func CompleteRegions(
 	if err != nil {
 		return nil, err
 	}
+
+	// Filter out deprecated regions
+	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		return !r.Deprecated
+	})
+
 	regionNames := lo.FilterMap(regions, func(region fly.Region, _ int) (string, bool) {
 		if strings.HasPrefix(region.Code, partial) {
 			return format(region), true
