@@ -8892,6 +8892,7 @@ type Region {
   """
   code: String!
   gatewayAvailable: Boolean!
+  deprecated: Boolean!
 
   """
   The latitude of this region

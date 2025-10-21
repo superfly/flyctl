@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -39,6 +41,11 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
+
+	// Filter out deprecated regions
+	flyRegions = lo.Filter(flyRegions, func(r fly.Region, _ int) bool {
+		return !r.Deprecated
+	})
 
 	lfscClient := lfsc.NewClient()
 	lfscClient.URL = flag.GetString(ctx, "url")
