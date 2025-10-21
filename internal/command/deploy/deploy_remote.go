@@ -3,10 +3,12 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -15,13 +17,12 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// newRemoteDeployment is a placeholder for the remote deployment path.
-// For now, it returns a not implemented error.
 func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *imgsrc.DeploymentImage) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines_remote")
 	defer span.End()
 
-	// io := iostreams.FromContext(ctx)
+	// TODO(AG): Metrics and tracing.
+
 	appName := appconfig.NameFromContext(ctx)
 
 	apiClient := flyutil.ClientFromContext(ctx)
@@ -35,6 +36,12 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 		return fmt.Errorf("uiex client not found in context")
 	}
 
+	filters := getDeploymentFilters(ctx)
+	overrides, err := getDeploymentOverrides(ctx)
+	if err != nil {
+		return err
+	}
+
 	req := uiex.RemoteDeploymentRequest{
 		Organization: appCompact.Organization.Slug,
 		Config:       appConfig,
@@ -42,10 +49,14 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 		Strategy:     uiex.RemoteDeploymentStrategyRolling,
 		BuildId:      img.BuildID,
 		BuilderID:    img.BuilderID,
+		Filters:      filters,
+		Overrides:    overrides,
 	}
 
 	streams := iostreams.FromContext(ctx)
 	streams.StartProgressIndicator()
+
+	colors := streams.ColorScheme()
 
 	cmdfmt.PrintBegin(streams.ErrOut, "Waiting for the remote deployer")
 
@@ -126,7 +137,7 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 
 					mapping := findLineMachineMapping(machineID)
 					line := sl.Line(mapping)
-					writeMachineUpdate(line, update)
+					writeMachineUpdate(line, update, colors)
 
 				default:
 					cmdfmt.PrintDone(streams.ErrOut, "Unknown progress event ", progress.Type)
@@ -136,7 +147,7 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 				if sl != nil {
 					sl.Destroy(false)
 				}
-				cmdfmt.PrintDone(streams.ErrOut, "Deployment completed")
+				cmdfmt.PrintDone(streams.ErrOut, colors.GreenBold("Deployment completed"))
 
 			case uiex.DeploymentEventTypeError:
 				var resume statuslogger.ResumeFn
@@ -144,7 +155,8 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 					resume = sl.Pause()
 				}
 
-				cmdfmt.PrintDone(streams.ErrOut, "Deployment error ", ev.Data.(uiex.DeploymentEventError))
+				cmdfmt.PrintDone(streams.ErrOut,
+					colors.RedBold("Deployment Error "), ev.Data.(uiex.DeploymentEventError))
 
 				if resume != nil {
 					resume()
@@ -157,7 +169,7 @@ func newRemoteDeployment(ctx context.Context, appConfig *appconfig.Config, img *
 	}
 }
 
-func writeMachineUpdate(line statuslogger.StatusLine, update uiex.DeploymentProgressUpdate) {
+func writeMachineUpdate(line statuslogger.StatusLine, update uiex.DeploymentProgressUpdate, colors *iostreams.ColorScheme) {
 	switch update.Type {
 	case "starting_update":
 		line.LogfStatus(statuslogger.StatusNone, "[%s] Preparing to update", update.MachineID)
@@ -198,6 +210,82 @@ func writeMachineUpdate(line statuslogger.StatusLine, update uiex.DeploymentProg
 			"[%s] Waiting for health checks (%d/%d)", update.MachineID, update.PassingChecks, update.TotalChecks)
 
 	case "healthy":
-		line.LogfStatus(statuslogger.StatusSuccess, "[%s] Done", update.MachineID)
+		line.LogfStatus(statuslogger.StatusSuccess,
+			"[%s] %s", update.MachineID, colors.Green("Done"))
 	}
+}
+
+func getDeploymentFilters(ctx context.Context) *uiex.RemoteDeploymentFilters {
+	excludeRegions := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "exclude-regions") {
+		excludeRegions[r] = true
+	}
+
+	onlyRegions := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "regions") {
+		onlyRegions[r] = true
+	}
+
+	excludeMachines := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "exclude-machines") {
+		excludeMachines[r] = true
+	}
+
+	onlyMachines := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "only-machines") {
+		onlyMachines[r] = true
+	}
+
+	processGroups := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "process-groups") {
+		processGroups[r] = true
+	}
+
+	return &uiex.RemoteDeploymentFilters{
+		ExcludeRegions:  setToSlice(excludeRegions),
+		Regions:         setToSlice(onlyRegions),
+		ExcludeMachines: setToSlice(excludeMachines),
+		OnlyMachines:    setToSlice(onlyMachines),
+		ProcessGroups:   setToSlice(processGroups),
+	}
+}
+
+func getDeploymentOverrides(ctx context.Context) (*uiex.RemoteDeploymentOverrides, error) {
+	primaryRegion := flag.GetString(ctx, "primary-region")
+	cpuKind := flag.GetString(ctx, "vm-cpu-kind")
+	vmSize := flag.GetString(ctx, "vm-size")
+
+	cpus := 0
+	if flag.IsSpecified(ctx, "vm-cpus") {
+		var err error
+		cpus, err = strconv.Atoi(flag.GetString(ctx, "vm-cpus"))
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse the flag vm-cpus: %w", err)
+		}
+	}
+
+	memory := 0
+	if flag.IsSpecified(ctx, "vm-memory") {
+		var err error
+		memory, err = strconv.Atoi(flag.GetString(ctx, "vm-memory"))
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse the flag vm-memory: %w", err)
+		}
+	}
+
+	return &uiex.RemoteDeploymentOverrides{
+		PrimaryRegion: primaryRegion,
+		VmCPUs:        cpus,
+		VmMemory:      memory,
+		VmCPUKind:     cpuKind,
+		VmSize:        vmSize,
+	}, nil
+}
+
+func setToSlice(m map[string]bool) []string {
+	s := make([]string, 0, len(m))
+	for k := range m {
+		s = append(s, k)
+	}
+	return s
 }

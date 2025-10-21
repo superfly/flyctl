@@ -2,10 +2,11 @@ package iostreams
 
 import (
 	"fmt"
-	"github.com/samber/lo"
 	"math"
 	"os"
 	"strings"
+
+	"github.com/samber/lo"
 
 	"github.com/mgutz/ansi"
 )
@@ -21,6 +22,8 @@ var (
 	bold      = ansi.ColorFunc("default+b")
 	underline = ansi.ColorFunc("default+u")
 	cyanBold  = ansi.ColorFunc("cyan+b")
+	greenBold = ansi.ColorFunc("green+b")
+	redBold   = ansi.ColorFunc("red+b")
 
 	gray256 = func(t string) string {
 		return fmt.Sprintf("\x1b[%d;5;%dm%s\x1b[m", 38, 242, t)
@@ -95,6 +98,13 @@ func (c *ColorScheme) Red(t string) string {
 	return red(t)
 }
 
+func (c *ColorScheme) RedBold(t string) string {
+	if !c.enabled {
+		return t
+	}
+	return redBold(t)
+}
+
 func (c *ColorScheme) Yellow(t string) string {
 	if !c.enabled {
 		return t
@@ -107,6 +117,13 @@ func (c *ColorScheme) Green(t string) string {
 		return t
 	}
 	return green(t)
+}
+
+func (c *ColorScheme) GreenBold(t string) string {
+	if !c.enabled {
+		return t
+	}
+	return greenBold(t)
 }
 
 func (c *ColorScheme) Gray(t string) string {

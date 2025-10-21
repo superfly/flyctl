@@ -19,12 +19,30 @@ const (
 )
 
 type RemoteDeploymentRequest struct {
-	Organization string                   `json:"organization"`
-	Config       any                      `json:"config"`
-	Image        string                   `json:"image"`
-	Strategy     RemoteDeploymentStrategy `json:"strategy"`
-	BuildId      string                   `json:"build_id"`
-	BuilderID    string                   `json:"builder_id"`
+	Organization string                     `json:"organization"`
+	Config       any                        `json:"config"`
+	Image        string                     `json:"image"`
+	Strategy     RemoteDeploymentStrategy   `json:"strategy"`
+	BuildId      string                     `json:"build_id"`
+	BuilderID    string                     `json:"builder_id"`
+	Filters      *RemoteDeploymentFilters   `json:"filters,omitempty"`
+	Overrides    *RemoteDeploymentOverrides `json:"overrides,omitempty"`
+}
+
+type RemoteDeploymentFilters struct {
+	Regions         []string `json:"regions,omitempty"`
+	ExcludeRegions  []string `json:"exclude_regions,omitempty"`
+	OnlyMachines    []string `json:"only_machines,omitempty"`
+	ExcludeMachines []string `json:"exclude_machines,omitempty"`
+	ProcessGroups   []string `json:"process_groups,omitempty"`
+}
+
+type RemoteDeploymentOverrides struct {
+	PrimaryRegion string `json:"primary_region,omitempty"`
+	VmCPUs        int    `json:"vm_cpus,omitempty"`
+	VmMemory      int    `json:"vm_memory,omitempty"`
+	VmCPUKind     string `json:"vm_cpu_kind,omitempty"`
+	VmSize        string `json:"vm_size,omitempty"`
 }
 
 type RemoteDeploymentResponse struct {
@@ -91,7 +109,6 @@ func (c *Client) CreateDeploy(ctx context.Context, appName string, input RemoteD
 			}
 			out <- evt
 		}
-
 	}()
 
 	return RemoteDeploymentResponse{Events: out, Errors: errors}, nil
