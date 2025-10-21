@@ -173,6 +173,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		uiexClient = uiexutil.ClientFromContext(ctx)
 	)
 
+	// Check if we should attach to an existing cluster instead of creating a new one
+	if pgPlan.ClusterID != "" {
+		return state.attachToManagedPostgres(ctx, pgPlan.ClusterID)
+	}
+
 	// Get org
 	org, err := state.Org(ctx)
 	if err != nil {
@@ -329,6 +334,66 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Managed Postgres cluster %s is ready and attached to %s\n", response.Data.Id, state.Plan.AppName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
+
+	return nil
+}
+
+// attachToManagedPostgres attaches an existing Managed Postgres cluster to the app
+func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID string) error {
+	var (
+		io         = iostreams.FromContext(ctx)
+		uiexClient = uiexutil.ClientFromContext(ctx)
+		client     = flyutil.ClientFromContext(ctx)
+	)
+
+	// Get cluster details to verify it exists and get credentials
+	fmt.Fprintf(io.Out, "Attaching to existing Managed Postgres cluster %s...\n", clusterID)
+
+	var cluster uiex.GetManagedClusterResponse
+	err := retry.Do(
+		func() error {
+			var retryErr error
+			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, clusterID)
+			return retryErr
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(1*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			fmt.Fprintf(io.Out, "Retrying cluster lookup (attempt %d) due to: %v\n", n+1, err)
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+	}
+
+	// Verify the cluster and app are in the same organization
+	app, err := client.GetAppBasic(ctx, state.Plan.AppName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", state.Plan.AppName, err)
+	}
+
+	clusterOrgSlug := cluster.Data.Organization.Slug
+	appOrgSlug := app.Organization.RawSlug
+
+	if appOrgSlug != clusterOrgSlug {
+		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
+			state.Plan.AppName, appOrgSlug, clusterID, clusterOrgSlug)
+	}
+
+	// Set the connection string as a secret
+	secrets := map[string]string{
+		"DATABASE_URL": cluster.Credentials.ConnectionUri,
+	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil); err != nil {
+		return fmt.Errorf("failed setting database secrets: %w", err)
+	}
+
+	fmt.Fprintf(io.Out, "Managed Postgres cluster %s is now attached to %s\n", clusterID, state.Plan.AppName)
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
 
 	return nil
