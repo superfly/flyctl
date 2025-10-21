@@ -13,6 +13,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
@@ -36,6 +37,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateConsoleCommand,
 		c.validateMounts,
 		c.validateRestartPolicy,
+		c.validateCompression,
 	}
 
 	extra_info = fmt.Sprintf("Validating %s\n", c.ConfigFilePath())
@@ -175,7 +177,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n " +
 					"Validation for _services without ports_ will hard fail after February 15, 2024.",
 			)
-			//err = ValidationError
+			// err = ValidationError
 		}
 
 		for _, check := range service.TCPChecks {
@@ -350,6 +352,26 @@ func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
 		if vErr != nil {
 			extraInfo += fmt.Sprintf("%s\n", vErr)
 			err = ValidationError
+		}
+	}
+
+	return
+}
+
+func (c *Config) validateCompression() (extraInfo string, err error) {
+	if c.Build != nil {
+		if c.Build.Compression != "" {
+			if vErr := validation.ValidateCompressionFlag(c.Build.Compression); vErr != nil {
+				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
+				err = ValidationError
+			}
+		}
+
+		if c.Build.CompressionLevel != nil {
+			if vErr := validation.ValidateCompressionLevelFlag(*c.Build.CompressionLevel); vErr != nil {
+				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
+				err = ValidationError
+			}
 		}
 	}
 

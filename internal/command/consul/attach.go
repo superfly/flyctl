@@ -56,6 +56,10 @@ func runAttach(ctx context.Context) error {
 	secretsToSet := map[string]string{
 		secretName: consulPayload.ConsulURL,
 	}
-	err = secrets.SetSecretsAndDeploy(ctx, flapsClient, app, secretsToSet, false, false)
+	err = secrets.SetSecretsAndDeploy(ctx, flapsClient, app, secretsToSet, secrets.DeploymentArgs{
+		Stage:    false,
+		Detach:   false,
+		CheckDNS: true,
+	})
 	return err
 }

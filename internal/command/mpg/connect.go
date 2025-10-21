@@ -27,6 +27,11 @@ func newConnect() (cmd *cobra.Command) {
 
 	flag.Add(cmd,
 		flag.MPGCluster(),
+		flag.String{
+			Name:        "database",
+			Shorthand:   "d",
+			Description: "The database to connect to",
+		},
 	)
 
 	return cmd
@@ -65,6 +70,11 @@ func runConnect(ctx context.Context) (err error) {
 	user := credentials.User
 	password := credentials.Password
 	db := credentials.DBName
+
+	// Override database name if provided via flag
+	if database := flag.GetString(ctx, "database"); database != "" {
+		db = database
+	}
 
 	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
 	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)

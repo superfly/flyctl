@@ -167,9 +167,7 @@ func assertMachineCount(tb assert.TestingT, f *testlib.FlyctlTestEnv, appName st
 
 // assertPostgresIsUp checks that the given Postgres server is really up.
 // Even after "fly pg create", sometimes the server is not ready for accepting connections.
-func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string) {
-	tb.Helper()
-
+func assertPostgresIsUp(tb assert.TestingT, f *testlib.FlyctlTestEnv, appName string) {
 	ssh := f.FlyAllowExitFailure(`ssh console -a %s -u postgres -C "psql -p 5433 -h /run/postgresql -c 'SELECT 1'"`, appName)
 	assert.Equal(tb, 0, ssh.ExitCode(), "failed to connect to postgres at %s: %s", appName, ssh.StdErr())
 }
@@ -196,7 +194,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
 		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		assertPostgresIsUp(t, f, firstAppName)
 	}, 1*time.Minute, 10*time.Second)
 
@@ -222,7 +220,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	require.Contains(f, output, firstAppName)
 
 	// Wait for the importer machine to be destroyed.
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		assertMachineCount(t, f, secondAppName, 1)
 	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
@@ -244,7 +242,7 @@ func TestPostgres_ImportFailure(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
 		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		assertPostgresIsUp(t, f, appName)
 	}, 1*time.Minute, 10*time.Second)
 
@@ -256,7 +254,7 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
 
 	// Wait for the importer machine to be destroyed.
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		assertMachineCount(t, f, appName, 1)
 	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }

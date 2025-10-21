@@ -56,13 +56,18 @@ This command requires a machine to be in a stopped or suspended state unless the
 }
 
 func runMachineDestroy(ctx context.Context) (err error) {
+	image := strings.TrimSpace(flag.GetString(ctx, "image"))
+
+	if image != "" && appconfig.NameFromContext(ctx) == "" {
+		return fmt.Errorf("--image requires --app flag or must be run from app directory")
+	}
+
 	ctx, err = buildContextFromAppName(ctx, appconfig.NameFromContext(ctx))
 	if err != nil {
 		return err
 	}
 
 	var machinesToBeDeleted []*fly.Machine
-	image := strings.TrimSpace(flag.GetString(ctx, "image"))
 
 	switch {
 	case image != "":

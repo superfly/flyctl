@@ -18,7 +18,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s

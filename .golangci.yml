@@ -1,7 +1,7 @@
 version: "2"
 run:
   concurrency: 4
-  go: "1.21"
+  go: "1.24"
   issues-exit-code: 1
   tests: true
 linters:
@@ -41,7 +41,6 @@ linters:
         - -QF1002 # could use tagged switch
         - -QF1003 # could use tagged switch on app
         - -QF1008 # could remove embedded field ... from selector
-        - -QF1012 # Use fmt.Fprintf(...) instead of WriteString(fmt.Sprintf(...))
   exclusions:
     generated: lax
     presets:
@@ -52,7 +51,7 @@ linters:
     rules:
       - linters:
           - lll
-        source: '^//go:generate '
+        source: "^//go:generate "
     paths:
       - third_party$
       - builtin$

@@ -23,6 +23,11 @@ var sharedFlags = flag.Set{
 		Name:        "stage",
 		Description: "Set secrets but skip deployment for machine apps",
 	},
+	flag.Bool{
+		Name:        "dns-checks",
+		Description: "Perform DNS checks during deployment",
+		Default:     true,
+	},
 }
 
 func New() *cobra.Command {
@@ -40,6 +45,7 @@ func New() *cobra.Command {
 	secrets.AddCommand(
 		newList(),
 		newSet(),
+		newSync(),
 		newUnset(),
 		newImport(),
 		newDeploy(),
@@ -49,11 +55,17 @@ func New() *cobra.Command {
 	return secrets
 }
 
+type DeploymentArgs struct {
+	Stage    bool
+	Detach   bool
+	CheckDNS bool
+}
+
 // DeploySecrets deploys machines with the new secret if this step is not to be skipped.
-func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
+func DeploySecrets(ctx context.Context, app *fly.AppCompact, args DeploymentArgs) error {
 	out := iostreams.FromContext(ctx).Out
 
-	if stage {
+	if args.Stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
 		return nil
 	}
@@ -83,7 +95,8 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach 
 	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
 		AppCompact:       app,
 		RestartOnly:      true,
-		SkipHealthChecks: detach,
+		SkipHealthChecks: args.Detach,
+		SkipDNSChecks:    args.Detach || !args.CheckDNS,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)

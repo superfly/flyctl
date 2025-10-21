@@ -592,10 +592,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		},
 
 		Mounts: []Mount{{
-			Source:            "data",
-			Destination:       "/data",
-			InitialSize:       "30gb",
-			SnapshotRetention: fly.Pointer(17),
+			Source:             "data",
+			Destination:        "/data",
+			InitialSize:        "30gb",
+			SnapshotRetention:  fly.Pointer(17),
+			ScheduledSnapshots: fly.BoolPointer(true),
 		}},
 
 		Processes: map[string]string{

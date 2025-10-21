@@ -38,13 +38,17 @@ func runUnset(ctx context.Context) (err error) {
 		return err
 	}
 
-	return UnsetSecretsAndDeploy(ctx, flapsClient, app, flag.Args(ctx), flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+	return UnsetSecretsAndDeploy(ctx, flapsClient, app, flag.Args(ctx), DeploymentArgs{
+		Stage:    flag.GetBool(ctx, "stage"),
+		Detach:   flag.GetBool(ctx, "detach"),
+		CheckDNS: flag.GetBool(ctx, "dns-checks"),
+	})
 }
 
-func UnsetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets []string, stage bool, detach bool) error {
+func UnsetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets []string, args DeploymentArgs) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, nil, secrets); err != nil {
 		return fmt.Errorf("update secrets: %w", err)
 	}
 
-	return DeploySecrets(ctx, app, stage, detach)
+	return DeploySecrets(ctx, app, args)
 }
