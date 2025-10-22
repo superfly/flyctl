@@ -72,7 +72,6 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 	}
 
 	if res.StatusCode > 299 {
-		// newError will read the response body; ensure we close it before returning
 		err := newError(res.StatusCode, res)
 		_ = res.Body.Close()
 		return nil, err
@@ -86,7 +85,7 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	if err != nil {
 		return err
 	}
-	// Ensure the response body is always closed
+	// Ensure the response body is closed by the client
 	defer body.Close()
 
 	if out == nil {
