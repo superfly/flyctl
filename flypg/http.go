@@ -66,19 +66,19 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 
 	req = req.WithContext(ctx)
 
-    res, err := c.httpClient.Do(req)
-    if err != nil {
-        return nil, err
-    }
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
 
-    if res.StatusCode > 299 {
-        // newError will read the response body; ensure we close it before returning
-        err := newError(res.StatusCode, res)
-        _ = res.Body.Close()
-        return nil, err
-    }
+	if res.StatusCode > 299 {
+		// newError will read the response body; ensure we close it before returning
+		err := newError(res.StatusCode, res)
+		_ = res.Body.Close()
+		return nil, err
+	}
 
-    return res.Body, nil
+	return res.Body, nil
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
@@ -86,15 +86,15 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	if err != nil {
 		return err
 	}
-    // Ensure the response body is always closed
-    defer body.Close()
+	// Ensure the response body is always closed
+	defer body.Close()
 
-    if out == nil {
-        _, _ = io.Copy(io.Discard, body)
-        return nil
-    }
+	if out == nil {
+		_, _ = io.Copy(io.Discard, body)
+		return nil
+	}
 
-    return json.NewDecoder(body).Decode(out)
+	return json.NewDecoder(body).Decode(out)
 }
 
 func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {
