@@ -66,17 +66,19 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 
 	req = req.WithContext(ctx)
 
-	res, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
+    res, err := c.httpClient.Do(req)
+    if err != nil {
+        return nil, err
+    }
 
-	if res.StatusCode > 299 {
-		return nil, newError(res.StatusCode, res)
-	}
+    if res.StatusCode > 299 {
+        // newError will read the response body; ensure we close it before returning
+        err := newError(res.StatusCode, res)
+        _ = res.Body.Close()
+        return nil, err
+    }
 
-	return res.Body, nil
+    return res.Body, nil
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
@@ -84,11 +86,15 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	if err != nil {
 		return err
 	}
-	if out == nil {
-		return nil
-	}
+    // Ensure the response body is always closed
+    defer body.Close()
 
-	return json.NewDecoder(body).Decode(out)
+    if out == nil {
+        _, _ = io.Copy(io.Discard, body)
+        return nil
+    }
+
+    return json.NewDecoder(body).Decode(out)
 }
 
 func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {
