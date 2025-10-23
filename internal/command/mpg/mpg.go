@@ -76,6 +76,8 @@ func New() *cobra.Command {
 		newList(),
 		newCreate(),
 		newDestroy(),
+		newBackup(),
+		newRestore(),
 	)
 
 	return cmd

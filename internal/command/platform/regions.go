@@ -19,10 +19,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// Hardcoded list of regions with GPUs
-// TODO: fetch this list from the graphql endpoint once it is there
-var gpuRegions = []string{"iad", "sjc", "syd", "ams"}
-
 const RegionsCommandDesc = `View a list of regions where Fly has datacenters.
 'Capacity' shows how many performance-1x VMs can currently be launched in each region.
 `
@@ -50,6 +46,12 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
+
+	// Filter out deprecated regions
+	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		return !r.Deprecated
+	})
+
 	sort.Slice(regions, func(i, j int) bool {
 		return regions[i].Name < regions[j].Name
 	})
@@ -69,32 +71,16 @@ func runRegions(ctx context.Context) error {
 		rows = append(rows, []string{""})
 		rows = append(rows, []string{io.ColorScheme().Underline(key.String())})
 		for _, region := range regionGroup {
-			gateway := ""
-			if region.GatewayAvailable {
-				gateway = "✓"
-			}
-			paidPlan := ""
-			if region.RequiresPaidPlan {
-				paidPlan = "✓"
-			}
-			gpuAvailable := ""
-			if slices.Contains(gpuRegions, region.Code) {
-				gpuAvailable = "✓"
-			}
-
 			capacity := fmt.Sprint(region.Capacity)
 			capacity = io.ColorScheme().RedGreenGradient(capacity, float64(region.Capacity)/1000)
 
 			rows = append(rows, []string{
 				region.Name,
 				region.Code,
-				gateway,
-				gpuAvailable,
 				capacity,
-				paidPlan,
 			})
 		}
 	}
 
-	return render.Table(out, "", rows, "Name", "Code", "Gateway", "GPUs", "Capacity", "Launch Plan+")
+	return render.Table(out, "", rows, "Name", "Code", "Capacity")
 }

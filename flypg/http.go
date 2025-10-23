@@ -70,10 +70,11 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
 	if res.StatusCode > 299 {
-		return nil, newError(res.StatusCode, res)
+		err := newError(res.StatusCode, res)
+		_ = res.Body.Close()
+		return nil, err
 	}
 
 	return res.Body, nil
@@ -84,7 +85,11 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	if err != nil {
 		return err
 	}
+	// Ensure the response body is closed by the client
+	defer body.Close()
+
 	if out == nil {
+		_, _ = io.Copy(io.Discard, body)
 		return nil
 	}
 

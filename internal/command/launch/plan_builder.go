@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -220,7 +221,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		warnedNoCcHa:     false,
 	}
 
-	if planValidateHighAvailability(ctx, lp, org, true) {
+	if planValidateHighAvailability(ctx, lp, org.Billable, true) {
 		buildCache.warnedNoCcHa = true
 	}
 
@@ -725,6 +726,11 @@ func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error
 		return nil, err
 	}
 
+	// Filter out deprecated regions
+	allRegions = lo.Filter(allRegions, func(r fly.Region, _ int) bool {
+		return !r.Deprecated
+	})
+
 	for _, r := range allRegions {
 		if r.Code == regionCode {
 			return &r, nil
@@ -799,8 +805,8 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
-func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *fly.Organization, print bool) bool {
-	if !org.Billable && p.HighAvailability {
+func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
+	if !billable && p.HighAvailability {
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
 		}

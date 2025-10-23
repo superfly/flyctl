@@ -454,6 +454,10 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		// Filter out deprecated regions
+		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+			return !r.Deprecated
+		})
 		for _, code := range redisPlan.ReadReplicas {
 			if region, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == code }); ok {
 				readReplicaRegions = append(readReplicaRegions, region)

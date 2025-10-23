@@ -323,6 +323,7 @@ func Org() String {
 func MPGCluster() String {
 	return String{
 		Name:        "cluster",
+		Shorthand:   "c",
 		Description: "The target cluster ID",
 	}
 }
@@ -606,6 +607,22 @@ func Buildkit() Bool {
 	return Bool{
 		Name:        "buildkit",
 		Description: "Deploy using buildkit-based remote builder",
+	}
+}
+
+func Compression() String {
+	return String{
+		Name:        "compression",
+		Description: `Compression algorithm to use for the image. Options are "zstd" or "gzip". Defaults to "gzip".`,
+		Default:     "gzip",
+	}
+}
+
+func CompressionLevel() Int {
+	return Int{
+		Name:        "compression-level",
+		Description: `Compression level to use for the image. Defaults to 7.`,
+		Default:     7,
 	}
 }
 
