@@ -704,7 +704,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 	for _, state := range possibleStates {
 		state := state
 		go func() {
-			err := lm.WaitForState(ctx, state, timeout, false)
+			err := lm.WaitForState(ctx, state, timeout, false, false)
 			mutex.Lock()
 			defer func() {
 				numCompleted += 1

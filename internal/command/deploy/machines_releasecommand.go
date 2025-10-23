@@ -248,7 +248,8 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*fly.Machine{releaseCmdMachine}, true)
 
 	lm := md.releaseCommandMachine.GetMachines()[0]
-	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false); err != nil {
+	justCreated := true
+	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false, justCreated); err != nil {
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return err
 	}
@@ -317,7 +318,7 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
-	err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false)
+	err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false, false)
 	if err != nil {
 		var flapsErr *flaps.FlapsError
 		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
@@ -327,7 +328,7 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, true)
+	err = releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, true, false)
 	if err != nil {
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
