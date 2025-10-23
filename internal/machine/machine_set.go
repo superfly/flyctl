@@ -162,7 +162,7 @@ func (ms *machineSet) WaitForMachineSetState(ctx context.Context, state string, 
 		wg.Add(1)
 		go func(m LeasableMachine) {
 			defer wg.Done()
-			err := m.WaitForState(ctx, state, timeout, allowInfinite, false)
+			err := m.WaitForState(ctx, state, timeout, WithAllowInfinite(allowInfinite))
 
 			var flapsErr *flaps.FlapsError
 			if errors.As(err, &flapsErr) {

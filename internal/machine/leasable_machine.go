@@ -22,6 +22,25 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+type WaitOptions struct {
+	allowInfinite bool
+	justCreated   bool
+}
+
+type WaitOption func(*WaitOptions)
+
+func WithAllowInfinite(allow bool) WaitOption {
+	return func(opts *WaitOptions) {
+		opts.allowInfinite = allow
+	}
+}
+
+func WithJustCreated() WaitOption {
+	return func(opts *WaitOptions) {
+		opts.justCreated = true
+	}
+}
+
 type LeasableMachine interface {
 	Machine() *fly.Machine
 	HasLease() bool
@@ -34,7 +53,7 @@ type LeasableMachine interface {
 	Stop(context.Context, string) error
 	Destroy(context.Context, bool) error
 	Cordon(context.Context) error
-	WaitForState(context.Context, string, time.Duration, bool, bool) error
+	WaitForState(context.Context, string, time.Duration, ...WaitOption) error
 	WaitForSmokeChecksToPass(context.Context) error
 	WaitForHealthchecksToPass(context.Context, time.Duration) error
 	WaitForEventType(context.Context, string, time.Duration, bool) (*fly.MachineEvent, error)
@@ -196,8 +215,13 @@ func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfi
 	}
 }
 
-func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, allowInfinite bool, justCreated bool) error {
-	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, allowInfinite)
+func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, opts ...WaitOption) error {
+	options := &WaitOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, options.allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
 	b := &backoff.Backoff{
@@ -229,7 +253,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			}
 		case notFoundResponse && desiredState == fly.MachineStateDestroyed:
 			// We're waiting for destroyed state and the machine no longer exists - success
-		case notFoundResponse && justCreated:
+		case notFoundResponse && options.justCreated:
 			// Machine not found but we just created it - retry with backoff (it may not be visible yet)
 			select {
 			case <-time.After(b.Duration()):
