@@ -137,6 +137,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureNode,
 		configureStatic,
 		configureDotnet,
+		configureMaven,
 		configureRust,
 	}
 
