@@ -25,6 +25,9 @@ var (
 	gray256 = func(t string) string {
 		return fmt.Sprintf("\x1b[%d;5;%dm%s\x1b[m", 38, 242, t)
 	}
+	purple256 = func(t string) string {
+		return fmt.Sprintf("\x1b[%d;5;%dm%s\x1b[m", 38, 134, t)
+	}
 	italic = func(t string) string {
 		return fmt.Sprintf("\x1b[%dm%s\x1b[m", 3, t)
 	}
@@ -126,6 +129,16 @@ func (c *ColorScheme) Magenta(t string) string {
 	return magenta(t)
 }
 
+func (c *ColorScheme) Purple(t string) string {
+	if !c.enabled {
+		return t
+	}
+	if c.is256enabled {
+		return purple256(t)
+	}
+	return magenta(t) // Fallback to magenta for non-256 color terminals
+}
+
 func (c *ColorScheme) Cyan(t string) string {
 	if !c.enabled {
 		return t
@@ -186,6 +199,8 @@ func (c *ColorScheme) ColorFromString(s string) func(string) string {
 		fn = c.Gray
 	case "magenta":
 		fn = c.Magenta
+	case "purple":
+		fn = c.Purple
 	case "cyan":
 		fn = c.Cyan
 	case "blue":

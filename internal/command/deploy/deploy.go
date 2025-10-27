@@ -398,7 +398,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.Out, "\nWatch your deployment at %s\n\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)))
 	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
@@ -409,7 +410,63 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		ip = "none"
 	}
 	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
-		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
+		// Get terminal width for responsive borders
+		termWidth := io.TerminalWidth()
+		if termWidth > 120 {
+			termWidth = 120 // Cap at 120 for readability
+		}
+		border := strings.Repeat("═", termWidth)
+
+		// Print success box with ASCII art
+		fmt.Fprintln(io.Out)
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
+
+		// Print ASCII art with purple = characters
+		successArt := `                                                %%@
+                                               @%%@
+                                                @@
+                                                @@
+                                                @@
+                                               @@
+                      %%#**=+%%%%              @@
+                  %#+====-     =*+*%%         @@@
+               %#+======-        :+==#%       @@
+              %*========.          -+==*%    @@@
+            %#+========-             *==+%   @@@
+            #*=========.              ++=+% @@@
+           %#+========+               .*==*%@@@
+           %#=========+     ..    ..-..=*=+%@@
+           %#=========+.  :: :     ..   *=+%@
+           %#+========+:            .:  #=+#
+           %%%#+======+=             .=:*=+#
+           @@%+=======++.           :=-++=+%
+           @@%#++======+-       :--=*. #==*%
+          @@  %#*++====++:      .+#*- ++=*%
+         @@    @%#*+++++*+.          +*=*%
+        @@       @%*****+*=         +*+#%
+       @@@         @%#****#:       +*+%@
+       @@@          @@%%***%.     =**%%
+         @@@@@@@@@@@ @@@@#**% ...=##%
+                          %##*::+%%@
+                           @#%=#%@
+                           @@%%@
+                          %%#%%@
+                        %##**+#*%
+                        ##**+*#*%
+                         %%***#%@`
+
+		// Replace = with purple =
+		successArtColored := strings.ReplaceAll(successArt, "=", colorize.Purple("="))
+		fmt.Fprintln(io.Out, successArtColored)
+
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "%s\n", colorize.Bold("🎉  SUCCESS! Your app is live and ready to use!  🎉"))
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "%s %s\n", colorize.Bold("Visit:"), colorize.Bold(colorize.Purple(appURL.String())))
+		fmt.Fprintln(io.Out)
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
 	} else if ip == "private" {
 		fmt.Fprintf(io.Out, "\nYour your newly deployed app is available in the organizations' private network under http://%s.flycast\n", appName)
 	} else if ip == "none" {

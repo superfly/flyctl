@@ -35,8 +35,11 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 		gh, err := exec.LookPath("gh")
 
 		if err != nil {
-			fmt.Println("Run `fly tokens create deploy -x 999999h` to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
-			fmt.Println("See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+			io := iostreams.FromContext(ctx)
+			colorize := io.ColorScheme()
+			fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+			fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+			fmt.Fprintln(io.Out)
 		} else {
 			apiClient := flyutil.ClientFromContext(ctx)
 
