@@ -119,10 +119,12 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 	// Display plan details if we have an IO context
 	if io != nil && planType != "" {
 		if planDetails, exists := mpg.MPGPlans[planType]; exists {
-			fmt.Fprintf(io.Out, "\nSelected Managed Postgres Plan: %s\n", planDetails.Name)
+			colorize := io.ColorScheme()
+			fmt.Fprintf(io.Out, "\nSelected Managed Postgres Plan: %s\n", colorize.Purple(planDetails.Name))
 			fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
 			fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
 			fmt.Fprintf(io.Out, "  Price: $%d per month\n\n", planDetails.PricePerMo)
+			fmt.Fprintf(io.Out, "Check out Managed Postgres pricing details at %s\n\n", colorize.Purple("https://fly.io/mpg"))
 		}
 	}
 
@@ -172,20 +174,23 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
-			fmt.Fprintf(io.ErrOut, "Warning: Unable to find regions that support Managed Postgres. Using Unmanaged Postgres in region %s\n", plan.RegionCode)
+			colorize := io.ColorScheme()
+			fmt.Fprintf(io.ErrOut, "Warning: Unable to find regions that support Managed Postgres. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
 		return createFlyPostgresPlan(plan), nil
 	}
 
 	// Ask user if they want to switch regions
 	if io != nil {
-		fmt.Fprintf(io.Out, "Managed Postgres is not available in region %s.\n", plan.RegionCode)
+		colorize := io.ColorScheme()
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow(fmt.Sprintf("Managed Postgres is not available in region %s.", plan.RegionCode)))
 	}
 
 	confirmed, err := prompt.Confirm(ctx, "Would you like to switch to a region that supports Managed Postgres?")
 	if err != nil || !confirmed {
 		if io != nil {
-			fmt.Fprintf(io.ErrOut, "Using Unmanaged Postgres in region %s\n", plan.RegionCode)
+			colorize := io.ColorScheme()
+			fmt.Fprintf(io.ErrOut, "%s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
 		return createFlyPostgresPlan(plan), nil
 	}
@@ -199,7 +204,8 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 	var selectedIndex int
 	if err := prompt.Select(ctx, &selectedIndex, "Select a region for Managed Postgres", "", regionOptions...); err != nil {
 		if io != nil {
-			fmt.Fprintf(io.ErrOut, "Failed to select region. Using Unmanaged Postgres in region %s\n", plan.RegionCode)
+			colorize := io.ColorScheme()
+			fmt.Fprintf(io.ErrOut, "Failed to select region. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
 		return createFlyPostgresPlan(plan), nil
 	}

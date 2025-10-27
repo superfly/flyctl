@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -239,9 +240,16 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Wait for cluster to be ready
-	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, response.Data.Id)
-	fmt.Fprintf(io.Out, "This may take up to 15 minutes. If this is taking too long, you can press Ctrl+C to continue with deployment.\n")
-	fmt.Fprintf(io.Out, "You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.Out, "%s\n", colorize.Bold(fmt.Sprintf("Waiting for cluster %s (%s) to be ready...", params.Name, response.Data.Id)))
+	fmt.Fprintf(io.Out, "\n%s\n", colorize.Bold("This'll take a few minutes, but you don't have to wait around if you don't want to!"))
+	fmt.Fprintf(io.Out, "To connect your Managed Postgres cluster later just:\n")
+	fmt.Fprintf(io.Out, "  - Press %s to continue with deployment\n", colorize.Purple("Ctrl+C"))
+	fmt.Fprintf(io.Out, "  - Use %s to confirm that your MPG cluster is ready\n", colorize.Purple("fly mpg status"))
+	fmt.Fprintf(io.Out, "  - Use %s to attach to your app\n", colorize.Purple("fly mpg attach"))
+
+	// Start spinner to show progress
+	s := spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
 
 	// Create a separate context for the wait loop with 15 minute timeout
 	waitCtx := context.Background()
@@ -277,15 +285,10 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		retry.Delay(2*time.Second),
 		retry.MaxDelay(30*time.Second),
 		retry.DelayType(retry.BackOffDelay),
-		retry.OnRetry(func(n uint, err error) {
-			// Log network-related errors and periodic status updates
-			if containsNetworkError(err.Error()) {
-				fmt.Fprintf(io.Out, "Retrying status check due to network issue: %v\n", err)
-			} else if n%10 == 0 && n > 0 { // Log every 10th attempt to show progress
-				fmt.Fprintf(io.Out, "Still waiting for cluster to be ready (attempt %d)...\n", n+1)
-			}
-		}),
 	)
+
+	// Stop the spinner
+	s.Stop()
 
 	// Handle the result
 	if err != nil {
@@ -333,7 +336,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed setting database secrets: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "Managed Postgres cluster %s is ready and attached to %s\n", response.Data.Id, state.Plan.AppName)
+	fmt.Fprintf(io.Out, "\n%s\n", colorize.Bold(colorize.Green(fmt.Sprintf("Managed Postgres cluster %s is ready and attached to %s", response.Data.Id, state.Plan.AppName))))
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
 
 	return nil

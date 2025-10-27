@@ -384,7 +384,8 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		case len(groupConfig.Mounts) > 0:
 			continue
 		case len(services) > 0:
-			fmt.Fprintf(md.io.Out, "Creating a second machine to increase service availability\n")
+			fmt.Fprintf(md.io.Out, "Creating a second machine for high availability and zero downtime deployments.\n")
+			fmt.Fprintf(md.io.Out, "To disable this, set %s in your fly.toml.\n", md.colorize.Purple("\"min_machines_running = 0\""))
 			if _, err := md.spawnMachineInGroup(ctx, name, nil); err != nil {
 				statuslogger.Failed(ctx, err)
 				return err
@@ -407,18 +408,16 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		groupNames := lo.Keys(groupsWithAutostopEnabled)
 		slices.Sort(groupNames)
 		fmt.Fprintf(md.io.Out,
-			"\n%s The machines for [%s] have services with 'auto_stop_machines = \"stop\"' that will be stopped when idling\n\n",
-			md.colorize.Yellow("NOTE:"),
-			md.colorize.Bold(strings.Join(groupNames, ",")),
+			"\n\n%s\n\n",
+			md.colorize.Yellow(fmt.Sprintf("NOTE: The machines for [%s] have services with 'auto_stop_machines = \"stop\"' that will be stopped when idling", strings.Join(groupNames, ","))),
 		)
 	}
 	if len(groupsWithAutosuspendEnabled) > 0 {
 		groupNames := lo.Keys(groupsWithAutosuspendEnabled)
 		slices.Sort(groupNames)
 		fmt.Fprintf(md.io.Out,
-			"\n%s The machines for [%s] have services with 'auto_stop_machines = \"suspend\"' that will be suspended when idling\n\n",
-			md.colorize.Yellow("NOTE:"),
-			md.colorize.Bold(strings.Join(groupNames, ",")),
+			"\n\n%s\n\n",
+			md.colorize.Yellow(fmt.Sprintf("NOTE: The machines for [%s] have services with 'auto_stop_machines = \"suspend\"' that will be suspended when idling", strings.Join(groupNames, ","))),
 		)
 	}
 	return nil
@@ -1418,6 +1417,14 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			return nil, nil
 		}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(60*time.Second))
+
+		if err != nil {
+			fmt.Fprintf(iostreams.ErrOut, "%s DNS verification failed: %v\n", md.colorize.Yellow("WARNING:"), err)
+			fmt.Fprintf(iostreams.ErrOut, "Your app is deployed but DNS may take a few minutes to propagate globally\n")
+		} else {
+			fmt.Fprintf(iostreams.ErrOut, "%s\n", md.colorize.Green("✓ DNS configuration verified"))
+		}
+
 		return err
 	} else {
 		return nil
