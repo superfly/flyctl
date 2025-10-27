@@ -59,9 +59,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 		flapsClient = f
 
-		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
-		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
-		fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
+		colorize := io.ColorScheme()
+		fmt.Fprintf(io.Out, "%s\n\n", colorize.Green(fmt.Sprintf("Created app '%s' in organization '%s'", app.Name, app.Organization.Slug)))
+		fmt.Fprintf(io.Out, "Admin URL: %s\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s", app.Name)))
+		fmt.Fprintf(io.Out, "Hostname: %s\n", colorize.Purple(fmt.Sprintf("%s.fly.dev", app.Name)))
 
 		if planStep == "create" {
 			return nil

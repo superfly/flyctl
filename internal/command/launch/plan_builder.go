@@ -309,9 +309,11 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 	}
 
 	// The user can see the app. Prompt them to deploy.
-	fmt.Fprintf(io.Out, "App '%s' already exists. You can deploy to it with `fly deploy`.\n", appName)
+	colorize := io.ColorScheme()
+	fmt.Fprintln(io.Out)
+	fmt.Fprintf(io.Out, "%s\n", colorize.Yellow(fmt.Sprintf("App '%s' already exists. You can deploy to it using %s.", appName, colorize.Purple("`fly deploy`"))))
 
-	switch confirmed, err := prompt.Confirm(ctx, "Continue launching a new app? "); {
+	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to launch a new app?"); {
 	case err == nil:
 		if !confirmed {
 			// We've redirected the user to use 'fly deploy'
@@ -452,6 +454,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 
 	existingConfig := appconfig.ConfigFromContext(ctx)
 	if existingConfig != nil {
+		colorize := io.ColorScheme()
 
 		if existingConfig.AppName != "" {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
@@ -465,7 +468,8 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 
 		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
 			var err error
-			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
+			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
+			fmt.Fprintln(io.Out)
 			switch {
 			case prompt.IsNonInteractive(err) && !flag.GetYes(ctx):
 				return nil, false, err
