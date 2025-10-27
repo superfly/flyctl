@@ -190,7 +190,7 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	}
 
 	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false); err != nil {
+		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return err
 		}
@@ -1095,7 +1095,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// And wait (or not) for successful health checks
 	if !md.skipHealthChecks {
 		// Don't wait for state if the --detach flag isn't specified
-		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false); err != nil {
+		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return nil, err
 		}
