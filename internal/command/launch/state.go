@@ -173,6 +173,9 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		}
 	}
 
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	ret := ""
 	for _, row := range rows {
 
@@ -183,7 +186,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		labelSpaces := strings.Repeat(" ", colLengths[0]-len(label))
 		valueSpaces := strings.Repeat(" ", colLengths[1]-len(value))
 
-		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, value, valueSpaces, source)
+		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
 	}
 	return ret, nil
 }

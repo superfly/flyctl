@@ -465,7 +465,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 
 		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
 			var err error
-			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
+			copyConfig, err = prompt.Confirm(ctx, "Would you like to use this fly.toml configuration for this app?")
 			switch {
 			case prompt.IsNonInteractive(err) && !flag.GetYes(ctx):
 				return nil, false, err

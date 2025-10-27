@@ -71,14 +71,14 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", v6Addr.Address)
+		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(v6Addr.Address))
 
 		v4Shared, err := md.apiClient.AllocateSharedIPAddress(ctx, md.app.Name)
 		if err != nil {
 			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", v4Shared)
-		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: fly ips allocate-v4\n")
+		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", md.colorize.Purple(v4Shared.String()))
+		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: %s\n", md.colorize.Purple("fly ips allocate-v4"))
 
 	case "private":
 		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))

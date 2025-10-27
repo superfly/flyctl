@@ -420,12 +420,65 @@ func run(ctx context.Context) (err error) {
 
 	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
-		fmt.Fprintf(
-			io.Out,
-			"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-			familyToAppType(family),
-			summary,
-		)
+		colorize := io.ColorScheme()
+
+		// Get terminal width for responsive borders
+		termWidth := io.TerminalWidth()
+		if termWidth > 120 {
+			termWidth = 120 // Cap at 120 for readability
+		}
+		border := strings.Repeat("═", termWidth)
+
+		// Print top border
+		fmt.Fprintln(io.Out)
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
+
+		// Print ASCII art with purple = characters
+		art := `
+
+
+                       %%%%%%%
+                  %#+++=.  .:+*+*#%%
+               %#+=====:       :++=+#%
+             %#+======-          .++==#%
+            %*=======+.            .+==+%
+           %#========+               *==+%
+           #+========+              = *==*%
+           #=========+           .. : .*=+#
+           #=========*    ==      .:   *==*%
+           #+========+-             :. +==*%
+           #*=========+              :-*==*%         %@
+           %#**+======+-           .-. #==*%      @%%%%@
+           %%#++=======+:      .::.   :*=+%       @%
+           %%%#*++=====++.            #=+#%      @%@
+          %%  %%#*++++++*+.          **+#@       %@
+         %%     @%#***+++*+         =*+#%%      %%
+        @@        @%%##*****       :*+%@%%%    %%
+        @@        @@@@%#***##     .**%%   %% %%%
+        @      @@@@  @@@%%#**%   .+#%@     @%%
+        @@@@@@@           @%#*#.:*%%
+                            @%#**%@
+                             @@%@@
+                            %%#%%%
+                          @#***+**%
+                          %**+***#%
+                          @@%#+*#%
+
+`
+		// Replace = with purple =
+		artColored := strings.ReplaceAll(art, "=", colorize.Purple("="))
+		fmt.Fprintln(io.Out, artColored)
+
+		// Print header text
+		fmt.Fprintf(io.Out, "%s\n\n", colorize.Bold(fmt.Sprintf("We're about to launch your %s on Fly.io. %s", familyToAppType(family), colorize.Purple("Here's what you're getting:"))))
+
+		// Print summary table
+		fmt.Fprintln(io.Out, summary)
+
+		// Print bottom border
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
 	}
 
 	if errors := recoverableErrors.build(); errors != "" {
@@ -436,11 +489,13 @@ func run(ctx context.Context) (err error) {
 
 	editInUi := false
 	if !flag.GetBool(ctx, "yes") && planStep == "" {
+		colorize := io.ColorScheme()
 		if incompleteLaunchManifest {
 			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
 		} else {
-			editInUi, err = prompt.Confirm(ctx, "Do you want to tweak these settings before proceeding?")
+			editInUi, err = prompt.Confirm(ctx, colorize.Yellow("Do you want to tweak these settings before proceeding?"))
 		}
+		fmt.Fprintln(io.Out)
 
 		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err

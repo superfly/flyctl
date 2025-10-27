@@ -182,8 +182,10 @@ func ConfirmYes(ctx context.Context, message string) (confirm bool, err error) {
 }
 
 func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 	prompt := &survey.Confirm{
-		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
+		Message: colorize.Yellow(fmt.Sprintf(`Overwrite "%s"?`, filename)),
 	}
 	err = survey.AskOne(prompt, &confirm)
 
