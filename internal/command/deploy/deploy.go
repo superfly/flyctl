@@ -411,7 +411,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	}
 	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
 		// Check if this is a first launch (celebratory mode) or regular deploy (simple mode)
-		isFirstLaunch, _ := ctx.Value("isFirstLaunch").(bool)
+		// Using a string literal here to match the key set in internal/command/launch/deploy.go
+		type contextKey string
+		isFirstLaunch, _ := ctx.Value(contextKey("isFirstLaunch")).(bool)
 		colorize := io.ColorScheme()
 
 		if isFirstLaunch {
