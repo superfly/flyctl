@@ -690,6 +690,48 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	return &org, "specified on the command line", nil
 }
 
+// Map of  deprecated region codes and their consolidated replacements
+var deprecatedRegionReplacements = map[string]string{
+	"atl": "dfw",
+	"den": "dfw",
+	"mia": "dfw",
+	"gdl": "dfw",
+	"qro": "dfw",
+	"bos": "ewr",
+	"phx": "lax",
+	"sea": "sjc",
+	"yul": "yyz",
+	"waw": "ams",
+	"mad": "cdg",
+	"otp": "fra",
+	"bog": "gru",
+	"gig": "gru",
+	"scl": "gru",
+	"eze": "gru",
+	"hkg": "sin",
+}
+
+// Check if a region is deprecated and return the replacement region
+func remapDeprecatedRegion(ctx context.Context, region *fly.Region) (*fly.Region, error) {
+	if region == nil || !region.Deprecated {
+		return region, nil
+	}
+
+	replacementCode, ok := deprecatedRegionReplacements[region.Code]
+	if !ok {
+		// If there's no definied replacement, return and error
+		return nil, fmt.Errorf("region %s is deprecated. Please use a supported region.", region.Code)
+	}
+
+	// Get the replacement region
+	replacementRegion, err := getRegionByCode(ctx, replacementCode)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get replacement region %s for deprecated region %s: %w", replacementCode, region.Code, err)
+	}
+
+	return replacementRegion, nil
+}
+
 // determineRegion returns the region to use for a new app. In order, it tries:
 //  1. the primary_region field of the config, if one exists
 //  2. the region specified on the command line, if specified
@@ -707,6 +749,15 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
 	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
+
+	// Remap the closest region if it's deprecated
+	if closestRegionErr == nil && closestRegion != nil {
+		remappedRegion, remapErr := remapDeprecatedRegion(ctx, closestRegion)
+		if remapErr == nil {
+			closestRegion = remappedRegion
+		}
+		// If remapping fails, it'll use the original region and hit the "unknown region" error
+	}
 
 	if regionCode != "" {
 		region, err := getRegionByCode(ctx, regionCode)

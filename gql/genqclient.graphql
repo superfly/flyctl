@@ -181,6 +181,7 @@ query GetNearestRegion{
 		code
 		name
 		gatewayAvailable
+		deprecated
 	}
 }
 
