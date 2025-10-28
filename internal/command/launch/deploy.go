@@ -80,6 +80,8 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 				return err
 			}
 		}
+		// Mark this as a first launch to show celebratory output
+		ctx = context.WithValue(ctx, "isFirstLaunch", true)
 		return deploy.DeployWithConfig(ctx, state.appConfig, 0, flag.GetBool(ctx, "now"))
 	}
 
