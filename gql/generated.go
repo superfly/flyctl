@@ -2337,6 +2337,7 @@ type GetNearestRegionNearestRegion struct {
 	// The name of this region
 	Name             string `json:"name"`
 	GatewayAvailable bool   `json:"gatewayAvailable"`
+	Deprecated       bool   `json:"deprecated"`
 }
 
 // GetCode returns GetNearestRegionNearestRegion.Code, and is useful for accessing the field via an interface.
@@ -2347,6 +2348,9 @@ func (v *GetNearestRegionNearestRegion) GetName() string { return v.Name }
 
 // GetGatewayAvailable returns GetNearestRegionNearestRegion.GatewayAvailable, and is useful for accessing the field via an interface.
 func (v *GetNearestRegionNearestRegion) GetGatewayAvailable() bool { return v.GatewayAvailable }
+
+// GetDeprecated returns GetNearestRegionNearestRegion.Deprecated, and is useful for accessing the field via an interface.
+func (v *GetNearestRegionNearestRegion) GetDeprecated() bool { return v.Deprecated }
 
 // GetNearestRegionResponse is returned by GetNearestRegion on success.
 type GetNearestRegionResponse struct {
@@ -4059,6 +4063,7 @@ query GetNearestRegion {
 		code
 		name
 		gatewayAvailable
+		deprecated
 	}
 }
 `
