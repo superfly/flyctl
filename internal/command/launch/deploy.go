@@ -7,14 +7,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/deploycontext"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 )
-
-// contextKey is a custom type for context keys to avoid collisions
-type contextKey string
-
-const isFirstLaunchKey contextKey = "isFirstLaunch"
 
 // firstDeploy performs the first deploy of an app.
 // Note that this function checks and respects the --no-deploy flag, so it may not actually deploy.
@@ -86,7 +82,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 			}
 		}
 		// Mark this as a first launch to show celebratory output
-		ctx = context.WithValue(ctx, isFirstLaunchKey, true)
+		ctx = context.WithValue(ctx, deploycontext.IsFirstLaunchKey, true)
 		return deploy.DeployWithConfig(ctx, state.appConfig, 0, flag.GetBool(ctx, "now"))
 	}
 

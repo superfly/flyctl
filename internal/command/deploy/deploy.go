@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/deploycontext"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
@@ -411,9 +412,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	}
 	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
 		// Check if this is a first launch (celebratory mode) or regular deploy (simple mode)
-		// Using a string literal here to match the key set in internal/command/launch/deploy.go
-		type contextKey string
-		isFirstLaunch, _ := ctx.Value(contextKey("isFirstLaunch")).(bool)
+		isFirstLaunch, _ := ctx.Value(deploycontext.IsFirstLaunchKey).(bool)
 		colorize := io.ColorScheme()
 
 		if isFirstLaunch {
