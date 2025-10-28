@@ -410,26 +410,20 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		ip = "none"
 	}
 	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
-		// Check if this is a first launch (celebratory mode) or regular deploy (simple mode)
-		isFirstLaunch, _ := ctx.Value("isFirstLaunch").(bool)
-		colorize := io.ColorScheme()
+		// Get terminal width for responsive borders
+		termWidth := io.TerminalWidth()
+		if termWidth > 120 {
+			termWidth = 120 // Cap at 120 for readability
+		}
+		border := strings.Repeat("═", termWidth)
 
-		if isFirstLaunch {
-			// First launch: Show celebratory ASCII art and borders
-			// Get terminal width for responsive borders
-			termWidth := io.TerminalWidth()
-			if termWidth > 120 {
-				termWidth = 120 // Cap at 120 for readability
-			}
-			border := strings.Repeat("═", termWidth)
+		// Print success box with ASCII art
+		fmt.Fprintln(io.Out)
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
 
-			// Print success box with ASCII art
-			fmt.Fprintln(io.Out)
-			fmt.Fprintln(io.Out, border)
-			fmt.Fprintln(io.Out)
-
-			// Print ASCII art with purple = characters
-			successArt := `                                                %%@
+		// Print ASCII art with purple = characters
+		successArt := `                                                %%@
                                                @%%@
                                                 @@
                                                 @@
@@ -462,23 +456,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
                         ##**+*#*%
                          %%***#%@`
 
-			// Replace = with purple =
-			successArtColored := strings.ReplaceAll(successArt, "=", colorize.Purple("="))
-			fmt.Fprintln(io.Out, successArtColored)
+		// Replace = with purple =
+		successArtColored := strings.ReplaceAll(successArt, "=", colorize.Purple("="))
+		fmt.Fprintln(io.Out, successArtColored)
 
-			fmt.Fprintln(io.Out)
-			fmt.Fprintf(io.Out, "%s\n", colorize.Bold("🎉  SUCCESS! Your app is live and ready to use!  🎉"))
-			fmt.Fprintln(io.Out)
-			fmt.Fprintf(io.Out, "%s %s\n", colorize.Bold("Visit:"), colorize.Bold(colorize.Purple(appURL.String())))
-			fmt.Fprintln(io.Out)
-			fmt.Fprintln(io.Out, border)
-			fmt.Fprintln(io.Out)
-		} else {
-			// Regular deploy: Simple, reliable output
-			fmt.Fprintln(io.Out)
-			fmt.Fprintf(io.Out, "Visit your newly deployed app at %s\n", colorize.Green(appURL.String()))
-			fmt.Fprintln(io.Out)
-		}
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "%s\n", colorize.Bold("🎉  SUCCESS! Your app is live and ready to use!  🎉"))
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "%s %s\n", colorize.Bold("Visit:"), colorize.Bold(colorize.Purple(appURL.String())))
+		fmt.Fprintln(io.Out)
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
 	} else if ip == "private" {
 		fmt.Fprintf(io.Out, "\nYour your newly deployed app is available in the organizations' private network under http://%s.flycast\n", appName)
 	} else if ip == "none" {
