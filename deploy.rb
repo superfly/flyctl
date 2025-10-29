@@ -332,7 +332,7 @@ if !DEPLOY_ONLY
           error(e.message)
         end
 
-        artifact Artifact::FILES, files
+        artifact Artifact::FILES, { output: files }
       end
     end
   end
