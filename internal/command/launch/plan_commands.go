@@ -15,7 +15,7 @@ import (
 func NewPlan() *cobra.Command {
 	const desc = `[experimental] Granular subcommands for creating and configuring apps`
 
-	cmd := command.New("plan", desc, desc, nil, command.RequireSession, command.LoadAppConfigIfPresent)
+	cmd := command.New("plan", desc, desc, nil, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
 	cmd.AddCommand(newPropose())
@@ -33,7 +33,7 @@ func NewPlan() *cobra.Command {
 
 func newPropose() *cobra.Command {
 	const desc = "[experimental] propose a plan based on scanning the source code or Dockerfile"
-	cmd := command.New("propose", desc, desc, runPropose, command.LoadAppConfigIfPresent)
+	cmd := command.New("propose", desc, desc, runPropose, command.LoadAppConfigIfPresent, command.RequireUiex)
 
 	flag.Add(cmd,
 		flag.Region(),
@@ -92,7 +92,7 @@ func newPropose() *cobra.Command {
 
 func newCreate() *cobra.Command {
 	const desc = "[experimental] create application"
-	cmd := command.New("create", desc, desc, runCreate)
+	cmd := command.New("create", desc, desc, runCreate, command.RequireUiex)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
@@ -116,7 +116,7 @@ func newCreate() *cobra.Command {
 
 func newPostgres() *cobra.Command {
 	const desc = "[experimental] create postgres database"
-	cmd := command.New("postgres", desc, desc, runPostgres)
+	cmd := command.New("postgres", desc, desc, runPostgres, command.RequireUiex)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
@@ -133,7 +133,7 @@ func newPostgres() *cobra.Command {
 
 func newRedis() *cobra.Command {
 	const desc = "[experimental] create redis database"
-	cmd := command.New("redis", desc, desc, runRedis)
+	cmd := command.New("redis", desc, desc, runRedis, command.RequireUiex)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
@@ -150,7 +150,7 @@ func newRedis() *cobra.Command {
 
 func newTigris() *cobra.Command {
 	const desc = "[experimental] create tigris database"
-	cmd := command.New("tigris", desc, desc, runTigris)
+	cmd := command.New("tigris", desc, desc, runTigris, command.RequireUiex)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
@@ -167,7 +167,7 @@ func newTigris() *cobra.Command {
 
 func newGenerate() *cobra.Command {
 	const desc = "[experimental] generate Dockerfile and other configuration files based on the plan"
-	cmd := command.New("generate", desc, desc, runGenerate)
+	cmd := command.New("generate", desc, desc, runGenerate, command.RequireUiex)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
