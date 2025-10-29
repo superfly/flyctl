@@ -332,7 +332,7 @@ if !DEPLOY_ONLY
           error(e.message)
         end
 
-        artifact Artifact::DIFF_FILES, files
+        artifact Artifact::FILES, files
       end
     end
   end
