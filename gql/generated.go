@@ -515,6 +515,11 @@ func (v *AppDataOrganization) GetName() string { return v.OrganizationData.Name 
 // GetBillable returns AppDataOrganization.Billable, and is useful for accessing the field via an interface.
 func (v *AppDataOrganization) GetBillable() bool { return v.OrganizationData.Billable }
 
+// GetBillingStatus returns AppDataOrganization.BillingStatus, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetBillingStatus() BillingStatus {
+	return v.OrganizationData.BillingStatus
+}
+
 func (v *AppDataOrganization) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -556,6 +561,8 @@ type __premarshalAppDataOrganization struct {
 	Name string `json:"name"`
 
 	Billable bool `json:"billable"`
+
+	BillingStatus BillingStatus `json:"billingStatus"`
 }
 
 func (v *AppDataOrganization) MarshalJSON() ([]byte, error) {
@@ -577,6 +584,7 @@ func (v *AppDataOrganization) __premarshalJSON() (*__premarshalAppDataOrganizati
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
 	retval.Name = v.OrganizationData.Name
 	retval.Billable = v.OrganizationData.Billable
+	retval.BillingStatus = v.OrganizationData.BillingStatus
 	return &retval, nil
 }
 
@@ -588,6 +596,28 @@ type AppDataSecretsSecret struct {
 
 // GetName returns AppDataSecretsSecret.Name, and is useful for accessing the field via an interface.
 func (v *AppDataSecretsSecret) GetName() string { return v.Name }
+
+type BillingStatus string
+
+const (
+	BillingStatusCurrent        BillingStatus = "CURRENT"
+	BillingStatusDelinquent     BillingStatus = "DELINQUENT"
+	BillingStatusPastDue        BillingStatus = "PAST_DUE"
+	BillingStatusSourceRequired BillingStatus = "SOURCE_REQUIRED"
+	BillingStatusSuspended      BillingStatus = "SUSPENDED"
+	BillingStatusTrialActive    BillingStatus = "TRIAL_ACTIVE"
+	BillingStatusTrialEnded     BillingStatus = "TRIAL_ENDED"
+)
+
+var AllBillingStatus = []BillingStatus{
+	BillingStatusCurrent,
+	BillingStatusDelinquent,
+	BillingStatusPastDue,
+	BillingStatusSourceRequired,
+	BillingStatusSuspended,
+	BillingStatusTrialActive,
+	BillingStatusTrialEnded,
+}
 
 // CreateAddOnCreateAddOnCreateAddOnPayload includes the requested fields of the GraphQL type CreateAddOnPayload.
 // The GraphQL type's documentation follows.
@@ -2395,6 +2425,11 @@ func (v *GetOrganizationOrganization) GetName() string { return v.OrganizationDa
 // GetBillable returns GetOrganizationOrganization.Billable, and is useful for accessing the field via an interface.
 func (v *GetOrganizationOrganization) GetBillable() bool { return v.OrganizationData.Billable }
 
+// GetBillingStatus returns GetOrganizationOrganization.BillingStatus, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetBillingStatus() BillingStatus {
+	return v.OrganizationData.BillingStatus
+}
+
 func (v *GetOrganizationOrganization) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2436,6 +2471,8 @@ type __premarshalGetOrganizationOrganization struct {
 	Name string `json:"name"`
 
 	Billable bool `json:"billable"`
+
+	BillingStatus BillingStatus `json:"billingStatus"`
 }
 
 func (v *GetOrganizationOrganization) MarshalJSON() ([]byte, error) {
@@ -2457,6 +2494,7 @@ func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrgani
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
 	retval.Name = v.OrganizationData.Name
 	retval.Billable = v.OrganizationData.Billable
+	retval.BillingStatus = v.OrganizationData.BillingStatus
 	return &retval, nil
 }
 
@@ -2664,8 +2702,9 @@ type OrganizationData struct {
 	// Whether the organization can provision beta extensions
 	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 	// Organization name
-	Name     string `json:"name"`
-	Billable bool   `json:"billable"`
+	Name          string        `json:"name"`
+	Billable      bool          `json:"billable"`
+	BillingStatus BillingStatus `json:"billingStatus"`
 }
 
 // GetId returns OrganizationData.Id, and is useful for accessing the field via an interface.
@@ -2691,6 +2730,9 @@ func (v *OrganizationData) GetName() string { return v.Name }
 
 // GetBillable returns OrganizationData.Billable, and is useful for accessing the field via an interface.
 func (v *OrganizationData) GetBillable() bool { return v.Billable }
+
+// GetBillingStatus returns OrganizationData.BillingStatus, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetBillingStatus() BillingStatus { return v.BillingStatus }
 
 type PlatformVersionEnum string
 
@@ -3440,6 +3482,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 `
 
@@ -3744,6 +3787,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 `
 
@@ -3858,6 +3902,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 `
 
@@ -3929,6 +3974,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 `
 
@@ -3990,6 +4036,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 `
 
@@ -4105,6 +4152,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 `
 
