@@ -24,7 +24,6 @@ func newStatus() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runStatus,
 		command.RequireSession,
-		command.RequireUiex,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)

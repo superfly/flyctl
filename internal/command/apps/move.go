@@ -9,6 +9,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
@@ -96,9 +98,10 @@ Please confirm whether you wish to restart this app now.`
 	return runMoveAppOnMachines(ctx, app, org)
 }
 
-func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Organization) error {
+func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *uiex.Organization) error {
 	var (
 		client           = flyutil.ClientFromContext(ctx)
+		uiexClient       = uiexutil.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
@@ -114,7 +117,7 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Orga
 		return err
 	}
 
-	oldOrg, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
+	oldOrg, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("failed to find app's original organization: %w", err)
 	}

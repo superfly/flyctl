@@ -28,6 +28,8 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 type id uint64
@@ -200,8 +202,8 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 
 var errNoSuchOrg = errors.New("no such organization")
 
-func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization, error) {
-	orgs, err := s.getClient(ctx).GetOrganizations(ctx)
+func (s *session) fetchOrg(ctx context.Context, slug string) (*uiex.Organization, error) {
+	orgs, err := s.getUiExClient(ctx).ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -585,6 +587,18 @@ func (s *session) getClient(ctx context.Context) flyutil.Client {
 	}
 
 	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+}
+
+func (s *session) getUiExClient(ctx context.Context) uiexutil.Client {
+	if s.tokens == nil {
+		return s.srv.GetUiExClient(ctx)
+	}
+
+	client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{Tokens: s.tokens})
+	if err != nil {
+		s.logger.Fatal(err)
+	}
+	return client
 }
 
 func (s *session) error(err error) bool {

@@ -487,7 +487,7 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 
 	params := extensions_core.ExtensionParams{
 		Provider:       "tigris",
-		Organization:   org,
+		OrgSlug:        org.RawSlug,
 		AppName:        state.Plan.AppName,
 		OverrideName:   fly.Pointer(tigrisPlan.Name),
 		OverrideRegion: state.Plan.RegionCode,

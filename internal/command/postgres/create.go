@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -114,7 +115,7 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	var org *fly.Organization
+	var org *uiex.Organization
 	org, err = prompt.Org(ctx)
 	if err != nil {
 		return
@@ -266,7 +267,7 @@ func run(ctx context.Context) (err error) {
 }
 
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
+func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)

@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	"github.com/superfly/flyctl/iostreams"
 
@@ -47,6 +48,7 @@ func RunDestroy(ctx context.Context) error {
 	colorize := io.ColorScheme()
 	apps := flag.Args(ctx)
 	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	if len(apps) == 0 {
 		return fmt.Errorf("no app names provided")
@@ -74,7 +76,7 @@ func RunDestroy(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		org, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
+		org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 		if err != nil {
 			return err
 		}

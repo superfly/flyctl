@@ -345,7 +345,7 @@ func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient,
 		return nil, nil, err
 	}
 	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.Id,
+		OrganizationID:  org.ID,
 		Name:            state.Plan.AppName,
 		PreferredRegion: &state.Plan.RegionCode,
 		Machines:        true,

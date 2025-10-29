@@ -13,6 +13,7 @@ var _ FlapsClient = (*flaps.Client)(nil)
 
 type FlapsClient interface {
 	AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
+	AppNameAvailable(ctx context.Context, name string) (bool, error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
 	CreateApp(ctx context.Context, name string, org string) (err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)

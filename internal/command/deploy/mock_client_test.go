@@ -33,6 +33,10 @@ type mockFlapsClient struct {
 	nextMachineID int
 }
 
+func (m *mockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	return true, nil
+}
+
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
 	nonce := fmt.Sprintf("%x-lease", machineID)
 	return m.RefreshLease(ctx, machineID, ttl, nonce)

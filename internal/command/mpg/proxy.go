@@ -25,7 +25,7 @@ func newProxy() (cmd *cobra.Command) {
 		usage = "proxy"
 	)
 
-	cmd = command.New(usage, short, long, runProxy, command.RequireSession, command.RequireUiex)
+	cmd = command.New(usage, short, long, runProxy, command.RequireSession)
 
 	flag.Add(cmd,
 		flag.Region(),
@@ -78,7 +78,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		orgSlug = cluster.Organization.Slug
 	} else {
 		// If no cluster ID is provided, let user select org first, then cluster
-		org, err := orgs.OrgFromFlagOrSelect(ctx)
+		org, err := orgs.OrgFromFlagOrSelect(ctx, false)
 		if err != nil {
 			return nil, nil, nil, err
 		}

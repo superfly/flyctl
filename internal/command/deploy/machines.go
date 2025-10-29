@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
@@ -118,11 +119,13 @@ type machineDeployment struct {
 	apiClient webClient
 	// flapsClient is a client to use flaps.
 	flapsClient flapsutil.FlapsClient
-	io          *iostreams.IOStreams
-	colorize    *iostreams.ColorScheme
-	app         *fly.AppCompact
-	appConfig   *appconfig.Config
-	img         string
+	// uiexClient is a client to use api.fly.io.
+	uiexClient uiexutil.Client
+	io         *iostreams.IOStreams
+	colorize   *iostreams.ColorScheme
+	app        *fly.AppCompact
+	appConfig  *appconfig.Config
+	img        string
 	// machineSet is this application's machines.
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
@@ -242,6 +245,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 
 	apiClient := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
 	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
@@ -256,6 +260,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	md := &machineDeployment{
 		apiClient:             apiClient,
 		flapsClient:           flapsClient,
+		uiexClient:            uiexClient,
 		io:                    io,
 		colorize:              io.ColorScheme(),
 		app:                   args.AppCompact,

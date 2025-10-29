@@ -58,6 +58,21 @@ func (mr *MockFlapsClientMockRecorder) AcquireLease(ctx, machineID, ttl any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireLease", reflect.TypeOf((*MockFlapsClient)(nil).AcquireLease), ctx, machineID, ttl)
 }
 
+// AppNameAvailable mocks base method.
+func (m *MockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppNameAvailable", ctx, name)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AppNameAvailable indicates an expected call of AppNameAvailable.
+func (mr *MockFlapsClientMockRecorder) AppNameAvailable(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppNameAvailable", reflect.TypeOf((*MockFlapsClient)(nil).AppNameAvailable), ctx, name)
+}
+
 // Cordon mocks base method.
 func (m *MockFlapsClient) Cordon(ctx context.Context, machineID, nonce string) error {
 	m.ctrl.T.Helper()

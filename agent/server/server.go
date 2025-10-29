@@ -21,6 +21,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics/synthetics"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/wg"
 	"golang.org/x/sync/errgroup"
@@ -227,7 +229,7 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestablish bool, network string, client flyutil.Client) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(ctx context.Context, org *uiex.Organization, reestablish bool, network string, client flyutil.Client) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -404,6 +406,17 @@ func (s *server) GetClient(ctx context.Context) flyutil.Client {
 	defer s.mu.Unlock()
 
 	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+}
+
+func (s *server) GetUiExClient(ctx context.Context) uiexutil.Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{Tokens: s.tokens})
+	if err != nil {
+		s.Logger.Fatal(err)
+	}
+	return client
 }
 
 // UpdateTokensFromClient replaces the server's tokens with those from the

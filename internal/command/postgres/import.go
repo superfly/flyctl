@@ -189,7 +189,7 @@ func runImport(ctx context.Context) error {
 	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		OrgID:    app.Organization.ID,
 		Dialer:   agent.DialerFromContext(ctx),
 		App:      app.Name,
 		Username: ssh.DefaultSshUsername,

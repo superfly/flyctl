@@ -20,7 +20,7 @@ import (
 
 type SSHParams struct {
 	Ctx            context.Context
-	Org            fly.OrganizationImpl
+	OrgID          string
 	App            string
 	Username       string
 	Dialer         agent.Dialer
@@ -41,7 +41,7 @@ func RunSSHCommand(ctx context.Context, app *fly.AppCompact, dialer agent.Dialer
 
 	err := SSHConnect(&SSHParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		OrgID:          app.Organization.ID,
 		Dialer:         dialer,
 		App:            app.Name,
 		Username:       username,
@@ -70,7 +70,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		appNames = append(appNames, p.App)
 	}
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, appNames, p.Username)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.OrgID, appNames, p.Username)
 	if err != nil {
 		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
