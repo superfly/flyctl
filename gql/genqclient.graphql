@@ -142,6 +142,7 @@ fragment OrganizationData on Organization {
 	provisionsBetaExtensions
 	name
 	billable
+	billingStatus
 }
 
 fragment AppData on App {

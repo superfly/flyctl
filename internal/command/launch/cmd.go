@@ -15,6 +15,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
@@ -487,6 +488,17 @@ func run(ctx context.Context) (err error) {
 		incompleteLaunchManifest = true
 	}
 
+	// Check billing status and display appropriate message
+	if planStep == "" {
+		shouldContinue, err := checkBillingStatus(ctx, state)
+		if err != nil {
+			return err
+		}
+		if !shouldContinue {
+			return errors.New("payment method required to continue")
+		}
+	}
+
 	editInUi := false
 	if !flag.GetBool(ctx, "yes") && planStep == "" {
 		colorize := io.ColorScheme()
@@ -609,4 +621,93 @@ func validatePostgresFlags(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// checkBillingStatus checks the organization's billing status and displays appropriate messaging
+// Returns (shouldContinue, error)
+func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	// Skip billing check if running in non-interactive mode or CI
+	if !io.IsInteractive() || env.IsCI() {
+		return true, nil
+	}
+
+	// Fetch organization data including billing status
+	org, err := state.orgCompact(ctx)
+	if err != nil {
+		// If we can't fetch org data, log the error but don't block the launch
+		fmt.Fprintf(io.ErrOut, "Warning: Could not check billing status: %v\n", err)
+		return true, nil
+	}
+
+	fmt.Fprintln(io.Out)
+
+	switch org.BillingStatus {
+	case gql.BillingStatusTrialActive:
+		// User is on active free trial - celebrate!
+		fmt.Fprintf(io.Out, "%s\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
+
+	case gql.BillingStatusSourceRequired, gql.BillingStatusTrialEnded:
+		// User needs to add a payment method
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! You'll need to add a payment method in order to proceed."))
+		fmt.Fprintln(io.Out)
+
+		addPayment, err := prompt.Confirm(ctx, "Would you like to do this now?")
+		if err != nil {
+			return false, err
+		}
+
+		if addPayment {
+			// Open billing dashboard URL
+			billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "Opening billing dashboard: %s\n", colorize.Bold(billingURL))
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "After adding a payment method, please run %s again.\n", colorize.Purple("'fly launch'"))
+
+			// Try to open the URL in the browser
+			if err := openBrowser(billingURL); err != nil {
+				fmt.Fprintf(io.ErrOut, "Could not open browser automatically. Please visit: %s\n", billingURL)
+			}
+
+			return false, nil
+		} else {
+			return false, nil
+		}
+
+	case gql.BillingStatusCurrent, gql.BillingStatusPastDue, gql.BillingStatusDelinquent:
+		// User has a payment method configured - say nothing per requirements
+		// Just continue silently
+
+	default:
+		// Unknown billing status - log but don't block
+		fmt.Fprintf(io.ErrOut, "Warning: Unknown billing status: %s\n", org.BillingStatus)
+	}
+
+	fmt.Fprintln(io.Out)
+	return true, nil
+}
+
+// openBrowser attempts to open the given URL in the default browser
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+
+	// Determine the OS and use the appropriate command
+	// We can't use runtime.GOOS directly in exec context, so we check the environment
+	if _, err := exec.LookPath("open"); err == nil {
+		// macOS
+		cmd = exec.Command("open", url)
+	} else if _, err := exec.LookPath("xdg-open"); err == nil {
+		// Linux
+		cmd = exec.Command("xdg-open", url)
+	} else if _, err := exec.LookPath("cmd"); err == nil {
+		// Windows
+		cmd = exec.Command("cmd", "/c", "start", url)
+	} else {
+		return fmt.Errorf("could not determine how to open browser")
+	}
+
+	return cmd.Start()
 }
