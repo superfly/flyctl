@@ -862,9 +862,8 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
 	if !billable && p.HighAvailability {
-		if print {
-			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
-		}
+		// Silently turn off high availability if no payment method
+		// The billing check will handle informing the user about payment methods
 		return false
 	}
 	return true
