@@ -484,7 +484,7 @@ func runMachineRun(ctx context.Context) error {
 
 		sshClient, err := ssh.Connect(&ssh.ConnectParams{
 			Ctx:            ctx,
-			Org:            app.Organization,
+			OrgID:          app.Organization.ID,
 			Dialer:         dialer,
 			Username:       flag.GetString(ctx, "user"),
 			DisableSpinner: false,

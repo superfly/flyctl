@@ -24,6 +24,10 @@ func NewFlapsClient(server *Server, appName string) *FlapsClient {
 	}
 }
 
+func (m *FlapsClient) AppNameAvailable(context.Context, string) (bool, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
 	panic("TODO")
 }

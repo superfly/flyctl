@@ -49,13 +49,13 @@ func runCreate(ctx context.Context) (err error) {
 	if appName != "" {
 		params.AppName = appName
 	} else {
-		org, err := orgs.OrgFromFlagOrSelect(ctx)
+		org, err := orgs.OrgFromFlagOrSelect(ctx, false)
 
 		if err != nil {
 			return err
 		}
 
-		params.Organization = org
+		params.OrgSlug = org.Slug
 	}
 
 	params.Provider = "fly_mysql"

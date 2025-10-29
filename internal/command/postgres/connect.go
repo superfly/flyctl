@@ -108,7 +108,7 @@ func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 	}
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		OrgID:    app.Organization.ID,
 		Dialer:   agent.DialerFromContext(ctx),
 		App:      app.Name,
 		Username: ssh.DefaultSshUsername,

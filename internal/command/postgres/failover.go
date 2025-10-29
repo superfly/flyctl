@@ -235,7 +235,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	fmt.Println("Promoting new leader... ", newLeader.ID)
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		OrgID:    app.Organization.ID,
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),
@@ -408,7 +408,7 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 func passesDryRun(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) bool {
 	err := ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		OrgID:    app.Organization.ID,
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),

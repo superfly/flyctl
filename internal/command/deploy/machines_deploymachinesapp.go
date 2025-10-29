@@ -58,7 +58,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		fullOrg, err := md.apiClient.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
+		fullOrg, err := md.uiexClient.GetOrganization(ctx, md.app.Organization.Slug)
 		if err != nil {
 			return err
 		}

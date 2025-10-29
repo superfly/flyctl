@@ -75,7 +75,7 @@ func runList(ctx context.Context) (err error) {
 			}
 
 			// Get organization details, so we can get its slug
-			org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+			org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
 			if err != nil {
 				return fmt.Errorf("failed retrieving org %w", err)
 			}
@@ -96,13 +96,18 @@ func runList(ctx context.Context) (err error) {
 		}
 
 	case "org":
-		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
+		if err != nil {
+			return fmt.Errorf("failed retrieving org %w", err)
+		}
+
+		orgLegacy, err := apiClient.GetOrganizationBySlug(ctx, org.RawSlug)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
 		fmt.Fprintln(out, "Tokens for organization \""+org.Slug+"\":")
-		for _, token := range org.LimitedAccessTokens.Nodes {
+		for _, token := range orgLegacy.LimitedAccessTokens.Nodes {
 			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String(), revokedAtToString(token.RevokedAt)})
 		}
 	}

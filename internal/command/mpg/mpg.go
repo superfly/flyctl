@@ -314,8 +314,7 @@ func validateMPGTokenCompatibility(ctx context.Context) error {
 
 Please upgrade your authentication by running:
   flyctl auth logout
-  flyctl auth login
-`)
+  flyctl auth login`)
 	}
 	return nil
 }

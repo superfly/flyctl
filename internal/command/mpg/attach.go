@@ -30,7 +30,6 @@ func newAttach() *cobra.Command {
 	cmd := command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
-		command.RequireUiex,
 	)
 	// cmd.Args = cobra.ExactArgs(1)
 	cmd.Args = cobra.MaximumNArgs(1)

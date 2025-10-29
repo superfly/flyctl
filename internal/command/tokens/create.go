@@ -279,7 +279,7 @@ func runOrg(ctx context.Context) error {
 		expiry = expiryDuration.String()
 	}
 
-	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed retrieving org %w", err)
 	}
@@ -389,7 +389,7 @@ func runOrgRead(ctx context.Context) error {
 	}
 
 	if !flag.GetBool(ctx, "from-existing") {
-		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
@@ -640,7 +640,7 @@ func runLiteFSCloud(ctx context.Context) (err error) {
 		return fmt.Errorf("cluster name is not provided")
 	}
 
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	org, err := orgs.OrgFromFlagOrSelect(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed retrieving org %w", err)
 	}

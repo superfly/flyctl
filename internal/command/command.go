@@ -19,8 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"

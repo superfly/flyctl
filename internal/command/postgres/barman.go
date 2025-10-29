@@ -487,7 +487,7 @@ func runConsole(ctx context.Context, cmd string) error {
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		OrgID:          app.Organization.ID,
 		Dialer:         dialer,
 		Username:       "root",
 		DisableSpinner: false,

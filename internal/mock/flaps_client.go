@@ -12,6 +12,7 @@ import (
 var _ flapsutil.FlapsClient = (*FlapsClient)(nil)
 
 type FlapsClient struct {
+	AppNameAvailableFunc     func(context.Context, string) (bool, error)
 	AcquireLeaseFunc         func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	CordonFunc               func(ctx context.Context, machineID string, nonce string) (err error)
 	CreateAppFunc            func(ctx context.Context, name string, org string) (err error)
@@ -57,6 +58,10 @@ type FlapsClient struct {
 	UpdateVolumeFunc         func(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	WaitFunc                 func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error)
 	WaitForAppFunc           func(ctx context.Context, name string) error
+}
+
+func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	return m.AppNameAvailableFunc(ctx, name)
 }
 
 func (m *FlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {

@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/watch"
 
 	"github.com/superfly/fly-go/flaps"
@@ -46,7 +47,7 @@ type CreateClusterInput struct {
 	ConsulURL          string
 	ImageRef           string
 	InitialClusterSize int
-	Organization       *fly.Organization
+	Organization       *uiex.Organization
 	Password           string
 	Region             string
 	VolumeSize         *int
@@ -115,7 +116,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var addr *fly.IPAddress
 
 	if config.Manager == ReplicationManager {
-		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, config.Organization, "")
+		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, config.Organization.ID, "")
 		if err != nil {
 			return err
 		}
@@ -475,7 +476,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		validHours := 876600
 
 		app := fly.App{Name: config.AppName}
-		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization.ID, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 		if err != nil {
 			return nil, err
 		}

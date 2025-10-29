@@ -50,14 +50,14 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 		if confirmDedicatedIp && err == nil {
-			v4Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v4", "", nil, "")
+			v4Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v4", "", "", "")
 			if err != nil {
 				return err
 			}
 			fmt.Fprintf(md.io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
 
 			if !hasUdpService {
-				v6Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
+				v6Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", "", "")
 				if err != nil {
 					return err
 				}
@@ -67,7 +67,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 
 	case "shared":
 		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
-		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
+		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", "", "")
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
@@ -82,7 +82,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 
 	case "private":
 		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))
-		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "private_v6", org, nil, "")
+		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "private_v6", org, "", "")
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}

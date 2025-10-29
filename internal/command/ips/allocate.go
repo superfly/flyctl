@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 )
 
 func newAllocatev4() *cobra.Command {
@@ -93,7 +94,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	private := flag.GetBool(ctx, "private")
 	if private {
 		orgSlug := flag.GetOrg(ctx)
-		var org *fly.Organization
+		var org *uiex.Organization
 
 		if orgSlug != "" {
 			org, err = orgs.OrgFromSlug(ctx, orgSlug)
@@ -110,7 +111,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	return runAllocateIPAddress(ctx, "v6", nil, "")
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organization, network string) (err error) {
+func runAllocateIPAddress(ctx context.Context, addrType string, org *uiex.Organization, network string) (err error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
@@ -128,7 +129,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	region := flag.GetRegion(ctx)
 
-	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org, network)
+	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org.ID, network)
 	if err != nil {
 		return err
 	}

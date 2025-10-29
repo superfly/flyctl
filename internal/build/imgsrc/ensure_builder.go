@@ -380,13 +380,13 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	}()
 
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", org, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", org.ID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
 		}
 	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org.ID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
