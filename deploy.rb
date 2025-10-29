@@ -315,6 +315,24 @@ if !DEPLOY_ONLY
         exec_capture("git add -A", log: false)
         diff = exec_capture("git diff --cached", log: false)
         artifact Artifact::DIFF, { output: diff }
+
+        files = []
+        begin
+          diff_files = diff.scan(%r{diff --git a/(.*?) b/})
+          diff_files.each do |match|
+            file_path = match[0]
+            if file_path && !file_path.empty?
+              # Check if file exists and is readable before trying to read it
+              files << { relative_path: file_path, content: File.read(file_path) } if File.exist?(file_path) && File.readable?(file_path)
+            end
+          rescue StandardError => e
+            info("Error parsing diff file: #{e.message}")
+          end
+        rescue StandardError => e
+          error(e.message)
+        end
+
+        artifact Artifact::FILES, files
       end
     end
   end
