@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -34,6 +35,14 @@ func newAttach() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "database-name",
+			Description: "The name of the database to create. Defaults to the app name.",
+		},
+		flag.String{
+			Name:        "database-user",
+			Description: "The name of the database user to create. Defaults to the app name.",
+		},
 		flag.String{
 			Name:        "variable-name",
 			Default:     "DATABASE_URL",
@@ -85,7 +94,11 @@ func runAttach(ctx context.Context) error {
 		return err
 	}
 
-	variableName := flag.GetString(ctx, "variable-name")
+	var (
+		databaseName = flag.GetString(ctx, "database-name")
+		databaseUser = flag.GetString(ctx, "database-user")
+		variableName = flag.GetString(ctx, "variable-name")
+	)
 
 	if variableName == "" {
 		variableName = "DATABASE_URL"
@@ -103,15 +116,48 @@ func runAttach(ctx context.Context) error {
 		}
 	}
 
+	// Determine connection string based on whether custom database/user was requested
+	var connectionUri string
+
+	if databaseName != "" || databaseUser != "" {
+		// Custom database/user specified - create them via the API
+		if databaseName == "" {
+			databaseName = appName
+		}
+		if databaseUser == "" {
+			databaseUser = appName
+		}
+
+		fmt.Fprintf(io.Out, "Creating database %s and user %s\n", databaseName, databaseUser)
+
+		createUserResp, err := uiexClient.CreateUser(ctx, clusterId, uiex.CreateUserInput{
+			DbName:   databaseName,
+			UserName: databaseUser,
+			AppName:  appName,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create database and user: %w", err)
+		}
+
+		if !createUserResp.Ok {
+			return fmt.Errorf("failed to create database and user: %s", createUserResp.Errors.Detail)
+		}
+
+		connectionUri = createUserResp.ConnectionUri
+	} else {
+		// No custom database/user - use default connection string
+		connectionUri = response.Credentials.ConnectionUri
+	}
+
 	s := map[string]string{}
-	s[variableName] = response.Credentials.ConnectionUri
+	s[variableName] = connectionUri
 
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, s, nil); err != nil {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "\nPostgres cluster %s is being attached to %s\n", clusterId, appName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, response.Credentials.ConnectionUri)
+	fmt.Fprintf(io.Out, "\nPostgres cluster %s is now attached to %s\n", clusterId, appName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
 
 	return nil
 }
