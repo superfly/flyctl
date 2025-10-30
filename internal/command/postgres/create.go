@@ -269,8 +269,9 @@ func run(ctx context.Context) (err error) {
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
 func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
+		client      = flyutil.ClientFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 	)
 
 	input := &flypg.CreateClusterInput{
@@ -416,7 +417,7 @@ func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Regi
 
 	fmt.Fprintf(io.Out, "Creating postgres cluster in organization %s\n", org.Slug)
 
-	launcher := flypg.NewLauncher(client)
+	launcher := flypg.NewLauncher(client, flapsClient)
 
 	return launcher.LaunchMachinesPostgres(ctx, input, params.Detach)
 }

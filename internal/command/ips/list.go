@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -37,11 +37,11 @@ func newList() *cobra.Command {
 
 func runIPAddressesList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	appName := appconfig.NameFromContext(ctx)
-	ipAddresses, err := client.GetIPAddresses(ctx, appName)
+	ipAddresses, err := flapsClient.GetIPAssignments(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func runIPAddressesList(ctx context.Context) error {
 		return render.JSON(out, ipAddresses)
 	}
 
-	renderListTable(ctx, ipAddresses)
+	renderListTable(ctx, ipAddresses.IPs)
 	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/networking/services/")
 	return nil
 }

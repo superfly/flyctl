@@ -39,7 +39,8 @@ const (
 )
 
 type Launcher struct {
-	client flyutil.Client
+	client      flyutil.Client
+	flapsClient flapsutil.FlapsClient
 }
 
 type CreateClusterInput struct {
@@ -67,9 +68,10 @@ type CreateClusterInput struct {
 	RestoreTargetInclusive    bool
 }
 
-func NewLauncher(client flyutil.Client) *Launcher {
+func NewLauncher(client flyutil.Client, flapsClient flapsutil.FlapsClient) *Launcher {
 	return &Launcher{
-		client: client,
+		client:      client,
+		flapsClient: flapsClient,
 	}
 }
 
@@ -113,10 +115,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		config.ImageRef = imageRef
 	}
 
-	var addr *fly.IPAddress
+	var addr *flaps.IPAssignment
 
 	if config.Manager == ReplicationManager {
-		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, config.Organization.ID, "")
+		addr, err = l.flapsClient.AssignIP(ctx, config.AppName, flaps.AssignIPRequest{
+			Type:         "private_v6",
+			Region:       config.Region,
+			Organization: config.Organization.RawSlug,
+		})
 		if err != nil {
 			return err
 		}
@@ -298,7 +304,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintf(io.Out, "  Password:    %s\n", secrets["OPERATOR_PASSWORD"])
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", config.AppName)
 	if addr != nil {
-		fmt.Fprintf(io.Out, "  Flycast:     %s\n", addr.Address)
+		fmt.Fprintf(io.Out, "  Flycast:     %s\n", addr.IP)
 	}
 	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")

@@ -8,11 +8,13 @@ import (
 
 	"github.com/dustin/go-humanize"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/certificate"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -295,9 +297,10 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	// These are the IPs we have for the app
-	ips, err := apiClient.GetIPAddresses(ctx, appName)
+	ips, err := flapsClient.GetIPAssignments(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -307,18 +310,18 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		return err
 	}
 
-	var ipV4 fly.IPAddress
-	var ipV6 fly.IPAddress
+	var ipV4 flaps.IPAssignment
+	var ipV6 flaps.IPAssignment
 	var configuredipV4 bool
 	var configuredipV6 bool
 	var externalProxyHint bool
 
 	// Extract the v4 and v6 addresses we have allocated
-	for _, x := range ips {
-		switch x.Type {
-		case "v4", "shared_v4":
+	for _, x := range ips.IPs {
+		switch {
+		case strings.Contains(x.IP, "."):
 			ipV4 = x
-		case "v6":
+		case strings.Contains(x.IP, ":") && !x.IsFlycast():
 			ipV6 = x
 		}
 	}
@@ -327,11 +330,11 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	if len(hostcheck.ARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
 		ip := net.ParseIP(hostcheck.ARecords[0])
-		if !ip.Equal(net.ParseIP(ipV4.Address)) {
+		if !ip.Equal(net.ParseIP(ipV4.IP)) {
 			if isExternalProxied(cert.DNSProvider, ip) {
 				externalProxyHint = true
 			} else {
-				fmt.Fprintf(io.Out, colorize.Yellow("A Record (%s) does not match app's IP (%s)\n"), hostcheck.ARecords[0], ipV4.Address)
+				fmt.Fprintf(io.Out, colorize.Yellow("A Record (%s) does not match app's IP (%s)\n"), hostcheck.ARecords[0], ipV4.IP)
 			}
 		} else {
 			configuredipV4 = true
@@ -341,11 +344,11 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	if len(hostcheck.AAAARecords) > 0 {
 		// Let's check the first A record against our recorded addresses
 		ip := net.ParseIP(hostcheck.AAAARecords[0])
-		if !ip.Equal(net.ParseIP(ipV6.Address)) {
+		if !ip.Equal(net.ParseIP(ipV6.IP)) {
 			if isExternalProxied(cert.DNSProvider, ip) {
 				externalProxyHint = true
 			} else {
-				fmt.Fprintf(io.Out, colorize.Yellow("AAAA Record (%s) does not match app's IP (%s)\n"), hostcheck.AAAARecords[0], ipV6.Address)
+				fmt.Fprintf(io.Out, colorize.Yellow("AAAA Record (%s) does not match app's IP (%s)\n"), hostcheck.AAAARecords[0], ipV6.IP)
 			}
 		} else {
 			configuredipV6 = true
@@ -355,15 +358,15 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 	if len(hostcheck.ResolvedAddresses) > 0 {
 		for _, address := range hostcheck.ResolvedAddresses {
 			ip := net.ParseIP(address)
-			if ip.Equal(net.ParseIP(ipV4.Address)) {
+			if ip.Equal(net.ParseIP(ipV4.IP)) {
 				configuredipV4 = true
-			} else if ip.Equal(net.ParseIP(ipV6.Address)) {
+			} else if ip.Equal(net.ParseIP(ipV6.IP)) {
 				configuredipV6 = true
 			} else {
 				if isExternalProxied(cert.DNSProvider, ip) {
 					externalProxyHint = true
 				} else {
-					fmt.Fprintf(io.Out, colorize.Yellow("Address resolution (%s) does not match app's IP (%s/%s)\n"), address, ipV4.Address, ipV6.Address)
+					fmt.Fprintf(io.Out, colorize.Yellow("Address resolution (%s) does not match app's IP (%s/%s)\n"), address, ipV4.IP, ipV6.IP)
 				}
 			}
 		}
@@ -431,8 +434,8 @@ type DNSSetupFlags struct {
 	Context               context.Context
 	Hostname              string
 	Certificate           *fly.AppCertificate
-	IPv4Address           fly.IPAddress
-	IPv6Address           fly.IPAddress
+	IPv4Address           flaps.IPAssignment
+	IPv6Address           flaps.IPAssignment
 	CNAMETarget           string
 	ExternalProxyDetected bool
 }
@@ -440,8 +443,8 @@ type DNSSetupFlags struct {
 func printDNSSetupOptions(opts DNSSetupFlags) error {
 	io := iostreams.FromContext(opts.Context)
 	colorize := io.ColorScheme()
-	hasIPv4 := opts.IPv4Address.Address != ""
-	hasIPv6 := opts.IPv6Address.Address != ""
+	hasIPv4 := opts.IPv4Address.IP != ""
+	hasIPv6 := opts.IPv6Address.IP != ""
 	promoteExtProxy := opts.ExternalProxyDetected && !opts.Certificate.IsWildcard
 
 	fmt.Fprintf(io.Out, "You are creating a certificate for %s\n", colorize.Bold(opts.Hostname))
@@ -465,7 +468,7 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 	if promoteExtProxy {
 		if hasIPv4 {
 			fmt.Fprintf(io.Out, colorize.Green("%d. External proxy setup\n\n"), optionNum)
-			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
+			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.IP)
 			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
 			fmt.Fprintln(io.Out)
 			optionNum++
@@ -481,14 +484,14 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 
 	fmt.Fprintf(io.Out, colorize.Green("%d. A and AAAA records (recommended for direct connections)\n\n"), optionNum)
 	if hasIPv4 {
-		fmt.Fprintf(io.Out, "   A    %s → %s\n", getRecordName(opts.Hostname), opts.IPv4Address.Address)
+		fmt.Fprintf(io.Out, "   A    %s → %s\n", getRecordName(opts.Hostname), opts.IPv4Address.IP)
 	} else {
 		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv4 addresses are allocated for your application."))
 		fmt.Fprintf(io.Out, "   Run: %s to allocate recommended addresses\n", colorize.Bold("fly ips allocate"))
 		fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n", colorize.Bold("fly certs setup "+opts.Hostname))
 	}
 	if hasIPv6 {
-		fmt.Fprintf(io.Out, "   AAAA %s → %s\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
+		fmt.Fprintf(io.Out, "   AAAA %s → %s\n", getRecordName(opts.Hostname), opts.IPv6Address.IP)
 	} else {
 		fmt.Fprintf(io.Out, "\n   %s\n", colorize.Yellow("No IPv6 addresses are allocated for your application."))
 		fmt.Fprintf(io.Out, "   Run: %s to allocate a dedicated IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
@@ -507,7 +510,7 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 	if !promoteExtProxy && !opts.Certificate.IsWildcard {
 		fmt.Fprintf(io.Out, colorize.Blue("%d. External proxy setup\n\n"), optionNum)
 		if hasIPv6 {
-			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
+			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.IP)
 		} else {
 			fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv6 addresses are allocated for your application."))
 			fmt.Fprintf(io.Out, "   Run: %s to allocate a dedicated IPv6 address\n", colorize.Bold("fly ips allocate-v6"))

@@ -14,12 +14,14 @@ var _ FlapsClient = (*flaps.Client)(nil)
 type FlapsClient interface {
 	AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	AppNameAvailable(ctx context.Context, name string) (bool, error)
+	AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
 	CreateApp(ctx context.Context, name string, org string) (err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
+	DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error)
 	DeleteSecretKey(ctx context.Context, name string) error
 	DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
@@ -30,6 +32,7 @@ type FlapsClient interface {
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
+	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetMetadata(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcesses(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
 	GetRegions(ctx context.Context) (data *flaps.RegionData, err error)

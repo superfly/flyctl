@@ -62,6 +62,18 @@ type FlapsClient struct {
 	WaitForAppFunc           func(ctx context.Context, name string) error
 }
 
+func (f *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+	panic("TODO")
+}
+
+func (f *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+	panic("TODO")
+}
+
+func (f *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
 	return m.AppNameAvailableFunc(ctx, name)
 }

@@ -74,9 +74,10 @@ func newAttach() *cobra.Command {
 
 func runAttach(ctx context.Context) error {
 	var (
-		pgAppName = flag.FirstArg(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
+		pgAppName   = flag.FirstArg(ctx)
+		appName     = appconfig.NameFromContext(ctx)
+		client      = flyutil.ClientFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
@@ -109,16 +110,16 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	ips, err := flapsClient.GetIPAssignments(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
+	for _, ip := range ips.IPs {
+		if ip.IsFlycast() {
+			flycast = &ip.IP
 		}
 	}
 
@@ -128,7 +129,8 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client = flyutil.ClientFromContext(ctx)
+		client      = flyutil.ClientFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 
 		pgAppName = params.PgAppName
 		appName   = params.AppName
@@ -154,16 +156,16 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	ips, err := flapsClient.GetIPAssignments(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
+	for _, ip := range ips.IPs {
+		if ip.IsFlycast() {
+			flycast = &ip.IP
 		}
 	}
 	return machineAttachCluster(ctx, params, flycast)
