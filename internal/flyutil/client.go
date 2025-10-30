@@ -14,8 +14,6 @@ var _ Client = (*fly.Client)(nil)
 
 type Client interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error)
-	AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error)
 	AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailable(ctx context.Context, appName string) (bool, error)
 	AttachPostgresCluster(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
@@ -61,7 +59,6 @@ type Client interface {
 	GetCurrentUser(ctx context.Context) (*fly.User, error)
 	GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
 	GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*fly.OrganizationDetails, error)
-	GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error)
 	GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetLatestImageDetails(ctx context.Context, image string, flyVersion string) (*fly.ImageVersion, error)
 	GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error)
@@ -82,9 +79,7 @@ type Client interface {
 	Logger() fly.Logger
 	MoveApp(ctx context.Context, appName string, orgID string) (*fly.App, error)
 	NewRequest(q string) *graphql.Request
-	PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error)
 	ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
-	ReleaseIPAddress(ctx context.Context, appName string, ip string) error
 	RemoveWireGuardPeer(ctx context.Context, orgID string, name string) error
 	ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error)
 	RevokeLimitedAccessToken(ctx context.Context, id string) error

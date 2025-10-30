@@ -16,7 +16,9 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -581,6 +583,16 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 			logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
 			return handleReLogin(ctx, "expired")
 		}
+	}
+
+	// no idea if there would be a client in the context at this point,
+	// but don't overwrite it
+	if flapsutil.ClientFromContext(ctx) == nil {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
+		if err != nil {
+			return ctx, err
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	}
 
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)

@@ -25,6 +25,18 @@ func NewFlapsClient(server *Server, appName string) *FlapsClient {
 	}
 }
 
+func (f *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+	panic("TODO")
+}
+
+func (f *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+	panic("TODO")
+}
+
+func (f *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) AppNameAvailable(context.Context, string) (bool, error) {
 	panic("TODO")
 }

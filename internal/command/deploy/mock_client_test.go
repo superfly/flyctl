@@ -34,6 +34,18 @@ type mockFlapsClient struct {
 	nextMachineID int
 }
 
+func (f *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+	panic("TODO")
+}
+
+func (f *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+	panic("TODO")
+}
+
+func (f *mockFlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+	panic("TODO")
+}
+
 func (m *mockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
 	return true, nil
 }

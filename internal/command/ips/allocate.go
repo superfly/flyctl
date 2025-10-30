@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 )
@@ -112,29 +112,28 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 }
 
 func runAllocateIPAddress(ctx context.Context, addrType string, org *uiex.Organization, network string) (err error) {
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
-	if addrType == "shared_v4" {
-		ip, err := client.AllocateSharedIPAddress(ctx, appName)
-		if err != nil {
-			return err
-		}
-
-		renderSharedTable(ctx, ip)
-
-		return nil
-	}
-
 	region := flag.GetRegion(ctx)
 
-	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org.ID, network)
+	var orgSlug string
+	if org != nil {
+		orgSlug = org.RawSlug
+	}
+
+	ipAddress, err := flapsClient.AssignIP(ctx, appName, flaps.AssignIPRequest{
+		Type:         addrType,
+		Region:       region,
+		Organization: orgSlug,
+		Network:      network,
+	})
 	if err != nil {
 		return err
 	}
 
-	ipAddresses := []fly.IPAddress{*ipAddress}
+	ipAddresses := []flaps.IPAssignment{*ipAddress}
 	renderListTable(ctx, ipAddresses)
 	return nil
 }

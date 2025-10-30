@@ -181,7 +181,7 @@ func runBackupRestore(ctx context.Context) error {
 		BarmanRemoteRestoreConfig: restoreSecret,
 	}
 
-	launcher := flypg.NewLauncher(client)
+	launcher := flypg.NewLauncher(client, flapsClient)
 	launcher.LaunchMachinesPostgres(ctx, input, false)
 
 	return nil

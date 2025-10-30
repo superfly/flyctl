@@ -379,18 +379,17 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		}
 	}()
 
+	ipType := "shared_v4"
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", org.ID, "")
-		if retErr != nil {
-			tracing.RecordError(span, retErr, "error allocating ip address")
-			return nil, nil, retErr
-		}
-	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org.ID, "")
-		if retErr != nil {
-			tracing.RecordError(span, retErr, "error allocating ip address")
-			return nil, nil, retErr
-		}
+		ipType = "private_v6"
+	}
+	_, retErr = flapsClient.AssignIP(ctx, app.Name, flaps.AssignIPRequest{
+		Type:         ipType,
+		Organization: org.RawSlug,
+	})
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error allocating ip address")
+		return nil, nil, retErr
 	}
 
 	guest := fly.MachineGuest{

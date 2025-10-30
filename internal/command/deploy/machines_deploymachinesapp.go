@@ -25,7 +25,6 @@ import (
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -1352,14 +1351,14 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*70)
 	defer cancel()
 
-	client := flyutil.ClientFromContext(ctx)
-	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	ipAddrs, err := flapsClient.GetIPAssignments(ctx, md.appConfig.AppName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
 		return err
 	}
 
-	if appURL := md.appConfig.URL(); appURL != nil && len(ipAddrs) > 0 {
+	if appURL := md.appConfig.URL(); appURL != nil && len(ipAddrs.IPs) > 0 {
 		iostreams := iostreams.FromContext(ctx)
 		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(appURL.Host))
 
@@ -1380,10 +1379,10 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			m := new(dns.Msg)
 
 			var numIPv4, numIPv6 int
-			for _, ipAddr := range ipAddrs {
-				if (ipAddr.Type == "v4" && ipAddr.Region == "global") || ipAddr.Type == "shared_v4" {
+			for _, ipAddr := range ipAddrs.IPs {
+				if strings.Contains(ipAddr.IP, ".") && (ipAddr.Region == "global" || ipAddr.Shared) {
 					numIPv4 += 1
-				} else if ipAddr.Type == "v6" && ipAddr.Region == "global" {
+				} else if strings.Contains(ipAddr.IP, ":") && ipAddr.Region == "global" {
 					numIPv6 += 1
 				}
 			}
