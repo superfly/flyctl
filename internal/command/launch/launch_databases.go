@@ -452,17 +452,17 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 
 	var readReplicaRegions []fly.Region
 	{
-		client := flyutil.ClientFromContext(ctx)
-		regions, _, err := client.PlatformRegions(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		regions, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return err
 		}
 		// Filter out deprecated regions
-		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
 		})
 		for _, code := range redisPlan.ReadReplicas {
-			if region, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == code }); ok {
+			if region, ok := lo.Find(regions.Regions, func(r fly.Region) bool { return r.Code == code }); ok {
 				readReplicaRegions = append(readReplicaRegions, region)
 			} else {
 				return fmt.Errorf("region %s not found", code)

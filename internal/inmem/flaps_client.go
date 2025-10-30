@@ -7,6 +7,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
@@ -170,6 +171,10 @@ func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in in
 
 func (m *FlapsClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
 	panic("TODO")
+}
+
+func (m *FlapsClient) GetRegions(ctx context.Context) (data *flaps.RegionData, err error) {
+	return
 }
 
 func (m *FlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {

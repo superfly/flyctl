@@ -6,6 +6,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
@@ -32,6 +33,7 @@ type FlapsClient struct {
 	GetManyFunc              func(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadataFunc          func(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcessesFunc         func(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
+	GetRegionsFunc           func(ctx context.Context) (data *flaps.RegionData, err error)
 	GetVolumeFunc            func(ctx context.Context, volumeId string) (*fly.Volume, error)
 	GetVolumeSnapshotsFunc   func(ctx context.Context, volumeId string) ([]fly.VolumeSnapshot, error)
 	GetVolumesFunc           func(ctx context.Context) ([]fly.Volume, error)
@@ -186,6 +188,10 @@ func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in in
 
 func (m *FlapsClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
 	return m.RefreshLeaseFunc(ctx, machineID, ttl, nonce)
+}
+
+func (m *FlapsClient) GetRegions(ctx context.Context) (data *flaps.RegionData, err error) {
+	return m.GetRegionsFunc(ctx)
 }
 
 func (m *FlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {

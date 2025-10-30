@@ -16,6 +16,7 @@ import (
 	time "time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -516,6 +517,10 @@ func (m *MockFlapsClient) RefreshLease(ctx context.Context, machineID string, tt
 func (mr *MockFlapsClientMockRecorder) RefreshLease(ctx, machineID, ttl, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshLease", reflect.TypeOf((*MockFlapsClient)(nil).RefreshLease), ctx, machineID, ttl, nonce)
+}
+
+func (m *MockFlapsClient) GetRegions(ctx context.Context) (data *flaps.RegionData, err error) {
+	return
 }
 
 // ReleaseLease mocks base method.

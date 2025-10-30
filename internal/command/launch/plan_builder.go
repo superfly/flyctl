@@ -748,7 +748,11 @@ func remapDeprecatedRegion(ctx context.Context, region *fly.Region) (*fly.Region
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
+	if err != nil {
+		return nil, "", err
+	}
+
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -757,9 +761,15 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
+	var closestRegion fly.Region
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
+	regions, closestRegionErr := flapsClient.GetRegions(ctx)
+	if closestRegionErr == nil {
+		closestRegion, _ = lo.Find(regions.Regions, func(r fly.Region) bool {
+			return r.Code == *regions.Nearest
+		})
+	}
 
 	// Remap the closest region if it's deprecated
 	if closestRegionErr == nil && closestRegion != nil {
@@ -775,29 +785,29 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		if err != nil {
 			// Check and see if this is recoverable
 			if closestRegionErr == nil {
-				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
+				return &closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
 			}
 		}
 		return region, explanation, err
 	}
-	return closestRegion, "this is the fastest region for you", closestRegionErr
+	return &closestRegion, "this is the fastest region for you", closestRegionErr
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
 func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
+	apiClient := flapsutil.ClientFromContext(ctx)
 
-	allRegions, _, err := apiClient.PlatformRegions(ctx)
+	allRegions, err := apiClient.GetRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Filter out deprecated regions
-	allRegions = lo.Filter(allRegions, func(r fly.Region, _ int) bool {
+	allRegions.Regions = lo.Filter(allRegions.Regions, func(r fly.Region, _ int) bool {
 		return !r.Deprecated
 	})
 
-	for _, r := range allRegions {
+	for _, r := range allRegions.Regions {
 		if r.Code == regionCode {
 			return &r, nil
 		}
