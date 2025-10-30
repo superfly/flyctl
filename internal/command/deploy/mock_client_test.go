@@ -8,6 +8,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 )
 
 type mockWebClient struct {
@@ -192,6 +193,10 @@ func (m *mockFlapsClient) RefreshLease(ctx context.Context, machineID string, tt
 		Status: "success",
 		Data:   &fly.MachineLeaseData{Nonce: nonce},
 	}, nil
+}
+
+func (m *mockFlapsClient) GetRegions(ctx context.Context) (data *flaps.RegionData, err error) {
+	return
 }
 
 func (m *mockFlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {

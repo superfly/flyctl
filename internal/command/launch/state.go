@@ -9,6 +9,7 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
@@ -75,17 +76,21 @@ func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
+	if err != nil {
+		return fly.Region{}, err
+	}
+
 	regions, err := cacheGrab(state.cache, "regions", func() ([]fly.Region, error) {
-		regions, _, err := apiClient.PlatformRegions(ctx)
+		regions, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return nil, err
 		}
 		// Filter out deprecated regions
-		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
 		})
-		return regions, nil
+		return regions.Regions, nil
 	})
 	if err != nil {
 		return fly.Region{}, err

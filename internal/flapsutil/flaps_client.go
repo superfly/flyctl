@@ -32,6 +32,7 @@ type FlapsClient interface {
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadata(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcesses(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
+	GetRegions(ctx context.Context) (data *flaps.RegionData, err error)
 	GetVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	GetVolumeSnapshots(ctx context.Context, volumeId string) ([]fly.VolumeSnapshot, error)
 	GetVolumes(ctx context.Context) ([]fly.Volume, error)

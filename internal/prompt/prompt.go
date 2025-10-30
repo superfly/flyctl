@@ -18,7 +18,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -304,7 +304,7 @@ var (
 
 type RegionInfo struct {
 	Regions       []fly.Region
-	DefaultRegion *fly.Region
+	DefaultRegion string
 }
 
 var (
@@ -319,20 +319,20 @@ var (
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := flyutil.ClientFromContext(ctx)
-			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			client := flapsutil.ClientFromContext(ctx)
+			regions, err := client.GetRegions(ctx)
 			if err != nil {
 				return RegionInfo{}, err
 			}
 
 			// Filter out deprecated regions
-			regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+			regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
 				return !r.Deprecated
 			})
 
 			regionInfo := RegionInfo{
-				Regions:       regions,
-				DefaultRegion: defaultRegion,
+				Regions:       regions.Regions,
+				DefaultRegion: *regions.Nearest,
 			}
 			return regionInfo, err
 		})
@@ -341,10 +341,10 @@ func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	return regionsFuture
 }
 
-func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]fly.Region, *fly.Region, error) {
+func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]fly.Region, string, error) {
 	regionInfo, err := PlatformRegions(ctx).Get()
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	regions := regionInfo.Regions
@@ -453,12 +453,7 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Regi
 
 		return nil, fmt.Errorf("region %s not found", slug)
 	default:
-		var defaultRegionCode string
-		if defaultRegion != nil {
-			defaultRegionCode = defaultRegion.Code
-		}
-
-		switch region, err := SelectRegion(ctx, params.Message, paidOnly, regions, defaultRegionCode); {
+		switch region, err := SelectRegion(ctx, params.Message, paidOnly, regions, defaultRegion); {
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):

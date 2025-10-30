@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -130,11 +129,18 @@ func OrgFromSlug(ctx context.Context, slug string) (*uiex.Organization, error) {
 	return org, nil
 }
 
-func printOrg(w io.Writer, org *fly.Organization, headers bool) {
+func printOrg(w io.Writer, org *uiex.Organization, headers bool) {
 	if headers {
 		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Name", "Slug", "Type")
 		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")
 	}
 
-	fmt.Fprintf(w, "%-20s %-20s %-10s\n", org.Name, org.Slug, org.Type)
+	var legacyOrgType string
+	if org.Personal {
+		legacyOrgType = "PERSONAL"
+	} else {
+		legacyOrgType = "SHARED"
+	}
+
+	fmt.Fprintf(w, "%-20s %-20s %-10s\n", org.Name, org.Slug, legacyOrgType)
 }
