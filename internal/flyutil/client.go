@@ -15,7 +15,6 @@ var _ Client = (*fly.Client)(nil)
 type Client interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
 	AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
-	AppNameAvailable(ctx context.Context, appName string) (bool, error)
 	AttachPostgresCluster(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
 	Authenticated() bool
 	CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error)
@@ -73,7 +72,7 @@ type Client interface {
 	GetWireGuardPeer(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeers(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
 	GenqClient() genq.Client
-	IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
+	IssueSSHCertificate(ctx context.Context, orgID string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
 	LatestImage(ctx context.Context, appName string) (string, error)
 	ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
 	Logger() fly.Logger
