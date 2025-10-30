@@ -35,7 +35,6 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 		newCertificatesList(),
 		newCertificatesAdd(),
 		newCertificatesRemove(),
-		newCertificatesShow(),
 		newCertificatesCheck(),
 		newCertificatesSetup(),
 	)
@@ -44,7 +43,7 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 
 func newCertificatesList() *cobra.Command {
 	const (
-		short = "List certificates for an app."
+		short = "List certificates for an app"
 		long  = `List the certificates associated with a deployed application.`
 	)
 	cmd := command.New("list", short, long, runCertificatesList,
@@ -62,7 +61,7 @@ func newCertificatesList() *cobra.Command {
 
 func newCertificatesAdd() *cobra.Command {
 	const (
-		short = "Add a certificate for an app."
+		short = "Add a certificate for an app"
 		long  = `Add a certificate for an application. Takes a hostname
 as a parameter for the certificate.`
 	)
@@ -100,30 +99,11 @@ as a parameter to locate the certificate.`
 	return cmd
 }
 
-func newCertificatesShow() *cobra.Command {
-	const (
-		short = "Shows certificate information"
-		long  = `Shows certificate information for an application.
-Takes hostname as a parameter to locate the certificate.`
-	)
-	cmd := command.New("show <hostname>", short, long, runCertificatesShow,
-		command.RequireSession,
-		command.RequireAppName,
-	)
-	flag.Add(cmd,
-		flag.App(),
-		flag.AppConfig(),
-		flag.JSONOutput(),
-	)
-	cmd.Args = cobra.ExactArgs(1)
-	return cmd
-}
-
 func newCertificatesCheck() *cobra.Command {
 	const (
-		short = "Checks DNS configuration"
-		long  = `Checks the DNS configuration for the specified hostname.
-Displays results in the same format as the SHOW command.`
+		short = "Show certificate and DNS status"
+		long  = `Shows detailed certificate information and checks the DNS configuration
+for the specified hostname.`
 	)
 	cmd := command.New("check <hostname>", short, long, runCertificatesCheck,
 		command.RequireSession,
@@ -135,6 +115,7 @@ Displays results in the same format as the SHOW command.`
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
+	cmd.Aliases = []string{"show"}
 	return cmd
 }
 
@@ -169,31 +150,6 @@ func runCertificatesList(ctx context.Context) error {
 	return printCertificates(ctx, certs)
 }
 
-func runCertificatesShow(ctx context.Context) error {
-	apiClient := flyutil.ClientFromContext(ctx)
-	appName := appconfig.NameFromContext(ctx)
-	hostname := flag.FirstArg(ctx)
-
-	cert, hostcheck, err := apiClient.CheckAppCertificate(ctx, appName, hostname)
-	if err != nil {
-		return err
-	}
-
-	printCertificate(ctx, cert)
-
-	// Display validation errors if any exist
-	if len(cert.ValidationErrors) > 0 {
-		io := iostreams.FromContext(ctx)
-		certificate.DisplayValidationErrors(io, cert.ValidationErrors)
-	}
-
-	if cert.ClientStatus == "Ready" {
-		return nil
-	}
-
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplaySkip)
-}
-
 func runCertificatesCheck(ctx context.Context) error {
 	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
@@ -206,14 +162,23 @@ func runCertificatesCheck(ctx context.Context) error {
 
 	printCertificate(ctx, cert)
 
-	// Display validation errors if any exist
-	if len(cert.ValidationErrors) > 0 {
-		io := iostreams.FromContext(ctx)
-		certificate.DisplayValidationErrors(io, cert.ValidationErrors)
-	}
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 
 	if cert.ClientStatus == "Ready" {
+		fmt.Fprintf(io.Out, "\n%s\n", colorize.Green("✓ Your certificate has been issued!"))
+		fmt.Fprintf(io.Out, "%s\n", colorize.Green("Your DNS is correctly configured and this certificate will auto-renew before expiration."))
 		return nil
+	}
+
+	// If certificates were issued but status is not ready, DNS is broken
+	if len(cert.Issued.Nodes) > 0 {
+		fmt.Fprintf(io.Out, "\n%s\n", colorize.Yellow("Your certificate was issued but your DNS configuration has issues."))
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("This certificate may not renew automatically. Please fix your DNS configuration."))
+	}
+
+	if len(cert.ValidationErrors) > 0 {
+		certificate.DisplayValidationErrors(io, cert.ValidationErrors)
 	}
 
 	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplaySkip)
@@ -229,7 +194,17 @@ func runCertificatesAdd(ctx context.Context) error {
 		return err
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplayForce)
+	err = reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplayForce)
+	if err != nil {
+		return err
+	}
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.Out, "\nOnce your DNS is configured correctly, we will automatically provision your certificate.\n")
+	fmt.Fprintf(io.Out, "Run %s to check the progress.\n", colorize.Bold("fly certs check "+hostname))
+
+	return nil
 }
 
 func runCertificatesRemove(ctx context.Context) error {
@@ -524,7 +499,7 @@ func printDNSSetupOptions(opts DNSSetupFlags) error {
 	} else {
 		fmt.Fprint(io.Out, colorize.Yellow("Optional: DNS Challenge\n\n"))
 	}
-	fmt.Fprintf(io.Out, "   %s → %s\n\n", opts.Certificate.DNSValidationHostname, opts.Certificate.DNSValidationTarget)
+	fmt.Fprintf(io.Out, "   CNAME %s → %s\n\n", opts.Certificate.DNSValidationHostname, opts.Certificate.DNSValidationTarget)
 	fmt.Fprintln(io.Out, "   Additional to one of the DNS setups.")
 	if opts.Certificate.IsWildcard {
 		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("Required for this wildcard certificate."))
@@ -549,18 +524,10 @@ func getRecordName(hostname string) string {
 
 func printCertificate(ctx context.Context, cert *fly.AppCertificate) {
 	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-	hostname := flag.FirstArg(ctx)
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, cert)
 		return
-	}
-
-	if cert.ClientStatus == "Ready" {
-		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
-	} else {
-		fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
 	}
 
 	myprnt := func(label string, value string) {
@@ -568,16 +535,25 @@ func printCertificate(ctx context.Context, cert *fly.AppCertificate) {
 	}
 
 	certtypes := []string{}
+	var expiresAt string
 
 	for _, v := range cert.Issued.Nodes {
 		certtypes = append(certtypes, v.Type)
+		// Get the expiration time (all certs should expire at the same time)
+		if expiresAt == "" && !v.ExpiresAt.IsZero() {
+			expiresAt = humanize.Time(v.ExpiresAt)
+		}
 	}
 
+	myprnt("Status", cert.ClientStatus)
 	myprnt("Hostname", cert.Hostname)
 	myprnt("DNS Provider", cert.DNSProvider)
 	myprnt("Certificate Authority", readableCertAuthority(cert.CertificateAuthority))
 	myprnt("Issued", strings.Join(certtypes, ","))
 	myprnt("Added to App", humanize.Time(cert.CreatedAt))
+	if expiresAt != "" {
+		myprnt("Expires", expiresAt)
+	}
 	myprnt("Source", cert.Source)
 }
 
@@ -596,9 +572,16 @@ func printCertificates(ctx context.Context, certs []fly.AppCertificateCompact) e
 		return nil
 	}
 
+	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "%-25s %-20s %s\n", "Host Name", "Added", "Status")
 	for _, v := range certs {
-		fmt.Fprintf(io.Out, "%-25s %-20s %s\n", v.Hostname, humanize.Time(v.CreatedAt), v.ClientStatus)
+		line := fmt.Sprintf("%-25s %-20s %s", v.Hostname, humanize.Time(v.CreatedAt), v.ClientStatus)
+		if v.ClientStatus == "Ready" {
+			line = colorize.Green(line)
+		} else {
+			line = colorize.Yellow(line)
+		}
+		fmt.Fprintf(io.Out, "%s\n", line)
 	}
 
 	return nil
