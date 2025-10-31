@@ -81,7 +81,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(v6Addr.IP))
 
 		v4Shared, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type: "v4_shared",
+			Type: "shared_v4",
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
