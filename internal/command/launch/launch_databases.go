@@ -373,7 +373,7 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	}
 
 	// Verify the cluster and app are in the same organization
-	app, err := client.GetAppBasic(ctx, state.Plan.AppName)
+	app, err := client.GetAppCompact(ctx, state.Plan.AppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", state.Plan.AppName, err)
 	}

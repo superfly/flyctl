@@ -137,12 +137,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, fmt.Errorf("get app: %w", err)
 	}
 
-	network, err := client.GetAppNetwork(ctx, appName)
-	if err != nil {
-		return nil, fmt.Errorf("get app network: %w", err)
-	}
-
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, quiet(ctx))
 	if err != nil {
 		return nil, err
 	}

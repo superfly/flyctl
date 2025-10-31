@@ -16,7 +16,6 @@ type webClient interface {
 	CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
 	UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
 
-	GetApp(ctx context.Context, appName string) (*fly.App, error)
 	GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error)
 
 	logs.WebClient

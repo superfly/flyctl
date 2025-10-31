@@ -67,7 +67,7 @@ func runShow(ctx context.Context) error {
 
 	var volume *fly.Volume
 	if volumeID == "" {
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := client.GetAppCompact(ctx, appName)
 		if err != nil {
 			return err
 		}

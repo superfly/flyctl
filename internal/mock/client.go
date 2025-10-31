@@ -44,7 +44,7 @@ type Client struct {
 	FinishBuildFunc                        func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetAppFunc                             func(ctx context.Context, appName string) (*fly.App, error)
 	GetAppRemoteBuilderFunc                func(ctx context.Context, appName string) (*fly.App, error)
-	GetAppBasicFunc                        func(ctx context.Context, appName string) (*fly.AppBasic, error)
+	GetAppBasicFunc                        func(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetAppCertificatesFunc                 func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
 	GetAppCompactFunc                      func(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetDeployerAppByOrgFunc                func(ctx context.Context, orgID string) (*fly.App, error)
@@ -225,7 +225,7 @@ func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.
 	return m.GetAppRemoteBuilderFunc(ctx, appName)
 }
 
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
+func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppCompact, error) {
 	return m.GetAppBasicFunc(ctx, appName)
 }
 

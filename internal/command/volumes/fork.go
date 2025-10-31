@@ -80,7 +80,7 @@ func runFork(ctx context.Context) error {
 
 	var vol *fly.Volume
 	if volID == "" {
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := client.GetAppCompact(ctx, appName)
 		if err != nil {
 			return err
 		}

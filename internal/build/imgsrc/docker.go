@@ -565,8 +565,8 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 		CheckRedirect: dockerclient.CheckRedirect,
 	}))
 
-	var app *fly.AppBasic
-	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
+	var app *fly.AppCompact
+	if app, err = apiClient.GetAppCompact(ctx, appName); err != nil {
 		tracing.RecordError(span, err, "error fetching target app")
 		return nil, fmt.Errorf("error fetching target app: %w", err)
 	}

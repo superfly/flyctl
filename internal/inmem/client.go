@@ -176,7 +176,7 @@ func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
 	panic("TODO")
 }
 
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
+func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppCompact, error) {
 	panic("TODO")
 }
 

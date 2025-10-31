@@ -71,7 +71,7 @@ func runAttach(ctx context.Context) error {
 	)
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}

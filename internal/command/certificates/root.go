@@ -280,7 +280,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		return err
 	}
 
-	cnameTarget, err := apiClient.GetAppCNAMETarget(ctx, appName)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -370,7 +370,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 			Certificate:           cert,
 			IPv4Address:           ipV4,
 			IPv6Address:           ipV6,
-			CNAMETarget:           cnameTarget,
+			CNAMETarget:           app.CnameTarget,
 			ExternalProxyDetected: externalProxyHint,
 		})
 	case cert.ClientStatus == "Ready":

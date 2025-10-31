@@ -79,7 +79,7 @@ func runDestroy(ctx context.Context) error {
 	}
 
 	client := flyutil.ClientFromContext(ctx)
-	_, err := client.GetApp(ctx, appName)
+	_, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("app not found: %w", err)
 	}
@@ -95,7 +95,7 @@ func runDestroy(ctx context.Context) error {
 		return fmt.Errorf("failed to destroy app': %w", err)
 	}
 
-	_, err = client.GetApp(ctx, appName)
+	_, err = client.GetAppCompact(ctx, appName)
 	if err == nil {
 		return fmt.Errorf("app not destroyed: %s", appName)
 	}

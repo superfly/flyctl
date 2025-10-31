@@ -114,8 +114,8 @@ func runCreate(ctx context.Context) error {
 	prompt.PlatformRegions(ctx)
 
 	// fetch AppBasic in the background while we prompt for confirmation
-	appFuture := future.Spawn(func() (*fly.AppBasic, error) {
-		return client.GetAppBasic(ctx, appName)
+	appFuture := future.Spawn(func() (*fly.AppCompact, error) {
+		return client.GetAppCompact(ctx, appName)
 	})
 
 	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
