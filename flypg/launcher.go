@@ -120,7 +120,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	if config.Manager == ReplicationManager {
 		addr, err = l.flapsClient.AssignIP(ctx, config.AppName, flaps.AssignIPRequest{
 			Type:         "private_v6",
-			Region:       config.Region,
 			Organization: config.Organization.RawSlug,
 		})
 		if err != nil {

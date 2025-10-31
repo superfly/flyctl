@@ -47,7 +47,7 @@ func runIPAddressesList(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		return render.JSON(out, ipAddresses)
+		return render.JSON(out, ipAddresses.IPs)
 	}
 
 	renderListTable(ctx, ipAddresses.IPs)
