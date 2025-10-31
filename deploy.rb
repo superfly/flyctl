@@ -115,6 +115,39 @@ if !DEPLOYER_SOURCE_CWD.nil?
   Dir.chdir(DEPLOYER_SOURCE_CWD)
 end
 
+
+# Check if staged-files directory exists and has files
+if Dir.exist?('/tmp/staged-files/') && !Dir.empty?('/tmp/staged-files/')
+  in_step Step::GIT_PULL do
+    def copy_files_preserving_structure(source_dir, target_dir)
+      Dir.glob(File.join(source_dir, '**', '*'), File::FNM_DOTMATCH).each do |file|
+        # Skip . and .. directories
+        next if File.basename(file) == '.' || File.basename(file) == '..'
+
+        # Get the relative path from source_dir
+        relative_path = file.sub(source_dir, '')
+        target_path = File.join(target_dir, relative_path)
+
+        if File.directory?(file)
+          # Create directory if it doesn't exist
+          FileUtils.mkdir_p(target_path) unless Dir.exist?(target_path)
+        else
+          # Create parent directories if they don't exist
+          FileUtils.mkdir_p(File.dirname(target_path)) unless Dir.exist?(File.dirname(target_path))
+
+          # Copy the file, overwriting if it exists
+          FileUtils.cp(file, target_path, preserve: true)
+          info("Copied #{file} to #{target_path}")
+        end
+      end
+    end
+
+    # Copy files from staged-files to current directory
+    copy_files_preserving_structure('/tmp/staged-files/', Dir.pwd)
+    info("Finished copying staged files")
+  end
+end
+
 if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
   event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
   exit 1
@@ -315,6 +348,24 @@ if !DEPLOY_ONLY
         exec_capture("git add -A", log: false)
         diff = exec_capture("git diff --cached", log: false)
         artifact Artifact::DIFF, { output: diff }
+
+        files = []
+        begin
+          diff_files = diff.scan(%r{diff --git a/(.*?) b/})
+          diff_files.each do |match|
+            file_path = match[0]
+            if file_path && !file_path.empty?
+              # Check if file exists and is readable before trying to read it
+              files << { relative_path: file_path, content: File.read(file_path) } if File.exist?(file_path) && File.readable?(file_path)
+            end
+          rescue StandardError => e
+            info("Error parsing diff file: #{e.message}")
+          end
+        rescue StandardError => e
+          error(e.message)
+        end
+
+        artifact Artifact::FILES, { output: files }
       end
     end
   end
