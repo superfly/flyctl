@@ -767,7 +767,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 	regions, closestRegionErr := flapsClient.GetRegions(ctx)
 	if closestRegionErr == nil {
 		closestRegion, _ = lo.Find(regions.Regions, func(r fly.Region) bool {
-			return r.Code == *regions.Nearest
+			return r.Code == regions.Nearest
 		})
 	}
 

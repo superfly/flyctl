@@ -16,9 +16,9 @@ import (
 	"github.com/samber/lo"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -319,8 +319,11 @@ var (
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := flapsutil.ClientFromContext(ctx)
-			regions, err := client.GetRegions(ctx)
+			flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
+			if err != nil {
+				return RegionInfo{}, err
+			}
+			regions, err := flapsClient.GetRegions(ctx)
 			if err != nil {
 				return RegionInfo{}, err
 			}
@@ -332,7 +335,7 @@ func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 
 			regionInfo := RegionInfo{
 				Regions:       regions.Regions,
-				DefaultRegion: *regions.Nearest,
+				DefaultRegion: regions.Nearest,
 			}
 			return regionInfo, err
 		})

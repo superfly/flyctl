@@ -112,7 +112,7 @@ func CompleteRegions(
 	}
 
 	reqRegion, foundReqRegion := lo.Find(regions.Regions, func(r fly.Region) bool {
-		return r.Code == *regions.Nearest
+		return r.Code == regions.Nearest
 	})
 
 	// Filter out deprecated regions

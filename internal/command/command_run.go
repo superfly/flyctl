@@ -407,7 +407,7 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 		if err != nil {
 			return nil, err
 		}
-		regionCode = *region.Nearest
+		regionCode = region.Nearest
 	}
 
 	volumes, err := flapsClient.GetVolumes(ctx)
