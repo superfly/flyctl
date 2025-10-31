@@ -67,7 +67,7 @@ func runExtend(ctx context.Context) error {
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}

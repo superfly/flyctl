@@ -307,7 +307,7 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 		return false, nil
 	}
 
-	if _, err := client.GetApp(ctx, appName); err != nil {
+	if _, err := client.GetAppCompact(ctx, appName); err != nil {
 		// The user can't see the app. Let them proceed.
 		return false, nil
 	}

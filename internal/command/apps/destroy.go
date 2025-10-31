@@ -72,7 +72,7 @@ func RunDestroy(ctx context.Context) error {
 			}
 		}
 
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppCompact(ctx, appName)
 		if err != nil {
 			return err
 		}

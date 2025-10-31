@@ -643,6 +643,8 @@ github.com/superfly/fly-go v0.1.66-0.20251030174835-c6e2ccd8ddcb h1:/HQuktgBuoEn
 github.com/superfly/fly-go v0.1.66-0.20251030174835-c6e2ccd8ddcb/go.mod h1:wpq4XNor10w9KurA15CBYRnhtT2mnemAXYHuqkhp2vI=
 github.com/superfly/fly-go v0.1.66-0.20251030195801-2dab4b9e9c84 h1:3CI/OLJqEbute1P3zzCkmaJjz7gDsKTw18Q5L/VQuos=
 github.com/superfly/fly-go v0.1.66-0.20251030195801-2dab4b9e9c84/go.mod h1:wpq4XNor10w9KurA15CBYRnhtT2mnemAXYHuqkhp2vI=
+github.com/superfly/fly-go v0.1.66-0.20251031172241-47a25418d502 h1:Vr6f1xcVTFj9L4JQVQOyZ/dQCK4t9vHzAtRBZtQKaJo=
+github.com/superfly/fly-go v0.1.66-0.20251031172241-47a25418d502/go.mod h1:wpq4XNor10w9KurA15CBYRnhtT2mnemAXYHuqkhp2vI=
 github.com/superfly/graphql v0.2.6 h1:zppbodNerWecoXEdjkhrqaNaSjGqobhXNlViHFuZzb4=
 github.com/superfly/graphql v0.2.6/go.mod h1:CVfDl31srm8HnJ9udwLu6hFNUW/P6GUM2dKcG1YQ8jc=
 github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2Q=

@@ -151,7 +151,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetAppBasic(ctx, appName)
+	_, err = client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}

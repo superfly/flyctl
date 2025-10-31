@@ -101,7 +101,7 @@ func run(ctx context.Context) error {
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
 
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := client.GetAppCompact(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}

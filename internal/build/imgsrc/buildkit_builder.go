@@ -138,7 +138,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 	var opts []client.ClientOpt
 	apiClient := flyutil.ClientFromContext(ctx)
 	if app != nil {
-		_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, app.Network, true)
+		_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, true)
 		if err != nil {
 			return nil, fmt.Errorf("failed wireguard connection: %w", err)
 		}

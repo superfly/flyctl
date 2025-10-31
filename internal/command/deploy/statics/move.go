@@ -22,7 +22,7 @@ func MoveBucket(
 	ctx context.Context,
 	prevBucket *gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn,
 	prevOrg *uiex.Organization,
-	app *fly.App,
+	app *fly.AppCompact,
 	targetOrg *uiex.Organization,
 	machines []*fly.Machine,
 ) error {
@@ -46,7 +46,12 @@ func MoveBucket(
 
 	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
 
-	deployer := Deployer(appConfig, app, targetOrg, app.CurrentRelease.Version)
+	currentRelease, err := client.GetAppCurrentReleaseMachines(ctx, app.Name)
+	if err != nil {
+		return err
+	}
+
+	deployer := Deployer(appConfig, app, targetOrg, currentRelease.Version)
 	err = deployer.Configure(ctx)
 	if err != nil {
 		return err

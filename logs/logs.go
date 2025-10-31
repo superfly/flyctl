@@ -21,7 +21,7 @@ type LogOptions struct {
 }
 
 type WebClient interface {
-	GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error)
+	GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
 	wireguard.WebClient
 }

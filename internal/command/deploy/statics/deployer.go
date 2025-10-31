@@ -41,7 +41,7 @@ const staticsKeepVersions = 3
 
 type DeployerState struct {
 	// State that's pulled from the larger machines deployment
-	app            *fly.App
+	app            *fly.AppCompact
 	org            *uiex.Organization
 	appConfig      *appconfig.Config
 	releaseVersion int
@@ -53,7 +53,7 @@ type DeployerState struct {
 	originalStatics []appconfig.Static
 }
 
-func Deployer(appConfig *appconfig.Config, app *fly.App, org *uiex.Organization, releaseVersion int) *DeployerState {
+func Deployer(appConfig *appconfig.Config, app *fly.AppCompact, org *uiex.Organization, releaseVersion int) *DeployerState {
 	return &DeployerState{
 		app:            app,
 		appConfig:      appConfig,
