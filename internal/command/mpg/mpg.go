@@ -87,6 +87,13 @@ func New() *cobra.Command {
 // If the flag is not set, it prompts the user to select a cluster from the available ones for the given organization.
 func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.ManagedCluster, error) {
 	clusterID := flag.GetMPGClusterID(ctx)
+	return ClusterFromArgOrSelect(ctx, clusterID, orgSlug)
+}
+
+// ClusterFromArgOrSelect retrieves the cluster if the cluster ID is passed in
+// otherwise it prompts the user to select a cluster from the available ones for
+// the given organization.
+func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*uiex.ManagedCluster, error) {
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug)
@@ -110,7 +117,7 @@ func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.Managed
 		// Otherwise, prompt the user to select a cluster
 		var options []string
 		for _, cluster := range clustersResponse.Data {
-			options = append(options, fmt.Sprintf("%s (%s)", cluster.Name, cluster.Region))
+			options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
 		}
 
 		var index int

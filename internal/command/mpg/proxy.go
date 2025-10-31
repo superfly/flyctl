@@ -22,15 +22,12 @@ func newProxy() (cmd *cobra.Command) {
 		long = `Proxy to a MPG database`
 
 		short = long
-		usage = "proxy"
+		usage = "proxy <CLUSTER ID>"
 	)
 
 	cmd = command.New(usage, short, long, runProxy, command.RequireSession, command.RequireUiex)
 
 	flag.Add(cmd,
-		flag.Region(),
-		flag.MPGCluster(),
-
 		flag.String{
 			Name:        flagnames.BindAddr,
 			Shorthand:   "b",
@@ -38,6 +35,8 @@ func newProxy() (cmd *cobra.Command) {
 			Description: "Local address to bind to",
 		},
 	)
+
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
 }
@@ -62,7 +61,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	// Get cluster ID from flag - it's optional now
-	clusterID := flag.GetMPGClusterID(ctx)
+	clusterID := flag.FirstArg(ctx)
 
 	var cluster *uiex.ManagedCluster
 	var orgSlug string
@@ -91,7 +90,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		}
 
 		// Now let user select a cluster from this organization
-		selectedCluster, err := ClusterFromFlagOrSelect(ctx, fullOrg.Organization.RawSlug)
+		selectedCluster, err := ClusterFromArgOrSelect(ctx, clusterID, fullOrg.Organization.RawSlug)
 		if err != nil {
 			return nil, nil, nil, err
 		}
