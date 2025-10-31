@@ -401,7 +401,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	// Exit early if remote deployment is requested
 	if flag.GetUseRemoteDeployment(ctx) {
-		fmt.Fprintln(io.Out, "Skipping local Machines deployment due to --use-remote-deployment")
 		return newRemoteDeployment(ctx, appConfig, img)
 	}
 

@@ -3,8 +3,9 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"strconv"
 
+	"github.com/docker/go-units"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -241,6 +242,14 @@ func getDeploymentFilters(ctx context.Context) *uiex.RemoteDeploymentFilters {
 		processGroups[r] = true
 	}
 
+	setToSlice := func(m map[string]bool) []string {
+		s := make([]string, 0, len(m))
+		for k := range m {
+			s = append(s, k)
+		}
+		return s
+	}
+
 	return &uiex.RemoteDeploymentFilters{
 		ExcludeRegions:  setToSlice(excludeRegions),
 		Regions:         setToSlice(onlyRegions),
@@ -257,19 +266,23 @@ func getDeploymentOverrides(ctx context.Context) (*uiex.RemoteDeploymentOverride
 
 	cpus := 0
 	if flag.IsSpecified(ctx, "vm-cpus") {
-		var err error
-		cpus, err = strconv.Atoi(flag.GetString(ctx, "vm-cpus"))
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse the flag vm-cpus: %w", err)
+		cpus = flag.GetInt(ctx, "vm-cpus")
+		if cpus <= 0 {
+			return nil, fmt.Errorf("--vm-cpus must be greater than zero, got: %d", cpus)
 		}
 	}
 
 	memory := 0
 	if flag.IsSpecified(ctx, "vm-memory") {
-		var err error
-		memory, err = strconv.Atoi(flag.GetString(ctx, "vm-memory"))
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse the flag vm-memory: %w", err)
+		rawValue := flag.GetString(ctx, "vm-memory")
+		memoryMB, err := helpers.ParseSize(rawValue, units.RAMInBytes, units.MiB)
+		switch {
+		case err != nil:
+			return nil, err
+		case memoryMB == 0:
+			return nil, fmt.Errorf("--vm-memory cannot be zero")
+		default:
+			memory = memoryMB
 		}
 	}
 
@@ -280,12 +293,4 @@ func getDeploymentOverrides(ctx context.Context) (*uiex.RemoteDeploymentOverride
 		VmCPUKind:     cpuKind,
 		VmSize:        vmSize,
 	}, nil
-}
-
-func setToSlice(m map[string]bool) []string {
-	s := make([]string, 0, len(m))
-	for k := range m {
-		s = append(s, k)
-	}
-	return s
 }
