@@ -39,6 +39,7 @@ module Artifact
   MANIFEST = :manifest
   SESSION = :session
   DIFF = :diff
+  FILES = :files
   FLY_POSTGRES = :fly_postgres
   SUPABASE_POSTGRES = :supabase_postgres
   UPSTASH_REDIS = :upstash_redis
