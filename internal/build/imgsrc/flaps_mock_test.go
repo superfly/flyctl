@@ -16,7 +16,7 @@ import (
 	time "time"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
+	flaps "github.com/superfly/fly-go/flaps"
 	gomock "go.uber.org/mock/gomock"
 )
 
