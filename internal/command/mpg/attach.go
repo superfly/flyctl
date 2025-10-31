@@ -67,7 +67,7 @@ func runAttach(ctx context.Context) error {
 	appOrgSlug := app.Organization.RawSlug
 
 	// Get cluster details to determine which org it belongs to
-	cluster, err := ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
