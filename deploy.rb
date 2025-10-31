@@ -115,6 +115,39 @@ if !DEPLOYER_SOURCE_CWD.nil?
   Dir.chdir(DEPLOYER_SOURCE_CWD)
 end
 
+
+# Check if staged-files directory exists and has files
+if Dir.exist?('/tmp/staged-files/') && !Dir.empty?('/tmp/staged-files/')
+  in_step Step::GIT_PULL do
+    def copy_files_preserving_structure(source_dir, target_dir)
+      Dir.glob(File.join(source_dir, '**', '*'), File::FNM_DOTMATCH).each do |file|
+        # Skip . and .. directories
+        next if File.basename(file) == '.' || File.basename(file) == '..'
+
+        # Get the relative path from source_dir
+        relative_path = file.sub(source_dir, '')
+        target_path = File.join(target_dir, relative_path)
+
+        if File.directory?(file)
+          # Create directory if it doesn't exist
+          FileUtils.mkdir_p(target_path) unless Dir.exist?(target_path)
+        else
+          # Create parent directories if they don't exist
+          FileUtils.mkdir_p(File.dirname(target_path)) unless Dir.exist?(File.dirname(target_path))
+
+          # Copy the file, overwriting if it exists
+          FileUtils.cp(file, target_path, preserve: true)
+          info("Copied #{file} to #{target_path}")
+        end
+      end
+    end
+
+    # Copy files from staged-files to current directory
+    copy_files_preserving_structure('/tmp/staged-files/', Dir.pwd)
+    info("Finished copying staged files")
+  end
+end
+
 if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
   event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
   exit 1
