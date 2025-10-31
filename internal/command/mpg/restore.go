@@ -16,7 +16,7 @@ func newRestore() *cobra.Command {
 	const (
 		long  = `Restore a Managed Postgres cluster from a backup.`
 		short = "Restore MPG cluster from backup."
-		usage = "restore [CLUSTER_ID]"
+		usage = "restore <CLUSTER_ID>"
 	)
 
 	cmd := command.New(usage, short, long, runRestore,
@@ -24,7 +24,7 @@ func newRestore() *cobra.Command {
 		command.RequireUiex,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.String{
@@ -47,8 +47,12 @@ func runRestore(ctx context.Context) error {
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		// Should not happen due to cobra.ExactArgs(1), but good practice
-		return fmt.Errorf("cluster ID argument is required")
+		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
+
+		clusterID = cluster.Id
 	}
 
 	backupID := flag.GetString(ctx, "backup-id")

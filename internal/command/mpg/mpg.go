@@ -83,42 +83,52 @@ func New() *cobra.Command {
 	return cmd
 }
 
-// ClusterFromFlagOrSelect retrieves the cluster ID from the --cluster flag.
-// If the flag is not set, it prompts the user to select a cluster from the available ones for the given organization.
-func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.ManagedCluster, error) {
-	clusterID := flag.GetMPGClusterID(ctx)
+// ClusterFromArgOrSelect retrieves the cluster if the cluster ID is passed in
+// otherwise it prompts the user to select a cluster from the available ones for
+// the given organization.
+// It prompts for the org if the org slug is not provided.
+func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*uiex.ManagedCluster, string, error) {
 	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	if orgSlug == "" {
+		org, err := prompt.Org(ctx)
+		if err != nil {
+			return nil, "", err
+		}
+
+		orgSlug = org.RawSlug
+	}
 
 	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug)
 	if err != nil {
-		return nil, fmt.Errorf("failed retrieving postgres clusters: %w", err)
+		return nil, orgSlug, fmt.Errorf("failed retrieving postgres clusters: %w", err)
 	}
 
 	if len(clustersResponse.Data) == 0 {
-		return nil, fmt.Errorf("no managed postgres clusters found in organization %s", orgSlug)
+		return nil, orgSlug, fmt.Errorf("no managed postgres clusters found in organization %s", orgSlug)
 	}
 
 	if clusterID != "" {
 		// If a cluster ID is provided via flag, find it
 		for i := range clustersResponse.Data {
 			if clustersResponse.Data[i].Id == clusterID {
-				return &clustersResponse.Data[i], nil
+				return &clustersResponse.Data[i], orgSlug, nil
 			}
 		}
-		return nil, fmt.Errorf("managed postgres cluster %q not found in organization %s", clusterID, orgSlug)
+		return nil, orgSlug, fmt.Errorf("managed postgres cluster %q not found in organization %s", clusterID, orgSlug)
 	} else {
 		// Otherwise, prompt the user to select a cluster
 		var options []string
 		for _, cluster := range clustersResponse.Data {
-			options = append(options, fmt.Sprintf("%s (%s)", cluster.Name, cluster.Region))
+			options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
 		}
 
 		var index int
 		selectErr := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...)
 		if selectErr != nil {
-			return nil, selectErr
+			return nil, orgSlug, selectErr
 		}
-		return &clustersResponse.Data[index], nil
+		return &clustersResponse.Data[index], orgSlug, nil
 	}
 }
 
