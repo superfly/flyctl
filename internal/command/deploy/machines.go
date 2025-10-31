@@ -191,16 +191,13 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	if flapsClient == nil {
-		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppCompact: args.AppCompact,
-			AppName:    args.AppCompact.Name,
-		})
-		if err != nil {
-			tracing.RecordError(span, err, "failed to init flaps client")
-			return nil, err
-		}
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: args.AppCompact,
+		AppName:    args.AppCompact.Name,
+	})
+	if err != nil {
+		tracing.RecordError(span, err, "failed to init flaps client")
+		return nil, err
 	}
 
 	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
