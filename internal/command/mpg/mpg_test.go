@@ -216,19 +216,19 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 		}
 		ctx := uiexutil.NewContextWithClient(ctx, mockEmpty)
 
-		_, _, err := ClusterFromArgOrSelect(ctx, "test-org", "")
+		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no managed postgres clusters found")
 	})
 
 	t.Run("cluster not found by ID", func(t *testing.T) {
-		_, _, err := ClusterFromArgOrSelect(ctx, "test-org", "wrong-cluster-id")
+		_, _, err := ClusterFromArgOrSelect(ctx, "wrong-cluster-id", "test-org")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "managed postgres cluster \"wrong-cluster-id\" not found")
 	})
 
 	t.Run("cluster found by ID", func(t *testing.T) {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, "test-org", "test-cluster-123")
+		cluster, _, err := ClusterFromArgOrSelect(ctx, "test-cluster-123", "test-org")
 		require.NoError(t, err)
 		assert.Equal(t, expectedCluster.Id, cluster.Id)
 		assert.Equal(t, expectedCluster.Name, cluster.Name)
@@ -521,7 +521,7 @@ func TestErrorHandling(t *testing.T) {
 		}
 		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
 
-		_, _, err := ClusterFromArgOrSelect(ctx, "test-org", "")
+		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed retrieving postgres clusters")
 	})
