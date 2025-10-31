@@ -214,6 +214,12 @@ func TestCreateBuilder(t *testing.T) {
 	createVolumeAttempts := 0
 
 	flapsClient := mock.FlapsClient{
+		AssignIPFunc: func(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+			if allocateIPAddressShouldFail {
+				return nil, errors.New("allocate ip address failed")
+			}
+			return &flaps.IPAssignment{}, nil
+		},
 		WaitForAppFunc: func(ctx context.Context, name string) error {
 			if waitForAppShouldFail {
 				return errors.New("wait for app failed")

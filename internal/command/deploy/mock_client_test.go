@@ -35,15 +35,15 @@ type mockFlapsClient struct {
 }
 
 func (f *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
-	panic("TODO")
+	return nil, fmt.Errorf("failed to list ip assignments")
 }
 
 func (f *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
-	panic("TODO")
+	return nil, fmt.Errorf("failed to assign ip")
 }
 
 func (f *mockFlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
-	panic("TODO")
+	return fmt.Errorf("failed to delete ip assignment")
 }
 
 func (m *mockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {

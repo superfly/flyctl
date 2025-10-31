@@ -15,12 +15,14 @@ var _ flapsutil.FlapsClient = (*FlapsClient)(nil)
 type FlapsClient struct {
 	AppNameAvailableFunc     func(context.Context, string) (bool, error)
 	AcquireLeaseFunc         func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
+	AssignIPFunc             func(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	CordonFunc               func(ctx context.Context, machineID string, nonce string) (err error)
 	CreateAppFunc            func(ctx context.Context, name string, org string) (err error)
 	CreateVolumeFunc         func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc func(ctx context.Context, volumeId string) error
 	DeleteMetadataFunc       func(ctx context.Context, machineID, key string) error
 	DeleteAppSecretFunc      func(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
+	DeleteIPAssignmentFunc   func(ctx context.Context, appName string, ip string) (err error)
 	DeleteSecretKeyFunc      func(ctx context.Context, name string) error
 	DeleteVolumeFunc         func(ctx context.Context, volumeId string) (*fly.Volume, error)
 	DestroyFunc              func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
@@ -30,6 +32,7 @@ type FlapsClient struct {
 	GenerateSecretKeyFunc    func(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	GetFunc                  func(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumesFunc        func(ctx context.Context) ([]fly.Volume, error)
+	GetIPAssignmentsFunc     func(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetManyFunc              func(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadataFunc          func(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcessesFunc         func(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
@@ -63,15 +66,15 @@ type FlapsClient struct {
 }
 
 func (f *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
-	panic("TODO")
+	return f.GetIPAssignmentsFunc(ctx, appName)
 }
 
 func (f *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
-	panic("TODO")
+	return f.AssignIPFunc(ctx, appName, req)
 }
 
 func (f *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
-	panic("TODO")
+	return f.DeleteIPAssignmentFunc(ctx, appName, ip)
 }
 
 func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
