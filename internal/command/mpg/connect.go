@@ -7,12 +7,10 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/proxy"
-
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/proxy"
 )
 
 func newConnect() (cmd *cobra.Command) {
@@ -20,19 +18,19 @@ func newConnect() (cmd *cobra.Command) {
 		long = `Connect to a MPG database using psql`
 
 		short = long
-		usage = "connect"
+		usage = "connect <CLUSTER ID>"
 	)
 
 	cmd = command.New(usage, short, long, runConnect, command.RequireSession, command.RequireUiex)
 
 	flag.Add(cmd,
-		flag.MPGCluster(),
 		flag.String{
 			Name:        "database",
 			Shorthand:   "d",
 			Description: "The database to connect to",
 		},
 	)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
 }
