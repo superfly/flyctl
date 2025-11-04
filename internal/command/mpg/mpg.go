@@ -89,7 +89,7 @@ func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.Managed
 	clusterID := flag.GetMPGClusterID(ctx)
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug)
+	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed retrieving postgres clusters: %w", err)
 	}

@@ -83,11 +83,14 @@ type GetManagedClusterResponse struct {
 	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
 }
 
-func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string) (ListManagedClustersResponse, error) {
+func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (ListManagedClustersResponse, error) {
 	var response ListManagedClustersResponse
 
 	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.baseUrl, orgSlug)
+	if deleted {
+		url = fmt.Sprintf("%s/api/v1/organizations/%s/postgres/deleted", c.baseUrl, orgSlug)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -103,16 +106,21 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string) (ListM
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusOK:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 		return response, nil
 	case http.StatusNotFound:
-		return response, err
+		return response, fmt.Errorf("organization %s not found", orgSlug)
 	default:
-		return response, err
+		return response, fmt.Errorf("failed to list clusters (status %d): %s", res.StatusCode, string(body))
 	}
 
 }
