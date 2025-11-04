@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	extensions "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -22,7 +23,7 @@ import (
 
 // FindBucket finds the tigris statics bucket for the given app and org.
 // Returns nil, nil if no bucket is found.
-func FindBucket(ctx context.Context, app *fly.AppCompact, org *uiex.Organization) (*gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn, error) {
+func FindBucket(ctx context.Context, app *flaps.App, org *uiex.Organization) (*gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn, error) {
 
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()

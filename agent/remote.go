@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func BringUpAgent(ctx context.Context, client flyutil.Client, app *fly.AppCompact, quiet bool) (*Client, Dialer, error) {
+func BringUpAgent(ctx context.Context, client flyutil.Client, app *flaps.App, quiet bool) (*Client, Dialer, error) {
 	io := iostreams.FromContext(ctx)
 
 	agentclient, err := Establish(ctx, client)

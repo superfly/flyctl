@@ -59,26 +59,19 @@ func (p *Provisioner) image() string {
 	return defaultImage
 }
 
-func appToAppCompact(app *fly.App) *fly.AppCompact {
+func appToAppCompact(app *fly.App) *flaps.App {
 	if app == nil {
 		return nil
 	}
-	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
-		Organization: &fly.OrganizationBasic{
-			ID:       app.Organization.ID,
-			Name:     app.Organization.Name,
-			Slug:     app.Organization.Slug,
-			RawSlug:  app.Organization.RawSlug,
-			PaidPlan: app.Organization.PaidPlan,
+	return &flaps.App{
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
+		Organization: flaps.AppOrganizationInfo{
+			Name: app.Organization.Name,
+			Slug: app.Organization.Slug,
 		},
-		PlatformVersion: app.PlatformVersion,
-		PostgresAppRole: app.PostgresAppRole,
+		AppRole: app.PostgresAppRole.Name,
 	}
 }
 
@@ -92,9 +85,9 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		if builderApp != nil {
 			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
 			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-				AppName:    builderApp.Name,
-				AppCompact: appToAppCompact(builderApp),
-				OrgSlug:    builderApp.Organization.Slug,
+				AppName: builderApp.Name,
+				AppData: appToAppCompact(builderApp),
+				OrgSlug: builderApp.Organization.Slug,
 			})
 			if err != nil {
 				tracing.RecordError(span, err, "error creating flaps client")
@@ -130,7 +123,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 
 		if validateBuilderErr != NoBuilderApp {
 			span.AddEvent(fmt.Sprintf("deleting existing invalid builder due to %s", validateBuilderErr))
-			client := flyutil.ClientFromContext(ctx)
+			client := flapsutil.ClientFromContext(ctx)
 			err := client.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "error deleting invalid builder app")
@@ -360,11 +353,10 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	app, retErr = client.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.ID,
-		Name:            builderName,
-		AppRoleID:       "remote-docker-builder",
-		Machines:        true,
-		PreferredRegion: fly.StringPointer(region),
+		OrganizationID: org.ID,
+		Name:           builderName,
+		AppRoleID:      "remote-docker-builder",
+		Machines:       true,
 	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error creating app")
@@ -403,12 +395,6 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 			CPUs:     8,
 			MemoryMB: 8192,
 		}
-	}
-
-	retErr = flapsClient.WaitForApp(ctx, app.Name)
-	if retErr != nil {
-		tracing.RecordError(span, retErr, "error waiting for builder")
-		return nil, nil, fmt.Errorf("waiting for app %s: %w", app.Name, retErr)
 	}
 
 	config := &fly.MachineConfig{

@@ -34,6 +34,14 @@ type mockFlapsClient struct {
 	nextMachineID int
 }
 
+func (f *mockFlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+	return nil, fmt.Errorf("failed to get app")
+}
+
+func (f *mockFlapsClient) DeleteApp(ctx context.Context, name string) error {
+	return nil
+}
+
 func (f *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return nil, fmt.Errorf("failed to list ip assignments")
 }
@@ -59,8 +67,8 @@ func (m *mockFlapsClient) Cordon(ctx context.Context, machineID string, nonce st
 	return fmt.Errorf("failed to cordon %s", machineID)
 }
 
-func (m *mockFlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
-	return fmt.Errorf("failed to create app %s", name)
+func (m *mockFlapsClient) CreateApp(ctx context.Context, name string, org string) (app *flaps.App, err error) {
+	return nil, fmt.Errorf("failed to create app %s", name)
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -279,8 +287,4 @@ func (m *mockFlapsClient) Wait(ctx context.Context, machine *fly.Machine, state 
 		return fmt.Errorf("failed to wait for %s", machine.ID)
 	}
 	return nil
-}
-
-func (m *mockFlapsClient) WaitForApp(ctx context.Context, name string) error {
-	return fmt.Errorf("failed to wait for app %s", name)
 }

@@ -181,8 +181,8 @@ func runConsole(ctx context.Context) error {
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
@@ -239,7 +239,7 @@ func runConsole(ctx context.Context) error {
 	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
 }
 
-func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
+func selectMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.GetBool(ctx, "select") {
 		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
@@ -253,7 +253,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfi
 	}
 }
 
-func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
+func promptForMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "machine") {
 		return nil, nil, errors.New("--machine can't be used with -s/--select")
 	}
@@ -317,7 +317,7 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 	return machine, nil, nil
 }
 
-func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
+func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {

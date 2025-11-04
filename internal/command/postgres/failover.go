@@ -12,6 +12,7 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -152,7 +153,7 @@ func runFailover(ctx context.Context) (err error) {
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force, allowSecondaryRegion bool) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *flaps.App, force, allowSecondaryRegion bool) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
 	}
@@ -361,7 +362,7 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
+func pickNewLeader(ctx context.Context, app *flaps.App, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
 	// We should go for the primary canddiates first, but the secondary candidates are also valid
@@ -405,7 +406,7 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 }
 
 // Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks
-func passesDryRun(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) bool {
+func passesDryRun(ctx context.Context, app *flaps.App, machine *fly.Machine) bool {
 	err := ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
 		OrgID:    app.Organization.ID,

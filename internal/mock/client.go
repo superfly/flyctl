@@ -7,6 +7,7 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/graphql"
 )
@@ -48,9 +49,9 @@ type Client struct {
 	FinishBuildFunc                        func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetAppFunc                             func(ctx context.Context, appName string) (*fly.App, error)
 	GetAppRemoteBuilderFunc                func(ctx context.Context, appName string) (*fly.App, error)
-	GetAppBasicFunc                        func(ctx context.Context, appName string) (*fly.AppCompact, error)
+	GetAppBasicFunc                        func(ctx context.Context, appName string) (*flaps.App, error)
 	GetAppCertificatesFunc                 func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
-	GetAppCompactFunc                      func(ctx context.Context, appName string) (*fly.AppCompact, error)
+	GetAppCompactFunc                      func(ctx context.Context, appName string) (*flaps.App, error)
 	GetDeployerAppByOrgFunc                func(ctx context.Context, orgID string) (*fly.App, error)
 	GetAppCurrentReleaseMachinesFunc       func(ctx context.Context, appName string) (*fly.Release, error)
 	GetAppCNAMETargetFunc                  func(ctx context.Context, appName string) (string, error)
@@ -244,7 +245,7 @@ func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.
 	return m.GetAppRemoteBuilderFunc(ctx, appName)
 }
 
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppCompact, error) {
+func (m *Client) GetAppBasic(ctx context.Context, appName string) (*flaps.App, error) {
 	return m.GetAppBasicFunc(ctx, appName)
 }
 
@@ -252,7 +253,7 @@ func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.
 	return m.GetAppCertificatesFunc(ctx, appName)
 }
 
-func (m *Client) GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error) {
+func (m *Client) GetAppCompact(ctx context.Context, appName string) (*flaps.App, error) {
 	return m.GetAppCompactFunc(ctx, appName)
 }
 

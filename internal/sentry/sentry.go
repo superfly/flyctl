@@ -14,7 +14,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"go.opentelemetry.io/otel/trace"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
@@ -122,7 +121,7 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 	})
 }
 
-func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *fly.AppCompact) {
+func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *flaps.App) {
 	if appCompact == nil {
 		CaptureException(
 			err,
@@ -137,7 +136,6 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		CaptureException(
 			flapsErr,
 			WithTag("feature", featureName),
-			WithTag("app-platform-version", appCompact.PlatformVersion),
 			WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
 					"name": appCompact.Name,
@@ -156,7 +154,6 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 	CaptureException(
 		err,
 		WithTag("feature", featureName),
-		WithTag("app-platform-version", appCompact.PlatformVersion),
 		WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
 				"name": appCompact.Name,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -159,7 +160,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	return nil
 }
 
-func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, force bool) error {
+func Destroy(ctx context.Context, app *flaps.App, machine *fly.Machine, force bool) error {
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flapsutil.ClientFromContext(ctx)

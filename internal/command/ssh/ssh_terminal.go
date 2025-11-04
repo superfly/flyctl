@@ -12,7 +12,7 @@ import (
 
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
@@ -31,7 +31,7 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *fly.AppCompact, dialer agent.Dialer, addr string, cmd string, username string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *flaps.App, dialer agent.Dialer, addr string, cmd string, username string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer

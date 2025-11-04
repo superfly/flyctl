@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
@@ -706,8 +707,8 @@ func TestAttachCommand_Logic(t *testing.T) {
 		},
 	}
 
-	expectedApp := &fly.AppCompact{
-		Organization: &fly.OrganizationBasic{
+	expectedApp := &flaps.App{
+		Organization: flaps.AppOrganizationInfo{
 			Slug: "test-org",
 		},
 	}
@@ -745,8 +746,8 @@ func TestAttachCommand_Logic(t *testing.T) {
 	}
 
 	// Test organization validation failure
-	differentApp := &fly.AppCompact{
-		Organization: &fly.OrganizationBasic{
+	differentApp := &flaps.App{
+		Organization: flaps.AppOrganizationInfo{
 			Slug: "different-org",
 		},
 	}

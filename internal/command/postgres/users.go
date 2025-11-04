@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -83,7 +83,7 @@ func runListUsers(ctx context.Context) error {
 	return runMachineListUsers(ctx, app)
 }
 
-func runMachineListUsers(ctx context.Context, app *fly.AppCompact) (err error) {
+func runMachineListUsers(ctx context.Context, app *flaps.App) (err error) {
 	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"

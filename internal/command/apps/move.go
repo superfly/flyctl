@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
@@ -98,7 +99,7 @@ Please confirm whether you wish to restart this app now.`
 	return runMoveAppOnMachines(ctx, app, org)
 }
 
-func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *uiex.Organization) error {
+func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.Organization) error {
 	var (
 		client           = flyutil.ClientFromContext(ctx)
 		uiexClient       = uiexutil.ClientFromContext(ctx)

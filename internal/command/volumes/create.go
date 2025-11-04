@@ -114,7 +114,7 @@ func runCreate(ctx context.Context) error {
 	prompt.PlatformRegions(ctx)
 
 	// fetch AppBasic in the background while we prompt for confirmation
-	appFuture := future.Spawn(func() (*fly.AppCompact, error) {
+	appFuture := future.Spawn(func() (*flaps.App, error) {
 		return client.GetAppCompact(ctx, appName)
 	})
 

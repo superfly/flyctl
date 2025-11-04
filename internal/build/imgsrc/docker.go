@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -565,7 +566,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 		CheckRedirect: dockerclient.CheckRedirect,
 	}))
 
-	var app *fly.AppCompact
+	var app *flaps.App
 	if app, err = apiClient.GetAppCompact(ctx, appName); err != nil {
 		tracing.RecordError(span, err, "error fetching target app")
 		return nil, fmt.Errorf("error fetching target app: %w", err)

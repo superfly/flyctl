@@ -84,7 +84,7 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, container string, err error) {
+func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, container string, err error) {
 	selectedMachine, err := selectMachine(ctx, app)
 	if err != nil {
 		return "", "", err
@@ -134,7 +134,7 @@ func newConsole() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *fly.AppCompact) {
+func captureError(ctx context.Context, err error, app *flaps.App) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -239,11 +239,11 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 	return err
 }
 
-func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machine, err error) {
+func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return nil, err

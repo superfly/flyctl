@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
@@ -66,7 +66,7 @@ func runRefreshSSHCerts(ctx context.Context) error {
 	return refreshSSHCerts(ctx, flapsClient, app)
 }
 
-func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact) error {
+func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = flyutil.ClientFromContext(ctx)
