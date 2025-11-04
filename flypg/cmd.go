@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
@@ -27,12 +27,12 @@ type commandResponse struct {
 
 type Command struct {
 	ctx    context.Context
-	app    *fly.AppCompact
+	app    *flaps.App
 	dialer agent.Dialer
 	io     *iostreams.IOStreams
 }
 
-func NewCommand(ctx context.Context, app *fly.AppCompact) (*Command, error) {
+func NewCommand(ctx context.Context, app *flaps.App) (*Command, error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)

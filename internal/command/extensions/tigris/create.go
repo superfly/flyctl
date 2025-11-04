@@ -101,7 +101,7 @@ func runCreate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+		err = secrets.DeploySecrets(ctx, gql.ToAppFlaps(*extension.App), secrets.DeploymentArgs{
 			Stage:    false,
 			Detach:   false,
 			CheckDNS: true,

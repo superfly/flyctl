@@ -519,7 +519,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 func deployToMachines(
 	ctx context.Context,
 	cfg *appconfig.Config,
-	app *fly.AppCompact,
+	app *flaps.App,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
 	var io = iostreams.FromContext(ctx)
@@ -661,7 +661,7 @@ func deployToMachines(
 	}
 
 	args := MachineDeploymentArgs{
-		AppCompact:            app,
+		AppData:               app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),

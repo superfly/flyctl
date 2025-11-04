@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -81,7 +81,7 @@ func runListDbs(ctx context.Context) error {
 	return runMachineListDbs(ctx, app)
 }
 
-func runMachineListDbs(ctx context.Context, app *fly.AppCompact) error {
+func runMachineListDbs(ctx context.Context, app *flaps.App) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"

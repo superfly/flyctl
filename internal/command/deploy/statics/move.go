@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -22,7 +23,7 @@ func MoveBucket(
 	ctx context.Context,
 	prevBucket *gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn,
 	prevOrg *uiex.Organization,
-	app *fly.AppCompact,
+	app *flaps.App,
 	targetOrg *uiex.Organization,
 	machines []*fly.Machine,
 ) error {

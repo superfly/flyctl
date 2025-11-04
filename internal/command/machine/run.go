@@ -309,7 +309,7 @@ func runMachineRun(ctx context.Context) error {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		err      error
-		app      *fly.AppCompact
+		app      *flaps.App
 		isCreate = false
 		interact = false
 		shell    = flag.GetBool(ctx, "shell")
@@ -385,8 +385,8 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
@@ -518,7 +518,7 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*fly.AppCompact, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*flaps.App, error) {
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
@@ -542,7 +542,11 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	if appc == nil {
 		shellAppName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
 		shellAppName = strings.TrimRight(shellAppName[:min(len(shellAppName), 63)], "-")
-		appc, err = client.CreateApp(ctx, fly.CreateAppInput{
+		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: appc.Name})
+		if err != nil {
+			return nil, err
+		}
+		newApp, err := f.CreateApp(ctx, fly.CreateAppInput{
 			OrganizationID: org.ID,
 			// I'll never find love again like the kind you give like the kind you send
 			Name: shellAppName,
@@ -550,13 +554,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 		if err != nil {
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
-
-		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: appc.Name})
-		if err != nil {
-			return nil, err
-		} else if err := f.WaitForApp(ctx, appc.Name); err != nil {
-			return nil, err
-		}
+		appc = &fly.App{Name: newApp.Name}
 	}
 
 	// this app handle won't have all the metadata attached, so grab it
@@ -568,7 +566,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	return app, nil
 }
 
-func createApp(ctx context.Context, message, name string, client flyutil.Client) (*fly.AppCompact, error) {
+func createApp(ctx context.Context, message, name string, client flyutil.Client) (*flaps.App, error) {
 	confirm, err := prompt.Confirm(ctx, message)
 	if err != nil {
 		return nil, err
@@ -595,26 +593,20 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		OrganizationID: org.ID,
 	}
 
-	app, err := client.CreateApp(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
 	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
 	if err != nil {
 		return nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	}
+	app, err := f.CreateApp(ctx, input)
+	if err != nil {
 		return nil, err
 	}
 
-	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
-		Organization: &fly.OrganizationBasic{
+	return &flaps.App{
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
+		Organization: flaps.AppOrganizationInfo{
 			ID:   app.Organization.ID,
 			Slug: app.Organization.Slug,
 		},

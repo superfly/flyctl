@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -337,19 +336,8 @@ func (state *launchState) updateConfig(ctx context.Context) {
 }
 
 // createApp creates the fly.io app for the plan
-func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient, *fly.App, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-
+func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient, *flaps.App, error) {
 	org, err := state.orgCompact(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.ID,
-		Name:            state.Plan.AppName,
-		PreferredRegion: &state.Plan.RegionCode,
-		Machines:        true,
-	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -357,7 +345,13 @@ func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient,
 	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
 	if err != nil {
 		return nil, nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	}
+	app, err := f.CreateApp(ctx, fly.CreateAppInput{
+		OrganizationID: org.ID,
+		Name:           state.Plan.AppName,
+		Machines:       true,
+	})
+	if err != nil {
 		return nil, nil, err
 	}
 

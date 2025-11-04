@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -80,7 +80,7 @@ func runConnect(ctx context.Context) error {
 	return runMachineConnect(ctx, app)
 }
 
-func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
+func runMachineConnect(ctx context.Context, app *flaps.App) error {
 	var (
 		MinPostgresHaVersion         = "0.0.9"
 		MinPostgresFlexVersion       = "0.0.3"

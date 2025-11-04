@@ -11,7 +11,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -28,7 +27,7 @@ type AppChecker struct {
 	checks      map[string]string
 	color       *iostreams.ColorScheme
 	ctx         context.Context
-	app         *fly.AppCompact
+	app         *flaps.App
 	workDir     string
 	appConfig   *appconfig.Config
 	flapsClient flapsutil.FlapsClient
@@ -151,7 +150,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []flaps.IPAssignment) {
 		return
 	}
 
-	appHostname := ac.app.Hostname
+	appHostname := fmt.Sprintf("%s.fly.dev", ac.app.Name)
 	appFqdn := dns.Fqdn(appHostname)
 	dnsClient := &dns.Client{}
 	ns, err := getFirstFlyDevNameserver(dnsClient)

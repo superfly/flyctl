@@ -146,8 +146,8 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		}
 		ctx = appconfig.WithName(ctx, gqlMachine.App.Name)
 		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppCompact: gqlMachine.App,
-			AppName:    gqlMachine.App.Name,
+			AppData: gqlMachine.App,
+			AppName: gqlMachine.App.Name,
 		})
 	} else {
 		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{

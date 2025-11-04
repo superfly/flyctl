@@ -25,6 +25,14 @@ func NewFlapsClient(server *Server, appName string) *FlapsClient {
 	}
 }
 
+func (m *FlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
+	return nil
+}
+
 func (f *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return &flaps.ListIPAssignmentsResponse{}, nil
 }
@@ -49,7 +57,7 @@ func (m *FlapsClient) Cordon(ctx context.Context, machineID string, nonce string
 	panic("TODO")
 }
 
-func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
+func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (app *flaps.App, err error) {
 	panic("TODO")
 }
 
@@ -249,8 +257,4 @@ func (m *FlapsClient) Wait(ctx context.Context, machine *fly.Machine, state stri
 		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
 	}
 	return nil
-}
-
-func (m *FlapsClient) WaitForApp(ctx context.Context, name string) error {
-	panic("TODO")
 }

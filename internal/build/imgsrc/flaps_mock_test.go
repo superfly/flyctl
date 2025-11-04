@@ -104,11 +104,12 @@ func (mr *MockFlapsClientMockRecorder) Cordon(ctx, machineID, nonce any) *gomock
 }
 
 // CreateApp mocks base method.
-func (m *MockFlapsClient) CreateApp(ctx context.Context, name, org string) error {
+func (m *MockFlapsClient) CreateApp(ctx context.Context, name, org string) (*flaps.App, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateApp", ctx, name, org)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(*flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateApp indicates an expected call of CreateApp.
@@ -144,6 +145,20 @@ func (m *MockFlapsClient) CreateVolumeSnapshot(ctx context.Context, volumeId str
 func (mr *MockFlapsClientMockRecorder) CreateVolumeSnapshot(ctx, volumeId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolumeSnapshot", reflect.TypeOf((*MockFlapsClient)(nil).CreateVolumeSnapshot), ctx, volumeId)
+}
+
+// DeleteApp mocks base method.
+func (m *MockFlapsClient) DeleteApp(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteApp", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteApp indicates an expected call of DeleteApp.
+func (mr *MockFlapsClientMockRecorder) DeleteApp(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApp", reflect.TypeOf((*MockFlapsClient)(nil).DeleteApp), ctx, name)
 }
 
 // DeleteAppSecret mocks base method.
@@ -321,6 +336,21 @@ func (m *MockFlapsClient) GetAllVolumes(ctx context.Context) ([]fly.Volume, erro
 func (mr *MockFlapsClientMockRecorder) GetAllVolumes(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVolumes", reflect.TypeOf((*MockFlapsClient)(nil).GetAllVolumes), ctx)
+}
+
+// GetApp mocks base method.
+func (m *MockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApp", ctx, name)
+	ret0, _ := ret[0].(*flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApp indicates an expected call of GetApp.
+func (mr *MockFlapsClientMockRecorder) GetApp(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApp", reflect.TypeOf((*MockFlapsClient)(nil).GetApp), ctx, name)
 }
 
 // GetIPAssignments mocks base method.
@@ -764,18 +794,4 @@ func (m *MockFlapsClient) Wait(ctx context.Context, machine *fly.Machine, state 
 func (mr *MockFlapsClientMockRecorder) Wait(ctx, machine, state, timeout any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wait", reflect.TypeOf((*MockFlapsClient)(nil).Wait), ctx, machine, state, timeout)
-}
-
-// WaitForApp mocks base method.
-func (m *MockFlapsClient) WaitForApp(ctx context.Context, name string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WaitForApp", ctx, name)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WaitForApp indicates an expected call of WaitForApp.
-func (mr *MockFlapsClientMockRecorder) WaitForApp(ctx, name any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForApp", reflect.TypeOf((*MockFlapsClient)(nil).WaitForApp), ctx, name)
 }

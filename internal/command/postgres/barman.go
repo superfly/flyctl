@@ -395,7 +395,7 @@ func newBarmanRecover() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *fly.AppCompact) {
+func captureError(ctx context.Context, err error, app *flaps.App) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -507,7 +507,7 @@ func runConsole(ctx context.Context, cmd string) error {
 	return nil
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, err error) {
 	addr, err = addrForMachines(ctx, app, console)
 
 	if err != nil {
@@ -525,11 +525,11 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	return
 }
 
-func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *flaps.App, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return "", err

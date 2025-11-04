@@ -55,7 +55,7 @@ func runList(ctx context.Context) (err error) {
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
 		latestDeploy := ""
-		if app.Deployed && app.CurrentRelease != nil {
+		if app.Deployed() && app.CurrentRelease != nil {
 			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
 		}
 

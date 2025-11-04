@@ -16,9 +16,10 @@ type FlapsClient interface {
 	AppNameAvailable(ctx context.Context, name string) (bool, error)
 	AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
-	CreateApp(ctx context.Context, name string, org string) (err error)
+	CreateApp(ctx context.Context, name string, org string) (app *flaps.App, err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
+	DeleteApp(ctx context.Context, name string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error)
@@ -30,6 +31,7 @@ type FlapsClient interface {
 	FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error)
 	GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
+	GetApp(ctx context.Context, name string) (app *flaps.App, err error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
 	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
@@ -61,7 +63,6 @@ type FlapsClient interface {
 	UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	Wait(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error)
-	WaitForApp(ctx context.Context, name string) error
 }
 
 type contextKey struct{}

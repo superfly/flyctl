@@ -45,7 +45,7 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact            *fly.AppCompact
+	AppData               *flaps.App
 	DeploymentImage       string
 	Strategy              string
 	EnvFromFlags          []string
@@ -80,9 +80,9 @@ type MachineDeploymentArgs struct {
 	BuilderID             string
 }
 
-func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
+func argsFromManifest(manifest *DeployManifest, app *flaps.App) MachineDeploymentArgs {
 	return MachineDeploymentArgs{
-		AppCompact:            app,
+		AppData:               app,
 		DeploymentImage:       manifest.DeploymentImage,
 		Strategy:              manifest.Strategy,
 		EnvFromFlags:          manifest.EnvFromFlags,
@@ -123,7 +123,7 @@ type machineDeployment struct {
 	uiexClient uiexutil.Client
 	io         *iostreams.IOStreams
 	colorize   *iostreams.ColorScheme
-	app        *fly.AppCompact
+	app        *flaps.App
 	appConfig  *appconfig.Config
 	img        string
 	// machineSet is this application's machines.
@@ -187,13 +187,13 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		return nil, err
 	}
 
-	if args.AppCompact == nil {
-		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
+	if args.AppData == nil {
+		return nil, fmt.Errorf("BUG: args.AppData should be set when calling this method")
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: args.AppCompact,
-		AppName:    args.AppCompact.Name,
+		AppData: args.AppData,
+		AppName: args.AppData.Name,
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init flaps client")
@@ -260,7 +260,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		uiexClient:            uiexClient,
 		io:                    io,
 		colorize:              io.ColorScheme(),
-		app:                   args.AppCompact,
+		app:                   args.AppData,
 		appConfig:             appConfig,
 		img:                   args.DeploymentImage,
 		skipSmokeChecks:       args.SkipSmokeChecks,
@@ -335,7 +335,7 @@ func (md *machineDeployment) setFirstDeploy(_ context.Context) error {
 	// by checking for any existent machine.
 	// This is not exaustive as the app could still be scaled down to zero but the
 	// workaround works better for now until it is fixed
-	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed && md.machineSet.IsEmpty())
+	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed() && md.machineSet.IsEmpty())
 	return nil
 }
 

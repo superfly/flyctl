@@ -17,9 +17,10 @@ type FlapsClient struct {
 	AcquireLeaseFunc         func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	AssignIPFunc             func(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	CordonFunc               func(ctx context.Context, machineID string, nonce string) (err error)
-	CreateAppFunc            func(ctx context.Context, name string, org string) (err error)
+	CreateAppFunc            func(ctx context.Context, name string, org string) (app *flaps.App, err error)
 	CreateVolumeFunc         func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc func(ctx context.Context, volumeId string) error
+	DeleteAppFunc            func(ctx context.Context, name string) error
 	DeleteMetadataFunc       func(ctx context.Context, machineID, key string) error
 	DeleteAppSecretFunc      func(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignmentFunc   func(ctx context.Context, appName string, ip string) (err error)
@@ -31,6 +32,7 @@ type FlapsClient struct {
 	FindLeaseFunc            func(ctx context.Context, machineID string) (*fly.MachineLease, error)
 	GenerateSecretKeyFunc    func(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	GetFunc                  func(ctx context.Context, machineID string) (*fly.Machine, error)
+	GetAppFunc               func(ctx context.Context, name string) (app *flaps.App, err error)
 	GetAllVolumesFunc        func(ctx context.Context) ([]fly.Volume, error)
 	GetIPAssignmentsFunc     func(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetManyFunc              func(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
@@ -89,7 +91,7 @@ func (m *FlapsClient) Cordon(ctx context.Context, machineID string, nonce string
 	return m.CordonFunc(ctx, machineID, nonce)
 }
 
-func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
+func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (app *flaps.App, err error) {
 	return m.CreateAppFunc(ctx, name, org)
 }
 
@@ -99,6 +101,10 @@ func (m *FlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequ
 
 func (m *FlapsClient) CreateVolumeSnapshot(ctx context.Context, volumeId string) error {
 	return m.CreateVolumeSnapshotFunc(ctx, volumeId)
+}
+
+func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
+	return m.DeleteAppFunc(ctx, name)
 }
 
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string) error {
@@ -139,6 +145,10 @@ func (m *FlapsClient) GenerateSecretKey(ctx context.Context, name string, typ st
 
 func (m *FlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, error) {
 	return m.GetFunc(ctx, machineID)
+}
+
+func (m *FlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+	return m.GetAppFunc(ctx, name)
 }
 
 func (m *FlapsClient) GetAllVolumes(ctx context.Context) ([]fly.Volume, error) {
@@ -259,8 +269,4 @@ func (m *FlapsClient) UpdateVolume(ctx context.Context, volumeId string, req fly
 
 func (m *FlapsClient) Wait(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 	return m.WaitFunc(ctx, machine, state, timeout)
-}
-
-func (m *FlapsClient) WaitForApp(ctx context.Context, name string) error {
-	return m.WaitForAppFunc(ctx, name)
 }

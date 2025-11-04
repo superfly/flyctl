@@ -1,5 +1,7 @@
 module github.com/superfly/flyctl
 
+replace github.com/superfly/fly-go => ../fly-go
+
 go 1.24.5
 
 require (

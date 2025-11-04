@@ -68,7 +68,7 @@ func SortedKeys[V any](m map[ImgInfo]V) []ImgInfo {
 }
 
 // argsGetAppCompact returns the AppCompact for the selected app, using `app`.
-func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
+func argsGetAppCompact(ctx context.Context) (*flaps.App, error) {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
 	app, err := apiClient.GetAppCompact(ctx, appName)
@@ -78,10 +78,10 @@ func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
 	return app, nil
 }
 
-func getFlapsClient(ctx context.Context, app *fly.AppCompact) (*flaps.Client, error) {
+func getFlapsClient(ctx context.Context, app *flaps.App) (*flaps.Client, error) {
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)
@@ -90,7 +90,7 @@ func getFlapsClient(ctx context.Context, app *fly.AppCompact) (*flaps.Client, er
 }
 
 // argsGetMachine returns the selected machine, using `app`, `select` and `machine`.
-func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
+func argsGetMachine(ctx context.Context, app *flaps.App) (*fly.Machine, error) {
 	if flag.IsSpecified(ctx, "machine") {
 		if flag.IsSpecified(ctx, "select") {
 			return nil, errors.New("--machine can't be used with -s/--select")
@@ -103,7 +103,7 @@ func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, err
 // argsSelectMachine lets the user select a machine if there are multiple machines and
 // the user specified "-s". Otherwise it returns the first machine for an app.
 // Using `select`.
-func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
+func argsSelectMachine(ctx context.Context, app *flaps.App) (*fly.Machine, error) {
 	anyMachine := !flag.GetBool(ctx, "select")
 
 	flapsClient, err := getFlapsClient(ctx, app)
@@ -138,7 +138,7 @@ func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, 
 }
 
 // argsGetMachineByID returns an app's machine using the `machine` argument.
-func argsGetMachineByID(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
+func argsGetMachineByID(ctx context.Context, app *flaps.App) (*fly.Machine, error) {
 	flapsClient, err := getFlapsClient(ctx, app)
 	if err != nil {
 		return nil, err

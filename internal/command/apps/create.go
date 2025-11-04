@@ -113,15 +113,13 @@ func RunCreate(ctx context.Context) (err error) {
 		input.Network = fly.StringPointer(v)
 	}
 
-	app, err := apiClient.CreateApp(ctx, input)
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
 	if err != nil {
 		return err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	app, err := f.CreateApp(ctx, input)
 	if err != nil {
-		return err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return err
 	}
 

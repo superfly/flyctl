@@ -136,8 +136,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return err
@@ -397,39 +397,15 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 	return &machineConfig
 }
 
-func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*fly.AppCompact, error) {
+func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*flaps.App, error) {
 	fmt.Println("Creating app...")
 	appInput := fly.CreateAppInput{
-		OrganizationID:  config.Organization.ID,
-		Name:            config.AppName,
-		PreferredRegion: &config.Region,
-		AppRoleID:       "postgres_cluster",
+		OrganizationID: config.Organization.ID,
+		Name:           config.AppName,
+		AppRoleID:      "postgres_cluster",
 	}
 
-	app, err := l.client.CreateApp(ctx, appInput)
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
-	if err != nil {
-		return nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
-		return nil, err
-	}
-
-	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
-		Organization: &fly.OrganizationBasic{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
-		},
-	}, nil
+	return l.flapsClient.CreateApp(ctx, appInput)
 }
 
 func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (map[string]string, error) {

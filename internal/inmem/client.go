@@ -8,6 +8,7 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/graphql"
 )
@@ -176,7 +177,7 @@ func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
 	panic("TODO")
 }
 
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppCompact, error) {
+func (m *Client) GetAppBasic(ctx context.Context, appName string) (*flaps.App, error) {
 	panic("TODO")
 }
 
@@ -184,7 +185,7 @@ func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.
 	panic("TODO")
 }
 
-func (m *Client) GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error) {
+func (m *Client) GetAppCompact(ctx context.Context, appName string) (*flaps.App, error) {
 	m.server.mu.Lock()
 	defer m.server.mu.Unlock()
 
@@ -193,7 +194,7 @@ func (m *Client) GetAppCompact(ctx context.Context, appName string) (*fly.AppCom
 		return nil, fmt.Errorf("app not found: %q", appName) // TODO: Match actual error
 	}
 
-	return app.Compact(), nil
+	return app, nil
 }
 
 func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error) {
@@ -297,7 +298,7 @@ func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly
 	if err != nil {
 		return nil, err
 	}
-	return &fly.Organization{ID: app.Organization.ID}, nil
+	return &fly.Organization{Slug: app.Organization.Slug}, nil
 }
 
 func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {

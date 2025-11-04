@@ -9,11 +9,12 @@ import (
 
 	"github.com/containerd/containerd/api/services/content/v1"
 	"github.com/moby/buildkit/client"
-	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -120,7 +121,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
-func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact, appName string) (*client.Client, error) {
+func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, appName string) (*client.Client, error) {
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 	ensureBuilder := false
 	if r.addr == "" || recreateBuilder {
@@ -137,6 +138,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 	}
 	var opts []client.ClientOpt
 	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	if app != nil {
 		_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, true)
 		if err != nil {
@@ -155,7 +157,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact
 	_, err = buildkitClient.Info(ctx)
 	if err != nil {
 		if app == nil { // Retry with Wireguard connection
-			app, err = apiClient.GetAppCompact(ctx, appName)
+			app, err = flapsClient.GetApp(ctx, appName)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get app: %w", err)
 			}
