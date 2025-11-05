@@ -31,11 +31,6 @@ func SaveToken(ctx context.Context, token string) error {
 		return err
 	}
 
-	// Record the login timestamp
-	if err := config.SetLastLogin(state.ConfigFile(ctx), time.Now()); err != nil {
-		return fmt.Errorf("failed persisting login timestamp: %w", err)
-	}
-
 	user, err := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
 		AccessToken: token,
 	}).GetCurrentUser(ctx)
