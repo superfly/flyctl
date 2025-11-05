@@ -101,6 +101,7 @@ func New() *cobra.Command {
 	_ = fs.StringP(flagnames.AccessToken, "t", "", "Fly API Access Token")
 	_ = fs.BoolP(flagnames.Verbose, "", false, "Verbose output")
 	_ = fs.BoolP(flagnames.Debug, "", false, "Print additional logs and traces")
+	_ = fs.BoolP("version", "v", false, "Show version information")
 
 	flyctl.InitConfig()
 
