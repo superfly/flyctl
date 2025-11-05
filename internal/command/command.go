@@ -566,17 +566,23 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		return handleReLogin(ctx, "not_authenticated")
 	}
 
-	// Check if the token has expired due to age
-	// If LastLogin is zero, it means the user has an old config without the timestamp
-	if cfg.LastLogin.IsZero() {
-		logger.FromContext(ctx).Debug("no login timestamp found, prompting for re-login")
-		return handleReLogin(ctx, "no_timestamp")
-	}
+	// Skip timestamp validation if token is from environment variable (CI/CD use case)
+	// This allows automated pipelines to continue working without session timeout
+	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
 
-	// Check if the token has expired based on the timeout
-	if time.Since(cfg.LastLogin) > TokenTimeout {
-		logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
-		return handleReLogin(ctx, "expired")
+	if !tokenFromEnv {
+		// Check if the token has expired due to age
+		// If LastLogin is zero, it means the user has an old config without the timestamp
+		if cfg.LastLogin.IsZero() {
+			logger.FromContext(ctx).Debug("no login timestamp found, prompting for re-login")
+			return handleReLogin(ctx, "no_timestamp")
+		}
+
+		// Check if the token has expired based on the timeout
+		if time.Since(cfg.LastLogin) > TokenTimeout {
+			logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
+			return handleReLogin(ctx, "expired")
+		}
 	}
 
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
