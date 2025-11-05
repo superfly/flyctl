@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/superfly/flyctl/wg"
 	"gopkg.in/yaml.v3"
@@ -31,14 +30,6 @@ func ReadAccessToken(path string) (string, error) {
 func SetAccessToken(path, token string) error {
 	return set(path, map[string]interface{}{
 		AccessTokenFileKey: token,
-	})
-}
-
-// SetLastLogin sets the last login timestamp at the configuration file
-// found at path.
-func SetLastLogin(path string, timestamp time.Time) error {
-	return set(path, map[string]interface{}{
-		LastLoginFileKey: timestamp,
 	})
 }
 
@@ -94,13 +85,12 @@ func SetAppSecretsMinvers(path string, minvers AppSecretsMinvers) error {
 	})
 }
 
-// Clear clears the access token, metrics token, last login timestamp, and wireguard-related keys of the configuration
+// Clear clears the access token, metrics token, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {
 	return set(path, map[string]interface{}{
 		AccessTokenFileKey:      "",
 		MetricsTokenFileKey:     "",
-		LastLoginFileKey:        time.Time{}, // Zero value for time.Time
 		WireGuardStateFileKey:   map[string]interface{}{},
 		AppSecretsMinverFileKey: AppSecretsMinvers{},
 	})
