@@ -111,7 +111,7 @@ func runBarmanCreate(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -125,8 +125,12 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	var region *fly.Region
-	region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to get organization: %w", err)
+	}
+
+	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
 	})
 	if err != nil {
@@ -470,9 +474,15 @@ func runConsole(ctx context.Context, cmd string) error {
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get organization: %w", err)
 	}
 
 	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, false)
@@ -487,7 +497,7 @@ func runConsole(ctx context.Context, cmd string) error {
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		OrgID:          app.Organization.ID,
+		OrgID:          org.ID,
 		Dialer:         dialer,
 		Username:       "root",
 		DisableSpinner: false,

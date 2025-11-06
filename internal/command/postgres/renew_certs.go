@@ -89,13 +89,18 @@ func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app
 		return fmt.Errorf("app %s is not a flex cluster", app.Name)
 	}
 
+	org, err := client.GetOrganizationByApp(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("get organization: %w", err)
+	}
+
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		return fmt.Errorf("failed to generate ssh key: %w", err)
 	}
 
 	validHours := validDays * 24
-	cert, err := client.IssueSSHCertificate(ctx, app.Organization.ID, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+	cert, err := client.IssueSSHCertificate(ctx, org.ID, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 	if err != nil {
 		return fmt.Errorf("failed to issue ssh certificate: %w", err)
 	}

@@ -45,7 +45,7 @@ func (s *Server) FlapsClient(appName string) *FlapsClient {
 	return NewFlapsClient(s, appName)
 }
 
-func (s *Server) CreateApp(app *fly.App) {
+func (s *Server) CreateApp(app *flaps.App) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.apps[app.Name]; ok {

@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -63,8 +64,9 @@ attached to the current app (you can pass an app in with -a <appname>).`
 
 func run(ctx context.Context) error {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
+		client      = flyutil.ClientFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
 
 		err error
 	)
@@ -74,7 +76,7 @@ func run(ctx context.Context) error {
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
 
-		app, err := client.GetAppCompact(ctx, appName)
+		app, err := flapsClient.GetApp(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}

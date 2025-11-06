@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -72,7 +73,8 @@ func RunDestroy(ctx context.Context) error {
 			}
 		}
 
-		app, err := client.GetAppCompact(ctx, appName)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		app, err := flapsClient.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -94,7 +96,8 @@ func RunDestroy(ctx context.Context) error {
 			fmt.Fprintf(io.Out, "Destroyed statics bucket %s\n", bucket.Name)
 		}
 
-		if err := client.DeleteApp(ctx, appName); err != nil {
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		if err := flapsClient.DeleteApp(ctx, appName); err != nil {
 			return err
 		}
 

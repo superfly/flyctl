@@ -327,13 +327,14 @@ func runMachineRun(ctx context.Context) error {
 
 	switch {
 	case interact && appName != "":
-		app, err = client.GetAppCompact(ctx, appName)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		app, err = flapsClient.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
 
 	case interact && appName == "":
-		app, err = getOrCreateEphemeralShellApp(ctx, client)
+		app, err = getOrCreateEphemeralShellApp(ctx)
 		if err != nil {
 			return err
 		}
@@ -349,7 +350,8 @@ func runMachineRun(ctx context.Context) error {
 		}
 
 	default:
-		app, err = client.GetAppCompact(ctx, appName)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		app, err = flapsClient.GetApp(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
 			if err != nil {
@@ -472,14 +474,20 @@ func runMachineRun(ctx context.Context) error {
 
 		// the app handle we have from creating a new app, presuming that's what
 		// we did, doesn't have the ID set.
-		app, err = client.GetAppCompact(ctx, app.Name)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		app, err = flapsClient.GetApp(ctx, app.Name)
 		if err != nil {
 			return fmt.Errorf("failed to load app info for %s: %w", app.Name, err)
 		}
 
+		org, err := client.GetOrganizationByApp(ctx, app.Name)
+		if err != nil {
+			return fmt.Errorf("get organization: %w", err)
+		}
+
 		sshClient, err := ssh.Connect(&ssh.ConnectParams{
 			Ctx:            ctx,
-			OrgID:          app.Organization.ID,
+			OrgID:          org.ID,
 			Dialer:         dialer,
 			Username:       flag.GetString(ctx, "user"),
 			DisableSpinner: false,
@@ -518,19 +526,21 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*flaps.App, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context) (*flaps.App, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("create interactive shell app: %w", err)
 	}
 
-	apps, err := client.GetAppsForOrganization(ctx, org.ID)
+	apps, err := flapsClient.ListApps(ctx, org.RawSlug)
 	if err != nil {
 		return nil, fmt.Errorf("create interactive shell app: %w", err)
 	}
 
-	var appc *fly.App
+	var appc *flaps.App
 
 	for appi, appt := range apps {
 		if strings.HasPrefix(appt.Name, "flyctl-interactive-shells-") {
@@ -542,28 +552,18 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	if appc == nil {
 		shellAppName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
 		shellAppName = strings.TrimRight(shellAppName[:min(len(shellAppName), 63)], "-")
-		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: appc.Name})
-		if err != nil {
-			return nil, err
-		}
-		newApp, err := f.CreateApp(ctx, fly.CreateAppInput{
-			OrganizationID: org.ID,
+		newApp, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+			Org: org.RawSlug,
 			// I'll never find love again like the kind you give like the kind you send
 			Name: shellAppName,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
-		appc = &fly.App{Name: newApp.Name}
+		appc = newApp
 	}
 
-	// this app handle won't have all the metadata attached, so grab it
-	app, err := client.GetAppCompact(ctx, appc.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	return app, nil
+	return appc, nil
 }
 
 func createApp(ctx context.Context, message, name string, client flyutil.Client) (*flaps.App, error) {
@@ -588,29 +588,16 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		}
 	}
 
-	input := fly.CreateAppInput{
-		Name:           name,
-		OrganizationID: org.ID,
-	}
-
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
-	if err != nil {
-		return nil, err
-	}
-	app, err := f.CreateApp(ctx, input)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Name: name,
+		Org:  org.RawSlug,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &flaps.App{
-		ID:     app.ID,
-		Name:   app.Name,
-		Status: app.Status,
-		Organization: flaps.AppOrganizationInfo{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
-		},
-	}, nil
+	return app, nil
 }
 
 func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {

@@ -414,6 +414,7 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
+// todo(mapi): there are no paid plan regions anymore
 func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Region, error) {
 	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
 	paidOnly := []fly.Region{}

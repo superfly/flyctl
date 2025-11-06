@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -55,7 +54,6 @@ func runExtend(ctx context.Context) error {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		appName  = appconfig.NameFromContext(ctx)
-		client   = flyutil.ClientFromContext(ctx)
 		volID    = flag.FirstArg(ctx)
 	)
 
@@ -67,7 +65,7 @@ func runExtend(ctx context.Context) error {
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}

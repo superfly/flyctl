@@ -45,8 +45,6 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
 	)
@@ -56,7 +54,8 @@ func runDetach(ctx context.Context) error {
 		return err
 	}
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get postgres app: %w", err)
 	}

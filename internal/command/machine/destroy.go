@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -144,8 +143,8 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
-	client := flyutil.ClientFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}

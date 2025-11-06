@@ -162,9 +162,15 @@ func runConsole(ctx context.Context) error {
 		terminal.Debugf("Retrieving app info for %s\n", appName)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
+	}
+
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get organization: %w", err)
 	}
 
 	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, quiet(ctx))
@@ -190,7 +196,7 @@ func runConsole(ctx context.Context) error {
 
 	params := &ConnectParams{
 		Ctx:            ctx,
-		OrgID:          app.Organization.ID,
+		OrgID:          org.ID,
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),

@@ -233,7 +233,12 @@ func (s *server) buildTunnel(ctx context.Context, org *uiex.Organization, reesta
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tk := tunnelKey{orgSlug: org.Slug, networkName: network}
+	// todo(mapi)
+	if network == "default" {
+		network = ""
+	}
+
+	tk := tunnelKey{orgSlug: org.RawSlug, networkName: network}
 
 	// not checking the region is intentional, it's static during the lifetime of the agent
 	if tunnel = s.tunnels[tk]; tunnel != nil && !reestablish {
@@ -309,6 +314,14 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// todo(mapi)
+	if slug == "personal" {
+		panic("personal slug should not be found here")
+	}
+	if network == "default" {
+		network = ""
+	}
 
 	tk := tunnelKey{orgSlug: slug, networkName: network}
 

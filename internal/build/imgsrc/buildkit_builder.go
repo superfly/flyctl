@@ -132,7 +132,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, app
 		if err != nil {
 			return nil, err
 		}
-		app = appToAppCompact(builderApp)
+		app = builderApp
 		r.addr = fmt.Sprintf("%s.flycast:%d", app.Name, buildkitGRPCPort)
 		ensureBuilder = true
 	}

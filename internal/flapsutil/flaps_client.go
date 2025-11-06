@@ -16,7 +16,7 @@ type FlapsClient interface {
 	AppNameAvailable(ctx context.Context, name string) (bool, error)
 	AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
-	CreateApp(ctx context.Context, name string, org string) (app *flaps.App, err error)
+	CreateApp(ctx context.Context, req flaps.CreateAppRequest) (app *flaps.App, err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteApp(ctx context.Context, name string) error
@@ -45,6 +45,7 @@ type FlapsClient interface {
 	Launch(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error)
 	List(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActive(ctx context.Context) ([]*fly.Machine, error)
+	ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error)
 	ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
 	ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
