@@ -27,7 +27,7 @@ func newStatus() *cobra.Command {
 		command.RequireUiex,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd, flag.JSONOutput())
 
