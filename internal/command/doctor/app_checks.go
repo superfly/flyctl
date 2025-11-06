@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -42,8 +41,8 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil, nil
 	}
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	appCompact, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +50,6 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	if err != nil {
 		return nil, err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	ac := &AppChecker{
 		jsonOutput:  jsonOutput,

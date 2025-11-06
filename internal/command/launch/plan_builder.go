@@ -300,14 +300,14 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 // Returns an error only if the prompt library encounters an error. (this should never occur)
 func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 
-	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	if flag.GetYes(ctx) {
 		return false, nil
 	}
 
-	if _, err := client.GetAppCompact(ctx, appName); err != nil {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if _, err := flapsClient.GetApp(ctx, appName); err != nil {
 		// The user can't see the app. Let them proceed.
 		return false, nil
 	}

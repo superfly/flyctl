@@ -170,24 +170,21 @@ func New() *cobra.Command {
 
 func runConsole(ctx context.Context) error {
 	var (
-		io        = iostreams.FromContext(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		apiClient = flyutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		appName     = appconfig.NameFromContext(ctx)
+		apiClient   = flyutil.ClientFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppData: app,
-		AppName: app.Name,
-	})
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed to create flaps client: %w", err)
+		return fmt.Errorf("get organization: %w", err)
 	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
@@ -218,7 +215,7 @@ func runConsole(ctx context.Context) error {
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		OrgID:          app.Organization.ID,
+		OrgID:          org.ID,
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,

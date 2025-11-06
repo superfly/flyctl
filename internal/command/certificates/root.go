@@ -271,7 +271,6 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	// These are the IPs we have for the app
@@ -280,7 +279,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 		return err
 	}
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}

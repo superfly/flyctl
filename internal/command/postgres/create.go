@@ -162,7 +162,8 @@ func run(ctx context.Context) (err error) {
 		}
 
 		// Resolve specified fork-from app
-		forkApp, err := client.GetAppCompact(ctx, forkSlice[0])
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		forkApp, err := flapsClient.GetApp(ctx, forkSlice[0])
 		if err != nil {
 			return fmt.Errorf("Failed to resolve the specified fork-from app %s: %w", forkSlice[0], err)
 		}
@@ -194,8 +195,6 @@ func run(ctx context.Context) (err error) {
 
 			params.ForkFrom = volID
 		}
-
-		flapsClient := flapsutil.ClientFromContext(ctx)
 
 		// Resolve the volume
 		vol, err := flapsClient.GetVolume(ctx, params.ForkFrom)

@@ -30,10 +30,16 @@ type Command struct {
 	app    *flaps.App
 	dialer agent.Dialer
 	io     *iostreams.IOStreams
+	orgID  string
 }
 
 func NewCommand(ctx context.Context, app *flaps.App) (*Command, error) {
 	client := flyutil.ClientFromContext(ctx)
+
+	org, err := client.GetOrganizationByApp(ctx, app.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting organization: %w", err)
+	}
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -48,6 +54,7 @@ func NewCommand(ctx context.Context, app *flaps.App) (*Command, error) {
 	return &Command{
 		ctx:    ctx,
 		app:    app,
+		orgID:  org.ID,
 		dialer: dialer,
 		io:     iostreams.FromContext(ctx),
 	}, nil
@@ -63,7 +70,7 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
 	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIp, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIp, cmd, ssh.DefaultSshUsername, pc.orgID)
 	if err != nil {
 		return err
 	}
@@ -84,7 +91,7 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	payload := encodeCommand(standbyNodeName)
 	cmd := fmt.Sprintf("pg_unregister %s", payload)
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername, pc.orgID)
 	if err != nil {
 		return err
 	}
@@ -110,7 +117,7 @@ func (pc *Command) ListEvents(ctx context.Context, leaderIP string, flagsName []
 		cmd += fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName))
 	}
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername, pc.orgID)
 	if err != nil {
 		return err
 	}

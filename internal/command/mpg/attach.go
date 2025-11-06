@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -64,14 +63,15 @@ func runAttach(ctx context.Context) error {
 	}
 
 	var (
-		clusterId = flag.FirstArg(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
+		clusterId  = flag.FirstArg(ctx)
+		appName    = appconfig.NameFromContext(ctx)
+		uiexClient = uiexutil.ClientFromContext(ctx)
+		io         = iostreams.FromContext(ctx)
 	)
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -176,11 +176,6 @@ func runAttach(ctx context.Context) error {
 	// Use selected database or fall back to default from credentials
 	if db == "" {
 		db = credentials.DBName
-	}
-
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
 	}
 
 	variableName := flag.GetString(ctx, "variable-name")

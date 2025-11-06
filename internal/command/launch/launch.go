@@ -342,15 +342,16 @@ func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient,
 		return nil, nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Name: state.Plan.AppName,
+		Org:  org.RawSlug,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
-	app, err := f.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID: org.ID,
-		Name:           state.Plan.AppName,
-		Machines:       true,
-	})
+
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
 	if err != nil {
 		return nil, nil, err
 	}

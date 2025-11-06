@@ -100,7 +100,12 @@ func Create(apiClient flyutil.Client, org *uiex.Organization, regionCode, name, 
 		return nil, errors.New("name must consist solely of letters, numbers, and the dash character")
 	}
 
-	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, regionCode, org.Slug)
+	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s (network %s)\n", name, regionCode, org.Slug, network)
+
+	// todo(mapi): remove after API handles this correctly
+	if network == "default" {
+		network = ""
+	}
 
 	pubkey, privatekey := C25519pair()
 

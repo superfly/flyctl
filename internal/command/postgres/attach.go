@@ -74,13 +74,12 @@ func newAttach() *cobra.Command {
 
 func runAttach(ctx context.Context) error {
 	var (
-		pgAppName   = flag.FirstArg(ctx)
-		appName     = appconfig.NameFromContext(ctx)
-		client      = flyutil.ClientFromContext(ctx)
-		flapsClient = flapsutil.ClientFromContext(ctx)
+		pgAppName = flag.FirstArg(ctx)
+		appName   = appconfig.NameFromContext(ctx)
 	)
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
@@ -89,7 +88,7 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", pgAppName)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -129,14 +128,12 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client      = flyutil.ClientFromContext(ctx)
-		flapsClient = flapsutil.ClientFromContext(ctx)
-
 		pgAppName = params.PgAppName
 		appName   = params.AppName
 	)
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
@@ -151,7 +148,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetAppCompact(ctx, appName)
+	_, err = flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}

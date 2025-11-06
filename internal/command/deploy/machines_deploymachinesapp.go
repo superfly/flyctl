@@ -53,7 +53,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	//                the app's services (if one exists).
 	if md.staticsUseTigris(ctx) {
 
-		fullApp, err := md.apiClient.GetAppCompact(ctx, md.app.Name)
+		fullApp, err := md.flapsClient.GetApp(ctx, md.app.Name)
 		if err != nil {
 			return err
 		}

@@ -67,11 +67,11 @@ func SortedKeys[V any](m map[ImgInfo]V) []ImgInfo {
 	return keys
 }
 
-// argsGetAppCompact returns the AppCompact for the selected app, using `app`.
-func argsGetAppCompact(ctx context.Context) (*flaps.App, error) {
+// argsGetApp returns the App for the selected app, using `app`.
+func argsGetApp(ctx context.Context) (*flaps.App, error) {
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
@@ -156,7 +156,13 @@ func argsGetMachineByID(ctx context.Context, app *flaps.App) (*fly.Machine, erro
 // argsGetImgPath returns an image path and its OrgID from the command line or from a
 // selected app machine, using `app`, `image`, `select`, and `machine`.
 func argsGetImgPath(ctx context.Context) (string, string, error) {
-	app, err := argsGetAppCompact(ctx)
+	app, err := argsGetApp(ctx)
+	if err != nil {
+		return "", "", err
+	}
+
+	client := flyutil.ClientFromContext(ctx)
+	org, err := client.GetOrganizationByApp(ctx, app.Name)
 	if err != nil {
 		return "", "", err
 	}
@@ -167,7 +173,7 @@ func argsGetImgPath(ctx context.Context) (string, string, error) {
 		}
 
 		path := flag.GetString(ctx, "image")
-		return path, app.Organization.ID, nil
+		return path, org.ID, nil
 	}
 
 	machine, err := argsGetMachine(ctx, app)
@@ -175,7 +181,7 @@ func argsGetImgPath(ctx context.Context) (string, string, error) {
 		return "", "", err
 	}
 
-	return imageRefPath(&machine.ImageRef), app.Organization.ID, nil
+	return imageRefPath(&machine.ImageRef), org.ID, nil
 }
 
 // argsGetImages returns a list of images in ImgInfo format from
@@ -204,7 +210,9 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 		return nil, fmt.Errorf("failed to get org %q: %w", orgName, err)
 	}
 
-	apps, err := client.GetAppsForOrganization(ctx, org.ID)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	apps, err := flapsClient.ListApps(ctx, org.RawSlug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list apps for %q: %w", orgName, err)
 	}
@@ -238,14 +246,13 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 // argsGetAppImages returns a list of images for an app in ImgInfo format
 // from `running`.
 func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	client := flyutil.ClientFromContext(ctx)
+	org, err := client.GetOrganizationByApp(ctx, appName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get app %q: %w", appName, err)
+		return nil, fmt.Errorf("failed to get organization for app %q: %w", appName, err)
 	}
 
-	org := app.Organization
-	return argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)
+	return argsGetOrgAppImages(ctx, org.Name, org.ID, appName)
 }
 
 // argsGetOrgAppImages returns a list of images for an org/app in ImgInfo format

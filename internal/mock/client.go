@@ -47,7 +47,6 @@ type Client struct {
 	GetAppRemoteBuilderFunc                func(ctx context.Context, appName string) (*fly.App, error)
 	GetAppBasicFunc                        func(ctx context.Context, appName string) (*flaps.App, error)
 	GetAppCertificatesFunc                 func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
-	GetAppCompactFunc                      func(ctx context.Context, appName string) (*flaps.App, error)
 	GetDeployerAppByOrgFunc                func(ctx context.Context, orgID string) (*fly.App, error)
 	GetAppCurrentReleaseMachinesFunc       func(ctx context.Context, appName string) (*fly.Release, error)
 	GetAppCNAMETargetFunc                  func(ctx context.Context, appName string) (string, error)
@@ -232,10 +231,6 @@ func (m *Client) GetAppBasic(ctx context.Context, appName string) (*flaps.App, e
 
 func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error) {
 	return m.GetAppCertificatesFunc(ctx, appName)
-}
-
-func (m *Client) GetAppCompact(ctx context.Context, appName string) (*flaps.App, error) {
-	return m.GetAppCompactFunc(ctx, appName)
 }
 
 func (m *Client) GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error) {

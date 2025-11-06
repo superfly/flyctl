@@ -31,7 +31,7 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *flaps.App, dialer agent.Dialer, addr string, cmd string, username string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *flaps.App, dialer agent.Dialer, addr string, cmd string, username string, orgID string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer
@@ -41,7 +41,7 @@ func RunSSHCommand(ctx context.Context, app *flaps.App, dialer agent.Dialer, add
 
 	err := SSHConnect(&SSHParams{
 		Ctx:            ctx,
-		OrgID:          app.Organization.ID,
+		OrgID:          orgID,
 		Dialer:         dialer,
 		App:            app.Name,
 		Username:       username,

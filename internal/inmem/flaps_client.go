@@ -25,8 +25,12 @@ func NewFlapsClient(server *Server, appName string) *FlapsClient {
 	}
 }
 
-func (m *FlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+func (m *FlapsClient) ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error) {
 	panic("TODO")
+}
+
+func (m *FlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+	return &flaps.App{Name: name}, nil
 }
 
 func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
@@ -57,8 +61,13 @@ func (m *FlapsClient) Cordon(ctx context.Context, machineID string, nonce string
 	panic("TODO")
 }
 
-func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (app *flaps.App, err error) {
-	panic("TODO")
+func (m *FlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (app *flaps.App, err error) {
+	m.server.mu.Lock()
+	defer m.server.mu.Unlock()
+
+	m.server.apps[req.Name] = &flaps.App{Name: req.Name}
+
+	return &flaps.App{Name: req.Name}, nil
 }
 
 func (m *FlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {

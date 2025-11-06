@@ -10,8 +10,6 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 )
@@ -23,30 +21,33 @@ func CompleteApps(
 	partial string,
 ) ([]string, error) {
 	var (
-		client = flyutil.ClientFromContext(ctx)
+		// client      = flyutil.ClientFromContext(ctx)
+		// flapsClient = flapsutil.ClientFromContext(ctx)
 
 		apps []fly.App
-		err  error
+		// err  error
 	)
 
 	orgFiltered := false
 
-	// We can't use `flag.*` here because of import cycles. *sigh*
-	orgFlag := cmd.Flag(flagnames.Org)
-	if orgFlag != nil && orgFlag.Changed {
-		var org *fly.Organization
-		org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
-		if err != nil {
-			return nil, err
-		}
-		apps, err = client.GetAppsForOrganization(ctx, org.ID)
-		orgFiltered = true
-	} else {
-		apps, err = client.GetApps(ctx, nil)
-	}
-	if err != nil {
-		return nil, err
-	}
+	// todo(mapi): this is broken because of an import loop with flapsutil package
+
+	// // We can't use `flag.*` here because of import cycles. *sigh*
+	// orgFlag := cmd.Flag(flagnames.Org)
+	// if orgFlag != nil && orgFlag.Changed {
+	// 	var org *fly.Organization
+	// 	org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	apps, err = client.GetAppsForOrganization(ctx, org.ID)
+	// 	orgFiltered = true
+	// } else {
+	// 	apps, err = client.GetApps(ctx, nil)
+	// }
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	ret := lo.FilterMap(apps, func(app fly.App, _ int) (string, bool) {
 		if strings.HasPrefix(app.Name, partial) {

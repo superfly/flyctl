@@ -121,8 +121,8 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 	})
 }
 
-func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *flaps.App) {
-	if appCompact == nil {
+func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, app *flaps.App) {
+	if app == nil {
 		CaptureException(
 			err,
 			WithTag("feature", featureName),
@@ -138,10 +138,10 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			WithTag("feature", featureName),
 			WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
-					"name": appCompact.Name,
+					"name": app.Name,
 				},
 				"organization": map[string]interface{}{
-					"slug": appCompact.Organization.Slug,
+					"slug": app.Organization.Slug,
 				},
 			}),
 			WithTraceID(ctx),
@@ -156,10 +156,10 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		WithTag("feature", featureName),
 		WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
-				"name": appCompact.Name,
+				"name": app.Name,
 			},
 			"organization": map[string]interface{}{
-				"slug": appCompact.Organization.Slug,
+				"slug": app.Organization.Slug,
 			},
 		}),
 		WithTraceID(ctx),

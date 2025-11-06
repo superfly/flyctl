@@ -209,7 +209,7 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*uiex.Organization
 	}
 
 	for _, org := range orgs {
-		if org.Slug == slug {
+		if org.RawSlug == slug {
 			no := org // copy
 			return &no, nil
 		}

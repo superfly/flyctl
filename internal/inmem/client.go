@@ -185,18 +185,6 @@ func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.
 	panic("TODO")
 }
 
-func (m *Client) GetAppCompact(ctx context.Context, appName string) (*flaps.App, error) {
-	m.server.mu.Lock()
-	defer m.server.mu.Unlock()
-
-	app := m.server.apps[appName]
-	if app == nil {
-		return nil, fmt.Errorf("app not found: %q", appName) // TODO: Match actual error
-	}
-
-	return app, nil
-}
-
 func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error) {
 	panic("TODO")
 }
@@ -294,9 +282,12 @@ func (m *Client) GetNearestRegion(ctx context.Context) (*fly.Region, error) {
 }
 
 func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
-	app, err := m.GetAppCompact(ctx, appName)
-	if err != nil {
-		return nil, err
+	m.server.mu.Lock()
+	defer m.server.mu.Unlock()
+
+	app := m.server.apps[appName]
+	if app == nil {
+		return nil, fmt.Errorf("app not found: %q", appName)
 	}
 	return &fly.Organization{Slug: app.Organization.Slug}, nil
 }

@@ -104,18 +104,18 @@ func (mr *MockFlapsClientMockRecorder) Cordon(ctx, machineID, nonce any) *gomock
 }
 
 // CreateApp mocks base method.
-func (m *MockFlapsClient) CreateApp(ctx context.Context, name, org string) (*flaps.App, error) {
+func (m *MockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateApp", ctx, name, org)
+	ret := m.ctrl.Call(m, "CreateApp", ctx, req)
 	ret0, _ := ret[0].(*flaps.App)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateApp indicates an expected call of CreateApp.
-func (mr *MockFlapsClientMockRecorder) CreateApp(ctx, name, org any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) CreateApp(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateApp", reflect.TypeOf((*MockFlapsClient)(nil).CreateApp), ctx, name, org)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateApp", reflect.TypeOf((*MockFlapsClient)(nil).CreateApp), ctx, req)
 }
 
 // CreateVolume mocks base method.
@@ -545,6 +545,21 @@ func (m *MockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64, s
 func (mr *MockFlapsClientMockRecorder) ListAppSecrets(ctx, version, showSecrets any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).ListAppSecrets), ctx, version, showSecrets)
+}
+
+// ListApps mocks base method.
+func (m *MockFlapsClient) ListApps(ctx context.Context, org_slug string) ([]flaps.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListApps", ctx, org_slug)
+	ret0, _ := ret[0].([]flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListApps indicates an expected call of ListApps.
+func (mr *MockFlapsClientMockRecorder) ListApps(ctx, org_slug any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApps", reflect.TypeOf((*MockFlapsClient)(nil).ListApps), ctx, org_slug)
 }
 
 // ListFlyAppsMachines mocks base method.
