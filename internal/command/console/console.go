@@ -316,6 +316,11 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 
 func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
 	apiClient := flyutil.ClientFromContext(ctx)
+	ctx, _, _, err := flapsutil.SetClient(ctx, app, app.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {
 		return nil, nil, err
