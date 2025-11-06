@@ -63,7 +63,7 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				org.ID,
 				"deploy",
 				&gql.LimitedAccessTokenOptions{
-					"app_id": app.ID,
+					"app_id": app.Name,
 				},
 				expiry,
 			)
