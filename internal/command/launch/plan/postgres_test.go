@@ -38,7 +38,7 @@ func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, res
 	return nil
 }
 
-func (m *mockUIEXClient) ListManagedClusters(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
+func (m *mockUIEXClient) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
 	return uiex.ListManagedClustersResponse{}, nil
 }
 

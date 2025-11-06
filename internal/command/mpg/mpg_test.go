@@ -23,7 +23,7 @@ import (
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
 	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
-	ListManagedClustersFunc         func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
+	ListManagedClustersFunc         func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterByIdFunc       func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUserFunc                  func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
@@ -42,9 +42,9 @@ func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (ui
 	return uiex.ListMPGRegionsResponse{}, nil
 }
 
-func (m *MockUiexClient) ListManagedClusters(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
+func (m *MockUiexClient) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
 	if m.ListManagedClustersFunc != nil {
-		return m.ListManagedClustersFunc(ctx, orgSlug)
+		return m.ListManagedClustersFunc(ctx, orgSlug, deleted)
 	}
 	return uiex.ListManagedClustersResponse{}, nil
 }
@@ -198,7 +198,7 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 	}
 
 	mockUiex := &MockUiexClient{
-		ListManagedClustersFunc: func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 			return uiex.ListManagedClustersResponse{
 				Data: []uiex.ManagedCluster{expectedCluster},
@@ -210,7 +210,7 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 
 	t.Run("no clusters found", func(t *testing.T) {
 		mockEmpty := &MockUiexClient{
-			ListManagedClustersFunc: func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
+			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
 				return uiex.ListManagedClustersResponse{Data: []uiex.ManagedCluster{}}, nil
 			},
 		}
@@ -480,7 +480,7 @@ func TestListCommand_Logic(t *testing.T) {
 	}
 
 	mockUiex := &MockUiexClient{
-		ListManagedClustersFunc: func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 			return uiex.ListManagedClustersResponse{
 				Data: expectedClusters,
@@ -491,7 +491,7 @@ func TestListCommand_Logic(t *testing.T) {
 	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
 
 	// Test successful cluster listing
-	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org")
+	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org", false)
 	require.NoError(t, err)
 	assert.Len(t, clusters.Data, 2)
 
@@ -515,7 +515,7 @@ func TestErrorHandling(t *testing.T) {
 
 	t.Run("ListManagedClusters error", func(t *testing.T) {
 		mockUiex := &MockUiexClient{
-			ListManagedClustersFunc: func(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error) {
+			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
 				return uiex.ListManagedClustersResponse{}, fmt.Errorf("API error")
 			},
 		}

@@ -35,6 +35,11 @@ If no organization is specified, the user's personal organization is used.`
 
 	flag.Add(cmd, flag.JSONOutput())
 	flag.Add(cmd, flag.Org())
+	flag.Add(cmd, flag.Bool{
+		Name:        "deleted",
+		Description: "Show deleted clusters instead of active clusters",
+		Default:     false,
+	})
 
 	return cmd
 }
@@ -63,13 +68,18 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	clusters, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug)
+	deleted := flag.GetBool(ctx, "deleted")
+	clusters, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
 	if err != nil {
 		return fmt.Errorf("failed to list managed clusters for organization %s: %w", org.Slug, err)
 	}
 
 	if len(clusters.Data) == 0 {
-		fmt.Fprintf(out, "No managed postgres clusters found in organization %s\n", org.Slug)
+		if deleted {
+			fmt.Fprintf(out, "No deleted managed postgres clusters found in organization %s\n", org.Slug)
+		} else {
+			fmt.Fprintf(out, "No managed postgres clusters found in organization %s\n", org.Slug)
+		}
 		return nil
 	}
 
