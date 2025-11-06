@@ -6,9 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -22,15 +20,12 @@ func newProxy() (cmd *cobra.Command) {
 		long = `Proxy to a MPG database`
 
 		short = long
-		usage = "proxy"
+		usage = "proxy <CLUSTER ID>"
 	)
 
 	cmd = command.New(usage, short, long, runProxy, command.RequireSession, command.RequireUiex)
 
 	flag.Add(cmd,
-		flag.Region(),
-		flag.MPGCluster(),
-
 		flag.String{
 			Name:        flagnames.BindAddr,
 			Shorthand:   "b",
@@ -38,6 +33,8 @@ func newProxy() (cmd *cobra.Command) {
 			Description: "Local address to bind to",
 		},
 	)
+
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
 }
@@ -62,7 +59,7 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	// Get cluster ID from flag - it's optional now
-	clusterID := flag.GetMPGClusterID(ctx)
+	clusterID := flag.FirstArg(ctx)
 
 	var cluster *uiex.ManagedCluster
 	var orgSlug string
@@ -77,27 +74,12 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		cluster = &response.Data
 		orgSlug = cluster.Organization.Slug
 	} else {
-		// If no cluster ID is provided, let user select org first, then cluster
-		org, err := orgs.OrgFromFlagOrSelect(ctx)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		// For ui-ex requests we need the real org slug (resolve aliases like "personal")
-		genqClient := client.GenqClient()
-		var fullOrg *gql.GetOrganizationResponse
-		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed fetching org: %w", err)
-		}
-
+		var err error
 		// Now let user select a cluster from this organization
-		selectedCluster, err := ClusterFromFlagOrSelect(ctx, fullOrg.Organization.RawSlug)
+		cluster, orgSlug, err = ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return nil, nil, nil, err
 		}
-
-		cluster = selectedCluster
-		orgSlug = cluster.Organization.Slug
 	}
 
 	// At this point we have both cluster and orgSlug
