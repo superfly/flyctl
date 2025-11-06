@@ -320,14 +320,6 @@ func Org() String {
 	}
 }
 
-func MPGCluster() String {
-	return String{
-		Name:        "cluster",
-		Shorthand:   "c",
-		Description: "The target cluster ID",
-	}
-}
-
 // Region returns a region string flag.
 func Region() String {
 	return String{
