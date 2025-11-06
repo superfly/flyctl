@@ -21,9 +21,9 @@ func needsUserModeWireguard() bool {
 // On error the old context is returned along with the error.
 // The context must already have the flyutil client set.
 func SetClient(ctx context.Context, app *flaps.App, appName string) (context.Context, FlapsClient, *flaps.App, error) {
-	if needsUserModeWireguard() && app != nil {
+	if app == nil {
 		tempFlapsClient, err := NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: app.Name,
+			AppName: appName,
 		})
 		if err != nil {
 			err = flyerr.GenericErr{
@@ -40,7 +40,7 @@ func SetClient(ctx context.Context, app *flaps.App, appName string) (context.Con
 
 	flapsClient, err := NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppData: app,
-		AppName: app.Name,
+		AppName: appName,
 	})
 	if err != nil {
 		err = flyerr.GenericErr{
