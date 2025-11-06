@@ -326,7 +326,7 @@ func runSSH(ctx context.Context) error {
 
 	// start with app deploy token and then pare it down.
 	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -500,7 +500,7 @@ func runDeploy(ctx context.Context) (err error) {
 	}
 
 	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -541,7 +541,7 @@ func runMachineExec(ctx context.Context) error {
 	}
 
 	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
