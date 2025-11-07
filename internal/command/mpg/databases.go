@@ -142,6 +142,10 @@ func runDatabasesCreate(ctx context.Context) error {
 
 	dbName := flag.GetString(ctx, "name")
 	if dbName == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("database name must be specified with --name flag when not running interactively")
+		}
 		err := prompt.String(ctx, &dbName, "Enter database name:", "", true)
 		if err != nil {
 			return err
