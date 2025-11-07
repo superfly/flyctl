@@ -1,5 +1,7 @@
 package scanner
 
+import "fmt"
+
 func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("nuxt.config.ts")) {
 		return nil, nil
@@ -16,7 +18,13 @@ func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		Env:          env,
 	}
 
-	s.Files = templates("templates/nuxtjs")
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for Nuxt.js app\n")
+	} else {
+		s.Files = templates("templates/nuxtjs")
+	}
 
 	return s, nil
 }

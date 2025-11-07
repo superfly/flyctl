@@ -41,10 +41,16 @@ func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Port:   8080,
 	}
 
-	vars := make(map[string]interface{})
-	vars["dotnetAppName"] = csprojName
-	vars["dotnetSdkVersion"] = dotnetSdkVersion
-	s.Files = templatesExecute("templates/dotnet", vars)
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for .NET app\n")
+	} else {
+		vars := make(map[string]interface{})
+		vars["dotnetAppName"] = csprojName
+		vars["dotnetSdkVersion"] = dotnetSdkVersion
+		s.Files = templatesExecute("templates/dotnet", vars)
+	}
 
 	return s, nil
 }
