@@ -13,25 +13,31 @@ func configureFlask(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	vars := make(map[string]interface{})
-
-	// Extract Python version
-	// TODO: support pinned versions
-	pythonFullVersion, _, err := extractPythonVersion()
-	if err != nil {
-		return nil, err
-	} else if pythonFullVersion == "" {
-		return nil, fmt.Errorf("could not find Python version")
-	}
-	vars["pythonVersion"] = pythonFullVersion
-
-	// Generate a simple Dockerfile
 	s := &SourceInfo{
-		Files:      templatesExecute("templates/flask", vars),
 		Family:     "Flask",
 		Port:       8080,
 		SkipDeploy: true,
 		DeployDocs: `We have generated a simple Dockerfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
+	}
+
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for Flask app\n")
+	} else {
+		vars := make(map[string]interface{})
+
+		// Extract Python version
+		// TODO: support pinned versions
+		pythonFullVersion, _, err := extractPythonVersion()
+		if err != nil {
+			return nil, err
+		} else if pythonFullVersion == "" {
+			return nil, fmt.Errorf("could not find Python version")
+		}
+		vars["pythonVersion"] = pythonFullVersion
+
+		s.Files = templatesExecute("templates/flask", vars)
 	}
 
 	return s, nil
