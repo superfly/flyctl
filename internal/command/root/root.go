@@ -154,11 +154,11 @@ func New() *cobra.Command {
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
 		synthetics.New(),
-		curl.New(), // TODO: deprecate
-		open.New(), // TODO: deprecate
-		create.New(),     // TODO: deprecate
-		destroy.New(),    // TODO: deprecate
-		move.New(),       // TODO: deprecate
+		curl.New(),    // TODO: deprecate
+		open.New(),    // TODO: deprecate
+		create.New(),  // TODO: deprecate
+		destroy.New(), // TODO: deprecate
+		move.New(),    // TODO: deprecate
 		suspend.New(), // TODO: deprecate
 		resume.New(),  // TODO: deprecate
 
