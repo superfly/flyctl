@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -19,14 +20,20 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		Port:   8080,
 	}
 
-	rubyVersion, err := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
-	if err != nil {
-		return nil, errors.Wrap(err, "failure extracting Ruby version")
-	}
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for Ruby app\n")
+	} else {
+		rubyVersion, err := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
+		if err != nil {
+			return nil, errors.Wrap(err, "failure extracting Ruby version")
+		}
 
-	vars := make(map[string]interface{})
-	vars["rubyVersion"] = rubyVersion
-	s.Files = templatesExecute("templates/ruby", vars)
+		vars := make(map[string]interface{})
+		vars["rubyVersion"] = rubyVersion
+		s.Files = templatesExecute("templates/ruby", vars)
+	}
 
 	s.SkipDeploy = true
 	s.DeployDocs = `

@@ -13,7 +13,6 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Files:  templates("templates/go"),
 		Family: "Go",
 		Port:   8080,
 		Env: map[string]string{
@@ -21,9 +20,17 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		},
 	}
 
-	if !absFileExists("go.sum") {
-		s.SkipDeploy = true
-		terminal.Warn("no go.sum file found, please adjust your Dockerfile to remove references to go.sum")
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for Go app\n")
+	} else {
+		s.Files = templates("templates/go")
+
+		if !absFileExists("go.sum") {
+			s.SkipDeploy = true
+			terminal.Warn("no go.sum file found, please adjust your Dockerfile to remove references to go.sum")
+		}
 	}
 
 	gomod, parseErr := parseModfile()
