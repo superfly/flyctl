@@ -54,6 +54,14 @@ func (m *mockUIEXClient) CreateUser(ctx context.Context, id string, input uiex.C
 	return uiex.CreateUserResponse{}, nil
 }
 
+func (m *mockUIEXClient) ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error) {
+	return uiex.ListDatabasesResponse{}, nil
+}
+
+func (m *mockUIEXClient) CreateDatabase(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error) {
+	return uiex.CreateDatabaseResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {
 	return uiex.CreateClusterResponse{}, nil
 }
