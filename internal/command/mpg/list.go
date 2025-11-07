@@ -51,9 +51,7 @@ func runList(ctx context.Context) error {
 	}
 
 	cfg := config.FromContext(ctx)
-	io := iostreams.FromContext(ctx)
-	out := io.Out
-	colorize := io.ColorScheme()
+	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromFlagOrSelect(ctx)
 	if err != nil {
@@ -89,37 +87,17 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, clusters.Data)
 	}
 
-	// Check terminal width to decide on display format
-	termWidth := io.TerminalWidth()
-	const minWidthForFull = 100 // Minimum width needed for full table
-
 	rows := make([][]string, 0, len(clusters.Data))
 	for _, cluster := range clusters.Data {
-		clusterID := colorize.Purple(cluster.Id)
-
-		if termWidth < minWidthForFull {
-			// Narrow terminal: show compact view with essential info only
-			rows = append(rows, []string{
-				clusterID,
-				cluster.Name,
-				cluster.Region,
-				cluster.Status,
-			})
-		} else {
-			// Wide terminal: show full table
-			rows = append(rows, []string{
-				clusterID,
-				cluster.Name,
-				cluster.Organization.Slug,
-				cluster.Region,
-				cluster.Status,
-				cluster.Plan,
-			})
-		}
+		rows = append(rows, []string{
+			cluster.Id,
+			cluster.Name,
+			cluster.Organization.Slug,
+			cluster.Region,
+			cluster.Status,
+			cluster.Plan,
+		})
 	}
 
-	if termWidth < minWidthForFull {
-		return render.Table(out, "", rows, "ID", "Name", "Region", "Status")
-	}
 	return render.Table(out, "", rows, "ID", "Name", "Org", "Region", "Status", "Plan")
 }
