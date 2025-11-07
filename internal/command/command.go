@@ -561,26 +561,36 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	client := flyutil.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 
+	// DEBUG: Log authentication state for troubleshooting CI failures
+	log := logger.FromContext(ctx)
+	log.Debugf("RequireSession DEBUG: client.Authenticated()=%v", client.Authenticated())
+	log.Debugf("RequireSession DEBUG: cfg.LastLogin=%v, IsZero=%v", cfg.LastLogin, cfg.LastLogin.IsZero())
+	log.Debugf("RequireSession DEBUG: FLY_ACCESS_TOKEN set=%v, FLY_API_TOKEN set=%v",
+		env.First(config.AccessTokenEnvKey, "") != "",
+		env.First(config.APITokenEnvKey, "") != "")
+
 	// Check if user is authenticated
 	if !client.Authenticated() {
+		log.Debug("RequireSession DEBUG: client NOT authenticated, calling handleReLogin")
 		return handleReLogin(ctx, "not_authenticated")
 	}
 
 	// Skip timestamp validation if token is from environment variable (CI/CD use case)
 	// This allows automated pipelines to continue working without session timeout
 	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
+	log.Debugf("RequireSession DEBUG: tokenFromEnv=%v", tokenFromEnv)
 
 	if !tokenFromEnv {
 		// Check if the token has expired due to age
 		// If LastLogin is zero, it means the user has an old config without the timestamp
 		if cfg.LastLogin.IsZero() {
-			logger.FromContext(ctx).Debug("no login timestamp found, prompting for re-login")
+			log.Debug("RequireSession DEBUG: LastLogin is zero, calling handleReLogin")
 			return handleReLogin(ctx, "no_timestamp")
 		}
 
 		// Check if the token has expired based on the timeout
 		if time.Since(cfg.LastLogin) > TokenTimeout {
-			logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
+			log.Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
 			return handleReLogin(ctx, "expired")
 		}
 	}
