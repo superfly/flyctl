@@ -27,7 +27,7 @@ func newStatus() *cobra.Command {
 		command.RequireUiex,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd, flag.JSONOutput())
 
@@ -46,8 +46,12 @@ func runStatus(ctx context.Context) error {
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		// Should not happen due to cobra.ExactArgs(1), but good practice
-		return fmt.Errorf("cluster ID argument is required")
+		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
+
+		clusterID = cluster.Id
 	}
 
 	// Fetch detailed cluster information by ID

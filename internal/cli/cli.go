@@ -82,6 +82,13 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true
 
+	// Handle -v/--version flag specially to show version
+	// This needs to be checked before Execute because -v is a persistent flag
+	if slices.Contains(args, "-v") || slices.Contains(args, "--version") {
+		args = []string{"version"}
+		cmd.SetArgs(args)
+	}
+
 	cs := io.ColorScheme()
 
 	// configure help templates and helpers

@@ -36,7 +36,7 @@ func newBackupList() *cobra.Command {
 	const (
 		long  = `List backups for a Managed Postgres cluster.`
 		short = "List MPG cluster backups."
-		usage = "list [CLUSTER_ID]"
+		usage = "list <CLUSTER_ID>"
 	)
 
 	cmd := command.New(usage, short, long, runBackupList,
@@ -44,7 +44,7 @@ func newBackupList() *cobra.Command {
 		command.RequireUiex,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Aliases = []string{"ls"}
 
 	flag.Add(cmd,
@@ -71,8 +71,12 @@ func runBackupList(ctx context.Context) error {
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		// Should not happen due to cobra.ExactArgs(1), but good practice
-		return fmt.Errorf("cluster ID argument is required")
+		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
+
+		clusterID = cluster.Id
 	}
 
 	backups, err := uiexClient.ListManagedClusterBackups(ctx, clusterID)
@@ -133,7 +137,7 @@ func newBackupCreate() *cobra.Command {
 	const (
 		long  = `Create a backup for a Managed Postgres cluster.`
 		short = "Create MPG cluster backup."
-		usage = "create [CLUSTER_ID]"
+		usage = "create <CLUSTER_ID>"
 	)
 
 	cmd := command.New(usage, short, long, runBackupCreate,
@@ -141,7 +145,7 @@ func newBackupCreate() *cobra.Command {
 		command.RequireUiex,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.String{
@@ -165,8 +169,12 @@ func runBackupCreate(ctx context.Context) error {
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		// Should not happen due to cobra.ExactArgs(1), but good practice
-		return fmt.Errorf("cluster ID argument is required")
+		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
+
+		clusterID = cluster.Id
 	}
 
 	backupType := flag.GetString(ctx, "type")
