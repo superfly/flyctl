@@ -225,7 +225,7 @@ func TestCreateDatabase_EmptyName(t *testing.T) {
 		}
 
 		response := CreateDatabaseResponse{
-			Data: Database{Name: input.Name},
+			Data: Database(input),
 		}
 
 		w.Header().Set("Content-Type", "application/json")
