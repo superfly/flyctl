@@ -141,25 +141,40 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	}
 	vars[string(cfg.depStyle)] = true
 	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
+
+	hasDockerfile := checksPass(".", fileExists("Dockerfile"))
+
 	if app == "" {
 		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
 	} else if app == FastAPI {
 		vars["fastapi"] = true
-		return &SourceInfo{
-			Files:                templatesExecute("templates/python-docker", vars),
+		s := &SourceInfo{
 			Family:               "FastAPI",
 			Port:                 8000,
 			ObjectStorageDesired: objectStorage,
-		}, nil
+		}
+		if hasDockerfile {
+			s.DockerfilePath = "Dockerfile"
+			terminal.Info("Detected existing Dockerfile, will use it for FastAPI app")
+		} else {
+			s.Files = templatesExecute("templates/python-docker", vars)
+		}
+		return s, nil
 	} else if app == Flask {
 		vars["flask"] = true
-		return &SourceInfo{
-			Files:                templatesExecute("templates/python-docker", vars),
+		s := &SourceInfo{
 			Family:               "Flask",
 			Port:                 8080,
 			ObjectStorageDesired: objectStorage,
-		}, nil
+		}
+		if hasDockerfile {
+			s.DockerfilePath = "Dockerfile"
+			terminal.Info("Detected existing Dockerfile, will use it for Flask app")
+		} else {
+			s.Files = templatesExecute("templates/python-docker", vars)
+		}
+		return s, nil
 	} else if app == Streamlit {
 		vars["streamlit"] = true
 		entrypoint := findEntrypoint("streamlit")
@@ -168,12 +183,18 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		} else {
 			vars["entrypoint"] = entrypoint.Name()
 		}
-		return &SourceInfo{
-			Files:                templatesExecute("templates/python-docker", vars),
+		s := &SourceInfo{
 			Family:               "Streamlit",
 			Port:                 8501,
 			ObjectStorageDesired: objectStorage,
-		}, nil
+		}
+		if hasDockerfile {
+			s.DockerfilePath = "Dockerfile"
+			terminal.Info("Detected existing Dockerfile, will use it for Streamlit app")
+		} else {
+			s.Files = templatesExecute("templates/python-docker", vars)
+		}
+		return s, nil
 	} else {
 		return nil, nil
 	}

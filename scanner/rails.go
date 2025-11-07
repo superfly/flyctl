@@ -34,8 +34,11 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		return nil, nil
 	}
 
-	// find absolute pat to bundle, ruby executables
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+
+	// find absolute path to bundle, ruby executables
 	// see: https://tip.golang.org/doc/go1.19#os-exec-path
+	// If a Dockerfile exists, don't require bundle/ruby to be installed locally
 	var err error
 	bundle, err = exec.LookPath("bundle")
 	if err != nil {
@@ -43,7 +46,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 			bundle, err = filepath.Abs(bundle)
 		}
 
-		if err != nil {
+		if err != nil && !hasDockerfile {
 			return nil, errors.Wrap(err, "failure finding bundle executable")
 		}
 	}
@@ -54,7 +57,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 			ruby, err = filepath.Abs(ruby)
 		}
 
-		if err != nil {
+		if err != nil && !hasDockerfile {
 			return nil, errors.Wrap(err, "failure finding ruby executable")
 		}
 	}
@@ -66,6 +69,10 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
+	}
+
+	if hasDockerfile {
+		s.DockerfilePath = filepath.Join(sourceDir, "Dockerfile")
 	}
 
 	// add ruby version
@@ -278,9 +285,9 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	}
 
 	// fetch healthcheck route in a separate thread
+	// only attempt this if ruby is available
 	go func() {
-		ruby, err := exec.LookPath("ruby")
-		if err != nil {
+		if ruby == "" {
 			healthcheck_channel <- ""
 			return
 		}
@@ -306,6 +313,14 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	//
 	// If the generator fails but a Dockerfile exists, warn the user and proceed.  Only fail if no
 	// Dockerfile exists at the end of this process.
+
+	hasDockerfile := checksPass(".", fileExists("Dockerfile"))
+
+	// If a Dockerfile exists and bundle is not available, skip the entire generation process
+	if hasDockerfile && bundle == "" {
+		terminal.Info("Detected existing Dockerfile, will use it for Rails app (skipping dockerfile-rails generator)")
+		return nil
+	}
 
 	// install dockerfile-rails gem, if not already included and the gem directory is writable
 	// if an error occurrs, store it for later in pendingError
