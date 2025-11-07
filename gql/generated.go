@@ -2367,7 +2367,8 @@ type GetNearestRegionNearestRegion struct {
 	// The name of this region
 	Name             string `json:"name"`
 	GatewayAvailable bool   `json:"gatewayAvailable"`
-	Deprecated       bool   `json:"deprecated"`
+	// Whether this region is deprecated
+	Deprecated bool `json:"deprecated"`
 }
 
 // GetCode returns GetNearestRegionNearestRegion.Code, and is useful for accessing the field via an interface.
