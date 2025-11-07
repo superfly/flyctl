@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/superfly/flyctl/helpers"
@@ -15,7 +16,14 @@ func configureStatic(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	s := &SourceInfo{
 		Family: "Static",
 		Port:   8080,
-		Files:  templates("templates/static"),
+	}
+
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for static site\n")
+	} else {
+		s.Files = templates("templates/static")
 	}
 
 	return s, nil

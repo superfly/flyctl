@@ -1,5 +1,7 @@
 package scanner
 
+import "fmt"
+
 func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(
 		sourceDir,
@@ -12,7 +14,6 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	}
 
 	s := &SourceInfo{
-		Files:  templates("templates/deno"),
 		Family: "Deno",
 		Port:   8080,
 		Processes: map[string]string{
@@ -21,6 +22,14 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+	}
+
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for Deno app\n")
+	} else {
+		s.Files = templates("templates/deno")
 	}
 
 	return s, nil

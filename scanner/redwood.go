@@ -1,5 +1,7 @@
 package scanner
 
+import "fmt"
+
 func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("redwood.toml")) {
 		return nil, nil
@@ -7,9 +9,16 @@ func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s := &SourceInfo{
 		Family:     "RedwoodJS",
-		Files:      templates("templates/redwood"),
 		Port:       8910,
 		ReleaseCmd: ".fly/release.sh",
+	}
+
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for RedwoodJS app\n")
+	} else {
+		s.Files = templates("templates/redwood")
 	}
 
 	s.Env = map[string]string{

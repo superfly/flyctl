@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"fmt"
+
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -11,7 +13,6 @@ func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	s := &SourceInfo{
 		Family:     "Lucky",
-		Files:      templates("templates/lucky"),
 		Port:       8080,
 		ReleaseCmd: "lucky db.migrate",
 		Env: map[string]string{
@@ -39,6 +40,14 @@ func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 				UrlPrefix: "/",
 			},
 		},
+	}
+
+	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
+	if hasDockerfile {
+		s.DockerfilePath = "Dockerfile"
+		fmt.Printf("Detected existing Dockerfile, will use it for Lucky app\n")
+	} else {
+		s.Files = templates("templates/lucky")
 	}
 
 	return s, nil
