@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -92,6 +93,7 @@ func New() *cobra.Command {
 	}
 
 	root := command.New(exe, short, long, run)
+	root.Version = buildinfo.Version().String()
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
@@ -101,6 +103,7 @@ func New() *cobra.Command {
 	_ = fs.StringP(flagnames.AccessToken, "t", "", "Fly API Access Token")
 	_ = fs.BoolP(flagnames.Verbose, "", false, "Verbose output")
 	_ = fs.BoolP(flagnames.Debug, "", false, "Print additional logs and traces")
+	_ = fs.BoolP("version", "v", false, "Show version information")
 
 	flyctl.InitConfig()
 
@@ -246,6 +249,8 @@ func run(ctx context.Context) error {
 
 	cmd.Println()
 	cmd.Println("For a full list of commands, run `fly help`.")
+	cmd.Println()
+	cmd.Printf("Running %s v%s\n", buildinfo.Name(), buildinfo.Version())
 
 	return nil
 }
