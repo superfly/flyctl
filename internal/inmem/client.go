@@ -72,15 +72,7 @@ func (m *Client) CheckAppCertificate(ctx context.Context, appName, hostname stri
 	panic("TODO")
 }
 
-func (m *Client) CheckDomain(ctx context.Context, name string) (*fly.CheckDomainResult, error) {
-	panic("TODO")
-}
-
 func (m *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*fly.Region, error) {
-	panic("TODO")
-}
-
-func (m *Client) CreateAndRegisterDomain(organizationID string, name string) (*fly.Domain, error) {
 	panic("TODO")
 }
 
@@ -105,10 +97,6 @@ func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Org
 }
 
 func (m *Client) CreateDoctorUrl(ctx context.Context) (putUrl string, err error) {
-	panic("TODO")
-}
-
-func (m *Client) CreateDomain(organizationID string, name string) (*fly.Domain, error) {
 	panic("TODO")
 }
 
@@ -169,10 +157,6 @@ func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region
 }
 
 func (m *Client) EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error) {
-	panic("TODO")
-}
-
-func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
 	panic("TODO")
 }
 
@@ -272,23 +256,11 @@ func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
 	return m.CurrentUser, nil
 }
 
-func (m *Client) GetDNSRecords(ctx context.Context, domainName string) ([]*fly.DNSRecord, error) {
-	panic("TODO")
-}
-
 func (m *Client) GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error) {
 	panic("TODO")
 }
 
 func (m *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*fly.OrganizationDetails, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetDomain(ctx context.Context, name string) (*fly.Domain, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*fly.Domain, error) {
 	panic("TODO")
 }
 
@@ -357,10 +329,6 @@ func (m *Client) GenqClient() genq.Client {
 }
 
 func (m *Client) LatestImage(ctx context.Context, appName string) (string, error) {
-	panic("TODO")
-}
-
-func (m *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error) {
 	panic("TODO")
 }
 

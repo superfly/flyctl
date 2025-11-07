@@ -23,14 +23,11 @@ type Client struct {
 	AuthenticatedFunc                      func() bool
 	CanPerformBluegreenDeploymentFunc      func(ctx context.Context, appName string) (bool, error)
 	CheckAppCertificateFunc                func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	CheckDomainFunc                        func(ctx context.Context, name string) (*fly.CheckDomainResult, error)
 	ClosestWireguardGatewayRegionFunc      func(ctx context.Context) (*fly.Region, error)
-	CreateAndRegisterDomainFunc            func(organizationID string, name string) (*fly.Domain, error)
 	CreateAppFunc                          func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
 	CreateBuildFunc                        func(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
 	CreateDelegatedWireGuardTokenFunc      func(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
 	CreateDoctorUrlFunc                    func(ctx context.Context) (putUrl string, err error)
-	CreateDomainFunc                       func(organizationID string, name string) (*fly.Domain, error)
 	CreateOrganizationFunc                 func(ctx context.Context, organizationname string) (*fly.Organization, error)
 	CreateOrganizationInviteFunc           func(ctx context.Context, id, email string) (*fly.Invitation, error)
 	CreateReleaseFunc                      func(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
@@ -44,7 +41,6 @@ type Client struct {
 	EnablePostgresConsulFunc               func(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
 	EnsureDepotRemoteBuilderFunc           func(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error)
 	EnsureRemoteBuilderFunc                func(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
-	ExportDNSRecordsFunc                   func(ctx context.Context, domainId string) (string, error)
 	FinishBuildFunc                        func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetAppFunc                             func(ctx context.Context, appName string) (*fly.App, error)
 	GetAppRemoteBuilderFunc                func(ctx context.Context, appName string) (*fly.App, error)
@@ -65,11 +61,8 @@ type Client struct {
 	GetAppsFunc                            func(ctx context.Context, role *string) ([]fly.App, error)
 	GetAppsForOrganizationFunc             func(ctx context.Context, orgID string) ([]fly.App, error)
 	GetCurrentUserFunc                     func(ctx context.Context) (*fly.User, error)
-	GetDNSRecordsFunc                      func(ctx context.Context, domainName string) ([]*fly.DNSRecord, error)
 	GetDelegatedWireGuardTokensFunc        func(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
 	GetDetailedOrganizationBySlugFunc      func(ctx context.Context, slug string) (*fly.OrganizationDetails, error)
-	GetDomainFunc                          func(ctx context.Context, name string) (*fly.Domain, error)
-	GetDomainsFunc                         func(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddressesFunc                     func(ctx context.Context, appName string) ([]fly.IPAddress, error)
 	GetEgressIPAddressesFunc               func(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetLatestImageDetailsFunc              func(ctx context.Context, image string, flyVersion string) (*fly.ImageVersion, error)
@@ -85,7 +78,6 @@ type Client struct {
 	GetWireGuardPeerFunc                   func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeersFunc                  func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
 	GenqClientFunc                         func() genq.Client
-	ImportDNSRecordsFunc                   func(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error)
 	IssueSSHCertificateFunc                func(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
 	LatestImageFunc                        func(ctx context.Context, appName string) (string, error)
 	ListPostgresClusterAttachmentsFunc     func(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
@@ -144,16 +136,8 @@ func (m *Client) CheckAppCertificate(ctx context.Context, appName, hostname stri
 	return m.CheckAppCertificateFunc(ctx, appName, hostname)
 }
 
-func (m *Client) CheckDomain(ctx context.Context, name string) (*fly.CheckDomainResult, error) {
-	return m.CheckDomainFunc(ctx, name)
-}
-
 func (m *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*fly.Region, error) {
 	return m.ClosestWireguardGatewayRegionFunc(ctx)
-}
-
-func (m *Client) CreateAndRegisterDomain(organizationID string, name string) (*fly.Domain, error) {
-	return m.CreateAndRegisterDomainFunc(organizationID, name)
 }
 
 func (m *Client) CreateApp(ctx context.Context, input fly.CreateAppInput) (*fly.App, error) {
@@ -170,10 +154,6 @@ func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Org
 
 func (m *Client) CreateDoctorUrl(ctx context.Context) (putUrl string, err error) {
 	return m.CreateDoctorUrlFunc(ctx)
-}
-
-func (m *Client) CreateDomain(organizationID string, name string) (*fly.Domain, error) {
-	return m.CreateDomainFunc(organizationID, name)
 }
 
 func (m *Client) CreateOrganization(ctx context.Context, organizationname string) (*fly.Organization, error) {
@@ -226,10 +206,6 @@ func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region
 
 func (m *Client) EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error) {
 	return m.EnsureDepotRemoteBuilderFunc(ctx, input)
-}
-
-func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
-	return m.ExportDNSRecordsFunc(ctx, domainId)
 }
 
 func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error) {
@@ -312,24 +288,12 @@ func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
 	return m.GetCurrentUserFunc(ctx)
 }
 
-func (m *Client) GetDNSRecords(ctx context.Context, domainName string) ([]*fly.DNSRecord, error) {
-	return m.GetDNSRecordsFunc(ctx, domainName)
-}
-
 func (m *Client) GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error) {
 	return m.GetDelegatedWireGuardTokensFunc(ctx, slug)
 }
 
 func (m *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*fly.OrganizationDetails, error) {
 	return m.GetDetailedOrganizationBySlugFunc(ctx, slug)
-}
-
-func (m *Client) GetDomain(ctx context.Context, name string) (*fly.Domain, error) {
-	return m.GetDomainFunc(ctx, name)
-}
-
-func (m *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*fly.Domain, error) {
-	return m.GetDomainsFunc(ctx, organizationSlug)
 }
 
 func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error) {
@@ -394,10 +358,6 @@ func (m *Client) GenqClient() genq.Client {
 
 func (m *Client) LatestImage(ctx context.Context, appName string) (string, error) {
 	return m.LatestImageFunc(ctx, appName)
-}
-
-func (m *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error) {
-	return m.ImportDNSRecordsFunc(ctx, domainId, zonefile)
 }
 
 func (m *Client) IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
