@@ -64,7 +64,8 @@ func runList(ctx context.Context) (err error) {
 		return
 	}
 
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	out := io.Out
 	if cfg.JSONOutput {
 		_ = render.JSON(out, apps)
 
@@ -72,11 +73,14 @@ func runList(ctx context.Context) (err error) {
 	}
 
 	verbose := flag.GetBool(ctx, "verbose")
+	colorize := io.ColorScheme()
+	termWidth := io.TerminalWidth()
+	const minWidthForFull = 100 // Minimum width needed for full table
 
 	rows := make([][]string, 0, len(apps))
 	if silence {
 		for _, app := range apps {
-			rows = append(rows, []string{app.Name})
+			rows = append(rows, []string{colorize.Purple(app.Name)})
 		}
 		_ = render.Table(out, "", rows)
 		return
@@ -87,19 +91,34 @@ func runList(ctx context.Context) (err error) {
 			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
 		}
 
+		appName := app.Name
 		if !verbose && strings.HasPrefix(app.Name, "flyctl-interactive-shells-") {
-			app.Name = "(interactive shells app)"
+			appName = "(interactive shells app)"
 		}
 
-		rows = append(rows, []string{
-			app.Name,
-			app.Organization.Slug,
-			app.Status,
-			latestDeploy,
-		})
+		if termWidth < minWidthForFull {
+			// Narrow terminal: show compact view without Latest Deploy
+			rows = append(rows, []string{
+				colorize.Purple(appName),
+				app.Organization.Slug,
+				app.Status,
+			})
+		} else {
+			// Wide terminal: show full table
+			rows = append(rows, []string{
+				colorize.Purple(appName),
+				app.Organization.Slug,
+				app.Status,
+				latestDeploy,
+			})
+		}
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
+	if termWidth < minWidthForFull {
+		_ = render.Table(out, "", rows, "Name", "Owner", "Status")
+	} else {
+		_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
+	}
 
 	return
 }
