@@ -246,4 +246,3 @@ func TestCreateDatabase_EmptyName(t *testing.T) {
 		t.Fatal("expected error for empty database name")
 	}
 }
-
