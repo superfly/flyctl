@@ -41,6 +41,11 @@ import (
 
 type Runner func(context.Context) error
 
+const (
+	// TokenTimeout defines how long a login session is valid before requiring re-authentication
+	TokenTimeout = 30 * 24 * time.Hour // 30 days
+)
+
 func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.Command {
 	return &cobra.Command{
 		Use:   usage,
@@ -553,56 +558,115 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !flyutil.ClientFromContext(ctx).Authenticated() {
-		io := iostreams.FromContext(ctx)
-		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
-		if io.IsInteractive() &&
-			!env.IsCI() &&
-			!flag.GetBool(ctx, "now") &&
-			!flag.GetBool(ctx, "json") &&
-			!flag.GetBool(ctx, "quiet") &&
-			!flag.GetBool(ctx, "yes") {
+	client := flyutil.ClientFromContext(ctx)
+	cfg := config.FromContext(ctx)
 
-			// Ask before we start opening things
-			confirmed, err := prompt.Confirm(ctx, "You must be logged in to do this. Would you like to sign in?")
-			if err != nil {
-				return nil, err
-			}
-			if !confirmed {
-				return nil, fly.ErrNoAuthToken
-			}
+	// DEBUG: Log authentication state for troubleshooting CI failures
+	log := logger.FromContext(ctx)
+	log.Debugf("RequireSession DEBUG: client.Authenticated()=%v", client.Authenticated())
+	log.Debugf("RequireSession DEBUG: cfg.LastLogin=%v, IsZero=%v", cfg.LastLogin, cfg.LastLogin.IsZero())
+	log.Debugf("RequireSession DEBUG: FLY_ACCESS_TOKEN set=%v, FLY_API_TOKEN set=%v",
+		env.First(config.AccessTokenEnvKey, "") != "",
+		env.First(config.APITokenEnvKey, "") != "")
 
-			// Attempt to log the user in
-			token, err := webauth.RunWebLogin(ctx, false)
-			if err != nil {
-				return nil, err
-			}
-			if err := webauth.SaveToken(ctx, token); err != nil {
-				return nil, err
-			}
+	// Check if user is authenticated
+	if !client.Authenticated() {
+		log.Debug("RequireSession DEBUG: client NOT authenticated, calling handleReLogin")
+		return handleReLogin(ctx, "not_authenticated")
+	}
 
-			// Reload the config
-			logger.FromContext(ctx).Debug("reloading config after login")
-			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
-				return nil, err
-			}
+	// Skip timestamp validation if token is from environment variable (CI/CD use case)
+	// This allows automated pipelines to continue working without session timeout
+	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
+	log.Debugf("RequireSession DEBUG: tokenFromEnv=%v", tokenFromEnv)
 
-			// first reset the client
-			ctx = flyutil.NewContextWithClient(ctx, nil)
+	if !tokenFromEnv {
+		// Check if the token has expired due to age
+		// If LastLogin is zero, it means the user has an old config without the timestamp
+		if cfg.LastLogin.IsZero() {
+			log.Debug("RequireSession DEBUG: LastLogin is zero, calling handleReLogin")
+			return handleReLogin(ctx, "no_timestamp")
+		}
 
-			// Re-run the auth preparers to update the client with the new token
-			logger.FromContext(ctx).Debug("re-running auth preparers after login")
-			if ctx, err = prepare(ctx, authPreparers...); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fly.ErrNoAuthToken
+		// Check if the token has expired based on the timeout
+		if time.Since(cfg.LastLogin) > TokenTimeout {
+			log.Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
+			return handleReLogin(ctx, "expired")
 		}
 	}
 
+	log.Debug("RequireSession DEBUG: all checks passed, session valid")
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
+}
+
+// handleReLogin prompts the user to log in and handles the re-login flow
+// reason can be: "not_authenticated", "no_timestamp", or "expired"
+func handleReLogin(ctx context.Context, reason string) (context.Context, error) {
+	io := iostreams.FromContext(ctx)
+
+	// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
+	if io.IsInteractive() &&
+		!env.IsCI() &&
+		!flag.GetBool(ctx, "now") &&
+		!flag.GetBool(ctx, "json") &&
+		!flag.GetBool(ctx, "quiet") &&
+		!flag.GetBool(ctx, "yes") {
+
+		// Display styled message based on reason
+		colorize := io.ColorScheme()
+
+		if reason == "no_timestamp" || reason == "expired" {
+			// User has been away - show welcome back message
+			fmt.Fprintf(io.Out, "%s\n", colorize.Purple("Welcome back!"))
+			fmt.Fprintf(io.Out, "Your session has expired, please log in to continue using flyctl.\n\n")
+		}
+
+		// Ask before we start opening things
+		var promptMessage string
+		if reason == "not_authenticated" {
+			promptMessage = "You must be logged in to do this. Would you like to sign in?"
+		} else {
+			promptMessage = "Would you like to sign in?"
+		}
+
+		confirmed, err := prompt.Confirm(ctx, promptMessage)
+		if err != nil {
+			return nil, err
+		}
+		if !confirmed {
+			return nil, fly.ErrNoAuthToken
+		}
+
+		// Attempt to log the user in
+		token, err := webauth.RunWebLogin(ctx, false)
+		if err != nil {
+			return nil, err
+		}
+		if err := webauth.SaveToken(ctx, token); err != nil {
+			return nil, err
+		}
+
+		// Reload the config
+		logger.FromContext(ctx).Debug("reloading config after login")
+		if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
+			return nil, err
+		}
+
+		// first reset the client
+		ctx = flyutil.NewContextWithClient(ctx, nil)
+
+		// Re-run the auth preparers to update the client with the new token
+		logger.FromContext(ctx).Debug("re-running auth preparers after login")
+		if ctx, err = prepare(ctx, authPreparers...); err != nil {
+			return nil, err
+		}
+
+		return ctx, nil
+	} else {
+		return nil, fly.ErrNoAuthToken
+	}
 }
 
 // Apply uiex client to uiex
