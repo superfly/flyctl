@@ -315,11 +315,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// Dockerfile exists at the end of this process.
 
 	// Check if a Dockerfile exists and skip generation if bundle is not available
-	if hasDockerfile, _ := checkExistingDockerfile(".", "Rails"); hasDockerfile && bundle == "" {
+	hasDockerfile := checksPass(".", fileExists("Dockerfile"))
+	if hasDockerfile && bundle == "" {
+		checkExistingDockerfile(".", "Rails (skipping dockerfile-rails generator)")
 		return nil
 	}
-
-	hasDockerfile := checksPass(".", fileExists("Dockerfile"))
 
 	// install dockerfile-rails gem, if not already included and the gem directory is writable
 	// if an error occurrs, store it for later in pendingError

@@ -1,7 +1,5 @@
 package scanner
 
-import "fmt"
-
 func configureNextJs(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("next.config.js")) && !checksPass(sourceDir, dirContains("package.json", "\"next\"")) {
 		return nil, nil

@@ -1,7 +1,5 @@
 package scanner
 
-import "fmt"
-
 func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(
 		sourceDir,

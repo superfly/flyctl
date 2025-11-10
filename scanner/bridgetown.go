@@ -1,8 +1,6 @@
 package scanner
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 )
 

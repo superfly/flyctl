@@ -1,7 +1,5 @@
 package scanner
 
-import "fmt"
-
 func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("nuxt.config.ts")) {
 		return nil, nil

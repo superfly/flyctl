@@ -1,8 +1,6 @@
 package scanner
 
 import (
-	"fmt"
-
 	"github.com/superfly/flyctl/helpers"
 )
 

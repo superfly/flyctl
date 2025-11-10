@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
