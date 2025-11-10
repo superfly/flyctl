@@ -318,7 +318,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 
 	// If a Dockerfile exists and bundle is not available, skip the entire generation process
 	if hasDockerfile && bundle == "" {
-		terminal.Info("Detected existing Dockerfile, will use it for Rails app (skipping dockerfile-rails generator)")
+		fmt.Printf("Detected existing Dockerfile, will use it for Rails app (skipping dockerfile-rails generator)\n")
 		return nil
 	}
 

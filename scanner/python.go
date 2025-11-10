@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -156,7 +157,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		}
 		if hasDockerfile {
 			s.DockerfilePath = "Dockerfile"
-			terminal.Info("Detected existing Dockerfile, will use it for FastAPI app")
+			fmt.Printf("Detected existing Dockerfile, will use it for FastAPI app\n")
 		} else {
 			s.Files = templatesExecute("templates/python-docker", vars)
 		}
@@ -170,7 +171,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		}
 		if hasDockerfile {
 			s.DockerfilePath = "Dockerfile"
-			terminal.Info("Detected existing Dockerfile, will use it for Flask app")
+			fmt.Printf("Detected existing Dockerfile, will use it for Flask app\n")
 		} else {
 			s.Files = templatesExecute("templates/python-docker", vars)
 		}
@@ -190,7 +191,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		}
 		if hasDockerfile {
 			s.DockerfilePath = "Dockerfile"
-			terminal.Info("Detected existing Dockerfile, will use it for Streamlit app")
+			fmt.Printf("Detected existing Dockerfile, will use it for Streamlit app\n")
 		} else {
 			s.Files = templatesExecute("templates/python-docker", vars)
 		}
