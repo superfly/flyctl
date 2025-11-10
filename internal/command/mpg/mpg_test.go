@@ -38,6 +38,18 @@ type MockUiexClient struct {
 	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 }
 
+func (m *MockUiexClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+	return nil, nil
+}
+
+func (m *MockUiexClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
+	return nil, nil
+}
+
+func (m *MockUiexClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
+	return nil, nil
+}
+
 func (m *MockUiexClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
 	if m.ListOrganizationsFunc != nil {
 		return m.ListOrganizationsFunc(ctx, admin)
