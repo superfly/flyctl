@@ -18,10 +18,8 @@ func configureNextJs(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Env:          env,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Next.js app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Next.js"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		s.Files = templates("templates/nextjs")
 	}

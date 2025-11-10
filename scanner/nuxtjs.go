@@ -18,10 +18,8 @@ func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		Env:          env,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Nuxt.js app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Nuxt.js"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		s.Files = templates("templates/nuxtjs")
 	}

@@ -72,22 +72,19 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		"NODE_VERSION": "18",
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-
 	// Use default scanner templates if < min version(8.1.0)
 	phpNVersion, err := semver.Make(phpVersion + ".0")
 	if err != nil || phpNVersion.LT(minVersion) {
-		if hasDockerfile {
-			s.DockerfilePath = "Dockerfile"
-			fmt.Printf("Detected existing Dockerfile, will use it for Laravel app\n")
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Laravel"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
 		} else {
 			s.Files = templates("templates/laravel")
 		}
 	} else {
 		// Else use dockerfile-laravel generator (which already handles existing Dockerfiles)
 		s.Callback = LaravelCallback
-		if hasDockerfile {
-			s.DockerfilePath = "Dockerfile"
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Laravel"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
 		}
 	}
 

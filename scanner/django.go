@@ -339,10 +339,8 @@ For detailed documentation, see https://fly.dev/docs/django/
 		vars["venvdir"] = segments[0]
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = filepath.Join(sourceDir, "Dockerfile")
-		fmt.Printf("Detected existing Dockerfile, will use it for Django app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Django"); hasDockerfile {
+		s.DockerfilePath = filepath.Join(sourceDir, dockerfilePath)
 	} else {
 		s.Files = templatesExecute("templates/django", vars)
 	}

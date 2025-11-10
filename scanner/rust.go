@@ -51,10 +51,8 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		SkipDatabase: true,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Rust app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Rust"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		s.Files = templatesExecute("templates/rust", vars)
 	}

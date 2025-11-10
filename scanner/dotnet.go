@@ -41,10 +41,8 @@ func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Port:   8080,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for .NET app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, ".NET"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		vars := make(map[string]interface{})
 		vars["dotnetAppName"] = csprojName

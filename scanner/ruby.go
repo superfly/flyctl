@@ -20,10 +20,8 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		Port:   8080,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Ruby app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Ruby"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		rubyVersion, err := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
 		if err != nil {

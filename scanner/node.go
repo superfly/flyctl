@@ -165,10 +165,8 @@ need help, please post on https://community.fly.io.
 Now: run 'fly deploy' to deploy your Node app.
 `
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Node app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Node"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		files := templatesExecute("templates/node", vars)
 

@@ -24,10 +24,8 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		},
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Deno app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Deno"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		s.Files = templates("templates/deno")
 	}

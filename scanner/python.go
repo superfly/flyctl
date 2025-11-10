@@ -143,8 +143,6 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	vars[string(cfg.depStyle)] = true
 	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
 
-	hasDockerfile := checksPass(".", fileExists("Dockerfile"))
-
 	if app == "" {
 		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
@@ -155,9 +153,8 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			Port:                 8000,
 			ObjectStorageDesired: objectStorage,
 		}
-		if hasDockerfile {
-			s.DockerfilePath = "Dockerfile"
-			fmt.Printf("Detected existing Dockerfile, will use it for FastAPI app\n")
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(".", "FastAPI"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
 		} else {
 			s.Files = templatesExecute("templates/python-docker", vars)
 		}
@@ -169,9 +166,8 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			Port:                 8080,
 			ObjectStorageDesired: objectStorage,
 		}
-		if hasDockerfile {
-			s.DockerfilePath = "Dockerfile"
-			fmt.Printf("Detected existing Dockerfile, will use it for Flask app\n")
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(".", "Flask"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
 		} else {
 			s.Files = templatesExecute("templates/python-docker", vars)
 		}
@@ -189,9 +185,8 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			Port:                 8501,
 			ObjectStorageDesired: objectStorage,
 		}
-		if hasDockerfile {
-			s.DockerfilePath = "Dockerfile"
-			fmt.Printf("Detected existing Dockerfile, will use it for Streamlit app\n")
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(".", "Streamlit"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
 		} else {
 			s.Files = templatesExecute("templates/python-docker", vars)
 		}

@@ -13,10 +13,8 @@ func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		ReleaseCmd: ".fly/release.sh",
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for RedwoodJS app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "RedwoodJS"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		s.Files = templates("templates/redwood")
 	}

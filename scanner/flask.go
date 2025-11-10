@@ -20,10 +20,8 @@ func configureFlask(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		DeployDocs: `We have generated a simple Dockerfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for Flask app\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Flask"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		vars := make(map[string]interface{})
 

@@ -18,10 +18,8 @@ func configureStatic(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Port:   8080,
 	}
 
-	hasDockerfile := checksPass(sourceDir, fileExists("Dockerfile"))
-	if hasDockerfile {
-		s.DockerfilePath = "Dockerfile"
-		fmt.Printf("Detected existing Dockerfile, will use it for static site\n")
+	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "static site"); hasDockerfile {
+		s.DockerfilePath = dockerfilePath
 	} else {
 		s.Files = templates("templates/static")
 	}
