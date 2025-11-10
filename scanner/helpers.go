@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -101,4 +102,28 @@ func readTomlFile(file string) (map[string]interface{}, error) {
 		return nil, errors.Wrap(readErr, "Error parsing "+file)
 	}
 	return tomlData, nil
+}
+
+// checkExistingDockerfile checks if a Dockerfile exists in the source directory.
+// If found, it prints a message and returns true with the path "Dockerfile".
+// This is used by framework scanners to avoid overwriting existing Dockerfiles.
+func checkExistingDockerfile(sourceDir string, frameworkName string) (exists bool, path string) {
+	if checksPass(sourceDir, fileExists("Dockerfile")) {
+		fmt.Printf("Detected existing Dockerfile, will use it for %s app\n", frameworkName)
+		return true, "Dockerfile"
+	}
+	return false, ""
+}
+
+// filterDockerfile removes Dockerfile from a list of SourceFiles.
+// This is useful when a Dockerfile exists and you want to generate other
+// supporting files from templates without overwriting the existing Dockerfile.
+func filterDockerfile(files []SourceFile) []SourceFile {
+	filtered := make([]SourceFile, 0)
+	for _, file := range files {
+		if file.Path != "Dockerfile" {
+			filtered = append(filtered, file)
+		}
+	}
+	return filtered
 }
