@@ -24,6 +24,9 @@ var testdata embed.FS
 func TestCommand_Execute(t *testing.T) {
 	makeTerminalLoggerQuiet(t)
 
+	// Set FLY_ACCESS_TOKEN to simulate CI/CD environment
+	t.Setenv("FLY_ACCESS_TOKEN", "test-token")
+
 	dir := t.TempDir()
 	fsys, _ := fs.Sub(testdata, "testdata/basic")
 	if err := copyFS(fsys, dir); err != nil {
