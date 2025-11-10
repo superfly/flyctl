@@ -114,3 +114,16 @@ func checkExistingDockerfile(sourceDir string, frameworkName string) (exists boo
 	}
 	return false, ""
 }
+
+// filterDockerfile removes Dockerfile from a list of SourceFiles.
+// This is useful when a Dockerfile exists and you want to generate other
+// supporting files from templates without overwriting the existing Dockerfile.
+func filterDockerfile(files []SourceFile) []SourceFile {
+	filtered := make([]SourceFile, 0)
+	for _, file := range files {
+		if file.Path != "Dockerfile" {
+			filtered = append(filtered, file)
+		}
+	}
+	return filtered
+}

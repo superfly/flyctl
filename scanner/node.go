@@ -165,18 +165,22 @@ need help, please post on https://community.fly.io.
 Now: run 'fly deploy' to deploy your Node app.
 `
 
+	allFiles := templatesExecute("templates/node", vars)
+
+	// only include migration script if this app uses prisma
+	files := make([]SourceFile, 0)
+	for _, file := range allFiles {
+		if prisma || file.Path != "docker-entrypoint" {
+			files = append(files, file)
+		}
+	}
+
 	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Node"); hasDockerfile {
 		s.DockerfilePath = dockerfilePath
+		// Still generate non-Dockerfile files (like docker-entrypoint if using Prisma)
+		s.Files = filterDockerfile(files)
 	} else {
-		files := templatesExecute("templates/node", vars)
-
-		// only include migration script if this app uses prisma
-		s.Files = make([]SourceFile, 0)
-		for _, file := range files {
-			if prisma || file.Path != "docker-entrypoint" {
-				s.Files = append(s.Files, file)
-			}
-		}
+		s.Files = files
 	}
 
 	s.Env = env

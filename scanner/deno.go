@@ -22,10 +22,13 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		},
 	}
 
+	files := templates("templates/deno")
 	if hasDockerfile, dockerfilePath := checkExistingDockerfile(sourceDir, "Deno"); hasDockerfile {
 		s.DockerfilePath = dockerfilePath
+		// Still generate non-Dockerfile files (like example.ts)
+		s.Files = filterDockerfile(files)
 	} else {
-		s.Files = templates("templates/deno")
+		s.Files = files
 	}
 
 	return s, nil
