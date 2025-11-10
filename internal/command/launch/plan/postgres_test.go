@@ -20,6 +20,18 @@ type mockUIEXClient struct {
 	mpgRegions []uiex.MPGRegion
 }
 
+func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+	return nil, nil
+}
+
+func (m *mockUIEXClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
+	return nil, nil
+}
+
+func (m *mockUIEXClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
+	return nil, nil
+}
+
 func (m *mockUIEXClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
 	return []uiex.Organization{}, nil
 }
