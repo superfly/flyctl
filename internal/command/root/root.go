@@ -28,10 +28,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/command/dig"
-	"github.com/superfly/flyctl/internal/command/dnsrecords"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
-	"github.com/superfly/flyctl/internal/command/domains"
 	"github.com/superfly/flyctl/internal/command/extensions"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
@@ -156,15 +154,13 @@ func New() *cobra.Command {
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
 		synthetics.New(),
-		curl.New(),       // TODO: deprecate
-		domains.New(),    // TODO: deprecate
-		open.New(),       // TODO: deprecate
-		create.New(),     // TODO: deprecate
-		destroy.New(),    // TODO: deprecate
-		move.New(),       // TODO: deprecate
-		suspend.New(),    // TODO: deprecate
-		resume.New(),     // TODO: deprecate
-		dnsrecords.New(), // TODO: deprecate
+		curl.New(),    // TODO: deprecate
+		open.New(),    // TODO: deprecate
+		create.New(),  // TODO: deprecate
+		destroy.New(), // TODO: deprecate
+		move.New(),    // TODO: deprecate
+		suspend.New(), // TODO: deprecate
+		resume.New(),  // TODO: deprecate
 
 		regions.New(), // TODO: deprecate
 	)
