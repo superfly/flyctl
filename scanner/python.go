@@ -146,20 +146,34 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		return nil, nil
 	} else if app == FastAPI {
 		vars["fastapi"] = true
-		return &SourceInfo{
-			Files:                templatesExecute("templates/python-docker", vars),
+		files := templatesExecute("templates/python-docker", vars)
+		s := &SourceInfo{
 			Family:               "FastAPI",
 			Port:                 8000,
 			ObjectStorageDesired: objectStorage,
-		}, nil
+		}
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(".", "FastAPI"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
+			s.Files = filterDockerfile(files)
+		} else {
+			s.Files = files
+		}
+		return s, nil
 	} else if app == Flask {
 		vars["flask"] = true
-		return &SourceInfo{
-			Files:                templatesExecute("templates/python-docker", vars),
+		files := templatesExecute("templates/python-docker", vars)
+		s := &SourceInfo{
 			Family:               "Flask",
 			Port:                 8080,
 			ObjectStorageDesired: objectStorage,
-		}, nil
+		}
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(".", "Flask"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
+			s.Files = filterDockerfile(files)
+		} else {
+			s.Files = files
+		}
+		return s, nil
 	} else if app == Streamlit {
 		vars["streamlit"] = true
 		entrypoint := findEntrypoint("streamlit")
@@ -168,12 +182,19 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		} else {
 			vars["entrypoint"] = entrypoint.Name()
 		}
-		return &SourceInfo{
-			Files:                templatesExecute("templates/python-docker", vars),
+		files := templatesExecute("templates/python-docker", vars)
+		s := &SourceInfo{
 			Family:               "Streamlit",
 			Port:                 8501,
 			ObjectStorageDesired: objectStorage,
-		}, nil
+		}
+		if hasDockerfile, dockerfilePath := checkExistingDockerfile(".", "Streamlit"); hasDockerfile {
+			s.DockerfilePath = dockerfilePath
+			s.Files = filterDockerfile(files)
+		} else {
+			s.Files = files
+		}
+		return s, nil
 	} else {
 		return nil, nil
 	}
