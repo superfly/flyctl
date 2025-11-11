@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 )
@@ -67,11 +69,36 @@ func runConnect(ctx context.Context) (err error) {
 
 	user := credentials.User
 	password := credentials.Password
+
+	// Database selection priority: flag > prompt result (if interactive) > credentials.DBName
 	db := credentials.DBName
 
-	// Override database name if provided via flag
 	if database := flag.GetString(ctx, "database"); database != "" {
+		// Priority 1: Use flag if provided
 		db = database
+	} else if io.IsInteractive() {
+		// Priority 2: Prompt for selection if interactive
+		uiexClient := uiexutil.ClientFromContext(ctx)
+		databasesResponse, err := uiexClient.ListDatabases(ctx, cluster.Id)
+		if err != nil {
+			return fmt.Errorf("failed to list databases: %w", err)
+		}
+
+		if len(databasesResponse.Data) > 0 {
+			var dbOptions []string
+			for _, database := range databasesResponse.Data {
+				dbOptions = append(dbOptions, database.Name)
+			}
+
+			var dbIndex int
+			err = prompt.Select(ctx, &dbIndex, "Select database:", "", dbOptions...)
+			if err != nil {
+				return err
+			}
+
+			db = databasesResponse.Data[dbIndex].Name
+		}
+		// If no databases found or not interactive, db remains credentials.DBName (Priority 3)
 	}
 
 	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
