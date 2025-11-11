@@ -66,6 +66,10 @@ func (m *mockUIEXClient) DeleteUser(ctx context.Context, id string, username str
 	return nil
 }
 
+func (m *mockUIEXClient) GetUserCredentials(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error) {
+	return uiex.GetUserCredentialsResponse{}, nil
+}
+
 func (m *mockUIEXClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
 	return uiex.ListUsersResponse{}, nil
 }
