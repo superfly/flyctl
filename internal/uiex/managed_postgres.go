@@ -320,6 +320,58 @@ func (c *Client) CreateUserWithRole(ctx context.Context, id string, input Create
 	}
 }
 
+type UpdateUserRoleInput struct {
+	Role string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
+}
+
+type UpdateUserRoleResponse struct {
+	Data User `json:"data"`
+}
+
+func (c *Client) UpdateUserRole(ctx context.Context, id string, username string, input UpdateUserRoleInput) (UpdateUserRoleResponse, error) {
+	var response UpdateUserRoleResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.baseUrl, id, username)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return response, fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, &buf)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s or user %s not found", id, username)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to update users for cluster %s", id)
+	default:
+		return response, fmt.Errorf("failed to update user role (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
 func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, error) {
 	var response ListUsersResponse
 	cfg := config.FromContext(ctx)

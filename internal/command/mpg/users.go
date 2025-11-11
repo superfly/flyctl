@@ -27,6 +27,7 @@ func newUsers() *cobra.Command {
 	cmd.AddCommand(
 		newUsersList(),
 		newUsersCreate(),
+		newUsersSetRole(),
 	)
 
 	return cmd
@@ -113,9 +114,9 @@ func newUsersCreate() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "The name of the user",
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "The username of the user",
 		},
 		flag.String{
 			Name:        "role",
@@ -146,18 +147,18 @@ func runUsersCreate(ctx context.Context) error {
 		clusterID = cluster.Id
 	}
 
-	userName := flag.GetString(ctx, "name")
+	userName := flag.GetString(ctx, "username")
 	if userName == "" {
 		io := iostreams.FromContext(ctx)
 		if !io.IsInteractive() {
-			return prompt.NonInteractiveError("user name must be specified with --name flag when not running interactively")
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
 		}
-		err := prompt.String(ctx, &userName, "Enter user name:", "", true)
+		err := prompt.String(ctx, &userName, "Enter username:", "", true)
 		if err != nil {
 			return err
 		}
 		if userName == "" {
-			return fmt.Errorf("user name cannot be empty")
+			return fmt.Errorf("username cannot be empty")
 		}
 	}
 
@@ -198,6 +199,130 @@ func runUsersCreate(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(out, "User created successfully!\n")
+	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
+	fmt.Fprintf(out, "  Role: %s\n", response.Data.Role)
+
+	return nil
+}
+
+func newUsersSetRole() *cobra.Command {
+	const (
+		long  = `Update a user's role in a Managed Postgres cluster.`
+		short = "Update a user's role in an MPG cluster."
+		usage = "set-role <CLUSTER_ID>"
+	)
+
+	cmd := command.New(usage, short, long, runUsersSetRole,
+		command.RequireSession,
+		command.RequireUiex,
+	)
+
+	cmd.Aliases = []string{"update-role"}
+	cmd.Args = cobra.MaximumNArgs(1)
+
+	flag.Add(cmd,
+		flag.String{
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "The username to update",
+		},
+		flag.String{
+			Name:        "role",
+			Shorthand:   "r",
+			Description: "The new role for the user (schema_admin, writer, or reader)",
+		},
+	)
+
+	return cmd
+}
+
+func runUsersSetRole(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	clusterID := flag.FirstArg(ctx)
+	if clusterID == "" {
+		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
+
+		clusterID = cluster.Id
+	}
+
+	username := flag.GetString(ctx, "username")
+	if username == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+
+		// Get list of users to prompt from
+		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed to list users: %w", err)
+		}
+
+		if len(usersResponse.Data) == 0 {
+			return fmt.Errorf("no users found in cluster %s", clusterID)
+		}
+
+		// Format users as options: "username [role]"
+		var userOptions []string
+		for _, user := range usersResponse.Data {
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+		}
+
+		var userIndex int
+		err = prompt.Select(ctx, &userIndex, "Select user:", "", userOptions...)
+		if err != nil {
+			return err
+		}
+
+		username = usersResponse.Data[userIndex].Name
+	}
+
+	userRole := flag.GetString(ctx, "role")
+	validRoles := map[string]bool{
+		"schema_admin": true,
+		"writer":       true,
+		"reader":       true,
+	}
+
+	if userRole == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
+		}
+		// Prompt for role selection
+		var roleIndex int
+		roleOptions := []string{"schema_admin", "writer", "reader"}
+		err := prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptions...)
+		if err != nil {
+			return err
+		}
+		userRole = roleOptions[roleIndex]
+	} else if !validRoles[userRole] {
+		return fmt.Errorf("invalid role %q. Must be one of: schema_admin, writer, reader", userRole)
+	}
+
+	fmt.Fprintf(out, "Updating user %s role to %s in cluster %s...\n", username, userRole, clusterID)
+
+	input := uiex.UpdateUserRoleInput{
+		Role: userRole,
+	}
+
+	response, err := uiexClient.UpdateUserRole(ctx, clusterID, username, input)
+	if err != nil {
+		return fmt.Errorf("failed to update user role: %w", err)
+	}
+
+	fmt.Fprintf(out, "User role updated successfully!\n")
 	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
 	fmt.Fprintf(out, "  Role: %s\n", response.Data.Role)
 

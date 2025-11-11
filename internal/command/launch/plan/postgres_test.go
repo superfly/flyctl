@@ -58,6 +58,10 @@ func (m *mockUIEXClient) CreateUserWithRole(ctx context.Context, id string, inpu
 	return uiex.CreateUserWithRoleResponse{}, nil
 }
 
+func (m *mockUIEXClient) UpdateUserRole(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error) {
+	return uiex.UpdateUserRoleResponse{}, nil
+}
+
 func (m *mockUIEXClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
 	return uiex.ListUsersResponse{}, nil
 }
