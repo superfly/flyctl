@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"sync"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -34,6 +35,7 @@ const (
 	AppSecretsMinverFileKey    = "app_secrets_minvers"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
+	LastLoginFileKey           = "last_login"
 	APITokenEnvKey             = "FLY_API_TOKEN"
 	orgEnvKey                  = "FLY_ORG"
 	registryHostEnvKey         = "FLY_REGISTRY_HOST"
@@ -108,6 +110,9 @@ type Config struct {
 
 	// MetricsToken denotes the user's metrics token.
 	MetricsToken string
+
+	// LastLogin denotes the timestamp of the last successful login.
+	LastLogin time.Time
 }
 
 func Load(ctx context.Context, path string) (*Config, error) {
@@ -171,12 +176,13 @@ func (cfg *Config) applyFile(path string) (err error) {
 	defer cfg.mu.Unlock()
 
 	var w struct {
-		AccessToken            string `yaml:"access_token"`
-		MetricsToken           string `yaml:"metrics_token"`
-		SendMetrics            bool   `yaml:"send_metrics"`
-		AutoUpdate             bool   `yaml:"auto_update"`
-		SyntheticsAgent        bool   `yaml:"synthetics_agent"`
-		DisableManagedBuilders bool   `yaml:"disable_managed_builders"`
+		AccessToken            string    `yaml:"access_token"`
+		MetricsToken           string    `yaml:"metrics_token"`
+		SendMetrics            bool      `yaml:"send_metrics"`
+		AutoUpdate             bool      `yaml:"auto_update"`
+		SyntheticsAgent        bool      `yaml:"synthetics_agent"`
+		DisableManagedBuilders bool      `yaml:"disable_managed_builders"`
+		LastLogin              time.Time `yaml:"last_login"`
 	}
 	w.SendMetrics = true
 	w.AutoUpdate = true
@@ -190,6 +196,7 @@ func (cfg *Config) applyFile(path string) (err error) {
 		cfg.AutoUpdate = w.AutoUpdate
 		cfg.SyntheticsAgent = w.SyntheticsAgent
 		cfg.DisableManagedBuilders = w.DisableManagedBuilders
+		cfg.LastLogin = w.LastLogin
 	}
 
 	return

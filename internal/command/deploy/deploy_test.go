@@ -8,8 +8,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/inmem"
@@ -23,6 +26,9 @@ var testdata embed.FS
 
 func TestCommand_Execute(t *testing.T) {
 	makeTerminalLoggerQuiet(t)
+
+	// Set FLY_ACCESS_TOKEN to simulate CI/CD environment
+	t.Setenv("FLY_ACCESS_TOKEN", "test-token")
 
 	dir := t.TempDir()
 	fsys, _ := fs.Sub(testdata, "testdata/basic")
@@ -41,6 +47,13 @@ func TestCommand_Execute(t *testing.T) {
 	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
 	ctx = task.NewWithContext(ctx)
 	ctx = logger.NewContext(ctx, logger.New(&buf, logger.Info, true))
+
+	// Set up config with LastLogin timestamp to satisfy session timeout check
+	cfg := &config.Config{
+		Tokens:    tokens.Parse("test-token"),
+		LastLogin: time.Now(),
+	}
+	ctx = config.NewContext(ctx, cfg)
 
 	server := inmem.NewServer()
 	server.CreateApp(&fly.App{
