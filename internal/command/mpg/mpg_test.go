@@ -30,6 +30,7 @@ type MockUiexClient struct {
 	CreateUserWithRoleFunc          func(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
 	UpdateUserRoleFunc              func(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error)
 	DeleteUserFunc                  func(ctx context.Context, id string, username string) error
+	GetUserCredentialsFunc          func(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error)
 	ListUsersFunc                   func(ctx context.Context, id string) (uiex.ListUsersResponse, error)
 	ListDatabasesFunc               func(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
 	CreateDatabaseFunc              func(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
@@ -95,6 +96,13 @@ func (m *MockUiexClient) DeleteUser(ctx context.Context, id string, username str
 		return m.DeleteUserFunc(ctx, id, username)
 	}
 	return nil
+}
+
+func (m *MockUiexClient) GetUserCredentials(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error) {
+	if m.GetUserCredentialsFunc != nil {
+		return m.GetUserCredentialsFunc(ctx, id, username)
+	}
+	return uiex.GetUserCredentialsResponse{}, nil
 }
 
 func (m *MockUiexClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
