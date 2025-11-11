@@ -13,6 +13,8 @@ type Client interface {
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUser(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateUserWithRole(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
+	ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error)
 	ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
 	CreateDatabase(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
 	CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)

@@ -27,6 +27,8 @@ type MockUiexClient struct {
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterByIdFunc       func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUserFunc                  func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateUserWithRoleFunc          func(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
+	ListUsersFunc                   func(ctx context.Context, id string) (uiex.ListUsersResponse, error)
 	ListDatabasesFunc               func(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
 	CreateDatabaseFunc              func(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
 	CreateClusterFunc               func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
@@ -70,6 +72,20 @@ func (m *MockUiexClient) CreateUser(ctx context.Context, id string, input uiex.C
 		return m.CreateUserFunc(ctx, id, input)
 	}
 	return uiex.CreateUserResponse{}, nil
+}
+
+func (m *MockUiexClient) CreateUserWithRole(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error) {
+	if m.CreateUserWithRoleFunc != nil {
+		return m.CreateUserWithRoleFunc(ctx, id, input)
+	}
+	return uiex.CreateUserWithRoleResponse{}, nil
+}
+
+func (m *MockUiexClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
+	if m.ListUsersFunc != nil {
+		return m.ListUsersFunc(ctx, id)
+	}
+	return uiex.ListUsersResponse{}, nil
 }
 
 func (m *MockUiexClient) ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error) {
