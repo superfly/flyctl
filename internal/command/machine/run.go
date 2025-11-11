@@ -430,8 +430,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	// If region is unspecified when a volume is present, default the machine's
-	// region to the specified volume's region.
+	// If region is unspecified when a volume is present, inherit the volume's region.
 	if input.Region == "" && len(machineConf.Mounts) > 0 {
 		volID := machineConf.Mounts[0].Volume
 		if volID != "" {
