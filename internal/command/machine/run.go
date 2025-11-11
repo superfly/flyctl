@@ -430,6 +430,20 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
+	// If region is unspecified when a volume is present, default the machine's
+	// region to the specified volume's region.
+	if input.Region == "" && len(machineConf.Mounts) > 0 {
+		volID := machineConf.Mounts[0].Volume
+		if volID != "" {
+			vol, err := flapsClient.GetVolume(ctx, volID)
+			if err != nil {
+				return fmt.Errorf("failed to get volume %q: %w", volID, err)
+			}
+
+			input.Region = vol.Region
+		}
+	}
+
 	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
