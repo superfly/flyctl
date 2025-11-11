@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
@@ -54,9 +55,25 @@ func runConnect(ctx context.Context) (err error) {
 
 	// Get cluster once (will prompt if needed)
 	clusterID := flag.FirstArg(ctx)
-	cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-	if err != nil {
-		return err
+	var cluster *uiex.ManagedCluster
+	var orgSlug string
+
+	if clusterID != "" {
+		// If cluster ID is provided, fetch directly without prompting for org
+		uiexClient := uiexutil.ClientFromContext(ctx)
+		response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+		}
+		cluster = &response.Data
+		orgSlug = cluster.Organization.Slug
+	} else {
+		// Otherwise, prompt for org/cluster selection
+		var err error
+		cluster, orgSlug, err = ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
 	}
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)

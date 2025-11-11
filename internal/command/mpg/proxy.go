@@ -56,9 +56,25 @@ func runProxy(ctx context.Context) (err error) {
 
 func getMpgProxyParams(ctx context.Context, localProxyPort string, username string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
 	clusterID := flag.FirstArg(ctx)
-	cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-	if err != nil {
-		return nil, nil, nil, err
+	var cluster *uiex.ManagedCluster
+	var orgSlug string
+	var err error
+
+	if clusterID != "" {
+		// If cluster ID is provided, fetch directly without prompting for org
+		uiexClient := uiexutil.ClientFromContext(ctx)
+		response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+		}
+		cluster = &response.Data
+		orgSlug = cluster.Organization.Slug
+	} else {
+		// Otherwise, prompt for org/cluster selection
+		cluster, orgSlug, err = ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
 	return getMpgProxyParamsWithCluster(ctx, localProxyPort, username, cluster.Id, orgSlug)
