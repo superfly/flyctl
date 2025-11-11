@@ -258,6 +258,107 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 	}
 }
 
+type User struct {
+	Name string `json:"name"`
+	Role string `json:"role"`
+}
+
+type ListUsersResponse struct {
+	Data []User `json:"data"`
+}
+
+type CreateUserWithRoleInput struct {
+	UserName string `json:"user_name"`
+	Role     string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
+}
+
+type CreateUserWithRoleResponse struct {
+	Data User `json:"data"`
+}
+
+func (c *Client) CreateUserWithRole(ctx context.Context, id string, input CreateUserWithRoleInput) (CreateUserWithRoleResponse, error) {
+	var response CreateUserWithRoleResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.baseUrl, id)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return response, fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s not found", id)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to create users for cluster %s", id)
+	default:
+		return response, fmt.Errorf("failed to create user (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
+func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, error) {
+	var response ListUsersResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.baseUrl, id)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s not found", id)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to list users for cluster %s", id)
+	default:
+		return response, fmt.Errorf("failed to list users (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
 type Database struct {
 	Name string `json:"name"`
 }

@@ -54,6 +54,14 @@ func (m *mockUIEXClient) CreateUser(ctx context.Context, id string, input uiex.C
 	return uiex.CreateUserResponse{}, nil
 }
 
+func (m *mockUIEXClient) CreateUserWithRole(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error) {
+	return uiex.CreateUserWithRoleResponse{}, nil
+}
+
+func (m *mockUIEXClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
+	return uiex.ListUsersResponse{}, nil
+}
+
 func (m *mockUIEXClient) ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error) {
 	return uiex.ListDatabasesResponse{}, nil
 }
