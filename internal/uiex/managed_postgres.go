@@ -78,6 +78,13 @@ type GetManagedClusterCredentialsResponse struct {
 	ConnectionUri string `json:"pgbouncer_uri"`
 }
 
+type GetUserCredentialsResponse struct {
+	Data struct {
+		User     string `json:"user"`
+		Password string `json:"password"`
+	} `json:"data"`
+}
+
 type GetManagedClusterResponse struct {
 	Data        ManagedCluster                       `json:"data"`
 	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
@@ -404,6 +411,45 @@ func (c *Client) DeleteUser(ctx context.Context, id string, username string) err
 		return fmt.Errorf("access denied: you don't have permission to delete users for cluster %s", id)
 	default:
 		return fmt.Errorf("failed to delete user (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
+func (c *Client) GetUserCredentials(ctx context.Context, id string, username string) (GetUserCredentialsResponse, error) {
+	var response GetUserCredentialsResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s/credentials", c.baseUrl, id, username)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s or user %s not found", id, username)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to get credentials for user %s in cluster %s", username, id)
+	default:
+		return response, fmt.Errorf("failed to get user credentials (status %d): %s", res.StatusCode, string(body))
 	}
 }
 

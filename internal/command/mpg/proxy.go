@@ -46,7 +46,7 @@ func runProxy(ctx context.Context) (err error) {
 	}
 
 	localProxyPort := "16380"
-	_, params, _, err := getMpgProxyParams(ctx, localProxyPort)
+	_, params, _, err := getMpgProxyParams(ctx, localProxyPort, "")
 	if err != nil {
 		return err
 	}
@@ -54,32 +54,56 @@ func runProxy(ctx context.Context) (err error) {
 	return proxy.Connect(ctx, params)
 }
 
-func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
-	client := flyutil.ClientFromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
-	// Get or select cluster
+func getMpgProxyParams(ctx context.Context, localProxyPort string, username string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
 	clusterID := flag.FirstArg(ctx)
 	cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	// Get cluster details with credentials
-	response, err := uiexClient.GetManagedClusterById(ctx, cluster.Id)
+	return getMpgProxyParamsWithCluster(ctx, localProxyPort, username, cluster.Id, orgSlug)
+}
+
+func getMpgProxyParamsWithCluster(ctx context.Context, localProxyPort string, username string, clusterID string, orgSlug string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
+	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	// Get cluster details
+	response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", cluster.Id, err)
+		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
 
-	cluster = &response.Data
+	cluster := &response.Data
 
-	// Validate cluster state
-	if response.Credentials.Status == "initializing" {
-		return nil, nil, nil, fmt.Errorf("cluster is still initializing, wait a bit more")
+	// Get credentials - use user-specific endpoint if username provided, otherwise use default
+	var credentials uiex.GetManagedClusterCredentialsResponse
+	if username != "" {
+		userCreds, err := uiexClient.GetUserCredentials(ctx, cluster.Id, username)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
+		}
+		// Convert user credentials to the standard format
+		credentials = uiex.GetManagedClusterCredentialsResponse{
+			User:     userCreds.Data.User,
+			Password: userCreds.Data.Password,
+			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials
+		}
+	} else {
+		credentials = response.Credentials
 	}
 
-	if response.Credentials.Status == "error" || response.Credentials.Password == "" {
-		return nil, nil, nil, fmt.Errorf("error getting cluster password")
+	// Validate cluster state (only for default credentials, user credentials don't have status)
+	if username == "" {
+		if credentials.Status == "initializing" {
+			return nil, nil, nil, fmt.Errorf("cluster is still initializing, wait a bit more")
+		}
+
+		if credentials.Status == "error" || credentials.Password == "" {
+			return nil, nil, nil, fmt.Errorf("error getting cluster password")
+		}
+	} else if credentials.Password == "" {
+		return nil, nil, nil, fmt.Errorf("error getting user password")
 	}
 
 	if cluster.IpAssignments.Direct == "" {
@@ -109,5 +133,5 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		Dialer:           dialer,
 		BindAddr:         flag.GetBindAddr(ctx),
 		RemoteHost:       cluster.IpAssignments.Direct,
-	}, &response.Credentials, nil
+	}, &credentials, nil
 }
