@@ -164,9 +164,13 @@ func (cfg *Config) applyEnv() {
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
 	cfg.MetricsToken = env.FirstOrDefault(cfg.MetricsToken, MetricsTokenEnvKey, AccessTokenEnvKey, APITokenEnvKey)
+	if env.FirstOrDefault("", SendMetricsEnvKey) != "" {
+		cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey)
+	}
+	if env.FirstOrDefault("", SyntheticsAgentEnvKey) != "" {
+		cfg.SyntheticsAgent = env.IsTruthy(SyntheticsAgentEnvKey)
+	}
 	cfg.SyntheticsBaseURL = env.FirstOrDefault(cfg.SyntheticsBaseURL, syntheticsBaseURLEnvKey)
-	cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey) || cfg.SendMetrics
-	cfg.SyntheticsAgent = env.IsTruthy(SyntheticsAgentEnvKey) || cfg.SyntheticsAgent
 }
 
 // applyFile sets the properties of cfg which may be set via configuration file
