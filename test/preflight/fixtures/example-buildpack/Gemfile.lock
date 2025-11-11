@@ -9,15 +9,8 @@ GEM
     puma (6.5.0)
       nio4r (~> 2.0)
     rack (3.2.1)
-<<<<<<< HEAD
     rackup (2.2.1)
       rack (>= 3)
-||||||| 13b5ec32f
-    rack (2.2.8.1)
-    rack-protection (2.2.3)
-      rack
-=======
->>>>>>> origin/deployer
     rack-protection (4.1.1)
       base64 (>= 0.1.0)
       logger (>= 1.6.0)
@@ -41,12 +34,7 @@ PLATFORMS
 DEPENDENCIES
   puma
   rack
-<<<<<<< HEAD
   rackup
-||||||| 13b5ec32f
-  sinatra
-=======
->>>>>>> origin/deployer
   sinatra (~> 4.1)
 
 BUNDLED WITH
