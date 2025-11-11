@@ -28,6 +28,7 @@ func newUsers() *cobra.Command {
 		newUsersList(),
 		newUsersCreate(),
 		newUsersSetRole(),
+		newUsersDelete(),
 	)
 
 	return cmd
@@ -325,6 +326,113 @@ func runUsersSetRole(ctx context.Context) error {
 	fmt.Fprintf(out, "User role updated successfully!\n")
 	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
 	fmt.Fprintf(out, "  Role: %s\n", response.Data.Role)
+
+	return nil
+}
+
+func newUsersDelete() *cobra.Command {
+	const (
+		long  = `Delete a user from a Managed Postgres cluster.`
+		short = "Delete a user from an MPG cluster."
+		usage = "delete <CLUSTER_ID>"
+	)
+
+	cmd := command.New(usage, short, long, runUsersDelete,
+		command.RequireSession,
+		command.RequireUiex,
+	)
+
+	cmd.Aliases = []string{"remove", "rm", "del"}
+	cmd.Args = cobra.MaximumNArgs(1)
+
+	flag.Add(cmd,
+		flag.String{
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "The username to delete",
+		},
+		flag.Yes(),
+	)
+
+	return cmd
+}
+
+func runUsersDelete(ctx context.Context) error {
+	// Check token compatibility early
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return err
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	clusterID := flag.FirstArg(ctx)
+	if clusterID == "" {
+		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		if err != nil {
+			return err
+		}
+
+		clusterID = cluster.Id
+	}
+
+	username := flag.GetString(ctx, "username")
+	if username == "" {
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+
+		// Get list of users to prompt from
+		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed to list users: %w", err)
+		}
+
+		if len(usersResponse.Data) == 0 {
+			return fmt.Errorf("no users found in cluster %s", clusterID)
+		}
+
+		// Format users as options: "username [role]"
+		var userOptions []string
+		for _, user := range usersResponse.Data {
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+		}
+
+		var userIndex int
+		err = prompt.Select(ctx, &userIndex, "Select user to delete:", "", userOptions...)
+		if err != nil {
+			return err
+		}
+
+		username = usersResponse.Data[userIndex].Name
+	}
+
+	if !flag.GetYes(ctx) {
+		const msg = "Deleting a user is not reversible."
+		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+		switch confirmed, err := prompt.Confirmf(ctx, "Delete user %s from cluster %s?", username, clusterID); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	fmt.Fprintf(out, "Deleting user %s from cluster %s...\n", username, clusterID)
+
+	err := uiexClient.DeleteUser(ctx, clusterID, username)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	fmt.Fprintf(out, "User %s deleted successfully from cluster %s\n", username, clusterID)
 
 	return nil
 }

@@ -372,6 +372,41 @@ func (c *Client) UpdateUserRole(ctx context.Context, id string, username string,
 	}
 }
 
+func (c *Client) DeleteUser(ctx context.Context, id string, username string) error {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.baseUrl, id, username)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+	case http.StatusNotFound:
+		return fmt.Errorf("cluster %s or user %s not found", id, username)
+	case http.StatusForbidden:
+		return fmt.Errorf("access denied: you don't have permission to delete users for cluster %s", id)
+	default:
+		return fmt.Errorf("failed to delete user (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
 func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, error) {
 	var response ListUsersResponse
 	cfg := config.FromContext(ctx)
