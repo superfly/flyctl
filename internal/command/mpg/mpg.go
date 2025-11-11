@@ -134,6 +134,14 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*ui
 	}
 }
 
+// ClusterFromFlagOrSelect retrieves the cluster ID from the --cluster flag.
+// If the flag is not set, it prompts the user to select a cluster from the available ones for the given organization.
+func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.ManagedCluster, error) {
+	clusterID := flag.GetMPGClusterID(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, orgSlug)
+	return cluster, err
+}
+
 // GetAvailableMPGRegions returns the list of regions available for Managed Postgres
 func GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, error) {
 	service := NewMPGService(ctx)

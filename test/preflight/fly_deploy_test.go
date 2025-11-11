@@ -8,19 +8,18 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	//"github.com/samber/lo"
-	"github.com/containerd/continuity/fs"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	//fly "github.com/superfly/fly-go"
 
-	"github.com/superfly/flyctl/test/preflight/testlib"
+	"github.com/superfly/flyctl/test/testlib"
 )
 
 func TestFlyDeployHA(t *testing.T) {
@@ -167,16 +166,6 @@ func TestFlyDeploySlowMetrics(t *testing.T) {
 	f.Fly("deploy")
 }
 
-func getRootPath() string {
-	_, b, _, _ := runtime.Caller(0)
-	return filepath.Dir(b)
-}
-
-func copyFixtureIntoWorkDir(workDir, name string) error {
-	src := fmt.Sprintf("%s/fixtures/%s", getRootPath(), name)
-	return fs.CopyDir(workDir, src)
-}
-
 func TestDeployNodeApp(t *testing.T) {
 	t.Run("With Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilder))
 	t.Run("Without Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilderWithoutWireguard))
@@ -186,7 +175,7 @@ func TestDeployNodeApp(t *testing.T) {
 func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -225,7 +214,7 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
 		t.Skip()
 	}
 
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -254,7 +243,7 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
 func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
 	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -291,7 +280,7 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 		t.Skip()
 	}
 
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
