@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/test/testlib"
+	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 // test --port and --autostart --autostop flags

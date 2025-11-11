@@ -4,10 +4,9 @@
 package preflight
 
 import (
-	"testing"
-
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/test/testlib"
+	"github.com/superfly/flyctl/test/preflight/testlib"
+	"testing"
 )
 
 func TestFlyLogsMachineFlagBehavior(t *testing.T) {
