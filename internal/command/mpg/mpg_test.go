@@ -27,6 +27,11 @@ type MockUiexClient struct {
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterByIdFunc       func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUserFunc                  func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateUserWithRoleFunc          func(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
+	UpdateUserRoleFunc              func(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error)
+	DeleteUserFunc                  func(ctx context.Context, id string, username string) error
+	GetUserCredentialsFunc          func(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error)
+	ListUsersFunc                   func(ctx context.Context, id string) (uiex.ListUsersResponse, error)
 	ListDatabasesFunc               func(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
 	CreateDatabaseFunc              func(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
 	CreateClusterFunc               func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
@@ -70,6 +75,41 @@ func (m *MockUiexClient) CreateUser(ctx context.Context, id string, input uiex.C
 		return m.CreateUserFunc(ctx, id, input)
 	}
 	return uiex.CreateUserResponse{}, nil
+}
+
+func (m *MockUiexClient) CreateUserWithRole(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error) {
+	if m.CreateUserWithRoleFunc != nil {
+		return m.CreateUserWithRoleFunc(ctx, id, input)
+	}
+	return uiex.CreateUserWithRoleResponse{}, nil
+}
+
+func (m *MockUiexClient) UpdateUserRole(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error) {
+	if m.UpdateUserRoleFunc != nil {
+		return m.UpdateUserRoleFunc(ctx, id, username, input)
+	}
+	return uiex.UpdateUserRoleResponse{}, nil
+}
+
+func (m *MockUiexClient) DeleteUser(ctx context.Context, id string, username string) error {
+	if m.DeleteUserFunc != nil {
+		return m.DeleteUserFunc(ctx, id, username)
+	}
+	return nil
+}
+
+func (m *MockUiexClient) GetUserCredentials(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error) {
+	if m.GetUserCredentialsFunc != nil {
+		return m.GetUserCredentialsFunc(ctx, id, username)
+	}
+	return uiex.GetUserCredentialsResponse{}, nil
+}
+
+func (m *MockUiexClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
+	if m.ListUsersFunc != nil {
+		return m.ListUsersFunc(ctx, id)
+	}
+	return uiex.ListUsersResponse{}, nil
 }
 
 func (m *MockUiexClient) ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error) {
