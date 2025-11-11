@@ -58,43 +58,22 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 	client := flyutil.ClientFromContext(ctx)
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	// Get cluster ID from flag - it's optional now
+	// Get or select cluster
 	clusterID := flag.FirstArg(ctx)
-
-	var cluster *uiex.ManagedCluster
-	var orgSlug string
-	var err error
-
-	if clusterID != "" {
-		// If cluster ID is provided, get cluster details directly and extract org info from it
-		response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
-		}
-		cluster = &response.Data
-		orgSlug = cluster.Organization.Slug
-	} else {
-		var err error
-		// Now let user select a cluster from this organization
-		cluster, orgSlug, err = ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return nil, nil, nil, err
-		}
+	cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
-	// At this point we have both cluster and orgSlug
-	// Get credentials for the cluster
+	// Get cluster details with credentials
 	response, err := uiexClient.GetManagedClusterById(ctx, cluster.Id)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed retrieving cluster credentials %s: %w", cluster.Id, err)
+		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", cluster.Id, err)
 	}
 
-	// Resolve organization slug to handle aliases
-	resolvedOrgSlug, err := AliasedOrganizationSlug(ctx, orgSlug)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to resolve organization slug: %w", err)
-	}
+	cluster = &response.Data
 
+	// Validate cluster state
 	if response.Credentials.Status == "initializing" {
 		return nil, nil, nil, fmt.Errorf("cluster is still initializing, wait a bit more")
 	}
@@ -107,12 +86,18 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		return nil, nil, nil, fmt.Errorf("error getting cluster IP")
 	}
 
+	// Resolve organization slug to handle aliases
+	resolvedOrgSlug, err := AliasedOrganizationSlug(ctx, orgSlug)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to resolve organization slug: %w", err)
+	}
+
+	// Establish wireguard tunnel
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	// Use the resolved organization slug for wireguard tunnel
 	dialer, err := agentclient.ConnectToTunnel(ctx, resolvedOrgSlug, "", false)
 	if err != nil {
 		return nil, nil, nil, err
