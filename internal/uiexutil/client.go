@@ -28,6 +28,12 @@ type Client interface {
 	FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error)
 	EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error)
 	CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+
+	// Releases
+	ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error)
+	GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error)
+	CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error)
+	UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error)
 }
 
 type contextKey struct{}

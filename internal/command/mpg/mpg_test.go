@@ -36,6 +36,26 @@ type MockUiexClient struct {
 	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
 	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
 	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	ListReleasesFunc                func(ctx context.Context, appName string, count int) ([]uiex.Release, error)
+	GetCurrentReleaseFunc           func(ctx context.Context, appName string) (*uiex.Release, error)
+	CreateReleaseFunc               func(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error)
+	UpdateReleaseFunc               func(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error)
+}
+
+func (m *MockUiexClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
+	return m.ListReleasesFunc(ctx, appName, count)
+}
+
+func (m *MockUiexClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
+	return m.GetCurrentReleaseFunc(ctx, appName)
+}
+
+func (m *MockUiexClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
+	return m.CreateReleaseFunc(ctx, req)
+}
+
+func (m *MockUiexClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
+	return m.UpdateReleaseFunc(ctx, releaseID, status, metadata)
 }
 
 func (m *MockUiexClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
