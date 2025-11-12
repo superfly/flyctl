@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -127,7 +126,7 @@ type DeploymentImage struct {
 	Tag       string
 	Digest    string
 	Size      int64
-	BuildID   string
+	BuildID   int64
 	BuilderID string
 	Labels    map[string]string
 }
@@ -210,7 +209,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
 			if err == nil && buildResult != nil {
 				// we should only set the image's buildID if we push the build info to web
-				img.BuildID = strconv.Itoa(int(buildResult.BuildId))
+				img.BuildID = buildResult.BuildId
 			}
 
 			return img, nil
@@ -306,7 +305,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
 			if err == nil && buildResult != nil {
 				// we should only set the image's buildID if we push the build info to web
-				img.BuildID = strconv.Itoa(int(buildResult.BuildId))
+				img.BuildID = buildResult.BuildId
 			}
 			img.BuilderID = bld.BuilderMeta.RemoteMachineId
 

@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -31,6 +32,7 @@ func MoveBucket(
 	// There should probably be a better way to move a bucket between orgs.
 
 	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	appConfig, err := appconfig.FromRemoteApp(ctx, app.Name)
@@ -47,12 +49,17 @@ func MoveBucket(
 
 	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
 
-	currentRelease, err := client.GetAppCurrentReleaseMachines(ctx, app.Name)
+	// todo(mapi): again, this gets the latest release of any status, not just "completed"
+	releases, err := uiexClient.ListReleases(ctx, app.Name, 1)
 	if err != nil {
 		return err
 	}
 
-	deployer := Deployer(appConfig, app, targetOrg, currentRelease.Version)
+	if len(releases) == 0 {
+		return fmt.Errorf("could not find latest release to move statics bucket")
+	}
+
+	deployer := Deployer(appConfig, app, targetOrg, releases[0].Version)
 	err = deployer.Configure(ctx)
 	if err != nil {
 		return err

@@ -25,7 +25,6 @@ type Client interface {
 	CreateDoctorUrl(ctx context.Context) (putUrl string, err error)
 	CreateOrganization(ctx context.Context, organizationname string) (*fly.Organization, error)
 	CreateOrganizationInvite(ctx context.Context, id, email string) (*fly.Invitation, error)
-	CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
 	CreateWireGuardPeer(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
 	DeleteCertificate(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
 	DeleteDelegatedWireGuardToken(ctx context.Context, orgID string, name, token *string) error
@@ -37,12 +36,10 @@ type Client interface {
 	EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error)
 	FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
-	GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error)
 	GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error)
 	GetAppLimitedAccessTokens(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
 	GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
 	GetAppNameFromVolume(ctx context.Context, volID string) (*string, error)
-	GetAppReleasesMachines(ctx context.Context, appName, status string, limit int) ([]fly.Release, error)
 	GetCurrentUser(ctx context.Context) (*fly.User, error)
 	GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
 	GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*fly.OrganizationDetails, error)
@@ -73,7 +70,6 @@ type Client interface {
 	Run(req *graphql.Request) (fly.Query, error)
 	RunWithContext(ctx context.Context, req *graphql.Request) (fly.Query, error)
 	SetGenqClient(client genq.Client)
-	UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
 	ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error)
 }
 

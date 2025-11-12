@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -315,13 +316,15 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 }
 
 func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
-	apiClient := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	ctx, _, _, err := flapsutil.SetClient(ctx, app, app.Name)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
+	// todo(mapi): this gets the latest release of any status, even if failed
+	// probably should get the latest _completed_ release (new GetLatestRelease)?
+	releases, err := uiexClient.ListReleases(ctx, app.Name, 1)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -330,7 +333,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig 
 		flag.SetString(ctx, "image", ".")
 	}
 
-	if currentRelease == nil && !flag.IsSpecified(ctx, "image") {
+	if len(releases) == 0 && !flag.IsSpecified(ctx, "image") {
 		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
@@ -351,7 +354,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig 
 		}
 		machConfig.Image = img.Tag
 	} else {
-		machConfig.Image = currentRelease.ImageRef
+		machConfig.Image = releases[0].ImageRef
 	}
 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {

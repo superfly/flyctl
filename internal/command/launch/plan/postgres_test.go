@@ -20,6 +20,22 @@ type mockUIEXClient struct {
 	mpgRegions []uiex.MPGRegion
 }
 
+func (m *mockUIEXClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
+	return []uiex.Release{}, nil
+}
+
+func (m *mockUIEXClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
+	return nil, nil
+}
+
+func (m *mockUIEXClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
+	return nil, nil
+}
+
+func (m *mockUIEXClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
+	return nil, nil
+}
+
 func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
 	return nil, nil
 }
