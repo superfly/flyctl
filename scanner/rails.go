@@ -44,7 +44,13 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 
 		if err != nil {
-			return nil, errors.Wrap(err, "failure finding bundle executable")
+			// If bundle is not found but a Dockerfile exists, we can still proceed
+			if _, statErr := os.Stat(filepath.Join(sourceDir, "Dockerfile")); statErr == nil {
+				fmt.Printf("Detected existing Dockerfile, will use it for Rails app (bundle not found)\n")
+				bundle = "" // Mark as unavailable
+			} else {
+				return nil, errors.Wrap(err, "failure finding bundle executable")
+			}
 		}
 	}
 
@@ -55,7 +61,13 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 
 		if err != nil {
-			return nil, errors.Wrap(err, "failure finding ruby executable")
+			// If ruby is not found but a Dockerfile exists, we can still proceed
+			if _, statErr := os.Stat(filepath.Join(sourceDir, "Dockerfile")); statErr == nil {
+				fmt.Printf("Detected existing Dockerfile, will use it for Rails app (ruby not found)\n")
+				ruby = "" // Mark as unavailable
+			} else {
+				return nil, errors.Wrap(err, "failure finding ruby executable")
+			}
 		}
 	}
 
@@ -307,6 +319,39 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// If the generator fails but a Dockerfile exists, warn the user and proceed.  Only fail if no
 	// Dockerfile exists at the end of this process.
 
+	// If bundle or ruby are not available, check if Dockerfile exists and skip generator
+	if bundle == "" || ruby == "" {
+		if _, err := os.Stat("Dockerfile"); err == nil {
+			fmt.Printf("Using existing Dockerfile (bundle/ruby not available locally)\n")
+			// Read and parse the existing Dockerfile to extract configuration
+			if dockerfile, err := os.ReadFile("Dockerfile"); err == nil {
+				// Extract port from Dockerfile
+				re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+				m := re.FindStringSubmatch(string(dockerfile))
+				if len(m) > 0 {
+					if port, err := strconv.Atoi(m[1]); err == nil {
+						srcInfo.Port = port
+					}
+				}
+
+				// Extract volume
+				reVol := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+				mVol := reVol.FindStringSubmatch(string(dockerfile))
+				if len(mVol) > 0 {
+					srcInfo.Volumes = []Volume{
+						{
+							Source:      mVol[3],
+							Destination: mVol[2],
+						},
+					}
+				}
+			}
+			return nil
+		} else {
+			return errors.New("No Dockerfile found and bundle/ruby not available to generate one")
+		}
+	}
+
 	// install dockerfile-rails gem, if not already included and the gem directory is writable
 	// if an error occurrs, store it for later in pendingError
 	generatorInstalled := false
@@ -359,15 +404,46 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 
 	err = cmd.Run()
 	if err != nil {
-		return errors.Wrap(err, "Failed to install bundle, exiting")
+		// Check if a Dockerfile already exists - if so, we can proceed without bundle
+		if dockerfile, statErr := os.ReadFile("Dockerfile"); statErr == nil {
+			fmt.Printf("Detected existing Dockerfile, will use it for Rails app (skipping dockerfile-rails generator)\n")
+
+			// Extract port from existing Dockerfile
+			re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+			m := re.FindStringSubmatch(string(dockerfile))
+			if len(m) > 0 {
+				if port, parseErr := strconv.Atoi(m[1]); parseErr == nil {
+					srcInfo.Port = port
+				}
+			}
+
+			// Extract volume from existing Dockerfile
+			reVol := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+			mVol := reVol.FindStringSubmatch(string(dockerfile))
+			if len(mVol) > 0 {
+				srcInfo.Volumes = []Volume{
+					{
+						Source:      mVol[3],
+						Destination: mVol[2],
+					},
+				}
+			}
+
+			// Successfully using existing Dockerfile, return without running generator
+			return nil
+		} else {
+			return errors.Wrap(err, "Failed to install bundle, exiting")
+		}
 	}
 
-	// ensure Gemfile.lock includes the x86_64-linux platform
-	if out, err := exec.Command(bundle, "platform").Output(); err == nil {
-		if !strings.Contains(string(out), "x86_64-linux") {
-			cmd := exec.Command(bundle, "lock", "--add-platform", "x86_64-linux")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
+	// ensure Gemfile.lock includes the x86_64-linux platform (skip if bundle install failed)
+	if pendingError == nil {
+		if out, err := exec.Command(bundle, "platform").Output(); err == nil {
+			if !strings.Contains(string(out), "x86_64-linux") {
+				cmd := exec.Command(bundle, "lock", "--add-platform", "x86_64-linux")
+				if err := cmd.Run(); err != nil {
+					return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
+				}
 			}
 		}
 	}
