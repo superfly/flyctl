@@ -206,7 +206,6 @@ func TestCreateBuilder(t *testing.T) {
 		},
 	}
 
-	waitForAppShouldFail := false
 	launchShouldFail := false
 
 	createVolumeShouldFail := false
@@ -230,12 +229,6 @@ func TestCreateBuilder(t *testing.T) {
 				return nil, errors.New("allocate ip address failed")
 			}
 			return &flaps.IPAssignment{}, nil
-		},
-		WaitForAppFunc: func(ctx context.Context, name string) error {
-			if waitForAppShouldFail {
-				return errors.New("wait for app failed")
-			}
-			return nil
 		},
 		CreateVolumeFunc: func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 			if createVolumeShouldFail {
@@ -287,11 +280,7 @@ func TestCreateBuilder(t *testing.T) {
 	assert.Error(t, err)
 
 	allocateIPAddressShouldFail = false
-	waitForAppShouldFail = true
-	_, _, err = p.createBuilder(ctx, "ord", "builder")
-	assert.Error(t, err)
 
-	waitForAppShouldFail = false
 	createVolumeShouldFail = true
 	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.NoError(t, err)
