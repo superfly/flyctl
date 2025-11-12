@@ -78,12 +78,7 @@ type Client struct {
 	GetWireGuardPeerFunc                   func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeersFunc                  func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
 	GenqClientFunc                         func() genq.Client
-<<<<<<< HEAD
-	IssueSSHCertificateFunc                func(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
-=======
-	ImportDNSRecordsFunc                   func(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error)
-	IssueSSHCertificateFunc                func(ctx context.Context, orgID string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
->>>>>>> 2931769c3 (use REST instead of graphql for finding orgs)
+	IssueSSHCertificateFunc                func(ctx context.Context, orgSlug string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
 	LatestImageFunc                        func(ctx context.Context, appName string) (string, error)
 	ListPostgresClusterAttachmentsFunc     func(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
 	LoggerFunc                             func() fly.Logger
@@ -361,8 +356,8 @@ func (m *Client) LatestImage(ctx context.Context, appName string) (string, error
 	return m.LatestImageFunc(ctx, appName)
 }
 
-func (m *Client) IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
-	return m.IssueSSHCertificateFunc(ctx, org, principals, appNames, valid_hours, publicKey)
+func (m *Client) IssueSSHCertificate(ctx context.Context, orgSlug string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
+	return m.IssueSSHCertificateFunc(ctx, orgSlug, principals, appNames, valid_hours, publicKey)
 }
 
 func (m *Client) ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error) {

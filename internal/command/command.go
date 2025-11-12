@@ -668,24 +668,6 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 	}
 }
 
-// Apply uiex client to uiex
-func RequireUiex(ctx context.Context) (context.Context, error) {
-	cfg := config.FromContext(ctx)
-
-	if uiexutil.ClientFromContext(ctx) == nil {
-		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger.FromContext(ctx),
-			Tokens: cfg.Tokens,
-		})
-		if err != nil {
-			return nil, err
-		}
-		ctx = uiexutil.NewContextWithClient(ctx, client)
-	}
-
-	return ctx, nil
-}
-
 func tryOpenUserURL(ctx context.Context, url string) error {
 	io := iostreams.FromContext(ctx)
 

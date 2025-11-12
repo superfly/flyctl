@@ -10,16 +10,29 @@ import (
 )
 
 type Organization struct {
-	ID                       string `json:"id"`
-	InternalNumericID        uint64 `json:"internal_numeric_id"`
-	Slug                     string `json:"slug"`
-	RawSlug                  string `json:"raw_slug"`
-	PaidPlan                 bool   `json:"paid_plan"`
-	Personal                 bool   `json:"personal"`
-	ProvisionsBetaExtensions bool   `json:"provisions_beta_extensions"`
-	Name                     string `json:"name"`
-	Billable                 bool   `json:"billable"`
+	ID                       string        `json:"id"`
+	InternalNumericID        uint64        `json:"internal_numeric_id"`
+	Slug                     string        `json:"slug"`
+	RawSlug                  string        `json:"raw_slug"`
+	PaidPlan                 bool          `json:"paid_plan"`
+	Personal                 bool          `json:"personal"`
+	BillingStatus            BillingStatus `json:"billing_status"`
+	ProvisionsBetaExtensions bool          `json:"provisions_beta_extensions"`
+	Name                     string        `json:"name"`
+	Billable                 bool          `json:"billable"`
 }
+
+type BillingStatus string
+
+const (
+	BillingStatusCurrent        BillingStatus = "CURRENT"
+	BillingStatusDelinquent     BillingStatus = "DELINQUENT"
+	BillingStatusPastDue        BillingStatus = "PAST_DUE"
+	BillingStatusSourceRequired BillingStatus = "SOURCE_REQUIRED"
+	BillingStatusSuspended      BillingStatus = "SUSPENDED"
+	BillingStatusTrialActive    BillingStatus = "TRIAL_ACTIVE"
+	BillingStatusTrialEnded     BillingStatus = "TRIAL_ENDED"
+)
 
 func (c *Client) ListOrganizations(ctx context.Context, admin bool) ([]Organization, error) {
 	var err error

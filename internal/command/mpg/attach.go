@@ -76,7 +76,7 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	appOrgSlug := app.Organization.RawSlug
+	appOrgSlug := app.Organization.Slug
 	if appOrgSlug != "" && clusterId == "" {
 		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
 	}
@@ -94,8 +94,6 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
-
-	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")

@@ -761,14 +761,15 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
-	var closestRegion fly.Region
+	var closestRegion *fly.Region
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
 	regions, closestRegionErr := flapsClient.GetRegions(ctx)
 	if closestRegionErr == nil {
-		closestRegion, _ = lo.Find(regions.Regions, func(r fly.Region) bool {
+		r, _ := lo.Find(regions.Regions, func(r fly.Region) bool {
 			return r.Code == regions.Nearest
 		})
+		closestRegion = &r
 	}
 
 	// Remap the closest region if it's deprecated
@@ -785,12 +786,12 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		if err != nil {
 			// Check and see if this is recoverable
 			if closestRegionErr == nil {
-				return &closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
+				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
 			}
 		}
 		return region, explanation, err
 	}
-	return &closestRegion, "this is the fastest region for you", closestRegionErr
+	return closestRegion, "this is the fastest region for you", closestRegionErr
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist

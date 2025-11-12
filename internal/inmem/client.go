@@ -324,7 +324,7 @@ func (m *Client) LatestImage(ctx context.Context, appName string) (string, error
 	panic("TODO")
 }
 
-func (m *Client) IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
+func (m *Client) IssueSSHCertificate(ctx context.Context, orgSlug string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
 	panic("TODO")
 }
 
