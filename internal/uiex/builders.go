@@ -178,7 +178,11 @@ func (c *Client) EnsureDepotBuilder(ctx context.Context, in EnsureDepotBuilderRe
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	// todo(mapi): don't
+	// this is for TestInitBuilder, which doesn't really do much useful anyway
+	if cfg.Tokens != nil {
+		req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	}
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.httpClient.Do(req)
