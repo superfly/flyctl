@@ -114,8 +114,8 @@ func runCreate(ctx context.Context) error {
 	prompt.PlatformRegions(ctx)
 
 	// fetch AppBasic in the background while we prompt for confirmation
-	appFuture := future.Spawn(func() (*fly.AppBasic, error) {
-		return client.GetAppBasic(ctx, appName)
+	appFuture := future.Spawn(func() (*flaps.App, error) {
+		return flapsClient.GetApp(ctx, appName)
 	})
 
 	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
@@ -124,13 +124,18 @@ func runCreate(ctx context.Context) error {
 		return nil
 	}
 
-	app, err := appFuture.Get()
+	_, err = appFuture.Get()
 	if err != nil {
 		return err
 	}
 
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get organization: %w", err)
+	}
+
 	var region *fly.Region
-	if region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
+	if region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
 		return err

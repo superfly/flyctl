@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
@@ -22,6 +23,8 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
+	GetOrganizationFunc             func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+	ListOrganizationsFunc           func(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClustersFunc         func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
@@ -40,6 +43,52 @@ type MockUiexClient struct {
 	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
 	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
 	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	ListReleasesFunc                func(ctx context.Context, appName string, count int) ([]uiex.Release, error)
+	GetCurrentReleaseFunc           func(ctx context.Context, appName string) (*uiex.Release, error)
+	CreateReleaseFunc               func(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error)
+	UpdateReleaseFunc               func(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error)
+}
+
+func (m *MockUiexClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
+	return m.ListReleasesFunc(ctx, appName, count)
+}
+
+func (m *MockUiexClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
+	return m.GetCurrentReleaseFunc(ctx, appName)
+}
+
+func (m *MockUiexClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
+	return m.CreateReleaseFunc(ctx, req)
+}
+
+func (m *MockUiexClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
+	return m.UpdateReleaseFunc(ctx, releaseID, status, metadata)
+}
+
+func (m *MockUiexClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+	return nil, nil
+}
+
+func (m *MockUiexClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
+	return nil, nil
+}
+
+func (m *MockUiexClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
+	return nil, nil
+}
+
+func (m *MockUiexClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
+	if m.ListOrganizationsFunc != nil {
+		return m.ListOrganizationsFunc(ctx, admin)
+	}
+	return []uiex.Organization{}, nil
+}
+
+func (m *MockUiexClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error) {
+	if m.GetOrganizationFunc != nil {
+		return m.GetOrganizationFunc(ctx, orgSlug)
+	}
+	return nil, nil
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
@@ -738,8 +787,8 @@ func TestAttachCommand_Logic(t *testing.T) {
 		},
 	}
 
-	expectedApp := &fly.AppCompact{
-		Organization: &fly.OrganizationBasic{
+	expectedApp := &flaps.App{
+		Organization: flaps.AppOrganizationInfo{
 			Slug: "test-org",
 		},
 	}
@@ -777,8 +826,8 @@ func TestAttachCommand_Logic(t *testing.T) {
 	}
 
 	// Test organization validation failure
-	differentApp := &fly.AppCompact{
-		Organization: &fly.OrganizationBasic{
+	differentApp := &flaps.App{
+		Organization: flaps.AppOrganizationInfo{
 			Slug: "different-org",
 		},
 	}

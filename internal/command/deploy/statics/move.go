@@ -8,9 +8,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -20,15 +23,16 @@ import (
 func MoveBucket(
 	ctx context.Context,
 	prevBucket *gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn,
-	prevOrg *fly.Organization,
-	app *fly.App,
-	targetOrg *fly.Organization,
+	prevOrg *uiex.Organization,
+	app *flaps.App,
+	targetOrg *uiex.Organization,
 	machines []*fly.Machine,
 ) error {
 
 	// There should probably be a better way to move a bucket between orgs.
 
 	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	appConfig, err := appconfig.FromRemoteApp(ctx, app.Name)
@@ -45,7 +49,17 @@ func MoveBucket(
 
 	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
 
-	deployer := Deployer(appConfig, app, targetOrg, app.CurrentRelease.Version)
+	// todo(mapi): again, this gets the latest release of any status, not just "completed"
+	releases, err := uiexClient.ListReleases(ctx, app.Name, 1)
+	if err != nil {
+		return err
+	}
+
+	if len(releases) == 0 {
+		return fmt.Errorf("could not find latest release to move statics bucket")
+	}
+
+	deployer := Deployer(appConfig, app, targetOrg, releases[0].Version)
 	err = deployer.Configure(ctx)
 	if err != nil {
 		return err

@@ -16,11 +16,13 @@ import (
 	"github.com/samber/lo"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -241,10 +243,10 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
-func Org(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
+func Org(ctx context.Context) (*uiex.Organization, error) {
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := uiexClient.ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -254,10 +256,8 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	slug := config.FromContext(ctx).Organization
 
 	switch {
-	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":
-		fmt.Fprintf(io.ErrOut, "automatically selected %s organization: %s\n",
-			strings.ToLower(orgs[0].Type), orgs[0].Name)
-
+	case slug == "" && len(orgs) == 1 && orgs[0].Slug == "personal":
+		fmt.Fprintf(io.ErrOut, "automatically selected personal organization: %s\n", orgs[0].Name)
 		return &orgs[0], nil
 	case slug != "":
 		for _, org := range orgs {
@@ -279,11 +279,11 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	}
 }
 
-func SelectOrg(ctx context.Context, orgs []fly.Organization) (org *fly.Organization, err error) {
+func SelectOrg(ctx context.Context, orgs []uiex.Organization) (org *uiex.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
 		personalCallout := ""
-		if org.Type == "PERSONAL" && org.Slug != "personal" {
+		if org.Personal && org.Slug != "personal" {
 			personalCallout = " [personal]"
 		}
 		options = append(options, fmt.Sprintf("%s (%s)%s", org.Name, org.Slug, personalCallout))
@@ -304,7 +304,7 @@ var (
 
 type RegionInfo struct {
 	Regions       []fly.Region
-	DefaultRegion *fly.Region
+	DefaultRegion string
 }
 
 var (
@@ -319,20 +319,23 @@ var (
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := flyutil.ClientFromContext(ctx)
-			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
+			if err != nil {
+				return RegionInfo{}, err
+			}
+			regions, err := flapsClient.GetRegions(ctx)
 			if err != nil {
 				return RegionInfo{}, err
 			}
 
 			// Filter out deprecated regions
-			regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+			regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
 				return !r.Deprecated
 			})
 
 			regionInfo := RegionInfo{
-				Regions:       regions,
-				DefaultRegion: defaultRegion,
+				Regions:       regions.Regions,
+				DefaultRegion: regions.Nearest,
 			}
 			return regionInfo, err
 		})
@@ -341,10 +344,10 @@ func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	return regionsFuture
 }
 
-func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]fly.Region, *fly.Region, error) {
+func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]fly.Region, string, error) {
 	regionInfo, err := PlatformRegions(ctx).Get()
 	if err != nil {
-		return nil, nil, err
+		return nil, "", err
 	}
 
 	regions := regionInfo.Regions
@@ -411,6 +414,7 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
+// todo(mapi): there are no paid plan regions anymore
 func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Region, error) {
 	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
 	paidOnly := []fly.Region{}
@@ -453,12 +457,7 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Regi
 
 		return nil, fmt.Errorf("region %s not found", slug)
 	default:
-		var defaultRegionCode string
-		if defaultRegion != nil {
-			defaultRegionCode = defaultRegion.Code
-		}
-
-		switch region, err := SelectRegion(ctx, params.Message, paidOnly, regions, defaultRegionCode); {
+		switch region, err := SelectRegion(ctx, params.Message, paidOnly, regions, defaultRegion); {
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):

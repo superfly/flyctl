@@ -8,6 +8,7 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/graphql"
 )
@@ -40,7 +41,7 @@ func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (
 	panic("TODO")
 }
 
-func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error) {
+func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
 	panic("TODO")
 }
 
@@ -92,7 +93,7 @@ func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*
 	return &resp, nil
 }
 
-func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error) {
+func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, orgID string, name string) (*fly.DelegatedWireGuardToken, error) {
 	panic("TODO")
 }
 
@@ -120,7 +121,7 @@ func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput
 	return &resp, nil
 }
 
-func (m *Client) CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
+func (m *Client) CreateWireGuardPeer(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
 	panic("TODO")
 }
 
@@ -132,7 +133,7 @@ func (m *Client) DeleteCertificate(ctx context.Context, appName, hostname string
 	panic("TODO")
 }
 
-func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name, token *string) error {
+func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, orgID string, name, token *string) error {
 	panic("TODO")
 }
 
@@ -176,24 +177,12 @@ func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
 	panic("TODO")
 }
 
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
+func (m *Client) GetAppBasic(ctx context.Context, appName string) (*flaps.App, error) {
 	panic("TODO")
 }
 
 func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error) {
 	panic("TODO")
-}
-
-func (m *Client) GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error) {
-	m.server.mu.Lock()
-	defer m.server.mu.Unlock()
-
-	app := m.server.apps[appName]
-	if app == nil {
-		return nil, fmt.Errorf("app not found: %q", appName) // TODO: Match actual error
-	}
-
-	return app.Compact(), nil
 }
 
 func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error) {
@@ -293,11 +282,14 @@ func (m *Client) GetNearestRegion(ctx context.Context) (*fly.Region, error) {
 }
 
 func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
-	app, err := m.GetAppCompact(ctx, appName)
-	if err != nil {
-		return nil, err
+	m.server.mu.Lock()
+	defer m.server.mu.Unlock()
+
+	app := m.server.apps[appName]
+	if app == nil {
+		return nil, fmt.Errorf("app not found: %q", appName)
 	}
-	return &fly.Organization{ID: app.Organization.ID}, nil
+	return &fly.Organization{Slug: app.Organization.Slug}, nil
 }
 
 func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
@@ -332,7 +324,7 @@ func (m *Client) LatestImage(ctx context.Context, appName string) (string, error
 	panic("TODO")
 }
 
-func (m *Client) IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
+func (m *Client) IssueSSHCertificate(ctx context.Context, orgSlug string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
 	panic("TODO")
 }
 
@@ -364,7 +356,7 @@ func (m *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string
 	panic("TODO")
 }
 
-func (m *Client) RemoveWireGuardPeer(ctx context.Context, org *fly.Organization, name string) error {
+func (m *Client) RemoveWireGuardPeer(ctx context.Context, orgID string, name string) error {
 	panic("TODO")
 }
 

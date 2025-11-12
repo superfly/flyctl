@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -32,14 +32,29 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) (err error) {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
-		cfg    = config.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		cfg         = config.FromContext(ctx)
 	)
 
-	apps, err := client.GetApps(ctx, fly.StringPointer("postgres_cluster"))
+	var apps []flaps.App
+
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	orgs, err := uiexClient.ListOrganizations(ctx, false)
 	if err != nil {
-		return fmt.Errorf("failed to list postgres clusters: %w", err)
+		return fmt.Errorf("error listing organizations: %w", err)
+	}
+	for _, org := range orgs {
+		// todo(mapi): this is not ideal
+		apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
+		if err != nil {
+			return fmt.Errorf("error listing apps: %w", err)
+		}
+		for _, app := range apps2 {
+			if app.AppRole == "postgres_cluster" {
+				apps = append(apps, app)
+			}
+		}
 	}
 
 	if len(apps) == 0 {
@@ -55,9 +70,10 @@ func runList(ctx context.Context) (err error) {
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
 		latestDeploy := ""
-		if app.Deployed && app.CurrentRelease != nil {
-			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
-		}
+		// todo(mapi)
+		// if app.Deployed() && app.CurrentRelease != nil {
+		// 	latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
+		// }
 
 		rows = append(rows, []string{
 			app.Name,

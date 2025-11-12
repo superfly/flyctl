@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -30,7 +29,6 @@ func newAttach() *cobra.Command {
 	cmd := command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
-		command.RequireUiex,
 	)
 	// cmd.Args = cobra.ExactArgs(1)
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -65,19 +63,20 @@ func runAttach(ctx context.Context) error {
 	}
 
 	var (
-		clusterId = flag.FirstArg(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
+		clusterId  = flag.FirstArg(ctx)
+		appName    = appconfig.NameFromContext(ctx)
+		uiexClient = uiexutil.ClientFromContext(ctx)
+		io         = iostreams.FromContext(ctx)
 	)
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppBasic(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	appOrgSlug := app.Organization.RawSlug
+	appOrgSlug := app.Organization.Slug
 	if appOrgSlug != "" && clusterId == "" {
 		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
 	}
@@ -95,8 +94,6 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
-
-	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
@@ -177,11 +174,6 @@ func runAttach(ctx context.Context) error {
 	// Use selected database or fall back to default from credentials
 	if db == "" {
 		db = credentials.DBName
-	}
-
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
 	}
 
 	variableName := flag.GetString(ctx, "variable-name")
