@@ -14,7 +14,7 @@ import (
 type mockWebClient struct {
 }
 
-func (f *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
+func (m *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
 	return true, nil
 }
 
@@ -34,27 +34,27 @@ type mockFlapsClient struct {
 	nextMachineID int
 }
 
-func (f *mockFlapsClient) ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error) {
+func (m *mockFlapsClient) ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error) {
 	return nil, fmt.Errorf("failed to list apps")
 }
 
-func (f *mockFlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
 	return nil, fmt.Errorf("failed to get app")
 }
 
-func (f *mockFlapsClient) DeleteApp(ctx context.Context, name string) error {
+func (m *mockFlapsClient) DeleteApp(ctx context.Context, name string) error {
 	return nil
 }
 
-func (f *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+func (m *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return nil, fmt.Errorf("failed to list ip assignments")
 }
 
-func (f *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
 	return nil, fmt.Errorf("failed to assign ip")
 }
 
-func (f *mockFlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+func (m *mockFlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
 	return fmt.Errorf("failed to delete ip assignment")
 }
 

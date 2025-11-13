@@ -37,15 +37,15 @@ func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
 	return nil
 }
 
-func (f *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return &flaps.ListIPAssignmentsResponse{}, nil
 }
 
-func (f *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
 	return &flaps.IPAssignment{}, nil
 }
 
-func (f *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+func (m *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
 	panic("TODO")
 }
 
