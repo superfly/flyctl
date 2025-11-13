@@ -7,11 +7,11 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/lfsc-go"
@@ -35,15 +35,15 @@ func newRegions() (cmd *cobra.Command) {
 }
 
 func runRegions(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
+	client := flapsutil.ClientFromContext(ctx)
 
-	flyRegions, _, err := client.PlatformRegions(ctx)
+	flyRegions, err := client.GetRegions(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
 
 	// Filter out deprecated regions
-	flyRegions = lo.Filter(flyRegions, func(r fly.Region, _ int) bool {
+	flyRegions.Regions = lo.Filter(flyRegions.Regions, func(r fly.Region, _ int) bool {
 		return !r.Deprecated
 	})
 
@@ -66,7 +66,7 @@ func runRegions(ctx context.Context) error {
 	var rows [][]string
 	for _, region := range regions {
 		var regionName string
-		for _, flyRegion := range flyRegions {
+		for _, flyRegion := range flyRegions.Regions {
 			if flyRegion.Code == region {
 				regionName = flyRegion.Name
 			}

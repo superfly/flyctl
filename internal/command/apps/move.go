@@ -5,10 +5,14 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
@@ -53,13 +57,13 @@ For details, see https://fly.io/docs/apps/move-app-org/.`
 func RunMove(ctx context.Context) error {
 	var (
 		appName  = flag.FirstArg(ctx)
-		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		logger   = logger.FromContext(ctx)
 	)
 
-	app, err := client.GetApp(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed fetching app: %w", err)
 	}
@@ -96,14 +100,15 @@ Please confirm whether you wish to restart this app now.`
 	return runMoveAppOnMachines(ctx, app, org)
 }
 
-func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Organization) error {
+func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.Organization) error {
 	var (
 		client           = flyutil.ClientFromContext(ctx)
+		uiexClient       = uiexutil.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	ctx, err := BuildContext(ctx, app.Compact())
+	ctx, err := BuildContext(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -114,7 +119,7 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Orga
 		return err
 	}
 
-	oldOrg, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
+	oldOrg, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
 		return fmt.Errorf("failed to find app's original organization: %w", err)
 	}
