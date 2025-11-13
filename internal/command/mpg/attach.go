@@ -104,21 +104,58 @@ func runAttach(ctx context.Context) error {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
 
-		if len(usersResponse.Data) > 0 {
-			var userOptions []string
-			for _, user := range usersResponse.Data {
-				userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
-			}
+		var userOptions []string
+		for _, user := range usersResponse.Data {
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+		}
+		// Add option to create new user
+		userOptions = append(userOptions, "Create new user...")
 
-			var userIndex int
-			err = prompt.Select(ctx, &userIndex, "Select user:", "", userOptions...)
+		var userIndex int
+		err = prompt.Select(ctx, &userIndex, "Select user:", "", userOptions...)
+		if err != nil {
+			return err
+		}
+
+		if userIndex == len(userOptions)-1 {
+			// Create new user option selected
+			var userName string
+			err = prompt.String(ctx, &userName, "Enter username:", "", true)
 			if err != nil {
 				return err
 			}
+			if userName == "" {
+				return fmt.Errorf("username cannot be empty")
+			}
 
+			// Prompt for role selection
+			var roleIndex int
+			roleOptions := []string{"schema_admin", "writer", "reader"}
+			err = prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptions...)
+			if err != nil {
+				return err
+			}
+			userRole := roleOptions[roleIndex]
+
+			fmt.Fprintf(io.Out, "Creating user %s with role %s...\n", userName, userRole)
+
+			input := uiex.CreateUserWithRoleInput{
+				UserName: userName,
+				Role:     userRole,
+			}
+
+			createResponse, err := uiexClient.CreateUserWithRole(ctx, cluster.Id, input)
+			if err != nil {
+				return fmt.Errorf("failed to create user: %w", err)
+			}
+
+			fmt.Fprintf(io.Out, "User created successfully!\n")
+			username = createResponse.Data.Name
+		} else if len(usersResponse.Data) > 0 {
 			username = usersResponse.Data[userIndex].Name
 		}
-		// If no users found, username remains empty and will use default credentials
+		// If no users found and create wasn't selected, username remains empty and will use default credentials.
+		// This shouldn't be hit as fly-db and fly-user always exist and can't be deleted.
 	}
 
 	// Database selection priority: flag > prompt result (if interactive) > credentials.DBName
@@ -132,18 +169,44 @@ func runAttach(ctx context.Context) error {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
 
-		if len(databasesResponse.Data) > 0 {
-			var dbOptions []string
-			for _, database := range databasesResponse.Data {
-				dbOptions = append(dbOptions, database.Name)
-			}
+		var dbOptions []string
+		for _, database := range databasesResponse.Data {
+			dbOptions = append(dbOptions, database.Name)
+		}
+		// Add option to create new database
+		dbOptions = append(dbOptions, "Create new database...")
 
-			var dbIndex int
-			err = prompt.Select(ctx, &dbIndex, "Select database:", "", dbOptions...)
+		var dbIndex int
+		err = prompt.Select(ctx, &dbIndex, "Select database:", "", dbOptions...)
+		if err != nil {
+			return err
+		}
+
+		if dbIndex == len(dbOptions)-1 {
+			// Create new database option selected
+			var dbName string
+			err = prompt.String(ctx, &dbName, "Enter database name:", "", true)
 			if err != nil {
 				return err
 			}
+			if dbName == "" {
+				return fmt.Errorf("database name cannot be empty")
+			}
 
+			fmt.Fprintf(io.Out, "Creating database %s...\n", dbName)
+
+			input := uiex.CreateDatabaseInput{
+				Name: dbName,
+			}
+
+			createResponse, err := uiexClient.CreateDatabase(ctx, cluster.Id, input)
+			if err != nil {
+				return fmt.Errorf("failed to create database: %w", err)
+			}
+
+			fmt.Fprintf(io.Out, "Database created successfully!\n")
+			db = createResponse.Data.Name
+		} else if len(databasesResponse.Data) > 0 {
 			db = databasesResponse.Data[dbIndex].Name
 		}
 	}
