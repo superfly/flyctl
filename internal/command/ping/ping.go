@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
@@ -76,6 +77,7 @@ The target argument can be either a ".internal" DNS name in our network
 
 func run(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var (
 		err  error
@@ -101,7 +103,7 @@ func run(ctx context.Context) error {
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
 
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := flapsClient.GetApp(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}
