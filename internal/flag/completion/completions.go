@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 )
@@ -20,36 +22,46 @@ func CompleteApps(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	var (
-		// client      = flyutil.ClientFromContext(ctx)
-		// flapsClient = flapsutil.ClientFromContext(ctx)
+	var apps []flaps.App
 
-		apps []fly.App
-		// err  error
-	)
+	// cannot use flapsutil, would be an import cycle
+	flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{Tokens: config.Tokens(ctx)})
+	if err != nil {
+		return nil, err
+	}
+
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	orgFiltered := false
 
-	// todo(mapi): this is broken because of an import loop with flapsutil package
+	// We can't use `flag.*` here because of import cycles. *sigh*
+	orgFlag := cmd.Flag(flagnames.Org)
+	if orgFlag != nil && orgFlag.Changed {
+		var org *uiex.Organization
+		org, err = uiexClient.GetOrganization(ctx, orgFlag.Value.String())
+		if err != nil {
+			return nil, err
+		}
+		apps, err = flapsClient.ListApps(ctx, org.RawSlug)
+		orgFiltered = true
+	} else {
+		orgs, err := uiexClient.ListOrganizations(ctx, false)
+		if err != nil {
+			return nil, fmt.Errorf("error listing organizations: %w", err)
+		}
+		for _, org := range orgs {
+			apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
+			if err != nil {
+				return nil, fmt.Errorf("error listing apps: %w", err)
+			}
+			apps = append(apps, apps2...)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
 
-	// // We can't use `flag.*` here because of import cycles. *sigh*
-	// orgFlag := cmd.Flag(flagnames.Org)
-	// if orgFlag != nil && orgFlag.Changed {
-	// 	var org *fly.Organization
-	// 	org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	apps, err = client.GetAppsForOrganization(ctx, org.ID)
-	// 	orgFiltered = true
-	// } else {
-	// 	apps, err = client.GetApps(ctx, nil)
-	// }
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	ret := lo.FilterMap(apps, func(app fly.App, _ int) (string, bool) {
+	ret := lo.FilterMap(apps, func(app flaps.App, _ int) (string, bool) {
 		if strings.HasPrefix(app.Name, partial) {
 			var info []string
 			if !orgFiltered {
