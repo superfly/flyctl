@@ -157,6 +157,7 @@ func New() (cmd *cobra.Command) {
 			Description: "Do not create an app",
 			Default:     false,
 			Hidden:      true,
+			Aliases:     []string{"no-create"},
 		},
 		flag.String{
 			Name:        "auto-stop",

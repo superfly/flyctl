@@ -98,6 +98,8 @@ func newCreate() *cobra.Command {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "from-manifest",
+			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -122,6 +124,8 @@ func newPostgres() *cobra.Command {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "from-manifest",
+			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -139,6 +143,8 @@ func newRedis() *cobra.Command {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "from-manifest",
+			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -156,6 +162,8 @@ func newTigris() *cobra.Command {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "from-manifest",
+			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -171,10 +179,12 @@ func newGenerate() *cobra.Command {
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
-		// flag.App(),
-		// flag.Region(),
-		// flag.Org(),
-		// flag.AppConfig(),
+		// Experimentally re-enabling these
+		flag.App(),
+		flag.Region(),
+		flag.Org(),
+		flag.AppConfig(),
+		// Experimentally re-enabling these
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Don't deploy the app",
@@ -183,6 +193,8 @@ func newGenerate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "from-manifest",
+			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
