@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/uiexutil"
 )
@@ -48,11 +50,20 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 
 func runList(ctx context.Context) (err error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting organization: %w", err)
+	}
+
+	releases, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx)
+	if err != nil {
+		logger := logger.MaybeFromContext(ctx)
+		if logger != nil {
+			logger.Warnf("failed to get latest release timestamps: %v", err)
+		}
 	}
 
 	var apps []flaps.App
@@ -65,14 +76,11 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("error listing organizations: %w", err)
 		}
 		for _, org := range orgs {
-			// todo(mapi): this is not ideal
 			apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
 			if err != nil {
 				return fmt.Errorf("error listing apps: %w", err)
 			}
-			for _, app := range apps2 {
-				apps = append(apps, app)
-			}
+			apps = append(apps, apps2...)
 		}
 	}
 
@@ -99,10 +107,11 @@ func runList(ctx context.Context) (err error) {
 	}
 	for _, app := range apps {
 		latestDeploy := ""
-		// todo(mapi)
-		// if app.Deployed && app.CurrentRelease != nil {
-		// 	latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
-		// }
+		if app.Deployed() && releases != nil {
+			if r, ok := (*releases)[app.Name]; ok {
+				latestDeploy = format.RelativeTime(r)
+			}
+		}
 
 		if !verbose && strings.HasPrefix(app.Name, "flyctl-interactive-shells-") {
 			app.Name = "(interactive shells app)"

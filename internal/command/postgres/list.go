@@ -10,6 +10,8 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -45,7 +47,6 @@ func runList(ctx context.Context) (err error) {
 		return fmt.Errorf("error listing organizations: %w", err)
 	}
 	for _, org := range orgs {
-		// todo(mapi): this is not ideal
 		apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
 		if err != nil {
 			return fmt.Errorf("error listing apps: %w", err)
@@ -67,13 +68,22 @@ func runList(ctx context.Context) (err error) {
 		return render.JSON(io.Out, apps)
 	}
 
+	releases, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx)
+	if err != nil {
+		logger := logger.MaybeFromContext(ctx)
+		if logger != nil {
+			logger.Warnf("failed to get latest release timestamps: %v", err)
+		}
+	}
+
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
 		latestDeploy := ""
-		// todo(mapi)
-		// if app.Deployed() && app.CurrentRelease != nil {
-		// 	latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
-		// }
+		if app.Deployed() && releases != nil {
+			if r, ok := (*releases)[app.Name]; ok {
+				latestDeploy = format.RelativeTime(r)
+			}
+		}
 
 		rows = append(rows, []string{
 			app.Name,

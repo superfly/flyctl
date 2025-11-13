@@ -48,6 +48,35 @@ type CreateReleaseRequest struct {
 	Strategy   DeploymentStrategy `json:"strategy"`
 }
 
+func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *map[string]time.Time, err error) {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/releases/all_current", c.baseUrl)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.NewDecoder(res.Body).Decode(&out); err != nil {
+			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+		}
+		return out, nil
+	default:
+		return nil, err
+	}
+}
+
 func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([]Release, error) {
 	var err error
 

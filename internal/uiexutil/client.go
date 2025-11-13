@@ -2,6 +2,7 @@ package uiexutil
 
 import (
 	"context"
+	"time"
 
 	"github.com/superfly/flyctl/internal/uiex"
 )
@@ -37,6 +38,7 @@ type Client interface {
 	CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 
 	// Releases
+	GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error)
 	ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error)
 	GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error)
 	CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error)

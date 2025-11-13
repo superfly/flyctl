@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -94,8 +93,7 @@ func newCreate() *cobra.Command {
 
 func runCreate(ctx context.Context) error {
 	var (
-		cfg    = config.FromContext(ctx)
-		client = flyutil.ClientFromContext(ctx)
+		cfg = config.FromContext(ctx)
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
@@ -129,13 +127,8 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get organization: %w", err)
-	}
-
 	var region *fly.Region
-	if region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+	if region, err = prompt.Region(ctx, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
 		return err

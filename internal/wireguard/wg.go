@@ -102,7 +102,7 @@ func Create(apiClient flyutil.Client, org *uiex.Organization, regionCode, name, 
 
 	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s (network %s)\n", name, regionCode, org.Slug, network)
 
-	// todo(mapi): remove after API handles this correctly
+	// todo: remove after API handles this correctly
 	if network == "default" {
 		network = ""
 	}

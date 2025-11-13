@@ -322,7 +322,8 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig 
 		return nil, nil, err
 	}
 
-	// todo(mapi): this gets the latest release of any status, even if failed
+	// todo: this gets the latest release of any status, even if failed
+	// (this was the behaviour of pre-REST graphql "LatestRelease" call)
 	// probably should get the latest _completed_ release (new GetLatestRelease)?
 	releases, err := uiexClient.ListReleases(ctx, app.Name, 1)
 	if err != nil {

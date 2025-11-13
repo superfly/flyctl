@@ -162,7 +162,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 		} else {
 
-			region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
+			region, err := prompt.Region(ctx, prompt.RegionParams{
 				Message:             "Choose the primary region (can't be changed later)",
 				ExcludedRegionCodes: excludedRegions,
 			})

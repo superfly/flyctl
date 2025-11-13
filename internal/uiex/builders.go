@@ -178,8 +178,7 @@ func (c *Client) EnsureDepotBuilder(ctx context.Context, in EnsureDepotBuilderRe
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// todo(mapi): don't
-	// this is for TestInitBuilder, which doesn't really do much useful anyway
+	// this is for TestInitBuilder
 	if cfg.Tokens != nil {
 		req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	}

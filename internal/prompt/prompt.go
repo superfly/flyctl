@@ -414,26 +414,11 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-// todo(mapi): there are no paid plan regions anymore
-func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Region, error) {
+func Region(ctx context.Context, params RegionParams) (*fly.Region, error) {
 	regions, defaultRegion, err := sortedRegions(ctx, params.ExcludedRegionCodes)
 	paidOnly := []fly.Region{}
-	availableRegions := []fly.Region{}
 	if err != nil {
 		return nil, err
-	}
-
-	if splitPaid {
-		for _, region := range regions {
-			if region.RequiresPaidPlan {
-				paidOnly = append(paidOnly, region)
-			} else {
-				availableRegions = append(availableRegions, region)
-			}
-		}
-
-		paidOnly = sortAndCleanRegions(paidOnly, params.ExcludedRegionCodes)
-		regions = sortAndCleanRegions(availableRegions, params.ExcludedRegionCodes)
 	}
 
 	slug := flag.GetString(ctx, "region")
@@ -446,12 +431,6 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Regi
 		for _, region := range regions {
 			if slug == region.Code {
 				return &region, nil
-			}
-		}
-
-		for _, region := range paidOnly {
-			if slug == region.Code {
-				return nil, fmt.Errorf("region %s requires an organization with a Launch plan or higher. See our plans: https://fly.io/plans", slug)
 			}
 		}
 

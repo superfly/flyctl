@@ -117,7 +117,7 @@ func runImport(ctx context.Context) error {
 	machineID := leader.ID
 
 	// Resolve region
-	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+	region, err := prompt.Region(ctx, prompt.RegionParams{
 		Message: "Choose a region to deploy the migration machine:",
 	})
 	if err != nil {

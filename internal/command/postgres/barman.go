@@ -125,12 +125,7 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get organization: %w", err)
-	}
-
-	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+	region, err := prompt.Region(ctx, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
 	})
 	if err != nil {

@@ -49,7 +49,9 @@ func MoveBucket(
 
 	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
 
-	// todo(mapi): again, this gets the latest release of any status, not just "completed"
+	// todo: this gets the latest release of any status, even if failed
+	// (this was the behaviour of pre-REST graphql "LatestRelease" call)
+	// probably should get the latest _completed_ release (new GetLatestRelease)?
 	releases, err := uiexClient.ListReleases(ctx, app.Name, 1)
 	if err != nil {
 		return err

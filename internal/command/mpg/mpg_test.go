@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -23,30 +24,35 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
-	GetOrganizationFunc             func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
-	ListOrganizationsFunc           func(ctx context.Context, admin bool) ([]uiex.Organization, error)
-	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
-	ListManagedClustersFunc         func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
-	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
-	GetManagedClusterByIdFunc       func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
-	CreateUserFunc                  func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
-	CreateUserWithRoleFunc          func(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
-	UpdateUserRoleFunc              func(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error)
-	DeleteUserFunc                  func(ctx context.Context, id string, username string) error
-	GetUserCredentialsFunc          func(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error)
-	ListUsersFunc                   func(ctx context.Context, id string) (uiex.ListUsersResponse, error)
-	ListDatabasesFunc               func(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
-	CreateDatabaseFunc              func(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
-	CreateClusterFunc               func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
-	DestroyClusterFunc              func(ctx context.Context, orgSlug string, id string) error
-	ListManagedClusterBackupsFunc   func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
-	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
-	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
-	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
-	ListReleasesFunc                func(ctx context.Context, appName string, count int) ([]uiex.Release, error)
-	GetCurrentReleaseFunc           func(ctx context.Context, appName string) (*uiex.Release, error)
-	CreateReleaseFunc               func(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error)
-	UpdateReleaseFunc               func(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error)
+	GetOrganizationFunc                    func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+	ListOrganizationsFunc                  func(ctx context.Context, admin bool) ([]uiex.Organization, error)
+	ListMPGRegionsFunc                     func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
+	ListManagedClustersFunc                func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
+	GetManagedClusterFunc                  func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
+	GetManagedClusterByIdFunc              func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
+	CreateUserFunc                         func(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
+	CreateUserWithRoleFunc                 func(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
+	UpdateUserRoleFunc                     func(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error)
+	DeleteUserFunc                         func(ctx context.Context, id string, username string) error
+	GetUserCredentialsFunc                 func(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error)
+	ListUsersFunc                          func(ctx context.Context, id string) (uiex.ListUsersResponse, error)
+	ListDatabasesFunc                      func(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
+	CreateDatabaseFunc                     func(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
+	CreateClusterFunc                      func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
+	DestroyClusterFunc                     func(ctx context.Context, orgSlug string, id string) error
+	ListManagedClusterBackupsFunc          func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
+	CreateManagedClusterBackupFunc         func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
+	RestoreManagedClusterBackupFunc        func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
+	CreateFlyManagedBuilderFunc            func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	GetAllAppsCurrentReleaseTimestampsFunc func(ctx context.Context) (*map[string]time.Time, error)
+	ListReleasesFunc                       func(ctx context.Context, appName string, count int) ([]uiex.Release, error)
+	GetCurrentReleaseFunc                  func(ctx context.Context, appName string) (*uiex.Release, error)
+	CreateReleaseFunc                      func(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error)
+	UpdateReleaseFunc                      func(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error)
+}
+
+func (m *MockUiexClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
+	return m.GetAllAppsCurrentReleaseTimestampsFunc(ctx)
 }
 
 func (m *MockUiexClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {

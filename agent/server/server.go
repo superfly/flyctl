@@ -233,7 +233,7 @@ func (s *server) buildTunnel(ctx context.Context, org *uiex.Organization, reesta
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// todo(mapi)
+	// todo: handle this correctly everywhere
 	if network == "default" {
 		network = ""
 	}
@@ -315,7 +315,7 @@ func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// todo(mapi)
+	// todo: handle this correctly everywhere
 	if slug == "personal" {
 		panic("personal slug should not be found here")
 	}

@@ -247,7 +247,7 @@ func run(ctx context.Context) (err error) {
 	params.PostgresConfiguration = *pgConfig
 
 	var region *fly.Region
-	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+	region, err = prompt.Region(ctx, prompt.RegionParams{
 		Message: "",
 	})
 	if err != nil {

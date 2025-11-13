@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"testing"
+	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/pflag"
@@ -18,6 +19,10 @@ import (
 // mockUIEXClient implements uiexutil.Client for testing
 type mockUIEXClient struct {
 	mpgRegions []uiex.MPGRegion
+}
+
+func (m *mockUIEXClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
+	return nil, nil
 }
 
 func (m *mockUIEXClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
