@@ -185,7 +185,6 @@ func New() (cmd *cobra.Command) {
 
 	flag.Add(cmd, flags...)
 
-	cmd.AddCommand(newSessions())
 	cmd.AddCommand(NewPlan())
 
 	return
