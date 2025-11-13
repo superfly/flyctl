@@ -431,12 +431,16 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	// If region is unspecified when a volume is present, inherit the volume's region.
-	if input.Region == "" && len(machineConf.Mounts) > 0 {
+	if len(machineConf.Mounts) > 0 {
 		volID := machineConf.Mounts[0].Volume
 		if volID != "" {
 			vol, err := flapsClient.GetVolume(ctx, volID)
 			if err != nil {
 				return fmt.Errorf("failed to get volume %q: %w", volID, err)
+			}
+
+			if input.Region != "" && input.Region != vol.Region {
+				return fmt.Errorf("volume %q is in region %q, but the machine is in region %q", volID, vol.Region, input.Region)
 			}
 
 			input.Region = vol.Region
