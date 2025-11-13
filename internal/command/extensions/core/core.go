@@ -110,9 +110,11 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 				if provider.NameSuffix != "" && targetApp.Name != "" {
 					name = targetApp.Name + "-" + provider.NameSuffix
 				}
-				err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
-				if err != nil {
-					return
+				if !flag.GetYes(ctx) {
+					err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
+					if err != nil {
+						return
+					}
 				}
 			}
 		}
