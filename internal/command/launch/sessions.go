@@ -288,7 +288,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
-	state.updateConfig(ctx, state.Plan, nil, state.Config)
+	state.updateConfig(ctx)
 
 	manifestPath := flag.GetString(ctx, "manifest-path")
 
