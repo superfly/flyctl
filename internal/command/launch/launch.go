@@ -343,24 +343,22 @@ func (state *launchState) updateConfig(ctx context.Context, plan *plan.LaunchPla
 		appConfig.HTTPService = nil
 	}
 
-	// helper
-	appConfig.Compute = plan.Compute
-
+	// Apply plan-level compute overrides to all compute configurations
 	if plan.CPUKind != "" {
-		for _, c := range appConfig.Compute {
-			c.CPUKind = plan.CPUKind
+		for i := range appConfig.Compute {
+			appConfig.Compute[i].CPUKind = plan.CPUKind
 		}
 	}
 
 	if plan.CPUs != 0 {
-		for _, c := range appConfig.Compute {
-			c.CPUs = plan.CPUs
+		for i := range appConfig.Compute {
+			appConfig.Compute[i].CPUs = plan.CPUs
 		}
 	}
 
 	if plan.MemoryMB != 0 {
-		for _, c := range appConfig.Compute {
-			c.MemoryMB = plan.MemoryMB
+		for i := range appConfig.Compute {
+			appConfig.Compute[i].MemoryMB = plan.MemoryMB
 		}
 	}
 }
