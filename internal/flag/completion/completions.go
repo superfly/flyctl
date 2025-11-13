@@ -9,8 +9,9 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func CompleteApps(
@@ -20,30 +21,33 @@ func CompleteApps(
 	partial string,
 ) ([]string, error) {
 	var (
-		client = flyutil.ClientFromContext(ctx)
+		// client      = flyutil.ClientFromContext(ctx)
+		// flapsClient = flapsutil.ClientFromContext(ctx)
 
 		apps []fly.App
-		err  error
+		// err  error
 	)
 
 	orgFiltered := false
 
-	// We can't use `flag.*` here because of import cycles. *sigh*
-	orgFlag := cmd.Flag(flagnames.Org)
-	if orgFlag != nil && orgFlag.Changed {
-		var org *fly.Organization
-		org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
-		if err != nil {
-			return nil, err
-		}
-		apps, err = client.GetAppsForOrganization(ctx, org.ID)
-		orgFiltered = true
-	} else {
-		apps, err = client.GetApps(ctx, nil)
-	}
-	if err != nil {
-		return nil, err
-	}
+	// todo(mapi): this is broken because of an import loop with flapsutil package
+
+	// // We can't use `flag.*` here because of import cycles. *sigh*
+	// orgFlag := cmd.Flag(flagnames.Org)
+	// if orgFlag != nil && orgFlag.Changed {
+	// 	var org *fly.Organization
+	// 	org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	apps, err = client.GetAppsForOrganization(ctx, org.ID)
+	// 	orgFiltered = true
+	// } else {
+	// 	apps, err = client.GetApps(ctx, nil)
+	// }
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	ret := lo.FilterMap(apps, func(app fly.App, _ int) (string, bool) {
 		if strings.HasPrefix(app.Name, partial) {
@@ -66,13 +70,13 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := flyutil.ClientFromContext(ctx)
+	client := uiexutil.ClientFromContext(ctx)
 
-	format := func(org fly.Organization) string {
+	format := func(org uiex.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := client.ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -93,24 +97,31 @@ func CompleteRegions(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := flyutil.ClientFromContext(ctx)
+	// cannot use flapsutil, would be an import cycle
+	client, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
+	if err != nil {
+		return nil, err
+	}
 
 	format := func(org fly.Region) string {
 		return fmt.Sprintf("%s\t%s", org.Code, org.Name)
 	}
 
-	// TODO(ali): Do we need to worry about which ones are marked as "gateway"?
-	regions, reqRegion, err := client.PlatformRegions(ctx)
+	regions, err := client.GetRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	reqRegion, foundReqRegion := lo.Find(regions.Regions, func(r fly.Region) bool {
+		return r.Code == regions.Nearest
+	})
+
 	// Filter out deprecated regions
-	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+	regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
 		return !r.Deprecated
 	})
 
-	regionNames := lo.FilterMap(regions, func(region fly.Region, _ int) (string, bool) {
+	regionNames := lo.FilterMap(regions.Regions, func(region fly.Region, _ int) (string, bool) {
 		if strings.HasPrefix(region.Code, partial) {
 			return format(region), true
 		}
@@ -118,8 +129,8 @@ func CompleteRegions(
 	})
 	slices.Sort(regionNames)
 	// If the region we're closest to is in the list, put it at the top
-	if reqRegion != nil && strings.HasPrefix(reqRegion.Code, partial) {
-		idx := slices.Index(regionNames, format(*reqRegion))
+	if foundReqRegion && strings.HasPrefix(reqRegion.Code, partial) {
+		idx := slices.Index(regionNames, format(reqRegion))
 		// Should always be true because of the check above, but just to be safe...
 		if idx >= 0 {
 			regionNames = append([]string{regionNames[idx]}, append(regionNames[:idx], regionNames[idx+1:]...)...)

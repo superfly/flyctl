@@ -77,12 +77,12 @@ func runCreate(ctx context.Context) (err error) {
 	if appName != "" {
 		params.AppName = appName
 	} else {
-		org, err := orgs.OrgFromFlagOrSelect(ctx)
+		org, err := orgs.OrgFromFlagOrSelect(ctx, false)
 		if err != nil {
 			return err
 		}
 
-		params.Organization = org
+		params.OrgSlug = org.RawSlug
 	}
 
 	function, err := selectSimilarityFunction(ctx, "")
@@ -120,7 +120,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+		err = secrets.DeploySecrets(ctx, gql.ToAppFlaps(*extension.App), secrets.DeploymentArgs{
 			Stage:    false,
 			Detach:   false,
 			CheckDNS: true,
