@@ -12,11 +12,11 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/flyctl/wg"
 	"golang.org/x/crypto/curve25519"
@@ -45,7 +45,7 @@ func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, er
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *uiex.Organization, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug, network)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organiz
 	return stateb, nil
 }
 
-func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
+func Create(apiClient flyutil.Client, org *uiex.Organization, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -100,11 +100,16 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 		return nil, errors.New("name must consist solely of letters, numbers, and the dash character")
 	}
 
-	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, regionCode, org.Slug)
+	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s (network %s)\n", name, regionCode, org.Slug, network)
+
+	// todo: remove after API handles this correctly
+	if network == "default" {
+		network = ""
+	}
 
 	pubkey, privatekey := C25519pair()
 
-	data, err := apiClient.CreateWireGuardPeer(ctx, org, regionCode, name, pubkey, network)
+	data, err := apiClient.CreateWireGuardPeer(ctx, org.ID, regionCode, name, pubkey, network)
 	if err != nil {
 		return nil, err
 	}

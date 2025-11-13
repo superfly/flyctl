@@ -8,12 +8,13 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 )
 
 type mockWebClient struct {
 }
 
-func (f *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
+func (m *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
 	return true, nil
 }
 
@@ -33,6 +34,34 @@ type mockFlapsClient struct {
 	nextMachineID int
 }
 
+func (m *mockFlapsClient) ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error) {
+	return nil, fmt.Errorf("failed to list apps")
+}
+
+func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+	return nil, fmt.Errorf("failed to get app")
+}
+
+func (m *mockFlapsClient) DeleteApp(ctx context.Context, name string) error {
+	return nil
+}
+
+func (m *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+	return nil, fmt.Errorf("failed to list ip assignments")
+}
+
+func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+	return nil, fmt.Errorf("failed to assign ip")
+}
+
+func (m *mockFlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+	return fmt.Errorf("failed to delete ip assignment")
+}
+
+func (m *mockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	return true, nil
+}
+
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
 	nonce := fmt.Sprintf("%x-lease", machineID)
 	return m.RefreshLease(ctx, machineID, ttl, nonce)
@@ -42,8 +71,8 @@ func (m *mockFlapsClient) Cordon(ctx context.Context, machineID string, nonce st
 	return fmt.Errorf("failed to cordon %s", machineID)
 }
 
-func (m *mockFlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
-	return fmt.Errorf("failed to create app %s", name)
+func (m *mockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (app *flaps.App, err error) {
+	return nil, fmt.Errorf("failed to create app %s", req.Name)
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -190,6 +219,10 @@ func (m *mockFlapsClient) RefreshLease(ctx context.Context, machineID string, tt
 	}, nil
 }
 
+func (m *mockFlapsClient) GetRegions(ctx context.Context) (data *flaps.RegionData, err error) {
+	return
+}
+
 func (m *mockFlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -258,8 +291,4 @@ func (m *mockFlapsClient) Wait(ctx context.Context, machine *fly.Machine, state 
 		return fmt.Errorf("failed to wait for %s", machine.ID)
 	}
 	return nil
-}
-
-func (m *mockFlapsClient) WaitForApp(ctx context.Context, name string) error {
-	return fmt.Errorf("failed to wait for app %s", name)
 }
