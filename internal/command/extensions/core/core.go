@@ -102,7 +102,9 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		if override := params.OverrideName; override != nil {
 			name = *override
 		} else {
-			name = flag.GetString(ctx, "name")
+			if name == "" {
+				name = flag.GetString(ctx, "name")
+			}
 
 			if name == "" {
 				if provider.NameSuffix != "" && targetApp.Name != "" {
