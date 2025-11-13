@@ -343,22 +343,34 @@ func (state *launchState) updateConfig(ctx context.Context, plan *plan.LaunchPla
 		appConfig.HTTPService = nil
 	}
 
-	// Apply plan-level compute overrides to all compute configurations
-	if plan.CPUKind != "" {
-		for i := range appConfig.Compute {
-			appConfig.Compute[i].CPUKind = plan.CPUKind
+	// Apply plan-level compute overrides only if Plan.Compute was provided.
+	// If Plan.Compute was empty, updateComputeFromDeprecatedGuestFields already
+	// converted the deprecated fields (CPUKind/CPUs/MemoryMB) into appConfig.Compute.
+	// This logic handles the case where both Plan.Compute AND deprecated fields are set.
+	if len(plan.Compute) > 0 {
+		// Only set fields that haven't already been set in the compute configs
+		if plan.CPUKind != "" {
+			for i := range appConfig.Compute {
+				if appConfig.Compute[i].CPUKind == "" {
+					appConfig.Compute[i].CPUKind = plan.CPUKind
+				}
+			}
 		}
-	}
 
-	if plan.CPUs != 0 {
-		for i := range appConfig.Compute {
-			appConfig.Compute[i].CPUs = plan.CPUs
+		if plan.CPUs != 0 {
+			for i := range appConfig.Compute {
+				if appConfig.Compute[i].CPUs == 0 {
+					appConfig.Compute[i].CPUs = plan.CPUs
+				}
+			}
 		}
-	}
 
-	if plan.MemoryMB != 0 {
-		for i := range appConfig.Compute {
-			appConfig.Compute[i].MemoryMB = plan.MemoryMB
+		if plan.MemoryMB != 0 {
+			for i := range appConfig.Compute {
+				if appConfig.Compute[i].MemoryMB == 0 {
+					appConfig.Compute[i].MemoryMB = plan.MemoryMB
+				}
+			}
 		}
 	}
 }
