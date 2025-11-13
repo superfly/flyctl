@@ -34,7 +34,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
-	state.updateConfig(ctx)
+	state.updateConfig(ctx, state.Plan, state.env, state.appConfig)
 
 	if err := state.validateExtensions(ctx); err != nil {
 		return err
@@ -116,6 +116,13 @@ func (state *launchState) Launch(ctx context.Context) error {
 	if !flag.GetBool(ctx, "no-create") {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
+		}
+	}
+
+	if planStep != "generate" {
+		// Override internal port if requested using --internal-port flag
+		if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+			state.appConfig.SetInternalPort(n)
 		}
 	}
 
@@ -286,16 +293,17 @@ func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Con
 }
 
 // updateConfig populates the appConfig with the plan's values
-func (state *launchState) updateConfig(ctx context.Context) {
-	state.appConfig.AppName = state.Plan.AppName
-	state.appConfig.PrimaryRegion = state.Plan.RegionCode
-	if state.env != nil {
-		state.appConfig.SetEnvVariables(state.env)
+// func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
+func (state *launchState) updateConfig(ctx context.Context, plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
+	appConfig.AppName = plan.AppName
+	appConfig.PrimaryRegion = plan.RegionCode
+	if env != nil {
+		appConfig.SetEnvVariables(env)
 	}
 
-	state.appConfig.Compute = state.Plan.Compute
+	appConfig.Compute = plan.Compute
 
-	if state.Plan.HttpServicePort != 0 {
+	if plan.HttpServicePort != 0 {
 		autostop := fly.MachineAutostopStop
 		autostopFlag := flag.GetString(ctx, "auto-stop")
 
@@ -305,7 +313,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 			autostop = fly.MachineAutostopSuspend
 
 			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
-			for _, compute := range state.appConfig.Compute {
+			for _, compute := range appConfig.Compute {
 				if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
 					break
@@ -321,8 +329,8 @@ func (state *launchState) updateConfig(ctx context.Context) {
 			}
 		}
 
-		if state.appConfig.HTTPService == nil {
-			state.appConfig.HTTPService = &appconfig.HTTPService{
+		if appConfig.HTTPService == nil {
+			appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
 				AutoStopMachines:   fly.Pointer(autostop),
@@ -330,9 +338,28 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				Processes:          []string{"app"},
 			}
 		}
-		state.appConfig.HTTPService.InternalPort = state.Plan.HttpServicePort
+		appConfig.HTTPService.InternalPort = plan.HttpServicePort
 	} else {
-		state.appConfig.HTTPService = nil
+		appConfig.HTTPService = nil
+	}
+
+	// Apply plan-level compute overrides to all compute configurations
+	if plan.CPUKind != "" {
+		for i := range appConfig.Compute {
+			appConfig.Compute[i].CPUKind = plan.CPUKind
+		}
+	}
+
+	if plan.CPUs != 0 {
+		for i := range appConfig.Compute {
+			appConfig.Compute[i].CPUs = plan.CPUs
+		}
+	}
+
+	if plan.MemoryMB != 0 {
+		for i := range appConfig.Compute {
+			appConfig.Compute[i].MemoryMB = plan.MemoryMB
+		}
 	}
 }
 
