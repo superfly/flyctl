@@ -34,7 +34,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
-	state.updateConfig(ctx, state.Plan, state.env, state.appConfig)
+	state.updateConfig(ctx)
 
 	if err := state.validateExtensions(ctx); err != nil {
 		return err
@@ -294,14 +294,16 @@ func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Con
 
 // updateConfig populates the appConfig with the plan's values
 // func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
-func (state *launchState) updateConfig(ctx context.Context, plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
+func (state *launchState) updateConfig(ctx context.Context) {
+	appConfig := state.appConfig
+	env := state.env
+	plan := state.Plan
+
 	appConfig.AppName = plan.AppName
 	appConfig.PrimaryRegion = plan.RegionCode
 	if env != nil {
 		appConfig.SetEnvVariables(env)
 	}
-
-	appConfig.Compute = plan.Compute
 
 	if plan.HttpServicePort != 0 {
 		autostop := fly.MachineAutostopStop
@@ -348,28 +350,31 @@ func (state *launchState) updateConfig(ctx context.Context, plan *plan.LaunchPla
 	// converted the deprecated fields (CPUKind/CPUs/MemoryMB) into appConfig.Compute.
 	// This logic handles the case where both Plan.Compute AND deprecated fields are set.
 	if len(plan.Compute) > 0 {
-		// Only set fields that haven't already been set in the compute configs
-		if plan.CPUKind != "" {
-			for i := range appConfig.Compute {
-				if appConfig.Compute[i].CPUKind == "" {
-					appConfig.Compute[i].CPUKind = plan.CPUKind
-				}
+		appConfig.Compute = plan.Compute
+		return
+	}
+
+	// Only set fields that haven't already been set in the compute configs
+	if plan.CPUKind != "" {
+		for i := range appConfig.Compute {
+			if appConfig.Compute[i].CPUKind == "" {
+				appConfig.Compute[i].CPUKind = plan.CPUKind
 			}
 		}
+	}
 
-		if plan.CPUs != 0 {
-			for i := range appConfig.Compute {
-				if appConfig.Compute[i].CPUs == 0 {
-					appConfig.Compute[i].CPUs = plan.CPUs
-				}
+	if plan.CPUs != 0 {
+		for i := range appConfig.Compute {
+			if appConfig.Compute[i].CPUs == 0 {
+				appConfig.Compute[i].CPUs = plan.CPUs
 			}
 		}
+	}
 
-		if plan.MemoryMB != 0 {
-			for i := range appConfig.Compute {
-				if appConfig.Compute[i].MemoryMB == 0 {
-					appConfig.Compute[i].MemoryMB = plan.MemoryMB
-				}
+	if plan.MemoryMB != 0 {
+		for i := range appConfig.Compute {
+			if appConfig.Compute[i].MemoryMB == 0 {
+				appConfig.Compute[i].MemoryMB = plan.MemoryMB
 			}
 		}
 	}
