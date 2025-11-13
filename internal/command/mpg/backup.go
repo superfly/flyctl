@@ -41,7 +41,6 @@ func newBackupList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runBackupList,
 		command.RequireSession,
-		command.RequireUiex,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -142,7 +141,6 @@ func newBackupCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runBackupCreate,
 		command.RequireSession,
-		command.RequireUiex,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)

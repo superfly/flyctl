@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func newRelease() *cobra.Command {
@@ -33,7 +33,7 @@ func newRelease() *cobra.Command {
 }
 
 func runReleaseIPAddress(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
@@ -43,7 +43,7 @@ func runReleaseIPAddress(ctx context.Context) error {
 			return fmt.Errorf("Invalid IP address: '%s'", address)
 		}
 
-		if err := client.ReleaseIPAddress(ctx, appName, address); err != nil {
+		if err := flapsClient.DeleteIPAssignment(ctx, appName, address); err != nil {
 			return err
 		}
 
