@@ -172,7 +172,7 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 	}
 	s.logger.Printf("establishing tunnel for %s, %s", args[0], args[1])
 
-	org, err := s.fetchOrg(ctx, args[0])
+	org, err := s.getUiExClient(ctx).GetOrganization(ctx, args[0])
 	if err != nil {
 		s.error(err)
 
@@ -198,24 +198,6 @@ func (s *session) establish(ctx context.Context, args ...string) {
 
 func (s *session) reestablish(ctx context.Context, args ...string) {
 	s.doEstablish(ctx, true, args...)
-}
-
-var errNoSuchOrg = errors.New("no such organization")
-
-func (s *session) fetchOrg(ctx context.Context, slug string) (*uiex.Organization, error) {
-	orgs, err := s.getUiExClient(ctx).ListOrganizations(ctx, false)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, org := range orgs {
-		if org.RawSlug == slug {
-			no := org // copy
-			return &no, nil
-		}
-	}
-
-	return nil, errNoSuchOrg
 }
 
 var errMalformedProbe = errors.New("malformed probe command")
