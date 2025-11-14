@@ -305,6 +305,8 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		appConfig.SetEnvVariables(env)
 	}
 
+	appConfig.Compute = plan.Compute
+
 	if plan.HttpServicePort != 0 {
 		autostop := fly.MachineAutostopStop
 		autostopFlag := flag.GetString(ctx, "auto-stop")
@@ -345,37 +347,22 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		appConfig.HTTPService = nil
 	}
 
-	// Apply plan-level compute overrides only if Plan.Compute was provided.
-	// If Plan.Compute was empty, updateComputeFromDeprecatedGuestFields already
-	// converted the deprecated fields (CPUKind/CPUs/MemoryMB) into appConfig.Compute.
-	// This logic handles the case where both Plan.Compute AND deprecated fields are set.
-	if len(plan.Compute) > 0 {
-		appConfig.Compute = plan.Compute
-		return
-	}
-
 	// Only set fields that haven't already been set in the compute configs
 	if plan.CPUKind != "" {
-		for i := range appConfig.Compute {
-			if appConfig.Compute[i].CPUKind == "" {
-				appConfig.Compute[i].CPUKind = plan.CPUKind
-			}
+		for _, compute := range appConfig.Compute {
+			compute.CPUKind = plan.CPUKind
 		}
 	}
 
 	if plan.CPUs != 0 {
-		for i := range appConfig.Compute {
-			if appConfig.Compute[i].CPUs == 0 {
-				appConfig.Compute[i].CPUs = plan.CPUs
-			}
+		for _, compute := range appConfig.Compute {
+			compute.CPUs = plan.CPUs
 		}
 	}
 
 	if plan.MemoryMB != 0 {
-		for i := range appConfig.Compute {
-			if appConfig.Compute[i].MemoryMB == 0 {
-				appConfig.Compute[i].MemoryMB = plan.MemoryMB
-			}
+		for _, compute := range appConfig.Compute {
+			compute.MemoryMB = plan.MemoryMB
 		}
 	}
 }
