@@ -299,6 +299,10 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	env := state.env
 	plan := state.Plan
 
+	if plan == nil {
+		return
+	}
+
 	appConfig.AppName = plan.AppName
 	appConfig.PrimaryRegion = plan.RegionCode
 	if env != nil {
