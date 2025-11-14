@@ -284,6 +284,18 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		retry.Delay(2*time.Second),
 		retry.MaxDelay(30*time.Second),
 		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			// Log network-related errors and periodic status updates
+			if containsNetworkError(err.Error()) {
+				s.Stop()
+				fmt.Fprintf(io.Out, "Retrying status check due to network issue: %v\n", err)
+				s = spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
+			} else if n%10 == 0 && n > 0 { // Log every 10th attempt to show progress
+				s.Stop()
+				fmt.Fprintf(io.Out, "Still waiting for cluster to be ready (attempt %d)...\n", n+1)
+				s = spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
+			}
+		}),
 	)
 
 	// Stop the spinner
