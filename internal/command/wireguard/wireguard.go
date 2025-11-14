@@ -196,7 +196,7 @@ func runWireguardRemove(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Removing WireGuard peer \"%s\" for organization %s\n", name, org.Slug)
 
-	err = apiClient.RemoveWireGuardPeer(ctx, org.ID, name)
+	err = apiClient.RemoveWireGuardPeer(ctx, org, name)
 	if err != nil {
 		return err
 	}

@@ -46,7 +46,7 @@ func runDeploy(ctx context.Context) (err error) {
 		return err
 	}
 
-	if !(app.Deployed() && len(machines) > 0) {
+	if !(app.Deployed && len(machines) > 0) {
 		return flyerr.GenericErr{
 			Err:      "no machines available to deploy",
 			Descript: "'fly secrets deploy' will only work if the app has been deployed and there are machines available",

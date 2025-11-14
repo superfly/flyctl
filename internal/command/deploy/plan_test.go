@@ -10,7 +10,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
@@ -113,7 +112,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	md := &machineDeployment{
 		flapsClient: badFlapsClient,
 		io:          iostreams.FromContext(ctx),
-		app: &flaps.App{
+		app: &fly.AppCompact{
 			Name: "myapp",
 		},
 		appConfig: &appconfig.Config{AppName: "myapp"},
@@ -289,7 +288,7 @@ func TestUpdateMachines(t *testing.T) {
 	md := &machineDeployment{
 		flapsClient: flapsClient,
 		io:          iostreams.FromContext(ctx),
-		app: &flaps.App{
+		app: &fly.AppCompact{
 			Name: "myapp",
 		},
 		appConfig:       &appconfig.Config{AppName: "myapp"},
@@ -437,7 +436,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 	md := &machineDeployment{
 		flapsClient: flapsClient,
 		io:          iostreams.FromContext(ctx),
-		app: &flaps.App{
+		app: &fly.AppCompact{
 			Name: "myapp",
 		},
 		appConfig: &appconfig.Config{AppName: "myapp"},

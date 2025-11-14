@@ -37,7 +37,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
+	appCompact, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -45,13 +45,18 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
 		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
-			OrganizationID: org.InternalNumericID,
+			OrganizationID: appCompact.Organization.InternalNumericID,
 			UserID:         0,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create feature flag client: %w", err)
 		}
 		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
+	}
+
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return nil, err
 	}
 
 	ldClient := launchdarkly.ClientFromContext(ctx)
@@ -395,14 +400,15 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]fly.Volume, error) {
+	apiclient := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if regionCode == "" {
-		region, err := flapsClient.GetRegions(ctx)
+		region, err := apiclient.GetNearestRegion(ctx)
 		if err != nil {
 			return nil, err
 		}
-		regionCode = region.Nearest
+		regionCode = region.Code
 	}
 
 	volumes, err := flapsClient.GetVolumes(ctx)

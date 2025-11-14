@@ -24,7 +24,8 @@ type NewClientOpts struct {
 	// optional, sent with requests
 	UserAgent string
 
-	BaseURL string
+	// URL used when connecting via usermode wireguard.
+	BaseURL *url.URL
 
 	Tokens *tokens.Tokens
 
@@ -37,11 +38,7 @@ type NewClientOpts struct {
 
 func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	var err error
-	uiexBaseURL := opts.BaseURL
-
-	if uiexBaseURL == "" {
-		uiexBaseURL = os.Getenv("FLY_UIEX_BASE_URL")
-	}
+	uiexBaseURL := os.Getenv("FLY_UIEX_BASE_URL")
 
 	if uiexBaseURL == "" {
 		uiexBaseURL = "https://api.fly.io"

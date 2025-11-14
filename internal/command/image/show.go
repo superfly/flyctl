@@ -45,11 +45,11 @@ func newShow() *cobra.Command {
 
 func runShow(ctx context.Context) error {
 	var (
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -57,7 +57,7 @@ func runShow(ctx context.Context) error {
 	return showMachineImage(ctx, app)
 }
 
-func showMachineImage(ctx context.Context, app *flaps.App) error {
+func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -66,8 +66,8 @@ func showMachineImage(ctx context.Context, app *flaps.App) error {
 	)
 
 	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppData: app,
-		AppName: app.Name,
+		AppCompact: app,
+		AppName:    app.Name,
 	})
 	if err != nil {
 		return err

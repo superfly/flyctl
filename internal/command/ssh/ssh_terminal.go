@@ -12,7 +12,7 @@ import (
 
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
-	"github.com/superfly/fly-go/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
@@ -20,7 +20,7 @@ import (
 
 type SSHParams struct {
 	Ctx            context.Context
-	OrgID          string
+	Org            fly.OrganizationImpl
 	App            string
 	Username       string
 	Dialer         agent.Dialer
@@ -31,7 +31,7 @@ type SSHParams struct {
 	DisableSpinner bool
 }
 
-func RunSSHCommand(ctx context.Context, app *flaps.App, dialer agent.Dialer, addr string, cmd string, username string, orgID string) ([]byte, error) {
+func RunSSHCommand(ctx context.Context, app *fly.AppCompact, dialer agent.Dialer, addr string, cmd string, username string) ([]byte, error) {
 	var inBuf bytes.Buffer
 	var errBuf bytes.Buffer
 	var outBuf bytes.Buffer
@@ -41,7 +41,7 @@ func RunSSHCommand(ctx context.Context, app *flaps.App, dialer agent.Dialer, add
 
 	err := SSHConnect(&SSHParams{
 		Ctx:            ctx,
-		OrgID:          orgID,
+		Org:            app.Organization,
 		Dialer:         dialer,
 		App:            app.Name,
 		Username:       username,
@@ -70,7 +70,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		appNames = append(appNames, p.App)
 	}
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.OrgID, appNames, p.Username)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, appNames, p.Username)
 	if err != nil {
 		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}

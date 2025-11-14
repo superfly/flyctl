@@ -12,7 +12,6 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -65,11 +64,11 @@ func runFailover(ctx context.Context) (err error) {
 		MinPostgresStandaloneVersion = "0.0.7"
 
 		io      = iostreams.FromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -117,6 +116,8 @@ func runFailover(ctx context.Context) (err error) {
 		}
 	}
 
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
 	dialer := agent.DialerFromContext(ctx)
 
 	pgclient := flypg.NewFromInstance(leader.PrivateIP, dialer)
@@ -151,15 +152,9 @@ func runFailover(ctx context.Context) (err error) {
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*fly.Machine, app *flaps.App, force, allowSecondaryRegion bool) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force, allowSecondaryRegion bool) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
-	}
-
-	client := flyutil.ClientFromContext(ctx)
-	org, err := client.GetOrganizationByApp(ctx, app.Name)
-	if err != nil {
-		return fmt.Errorf("get organization: %w", err)
 	}
 
 	io := iostreams.FromContext(ctx)
@@ -240,7 +235,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *flaps.App, 
 	fmt.Println("Promoting new leader... ", newLeader.ID)
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		OrgID:    org.ID,
+		Org:      app.Organization,
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),
@@ -366,7 +361,7 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *flaps.App, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
+func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
 	// We should go for the primary canddiates first, but the secondary candidates are also valid
@@ -410,16 +405,10 @@ func pickNewLeader(ctx context.Context, app *flaps.App, primaryCandidates []*fly
 }
 
 // Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks
-func passesDryRun(ctx context.Context, app *flaps.App, machine *fly.Machine) bool {
-	client := flyutil.ClientFromContext(ctx)
-	org, err := client.GetOrganizationByApp(ctx, app.Name)
-	if err != nil {
-		return false
-	}
-
-	err = ssh.SSHConnect(&ssh.SSHParams{
+func passesDryRun(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) bool {
+	err := ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		OrgID:    org.ID,
+		Org:      app.Organization,
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),

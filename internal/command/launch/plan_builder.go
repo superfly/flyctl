@@ -13,7 +13,6 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -21,14 +20,11 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -295,14 +291,14 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 // Returns an error only if the prompt library encounters an error. (this should never occur)
 func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 
+	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	if flag.GetYes(ctx) {
 		return false, nil
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	if _, err := flapsClient.GetApp(ctx, appName); err != nil {
+	if _, err := client.GetApp(ctx, appName); err != nil {
 		// The user can't see the app. Let them proceed.
 		return false, nil
 	}
@@ -634,12 +630,9 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return false, err
-	}
+	client := flyutil.ClientFromContext(ctx)
 
-	available, err := flapsClient.AppNameAvailable(ctx, name)
+	available, err := client.AppNameAvailable(ctx, name)
 	if err != nil {
 		return false, err
 	}
@@ -647,30 +640,26 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context, config *appconfig.Config) (*uiex.Organization, string, error) {
+func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
 	client := flyutil.ClientFromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
-		orgLegacy, err := client.GetOrganizationByApp(ctx, config.AppName)
+		org, err := client.GetOrganizationByApp(ctx, config.AppName)
 		if err == nil {
-			org, err := uiexClient.GetOrganization(ctx, orgLegacy.RawSlug)
-			if err != nil {
-				return org, fmt.Sprintf("from %s app", config.AppName), nil
-			}
+			return org, fmt.Sprintf("from %s app", config.AppName), nil
 		}
 	}
 
-	orgs, err := uiexClient.ListOrganizations(ctx, false)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	bySlug := make(map[string]uiex.Organization, len(orgs))
+	bySlug := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
-	byName := make(map[string]uiex.Organization, len(orgs))
+	byName := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		byName[o.Name] = o
 	}
@@ -754,11 +743,7 @@ func remapDeprecatedRegion(ctx context.Context, region *fly.Region) (*fly.Region
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
-	flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return nil, "", err
-	}
-
+	client := flyutil.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -767,16 +752,9 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
-	var closestRegion *fly.Region
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	regions, closestRegionErr := flapsClient.GetRegions(ctx)
-	if closestRegionErr == nil {
-		r, _ := lo.Find(regions.Regions, func(r fly.Region) bool {
-			return r.Code == regions.Nearest
-		})
-		closestRegion = &r
-	}
+	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
 
 	// Remap the closest region if it's deprecated
 	if closestRegionErr == nil && closestRegion != nil {
@@ -802,19 +780,19 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
 func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
-	apiClient := flapsutil.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
-	allRegions, err := apiClient.GetRegions(ctx)
+	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Filter out deprecated regions
-	allRegions.Regions = lo.Filter(allRegions.Regions, func(r fly.Region, _ int) bool {
+	allRegions = lo.Filter(allRegions, func(r fly.Region, _ int) bool {
 		return !r.Deprecated
 	})
 
-	for _, r := range allRegions.Regions {
+	for _, r := range allRegions {
 		if r.Code == regionCode {
 			return &r, nil
 		}

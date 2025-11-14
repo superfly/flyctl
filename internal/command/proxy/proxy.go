@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -91,17 +90,18 @@ func run(ctx context.Context) (err error) {
 		orgSlug = org.Slug
 	}
 
-	var network string
+	network, err := client.GetAppNetwork(ctx, appName)
+	if err != nil {
+		return err
+	}
 
 	// var app *fly.App
 	if appName != "" {
-		flapsClient := flapsutil.ClientFromContext(ctx)
-		app, err := flapsClient.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}
 		orgSlug = app.Organization.Slug
-		network = app.Network
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -110,12 +110,12 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// do this explicitly so we can get the DNS server address
-	_, err = agentclient.Establish(ctx, orgSlug, network)
+	_, err = agentclient.Establish(ctx, orgSlug, *network)
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, network, flag.GetBool(ctx, "quiet"))
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, *network, flag.GetBool(ctx, "quiet"))
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func run(ctx context.Context) (err error) {
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
 		PromptInstance:   promptInstance,
-		Network:          network,
+		Network:          *network,
 	}
 
 	if len(args) > 1 {

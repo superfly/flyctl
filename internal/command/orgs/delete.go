@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -34,7 +35,7 @@ func newDelete() *cobra.Command {
 }
 
 func runDelete(ctx context.Context) error {
-	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, true)
+	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, fly.AdminOnly)
 	if err != nil {
 		return err
 	}

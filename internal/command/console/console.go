@@ -26,7 +26,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -171,21 +170,29 @@ func New() *cobra.Command {
 
 func runConsole(ctx context.Context) error {
 	var (
-		io          = iostreams.FromContext(ctx)
-		appName     = appconfig.NameFromContext(ctx)
-		apiClient   = flyutil.ClientFromContext(ctx)
-		flapsClient = flapsutil.ClientFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
+		apiClient = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	network, err := apiClient.GetAppNetwork(ctx, app.Name)
 	if err != nil {
-		return fmt.Errorf("get organization: %w", err)
+		return fmt.Errorf("failed to get app network: %w", err)
 	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create flaps client: %w", err)
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
@@ -209,14 +216,14 @@ func runConsole(ctx context.Context) error {
 		defer cleanup()
 	}
 
-	_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, false)
+	_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, *network, false)
 	if err != nil {
 		return err
 	}
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		OrgID:          org.ID,
+		Org:            app.Organization,
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
@@ -237,7 +244,7 @@ func runConsole(ctx context.Context) error {
 	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
 }
 
-func selectMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
+func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.GetBool(ctx, "select") {
 		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
@@ -251,7 +258,7 @@ func selectMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Con
 	}
 }
 
-func promptForMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
+func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "machine") {
 		return nil, nil, errors.New("--machine can't be used with -s/--select")
 	}
@@ -315,17 +322,9 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 	return machine, nil, nil
 }
 
-func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
-	uiexClient := uiexutil.ClientFromContext(ctx)
-	ctx, _, _, err := flapsutil.SetClient(ctx, app, app.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// todo: this gets the latest release of any status, even if failed
-	// (this was the behaviour of pre-REST graphql "LatestRelease" call)
-	// probably should get the latest _completed_ release (new GetLatestRelease)?
-	releases, err := uiexClient.ListReleases(ctx, app.Name, 1)
+func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
+	apiClient := flyutil.ClientFromContext(ctx)
+	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -334,7 +333,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig 
 		flag.SetString(ctx, "image", ".")
 	}
 
-	if len(releases) == 0 && !flag.IsSpecified(ctx, "image") {
+	if currentRelease == nil && !flag.IsSpecified(ctx, "image") {
 		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
@@ -355,7 +354,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig 
 		}
 		machConfig.Image = img.Tag
 	} else {
-		machConfig.Image = releases[0].ImageRef
+		machConfig.Image = currentRelease.ImageRef
 	}
 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {

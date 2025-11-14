@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -45,6 +44,8 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
+		client = flyutil.ClientFromContext(ctx)
+
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
 	)
@@ -54,8 +55,7 @@ func runDetach(ctx context.Context) error {
 		return err
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
+	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get postgres app: %w", err)
 	}
@@ -67,7 +67,7 @@ func runDetach(ctx context.Context) error {
 	return runMachineDetach(ctx, appFlapsClient, app, pgApp)
 }
 
-func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient, app *flaps.App, pgApp *flaps.App) error {
+func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -96,7 +96,7 @@ func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient,
 }
 
 // TODO - This process needs to be re-written to suppport non-interactive terminals.
-func detachAppFromPostgres(ctx context.Context, leaderIP string, appFlapsClient flapsutil.FlapsClient, app *flaps.App, pgApp *flaps.App) error {
+func detachAppFromPostgres(ctx context.Context, leaderIP string, appFlapsClient flapsutil.FlapsClient, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)

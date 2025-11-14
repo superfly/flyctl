@@ -28,6 +28,7 @@ If no organization is specified, the user's personal organization is used.`
 
 	cmd := command.New(usage, short, long, runList,
 		command.RequireSession,
+		command.RequireUiex,
 	)
 
 	cmd.Aliases = []string{"ls"}
@@ -52,7 +53,7 @@ func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
-	org, err := orgs.OrgFromFlagOrSelect(ctx, false)
+	org, err := orgs.OrgFromFlagOrSelect(ctx)
 	if err != nil {
 		return err
 	}

@@ -26,13 +26,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -68,7 +66,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 				cfg := config.FromContext(ctx)
 				var (
 					builderMachine *fly.Machine
-					builderApp     *flaps.App
+					builderApp     *fly.App
 					err            error
 				)
 
@@ -265,7 +263,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *flaps.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *fly.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -325,8 +323,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 automatically deleting and recreating builder"))
 			span.AddEvent("automatically deleting and recreating builder")
 
-			flapsClient := flapsutil.ClientFromContext(ctx)
-			err := flapsClient.DeleteApp(ctx, app.Name)
+			err := apiClient.DeleteApp(ctx, app.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
 				return nil, err
@@ -568,9 +565,8 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 		CheckRedirect: dockerclient.CheckRedirect,
 	}))
 
-	var app *flaps.App
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	if app, err = flapsClient.GetApp(ctx, appName); err != nil {
+	var app *fly.AppBasic
+	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
 		tracing.RecordError(span, err, "error fetching target app")
 		return nil, fmt.Errorf("error fetching target app: %w", err)
 	}
@@ -780,7 +776,7 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, o
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
+func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
@@ -794,7 +790,7 @@ func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName
 	return builderMachine, builderApp, err
 }
 
-func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *flaps.App, error) {
+func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *fly.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
@@ -804,8 +800,7 @@ func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, 
 	if err != nil {
 		return nil, nil, err
 	}
-	builderMachine, builderAppLegacy, err := EnsureFlyManagedBuilder(ctx, org, region)
-	builderApp := appToAppCompact(builderAppLegacy)
+	builderMachine, builderApp, err := EnsureFlyManagedBuilder(ctx, org, region)
 	return builderMachine, builderApp, err
 }
 

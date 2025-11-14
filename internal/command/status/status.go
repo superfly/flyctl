@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func New() (cmd *cobra.Command) {
@@ -84,11 +84,11 @@ func runOnce(ctx context.Context) error {
 
 func once(ctx context.Context, out io.Writer) (err error) {
 	var (
-		appName     = appconfig.NameFromContext(ctx)
-		flapsClient = flapsutil.ClientFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %w", err)
 	}

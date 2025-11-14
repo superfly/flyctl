@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -115,7 +114,7 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	var org *uiex.Organization
+	var org *fly.Organization
 	org, err = prompt.Org(ctx)
 	if err != nil {
 		return
@@ -162,8 +161,7 @@ func run(ctx context.Context) (err error) {
 		}
 
 		// Resolve specified fork-from app
-		flapsClient := flapsutil.ClientFromContext(ctx)
-		forkApp, err := flapsClient.GetApp(ctx, forkSlice[0])
+		forkApp, err := client.GetAppCompact(ctx, forkSlice[0])
 		if err != nil {
 			return fmt.Errorf("Failed to resolve the specified fork-from app %s: %w", forkSlice[0], err)
 		}
@@ -195,6 +193,8 @@ func run(ctx context.Context) (err error) {
 
 			params.ForkFrom = volID
 		}
+
+		flapsClient := flapsutil.ClientFromContext(ctx)
 
 		// Resolve the volume
 		vol, err := flapsClient.GetVolume(ctx, params.ForkFrom)
@@ -247,7 +247,7 @@ func run(ctx context.Context) (err error) {
 	params.PostgresConfiguration = *pgConfig
 
 	var region *fly.Region
-	region, err = prompt.Region(ctx, prompt.RegionParams{
+	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "",
 	})
 	if err != nil {
@@ -266,11 +266,10 @@ func run(ctx context.Context) (err error) {
 }
 
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
+func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
-		client      = flyutil.ClientFromContext(ctx)
-		flapsClient = flapsutil.ClientFromContext(ctx)
-		io          = iostreams.FromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
 	)
 
 	input := &flypg.CreateClusterInput{
@@ -416,7 +415,7 @@ func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Regi
 
 	fmt.Fprintf(io.Out, "Creating postgres cluster in organization %s\n", org.Slug)
 
-	launcher := flypg.NewLauncher(client, flapsClient)
+	launcher := flypg.NewLauncher(client)
 
 	return launcher.LaunchMachinesPostgres(ctx, input, params.Detach)
 }

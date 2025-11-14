@@ -205,7 +205,7 @@ func hasRequiredMemoryForBackup(machine fly.Machine) bool {
 	return machine.Config.Guest.MemoryMB >= 512
 }
 
-func UnregisterMember(ctx context.Context, app *flaps.App, machine *fly.Machine) error {
+func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) error {
 	machines, err := mach.ListActive(ctx)
 	if err != nil {
 		return err
