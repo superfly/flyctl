@@ -246,6 +246,8 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 func Org(ctx context.Context) (*uiex.Organization, error) {
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
+	slug := config.FromContext(ctx).Organization
+
 	orgs, err := uiexClient.ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
@@ -253,7 +255,6 @@ func Org(ctx context.Context) (*uiex.Organization, error) {
 	sort.OrganizationsByTypeAndName(orgs)
 
 	io := iostreams.FromContext(ctx)
-	slug := config.FromContext(ctx).Organization
 
 	switch {
 	case slug == "" && len(orgs) == 1 && orgs[0].Slug == "personal":
