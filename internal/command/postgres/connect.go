@@ -9,7 +9,6 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -64,8 +63,7 @@ func runConnect(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -74,20 +72,15 @@ func runConnect(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get organization: %w", err)
-	}
-
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	return runMachineConnect(ctx, app, org)
+	return runMachineConnect(ctx, app)
 }
 
-func runMachineConnect(ctx context.Context, app *flaps.App, org *fly.Organization) error {
+func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		MinPostgresHaVersion         = "0.0.9"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -115,7 +108,7 @@ func runMachineConnect(ctx context.Context, app *flaps.App, org *fly.Organizatio
 	}
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		OrgID:    org.ID,
+		Org:      app.Organization,
 		Dialer:   agent.DialerFromContext(ctx),
 		App:      app.Name,
 		Username: ssh.DefaultSshUsername,

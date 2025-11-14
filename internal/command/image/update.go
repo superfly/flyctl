@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newUpdate() *cobra.Command {
@@ -49,10 +49,10 @@ The update will perform a rolling restart against each Machine, which may result
 func runUpdate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}

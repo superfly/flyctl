@@ -212,6 +212,7 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
+		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -350,21 +351,15 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, appName)
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
 
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
-		org, err := apiClient.GetOrganizationByApp(ctx, appName)
-		if err != nil {
-			return fmt.Errorf("get organization: %w", err)
-		}
-
 		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
-			OrganizationID: org.InternalNumericID,
+			OrganizationID: appCompact.Organization.InternalNumericID,
 			UserID:         userID,
 		})
 		if err != nil {
@@ -406,7 +401,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "\nWatch your deployment at %s\n\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)))
-	if err := deployToMachines(ctx, appConfig, app, img); err != nil {
+	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
 	var ip = "public"
@@ -525,7 +520,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 func deployToMachines(
 	ctx context.Context,
 	cfg *appconfig.Config,
-	app *flaps.App,
+	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
 	var io = iostreams.FromContext(ctx)
@@ -667,7 +662,7 @@ func deployToMachines(
 	}
 
 	args := MachineDeploymentArgs{
-		AppData:               app,
+		AppCompact:            app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),

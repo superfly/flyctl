@@ -36,7 +36,7 @@ func runSentryCreate(ctx context.Context) (err error) {
 		Provider: "sentry",
 	})
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppFlaps(*extension.App), secrets.DeploymentArgs{
+		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
 			Stage:    false,
 			Detach:   false,
 			CheckDNS: true,

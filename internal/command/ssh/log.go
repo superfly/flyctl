@@ -38,7 +38,7 @@ func runLog(ctx context.Context) (err error) {
 	jsonOutput := config.FromContext(ctx).JSONOutput
 	out := iostreams.FromContext(ctx).Out
 
-	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}

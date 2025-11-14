@@ -13,16 +13,12 @@ var _ FlapsClient = (*flaps.Client)(nil)
 
 type FlapsClient interface {
 	AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
-	AppNameAvailable(ctx context.Context, name string) (bool, error)
-	AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
-	CreateApp(ctx context.Context, req flaps.CreateAppRequest) (app *flaps.App, err error)
+	CreateApp(ctx context.Context, name string, org string) (err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
-	DeleteApp(ctx context.Context, name string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error)
-	DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error)
 	DeleteSecretKey(ctx context.Context, name string) error
 	DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
@@ -31,13 +27,10 @@ type FlapsClient interface {
 	FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error)
 	GenerateSecretKey(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
-	GetApp(ctx context.Context, name string) (app *flaps.App, err error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
-	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetMetadata(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcesses(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
-	GetRegions(ctx context.Context) (data *flaps.RegionData, err error)
 	GetVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	GetVolumeSnapshots(ctx context.Context, volumeId string) ([]fly.VolumeSnapshot, error)
 	GetVolumes(ctx context.Context) ([]fly.Volume, error)
@@ -45,7 +38,6 @@ type FlapsClient interface {
 	Launch(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error)
 	List(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActive(ctx context.Context) ([]*fly.Machine, error)
-	ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error)
 	ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
 	ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
@@ -64,6 +56,7 @@ type FlapsClient interface {
 	UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	Wait(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error)
+	WaitForApp(ctx context.Context, name string) error
 }
 
 type contextKey struct{}

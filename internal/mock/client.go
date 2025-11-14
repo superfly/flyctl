@@ -7,7 +7,6 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/graphql"
 )
@@ -16,7 +15,7 @@ var _ flyutil.Client = (*Client)(nil)
 
 type Client struct {
 	AddCertificateFunc                     func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	AllocateIPAddressFunc                  func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error)
+	AllocateIPAddressFunc                  func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddressFunc            func(ctx context.Context, appName string) (net.IP, error)
 	AllocateEgressIPAddressFunc            func(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailableFunc                   func(ctx context.Context, appName string) (bool, error)
@@ -27,15 +26,15 @@ type Client struct {
 	ClosestWireguardGatewayRegionFunc      func(ctx context.Context) (*fly.Region, error)
 	CreateAppFunc                          func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
 	CreateBuildFunc                        func(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
-	CreateDelegatedWireGuardTokenFunc      func(ctx context.Context, orgID string, name string) (*fly.DelegatedWireGuardToken, error)
+	CreateDelegatedWireGuardTokenFunc      func(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
 	CreateDoctorUrlFunc                    func(ctx context.Context) (putUrl string, err error)
 	CreateOrganizationFunc                 func(ctx context.Context, organizationname string) (*fly.Organization, error)
 	CreateOrganizationInviteFunc           func(ctx context.Context, id, email string) (*fly.Invitation, error)
 	CreateReleaseFunc                      func(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
-	CreateWireGuardPeerFunc                func(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
+	CreateWireGuardPeerFunc                func(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
 	DeleteAppFunc                          func(ctx context.Context, appName string) error
 	DeleteCertificateFunc                  func(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
-	DeleteDelegatedWireGuardTokenFunc      func(ctx context.Context, orgID string, name, token *string) error
+	DeleteDelegatedWireGuardTokenFunc      func(ctx context.Context, org *fly.Organization, name, token *string) error
 	DeleteOrganizationFunc                 func(ctx context.Context, id string) (deletedid string, err error)
 	DeleteOrganizationMembershipFunc       func(ctx context.Context, orgId, userId string) (string, string, error)
 	DetachPostgresClusterFunc              func(ctx context.Context, input fly.DetachPostgresClusterInput) error
@@ -45,8 +44,9 @@ type Client struct {
 	FinishBuildFunc                        func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetAppFunc                             func(ctx context.Context, appName string) (*fly.App, error)
 	GetAppRemoteBuilderFunc                func(ctx context.Context, appName string) (*fly.App, error)
-	GetAppBasicFunc                        func(ctx context.Context, appName string) (*flaps.App, error)
+	GetAppBasicFunc                        func(ctx context.Context, appName string) (*fly.AppBasic, error)
 	GetAppCertificatesFunc                 func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
+	GetAppCompactFunc                      func(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetDeployerAppByOrgFunc                func(ctx context.Context, orgID string) (*fly.App, error)
 	GetAppCurrentReleaseMachinesFunc       func(ctx context.Context, appName string) (*fly.Release, error)
 	GetAppCNAMETargetFunc                  func(ctx context.Context, appName string) (string, error)
@@ -78,7 +78,7 @@ type Client struct {
 	GetWireGuardPeerFunc                   func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeersFunc                  func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
 	GenqClientFunc                         func() genq.Client
-	IssueSSHCertificateFunc                func(ctx context.Context, orgSlug string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
+	IssueSSHCertificateFunc                func(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
 	LatestImageFunc                        func(ctx context.Context, appName string) (string, error)
 	ListPostgresClusterAttachmentsFunc     func(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
 	LoggerFunc                             func() fly.Logger
@@ -87,7 +87,7 @@ type Client struct {
 	PlatformRegionsFunc                    func(ctx context.Context) ([]fly.Region, *fly.Region, error)
 	ReleaseIPAddressFunc                   func(ctx context.Context, appName string, ip string) error
 	ReleaseEgressIPAddressFunc             func(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
-	RemoveWireGuardPeerFunc                func(ctx context.Context, orgID string, name string) error
+	RemoveWireGuardPeerFunc                func(ctx context.Context, org *fly.Organization, name string) error
 	ResolveImageForAppFunc                 func(ctx context.Context, appName, imageRef string) (*fly.Image, error)
 	RevokeLimitedAccessTokenFunc           func(ctx context.Context, id string) error
 	RunFunc                                func(req *graphql.Request) (fly.Query, error)
@@ -104,8 +104,8 @@ func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (
 	return m.AddCertificateFunc(ctx, appName, hostname)
 }
 
-func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
-	return m.AllocateIPAddressFunc(ctx, appName, addrType, region, orgID, network)
+func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error) {
+	return m.AllocateIPAddressFunc(ctx, appName, addrType, region, org, network)
 }
 
 func (m *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error) {
@@ -148,8 +148,8 @@ func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*
 	return m.CreateBuildFunc(ctx, input)
 }
 
-func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, orgID string, name string) (*fly.DelegatedWireGuardToken, error) {
-	return m.CreateDelegatedWireGuardTokenFunc(ctx, orgID, name)
+func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error) {
+	return m.CreateDelegatedWireGuardTokenFunc(ctx, org, name)
 }
 
 func (m *Client) CreateDoctorUrl(ctx context.Context) (putUrl string, err error) {
@@ -168,8 +168,8 @@ func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput
 	return m.CreateReleaseFunc(ctx, input)
 }
 
-func (m *Client) CreateWireGuardPeer(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
-	return m.CreateWireGuardPeerFunc(ctx, orgID, region, name, pubkey, network)
+func (m *Client) CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
+	return m.CreateWireGuardPeerFunc(ctx, org, region, name, pubkey, network)
 }
 
 func (m *Client) DeleteApp(ctx context.Context, appName string) error {
@@ -180,8 +180,8 @@ func (m *Client) DeleteCertificate(ctx context.Context, appName, hostname string
 	return m.DeleteCertificateFunc(ctx, appName, hostname)
 }
 
-func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, orgID string, name, token *string) error {
-	return m.DeleteDelegatedWireGuardTokenFunc(ctx, orgID, name, token)
+func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name, token *string) error {
+	return m.DeleteDelegatedWireGuardTokenFunc(ctx, org, name, token)
 }
 
 func (m *Client) DeleteOrganization(ctx context.Context, id string) (deletedid string, err error) {
@@ -220,12 +220,16 @@ func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.
 	return m.GetAppRemoteBuilderFunc(ctx, appName)
 }
 
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*flaps.App, error) {
+func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
 	return m.GetAppBasicFunc(ctx, appName)
 }
 
 func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error) {
 	return m.GetAppCertificatesFunc(ctx, appName)
+}
+
+func (m *Client) GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error) {
+	return m.GetAppCompactFunc(ctx, appName)
 }
 
 func (m *Client) GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error) {
@@ -356,8 +360,8 @@ func (m *Client) LatestImage(ctx context.Context, appName string) (string, error
 	return m.LatestImageFunc(ctx, appName)
 }
 
-func (m *Client) IssueSSHCertificate(ctx context.Context, orgSlug string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
-	return m.IssueSSHCertificateFunc(ctx, orgSlug, principals, appNames, valid_hours, publicKey)
+func (m *Client) IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
+	return m.IssueSSHCertificateFunc(ctx, org, principals, appNames, valid_hours, publicKey)
 }
 
 func (m *Client) ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error) {
@@ -388,8 +392,8 @@ func (m *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string
 	return m.ReleaseIPAddressFunc(ctx, appName, ip)
 }
 
-func (m *Client) RemoveWireGuardPeer(ctx context.Context, orgID string, name string) error {
-	return m.RemoveWireGuardPeerFunc(ctx, orgID, name)
+func (m *Client) RemoveWireGuardPeer(ctx context.Context, org *fly.Organization, name string) error {
+	return m.RemoveWireGuardPeerFunc(ctx, org, name)
 }
 
 func (m *Client) ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error) {

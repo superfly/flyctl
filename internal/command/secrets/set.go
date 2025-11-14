@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -70,7 +70,7 @@ func runSet(ctx context.Context) (err error) {
 	})
 }
 
-func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets map[string]string, args DeploymentArgs) error {
+func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets map[string]string, args DeploymentArgs) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
 		return fmt.Errorf("update secrets: %w", err)
 	}

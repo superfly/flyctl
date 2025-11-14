@@ -9,14 +9,12 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/uiexutil"
 
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -49,7 +47,6 @@ func RunDestroy(ctx context.Context) error {
 	colorize := io.ColorScheme()
 	apps := flag.Args(ctx)
 	client := flyutil.ClientFromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	if len(apps) == 0 {
 		return fmt.Errorf("no app names provided")
@@ -73,12 +70,11 @@ func RunDestroy(ctx context.Context) error {
 			}
 		}
 
-		flapsClient := flapsutil.ClientFromContext(ctx)
-		app, err := flapsClient.GetApp(ctx, appName)
+		app, err := client.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
-		org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+		org, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
 		if err != nil {
 			return err
 		}
@@ -96,8 +92,7 @@ func RunDestroy(ctx context.Context) error {
 			fmt.Fprintf(io.Out, "Destroyed statics bucket %s\n", bucket.Name)
 		}
 
-		flapsClient = flapsutil.ClientFromContext(ctx)
-		if err := flapsClient.DeleteApp(ctx, appName); err != nil {
+		if err := client.DeleteApp(ctx, appName); err != nil {
 			return err
 		}
 

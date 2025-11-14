@@ -58,7 +58,7 @@ func SetMinvers(ctx context.Context, appName string, v uint64) error {
 	return setMinvers(ctx, appName, &v)
 }
 
-// DeleteMinvers removes the minimum secrets version for appName.
+// DeleteMinvers removes the minimum secrets version for appName and saves it.
 func DeleteMinvers(ctx context.Context, appName string) error {
 	return setMinvers(ctx, appName, nil)
 }

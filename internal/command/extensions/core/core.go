@@ -13,6 +13,7 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -31,7 +32,7 @@ type Extension struct {
 
 type ExtensionParams struct {
 	AppName              string
-	OrgSlug              string
+	Organization         *fly.Organization
 	Provider             string
 	PlanID               string
 	OrganizationPlanID   string
@@ -86,7 +87,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		}
 
 	} else {
-		resp, err := gql.GetOrganization(ctx, client, params.OrgSlug)
+		resp, err := gql.GetOrganization(ctx, client, params.Organization.Slug)
 		if err != nil {
 			return extension, err
 		}
@@ -162,7 +163,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 		} else {
 
-			region, err := prompt.Region(ctx, prompt.RegionParams{
+			region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
 				Message:             "Choose the primary region (can't be changed later)",
 				ExcludedRegionCodes: excludedRegions,
 			})

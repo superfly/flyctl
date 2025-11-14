@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -62,7 +62,7 @@ type DeploymentArgs struct {
 }
 
 // DeploySecrets deploys machines with the new secret if this step is not to be skipped.
-func DeploySecrets(ctx context.Context, app *flaps.App, args DeploymentArgs) error {
+func DeploySecrets(ctx context.Context, app *fly.AppCompact, args DeploymentArgs) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if args.Stage {
@@ -79,7 +79,7 @@ func DeploySecrets(ctx context.Context, app *flaps.App, args DeploymentArgs) err
 	if err != nil {
 		return err
 	}
-	if !app.Deployed() && len(machines) == 0 {
+	if !app.Deployed && len(machines) == 0 {
 		fmt.Fprintln(out, "Secrets are staged for the first deployment")
 		return nil
 	}
@@ -93,7 +93,7 @@ func DeploySecrets(ctx context.Context, app *flaps.App, args DeploymentArgs) err
 	ctx = appconfig.WithConfig(ctx, cfg)
 
 	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
-		AppData:          app,
+		AppCompact:       app,
 		RestartOnly:      true,
 		SkipHealthChecks: args.Detach,
 		SkipDNSChecks:    args.Detach || !args.CheckDNS,

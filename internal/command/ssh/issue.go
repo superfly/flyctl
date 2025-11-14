@@ -80,7 +80,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 	client := flyutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
-	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		return err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org.ID, principals, nil, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org, principals, nil, &hours, pub)
 	if err != nil {
 		return err
 	}
