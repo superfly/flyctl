@@ -68,20 +68,20 @@ type FlapsClient struct {
 	WaitForAppFunc           func(ctx context.Context, name string) error
 }
 
-func (f *FlapsClient) ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error) {
-	return f.ListAppsFunc(ctx, org_slug)
+func (m *FlapsClient) ListApps(ctx context.Context, org_slug string) (app []flaps.App, err error) {
+	return m.ListAppsFunc(ctx, org_slug)
 }
 
-func (f *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
-	return f.GetIPAssignmentsFunc(ctx, appName)
+func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+	return m.GetIPAssignmentsFunc(ctx, appName)
 }
 
-func (f *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
-	return f.AssignIPFunc(ctx, appName, req)
+func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+	return m.AssignIPFunc(ctx, appName, req)
 }
 
-func (f *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
-	return f.DeleteIPAssignmentFunc(ctx, appName, ip)
+func (m *FlapsClient) DeleteIPAssignment(ctx context.Context, appName string, ip string) (err error) {
+	return m.DeleteIPAssignmentFunc(ctx, appName, ip)
 }
 
 func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
