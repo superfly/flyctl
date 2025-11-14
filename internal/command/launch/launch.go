@@ -356,7 +356,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	// Only set fields that haven't already been set in the compute configs
 	if plan.CPUKind != "" {
 		for _, compute := range appConfig.Compute {
-			if compute != nil {
+			if compute != nil && compute.MachineGuest != nil {
 				compute.CPUKind = plan.CPUKind
 			}
 		}
@@ -364,7 +364,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.CPUs != 0 {
 		for _, compute := range appConfig.Compute {
-			if compute != nil {
+			if compute != nil && compute.MachineGuest != nil {
 				compute.CPUs = plan.CPUs
 			}
 		}
@@ -372,7 +372,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.MemoryMB != 0 {
 		for _, compute := range appConfig.Compute {
-			if compute != nil {
+			if compute != nil && compute.MachineGuest != nil {
 				compute.MemoryMB = plan.MemoryMB
 			}
 		}
