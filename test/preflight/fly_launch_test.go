@@ -89,9 +89,10 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
 		"vm": []any{map[string]any{
-			"cpu_kind": "shared",
-			"cpus":     int64(1),
-			"memory":   "1gb",
+			"cpu_kind":  "shared",
+			"cpus":      int64(1),
+			"memory":    "1gb",
+			"memory_mb": int64(1024),
 		}},
 	}
 	require.EqualValues(f, want, toml)
