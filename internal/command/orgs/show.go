@@ -38,7 +38,7 @@ associated member. Details full list of members and roles.
 
 func runShow(ctx context.Context) (err error) {
 	client := flyutil.ClientFromContext(ctx)
-	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
+	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}

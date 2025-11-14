@@ -4,18 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
 )
 
 func generateSyntheticsToken(ctx context.Context) (token string, err error) {
-	client := uiexutil.ClientFromContext(ctx)
-	var orgs []uiex.Organization
-	if orgs, err = client.ListOrganizations(ctx, false); err != nil {
+	client := flyutil.ClientFromContext(ctx)
+	var orgs []fly.Organization
+	if orgs, err = client.GetOrganizations(ctx); err != nil {
 		return
 	}
 
@@ -52,7 +51,7 @@ func GetSyntheticsToken(ctx context.Context) (token string, err error) {
 	return token, nil
 }
 
-func getOrgReadOnlyToken(ctx context.Context, org uiex.Organization) ([][]byte, error) {
+func getOrgReadOnlyToken(ctx context.Context, org fly.Organization) ([][]byte, error) {
 	var (
 		token     string
 		apiClient = flyutil.ClientFromContext(ctx)

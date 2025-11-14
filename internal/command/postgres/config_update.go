@@ -9,14 +9,13 @@ import (
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -91,11 +90,11 @@ func newConfigUpdate() (cmd *cobra.Command) {
 
 func runConfigUpdate(ctx context.Context) error {
 	var (
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -111,7 +110,7 @@ func runConfigUpdate(ctx context.Context) error {
 	return runMachineConfigUpdate(ctx, app)
 }
 
-func runMachineConfigUpdate(ctx context.Context, app *flaps.App) error {
+func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -184,7 +183,7 @@ func runMachineConfigUpdate(ctx context.Context, app *flaps.App) error {
 	return nil
 }
 
-func updateStolonConfig(ctx context.Context, app *flaps.App, leaderIP string) (bool, error) {
+func updateStolonConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 
 	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.StolonManager, leaderIP)
@@ -207,7 +206,7 @@ func updateStolonConfig(ctx context.Context, app *flaps.App, leaderIP string) (b
 	return restartRequired, nil
 }
 
-func updateFlexConfig(ctx context.Context, app *flaps.App, leaderIP string) (bool, error) {
+func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -250,7 +249,7 @@ func updateFlexConfig(ctx context.Context, app *flaps.App, leaderIP string) (boo
 	return restartRequired, nil
 }
 
-func resolveConfigChanges(ctx context.Context, app *flaps.App, manager string, leaderIP string) (bool, map[string]string, error) {
+func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) (bool, map[string]string, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
+	"strings"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -18,9 +20,13 @@ import (
 
 func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps.Client, error) {
 	// Connect over wireguard depending on FLAPS URL.
-	if needsUserModeWireguard() {
+	if strings.TrimSpace(strings.ToLower(os.Getenv("FLY_FLAPS_BASE_URL"))) == "peer" {
 		if opts.OrgSlug == "" {
-			opts.OrgSlug = opts.AppData.Organization.Slug
+			orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
+			}
+			opts.OrgSlug = orgSlug
 		}
 
 		client := flyutil.ClientFromContext(ctx)
@@ -54,6 +60,23 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 	}
 
 	return flaps.NewWithOptions(ctx, opts)
+}
+
+func resolveOrgSlugForApp(ctx context.Context, app *fly.AppCompact, appName string) (string, error) {
+	app, err := resolveApp(ctx, app, appName)
+	if err != nil {
+		return "", err
+	}
+	return app.Organization.Slug, nil
+}
+
+func resolveApp(ctx context.Context, app *fly.AppCompact, appName string) (*fly.AppCompact, error) {
+	var err error
+	if app == nil {
+		client := flyutil.ClientFromContext(ctx)
+		app, err = client.GetAppCompact(ctx, appName)
+	}
+	return app, err
 }
 
 func resolvePeerIP(ip string) string {

@@ -6,14 +6,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func newInstances() (cmd *cobra.Command) {
@@ -39,10 +39,10 @@ func runInstances(ctx context.Context) (err error) {
 	}
 
 	slug := flag.FirstArg(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
-	var org *uiex.Organization
-	if org, err = uiexClient.GetOrganization(ctx, slug); err != nil {
+	var org *fly.Organization
+	if org, err = apiClient.GetOrganizationBySlug(ctx, slug); err != nil {
 		err = fmt.Errorf("failed fetching org: %w", err)
 
 		return

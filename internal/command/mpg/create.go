@@ -37,6 +37,7 @@ func newCreate() *cobra.Command {
 
 	cmd := command.New("create", short, long, runCreate,
 		command.RequireSession,
+		command.RequireUiex,
 	)
 
 	flag.Add(

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -16,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func updateImageForMachines(ctx context.Context, app *flaps.App) error {
+func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io = iostreams.FromContext(ctx)
 
@@ -84,7 +83,7 @@ type member struct {
 	TargetConfig fly.MachineConfig
 }
 
-func updatePostgresOnMachines(ctx context.Context, app *flaps.App) (err error) {
+func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()

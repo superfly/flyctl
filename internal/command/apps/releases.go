@@ -7,14 +7,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -49,12 +49,12 @@ including type, when, success/fail and which user triggered the release.
 
 func runReleases(ctx context.Context) error {
 	var (
-		appName    = appconfig.NameFromContext(ctx)
-		uiexClient = uiexutil.ClientFromContext(ctx)
-		out        = iostreams.FromContext(ctx).Out
+		appName = appconfig.NameFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
+		out     = iostreams.FromContext(ctx).Out
 	)
 
-	releases, err := uiexClient.ListReleases(ctx, appName, 25)
+	releases, err := client.GetAppReleasesMachines(ctx, appName, "", 25)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app releases %s: %w", appName, err)
 	}
@@ -71,14 +71,14 @@ func runReleases(ctx context.Context) error {
 	return render.Table(out, "", rows, headers...)
 }
 
-func formatMachinesReleases(releases []uiex.Release, image bool) ([][]string, []string) {
+func formatMachinesReleases(releases []fly.Release, image bool) ([][]string, []string) {
 	var rows [][]string
 	for _, release := range releases {
 		row := []string{
 			fmt.Sprintf("v%d", release.Version),
 			release.Status,
-			string(release.DeploymentStrategy),
-			release.User,
+			release.Description,
+			release.User.Email,
 			format.RelativeTime(release.CreatedAt),
 		}
 		if image {
@@ -90,7 +90,7 @@ func formatMachinesReleases(releases []uiex.Release, image bool) ([][]string, []
 	headers := []string{
 		"Version",
 		"Status",
-		"Strategy",
+		"Description",
 		"User",
 		"Date",
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
@@ -74,6 +76,7 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
+		apiClient     = flyutil.ClientFromContext(ctx)
 	)
 
 	var name string
@@ -100,13 +103,25 @@ func RunCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
-		Name:    name,
-		Org:     org.RawSlug,
-		Network: flag.GetString(ctx, "network"),
-	})
+	input := fly.CreateAppInput{
+		Name:           name,
+		OrganizationID: org.ID,
+		Machines:       true,
+	}
+
+	if v := flag.GetString(ctx, "network"); v != "" {
+		input.Network = fly.StringPointer(v)
+	}
+
+	app, err := apiClient.CreateApp(ctx, input)
 	if err != nil {
+		return err
+	}
+
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	if err != nil {
+		return err
+	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return err
 	}
 

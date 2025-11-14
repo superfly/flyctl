@@ -42,18 +42,18 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	regions, err := flapsClient.GetRegions(ctx)
+	regions, err := flapsClient.GetRegions(ctx, "")
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
 
 	// Filter out deprecated regions
-	regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
+	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 		return !r.Deprecated
 	})
 
-	sort.Slice(regions.Regions, func(i, j int) bool {
-		return regions.Regions[i].Name < regions.Regions[j].Name
+	sort.Slice(regions, func(i, j int) bool {
+		return regions[i].Name < regions[j].Name
 	})
 
 	io := iostreams.FromContext(ctx)
@@ -63,7 +63,7 @@ func runRegions(ctx context.Context) error {
 	}
 
 	var rows [][]string
-	regionGroups := lo.GroupBy(regions.Regions, func(item fly.Region) fly.GeoRegion { return item.GeoRegion })
+	regionGroups := lo.GroupBy(regions, func(item fly.Region) fly.GeoRegion { return item.GeoRegion })
 	keys := lo.Keys(regionGroups)
 	slices.SortFunc(keys, func(a, b fly.GeoRegion) int { return cmp.Compare(a, b) })
 	for _, key := range keys {
