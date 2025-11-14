@@ -97,11 +97,6 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("get organization: %w", err)
-	}
-
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("could not retrieve machines: %w", err)
@@ -117,7 +112,7 @@ func runImport(ctx context.Context) error {
 	machineID := leader.ID
 
 	// Resolve region
-	region, err := prompt.Region(ctx, prompt.RegionParams{
+	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region to deploy the migration machine:",
 	})
 	if err != nil {
@@ -194,7 +189,7 @@ func runImport(ctx context.Context) error {
 	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		OrgID:    org.ID,
+		Org:      app.Organization,
 		Dialer:   agent.DialerFromContext(ctx),
 		App:      app.Name,
 		Username: ssh.DefaultSshUsername,

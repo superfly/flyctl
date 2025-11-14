@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func NewDestroy() *cobra.Command {
@@ -78,8 +78,8 @@ func runDestroy(ctx context.Context) error {
 		}
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	_, err := flapsClient.GetApp(ctx, appName)
+	client := flyutil.ClientFromContext(ctx)
+	_, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("app not found: %w", err)
 	}
@@ -95,7 +95,7 @@ func runDestroy(ctx context.Context) error {
 		return fmt.Errorf("failed to destroy app': %w", err)
 	}
 
-	_, err = flapsClient.GetApp(ctx, appName)
+	_, err = client.GetApp(ctx, appName)
 	if err == nil {
 		return fmt.Errorf("app not destroyed: %s", appName)
 	}

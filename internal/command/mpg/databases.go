@@ -41,6 +41,7 @@ func newDatabasesList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDatabasesList,
 		command.RequireSession,
+		command.RequireUiex,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -104,6 +105,7 @@ func newDatabasesCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDatabasesCreate,
 		command.RequireSession,
+		command.RequireUiex,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)

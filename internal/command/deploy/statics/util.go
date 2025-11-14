@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/tokenizer"
 )
 
@@ -52,7 +51,7 @@ func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) fun
 	}
 }
 
-func getPushToken(ctx context.Context, org *uiex.Organization) (string, error) {
+func getPushToken(ctx context.Context, org *fly.Organization) (string, error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	resp, err := gql.CreateLimitedAccessToken(
@@ -70,7 +69,7 @@ func getPushToken(ctx context.Context, org *uiex.Organization) (string, error) {
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
-func s3ClientWithAuth(ctx context.Context, auth string, org *uiex.Organization) (*s3.Client, error) {
+func s3ClientWithAuth(ctx context.Context, auth string, org *fly.Organization) (*s3.Client, error) {
 
 	s3Config, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("tokenizer-access-key", "tokenizer-secret-key", "")),

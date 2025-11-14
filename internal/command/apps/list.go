@@ -8,18 +8,14 @@ import (
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
-	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func newList() *cobra.Command {
@@ -49,8 +45,7 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 }
 
 func runList(ctx context.Context) (err error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
@@ -58,30 +53,11 @@ func runList(ctx context.Context) (err error) {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
 
-	releases, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx)
-	if err != nil {
-		logger := logger.MaybeFromContext(ctx)
-		if logger != nil {
-			logger.Warnf("failed to get latest release timestamps: %v", err)
-		}
-	}
-
-	var apps []flaps.App
+	var apps []fly.App
 	if org != nil {
-		apps, err = flapsClient.ListApps(ctx, org.RawSlug)
+		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 	} else {
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		orgs, err := uiexClient.ListOrganizations(ctx, false)
-		if err != nil {
-			return fmt.Errorf("error listing organizations: %w", err)
-		}
-		for _, org := range orgs {
-			apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
-			if err != nil {
-				return fmt.Errorf("error listing apps: %w", err)
-			}
-			apps = append(apps, apps2...)
-		}
+		apps, err = client.GetApps(ctx, nil)
 	}
 
 	if err != nil {
@@ -107,10 +83,8 @@ func runList(ctx context.Context) (err error) {
 	}
 	for _, app := range apps {
 		latestDeploy := ""
-		if app.Deployed() && releases != nil {
-			if r, ok := (*releases)[app.Name]; ok {
-				latestDeploy = format.RelativeTime(r)
-			}
+		if app.Deployed && app.CurrentRelease != nil {
+			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
 		}
 
 		if !verbose && strings.HasPrefix(app.Name, "flyctl-interactive-shells-") {

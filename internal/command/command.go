@@ -16,11 +16,11 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -585,16 +585,6 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	// no idea if there would be a client in the context at this point,
-	// but don't overwrite it
-	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-		if err != nil {
-			return ctx, err
-		}
-		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-	}
-
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
@@ -666,6 +656,24 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 	} else {
 		return nil, fly.ErrNoAuthToken
 	}
+}
+
+// Apply uiex client to uiex
+func RequireUiex(ctx context.Context) (context.Context, error) {
+	cfg := config.FromContext(ctx)
+
+	if uiexutil.ClientFromContext(ctx) == nil {
+		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger: logger.FromContext(ctx),
+			Tokens: cfg.Tokens,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = uiexutil.NewContextWithClient(ctx, client)
+	}
+
+	return ctx, nil
 }
 
 func tryOpenUserURL(ctx context.Context, url string) error {

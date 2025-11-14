@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -314,7 +314,8 @@ func validateMPGTokenCompatibility(ctx context.Context) error {
 
 Please upgrade your authentication by running:
   flyctl auth logout
-  flyctl auth login`)
+  flyctl auth login
+`)
 	}
 	return nil
 }

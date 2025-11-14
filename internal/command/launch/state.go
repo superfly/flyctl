@@ -9,15 +9,12 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -59,38 +56,34 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 	return val, nil
 }
 
-func (state *launchState) orgCompact(ctx context.Context) (*uiex.Organization, error) {
-	uiexClient := uiexutil.ClientFromContext(ctx)
-	res, err := uiexClient.GetOrganization(ctx, state.Plan.OrgSlug)
-	if err != nil || res == nil {
+func (state *launchState) orgCompact(ctx context.Context) (*gql.GetOrganizationOrganization, error) {
+	client := flyutil.ClientFromContext(ctx).GenqClient()
+	res, err := gql.GetOrganization(ctx, client, state.Plan.OrgSlug)
+	if err != nil {
 		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
 	}
-	return res, nil
+	return &res.Organization, nil
 }
 
-func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
-	apiClient := uiexutil.ClientFromContext(ctx)
-	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
-		return apiClient.GetOrganization(ctx, state.Plan.OrgSlug)
+func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
+	apiClient := flyutil.ClientFromContext(ctx)
+	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
+		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
 	})
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
-	flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return fly.Region{}, err
-	}
-
+	apiClient := flyutil.ClientFromContext(ctx)
 	regions, err := cacheGrab(state.cache, "regions", func() ([]fly.Region, error) {
-		regions, err := flapsClient.GetRegions(ctx)
+		regions, _, err := apiClient.PlatformRegions(ctx)
 		if err != nil {
 			return nil, err
 		}
 		// Filter out deprecated regions
-		regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
+		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
 		})
-		return regions.Regions, nil
+		return regions, nil
 	})
 	if err != nil {
 		return fly.Region{}, err
@@ -149,9 +142,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	}
 
 	rows := [][]string{
-		{"Organization",
-			org.Name,
-			state.PlanSource.orgSource},
+		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
 		{"App Machines", guestStr, state.PlanSource.computeSource},

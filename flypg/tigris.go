@@ -32,7 +32,7 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 	name := config.AppName + "-postgres"
 	params := extensions_core.ExtensionParams{
 		AppName:      config.AppName,
-		OrgSlug:      config.Organization.RawSlug,
+		Organization: config.Organization,
 		Provider:     "tigris",
 		OverrideName: &name,
 	}

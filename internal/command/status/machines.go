@@ -69,7 +69,7 @@ func getImage(machines []*fly.Machine) (string, error) {
 	return latestImage, nil
 }
 
-func RenderMachineStatus(ctx context.Context, app *flaps.App, out io.Writer) error {
+func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer) error {
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()
@@ -78,8 +78,8 @@ func RenderMachineStatus(ctx context.Context, app *flaps.App, out io.Writer) err
 	)
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppData: app,
-		AppName: app.Name,
+		AppCompact: app,
+		AppName:    app.Name,
 	})
 	if err != nil {
 		return err
@@ -164,8 +164,8 @@ func RenderMachineStatus(ctx context.Context, app *flaps.App, out io.Writer) err
 		return err
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, image}}
-	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Image"); err != nil {
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image}}
+	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image"); err != nil {
 		return err
 	}
 
@@ -226,7 +226,7 @@ func RenderMachineStatus(ctx context.Context, app *flaps.App, out io.Writer) err
 	return nil
 }
 
-func renderMachineJSONStatus(ctx context.Context, app *flaps.App, machines []*fly.Machine) error {
+func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) error {
 	var (
 		out    = iostreams.FromContext(ctx).Out
 		client = flyutil.ClientFromContext(ctx)
@@ -264,18 +264,21 @@ func renderMachineJSONStatus(ctx context.Context, app *flaps.App, machines []*fl
 	}
 
 	status := map[string]any{
-		"ID":           app.ID,
-		"Name":         app.Name,
-		"Deployed":     app.Deployed(),
-		"Status":       app.Status,
-		"Version":      version,
-		"Organization": app.Organization,
-		"Machines":     machinesToShow,
+		"ID":              app.ID,
+		"Name":            app.Name,
+		"Deployed":        app.Deployed,
+		"Status":          app.Status,
+		"Hostname":        app.Hostname,
+		"Version":         version,
+		"AppURL":          app.AppURL,
+		"Organization":    app.Organization,
+		"PlatformVersion": app.PlatformVersion,
+		"Machines":        machinesToShow,
 	}
 	return render.JSON(out, status)
 }
 
-func renderPGStatus(ctx context.Context, app *flaps.App, machines []*fly.Machine, out io.Writer) (err error) {
+func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine, out io.Writer) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()

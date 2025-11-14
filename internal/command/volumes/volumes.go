@@ -93,7 +93,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []fly.Volume, app *flaps.App, out io.Writer, showHostStatus bool) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showHostStatus bool) error {
 	rows := make([][]string, 0, len(volumes))
 	unreachableVolumes := false
 	for _, volume := range volumes {
@@ -131,7 +131,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *flaps.App, out 
 	return nil
 }
 
-func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *flaps.App) (*fly.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBasic) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}

@@ -11,25 +11,25 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	"github.com/superfly/fly-go/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type AppChecker struct {
-	jsonOutput  bool
-	checks      map[string]string
-	color       *iostreams.ColorScheme
-	ctx         context.Context
-	app         *flaps.App
-	workDir     string
-	appConfig   *appconfig.Config
-	flapsClient flapsutil.FlapsClient
+	jsonOutput bool
+	checks     map[string]string
+	color      *iostreams.ColorScheme
+	ctx        context.Context
+	app        *fly.AppCompact
+	workDir    string
+	appConfig  *appconfig.Config
+	apiClient  flyutil.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) (*AppChecker, error) {
@@ -41,8 +41,8 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil, nil
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	appCompact, err := flapsClient.GetApp(ctx, appName)
+	apiClient := flyutil.ClientFromContext(ctx)
+	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -52,14 +52,14 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	}
 
 	ac := &AppChecker{
-		jsonOutput:  jsonOutput,
-		checks:      make(map[string]string),
-		color:       color,
-		ctx:         ctx,
-		flapsClient: flapsClient,
-		workDir:     state.WorkingDirectory(ctx),
-		app:         nil,
-		appConfig:   nil,
+		jsonOutput: jsonOutput,
+		checks:     make(map[string]string),
+		color:      color,
+		ctx:        ctx,
+		apiClient:  apiClient,
+		workDir:    state.WorkingDirectory(ctx),
+		app:        nil,
+		appConfig:  nil,
 	}
 
 	ac.app = appCompact
@@ -104,16 +104,16 @@ func (ac *AppChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *AppChecker) checkIpsAllocated() []flaps.IPAssignment {
+func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
-	ipAddresses, err := ac.flapsClient.GetIPAssignments(ac.ctx, ac.app.Name)
+	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
 	if err != nil {
 		ac.lprint(nil, "API error listing IP addresses for app %s: %v\n", ac.app.Name, err)
 		return nil
 	}
 
-	if len(ipAddresses.IPs) > 0 {
+	if len(ipAddresses) > 0 {
 		ac.checks["appHasIps"] = "ok"
 		ac.lprint(ac.color.Green, "PASSED\n")
 	} else {
@@ -124,22 +124,22 @@ func (ac *AppChecker) checkIpsAllocated() []flaps.IPAssignment {
 	https://fly.io/docs/reference/configuration/#the-services-sections
 `)
 	}
-	return ipAddresses.IPs
+	return ipAddresses
 }
 
-func (ac *AppChecker) checkDnsRecords(ipAddresses []flaps.IPAssignment) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
-		switch {
-		case strings.Contains(ip.IP, "."):
-			v4s[ip.IP] = true
-		case strings.Contains(ip.IP, ":") && !ip.IsFlycast():
-			v6s[ip.IP] = true
-		case ip.IsFlycast():
+		switch ip.Type {
+		case "v4", "shared_v4":
+			v4s[ip.Address] = true
+		case "v6":
+			v6s[ip.Address] = true
+		case "private_v6":
 			// This is a valid type, but not of interest here.
 		default:
-			ac.lprint(nil, "Ip address %s has unexpected type. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.IP)
+			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.Address, ip.Type)
 		}
 	}
 	if len(v4s) == 0 && len(v6s) == 0 {
@@ -147,7 +147,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []flaps.IPAssignment) {
 		return
 	}
 
-	appHostname := fmt.Sprintf("%s.fly.dev", ac.app.Name)
+	appHostname := ac.app.Hostname
 	appFqdn := dns.Fqdn(appHostname)
 	dnsClient := &dns.Client{}
 	ns, err := getFirstFlyDevNameserver(dnsClient)

@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -85,7 +84,6 @@ func runBackupRestore(ctx context.Context) error {
 	var (
 		appName     = appconfig.NameFromContext(ctx)
 		client      = flyutil.ClientFromContext(ctx)
-		uiexClient  = uiexutil.ClientFromContext(ctx)
 		destAppName = flag.FirstArg(ctx)
 	)
 
@@ -151,12 +149,7 @@ func runBackupRestore(ctx context.Context) error {
 	restoreSecret += resolveRestoreTarget(ctx)
 
 	// Resolve organization
-	orgLegacy, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	org, err := uiexClient.GetOrganization(ctx, orgLegacy.Slug)
+	org, err := client.GetOrganizationByApp(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -181,7 +174,7 @@ func runBackupRestore(ctx context.Context) error {
 		BarmanRemoteRestoreConfig: restoreSecret,
 	}
 
-	launcher := flypg.NewLauncher(client, flapsClient)
+	launcher := flypg.NewLauncher(client)
 	launcher.LaunchMachinesPostgres(ctx, input, false)
 
 	return nil
@@ -305,10 +298,9 @@ func newBackupEnable() *cobra.Command {
 
 func runBackupEnable(ctx context.Context) error {
 	var (
-		io         = iostreams.FromContext(ctx)
-		appName    = appconfig.NameFromContext(ctx)
-		client     = flyutil.ClientFromContext(ctx)
-		uiexClient = uiexutil.ClientFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
@@ -357,12 +349,7 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
 	}
 
-	orgLegacy, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	org, err := uiexClient.GetOrganization(ctx, orgLegacy.Slug)
+	org, err := client.GetOrganizationByApp(ctx, appName)
 	if err != nil {
 		return err
 	}

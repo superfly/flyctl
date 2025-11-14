@@ -5,13 +5,12 @@ import (
 	"fmt"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func runOnDeletionHook(ctx context.Context, app *flaps.App, machine *fly.Machine) {
+func runOnDeletionHook(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		labels = machine.ImageRef.Labels

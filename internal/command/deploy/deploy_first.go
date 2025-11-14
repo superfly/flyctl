@@ -7,7 +7,6 @@ import (
 	"github.com/docker/go-units"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -32,11 +31,11 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 	}
 
 	// Do not touch IPs if there are already allocated
-	ipAddrs, err := md.flapsClient.GetIPAssignments(ctx, md.app.Name)
+	ipAddrs, err := md.apiClient.GetIPAddresses(ctx, md.app.Name)
 	if err != nil {
 		return fmt.Errorf("error detecting ip addresses allocated to %s app: %w", md.app.Name, err)
 	}
-	if len(ipAddrs.IPs) > 0 {
+	if len(ipAddrs) > 0 {
 		return nil
 	}
 
@@ -51,53 +50,43 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 		if confirmDedicatedIp && err == nil {
-			v4Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-				Type: "v4",
-			})
+			v4Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v4", "", nil, "")
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(md.io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.IP)
+			fmt.Fprintf(md.io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.Address)
 
 			if !hasUdpService {
-				v6Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-					Type: "v6",
-				})
+				v6Dedicated, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(md.io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.IP)
+				fmt.Fprintf(md.io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.Address)
 			}
 		}
 
 	case "shared":
 		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
-		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type: "v6",
-		})
+		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(v6Addr.IP))
+		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(v6Addr.Address))
 
-		v4Shared, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type: "shared_v4",
-		})
+		v4Shared, err := md.apiClient.AllocateSharedIPAddress(ctx, md.app.Name)
 		if err != nil {
 			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", md.colorize.Purple(v4Shared.IP))
+		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", md.colorize.Purple(v4Shared.String()))
 		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: %s\n", md.colorize.Purple("fly ips allocate-v4"))
 
 	case "private":
 		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))
-		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type: "private_v6",
-		})
+		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "private_v6", org, nil, "")
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Private ipv6: %s\n", v6Addr.IP)
+		fmt.Fprintf(md.io.Out, "  Private ipv6: %s\n", v6Addr.Address)
 	}
 
 	fmt.Fprintln(md.io.Out)

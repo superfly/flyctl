@@ -7,14 +7,13 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 )
 
 type Server struct {
 	mu sync.Mutex
 
-	apps   map[string]*flaps.App   // apps by app name
+	apps   map[string]*fly.App     // apps by app name
 	images map[imageKey]*fly.Image // images by app name & image ref
 
 	machineSeq int                       // machine id generation
@@ -29,7 +28,7 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		apps:     make(map[string]*flaps.App),
+		apps:     make(map[string]*fly.App),
 		machines: make(map[string][]*fly.Machine),
 		images:   make(map[imageKey]*fly.Image),
 		builds:   make(map[string]*Build),
@@ -45,7 +44,7 @@ func (s *Server) FlapsClient(appName string) *FlapsClient {
 	return NewFlapsClient(s, appName)
 }
 
-func (s *Server) CreateApp(app *flaps.App) {
+func (s *Server) CreateApp(app *fly.App) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.apps[app.Name]; ok {
