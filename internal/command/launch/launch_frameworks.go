@@ -48,19 +48,25 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 			expiry := "999999h"
 
-			app, err := apiClient.GetAppCompact(ctx, appName)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			app, err := flapsClient.GetApp(ctx, appName)
 			if err != nil {
 				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			}
+
+			org, err := apiClient.GetOrganizationByApp(ctx, appName)
+			if err != nil {
+				return fmt.Errorf("get organization: %w", err)
 			}
 
 			resp, err := gql.CreateLimitedAccessToken(
 				ctx,
 				apiClient.GenqClient(),
 				appName,
-				app.Organization.ID,
+				org.ID,
 				"deploy",
 				&gql.LimitedAccessTokenOptions{
-					"app_id": app.ID,
+					"app_id": app.Name,
 				},
 				expiry,
 			)

@@ -51,15 +51,15 @@ func runK8sCreate(ctx context.Context) (err error) {
 
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 	appName := appconfig.NameFromContext(ctx)
-	targetOrg, err := orgs.OrgFromFlagOrSelect(ctx)
+	targetOrg, err := orgs.OrgFromFlagOrSelect(ctx, false)
 	if err != nil {
 		return err
 	}
 
 	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
-		AppName:      appName,
-		Provider:     "kubernetes",
-		Organization: targetOrg,
+		AppName:  appName,
+		Provider: "kubernetes",
+		OrgSlug:  targetOrg.RawSlug,
 	})
 	if err != nil {
 		return err

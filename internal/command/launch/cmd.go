@@ -15,7 +15,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
@@ -30,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -40,7 +40,7 @@ func New() (cmd *cobra.Command) {
 		short = `Create and configure a new app from source code or a Docker image`
 	)
 
-	cmd = command.New("launch", short, long, run, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
+	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
 	flags := []flag.Flag{
@@ -670,11 +670,11 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 	fmt.Fprintln(io.Out)
 
 	switch org.BillingStatus {
-	case gql.BillingStatusTrialActive:
+	case uiex.BillingStatusTrialActive:
 		// User is on active free trial - celebrate!
 		fmt.Fprintf(io.Out, "%s\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
 
-	case gql.BillingStatusSourceRequired, gql.BillingStatusTrialEnded:
+	case uiex.BillingStatusSourceRequired, uiex.BillingStatusTrialEnded:
 		// User needs to add a payment method
 		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! You'll need to add a payment method in order to proceed."))
 		fmt.Fprintln(io.Out)
@@ -702,7 +702,7 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 			return false, nil
 		}
 
-	case gql.BillingStatusCurrent, gql.BillingStatusPastDue, gql.BillingStatusDelinquent:
+	case uiex.BillingStatusCurrent, uiex.BillingStatusPastDue, uiex.BillingStatusDelinquent:
 		// User has a payment method configured - say nothing per requirements
 		// Just continue silently
 
