@@ -350,19 +350,25 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	// Only set fields that haven't already been set in the compute configs
 	if plan.CPUKind != "" {
 		for _, compute := range appConfig.Compute {
-			compute.CPUKind = plan.CPUKind
+			if compute != nil {
+				compute.CPUKind = plan.CPUKind
+			}
 		}
 	}
 
 	if plan.CPUs != 0 {
 		for _, compute := range appConfig.Compute {
-			compute.CPUs = plan.CPUs
+			if compute != nil {
+				compute.CPUs = plan.CPUs
+			}
 		}
 	}
 
 	if plan.MemoryMB != 0 {
 		for _, compute := range appConfig.Compute {
-			compute.MemoryMB = plan.MemoryMB
+			if compute != nil {
+				compute.MemoryMB = plan.MemoryMB
+			}
 		}
 	}
 }
