@@ -125,9 +125,9 @@ func getOrgID(ctx context.Context) (string, error) {
 		return "", errors.New("no org was provided, and none is available from the environment or fly.toml")
 	}
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
 	if err != nil {
 		return "", err
 	}
-	return app.Organization.ID, nil
+	return org.ID, nil
 }

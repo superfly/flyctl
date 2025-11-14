@@ -20,6 +20,8 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -77,15 +79,24 @@ func runPlace(ctx context.Context) error {
 	orgSlug := flag.GetOrg(ctx)
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
-		var org *fly.Organization
+		var org *uiex.Organization
 		if appName == "" {
-			org, err = orgs.OrgFromFlagOrSelect(ctx)
+			org, err = orgs.OrgFromFlagOrSelect(ctx, false)
+			if err != nil {
+				return err
+			}
 		} else {
-			org, err = flyutil.ClientFromContext(ctx).GetOrganizationByApp(ctx, appName)
+			var orgLegacy *fly.Organization
+			orgLegacy, err = flyutil.ClientFromContext(ctx).GetOrganizationByApp(ctx, appName)
+			if err != nil {
+				return err
+			}
+			org, err = uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgLegacy.RawSlug)
+			if err != nil {
+				return err
+			}
 		}
-		if err != nil {
-			return err
-		}
+
 		orgSlug = org.Slug
 	}
 
