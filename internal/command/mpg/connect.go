@@ -3,7 +3,11 @@ package mpg
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
@@ -144,10 +148,15 @@ func runConnect(ctx context.Context) (err error) {
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
 		fmt.Fprintf(io.Out, "Could not find psql in your $PATH. Install it or point your psql at: %s", "someurl")
-		return
+		return err
 	}
 
-	err = proxy.Start(ctx, params)
+	// We want to handle cancels ourselves, since they can pass through
+	// as query cancellations to psql without killing the proxy.
+	proxyCtx, proxyCancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer proxyCancel()
+
+	err = proxy.Start(proxyCtx, params)
 	if err != nil {
 		return err
 	}
@@ -161,13 +170,64 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
-	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)
+
+	// Allow Ctrl+C signals to hit psql
+	psqlCtx, psqlCancel := context.WithCancel(context.WithoutCancel(ctx))
+	defer psqlCancel()
+
+	cmd := exec.CommandContext(psqlCtx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
 	cmd.Stdin = io.In
 
-	cmd.Start()
-	cmd.Wait()
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
-	return
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		var lastSigTime time.Time
+
+		for {
+			select {
+			case sig := <-sigChan:
+				now := time.Now()
+
+				if cmd.Process != nil {
+					// Double Ctrl+C — kill the process
+					if !lastSigTime.IsZero() && now.Sub(lastSigTime) < 2*time.Second {
+						cmd.Process.Kill()
+						psqlCancel()
+						return
+					}
+
+					// Forward to psql for query cancellation
+					cmd.Process.Signal(sig)
+					lastSigTime = now
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	err = cmd.Wait()
+
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Check if the process was terminated by a signal (e.g., our Kill() call)
+			if ws, ok := exitErr.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+				return nil
+			}
+		}
+	}
+
+	return err
 }
