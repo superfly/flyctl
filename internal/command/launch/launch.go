@@ -354,27 +354,28 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		appConfig.HTTPService = nil
 	}
 
-	// Only set fields that haven't already been set in the compute configs
+	// Apply plan-level compute overrides to all compute configurations
+	// Only set fields that haven't already been set (defensive against updateComputeFromDeprecatedGuestFields)
 	if plan.CPUKind != "" {
-		for _, compute := range appConfig.Compute {
-			if compute != nil && compute.MachineGuest != nil {
-				compute.CPUKind = plan.CPUKind
+		for i := range appConfig.Compute {
+			if appConfig.Compute[i] != nil && appConfig.Compute[i].CPUKind == "" {
+				appConfig.Compute[i].CPUKind = plan.CPUKind
 			}
 		}
 	}
 
 	if plan.CPUs != 0 {
-		for _, compute := range appConfig.Compute {
-			if compute != nil && compute.MachineGuest != nil {
-				compute.CPUs = plan.CPUs
+		for i := range appConfig.Compute {
+			if appConfig.Compute[i] != nil && appConfig.Compute[i].CPUs == 0 {
+				appConfig.Compute[i].CPUs = plan.CPUs
 			}
 		}
 	}
 
 	if plan.MemoryMB != 0 {
-		for _, compute := range appConfig.Compute {
-			if compute != nil && compute.MachineGuest != nil {
-				compute.MemoryMB = plan.MemoryMB
+		for i := range appConfig.Compute {
+			if appConfig.Compute[i] != nil && appConfig.Compute[i].MemoryMB == 0 {
+				appConfig.Compute[i].MemoryMB = plan.MemoryMB
 			}
 		}
 	}
