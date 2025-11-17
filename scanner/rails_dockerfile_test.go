@@ -4,10 +4,23 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// drainHealthcheckChannel waits for the healthcheck goroutine to complete
+// by reading from the channel with a timeout. This prevents file handle
+// issues on Windows during test cleanup.
+func drainHealthcheckChannel() {
+	select {
+	case <-healthcheck_channel:
+		// Goroutine completed and sent its result
+	case <-time.After(200 * time.Millisecond):
+		// Timeout - goroutine may still be running, but we've given it time
+	}
+}
 
 func TestRailsScannerWithExistingDockerfile(t *testing.T) {
 	t.Run("uses existing Dockerfile when bundle install fails", func(t *testing.T) {
@@ -41,6 +54,7 @@ CMD ["rails", "server"]
 
 		// Run the scanner - it should detect the Rails app
 		si, err := configureRails(dir, &ScannerConfig{})
+		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 
 		// The scanner should succeed in detecting Rails
 		require.NoError(t, err)
@@ -81,6 +95,7 @@ CMD ["rails", "server"]`
 		require.NoError(t, err)
 
 		si, err := configureRails(dir, &ScannerConfig{})
+		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
 		require.NotNil(t, si)
 
@@ -114,6 +129,7 @@ CMD ["rails", "server"]`
 		require.NoError(t, err)
 
 		si, err := configureRails(dir, &ScannerConfig{})
+		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
 		require.NotNil(t, si)
 
@@ -145,6 +161,7 @@ CMD ["rails", "server"]`
 
 		// For now, we just verify that the scanner can detect Rails
 		si, err := configureRails(dir, &ScannerConfig{})
+		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 
 		// If bundle IS available locally, this will succeed
 		// If bundle is NOT available and no Dockerfile exists, this should fail
@@ -188,6 +205,7 @@ EXPOSE 3000`
 		require.NoError(t, err)
 
 		si, err := configureRails(dir, &ScannerConfig{})
+		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
 		require.NotNil(t, si)
 		assert.Equal(t, "Rails", si.Family)
