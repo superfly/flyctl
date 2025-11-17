@@ -53,7 +53,7 @@ CMD ["rails", "server"]
 		require.NoError(t, err)
 
 		// Run the scanner - it should detect the Rails app
-		si, err := configureRails(dir, &ScannerConfig{})
+		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 
 		// The scanner should succeed in detecting Rails
@@ -94,7 +94,7 @@ CMD ["rails", "server"]`
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
-		si, err := configureRails(dir, &ScannerConfig{})
+		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
 		require.NotNil(t, si)
@@ -128,7 +128,7 @@ CMD ["rails", "server"]`
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
-		si, err := configureRails(dir, &ScannerConfig{})
+		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
 		require.NotNil(t, si)
@@ -160,7 +160,7 @@ CMD ["rails", "server"]`
 		// If bundle is not found and no Dockerfile exists, it should fail
 
 		// For now, we just verify that the scanner can detect Rails
-		si, err := configureRails(dir, &ScannerConfig{})
+		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 
 		// If bundle IS available locally, this will succeed
@@ -204,7 +204,7 @@ EXPOSE 3000`
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
-		si, err := configureRails(dir, &ScannerConfig{})
+		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
 		require.NotNil(t, si)

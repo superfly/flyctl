@@ -101,9 +101,10 @@ type Static = appconfig.Static
 type Volume = appconfig.Mount
 
 type ScannerConfig struct {
-	Mode         string
-	ExistingPort int
-	Colorize     *iostreams.ColorScheme
+	Mode            string
+	ExistingPort    int
+	Colorize        *iostreams.ColorScheme
+	SkipHealthcheck bool // Skip healthcheck goroutine (primarily for tests)
 }
 
 type GitHubActionsStruct struct {
