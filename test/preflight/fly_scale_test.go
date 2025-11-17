@@ -116,7 +116,7 @@ primary_region = "%s"
 	require.Equal(f, 1, len(ml))
 
 	// Extend the volume because if not found, scaling will default to 1GB.
-	f.Fly("vol extend -s 4 %s", ml[0].Config.Mounts[0].Volume)
+	f.Fly("volume extend %s --size 4 --app %s", ml[0].Config.Mounts[0].Volume, appName)
 
 	f.Fly("scale count -y 2")
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
