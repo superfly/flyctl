@@ -196,7 +196,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 
 	// Now destroy a volume (remembering to specify the app name)
 	t.Logf("Destroy volume %s", vol.ID)
-	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
+	f.Fly("vol destroy %s -y -a %s", vol.ID, appName)
 
 	require.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
