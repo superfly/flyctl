@@ -864,7 +864,7 @@ func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) 
 	}
 
 	switch res.StatusCode {
-	case http.StatusOK, http.StatusNoContent:
+	case http.StatusOK, http.StatusNoContent, http.StatusAccepted:
 		return nil
 	case http.StatusNotFound:
 		return fmt.Errorf("cluster %s not found", id)
