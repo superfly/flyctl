@@ -95,6 +95,16 @@ func runMachineStatus(ctx context.Context) (err error) {
 
 	mConfig := machine.GetConfig()
 
+	// When -d/--display-config is set, print only the machine config as JSON and return.
+	if flag.GetBool(ctx, "display-config") {
+		prettyConfig, err := json.MarshalIndent(mConfig, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal machine config: %w", err)
+		}
+		_, _ = fmt.Fprintln(io.Out, string(prettyConfig))
+		return nil
+	}
+
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, "State: %s\n", machine.State)
