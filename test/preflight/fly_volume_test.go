@@ -94,9 +94,28 @@ func testVolumeLs(t *testing.T) {
 	var destroyed *fly.Volume
 	j = f.Fly("vol create -s 1 -a %s -r %s --yes --json test_destroy", appName, f.PrimaryRegion())
 	j.StdOutJSON(&destroyed)
-	f.Fly("vol destroy -y %s", destroyed.ID)
 
-	// Deleted volumes shouldn't be shown.
+	// Wait for all volumes before proceeding
+	assert.EventuallyWithT(f, func(t *assert.CollectT) {
+		lsAllRes := f.Fly("vol ls -a %s --json", appName)
+
+		var lsAll []*fly.Volume
+		lsAllRes.StdOutJSON(&lsAll)
+
+		assert.Len(t, lsAll, 2)
+
+		var lsAllIds []string
+		for _, v := range lsAll {
+			lsAllIds = append(lsAllIds, v.ID)
+		}
+		assert.Contains(t, lsAllIds, kept.ID)
+		assert.Contains(t, lsAllIds, destroyed.ID)
+	}, 5*time.Minute, 10*time.Second)
+
+	// Now destroy a volume (remembering to specify the app name)
+	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
+
+	// Deleted volumes shouldn't be shown by default
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		lsRes := f.Fly("vol ls -a %s --json", appName)
 		var ls []*fly.Volume
@@ -175,8 +194,10 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 		return false
 	}, 1*time.Minute, 1*time.Second, "snapshot never made it to created state")
 
+	// Now destroy a volume (remembering to specify the app name)
 	t.Logf("Destroy volume %s", vol.ID)
-	f.Fly("vol destroy -y %s", vol.ID)
+	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
+
 	require.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
 
