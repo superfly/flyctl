@@ -358,7 +358,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	// Only set fields that haven't already been set (defensive against updateComputeFromDeprecatedGuestFields)
 	if plan.CPUKind != "" {
 		for i := range appConfig.Compute {
-			if appConfig.Compute[i] != nil && appConfig.Compute[i].CPUKind == "" {
+			if appConfig.Compute[i] != nil && appConfig.Compute[i].MachineGuest != nil && appConfig.Compute[i].CPUKind == "" {
 				appConfig.Compute[i].CPUKind = plan.CPUKind
 			}
 		}
@@ -366,7 +366,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.CPUs != 0 {
 		for i := range appConfig.Compute {
-			if appConfig.Compute[i] != nil && appConfig.Compute[i].CPUs == 0 {
+			if appConfig.Compute[i] != nil && appConfig.Compute[i].MachineGuest != nil && appConfig.Compute[i].CPUs == 0 {
 				appConfig.Compute[i].CPUs = plan.CPUs
 			}
 		}
@@ -374,7 +374,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.MemoryMB != 0 {
 		for i := range appConfig.Compute {
-			if appConfig.Compute[i] != nil && appConfig.Compute[i].MemoryMB == 0 {
+			if appConfig.Compute[i] != nil && appConfig.Compute[i].MachineGuest != nil && appConfig.Compute[i].MemoryMB == 0 {
 				appConfig.Compute[i].MemoryMB = plan.MemoryMB
 			}
 		}
