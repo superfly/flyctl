@@ -88,7 +88,7 @@ func testVolumeLs(t *testing.T) {
 	appName := f.CreateRandomAppMachines()
 
 	var kept *fly.Volume
-	j := f.Fly("volume create test_keep --sizes 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
+	j := f.Fly("volume create test_keep --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	j.StdOutJSON(&kept)
 
 	var destroyed *fly.Volume
