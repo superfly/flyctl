@@ -290,22 +290,30 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	}
 
 	// fetch healthcheck route in a separate thread
-	go func() {
-		ruby, err := exec.LookPath("ruby")
-		if err != nil {
+	// Skip in tests to avoid file handle issues on Windows during cleanup
+	if config.SkipHealthcheck {
+		// Send empty value immediately to avoid blocking code that reads from the channel
+		go func() {
 			healthcheck_channel <- ""
-			return
-		}
+		}()
+	} else {
+		go func() {
+			ruby, err := exec.LookPath("ruby")
+			if err != nil {
+				healthcheck_channel <- ""
+				return
+			}
 
-		out, err := exec.Command(ruby, binrails, "runner",
-			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+			out, err := exec.Command(ruby, binrails, "runner",
+				"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
 
-		if err == nil {
-			healthcheck_channel <- strings.TrimSpace(string(out))
-		} else {
-			healthcheck_channel <- ""
-		}
-	}()
+			if err == nil {
+				healthcheck_channel <- strings.TrimSpace(string(out))
+			} else {
+				healthcheck_channel <- ""
+			}
+		}()
+	}
 
 	return s, nil
 }
