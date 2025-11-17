@@ -90,15 +90,13 @@ func testVolumeLs(t *testing.T) {
 	var kept *fly.Volume
 	j := f.Fly("volume create test_keep --sizes 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	j.StdOutJSON(&kept)
-	// f.WaitForVolumeReady(kept.ID)
 
 	var destroyed *fly.Volume
 	j = f.Fly("volume create test_destroy --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	j.StdOutJSON(&destroyed)
-	// f.WaitForVolumeReady(destroyed.ID)
 
 	// Now destroy a volume (remembering to specify the app name)
-	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
+	f.Fly("volume destroy %s --yes --app %s", destroyed.ID, appName)
 
 	// Deleted volumes shouldn't be shown by default
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
@@ -134,12 +132,10 @@ func testVolumeFork(t *testing.T) {
 	var original *fly.Volume
 	j := f.Fly("volume create foobar --json --app %s --region %s --yes", appName, f.PrimaryRegion())
 	j.StdOutJSON(&original)
-	// f.WaitForVolumeReady(original.ID)
 
 	var fork *fly.Volume
 	j = f.Fly("volume fork --json --app %s --region %s %s", appName, f.PrimaryRegion(), original.ID)
 	j.StdOutJSON(&fork)
-	// f.WaitForVolumeReady(fork.ID)
 
 	assert.NotEqual(t, original.Zone, fork.Zone, "forked volume should be in a different zone")
 }
@@ -152,7 +148,6 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	createRes := f.Fly("volume create test_destroy --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	var vol *fly.Volume
 	createRes.StdOutJSON(&vol)
-	// f.WaitForVolumeReady(vol.ID)
 	t.Logf("Start a machine under app %s", appName)
 	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
 	machine := f.MachinesList(appName)[0]
@@ -207,7 +202,6 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	createFromSnapshotRes := f.Fly("volume create test --size 1 --app %s --region %s --yes --json --snapshot-id %s", appName, f.PrimaryRegion(), snapshot.ID)
 	var restoredVol *fly.Volume
 	createFromSnapshotRes.StdOutJSON(&restoredVol)
-	// f.WaitForVolumeReady(restoredVol.ID)
 
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
