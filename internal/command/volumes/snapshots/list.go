@@ -31,13 +31,14 @@ func newList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runList,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Aliases = []string{"ls"}
 
 	cmd.Args = cobra.ExactArgs(1)
 
-	flag.Add(cmd, flag.JSONOutput())
+	flag.Add(cmd, flag.App(), flag.JSONOutput())
 	return cmd
 }
 
