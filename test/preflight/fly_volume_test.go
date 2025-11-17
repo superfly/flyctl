@@ -162,7 +162,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	}, 5*time.Minute, 10*time.Second, "machine %s never destroyed", machine.ID)
 
 	t.Logf("machine %s is destroyed; Snapshot volume %s", machine.ID, vol.ID)
-	f.Fly("volume snapshot create --app %s --json %s", appName, vol.ID)
+	f.Fly("volume snapshot create %s --app %s --json", vol.ID, appName)
 	var snapshot *fly.VolumeSnapshot
 	require.Eventually(f, func() bool {
 		lsRes := f.Fly("volume snapshot ls --json %s", vol.ID)
@@ -199,9 +199,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	require.Equal(f, snapshot.CreatedAt, snapshots2[0].CreatedAt)
 
 	t.Logf("Create volume from %s", snapshot.ID)
-	createFromSnapshotRes := f.Fly("volume create test --size 1 --app %s --region %s --yes --json --snapshot-id %s", appName, f.PrimaryRegion(), snapshot.ID)
-	var restoredVol *fly.Volume
-	createFromSnapshotRes.StdOutJSON(&restoredVol)
+	f.Fly("volume create test --size 1 --app %s --region %s --yes --json --snapshot-id %s", appName, f.PrimaryRegion(), snapshot.ID)
 
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
