@@ -43,30 +43,30 @@ func orgByArg(ctx context.Context) (*fly.Organization, error) {
 func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {
 	io := iostreams.FromContext(ctx)
 	var f *os.File
-	var filename string
 
+	filename := flag.GetArg(ctx, idx)
 	for {
-		filename, err = argOrPrompt(ctx, idx, prompt)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if filename == "" {
-			fmt.Fprintln(io.Out, "Provide a filename (or 'stdout')")
-			continue
-		}
-
 		if filename == "stdout" {
 			return os.Stdout, false, nil
 		}
 
-		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err == nil {
-			return f, true, nil
+		if filename != "" {
+			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			if err == nil {
+				return f, true, nil
+			}
+			fmt.Fprintf(io.Out, "Can't create '%s': %s\n", filename, err)
 		}
 
-		fmt.Fprintf(io.Out, "Can't create '%s': %s\n", filename, err)
+		err := survey.AskOne(
+			&survey.Input{Message: prompt},
+			&filename,
+		)
+		if err != nil {
+			return nil, false, err
+		}
 	}
+
 }
 
 func generateWgConf(peer *fly.CreatedWireGuardPeer, privkey string, w io.Writer) {
