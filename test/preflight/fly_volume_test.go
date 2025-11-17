@@ -112,8 +112,8 @@ func testVolumeLs(t *testing.T) {
 		assert.Contains(t, lsAllIds, destroyed.ID)
 	}, 5*time.Minute, 10*time.Second)
 
-	// Now destroy a volume
-	f.Fly("vol destroy -y %s", destroyed.ID)
+	// Now destroy a volume (remembering to specify the app name)
+	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
 
 	// Deleted volumes shouldn't be shown by default
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
@@ -194,8 +194,10 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 		return false
 	}, 1*time.Minute, 1*time.Second, "snapshot never made it to created state")
 
+	// Now destroy a volume (remembering to specify the app name)
 	t.Logf("Destroy volume %s", vol.ID)
-	f.Fly("vol destroy -y %s", vol.ID)
+	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
+
 	require.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
 
