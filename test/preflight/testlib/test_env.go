@@ -16,6 +16,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/oklog/ulid/v2"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/stretchr/testify/assert"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -317,6 +318,16 @@ func (f *FlyctlTestEnv) VolumeList(appName string) []*fly.Volume {
 	var list []*fly.Volume
 	cmdResult.StdOutJSON(&list)
 	return list
+}
+
+// WaitForVolumeReady polls vol show until the volume is fully registered.
+// This should be called after creating a volume to avoid timing issues
+// where the volume hasn't yet been fully registered with web.
+func (f *FlyctlTestEnv) WaitForVolumeReady(volumeID string) {
+	assert.EventuallyWithT(f, func(t *assert.CollectT) {
+		showRes := f.FlyAllowExitFailure("vol show %s", volumeID)
+		assert.Equal(t, 0, showRes.ExitCode())
+	}, 1*time.Minute, 2*time.Second)
 }
 
 func (f *FlyctlTestEnv) WriteFile(path string, format string, vals ...any) {
