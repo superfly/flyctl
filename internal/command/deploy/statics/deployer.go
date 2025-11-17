@@ -13,7 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -40,8 +42,8 @@ const staticsKeepVersions = 3
 
 type DeployerState struct {
 	// State that's pulled from the larger machines deployment
-	app            *fly.App
-	org            *fly.Organization
+	app            *flaps.App
+	org            *uiex.Organization
 	appConfig      *appconfig.Config
 	releaseVersion int
 
@@ -52,7 +54,7 @@ type DeployerState struct {
 	originalStatics []appconfig.Static
 }
 
-func Deployer(appConfig *appconfig.Config, app *fly.App, org *fly.Organization, releaseVersion int) *DeployerState {
+func Deployer(appConfig *appconfig.Config, app *flaps.App, org *uiex.Organization, releaseVersion int) *DeployerState {
 	return &DeployerState{
 		app:            app,
 		appConfig:      appConfig,
