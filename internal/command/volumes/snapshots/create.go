@@ -23,16 +23,15 @@ func newCreate() *cobra.Command {
 	cmd := command.New(usage, short, long, create, command.RequireSession)
 	cmd.Args = cobra.ExactArgs(1)
 
-	flag.Add(cmd, flag.JSONOutput())
+	flag.Add(cmd, flag.App(), flag.JSONOutput())
 	return cmd
 }
 
 func create(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
-
 	volumeId := flag.FirstArg(ctx)
-
 	appName := appconfig.NameFromContext(ctx)
+
 	if appName == "" {
 		n, err := client.GetAppNameFromVolume(ctx, volumeId)
 		if err != nil {
