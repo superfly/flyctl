@@ -165,7 +165,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	f.Fly("volume snapshot create %s --app %s --json", vol.ID, appName)
 	var snapshot *fly.VolumeSnapshot
 	require.Eventually(f, func() bool {
-		lsRes := f.Fly("volume snapshot ls --json %s", vol.ID)
+		lsRes := f.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
 		var ls []*fly.VolumeSnapshot
 		lsRes.StdOutJSON(&ls)
 		for _, s := range ls {
@@ -190,7 +190,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 		assert.Contains(t, []string{"scheduling_destroy", "pending_destroy", "destroying", "destroyed"}, ls[0].State)
 	}, 5*time.Minute, 10*time.Second, "volume %s never made it to a destroy state", vol.ID)
 
-	ls := f.Fly("volume snapshot ls %s --json", vol.ID)
+	ls := f.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
 	var snapshots2 []*fly.VolumeSnapshot
 	ls.StdOutJSON(&snapshots2)
 	require.Len(f, snapshots2, 1)
