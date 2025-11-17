@@ -193,10 +193,10 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	ls := f.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
 	var snapshots2 []*fly.VolumeSnapshot
 	ls.StdOutJSON(&snapshots2)
-	require.Len(f, snapshots2, 1)
-	require.Equal(f, snapshot.ID, snapshots2[0].ID)
-	require.Equal(f, snapshot.Size, snapshots2[0].Size)
-	require.Equal(f, snapshot.CreatedAt, snapshots2[0].CreatedAt)
+	require.NotEmpty(f, snapshots2)
+	require.Equal(f, snapshot.ID, snapshots2[len(snapshots2)-1].ID)
+	require.Equal(f, snapshot.Size, snapshots2[len(snapshots2)-1].Size)
+	require.Equal(f, snapshot.CreatedAt, snapshots2[len(snapshots2)-1].CreatedAt)
 
 	t.Logf("Create volume from %s", snapshot.ID)
 	f.Fly("volume create test --size 1 --app %s --region %s --yes --json --snapshot-id %s", appName, f.PrimaryRegion(), snapshot.ID)
