@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -70,14 +69,13 @@ func runList(ctx context.Context) (err error) {
 		// --org passed must match the selected app's org
 		if orgFlag != "" {
 			// Get app details, so we can identify its organization slug
-			flapsClient := flapsutil.ClientFromContext(ctx)
-			app, err := flapsClient.GetApp(ctx, appName)
+			app, err := apiClient.GetAppCompact(ctx, appName)
 			if err != nil {
 				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 			}
 
 			// Get organization details, so we can get its slug
-			org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
+			org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 			if err != nil {
 				return fmt.Errorf("failed retrieving org %w", err)
 			}
@@ -98,18 +96,13 @@ func runList(ctx context.Context) (err error) {
 		}
 
 	case "org":
-		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
-		if err != nil {
-			return fmt.Errorf("failed retrieving org %w", err)
-		}
-
-		orgLegacy, err := apiClient.GetOrganizationBySlug(ctx, org.RawSlug)
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
 		fmt.Fprintln(out, "Tokens for organization \""+org.Slug+"\":")
-		for _, token := range orgLegacy.LimitedAccessTokens.Nodes {
+		for _, token := range org.LimitedAccessTokens.Nodes {
 			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String(), revokedAtToString(token.RevokedAt)})
 		}
 	}

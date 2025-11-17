@@ -9,11 +9,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func CompleteApps(
@@ -22,46 +19,33 @@ func CompleteApps(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	var apps []flaps.App
+	var (
+		client = flyutil.ClientFromContext(ctx)
 
-	// cannot use flapsutil, would be an import cycle
-	flapsClient, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{Tokens: config.Tokens(ctx)})
-	if err != nil {
-		return nil, err
-	}
-
-	uiexClient := uiexutil.ClientFromContext(ctx)
+		apps []fly.App
+		err  error
+	)
 
 	orgFiltered := false
 
 	// We can't use `flag.*` here because of import cycles. *sigh*
 	orgFlag := cmd.Flag(flagnames.Org)
 	if orgFlag != nil && orgFlag.Changed {
-		var org *uiex.Organization
-		org, err = uiexClient.GetOrganization(ctx, orgFlag.Value.String())
+		var org *fly.Organization
+		org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
 		if err != nil {
 			return nil, err
 		}
-		apps, err = flapsClient.ListApps(ctx, org.RawSlug)
+		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 		orgFiltered = true
 	} else {
-		orgs, err := uiexClient.ListOrganizations(ctx, false)
-		if err != nil {
-			return nil, fmt.Errorf("error listing organizations: %w", err)
-		}
-		for _, org := range orgs {
-			apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
-			if err != nil {
-				return nil, fmt.Errorf("error listing apps: %w", err)
-			}
-			apps = append(apps, apps2...)
-		}
+		apps, err = client.GetApps(ctx, nil)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	ret := lo.FilterMap(apps, func(app flaps.App, _ int) (string, bool) {
+	ret := lo.FilterMap(apps, func(app fly.App, _ int) (string, bool) {
 		if strings.HasPrefix(app.Name, partial) {
 			var info []string
 			if !orgFiltered {
@@ -82,13 +66,13 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := uiexutil.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
-	format := func(org uiex.Organization) string {
+	format := func(org fly.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
-	orgs, err := client.ListOrganizations(ctx, false)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -109,31 +93,24 @@ func CompleteRegions(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	// cannot use flapsutil, would be an import cycle
-	client, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return nil, err
-	}
+	client := flyutil.ClientFromContext(ctx)
 
 	format := func(org fly.Region) string {
 		return fmt.Sprintf("%s\t%s", org.Code, org.Name)
 	}
 
-	regions, err := client.GetRegions(ctx)
+	// TODO(ali): Do we need to worry about which ones are marked as "gateway"?
+	regions, reqRegion, err := client.PlatformRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	reqRegion, foundReqRegion := lo.Find(regions.Regions, func(r fly.Region) bool {
-		return r.Code == regions.Nearest
-	})
-
 	// Filter out deprecated regions
-	regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
+	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 		return !r.Deprecated
 	})
 
-	regionNames := lo.FilterMap(regions.Regions, func(region fly.Region, _ int) (string, bool) {
+	regionNames := lo.FilterMap(regions, func(region fly.Region, _ int) (string, bool) {
 		if strings.HasPrefix(region.Code, partial) {
 			return format(region), true
 		}
@@ -141,8 +118,8 @@ func CompleteRegions(
 	})
 	slices.Sort(regionNames)
 	// If the region we're closest to is in the list, put it at the top
-	if foundReqRegion && strings.HasPrefix(reqRegion.Code, partial) {
-		idx := slices.Index(regionNames, format(reqRegion))
+	if reqRegion != nil && strings.HasPrefix(reqRegion.Code, partial) {
+		idx := slices.Index(regionNames, format(*reqRegion))
 		// Should always be true because of the check above, but just to be safe...
 		if idx >= 0 {
 			regionNames = append([]string{regionNames[idx]}, append(regionNames[:idx], regionNames[idx+1:]...)...)

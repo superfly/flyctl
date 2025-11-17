@@ -7,7 +7,6 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/uiex"
 )
 
 type defaultValues struct {
@@ -23,7 +22,7 @@ type defaultValues struct {
 	snapshotID      *string
 }
 
-func newDefaults(appConfig *appconfig.Config, latest *uiex.Release, machines []*fly.Machine, volumes []fly.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *fly.MachineGuest) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fly.Machine, volumes []fly.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *fly.MachineGuest) *defaultValues {
 	guestPerGroup := lo.Associate(
 		lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 			return m.Config != nil && m.Config.Guest != nil

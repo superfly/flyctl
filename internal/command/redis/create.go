@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/spinner"
-	"github.com/superfly/flyctl/internal/uiex"
 )
 
 const (
@@ -87,7 +86,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	primaryRegion, err := prompt.Region(ctx, prompt.RegionParams{
+	primaryRegion, err := prompt.Region(ctx, false, prompt.RegionParams{
 		Message:             "Choose a primary region (can't be changed later)",
 		ExcludedRegionCodes: excludedRegions,
 	})
@@ -111,7 +110,7 @@ func runCreate(ctx context.Context) (err error) {
 	return err
 }
 
-func Create(ctx context.Context, org *uiex.Organization, name string, region *fly.Region, disallowReplicas bool, enableEviction bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
+func Create(ctx context.Context, org *fly.Organization, name string, region *fly.Region, disallowReplicas bool, enableEviction bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -184,7 +183,7 @@ type RedisConfiguration struct {
 	Eviction      bool
 }
 
-func ProvisionDatabase(ctx context.Context, org *uiex.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
+func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	var readRegionCodes []string

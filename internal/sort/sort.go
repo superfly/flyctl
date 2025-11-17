@@ -5,14 +5,12 @@ import (
 	"sort"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/uiex"
 )
 
-// OrganizationsByTypeAndName sorts org by their name, and puts personal
-// orgs at the top.
-func OrganizationsByTypeAndName(orgs []uiex.Organization) {
+// OrganizationsByTypeAndName sorts orgs by their type and name.
+func OrganizationsByTypeAndName(orgs []fly.Organization) {
 	sort.Slice(orgs, func(i, j int) bool {
-		return orgs[i].Personal || orgs[i].Name < orgs[j].Name
+		return orgs[i].Type < orgs[j].Type || orgs[i].Name < orgs[j].Name
 	})
 }
 

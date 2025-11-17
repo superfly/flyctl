@@ -3,7 +3,6 @@ package plan
 import (
 	"context"
 	"testing"
-	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/pflag"
@@ -19,46 +18,6 @@ import (
 // mockUIEXClient implements uiexutil.Client for testing
 type mockUIEXClient struct {
 	mpgRegions []uiex.MPGRegion
-}
-
-func (m *mockUIEXClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
-	return []uiex.Release{}, nil
-}
-
-func (m *mockUIEXClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
-	return nil, nil
-}
-
-func (m *mockUIEXClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
-	return []uiex.Organization{}, nil
-}
-
-func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error) {
-	return nil, nil
 }
 
 func (m *mockUIEXClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
