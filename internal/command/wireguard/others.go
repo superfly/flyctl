@@ -17,12 +17,11 @@ import (
 )
 
 func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
-	args := flag.Args(ctx)
-	if len(args) >= (nth + 1) {
-		return args[nth], nil
+	val := flag.GetArg(ctx, nth)
+	if val != "" {
+		return val, nil
 	}
 
-	val := ""
 	err := survey.AskOne(
 		&survey.Input{Message: prompt},
 		&val,
@@ -32,19 +31,13 @@ func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
 }
 
 func orgByArg(ctx context.Context) (*fly.Organization, error) {
-	args := flag.Args(ctx)
-
-	if len(args) == 0 {
-		org, err := prompt.Org(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		return org, nil
+	org := flag.FirstArg(ctx)
+	if org != "" {
+		apiClient := flyutil.ClientFromContext(ctx)
+		return apiClient.GetOrganizationBySlug(ctx, org)
 	}
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	return apiClient.GetOrganizationBySlug(ctx, args[0])
+	return prompt.Org(ctx)
 }
 
 func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {
