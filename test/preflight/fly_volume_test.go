@@ -90,13 +90,17 @@ func testVolumeLs(t *testing.T) {
 	var kept *fly.Volume
 	j := f.Fly("vol create -s 1 -a %s -r %s --yes --json test_keep", appName, f.PrimaryRegion())
 	j.StdOutJSON(&kept)
+	f.WaitForVolumeReady(kept.ID)
 
 	var destroyed *fly.Volume
 	j = f.Fly("vol create -s 1 -a %s -r %s --yes --json test_destroy", appName, f.PrimaryRegion())
 	j.StdOutJSON(&destroyed)
-	f.Fly("vol destroy -y %s", destroyed.ID)
+	f.WaitForVolumeReady(destroyed.ID)
 
-	// Deleted volumes shouldn't be shown.
+	// Now destroy a volume (remembering to specify the app name)
+	f.Fly("vol destroy %s -y -a %s", destroyed.ID, appName)
+
+	// Deleted volumes shouldn't be shown by default
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		lsRes := f.Fly("vol ls -a %s --json", appName)
 		var ls []*fly.Volume
@@ -130,10 +134,12 @@ func testVolumeFork(t *testing.T) {
 	var original *fly.Volume
 	j := f.Fly("vol create --json --app %s --region %s --yes foobar", appName, f.PrimaryRegion())
 	j.StdOutJSON(&original)
+	f.WaitForVolumeReady(original.ID)
 
 	var fork *fly.Volume
 	j = f.Fly("vol fork --json --app %s --region %s %s", appName, f.PrimaryRegion(), original.ID)
 	j.StdOutJSON(&fork)
+	f.WaitForVolumeReady(fork.ID)
 
 	assert.NotEqual(t, original.Zone, fork.Zone, "forked volume should be in a different zone")
 }
@@ -146,6 +152,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	createRes := f.Fly("vol create -s 1 -a %s -r %s --yes --json test_destroy", appName, f.PrimaryRegion())
 	var vol *fly.Volume
 	createRes.StdOutJSON(&vol)
+	f.WaitForVolumeReady(vol.ID)
 	t.Logf("Start a machine under app %s", appName)
 	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
 	machine := f.MachinesList(appName)[0]
@@ -175,8 +182,10 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 		return false
 	}, 1*time.Minute, 1*time.Second, "snapshot never made it to created state")
 
+	// Now destroy a volume (remembering to specify the app name)
 	t.Logf("Destroy volume %s", vol.ID)
-	f.Fly("vol destroy -y %s", vol.ID)
+	f.Fly("vol destroy %s -y -a %s", vol.ID, appName)
+
 	require.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
 
@@ -195,7 +204,10 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	require.Equal(f, snapshot.CreatedAt, snapshots2[0].CreatedAt)
 
 	t.Logf("Create volume from %s", snapshot.ID)
-	f.Fly("vol create -s 1 -a %s -r %s --yes --json --snapshot-id %s test", appName, f.PrimaryRegion(), snapshot.ID)
+	createFromSnapshotRes := f.Fly("vol create -s 1 -a %s -r %s --yes --json --snapshot-id %s test", appName, f.PrimaryRegion(), snapshot.ID)
+	var restoredVol *fly.Volume
+	createFromSnapshotRes.StdOutJSON(&restoredVol)
+	f.WaitForVolumeReady(restoredVol.ID)
 
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
