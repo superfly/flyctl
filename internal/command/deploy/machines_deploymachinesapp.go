@@ -295,7 +295,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 
 			defer func() {
 				if err == nil {
-					if destroyErr := machcmd.Destroy(ctx, md.app, lm.Machine(), true); destroyErr != nil {
+					if destroyErr := machcmd.Destroy(ctx, md.app.Name, lm.Machine(), true); destroyErr != nil {
 						err = destroyErr
 					}
 				}
@@ -449,7 +449,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		return err
 	}
 	for _, mach := range processGroupMachineDiff.machinesToRemove {
-		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
+		if err := machcmd.Destroy(ctx, md.app.Name, mach.Machine(), true); err != nil {
 			return err
 		}
 	}
