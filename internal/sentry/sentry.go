@@ -169,6 +169,51 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 	)
 }
 
+func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureName string, app *flaps.App) {
+	if app == nil {
+		CaptureException(
+			err,
+			WithTag("feature", featureName),
+		)
+		return
+	}
+
+	var flapsErr *flaps.FlapsError
+
+	if errors.As(err, &flapsErr) {
+		CaptureException(
+			flapsErr,
+			WithTag("feature", featureName),
+			WithContexts(map[string]sentry.Context{
+				"app": map[string]interface{}{
+					"name": app.Name,
+				},
+				"organization": map[string]interface{}{
+					"slug": app.Organization.Slug,
+				},
+			}),
+			WithTraceID(ctx),
+			WithRequestID(flapsErr.FlyRequestId),
+			WithStatusCode(flapsErr.ResponseStatusCode),
+		)
+		return
+	}
+
+	CaptureException(
+		err,
+		WithTag("feature", featureName),
+		WithContexts(map[string]sentry.Context{
+			"app": map[string]interface{}{
+				"name": app.Name,
+			},
+			"organization": map[string]interface{}{
+				"slug": app.Organization.Slug,
+			},
+		}),
+		WithTraceID(ctx),
+	)
+}
+
 // Recover records the given panic to sentry.
 func Recover(v interface{}) {
 	if !isInitialized() {
