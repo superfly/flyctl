@@ -529,7 +529,8 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 			if timeoutErr.DesiredState() == fly.MachineStateStarted {
 				// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
 				// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
-				descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
+				// We also suggest checking the Dockerfile since an immediate exit can appear as a timeout.
+				descript = "Your machine was created, but never started or exited immediately. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue.\n\nAlternatively, your app may have exited immediately due to a startup failure. Check your Dockerfile\nto ensure it specifies a valid start command (e.g., check that your 'CMD' or 'ENTRYPOINT' is correct).\nYou can also try running 'fly logs' to see what happened when the machine tried to start."
 				suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
 			} else {
 				// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
