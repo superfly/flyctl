@@ -300,7 +300,18 @@ func TestLaunchRails8(t *testing.T) {
 func TestLaunchDjangoBasic(t *testing.T) {
 	deploy := testDeployer(t,
 		withFixtureApp("django-basic"),
+		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+			return map[string]any{
+				"app":    "dummy-app-name",
+				"region": d.PrimaryRegion(),
+				"env": map[string]string{
+					"TEST_ID": d.ID(),
+				},
+			}
+		}),
 		createRandomApp,
+		testlib.WithTrigger("launch"),
+		testlib.WithCopyConfig,
 		testlib.WithoutCustomize,
 		testlib.WithouExtensions,
 		testlib.DeployNow,

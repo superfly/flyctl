@@ -91,6 +91,8 @@ type DeployTestRun struct {
 
 	region string
 
+	trigger string
+
 	noCustomize    bool
 	skipExtensions bool
 	copyConfig     bool
@@ -175,6 +177,12 @@ func WithCopyConfig(d *DeployTestRun) {
 	d.copyConfig = true
 }
 
+func WithTrigger(trigger string) func(*DeployTestRun) {
+	return func(d *DeployTestRun) {
+		d.trigger = trigger
+	}
+}
+
 func OptOutGithubActions(d *DeployTestRun) {
 	d.optOutGha = true
 }
@@ -229,6 +237,9 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	}
 	if d.copyConfig {
 		env = append(env, "DEPLOY_COPY_CONFIG=1")
+	}
+	if d.trigger != "" {
+		env = append(env, fmt.Sprintf("DEPLOY_TRIGGER=%s", d.trigger))
 	}
 	if d.optOutGha {
 		env = append(env, "OPT_OUT_GITHUB_ACTIONS=1")
