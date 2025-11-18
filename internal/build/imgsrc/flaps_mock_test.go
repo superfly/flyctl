@@ -280,6 +280,21 @@ func (mr *MockFlapsClientMockRecorder) GetAllVolumes(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVolumes", reflect.TypeOf((*MockFlapsClient)(nil).GetAllVolumes), ctx)
 }
 
+// GetApp mocks base method.
+func (m *MockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApp", ctx, name)
+	ret0, _ := ret[0].(*flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApp indicates an expected call of GetApp.
+func (mr *MockFlapsClientMockRecorder) GetApp(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApp", reflect.TypeOf((*MockFlapsClient)(nil).GetApp), ctx, name)
+}
+
 // GetMany mocks base method.
 func (m *MockFlapsClient) GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error) {
 	m.ctrl.T.Helper()
@@ -442,6 +457,21 @@ func (m *MockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64, s
 func (mr *MockFlapsClientMockRecorder) ListAppSecrets(ctx, version, showSecrets any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).ListAppSecrets), ctx, version, showSecrets)
+}
+
+// ListApps mocks base method.
+func (m *MockFlapsClient) ListApps(ctx context.Context, orgSlug string) ([]flaps.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListApps", ctx, orgSlug)
+	ret0, _ := ret[0].([]flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListApps indicates an expected call of ListApps.
+func (mr *MockFlapsClientMockRecorder) ListApps(ctx, orgSlug any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApps", reflect.TypeOf((*MockFlapsClient)(nil).ListApps), ctx, orgSlug)
 }
 
 // ListFlyAppsMachines mocks base method.

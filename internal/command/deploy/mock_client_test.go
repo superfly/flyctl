@@ -99,6 +99,10 @@ func (m *mockFlapsClient) Get(ctx context.Context, machineID string) (*fly.Machi
 	return nil, fmt.Errorf("failed to get %s", machineID)
 }
 
+func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
+	return nil, fmt.Errorf("failed to get app %s", name)
+}
+
 func (m *mockFlapsClient) GetAllVolumes(ctx context.Context) ([]fly.Volume, error) {
 	return nil, fmt.Errorf("failed to get all volumes")
 }
@@ -154,6 +158,10 @@ func (m *mockFlapsClient) List(ctx context.Context, state string) ([]*fly.Machin
 
 func (m *mockFlapsClient) ListActive(ctx context.Context) ([]*fly.Machine, error) {
 	return nil, fmt.Errorf("failed to list active machines")
+}
+
+func (m *mockFlapsClient) ListApps(ctx context.Context, orgSlug string) ([]flaps.App, error) {
+	return nil, fmt.Errorf("failed to list apps")
 }
 
 func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error) {
