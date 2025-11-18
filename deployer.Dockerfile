@@ -30,7 +30,7 @@ ENV DEFAULT_RUBY_VERSION=3.1.6 \
 ARG NODE_BUILD_VERSION=5.3.8
 
 # install mise
-RUN curl https://mise.run | MISE_VERSION=v2024.8.6 sh && \
+RUN curl https://mise.run | MISE_VERSION=v2025.11.6 sh && \
     echo -e "\n\nexport PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH\"" >> ~/.bash_profile
 
 ENV MISE_PYTHON_COMPILE=false
