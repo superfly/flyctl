@@ -85,7 +85,28 @@ func (m *FlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, 
 	return m.server.GetMachine(ctx, m.appName, machineID)
 }
 
+func (m *FlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
+	m.server.mu.Lock()
+	defer m.server.mu.Unlock()
+
+	app := m.server.apps[name]
+	if app == nil {
+		return nil, fmt.Errorf("app not found: %q", name)
+	}
+
+	return &flaps.App{
+		Name: app.Name,
+		Organization: flaps.AppOrganizationInfo{
+			Slug: app.Organization.Slug,
+		},
+	}, nil
+}
+
 func (m *FlapsClient) GetAllVolumes(ctx context.Context) ([]fly.Volume, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	panic("TODO")
 }
 
@@ -136,6 +157,10 @@ func (m *FlapsClient) ListActive(ctx context.Context) ([]*fly.Machine, error) {
 		}
 	}
 	return a, nil
+}
+
+func (m *FlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error) {
+	panic("TODO")
 }
 
 func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context) (machines []*fly.Machine, releaseCmdMachine *fly.Machine, err error) {
