@@ -45,32 +45,47 @@ func (m *MockFlapsClient) EXPECT() *MockFlapsClientMockRecorder {
 }
 
 // AcquireLease mocks base method.
-func (m *MockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
+func (m *MockFlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AcquireLease", ctx, machineID, ttl)
+	ret := m.ctrl.Call(m, "AcquireLease", ctx, appName, machineID, ttl)
 	ret0, _ := ret[0].(*fly.MachineLease)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AcquireLease indicates an expected call of AcquireLease.
-func (mr *MockFlapsClientMockRecorder) AcquireLease(ctx, machineID, ttl any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) AcquireLease(ctx, appName, machineID, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireLease", reflect.TypeOf((*MockFlapsClient)(nil).AcquireLease), ctx, machineID, ttl)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireLease", reflect.TypeOf((*MockFlapsClient)(nil).AcquireLease), ctx, appName, machineID, ttl)
+}
+
+// AssignIP mocks base method.
+func (m *MockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (*flaps.IPAssignment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AssignIP", ctx, appName, req)
+	ret0, _ := ret[0].(*flaps.IPAssignment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AssignIP indicates an expected call of AssignIP.
+func (mr *MockFlapsClientMockRecorder) AssignIP(ctx, appName, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignIP", reflect.TypeOf((*MockFlapsClient)(nil).AssignIP), ctx, appName, req)
 }
 
 // Cordon mocks base method.
-func (m *MockFlapsClient) Cordon(ctx context.Context, machineID, nonce string) error {
+func (m *MockFlapsClient) Cordon(ctx context.Context, appName, machineID, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cordon", ctx, machineID, nonce)
+	ret := m.ctrl.Call(m, "Cordon", ctx, appName, machineID, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Cordon indicates an expected call of Cordon.
-func (mr *MockFlapsClientMockRecorder) Cordon(ctx, machineID, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Cordon(ctx, appName, machineID, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cordon", reflect.TypeOf((*MockFlapsClient)(nil).Cordon), ctx, machineID, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cordon", reflect.TypeOf((*MockFlapsClient)(nil).Cordon), ctx, appName, machineID, nonce)
 }
 
 // CreateApp mocks base method.
@@ -89,125 +104,153 @@ func (mr *MockFlapsClientMockRecorder) CreateApp(ctx, req any) *gomock.Call {
 }
 
 // CreateVolume mocks base method.
-func (m *MockFlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+func (m *MockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateVolume", ctx, req)
+	ret := m.ctrl.Call(m, "CreateVolume", ctx, appName, req)
 	ret0, _ := ret[0].(*fly.Volume)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateVolume indicates an expected call of CreateVolume.
-func (mr *MockFlapsClientMockRecorder) CreateVolume(ctx, req any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) CreateVolume(ctx, appName, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolume", reflect.TypeOf((*MockFlapsClient)(nil).CreateVolume), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolume", reflect.TypeOf((*MockFlapsClient)(nil).CreateVolume), ctx, appName, req)
 }
 
 // CreateVolumeSnapshot mocks base method.
-func (m *MockFlapsClient) CreateVolumeSnapshot(ctx context.Context, volumeId string) error {
+func (m *MockFlapsClient) CreateVolumeSnapshot(ctx context.Context, appName, volumeId string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateVolumeSnapshot", ctx, volumeId)
+	ret := m.ctrl.Call(m, "CreateVolumeSnapshot", ctx, appName, volumeId)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateVolumeSnapshot indicates an expected call of CreateVolumeSnapshot.
-func (mr *MockFlapsClientMockRecorder) CreateVolumeSnapshot(ctx, volumeId any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) CreateVolumeSnapshot(ctx, appName, volumeId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolumeSnapshot", reflect.TypeOf((*MockFlapsClient)(nil).CreateVolumeSnapshot), ctx, volumeId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolumeSnapshot", reflect.TypeOf((*MockFlapsClient)(nil).CreateVolumeSnapshot), ctx, appName, volumeId)
+}
+
+// DeleteApp mocks base method.
+func (m *MockFlapsClient) DeleteApp(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteApp", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteApp indicates an expected call of DeleteApp.
+func (mr *MockFlapsClientMockRecorder) DeleteApp(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApp", reflect.TypeOf((*MockFlapsClient)(nil).DeleteApp), ctx, name)
 }
 
 // DeleteAppSecret mocks base method.
-func (m *MockFlapsClient) DeleteAppSecret(ctx context.Context, name string) (*fly.DeleteAppSecretResp, error) {
+func (m *MockFlapsClient) DeleteAppSecret(ctx context.Context, appName, name string) (*fly.DeleteAppSecretResp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAppSecret", ctx, name)
+	ret := m.ctrl.Call(m, "DeleteAppSecret", ctx, appName, name)
 	ret0, _ := ret[0].(*fly.DeleteAppSecretResp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteAppSecret indicates an expected call of DeleteAppSecret.
-func (mr *MockFlapsClientMockRecorder) DeleteAppSecret(ctx, name any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) DeleteAppSecret(ctx, appName, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAppSecret", reflect.TypeOf((*MockFlapsClient)(nil).DeleteAppSecret), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAppSecret", reflect.TypeOf((*MockFlapsClient)(nil).DeleteAppSecret), ctx, appName, name)
+}
+
+// DeleteIPAssignment mocks base method.
+func (m *MockFlapsClient) DeleteIPAssignment(ctx context.Context, appName, ip string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIPAssignment", ctx, appName, ip)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteIPAssignment indicates an expected call of DeleteIPAssignment.
+func (mr *MockFlapsClientMockRecorder) DeleteIPAssignment(ctx, appName, ip any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPAssignment", reflect.TypeOf((*MockFlapsClient)(nil).DeleteIPAssignment), ctx, appName, ip)
 }
 
 // DeleteMetadata mocks base method.
-func (m *MockFlapsClient) DeleteMetadata(ctx context.Context, machineID, key string) error {
+func (m *MockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteMetadata", ctx, machineID, key)
+	ret := m.ctrl.Call(m, "DeleteMetadata", ctx, appName, machineID, key)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteMetadata indicates an expected call of DeleteMetadata.
-func (mr *MockFlapsClientMockRecorder) DeleteMetadata(ctx, machineID, key any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) DeleteMetadata(ctx, appName, machineID, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMetadata", reflect.TypeOf((*MockFlapsClient)(nil).DeleteMetadata), ctx, machineID, key)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMetadata", reflect.TypeOf((*MockFlapsClient)(nil).DeleteMetadata), ctx, appName, machineID, key)
 }
 
 // DeleteSecretKey mocks base method.
-func (m *MockFlapsClient) DeleteSecretKey(ctx context.Context, name string) error {
+func (m *MockFlapsClient) DeleteSecretKey(ctx context.Context, appName, name string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSecretKey", ctx, name)
+	ret := m.ctrl.Call(m, "DeleteSecretKey", ctx, appName, name)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteSecretKey indicates an expected call of DeleteSecretKey.
-func (mr *MockFlapsClientMockRecorder) DeleteSecretKey(ctx, name any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) DeleteSecretKey(ctx, appName, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecretKey", reflect.TypeOf((*MockFlapsClient)(nil).DeleteSecretKey), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecretKey", reflect.TypeOf((*MockFlapsClient)(nil).DeleteSecretKey), ctx, appName, name)
 }
 
 // DeleteVolume mocks base method.
-func (m *MockFlapsClient) DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error) {
+func (m *MockFlapsClient) DeleteVolume(ctx context.Context, appName, volumeId string) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteVolume", ctx, volumeId)
+	ret := m.ctrl.Call(m, "DeleteVolume", ctx, appName, volumeId)
 	ret0, _ := ret[0].(*fly.Volume)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteVolume indicates an expected call of DeleteVolume.
-func (mr *MockFlapsClientMockRecorder) DeleteVolume(ctx, volumeId any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) DeleteVolume(ctx, appName, volumeId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVolume", reflect.TypeOf((*MockFlapsClient)(nil).DeleteVolume), ctx, volumeId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVolume", reflect.TypeOf((*MockFlapsClient)(nil).DeleteVolume), ctx, appName, volumeId)
 }
 
 // Destroy mocks base method.
-func (m *MockFlapsClient) Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) error {
+func (m *MockFlapsClient) Destroy(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Destroy", ctx, input, nonce)
+	ret := m.ctrl.Call(m, "Destroy", ctx, appName, input, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Destroy indicates an expected call of Destroy.
-func (mr *MockFlapsClientMockRecorder) Destroy(ctx, input, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Destroy(ctx, appName, input, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Destroy", reflect.TypeOf((*MockFlapsClient)(nil).Destroy), ctx, input, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Destroy", reflect.TypeOf((*MockFlapsClient)(nil).Destroy), ctx, appName, input, nonce)
 }
 
 // Exec mocks base method.
-func (m *MockFlapsClient) Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error) {
+func (m *MockFlapsClient) Exec(ctx context.Context, appName, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Exec", ctx, machineID, in)
+	ret := m.ctrl.Call(m, "Exec", ctx, appName, machineID, in)
 	ret0, _ := ret[0].(*fly.MachineExecResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Exec indicates an expected call of Exec.
-func (mr *MockFlapsClientMockRecorder) Exec(ctx, machineID, in any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Exec(ctx, appName, machineID, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exec", reflect.TypeOf((*MockFlapsClient)(nil).Exec), ctx, machineID, in)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exec", reflect.TypeOf((*MockFlapsClient)(nil).Exec), ctx, appName, machineID, in)
 }
 
 // ExtendVolume mocks base method.
-func (m *MockFlapsClient) ExtendVolume(ctx context.Context, volumeId string, size_gb int) (*fly.Volume, bool, error) {
+func (m *MockFlapsClient) ExtendVolume(ctx context.Context, appName, volumeId string, size_gb int) (*fly.Volume, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ExtendVolume", ctx, volumeId, size_gb)
+	ret := m.ctrl.Call(m, "ExtendVolume", ctx, appName, volumeId, size_gb)
 	ret0, _ := ret[0].(*fly.Volume)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -215,239 +258,314 @@ func (m *MockFlapsClient) ExtendVolume(ctx context.Context, volumeId string, siz
 }
 
 // ExtendVolume indicates an expected call of ExtendVolume.
-func (mr *MockFlapsClientMockRecorder) ExtendVolume(ctx, volumeId, size_gb any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) ExtendVolume(ctx, appName, volumeId, size_gb any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtendVolume", reflect.TypeOf((*MockFlapsClient)(nil).ExtendVolume), ctx, volumeId, size_gb)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExtendVolume", reflect.TypeOf((*MockFlapsClient)(nil).ExtendVolume), ctx, appName, volumeId, size_gb)
 }
 
 // FindLease mocks base method.
-func (m *MockFlapsClient) FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error) {
+func (m *MockFlapsClient) FindLease(ctx context.Context, appName, machineID string) (*fly.MachineLease, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindLease", ctx, machineID)
+	ret := m.ctrl.Call(m, "FindLease", ctx, appName, machineID)
 	ret0, _ := ret[0].(*fly.MachineLease)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindLease indicates an expected call of FindLease.
-func (mr *MockFlapsClientMockRecorder) FindLease(ctx, machineID any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) FindLease(ctx, appName, machineID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindLease", reflect.TypeOf((*MockFlapsClient)(nil).FindLease), ctx, machineID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindLease", reflect.TypeOf((*MockFlapsClient)(nil).FindLease), ctx, appName, machineID)
 }
 
 // GenerateSecretKey mocks base method.
-func (m *MockFlapsClient) GenerateSecretKey(ctx context.Context, name, typ string) (*fly.SetSecretKeyResp, error) {
+func (m *MockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, typ string) (*fly.SetSecretKeyResp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateSecretKey", ctx, name, typ)
+	ret := m.ctrl.Call(m, "GenerateSecretKey", ctx, appName, name, typ)
 	ret0, _ := ret[0].(*fly.SetSecretKeyResp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenerateSecretKey indicates an expected call of GenerateSecretKey.
-func (mr *MockFlapsClientMockRecorder) GenerateSecretKey(ctx, name, typ any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GenerateSecretKey(ctx, appName, name, typ any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSecretKey", reflect.TypeOf((*MockFlapsClient)(nil).GenerateSecretKey), ctx, name, typ)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateSecretKey", reflect.TypeOf((*MockFlapsClient)(nil).GenerateSecretKey), ctx, appName, name, typ)
 }
 
 // Get mocks base method.
-func (m *MockFlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, error) {
+func (m *MockFlapsClient) Get(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", ctx, machineID)
+	ret := m.ctrl.Call(m, "Get", ctx, appName, machineID)
 	ret0, _ := ret[0].(*fly.Machine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockFlapsClientMockRecorder) Get(ctx, machineID any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Get(ctx, appName, machineID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockFlapsClient)(nil).Get), ctx, machineID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockFlapsClient)(nil).Get), ctx, appName, machineID)
 }
 
 // GetAllVolumes mocks base method.
-func (m *MockFlapsClient) GetAllVolumes(ctx context.Context) ([]fly.Volume, error) {
+func (m *MockFlapsClient) GetAllVolumes(ctx context.Context, appName string) ([]fly.Volume, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAllVolumes", ctx)
+	ret := m.ctrl.Call(m, "GetAllVolumes", ctx, appName)
 	ret0, _ := ret[0].([]fly.Volume)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAllVolumes indicates an expected call of GetAllVolumes.
-func (mr *MockFlapsClientMockRecorder) GetAllVolumes(ctx any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetAllVolumes(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVolumes", reflect.TypeOf((*MockFlapsClient)(nil).GetAllVolumes), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVolumes", reflect.TypeOf((*MockFlapsClient)(nil).GetAllVolumes), ctx, appName)
+}
+
+// GetApp mocks base method.
+func (m *MockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApp", ctx, name)
+	ret0, _ := ret[0].(*flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApp indicates an expected call of GetApp.
+func (mr *MockFlapsClientMockRecorder) GetApp(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApp", reflect.TypeOf((*MockFlapsClient)(nil).GetApp), ctx, name)
+}
+
+// GetIPAssignments mocks base method.
+func (m *MockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (*flaps.ListIPAssignmentsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIPAssignments", ctx, appName)
+	ret0, _ := ret[0].(*flaps.ListIPAssignmentsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIPAssignments indicates an expected call of GetIPAssignments.
+func (mr *MockFlapsClientMockRecorder) GetIPAssignments(ctx, appName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIPAssignments", reflect.TypeOf((*MockFlapsClient)(nil).GetIPAssignments), ctx, appName)
 }
 
 // GetMany mocks base method.
-func (m *MockFlapsClient) GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error) {
+func (m *MockFlapsClient) GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMany", ctx, machineIDs)
+	ret := m.ctrl.Call(m, "GetMany", ctx, appName, machineIDs)
 	ret0, _ := ret[0].([]*fly.Machine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMany indicates an expected call of GetMany.
-func (mr *MockFlapsClientMockRecorder) GetMany(ctx, machineIDs any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetMany(ctx, appName, machineIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMany", reflect.TypeOf((*MockFlapsClient)(nil).GetMany), ctx, machineIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMany", reflect.TypeOf((*MockFlapsClient)(nil).GetMany), ctx, appName, machineIDs)
 }
 
 // GetMetadata mocks base method.
-func (m *MockFlapsClient) GetMetadata(ctx context.Context, machineID string) (map[string]string, error) {
+func (m *MockFlapsClient) GetMetadata(ctx context.Context, appName, machineID string) (map[string]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMetadata", ctx, machineID)
+	ret := m.ctrl.Call(m, "GetMetadata", ctx, appName, machineID)
 	ret0, _ := ret[0].(map[string]string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMetadata indicates an expected call of GetMetadata.
-func (mr *MockFlapsClientMockRecorder) GetMetadata(ctx, machineID any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetMetadata(ctx, appName, machineID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetadata", reflect.TypeOf((*MockFlapsClient)(nil).GetMetadata), ctx, machineID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMetadata", reflect.TypeOf((*MockFlapsClient)(nil).GetMetadata), ctx, appName, machineID)
+}
+
+// GetPlacements mocks base method.
+func (m *MockFlapsClient) GetPlacements(ctx context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPlacements", ctx, req)
+	ret0, _ := ret[0].([]flaps.RegionPlacement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPlacements indicates an expected call of GetPlacements.
+func (mr *MockFlapsClientMockRecorder) GetPlacements(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPlacements", reflect.TypeOf((*MockFlapsClient)(nil).GetPlacements), ctx, req)
 }
 
 // GetProcesses mocks base method.
-func (m *MockFlapsClient) GetProcesses(ctx context.Context, machineID string) (fly.MachinePsResponse, error) {
+func (m *MockFlapsClient) GetProcesses(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProcesses", ctx, machineID)
+	ret := m.ctrl.Call(m, "GetProcesses", ctx, appName, machineID)
 	ret0, _ := ret[0].(fly.MachinePsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetProcesses indicates an expected call of GetProcesses.
-func (mr *MockFlapsClientMockRecorder) GetProcesses(ctx, machineID any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetProcesses(ctx, appName, machineID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProcesses", reflect.TypeOf((*MockFlapsClient)(nil).GetProcesses), ctx, machineID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProcesses", reflect.TypeOf((*MockFlapsClient)(nil).GetProcesses), ctx, appName, machineID)
+}
+
+// GetRegions mocks base method.
+func (m *MockFlapsClient) GetRegions(ctx context.Context) (*flaps.RegionData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRegions", ctx)
+	ret0, _ := ret[0].(*flaps.RegionData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRegions indicates an expected call of GetRegions.
+func (mr *MockFlapsClientMockRecorder) GetRegions(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRegions", reflect.TypeOf((*MockFlapsClient)(nil).GetRegions), ctx)
 }
 
 // GetVolume mocks base method.
-func (m *MockFlapsClient) GetVolume(ctx context.Context, volumeId string) (*fly.Volume, error) {
+func (m *MockFlapsClient) GetVolume(ctx context.Context, appName, volumeId string) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVolume", ctx, volumeId)
+	ret := m.ctrl.Call(m, "GetVolume", ctx, appName, volumeId)
 	ret0, _ := ret[0].(*fly.Volume)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetVolume indicates an expected call of GetVolume.
-func (mr *MockFlapsClientMockRecorder) GetVolume(ctx, volumeId any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetVolume(ctx, appName, volumeId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolume", reflect.TypeOf((*MockFlapsClient)(nil).GetVolume), ctx, volumeId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolume", reflect.TypeOf((*MockFlapsClient)(nil).GetVolume), ctx, appName, volumeId)
 }
 
 // GetVolumeSnapshots mocks base method.
-func (m *MockFlapsClient) GetVolumeSnapshots(ctx context.Context, volumeId string) ([]fly.VolumeSnapshot, error) {
+func (m *MockFlapsClient) GetVolumeSnapshots(ctx context.Context, appName, volumeId string) ([]fly.VolumeSnapshot, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVolumeSnapshots", ctx, volumeId)
+	ret := m.ctrl.Call(m, "GetVolumeSnapshots", ctx, appName, volumeId)
 	ret0, _ := ret[0].([]fly.VolumeSnapshot)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetVolumeSnapshots indicates an expected call of GetVolumeSnapshots.
-func (mr *MockFlapsClientMockRecorder) GetVolumeSnapshots(ctx, volumeId any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetVolumeSnapshots(ctx, appName, volumeId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumeSnapshots", reflect.TypeOf((*MockFlapsClient)(nil).GetVolumeSnapshots), ctx, volumeId)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumeSnapshots", reflect.TypeOf((*MockFlapsClient)(nil).GetVolumeSnapshots), ctx, appName, volumeId)
 }
 
 // GetVolumes mocks base method.
-func (m *MockFlapsClient) GetVolumes(ctx context.Context) ([]fly.Volume, error) {
+func (m *MockFlapsClient) GetVolumes(ctx context.Context, appName string) ([]fly.Volume, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVolumes", ctx)
+	ret := m.ctrl.Call(m, "GetVolumes", ctx, appName)
 	ret0, _ := ret[0].([]fly.Volume)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetVolumes indicates an expected call of GetVolumes.
-func (mr *MockFlapsClientMockRecorder) GetVolumes(ctx any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) GetVolumes(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumes", reflect.TypeOf((*MockFlapsClient)(nil).GetVolumes), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVolumes", reflect.TypeOf((*MockFlapsClient)(nil).GetVolumes), ctx, appName)
 }
 
 // Kill mocks base method.
-func (m *MockFlapsClient) Kill(ctx context.Context, machineID string) error {
+func (m *MockFlapsClient) Kill(ctx context.Context, appName, machineID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Kill", ctx, machineID)
+	ret := m.ctrl.Call(m, "Kill", ctx, appName, machineID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Kill indicates an expected call of Kill.
-func (mr *MockFlapsClientMockRecorder) Kill(ctx, machineID any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Kill(ctx, appName, machineID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Kill", reflect.TypeOf((*MockFlapsClient)(nil).Kill), ctx, machineID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Kill", reflect.TypeOf((*MockFlapsClient)(nil).Kill), ctx, appName, machineID)
 }
 
 // Launch mocks base method.
-func (m *MockFlapsClient) Launch(ctx context.Context, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+func (m *MockFlapsClient) Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (*fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Launch", ctx, builder)
+	ret := m.ctrl.Call(m, "Launch", ctx, appName, builder)
 	ret0, _ := ret[0].(*fly.Machine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Launch indicates an expected call of Launch.
-func (mr *MockFlapsClientMockRecorder) Launch(ctx, builder any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Launch(ctx, appName, builder any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Launch", reflect.TypeOf((*MockFlapsClient)(nil).Launch), ctx, builder)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Launch", reflect.TypeOf((*MockFlapsClient)(nil).Launch), ctx, appName, builder)
 }
 
 // List mocks base method.
-func (m *MockFlapsClient) List(ctx context.Context, state string) ([]*fly.Machine, error) {
+func (m *MockFlapsClient) List(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", ctx, state)
+	ret := m.ctrl.Call(m, "List", ctx, appName, state)
 	ret0, _ := ret[0].([]*fly.Machine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // List indicates an expected call of List.
-func (mr *MockFlapsClientMockRecorder) List(ctx, state any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) List(ctx, appName, state any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockFlapsClient)(nil).List), ctx, state)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockFlapsClient)(nil).List), ctx, appName, state)
 }
 
 // ListActive mocks base method.
-func (m *MockFlapsClient) ListActive(ctx context.Context) ([]*fly.Machine, error) {
+func (m *MockFlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListActive", ctx)
+	ret := m.ctrl.Call(m, "ListActive", ctx, appName)
 	ret0, _ := ret[0].([]*fly.Machine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListActive indicates an expected call of ListActive.
-func (mr *MockFlapsClientMockRecorder) ListActive(ctx any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) ListActive(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActive", reflect.TypeOf((*MockFlapsClient)(nil).ListActive), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActive", reflect.TypeOf((*MockFlapsClient)(nil).ListActive), ctx, appName)
 }
 
 // ListAppSecrets mocks base method.
-func (m *MockFlapsClient) ListAppSecrets(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
+func (m *MockFlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAppSecrets", ctx, version, showSecrets)
+	ret := m.ctrl.Call(m, "ListAppSecrets", ctx, appName, version, showSecrets)
 	ret0, _ := ret[0].([]fly.AppSecret)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListAppSecrets indicates an expected call of ListAppSecrets.
-func (mr *MockFlapsClientMockRecorder) ListAppSecrets(ctx, version, showSecrets any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) ListAppSecrets(ctx, appName, version, showSecrets any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).ListAppSecrets), ctx, version, showSecrets)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).ListAppSecrets), ctx, appName, version, showSecrets)
+}
+
+// ListApps mocks base method.
+func (m *MockFlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListApps", ctx, req)
+	ret0, _ := ret[0].([]flaps.App)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListApps indicates an expected call of ListApps.
+func (mr *MockFlapsClientMockRecorder) ListApps(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApps", reflect.TypeOf((*MockFlapsClient)(nil).ListApps), ctx, req)
 }
 
 // ListFlyAppsMachines mocks base method.
-func (m *MockFlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error) {
+func (m *MockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListFlyAppsMachines", ctx)
+	ret := m.ctrl.Call(m, "ListFlyAppsMachines", ctx, appName)
 	ret0, _ := ret[0].([]*fly.Machine)
 	ret1, _ := ret[1].(*fly.Machine)
 	ret2, _ := ret[2].(error)
@@ -455,24 +573,24 @@ func (m *MockFlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machi
 }
 
 // ListFlyAppsMachines indicates an expected call of ListFlyAppsMachines.
-func (mr *MockFlapsClientMockRecorder) ListFlyAppsMachines(ctx any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) ListFlyAppsMachines(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFlyAppsMachines", reflect.TypeOf((*MockFlapsClient)(nil).ListFlyAppsMachines), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFlyAppsMachines", reflect.TypeOf((*MockFlapsClient)(nil).ListFlyAppsMachines), ctx, appName)
 }
 
 // ListSecretKeys mocks base method.
-func (m *MockFlapsClient) ListSecretKeys(ctx context.Context, version *uint64) ([]fly.SecretKey, error) {
+func (m *MockFlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListSecretKeys", ctx, version)
+	ret := m.ctrl.Call(m, "ListSecretKeys", ctx, appName, version)
 	ret0, _ := ret[0].([]fly.SecretKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListSecretKeys indicates an expected call of ListSecretKeys.
-func (mr *MockFlapsClientMockRecorder) ListSecretKeys(ctx, version any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) ListSecretKeys(ctx, appName, version any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSecretKeys", reflect.TypeOf((*MockFlapsClient)(nil).ListSecretKeys), ctx, version)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSecretKeys", reflect.TypeOf((*MockFlapsClient)(nil).ListSecretKeys), ctx, appName, version)
 }
 
 // NewRequest mocks base method.
@@ -491,206 +609,206 @@ func (mr *MockFlapsClientMockRecorder) NewRequest(ctx, method, path, in, headers
 }
 
 // RefreshLease mocks base method.
-func (m *MockFlapsClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
+func (m *MockFlapsClient) RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RefreshLease", ctx, machineID, ttl, nonce)
+	ret := m.ctrl.Call(m, "RefreshLease", ctx, appName, machineID, ttl, nonce)
 	ret0, _ := ret[0].(*fly.MachineLease)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // RefreshLease indicates an expected call of RefreshLease.
-func (mr *MockFlapsClientMockRecorder) RefreshLease(ctx, machineID, ttl, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) RefreshLease(ctx, appName, machineID, ttl, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshLease", reflect.TypeOf((*MockFlapsClient)(nil).RefreshLease), ctx, machineID, ttl, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshLease", reflect.TypeOf((*MockFlapsClient)(nil).RefreshLease), ctx, appName, machineID, ttl, nonce)
 }
 
 // ReleaseLease mocks base method.
-func (m *MockFlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {
+func (m *MockFlapsClient) ReleaseLease(ctx context.Context, appName, machineID, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseLease", ctx, machineID, nonce)
+	ret := m.ctrl.Call(m, "ReleaseLease", ctx, appName, machineID, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReleaseLease indicates an expected call of ReleaseLease.
-func (mr *MockFlapsClientMockRecorder) ReleaseLease(ctx, machineID, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) ReleaseLease(ctx, appName, machineID, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseLease", reflect.TypeOf((*MockFlapsClient)(nil).ReleaseLease), ctx, machineID, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseLease", reflect.TypeOf((*MockFlapsClient)(nil).ReleaseLease), ctx, appName, machineID, nonce)
 }
 
 // Restart mocks base method.
-func (m *MockFlapsClient) Restart(ctx context.Context, in fly.RestartMachineInput, nonce string) error {
+func (m *MockFlapsClient) Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Restart", ctx, in, nonce)
+	ret := m.ctrl.Call(m, "Restart", ctx, appName, in, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Restart indicates an expected call of Restart.
-func (mr *MockFlapsClientMockRecorder) Restart(ctx, in, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Restart(ctx, appName, in, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockFlapsClient)(nil).Restart), ctx, in, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockFlapsClient)(nil).Restart), ctx, appName, in, nonce)
 }
 
 // SetAppSecret mocks base method.
-func (m *MockFlapsClient) SetAppSecret(ctx context.Context, name, value string) (*fly.SetAppSecretResp, error) {
+func (m *MockFlapsClient) SetAppSecret(ctx context.Context, appName, name, value string) (*fly.SetAppSecretResp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetAppSecret", ctx, name, value)
+	ret := m.ctrl.Call(m, "SetAppSecret", ctx, appName, name, value)
 	ret0, _ := ret[0].(*fly.SetAppSecretResp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SetAppSecret indicates an expected call of SetAppSecret.
-func (mr *MockFlapsClientMockRecorder) SetAppSecret(ctx, name, value any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) SetAppSecret(ctx, appName, name, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAppSecret", reflect.TypeOf((*MockFlapsClient)(nil).SetAppSecret), ctx, name, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAppSecret", reflect.TypeOf((*MockFlapsClient)(nil).SetAppSecret), ctx, appName, name, value)
 }
 
 // SetMetadata mocks base method.
-func (m *MockFlapsClient) SetMetadata(ctx context.Context, machineID, key, value string) error {
+func (m *MockFlapsClient) SetMetadata(ctx context.Context, appName, machineID, key, value string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetMetadata", ctx, machineID, key, value)
+	ret := m.ctrl.Call(m, "SetMetadata", ctx, appName, machineID, key, value)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetMetadata indicates an expected call of SetMetadata.
-func (mr *MockFlapsClientMockRecorder) SetMetadata(ctx, machineID, key, value any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) SetMetadata(ctx, appName, machineID, key, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetadata", reflect.TypeOf((*MockFlapsClient)(nil).SetMetadata), ctx, machineID, key, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetMetadata", reflect.TypeOf((*MockFlapsClient)(nil).SetMetadata), ctx, appName, machineID, key, value)
 }
 
 // SetSecretKey mocks base method.
-func (m *MockFlapsClient) SetSecretKey(ctx context.Context, name, typ string, value []byte) (*fly.SetSecretKeyResp, error) {
+func (m *MockFlapsClient) SetSecretKey(ctx context.Context, appName, name, typ string, value []byte) (*fly.SetSecretKeyResp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetSecretKey", ctx, name, typ, value)
+	ret := m.ctrl.Call(m, "SetSecretKey", ctx, appName, name, typ, value)
 	ret0, _ := ret[0].(*fly.SetSecretKeyResp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SetSecretKey indicates an expected call of SetSecretKey.
-func (mr *MockFlapsClientMockRecorder) SetSecretKey(ctx, name, typ, value any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) SetSecretKey(ctx, appName, name, typ, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSecretKey", reflect.TypeOf((*MockFlapsClient)(nil).SetSecretKey), ctx, name, typ, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSecretKey", reflect.TypeOf((*MockFlapsClient)(nil).SetSecretKey), ctx, appName, name, typ, value)
 }
 
 // Start mocks base method.
-func (m *MockFlapsClient) Start(ctx context.Context, machineID, nonce string) (*fly.MachineStartResponse, error) {
+func (m *MockFlapsClient) Start(ctx context.Context, appName, machineID, nonce string) (*fly.MachineStartResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start", ctx, machineID, nonce)
+	ret := m.ctrl.Call(m, "Start", ctx, appName, machineID, nonce)
 	ret0, _ := ret[0].(*fly.MachineStartResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockFlapsClientMockRecorder) Start(ctx, machineID, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Start(ctx, appName, machineID, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFlapsClient)(nil).Start), ctx, machineID, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockFlapsClient)(nil).Start), ctx, appName, machineID, nonce)
 }
 
 // Stop mocks base method.
-func (m *MockFlapsClient) Stop(ctx context.Context, in fly.StopMachineInput, nonce string) error {
+func (m *MockFlapsClient) Stop(ctx context.Context, appName string, in fly.StopMachineInput, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Stop", ctx, in, nonce)
+	ret := m.ctrl.Call(m, "Stop", ctx, appName, in, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Stop indicates an expected call of Stop.
-func (mr *MockFlapsClientMockRecorder) Stop(ctx, in, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Stop(ctx, appName, in, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockFlapsClient)(nil).Stop), ctx, in, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockFlapsClient)(nil).Stop), ctx, appName, in, nonce)
 }
 
 // Suspend mocks base method.
-func (m *MockFlapsClient) Suspend(ctx context.Context, machineID, nonce string) error {
+func (m *MockFlapsClient) Suspend(ctx context.Context, appName, machineID, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Suspend", ctx, machineID, nonce)
+	ret := m.ctrl.Call(m, "Suspend", ctx, appName, machineID, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Suspend indicates an expected call of Suspend.
-func (mr *MockFlapsClientMockRecorder) Suspend(ctx, machineID, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Suspend(ctx, appName, machineID, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suspend", reflect.TypeOf((*MockFlapsClient)(nil).Suspend), ctx, machineID, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Suspend", reflect.TypeOf((*MockFlapsClient)(nil).Suspend), ctx, appName, machineID, nonce)
 }
 
 // Uncordon mocks base method.
-func (m *MockFlapsClient) Uncordon(ctx context.Context, machineID, nonce string) error {
+func (m *MockFlapsClient) Uncordon(ctx context.Context, appName, machineID, nonce string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Uncordon", ctx, machineID, nonce)
+	ret := m.ctrl.Call(m, "Uncordon", ctx, appName, machineID, nonce)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Uncordon indicates an expected call of Uncordon.
-func (mr *MockFlapsClientMockRecorder) Uncordon(ctx, machineID, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Uncordon(ctx, appName, machineID, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Uncordon", reflect.TypeOf((*MockFlapsClient)(nil).Uncordon), ctx, machineID, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Uncordon", reflect.TypeOf((*MockFlapsClient)(nil).Uncordon), ctx, appName, machineID, nonce)
 }
 
 // Update mocks base method.
-func (m *MockFlapsClient) Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (*fly.Machine, error) {
+func (m *MockFlapsClient) Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (*fly.Machine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, builder, nonce)
+	ret := m.ctrl.Call(m, "Update", ctx, appName, builder, nonce)
 	ret0, _ := ret[0].(*fly.Machine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockFlapsClientMockRecorder) Update(ctx, builder, nonce any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Update(ctx, appName, builder, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockFlapsClient)(nil).Update), ctx, builder, nonce)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockFlapsClient)(nil).Update), ctx, appName, builder, nonce)
 }
 
 // UpdateAppSecrets mocks base method.
-func (m *MockFlapsClient) UpdateAppSecrets(ctx context.Context, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+func (m *MockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAppSecrets", ctx, values)
+	ret := m.ctrl.Call(m, "UpdateAppSecrets", ctx, appName, values)
 	ret0, _ := ret[0].(*fly.UpdateAppSecretsResp)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateAppSecrets indicates an expected call of UpdateAppSecrets.
-func (mr *MockFlapsClientMockRecorder) UpdateAppSecrets(ctx, values any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) UpdateAppSecrets(ctx, appName, values any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).UpdateAppSecrets), ctx, values)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).UpdateAppSecrets), ctx, appName, values)
 }
 
 // UpdateVolume mocks base method.
-func (m *MockFlapsClient) UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
+func (m *MockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateVolume", ctx, volumeId, req)
+	ret := m.ctrl.Call(m, "UpdateVolume", ctx, appName, volumeId, req)
 	ret0, _ := ret[0].(*fly.Volume)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateVolume indicates an expected call of UpdateVolume.
-func (mr *MockFlapsClientMockRecorder) UpdateVolume(ctx, volumeId, req any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) UpdateVolume(ctx, appName, volumeId, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolume", reflect.TypeOf((*MockFlapsClient)(nil).UpdateVolume), ctx, volumeId, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolume", reflect.TypeOf((*MockFlapsClient)(nil).UpdateVolume), ctx, appName, volumeId, req)
 }
 
 // Wait mocks base method.
-func (m *MockFlapsClient) Wait(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) error {
+func (m *MockFlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Wait", ctx, machine, state, timeout)
+	ret := m.ctrl.Call(m, "Wait", ctx, appName, machine, state, timeout)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Wait indicates an expected call of Wait.
-func (mr *MockFlapsClientMockRecorder) Wait(ctx, machine, state, timeout any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Wait(ctx, appName, machine, state, timeout any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wait", reflect.TypeOf((*MockFlapsClient)(nil).Wait), ctx, machine, state, timeout)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wait", reflect.TypeOf((*MockFlapsClient)(nil).Wait), ctx, appName, machine, state, timeout)
 }
 
 // WaitForApp mocks base method.
