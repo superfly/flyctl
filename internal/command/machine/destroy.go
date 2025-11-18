@@ -149,7 +149,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
 
-	err = Destroy(ctx, app, machine, force)
+	err = Destroy(ctx, app.Name, machine, force)
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	return nil
 }
 
-func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, force bool) error {
+func Destroy(ctx context.Context, appName string, machine *fly.Machine, force bool) error {
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flapsutil.ClientFromContext(ctx)
@@ -195,7 +195,7 @@ func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, for
 	}
 
 	// Best effort post-deletion hook.
-	runOnDeletionHook(ctx, app, machine)
+	runOnDeletionHook(ctx, appName, machine)
 
 	return nil
 }
