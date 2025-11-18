@@ -218,7 +218,7 @@ func RunPlan(ctx context.Context, step string) error {
 
 func runPropose(ctx context.Context) error {
 	if flag.GetString(ctx, "manifest-path") == "" {
-		ctx = logger.NewContext(context.Background(), logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
+		ctx = logger.NewContext(ctx, logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
 	}
 
 	RunPlan(ctx, "propose")

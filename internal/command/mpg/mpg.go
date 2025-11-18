@@ -40,11 +40,15 @@ type MPGService struct {
 }
 
 // NewMPGService creates a new MPGService with default dependencies
-func NewMPGService(ctx context.Context) *MPGService {
-	return &MPGService{
-		uiexClient:     uiexutil.ClientFromContext(ctx),
-		regionProvider: &DefaultRegionProvider{},
+func NewMPGService(ctx context.Context) (*MPGService, error) {
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	if uiexClient == nil {
+		return nil, fmt.Errorf("uiex client not found in context")
 	}
+	return &MPGService{
+		uiexClient:     uiexClient,
+		regionProvider: &DefaultRegionProvider{},
+	}, nil
 }
 
 // NewMPGServiceWithDependencies creates a new MPGService with custom dependencies
@@ -144,7 +148,10 @@ func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.Managed
 
 // GetAvailableMPGRegions returns the list of regions available for Managed Postgres
 func GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, error) {
-	service := NewMPGService(ctx)
+	service, err := NewMPGService(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return service.GetAvailableMPGRegions(ctx, orgSlug)
 }
 
@@ -154,6 +161,11 @@ func (s *MPGService) GetAvailableMPGRegions(ctx context.Context, orgSlug string)
 	platformRegions, err := s.regionProvider.GetPlatformRegions(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if uiexClient is initialized
+	if s.uiexClient == nil {
+		return nil, fmt.Errorf("uiex client is not initialized")
 	}
 
 	// Try to get available MPG regions from API
@@ -167,7 +179,10 @@ func (s *MPGService) GetAvailableMPGRegions(ctx context.Context, orgSlug string)
 
 // IsValidMPGRegion checks if a region code is valid for Managed Postgres
 func IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (bool, error) {
-	service := NewMPGService(ctx)
+	service, err := NewMPGService(ctx)
+	if err != nil {
+		return false, err
+	}
 	return service.IsValidMPGRegion(ctx, orgSlug, regionCode)
 }
 
@@ -188,7 +203,10 @@ func (s *MPGService) IsValidMPGRegion(ctx context.Context, orgSlug string, regio
 
 // GetAvailableMPGRegionCodes returns just the region codes for error messages
 func GetAvailableMPGRegionCodes(ctx context.Context, orgSlug string) ([]string, error) {
-	service := NewMPGService(ctx)
+	service, err := NewMPGService(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return service.GetAvailableMPGRegionCodes(ctx, orgSlug)
 }
 
