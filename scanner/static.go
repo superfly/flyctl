@@ -3,8 +3,6 @@ package scanner
 import (
 	"encoding/json"
 	"os"
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
