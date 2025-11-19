@@ -528,8 +528,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return "", err
