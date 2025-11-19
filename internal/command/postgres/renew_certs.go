@@ -95,7 +95,7 @@ func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app
 	}
 
 	validHours := validDays * 24
-	cert, err := client.IssueSSHCertificate(ctx, app.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+	cert, err := client.IssueSSHCertificate(ctx, app.Organization.GetID(), []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 	if err != nil {
 		return fmt.Errorf("failed to issue ssh certificate: %w", err)
 	}

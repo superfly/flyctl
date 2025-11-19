@@ -86,7 +86,7 @@ func singleUseSSHCertificate(ctx context.Context, org OrganizationImpl, appNames
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{user, "fly"}, appNames, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org.GetID(), []string{user, "fly"}, appNames, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}
