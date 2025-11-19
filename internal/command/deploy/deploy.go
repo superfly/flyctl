@@ -349,8 +349,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := flyutil.ClientFromContext(ctx)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
 		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
-			OrganizationID: appCompact.Organization.InternalNumericID,
+			OrganizationID: fmt.Sprint(app.Organization.InternalNumericID),
 			UserID:         userID,
 		})
 		if err != nil {
@@ -400,7 +400,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "\nWatch your deployment at %s\n\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)))
-	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
+	if err := deployToMachines(ctx, appConfig, app, img); err != nil {
 		return err
 	}
 	var ip = "public"
@@ -519,7 +519,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 func deployToMachines(
 	ctx context.Context,
 	cfg *appconfig.Config,
-	app *fly.AppCompact,
+	app *flaps.App,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
 	var io = iostreams.FromContext(ctx)
@@ -661,7 +661,7 @@ func deployToMachines(
 	}
 
 	args := MachineDeploymentArgs{
-		AppCompact:            app,
+		App:                   app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
@@ -715,13 +715,13 @@ func deployToMachines(
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
+		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
+		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
 	}
 	return err
 }
