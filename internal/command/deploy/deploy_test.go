@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -56,9 +57,9 @@ func TestCommand_Execute(t *testing.T) {
 	ctx = config.NewContext(ctx, cfg)
 
 	server := inmem.NewServer()
-	server.CreateApp(&fly.App{
+	server.CreateApp(&flaps.App{
 		Name:         "test-basic",
-		Organization: fly.Organization{Slug: "my-org"},
+		Organization: flaps.AppOrganizationInfo{Slug: "my-org"},
 	})
 	if err := server.CreateImage(context.Background(), "test-basic", "test-registry.fly.io/my-image:deployment-00000000000000000000000000", &fly.Image{
 		ID:             "IMAGE1",

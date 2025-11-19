@@ -80,9 +80,8 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
-		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = flyutil.ClientFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
+		pgPlan = state.Plan.Postgres.FlyPostgres
+		io     = iostreams.FromContext(ctx)
 	)
 
 	attachToExisting := false
@@ -91,12 +90,12 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		pgPlan.AppName = fmt.Sprintf("%s-db", state.appConfig.AppName)
 	}
 
-	if apps, err := apiClient.GetApps(ctx, nil); err == nil {
-		for _, app := range apps {
-			if app.Name == pgPlan.AppName {
-				attachToExisting = true
-			}
-		}
+	// claude's note: "GetApps doesn't exist in flaps client, so try to get the app by name instead"
+	// it exists... but also it made no sense to list all apps in the first place just to
+	// see whether one exists
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if _, err := flapsClient.GetApp(ctx, pgPlan.AppName); err == nil {
+		attachToExisting = true
 	}
 
 	if attachToExisting {
@@ -347,7 +346,6 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	var (
 		io         = iostreams.FromContext(ctx)
 		uiexClient = uiexutil.ClientFromContext(ctx)
-		client     = flyutil.ClientFromContext(ctx)
 	)
 
 	// Get cluster details to verify it exists and get credentials
@@ -373,13 +371,14 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	}
 
 	// Verify the cluster and app are in the same organization
-	app, err := client.GetAppBasic(ctx, state.Plan.AppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, state.Plan.AppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", state.Plan.AppName, err)
 	}
 
 	clusterOrgSlug := cluster.Data.Organization.Slug
-	appOrgSlug := app.Organization.RawSlug
+	appOrgSlug := app.Organization.Slug
 
 	if appOrgSlug != clusterOrgSlug {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
@@ -391,7 +390,6 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 		"DATABASE_URL": cluster.Credentials.ConnectionUri,
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
 	if err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil); err != nil {
 		return fmt.Errorf("failed setting database secrets: %w", err)
 	}
@@ -452,17 +450,17 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 
 	var readReplicaRegions []fly.Region
 	{
-		client := flyutil.ClientFromContext(ctx)
-		regions, _, err := client.PlatformRegions(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		regions, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return err
 		}
 		// Filter out deprecated regions
-		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
+		regions.Regions = lo.Filter(regions.Regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
 		})
 		for _, code := range redisPlan.ReadReplicas {
-			if region, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == code }); ok {
+			if region, ok := lo.Find(regions.Regions, func(r fly.Region) bool { return r.Code == code }); ok {
 				readReplicaRegions = append(readReplicaRegions, region)
 			} else {
 				return fmt.Errorf("region %s not found", code)
@@ -487,7 +485,7 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 
 	params := extensions_core.ExtensionParams{
 		Provider:       "tigris",
-		Organization:   org,
+		OrgSlug:        org.RawSlug,
 		AppName:        state.Plan.AppName,
 		OverrideName:   fly.Pointer(tigrisPlan.Name),
 		OverrideRegion: state.Plan.RegionCode,

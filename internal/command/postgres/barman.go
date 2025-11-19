@@ -111,7 +111,7 @@ func runBarmanCreate(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -125,8 +125,7 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	var region *fly.Region
-	region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
+	region, err := prompt.Region(ctx, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
 	})
 	if err != nil {
@@ -395,7 +394,7 @@ func newBarmanRecover() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *fly.AppCompact) {
+func captureError(ctx context.Context, err error, app *flaps.App) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -470,12 +469,18 @@ func runConsole(ctx context.Context, cmd string) error {
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, "", false)
+	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("get organization: %w", err)
+	}
+
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, false)
 	if err != nil {
 		return err
 	}
@@ -487,7 +492,7 @@ func runConsole(ctx context.Context, cmd string) error {
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		OrgID:          org.ID,
 		Dialer:         dialer,
 		Username:       "root",
 		DisableSpinner: false,
@@ -507,7 +512,7 @@ func runConsole(ctx context.Context, cmd string) error {
 	return nil
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, err error) {
 	addr, err = addrForMachines(ctx, app, console)
 
 	if err != nil {
@@ -525,11 +530,11 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	return
 }
 
-func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *flaps.App, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return "", err

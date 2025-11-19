@@ -7,14 +7,14 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -43,12 +43,10 @@ func newConfigShow() (cmd *cobra.Command) {
 }
 
 func runConfigShow(ctx context.Context) error {
-	var (
-		client  = flyutil.ClientFromContext(ctx)
-		appName = appconfig.NameFromContext(ctx)
-	)
+	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -64,7 +62,7 @@ func runConfigShow(ctx context.Context) error {
 	return runMachineConfigShow(ctx, app)
 }
 
-func runMachineConfigShow(ctx context.Context, app *fly.AppCompact) (err error) {
+func runMachineConfigShow(ctx context.Context, app *flaps.App) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresStandaloneVersion = "0.0.7"
@@ -98,7 +96,7 @@ func runMachineConfigShow(ctx context.Context, app *fly.AppCompact) (err error) 
 	return showSettings(ctx, app, manager, leader.PrivateIP)
 }
 
-func showSettings(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) error {
+func showSettings(ctx context.Context, app *flaps.App, manager string, leaderIP string) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()

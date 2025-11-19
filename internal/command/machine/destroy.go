@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -143,8 +143,8 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
-	client := flyutil.ClientFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
@@ -159,7 +159,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	return nil
 }
 
-func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, force bool) error {
+func Destroy(ctx context.Context, app *flaps.App, machine *fly.Machine, force bool) error {
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flapsutil.ClientFromContext(ctx)

@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -279,7 +280,7 @@ func runOrg(ctx context.Context) error {
 		expiry = expiryDuration.String()
 	}
 
-	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed retrieving org %w", err)
 	}
@@ -312,14 +313,20 @@ func runSSH(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving organization: %w", err)
+	}
+
 	// start with app deploy token and then pare it down.
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -389,7 +396,7 @@ func runOrgRead(ctx context.Context) error {
 	}
 
 	if !flag.GetBool(ctx, "from-existing") {
-		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx, false)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
@@ -481,13 +488,19 @@ func runDeploy(ctx context.Context) (err error) {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving organization: %w", err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -516,13 +529,19 @@ func runMachineExec(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving organization: %w", err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -640,7 +659,7 @@ func runLiteFSCloud(ctx context.Context) (err error) {
 		return fmt.Errorf("cluster name is not provided")
 	}
 
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	org, err := orgs.OrgFromFlagOrSelect(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed retrieving org %w", err)
 	}

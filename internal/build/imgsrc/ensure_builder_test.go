@@ -198,7 +198,7 @@ func TestCreateBuilder(t *testing.T) {
 		DeleteAppFunc: func(ctx context.Context, appName string) error {
 			return nil
 		},
-		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error) {
+		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
 			if allocateIPAddressShouldFail {
 				return nil, errors.New("allocate ip address failed")
 			}
@@ -206,7 +206,6 @@ func TestCreateBuilder(t *testing.T) {
 		},
 	}
 
-	waitForAppShouldFail := false
 	launchShouldFail := false
 
 	createVolumeShouldFail := false
@@ -214,11 +213,22 @@ func TestCreateBuilder(t *testing.T) {
 	createVolumeAttempts := 0
 
 	flapsClient := mock.FlapsClient{
-		WaitForAppFunc: func(ctx context.Context, name string) error {
-			if waitForAppShouldFail {
-				return errors.New("wait for app failed")
+		CreateAppFunc: func(ctx context.Context, input flaps.CreateAppRequest) (*flaps.App, error) {
+			if createAppShouldFail {
+				return nil, errors.New("create app failed")
 			}
+			return &flaps.App{
+				Name: input.Name,
+			}, nil
+		},
+		DeleteAppFunc: func(ctx context.Context, appName string) error {
 			return nil
+		},
+		AssignIPFunc: func(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+			if allocateIPAddressShouldFail {
+				return nil, errors.New("allocate ip address failed")
+			}
+			return &flaps.IPAssignment{}, nil
 		},
 		CreateVolumeFunc: func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 			if createVolumeShouldFail {
@@ -270,11 +280,7 @@ func TestCreateBuilder(t *testing.T) {
 	assert.Error(t, err)
 
 	allocateIPAddressShouldFail = false
-	waitForAppShouldFail = true
-	_, _, err = p.createBuilder(ctx, "ord", "builder")
-	assert.Error(t, err)
 
-	waitForAppShouldFail = false
 	createVolumeShouldFail = true
 	_, _, err = p.createBuilder(ctx, "ord", "builder")
 	assert.NoError(t, err)

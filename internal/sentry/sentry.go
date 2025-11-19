@@ -14,7 +14,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"go.opentelemetry.io/otel/trace"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
@@ -122,8 +121,8 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 	})
 }
 
-func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *fly.AppCompact) {
-	if appCompact == nil {
+func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, app *flaps.App) {
+	if app == nil {
 		CaptureException(
 			err,
 			WithTag("feature", featureName),
@@ -137,13 +136,12 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		CaptureException(
 			flapsErr,
 			WithTag("feature", featureName),
-			WithTag("app-platform-version", appCompact.PlatformVersion),
 			WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
-					"name": appCompact.Name,
+					"name": app.Name,
 				},
 				"organization": map[string]interface{}{
-					"slug": appCompact.Organization.Slug,
+					"slug": app.Organization.Slug,
 				},
 			}),
 			WithTraceID(ctx),
@@ -156,13 +154,12 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 	CaptureException(
 		err,
 		WithTag("feature", featureName),
-		WithTag("app-platform-version", appCompact.PlatformVersion),
 		WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
-				"name": appCompact.Name,
+				"name": app.Name,
 			},
 			"organization": map[string]interface{}{
-				"slug": appCompact.Organization.Slug,
+				"slug": app.Organization.Slug,
 			},
 		}),
 		WithTraceID(ctx),

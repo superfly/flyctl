@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -54,6 +56,17 @@ func InitClient(ctx context.Context) (context.Context, error) {
 		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
 		logger.Debug("client initialized.")
 		ctx = flyutil.NewContextWithClient(ctx, client)
+	}
+
+	if uiexutil.ClientFromContext(ctx) == nil {
+		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger: logger,
+			Tokens: cfg.Tokens,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = uiexutil.NewContextWithClient(ctx, client)
 	}
 
 	return ctx, nil

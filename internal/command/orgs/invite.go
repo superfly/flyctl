@@ -38,7 +38,7 @@ sent, and the user will be pending until they respond.
 func runInvite(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 
-	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, fly.AdminOnly)
+	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, true)
 	if err != nil {
 		return nil
 	}

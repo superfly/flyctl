@@ -13,6 +13,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -31,7 +33,7 @@ func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
 	return val, err
 }
 
-func orgByArg(ctx context.Context) (*fly.Organization, error) {
+func orgByArg(ctx context.Context) (*uiex.Organization, error) {
 	args := flag.Args(ctx)
 
 	if len(args) == 0 {
@@ -43,8 +45,8 @@ func orgByArg(ctx context.Context) (*fly.Organization, error) {
 		return org, nil
 	}
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	return apiClient.GetOrganizationBySlug(ctx, args[0])
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	return uiexClient.GetOrganization(ctx, args[0])
 }
 
 func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {

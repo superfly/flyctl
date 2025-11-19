@@ -28,7 +28,7 @@ func newConnect() (cmd *cobra.Command) {
 		usage = "connect <CLUSTER ID>"
 	)
 
-	cmd = command.New(usage, short, long, runConnect, command.RequireSession, command.RequireUiex)
+	cmd = command.New(usage, short, long, runConnect, command.RequireSession)
 
 	flag.Add(cmd,
 		flag.String{

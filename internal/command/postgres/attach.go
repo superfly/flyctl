@@ -76,10 +76,10 @@ func runAttach(ctx context.Context) error {
 	var (
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
 	)
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
@@ -88,7 +88,7 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", pgAppName)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
@@ -109,16 +109,16 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	ips, err := flapsClient.GetIPAssignments(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
+	for _, ip := range ips.IPs {
+		if ip.IsFlycast() {
+			flycast = &ip.IP
 		}
 	}
 
@@ -128,13 +128,12 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-
 		pgAppName = params.PgAppName
 		appName   = params.AppName
 	)
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
@@ -149,21 +148,21 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetAppBasic(ctx, appName)
+	_, err = flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	ips, err := flapsClient.GetIPAssignments(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
+	for _, ip := range ips.IPs {
+		if ip.IsFlycast() {
+			flycast = &ip.IP
 		}
 	}
 	return machineAttachCluster(ctx, params, flycast)

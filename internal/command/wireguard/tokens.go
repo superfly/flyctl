@@ -61,7 +61,7 @@ func runWireguardTokenCreate(ctx context.Context) error {
 		return err
 	}
 
-	data, err := apiClient.CreateDelegatedWireGuardToken(ctx, org, name)
+	data, err := apiClient.CreateDelegatedWireGuardToken(ctx, org.ID, name)
 	if err != nil {
 		return err
 	}
@@ -122,9 +122,9 @@ func runWireguardTokenDelete(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Removing WireGuard token \"%s\" for organization %s\n", kv, org.Slug)
 
 	if tup[0] == "name" {
-		err = apiClient.DeleteDelegatedWireGuardToken(ctx, org, &tup[1], nil)
+		err = apiClient.DeleteDelegatedWireGuardToken(ctx, org.ID, &tup[1], nil)
 	} else {
-		err = apiClient.DeleteDelegatedWireGuardToken(ctx, org, nil, &tup[1])
+		err = apiClient.DeleteDelegatedWireGuardToken(ctx, org.ID, nil, &tup[1])
 	}
 	if err != nil {
 		return err

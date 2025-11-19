@@ -10,6 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 type natsLogStream struct {
@@ -18,7 +19,8 @@ type natsLogStream struct {
 }
 
 func NewNatsStream(ctx context.Context, apiClient WebClient, opts *LogOptions) (LogStream, error) {
-	app, err := apiClient.GetAppBasic(ctx, opts.AppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, opts.AppName)
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching target app: %w", err)
 	}
@@ -37,7 +39,7 @@ func NewNatsStream(ctx context.Context, apiClient WebClient, opts *LogOptions) (
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
-	nc, err := newNatsClient(ctx, dialer, app.Organization.RawSlug)
+	nc, err := newNatsClient(ctx, dialer, app.Organization.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating nats connection: %w", err)
 	}

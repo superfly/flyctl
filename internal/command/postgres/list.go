@@ -5,13 +5,15 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -32,14 +34,28 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) (err error) {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
-		cfg    = config.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		cfg         = config.FromContext(ctx)
 	)
 
-	apps, err := client.GetApps(ctx, fly.StringPointer("postgres_cluster"))
+	var apps []flaps.App
+
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	orgs, err := uiexClient.ListOrganizations(ctx, false)
 	if err != nil {
-		return fmt.Errorf("failed to list postgres clusters: %w", err)
+		return fmt.Errorf("error listing organizations: %w", err)
+	}
+	for _, org := range orgs {
+		apps2, err := flapsClient.ListApps(ctx, org.RawSlug)
+		if err != nil {
+			return fmt.Errorf("error listing apps: %w", err)
+		}
+		for _, app := range apps2 {
+			if app.AppRole == "postgres_cluster" {
+				apps = append(apps, app)
+			}
+		}
 	}
 
 	if len(apps) == 0 {
@@ -52,11 +68,21 @@ func runList(ctx context.Context) (err error) {
 		return render.JSON(io.Out, apps)
 	}
 
+	releases, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx)
+	if err != nil {
+		logger := logger.MaybeFromContext(ctx)
+		if logger != nil {
+			logger.Warnf("failed to get latest release timestamps: %v", err)
+		}
+	}
+
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
 		latestDeploy := ""
-		if app.Deployed && app.CurrentRelease != nil {
-			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
+		if app.Deployed() && releases != nil {
+			if r, ok := (*releases)[app.Name]; ok {
+				latestDeploy = format.RelativeTime(r)
+			}
 		}
 
 		rows = append(rows, []string{

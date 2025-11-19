@@ -21,7 +21,6 @@ func newRestore() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runRestore,
 		command.RequireSession,
-		command.RequireUiex,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)

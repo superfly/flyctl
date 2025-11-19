@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -52,7 +51,6 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = flag.FirstArg(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	if appName == "" {
@@ -62,7 +60,8 @@ func runRestart(ctx context.Context) error {
 		}
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -78,7 +77,7 @@ func runRestart(ctx context.Context) error {
 	return runMachinesRestart(ctx, app)
 }
 
-func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
+func runMachinesRestart(ctx context.Context, app *flaps.App) error {
 	input := &fly.RestartMachineInput{
 		ForceStop:        flag.GetBool(ctx, "force-stop"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
@@ -86,8 +85,8 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 
 	// Rolling restart against exclusively the machines managed by the Apps platform
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppData: app,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return err

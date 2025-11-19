@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
@@ -13,10 +14,10 @@ import (
 
 func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, error) {
 	md := &machineDeployment{
-		app: &fly.AppCompact{
+		app: &flaps.App{
 			ID: "my-cool-app",
-			Organization: &fly.OrganizationBasic{
-				ID: "my-dangling-org",
+			Organization: flaps.AppOrganizationInfo{
+				Slug: "my-dangling-org",
 			},
 		},
 		img:        "super/balloon",
