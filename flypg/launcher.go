@@ -115,7 +115,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var addr *fly.IPAddress
 
 	if config.Manager == ReplicationManager {
-		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, config.Organization, "")
+		orgID := ""
+		if config.Organization != nil {
+			orgID = config.Organization.ID
+		}
+		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, orgID, "")
 		if err != nil {
 			return err
 		}
