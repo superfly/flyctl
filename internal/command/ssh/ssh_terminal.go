@@ -20,7 +20,7 @@ import (
 
 type SSHParams struct {
 	Ctx            context.Context
-	Org            fly.OrganizationImpl
+	Org            OrganizationImpl
 	App            string
 	Username       string
 	Dialer         agent.Dialer
