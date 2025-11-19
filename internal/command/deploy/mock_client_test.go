@@ -8,6 +8,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 )
 
 type mockWebClient struct {
@@ -42,8 +43,8 @@ func (m *mockFlapsClient) Cordon(ctx context.Context, machineID string, nonce st
 	return fmt.Errorf("failed to cordon %s", machineID)
 }
 
-func (m *mockFlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
-	return fmt.Errorf("failed to create app %s", name)
+func (m *mockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+	return nil, fmt.Errorf("failed to create app")
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
