@@ -60,8 +60,7 @@ func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, er
 	ctx = agent.DialerWithContext(ctx, dialer)
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return nil, err

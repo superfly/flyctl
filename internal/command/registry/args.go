@@ -80,8 +80,7 @@ func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
 
 func getFlapsClient(ctx context.Context, app *fly.AppCompact) (*flaps.Client, error) {
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)

@@ -390,8 +390,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
