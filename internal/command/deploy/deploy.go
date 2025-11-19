@@ -22,7 +22,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
@@ -286,15 +285,6 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		}
 		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	}
-
-	client := flyutil.ClientFromContext(ctx)
-
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving current user: %w", err)
-	}
-
-	span.SetAttributes(attribute.String("user.id", user.ID))
 
 	if err := validation.ValidateCompressionFlag(flag.GetString(ctx, "compression")); err != nil {
 		return err
