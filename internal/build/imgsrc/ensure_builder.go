@@ -92,9 +92,8 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		if builderApp != nil {
 			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
 			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-				AppName:    builderApp.Name,
-				AppCompact: appToAppCompact(builderApp),
-				OrgSlug:    builderApp.Organization.Slug,
+				AppName: builderApp.Name,
+				OrgSlug: builderApp.Organization.Slug,
 			})
 			if err != nil {
 				tracing.RecordError(span, err, "error creating flaps client")

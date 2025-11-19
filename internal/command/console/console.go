@@ -186,8 +186,7 @@ func runConsole(ctx context.Context) error {
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
