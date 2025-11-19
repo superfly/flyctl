@@ -62,7 +62,7 @@ type DeploymentArgs struct {
 }
 
 // DeploySecrets deploys machines with the new secret if this step is not to be skipped.
-func DeploySecrets(ctx context.Context, app *fly.AppCompact, args DeploymentArgs) error {
+func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args DeploymentArgs) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if args.Stage {
@@ -79,33 +79,40 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, args DeploymentArgs
 	if err != nil {
 		return err
 	}
-	if !app.Deployed && len(machines) == 0 {
+	if !appCompact.Deployed && len(machines) == 0 {
 		fmt.Fprintln(out, "Secrets are staged for the first deployment")
 		return nil
 	}
 
 	// It would be confusing for setting secrets to deploy the current fly.toml file.
 	// Instead, we always grab the currently deployed app config
-	cfg, err := appconfig.FromRemoteApp(ctx, app.Name)
+	cfg, err := appconfig.FromRemoteApp(ctx, appCompact.Name)
 	if err != nil {
 		return fmt.Errorf("error loading appv2 config: %w", err)
 	}
 	ctx = appconfig.WithConfig(ctx, cfg)
 
+	// Re-fetch app from flaps so it's compatible with deploy.
+	// This won't be needed once we're using the flaps.App everywhere.
+	app, err := flapsClient.GetApp(ctx, appCompact.Name)
+	if err != nil {
+		return fmt.Errorf("error getting app: %w", err)
+	}
+
 	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
-		AppCompact:       app,
+		App:              app,
 		RestartOnly:      true,
 		SkipHealthChecks: args.Detach,
 		SkipDNSChecks:    args.Detach || !args.CheckDNS,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
+		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
+		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 	}
 	return err
 }
