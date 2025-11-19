@@ -56,16 +56,18 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 
 		// check for a start script
 		scripts, ok := packageJson["scripts"].(map[string]interface{})
+		hasStartScript := ok && scripts["start"] != nil
 
-		if ok && scripts["start"] != nil {
+		if hasStartScript {
 			start, ok := scripts["start"].(string)
 			if ok {
 				main = start
 			}
 		}
 
-		// bail if no entrypoint can be found
-		if main == "" {
+		// bail if no entrypoint can be found, or if there's a package.json but no start script
+		// (this allows static sites with package.json for dev serving to fall through to configureStatic)
+		if main == "" || !hasStartScript {
 			return nil, nil
 		}
 	}

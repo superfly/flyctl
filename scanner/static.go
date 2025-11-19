@@ -3,6 +3,8 @@ package scanner
 import (
 	"encoding/json"
 	"os"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -34,6 +36,8 @@ func configureStatic(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	if contentRoot != sourceDir {
 		// Extract the relative path from sourceDir
 		relPath, _ := filepath.Rel(sourceDir, contentRoot)
+		// Set Version to show the base directory in detection message
+		s.Version = "(base path: " + relPath + ")"
 		// Generate template with the specific subdirectory
 		vars := map[string]interface{}{"contentDir": relPath}
 		s.Files = templatesExecute("templates/static", vars)
@@ -97,6 +101,13 @@ func extractDirectory(script string) string {
 	// But be careful not to match "npm run build"
 	if strings.Contains(script, "dist") && !strings.Contains(script, "npm run") && !strings.Contains(script, "yarn") {
 		return "dist"
+	}
+
+	// Check for other common output directories
+	for _, dir := range []string{"build", "public", "out"} {
+		if strings.Contains(script, dir) && !strings.Contains(script, "npm run") && !strings.Contains(script, "yarn") {
+			return dir
+		}
 	}
 
 	return ""
