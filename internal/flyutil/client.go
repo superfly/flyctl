@@ -14,7 +14,7 @@ var _ Client = (*fly.Client)(nil)
 
 type Client interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
+	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error)
 	AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailable(ctx context.Context, appName string) (bool, error)
@@ -25,15 +25,15 @@ type Client interface {
 	ClosestWireguardGatewayRegion(ctx context.Context) (*fly.Region, error)
 	CreateApp(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
 	CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
-	CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
+	CreateDelegatedWireGuardToken(ctx context.Context, orgID string, name string) (*fly.DelegatedWireGuardToken, error)
 	CreateDoctorUrl(ctx context.Context) (putUrl string, err error)
 	CreateOrganization(ctx context.Context, organizationname string) (*fly.Organization, error)
 	CreateOrganizationInvite(ctx context.Context, id, email string) (*fly.Invitation, error)
 	CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
-	CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
+	CreateWireGuardPeer(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
 	DeleteApp(ctx context.Context, appName string) error
 	DeleteCertificate(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
-	DeleteDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name, token *string) error
+	DeleteDelegatedWireGuardToken(ctx context.Context, orgID string, name, token *string) error
 	DeleteOrganization(ctx context.Context, id string) (deletedid string, err error)
 	DeleteOrganizationMembership(ctx context.Context, orgId, userId string) (string, string, error)
 	DetachPostgresCluster(ctx context.Context, input fly.DetachPostgresClusterInput) error
@@ -76,7 +76,7 @@ type Client interface {
 	GetWireGuardPeer(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeers(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
 	GenqClient() genq.Client
-	IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
+	IssueSSHCertificate(ctx context.Context, orgID string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
 	LatestImage(ctx context.Context, appName string) (string, error)
 	ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
 	Logger() fly.Logger
@@ -85,7 +85,7 @@ type Client interface {
 	PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error)
 	ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
 	ReleaseIPAddress(ctx context.Context, appName string, ip string) error
-	RemoveWireGuardPeer(ctx context.Context, org *fly.Organization, name string) error
+	RemoveWireGuardPeer(ctx context.Context, orgID string, name string) error
 	ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error)
 	RevokeLimitedAccessToken(ctx context.Context, id string) error
 	Run(req *graphql.Request) (fly.Query, error)
