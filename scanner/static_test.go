@@ -73,7 +73,7 @@ func TestFindServeDirectory(t *testing.T) {
 			expected: "",
 		},
 		{
-			name: "precedence serve > dev > web",
+			name: "precedence serve over dev and web",
 			packageJson: `{
 				"scripts": {
 					"dev": "serve public",
@@ -84,7 +84,7 @@ func TestFindServeDirectory(t *testing.T) {
 			expected: "dist",
 		},
 		{
-			name: "precedence dev > web",
+			name: "precedence dev over web",
 			packageJson: `{
 				"scripts": {
 					"dev": "serve public",

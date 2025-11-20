@@ -95,15 +95,21 @@ func extractDirectory(script string) string {
 		return "dist"
 	}
 
+	// For fallback directory detection, only check scripts that don't contain
+	// commands that might accidentally match (like echo, npm run, yarn, etc.)
+	if strings.Contains(script, "npm run") || strings.Contains(script, "yarn") ||
+		strings.Contains(script, "echo") || strings.Contains(script, "node ") {
+		return ""
+	}
+
 	// Handle explicit references to common build directories in other scripts
-	// But be careful not to match "npm run build"
-	if strings.Contains(script, "dist") && !strings.Contains(script, "npm run") && !strings.Contains(script, "yarn") {
+	if strings.Contains(script, "dist") {
 		return "dist"
 	}
 
 	// Check for other common output directories
 	for _, dir := range []string{"build", "public", "out"} {
-		if strings.Contains(script, dir) && !strings.Contains(script, "npm run") && !strings.Contains(script, "yarn") {
+		if strings.Contains(script, dir) {
 			return dir
 		}
 	}
