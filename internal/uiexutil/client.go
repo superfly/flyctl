@@ -7,6 +7,10 @@ import (
 )
 
 type Client interface {
+	// Basic
+	ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error)
+	GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+
 	// MPGs
 	ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
