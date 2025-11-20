@@ -22,12 +22,17 @@ const DefaultSshUsername = "root"
 
 type ConnectParams struct {
 	Ctx            context.Context
-	Org            fly.OrganizationImpl
+	Org            OrganizationImpl
 	Username       string
 	Dialer         agent.Dialer
 	DisableSpinner bool
 	Container      string
 	AppNames       []string
+}
+
+type OrganizationImpl interface {
+	GetID() string
+	GetSlug() string
 }
 
 func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
@@ -72,7 +77,7 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	return sshClient, nil
 }
 
-func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appNames []string, user string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
+func singleUseSSHCertificate(ctx context.Context, org OrganizationImpl, appNames []string, user string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
 	client := flyutil.ClientFromContext(ctx)
 	hours := 1
 
@@ -81,7 +86,7 @@ func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appN
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{user, "fly"}, appNames, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org.GetID(), []string{user, "fly"}, appNames, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}

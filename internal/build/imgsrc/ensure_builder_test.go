@@ -198,7 +198,7 @@ func TestCreateBuilder(t *testing.T) {
 		DeleteAppFunc: func(ctx context.Context, appName string) error {
 			return nil
 		},
-		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error) {
+		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
 			if allocateIPAddressShouldFail {
 				return nil, errors.New("allocate ip address failed")
 			}

@@ -22,8 +22,7 @@ func SetClient(ctx context.Context, app *fly.AppCompact, appName string) (contex
 	}
 
 	flapsClient, err := NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		err = flyerr.GenericErr{

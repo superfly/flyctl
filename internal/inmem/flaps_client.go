@@ -7,6 +7,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
@@ -32,7 +33,7 @@ func (m *FlapsClient) Cordon(ctx context.Context, machineID string, nonce string
 	panic("TODO")
 }
 
-func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
+func (m *FlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
 	panic("TODO")
 }
 
