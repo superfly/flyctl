@@ -245,7 +245,7 @@ Would you like to allocate the following address?
 	if allocateDedicatedV4 {
 		fmt.Fprintln(io.Out, "Allocating dedicated IPv4...")
 		region := flag.GetRegion(ctx)
-		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v4", region, nil, "")
+		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v4", region, "", "")
 		if err != nil {
 			return fmt.Errorf("failed to allocate dedicated IPv4: %w", err)
 		}
@@ -257,7 +257,7 @@ Would you like to allocate the following address?
 	if allocateV6 {
 		fmt.Fprintln(io.Out, "Allocating IPv6...")
 		region := flag.GetRegion(ctx)
-		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v6", region, nil, "")
+		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v6", region, "", "")
 		if err != nil {
 			return fmt.Errorf("failed to allocate IPv6: %w", err)
 		}

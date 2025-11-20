@@ -141,7 +141,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		return err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, principals, nil, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org.GetID(), principals, nil, &hours, pub)
 	if err != nil {
 		return err
 	}
