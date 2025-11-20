@@ -20,6 +20,7 @@ type Organization struct {
 	ProvisionsBetaExtensions bool          `json:"provisions_beta_extensions"`
 	Name                     string        `json:"name"`
 	Billable                 bool          `json:"billable"`
+	RemoteBuilderImage       string        `json:"remote_builder_image"`
 }
 
 type BillingStatus string
