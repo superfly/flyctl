@@ -97,7 +97,7 @@ func extractDirectory(script string) string {
 
 	// For fallback directory detection, only check scripts that don't contain
 	// commands that might accidentally match (like echo, npm run, yarn, etc.)
-	if strings.Contains(script, "npm run") || strings.Contains(script, "yarn") || 
+	if strings.Contains(script, "npm run") || strings.Contains(script, "yarn") ||
 		strings.Contains(script, "echo") || strings.Contains(script, "node ") {
 		return ""
 	}
