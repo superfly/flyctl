@@ -6,6 +6,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
@@ -14,7 +15,7 @@ var _ flapsutil.FlapsClient = (*FlapsClient)(nil)
 type FlapsClient struct {
 	AcquireLeaseFunc         func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	CordonFunc               func(ctx context.Context, machineID string, nonce string) (err error)
-	CreateAppFunc            func(ctx context.Context, name string, org string) (err error)
+	CreateAppFunc            func(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error)
 	CreateVolumeFunc         func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc func(ctx context.Context, volumeId string) error
 	DeleteMetadataFunc       func(ctx context.Context, machineID, key string) error
@@ -67,8 +68,8 @@ func (m *FlapsClient) Cordon(ctx context.Context, machineID string, nonce string
 	return m.CordonFunc(ctx, machineID, nonce)
 }
 
-func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (err error) {
-	return m.CreateAppFunc(ctx, name, org)
+func (m *FlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+	return m.CreateAppFunc(ctx, req)
 }
 
 func (m *FlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {

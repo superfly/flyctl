@@ -128,7 +128,12 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	region := flag.GetRegion(ctx)
 
-	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, org, network)
+	orgID := ""
+	if org != nil {
+		orgID = org.ID
+	}
+
+	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, orgID, network)
 	if err != nil {
 		return err
 	}

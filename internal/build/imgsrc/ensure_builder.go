@@ -92,9 +92,8 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		if builderApp != nil {
 			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
 			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-				AppName:    builderApp.Name,
-				AppCompact: appToAppCompact(builderApp),
-				OrgSlug:    builderApp.Organization.Slug,
+				AppName: builderApp.Name,
+				OrgSlug: builderApp.Organization.Slug,
 			})
 			if err != nil {
 				tracing.RecordError(span, err, "error creating flaps client")
@@ -379,14 +378,19 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		}
 	}()
 
+	orgID := ""
+	if org != nil {
+		orgID = org.ID
+	}
+
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", org, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", orgID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
 		}
 	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", orgID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
