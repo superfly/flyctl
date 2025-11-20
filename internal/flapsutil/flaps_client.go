@@ -14,7 +14,7 @@ var _ FlapsClient = (*flaps.Client)(nil)
 type FlapsClient interface {
 	AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
-	CreateApp(ctx context.Context, name string, org string) (err error)
+	CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error

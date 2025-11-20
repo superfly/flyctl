@@ -115,7 +115,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var addr *fly.IPAddress
 
 	if config.Manager == ReplicationManager {
-		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, config.Organization, "")
+		orgID := ""
+		if config.Organization != nil {
+			orgID = config.Organization.ID
+		}
+		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, orgID, "")
 		if err != nil {
 			return err
 		}
@@ -130,8 +134,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		AppName: app.Name,
 	})
 	if err != nil {
 		return err
@@ -475,7 +478,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		validHours := 876600
 
 		app := fly.App{Name: config.AppName}
-		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization.GetID(), []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 		if err != nil {
 			return nil, err
 		}

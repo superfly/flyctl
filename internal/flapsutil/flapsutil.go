@@ -22,7 +22,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 	// Connect over wireguard depending on FLAPS URL.
 	if strings.TrimSpace(strings.ToLower(os.Getenv("FLY_FLAPS_BASE_URL"))) == "peer" {
 		if opts.OrgSlug == "" {
-			orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
+			orgSlug, err := resolveOrgSlugForApp(ctx, nil, opts.AppName)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 			}

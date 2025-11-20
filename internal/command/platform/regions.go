@@ -42,10 +42,11 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	regions, err := flapsClient.GetRegions(ctx, "")
+	regionsRes, err := flapsClient.GetRegions(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
+	regions := regionsRes.Regions
 
 	// Filter out deprecated regions
 	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
