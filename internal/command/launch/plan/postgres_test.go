@@ -20,6 +20,14 @@ type mockUIEXClient struct {
 	mpgRegions []uiex.MPGRegion
 }
 
+func (m *mockUIEXClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
+	return []uiex.Organization{}, nil
+}
+
+func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error) {
+	return &uiex.Organization{Slug: orgSlug}, nil
+}
+
 func (m *mockUIEXClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
 	return uiex.ListMPGRegionsResponse{Data: m.mpgRegions}, nil
 }

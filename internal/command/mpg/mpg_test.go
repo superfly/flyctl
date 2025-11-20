@@ -22,6 +22,8 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
+	ListOrganizationsFunc           func(ctx context.Context, admin bool) ([]uiex.Organization, error)
+	GetOrganizationFunc             func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
 	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClustersFunc         func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
@@ -40,6 +42,20 @@ type MockUiexClient struct {
 	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
 	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
 	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+}
+
+func (m *MockUiexClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
+	if m.ListOrganizationsFunc != nil {
+		return m.ListOrganizationsFunc(ctx, admin)
+	}
+	return []uiex.Organization{}, nil
+}
+
+func (m *MockUiexClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error) {
+	if m.GetOrganizationFunc != nil {
+		return m.GetOrganizationFunc(ctx, orgSlug)
+	}
+	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
