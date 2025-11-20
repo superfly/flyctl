@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -35,11 +36,13 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 		gh, err := exec.LookPath("gh")
 
 		if err != nil {
-			io := iostreams.FromContext(ctx)
-			colorize := io.ColorScheme()
-			fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
-			fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
-			fmt.Fprintln(io.Out)
+			if plan.GetPlanStep(ctx) == "" {
+				io := iostreams.FromContext(ctx)
+				colorize := io.ColorScheme()
+				fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+				fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+				fmt.Fprintln(io.Out)
+			}
 		} else {
 			apiClient := flyutil.ClientFromContext(ctx)
 

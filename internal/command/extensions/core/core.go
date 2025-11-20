@@ -102,17 +102,17 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		if override := params.OverrideName; override != nil {
 			name = *override
 		} else {
-			if name == "" {
-				name = flag.GetString(ctx, "name")
-			}
+			name = flag.GetString(ctx, "name")
 
 			if name == "" {
 				if provider.NameSuffix != "" && targetApp.Name != "" {
 					name = targetApp.Name + "-" + provider.NameSuffix
 				}
-				err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
-				if err != nil {
-					return
+				if !flag.GetYes(ctx) {
+					err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
+					if err != nil {
+						return
+					}
 				}
 			}
 		}

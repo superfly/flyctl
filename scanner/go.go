@@ -2,9 +2,11 @@ package scanner
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/mod/modfile"
-	"os"
 )
 
 func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -12,18 +14,13 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	s := &SourceInfo{
-		Files:  templates("templates/go"),
-		Family: "Go",
-		Port:   8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
-	}
+	vars := make(map[string]interface{})
+
+	var skipDeploy bool
 
 	if !absFileExists("go.sum") {
-		s.SkipDeploy = true
-		terminal.Warn("no go.sum file found, please adjust your Dockerfile to remove references to go.sum")
+		vars["skipGoSum"] = true
+		skipDeploy = true
 	}
 
 	gomod, parseErr := parseModfile()
@@ -35,8 +32,18 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		version = gomod.Go.Version
 	}
 
-	s.BuildArgs = map[string]string{
-		"GO_VERSION": version,
+	s := &SourceInfo{
+		Files:  templatesExecute("templates/go", vars),
+		Family: "Go",
+		Port:   8080,
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+		Runtime: plan.RuntimeStruct{Language: "go", Version: version},
+		BuildArgs: map[string]string{
+			"GO_VERSION": version,
+		},
+		SkipDeploy: skipDeploy,
 	}
 
 	return s, nil

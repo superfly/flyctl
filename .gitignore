@@ -42,4 +42,5 @@ out
 # generated release meta
 release.json
 
+.fly
 CLAUDE.md

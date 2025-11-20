@@ -14,7 +14,7 @@ ENV NODE_ENV=production
 {{ if .yarn -}}
 
 ARG YARN_VERSION={{ .yarnVersion }}
-RUN npm install -g yarn@$YARN_VERSION
+RUN npm install --force -g yarn@$YARN_VERSION
 {{ end }}
 
 # Throw-away build stage to reduce size of final image

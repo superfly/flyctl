@@ -3,6 +3,7 @@ on:
   schedule:
     - cron: '21 */2 * * *'
   push:
+  pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,6 +37,13 @@ jobs:
           overwrite: true
 
   preflight:
+    # Only run preflight on master pushes, scheduled runs, or pull requests
+    if: ${{ github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request' }}
     needs: test_build
     uses: ./.github/workflows/preflight.yml
     secrets: inherit
+
+  # deployer-tests:
+  #   needs: test_build
+  #   uses: ./.github/workflows/deployer-tests.yml
+  #   secrets: inherit

@@ -3,6 +3,7 @@ package scanner
 import (
 	"embed"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -100,9 +101,10 @@ type Static = appconfig.Static
 type Volume = appconfig.Mount
 
 type ScannerConfig struct {
-	Mode         string
-	ExistingPort int
-	Colorize     *iostreams.ColorScheme
+	Mode            string
+	ExistingPort    int
+	Colorize        *iostreams.ColorScheme
+	SkipHealthcheck bool // Skip healthcheck goroutine (primarily for tests)
 }
 
 type GitHubActionsStruct struct {
@@ -144,8 +146,11 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+		optOutGithubActions := os.Getenv("OPT_OUT_GITHUB_ACTIONS")
 		if si != nil {
-			github_actions(sourceDir, &si.GitHubActions)
+			if optOutGithubActions == "" {
+				github_actions(sourceDir, &si.GitHubActions)
+			}
 			return si, nil
 		}
 	}

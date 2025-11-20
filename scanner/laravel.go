@@ -64,8 +64,10 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	if err != nil || phpVersion == "" {
 		// Fallback to 8.0, which has
 		// the broadest compatibility
-		phpVersion = "8.0"
+		phpVersion = "8.1"
 	}
+
+	s.Runtime = plan.RuntimeStruct{Language: "php", Version: phpVersion}
 
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
