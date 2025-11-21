@@ -6,6 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -39,4 +40,14 @@ func BringUpAgent(ctx context.Context, client flyutil.Client, app *fly.AppCompac
 	}
 
 	return agentclient, dialer, nil
+}
+
+func BringUpAgentFlapsApp(ctx context.Context, client flyutil.Client, app *flaps.App, network string, quiet bool) (*Client, Dialer, error) {
+	appCompact := &fly.AppCompact{
+		Name: app.Name,
+		Organization: &fly.OrganizationBasic{
+			Slug: app.Organization.Slug,
+		},
+	}
+	return BringUpAgent(ctx, client, appCompact, network, quiet)
 }
