@@ -57,15 +57,15 @@ func TestValidateBuilder(t *testing.T) {
 	_, err := p.validateBuilder(ctx, nil)
 	assert.EqualError(t, err, NoBuilderApp.Error())
 
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.EqualError(t, err, NoBuilderVolume.Error())
 
 	hasVolumes = true
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.EqualError(t, err, InvalidMachineCount.Error())
 
 	hasMachines = true
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.NoError(t, err)
 }
 
@@ -120,18 +120,18 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
 
 	volumesShouldFail = true
-	_, err := p.validateBuilder(ctx, &fly.App{})
+	_, err := p.validateBuilder(ctx, &flaps.App{})
 	assert.NoError(t, err)
 
 	volumeRetries = 0
 	maxVolumeRetries = 7
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.Error(t, err)
 
 	volumeRetries = 0
 	responseStatusCode = 404
 	// we should only try once if the error is not a server error
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	var flapsErr *flaps.FlapsError
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
@@ -140,18 +140,18 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	volumesShouldFail = false
 	machinesShouldFail = true
 	responseStatusCode = 500
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.NoError(t, err)
 
 	machineRetries = 0
 	maxMachineRetries = 7
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.Error(t, err)
 
 	machineRetries = 0
 	responseStatusCode = 404
 	// we should only try once if the error is not a server error
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
 	assert.Equal(t, 1, machineRetries)
@@ -172,7 +172,7 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 	client.EXPECT().List(gomock.Any(), gomock.Eq(""), gomock.Any()).Return([]*fly.Machine{
 		{State: "stopped"},
 	}, nil)
-	machine, err := provisioner.validateBuilder(ctx, &fly.App{})
+	machine, err := provisioner.validateBuilder(ctx, &flaps.App{})
 	assert.ErrorIs(t, err, BuilderMachineNotStarted)
 	assert.NotNil(t, machine, "Go functions usually return either a value or an error, but this is not")
 }
