@@ -34,7 +34,7 @@ jobs:
           curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         id: download-flyctl
         with:
           name: flyctl
