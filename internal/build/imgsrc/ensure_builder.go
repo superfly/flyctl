@@ -48,6 +48,7 @@ func (p *Provisioner) UseBuildkit() bool {
 
 const defaultImage = "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"
 const DefaultBuildkitImage = "docker-hub-mirror.fly.io/flyio/buildkit@sha256:0fe49e6f506f0961cb2fc45d56171df0e852229facf352f834090345658b7e1c"
+const appRoleRemoteBuilder = "remote-docker-builder"
 
 func (p *Provisioner) image() string {
 	if p.buildkitImage != "" {
@@ -80,6 +81,25 @@ func appToAppCompact(app *fly.App) *fly.AppCompact {
 		PlatformVersion: app.PlatformVersion,
 		PostgresAppRole: app.PostgresAppRole,
 	}
+}
+
+// GetRemoteBuilderApp returns the org's first app with appRoleRemoteBuilder, or nil if it none exist
+func (p *Provisioner) GetRemoteBuilderApp(ctx context.Context) (*flaps.App, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	apps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{
+		OrgSlug: p.org.Slug,
+		AppRole: appRoleRemoteBuilder,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(apps) == 0 {
+		return nil, nil
+	}
+
+	return &apps[0], nil
 }
 
 func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
@@ -361,7 +381,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	app, retErr = client.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
 		Name:            builderName,
-		AppRoleID:       "remote-docker-builder",
+		AppRoleID:       appRoleRemoteBuilder,
 		Machines:        true,
 		PreferredRegion: fly.StringPointer(region),
 	})
