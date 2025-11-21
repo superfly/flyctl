@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
@@ -66,7 +67,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 				cfg := config.FromContext(ctx)
 				var (
 					builderMachine *fly.Machine
-					builderApp     *fly.App
+					builderApp     *flaps.App
 					err            error
 				)
 
@@ -263,7 +264,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *fly.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *flaps.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -776,7 +777,7 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, o
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
+func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
@@ -790,7 +791,7 @@ func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName
 	return builderMachine, builderApp, err
 }
 
-func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *fly.App, error) {
+func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *flaps.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
