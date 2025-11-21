@@ -7,6 +7,8 @@ updates:
       - "go"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       tracing:
         patterns:
@@ -25,6 +27,8 @@ updates:
       - "actions"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       artifacts:
         patterns:
