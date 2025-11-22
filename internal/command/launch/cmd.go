@@ -360,6 +360,17 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	// For "generate" step, if an --org flag was provided, update the manifest's org slug
+	// This is necessary because buildManifest() (which calls determineOrg()) is skipped
+	// when loading a manifest from a file in the generate step
+	if launchManifest != nil && planStep == "generate" {
+		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
+			// Update the manifest's org slug directly
+			// We don't validate here to avoid extra API calls - validation happens later
+			launchManifest.Plan.OrgSlug = orgRequested
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
