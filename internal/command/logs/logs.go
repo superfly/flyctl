@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
@@ -84,6 +86,13 @@ func run(ctx context.Context) error {
 		NoTail:     flag.GetBool(ctx, "no-tail"),
 	}
 
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: opts.AppName,
+	})
+	if err != nil {
+		return err
+	}
+
 	var eg *errgroup.Group
 	eg, ctx = errgroup.WithContext(ctx)
 
@@ -96,7 +105,7 @@ func run(ctx context.Context) error {
 		pollingCtx, cancelPolling := context.WithCancel(ctx)
 		streams = []<-chan logs.LogEntry{
 			poll(pollingCtx, eg, client, opts),
-			nats(ctx, eg, client, opts, cancelPolling),
+			nats(ctx, eg, client, flapsClient, opts, cancelPolling),
 		}
 	}
 
@@ -125,13 +134,13 @@ func poll(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *
 	return c
 }
 
-func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
+func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, flapsClient flapsutil.FlapsClient, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
 	c := make(chan logs.LogEntry)
 
 	eg.Go(func() error {
 		defer close(c)
 
-		stream, err := logs.NewNatsStream(ctx, client, opts)
+		stream, err := logs.NewNatsStream(ctx, client, flapsClient, opts)
 		if err != nil {
 			logger := logger.FromContext(ctx)
 
