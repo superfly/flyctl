@@ -20,25 +20,34 @@ import (
 )
 
 type Provisioner struct {
-	org           *fly.Organization
-	useVolume     bool
-	buildkitAddr  string
-	buildkitImage string
+	orgID                 string
+	orgSlug               string
+	orgPaidPlan           bool
+	orgRemoteBuilderImage string
+	useVolume             bool
+	buildkitAddr          string
+	buildkitImage         string
 }
 
 func NewProvisioner(org *fly.Organization) *Provisioner {
 	return &Provisioner{
-		org:       org,
-		useVolume: true,
+		orgID:                 org.ID,
+		orgSlug:               org.Slug,
+		orgPaidPlan:           org.PaidPlan,
+		orgRemoteBuilderImage: org.RemoteBuilderImage,
+		useVolume:             true,
 	}
 }
 
 func NewBuildkitProvisioner(org *fly.Organization, addr, image string) *Provisioner {
 	return &Provisioner{
-		org:           org,
-		useVolume:     true,
-		buildkitAddr:  addr,
-		buildkitImage: image,
+		orgID:                 org.ID,
+		orgSlug:               org.Slug,
+		orgPaidPlan:           org.PaidPlan,
+		orgRemoteBuilderImage: org.RemoteBuilderImage,
+		useVolume:             true,
+		buildkitAddr:          addr,
+		buildkitImage:         image,
 	}
 }
 
@@ -54,8 +63,8 @@ func (p *Provisioner) image() string {
 	if p.buildkitImage != "" {
 		return p.buildkitImage
 	}
-	if p.org.RemoteBuilderImage != "" {
-		return p.org.RemoteBuilderImage
+	if p.orgRemoteBuilderImage != "" {
+		return p.orgRemoteBuilderImage
 	}
 	return defaultImage
 }
@@ -88,7 +97,7 @@ func (p *Provisioner) GetRemoteBuilderApp(ctx context.Context) (*flaps.App, erro
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	apps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{
-		OrgSlug: p.org.Slug,
+		OrgSlug: p.orgSlug,
 		AppRole: appRoleRemoteBuilder,
 	})
 	if err != nil {
@@ -103,7 +112,6 @@ func (p *Provisioner) GetRemoteBuilderApp(ctx context.Context) (*flaps.App, erro
 }
 
 func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
-	org := p.org
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_builder")
 	defer span.End()
 
@@ -181,7 +189,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	// we want to lauch the machine to the builder
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: builderName,
-		OrgSlug: org.Slug,
+		OrgSlug: p.orgSlug,
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "error creating flaps client")
@@ -375,7 +383,6 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 func (p *Provisioner) createBuilder(ctx context.Context, region, builderName string) (app *flaps.App, mach *fly.Machine, retErr error) {
 	buildkit := p.UseBuildkit()
 
-	org := p.org
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
@@ -383,7 +390,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	app, retErr = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
-		Org:       org.Slug,
+		Org:       p.orgSlug,
 		Name:      builderName,
 		AppRoleID: appRoleRemoteBuilder,
 	})
@@ -400,19 +407,14 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		}
 	}()
 
-	orgID := ""
-	if org != nil {
-		orgID = org.ID
-	}
-
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", orgID, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", p.orgID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
 		}
 	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", orgID, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", p.orgID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
@@ -424,7 +426,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		CPUs:     4,
 		MemoryMB: 4096,
 	}
-	if org.PaidPlan {
+	if p.orgPaidPlan {
 		guest = fly.MachineGuest{
 			CPUKind:  "shared",
 			CPUs:     8,
@@ -440,7 +442,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 	config := &fly.MachineConfig{
 		Env: map[string]string{
-			"ALLOW_ORG_SLUG": org.Slug,
+			"ALLOW_ORG_SLUG": p.orgSlug,
 			"LOG_LEVEL":      "debug",
 		},
 		Guest: &guest,
