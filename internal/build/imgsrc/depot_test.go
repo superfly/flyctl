@@ -14,7 +14,7 @@ func TestInitBuilder(t *testing.T) {
 	ctx := context.Background()
 	ctx = flyutil.NewContextWithClient(ctx, flyutil.NewClientFromOptions(ctx, fly.ClientOptions{BaseURL: "invalid://localhost"}))
 	ios, _, _, _ := iostreams.Test()
-	build := newBuild("build1", false)
+	build := newBuild(1, false)
 
 	// The invocation below doesn't test things much, but it may be better than nothing.
 	_, _, err := initBuilder(ctx, build, "app1", ios, DepotBuilderScopeOrganization)
