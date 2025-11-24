@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -142,11 +143,43 @@ func (m *MockUiexClient) CreateDatabase(ctx context.Context, id string, input ui
 	return uiex.CreateDatabaseResponse{}, nil
 }
 
+func (m *MockUiexClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+	return &uiex.BuildResponse{}, nil
+}
+
+func (m *MockUiexClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
+	return &uiex.BuildResponse{}, nil
+}
+
+func (m *MockUiexClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
+	return &uiex.EnsureDepotBuilderResponse{}, nil
+}
+
 func (m *MockUiexClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error) {
 	if m.CreateUserFunc != nil {
 		return m.CreateFlyManagedBuilderFunc(ctx, orgSlug, region)
 	}
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
+}
+
+func (m *MockUiexClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
+	return &map[string]time.Time{}, nil
+}
+
+func (m *MockUiexClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
+	return []uiex.Release{}, nil
+}
+
+func (m *MockUiexClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
+}
+
+func (m *MockUiexClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
+}
+
+func (m *MockUiexClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
 }
 
 func (m *MockUiexClient) CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {

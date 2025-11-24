@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"testing"
+	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/pflag"
@@ -110,8 +111,40 @@ func (m *mockUIEXClient) RestoreManagedClusterBackup(ctx context.Context, cluste
 	return uiex.RestoreManagedClusterBackupResponse{}, nil
 }
 
+func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+	return &uiex.BuildResponse{}, nil
+}
+
+func (m *mockUIEXClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
+	return &uiex.BuildResponse{}, nil
+}
+
+func (m *mockUIEXClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
+	return &uiex.EnsureDepotBuilderResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error) {
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
+}
+
+func (m *mockUIEXClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
+	return &map[string]time.Time{}, nil
+}
+
+func (m *mockUIEXClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
+	return []uiex.Release{}, nil
+}
+
+func (m *mockUIEXClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
+}
+
+func (m *mockUIEXClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
+}
+
+func (m *mockUIEXClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
 }
 
 func TestDefaultPostgres_ForceTypes(t *testing.T) {
