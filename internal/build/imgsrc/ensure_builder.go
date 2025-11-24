@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,6 +30,7 @@ type Provisioner struct {
 	buildkitImage         string
 }
 
+// NewProvisioner is deprecated and will be replaced by NewProvisionerUiexOrg
 func NewProvisioner(org *fly.Organization) *Provisioner {
 	return &Provisioner{
 		orgID:                 org.ID,
@@ -39,7 +41,17 @@ func NewProvisioner(org *fly.Organization) *Provisioner {
 	}
 }
 
-func NewBuildkitProvisioner(org *fly.Organization, addr, image string) *Provisioner {
+func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
+	return &Provisioner{
+		orgID:                 org.ID,
+		orgSlug:               org.Slug,
+		orgPaidPlan:           org.PaidPlan,
+		orgRemoteBuilderImage: org.RemoteBuilderImage,
+		useVolume:             true,
+	}
+}
+
+func NewBuildkitProvisioner(org *uiex.Organization, addr, image string) *Provisioner {
 	return &Provisioner{
 		orgID:                 org.ID,
 		orgSlug:               org.Slug,
