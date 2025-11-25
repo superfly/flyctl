@@ -215,7 +215,7 @@ func runBarmanCreate(ctx context.Context) error {
 	}
 
 	if *volInput.SizeGb == 0 {
-		otherVolumes, err := flapsClient.GetVolumes(ctx)
+		otherVolumes, err := flapsClient.GetVolumes(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
 
-	vol, err = flapsClient.CreateVolume(ctx, volInput)
+	vol, err = flapsClient.CreateVolume(ctx, appName, volInput)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
@@ -258,7 +258,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning barman machine with image %s\n", machineConfig.Image)
 
-	machine, err := flapsClient.Launch(ctx, launchInput)
+	machine, err := flapsClient.Launch(ctx, appName, launchInput)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	waitTimeout := time.Minute * 5
 
-	err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+	err = mach.WaitForStartOrStop(ctx, appName, machine, "start", waitTimeout)
 	if err != nil {
 		return err
 	}
@@ -530,7 +530,7 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 		return "", err
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return "", err
 	}

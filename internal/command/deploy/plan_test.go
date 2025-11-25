@@ -69,6 +69,7 @@ func TestAppState(t *testing.T) {
 	ctx := context.Background()
 	md := &machineDeployment{
 		flapsClient: flapsClient,
+		app:         &fly.AppCompact{Name: "test-app"},
 	}
 	appState, error := md.appState(ctx, nil)
 	assert.NoError(t, error)

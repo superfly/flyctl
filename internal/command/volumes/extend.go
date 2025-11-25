@@ -81,7 +81,7 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if sizeFlag[0] == '+' {
-		volume, err := flapsClient.GetVolume(ctx, volID)
+		volume, err := flapsClient.GetVolume(ctx, appName, volID)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func runExtend(ctx context.Context) error {
 		volID = volume.ID
 	}
 
-	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, sizeGB)
+	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, appName, volID, sizeGB)
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}

@@ -78,13 +78,13 @@ func runDestroy(ctx context.Context) error {
 	}
 
 	for _, volID := range volIDs {
-		if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
+		if confirm, err := confirmVolumeDelete(ctx, appName, volID); err != nil {
 			return err
 		} else if !confirm {
 			return nil
 		}
 
-		data, err := flapsClient.DeleteVolume(ctx, volID)
+		data, err := flapsClient.DeleteVolume(ctx, appName, volID)
 		if err != nil {
 			return fmt.Errorf("failed destroying volume: %w", err)
 		}
@@ -95,7 +95,7 @@ func runDestroy(ctx context.Context) error {
 	return nil
 }
 
-func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
+func confirmVolumeDelete(ctx context.Context, appName string, volID string) (bool, error) {
 	var (
 		flapsClient = flapsutil.ClientFromContext(ctx)
 		io          = iostreams.FromContext(ctx)
@@ -110,13 +110,13 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	// fetch the volume so we can get the associated app
 	var volume *fly.Volume
-	if volume, err = flapsClient.GetVolume(ctx, volID); err != nil {
+	if volume, err = flapsClient.GetVolume(ctx, appName, volID); err != nil {
 		return false, err
 	}
 
 	// fetch the set of volumes for this app. If > 0 we skip the prompt
 	var matches int32
-	if matches, err = countVolumesMatchingName(ctx, volume.Name); err != nil {
+	if matches, err = countVolumesMatchingName(ctx, appName, volume.Name); err != nil {
 		return false, err
 	}
 

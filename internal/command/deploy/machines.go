@@ -338,7 +338,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	ctx, span := tracing.GetTracer().Start(ctx, "set_machines_for_deployment")
 	defer span.End()
 
-	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx)
+	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list machines")
 		return err
@@ -347,7 +347,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	nMachines := len(machines)
 	if nMachines == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
-		activeMachines, err := md.flapsClient.ListActive(ctx)
+		activeMachines, err := md.flapsClient.ListActive(ctx, md.app.Name)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to list machines")
 			return err
@@ -426,12 +426,12 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 	}
 
-	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines, true)
+	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, machines, true)
 	var releaseCmdSet []*fly.Machine
 	if releaseCmdMachine != nil {
 		releaseCmdSet = []*fly.Machine{releaseCmdMachine}
 	}
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, releaseCmdSet, true)
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, releaseCmdSet, true)
 	return nil
 }
 
@@ -440,7 +440,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 		return nil
 	}
 
-	volumes, err := md.flapsClient.GetVolumes(ctx)
+	volumes, err := md.flapsClient.GetVolumes(ctx, md.app.Name)
 	if err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	}

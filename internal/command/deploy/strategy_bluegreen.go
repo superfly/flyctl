@@ -78,6 +78,7 @@ type blueGreen struct {
 	hangingBlueMachines []string
 	timestamp           string
 	maxConcurrent       int
+	app                 *fly.AppCompact
 
 	rollbackLog RollbackLog
 
@@ -103,6 +104,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
 		maxConcurrent:       md.maxConcurrent,
+		app:                 md.app,
 		rollbackLog:         RollbackLog{canDeleteGreenMachines: true, disableRollback: false},
 	}
 
@@ -168,13 +170,13 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 			launchInput.SkipServiceRegistration = true
 			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
 
-			newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
+			newMachineRaw, err := bg.flaps.Launch(ctx, bg.app.Name, *launchInput)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to launch machine")
 				return err
 			}
 
-			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw, true)
+			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, bg.app.Name, newMachineRaw, true)
 			defer releaseLease(ctx, greenMachine)
 
 			lock.Lock()
@@ -259,7 +261,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 		}
 
 		go func(lm machine.LeasableMachine) {
-			err := machine.WaitForStartOrStop(ctx, lm.Machine(), "start", bg.timeout)
+			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "start", bg.timeout)
 			if err != nil {
 				errChan <- err
 				return
@@ -403,7 +405,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 			time.Sleep(gracePeriod)
 
 			for {
-				updateMachine, err := bg.flaps.Get(waitCtx, m.Machine().ID)
+				updateMachine, err := bg.flaps.Get(waitCtx, bg.app.Name, m.Machine().ID)
 
 				switch {
 				case waitCtx.Err() != nil:
@@ -467,7 +469,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := bg.flaps.Uncordon(ctx, gm.Machine().ID, "")
+			err := bg.flaps.Uncordon(ctx, bg.app.Name, gm.Machine().ID, "")
 			if err != nil {
 				return err
 			}
@@ -553,7 +555,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 		id := gm.leasableMachine.FormattedMachineId()
 
 		go func(lm machine.LeasableMachine) {
-			err := machine.WaitForStartOrStop(ctx, lm.Machine(), "stop", bg.timeout)
+			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "stop", bg.timeout)
 			if err != nil {
 				errChan <- fmt.Errorf("failed to stop machine %s: %v", lm.FormattedMachineId(), err)
 			} else {

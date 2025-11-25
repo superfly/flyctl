@@ -430,7 +430,7 @@ func runMachineRun(ctx context.Context) error {
 	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
-	machine, err := flapsClient.Launch(ctx, input)
+	machine, err := flapsClient.Launch(ctx, app.Name, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
@@ -460,7 +460,7 @@ func runMachineRun(ctx context.Context) error {
 
 	s.Start()
 	// wait for machine to be started
-	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
+	err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
 	s.Stop()
 	if err != nil {
 		return err
@@ -508,7 +508,7 @@ func runMachineRun(ctx context.Context) error {
 	if !flag.GetDetach(ctx) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
+		if err := watch.MachinesChecks(ctx, app.Name, []*fly.Machine{machine}); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)
@@ -812,7 +812,7 @@ func determineMachineConfig(
 		return machineConf, errors.New("invalid restart provided")
 	}
 
-	machineConf.Mounts, err = command.DetermineMounts(ctx, machineConf.Mounts, input.region)
+	machineConf.Mounts, err = command.DetermineMounts(ctx, input.appName, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}

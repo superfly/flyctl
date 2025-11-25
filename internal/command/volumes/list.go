@@ -62,9 +62,9 @@ func runList(ctx context.Context) error {
 
 	var volumes []fly.Volume
 	if flag.GetBool(ctx, "all") {
-		volumes, err = flapsClient.GetAllVolumes(ctx)
+		volumes, err = flapsClient.GetAllVolumes(ctx, appName)
 	} else {
-		volumes, err = flapsClient.GetVolumes(ctx)
+		volumes, err = flapsClient.GetVolumes(ctx, appName)
 	}
 	if err != nil {
 		return fmt.Errorf("failed retrieving volumes: %w", err)

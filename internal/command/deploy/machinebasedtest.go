@@ -95,7 +95,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		return err
 	}
 
-	machineSet := machine.NewMachineSet(flaps, io, lo.FilterMap(machines, func(m createdTestMachine, _ int) (*fly.Machine, bool) {
+	machineSet := machine.NewMachineSet(flaps, io, md.app.Name, lo.FilterMap(machines, func(m createdTestMachine, _ int) (*fly.Machine, bool) {
 		if m.err != nil {
 			tracing.RecordError(span, m.err, "failed to create test machine")
 			sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("failed to create test machine: %s", m.err))
@@ -178,7 +178,7 @@ func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconf
 	if err != nil {
 		return nil, err
 	}
-	testMachine, err := md.flapsClient.Launch(ctx, *launchInput)
+	testMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create test machines")
 		return nil, fmt.Errorf("error creating a test machine: %w", err)
@@ -244,7 +244,7 @@ func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, te
 
 	machs := lo.FilterMap(testMachines.GetMachines(), func(lm machine.LeasableMachine, _ int) (*fly.Machine, bool) {
 		mach := lm.Machine()
-		m, err := md.flapsClient.Get(ctx, mach.ID)
+		m, err := md.flapsClient.Get(ctx, md.app.Name, mach.ID)
 		return m, err == nil
 	})
 	for _, mach := range machs {

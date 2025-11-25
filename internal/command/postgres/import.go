@@ -97,7 +97,7 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not retrieve machines: %w", err)
 	}
@@ -180,7 +180,7 @@ func runImport(ctx context.Context) error {
 	}
 
 	// Create ephemeral machine
-	machine, cleanup, err := mach.LaunchEphemeral(ctx, ephemeralInput)
+	machine, cleanup, err := mach.LaunchEphemeral(ctx, appName, ephemeralInput)
 	if err != nil {
 		return err
 	}
