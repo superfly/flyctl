@@ -507,9 +507,17 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		}
 	}
 
-	// add postgres
-	if plan.Postgres.Provider() != nil {
+	// Pass database flags based on what the app actually uses, not what's in the plan
+	// This ensures the Dockerfile is configured correctly even if the plan includes
+	// a different database (e.g., when migrating from SQLite to Postgres or when
+	// extensions are skipped in tests)
+	switch srcInfo.DatabaseDesired {
+	case DatabaseKindPostgres:
 		args = append(args, "--postgresql", "--no-prepare")
+	case DatabaseKindMySQL:
+		args = append(args, "--mysql")
+	case DatabaseKindSqlite:
+		args = append(args, "--sqlite3")
 	}
 
 	// add redis
