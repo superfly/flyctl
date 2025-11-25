@@ -641,9 +641,6 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
-		// first reset the client
-		ctx = flyutil.NewContextWithClient(ctx, nil)
-
 		// Re-run the auth preparers to update the client with the new token
 		logger.FromContext(ctx).Debug("re-running auth preparers after login")
 		if ctx, err = prepare(ctx, authPreparers...); err != nil {

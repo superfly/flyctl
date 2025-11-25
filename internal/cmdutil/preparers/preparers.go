@@ -54,33 +54,24 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	if flyutil.ClientFromContext(ctx) == nil {
-		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
-		logger.Debug("client initialized.")
-		ctx = flyutil.NewContextWithClient(ctx, client)
-	}
+	client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+	logger.Debug("client initialized.")
+	ctx = flyutil.NewContextWithClient(ctx, client)
 
-	if uiexutil.ClientFromContext(ctx) == nil {
-		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger,
-			Tokens: cfg.Tokens,
-		})
-		if err != nil {
-			return nil, err
-		}
-		ctx = uiexutil.NewContextWithClient(ctx, client)
+	uiexClient, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+		Logger: logger,
+		Tokens: cfg.Tokens,
+	})
+	if err != nil {
+		return nil, err
 	}
+	ctx = uiexutil.NewContextWithClient(ctx, uiexClient)
 
-	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			// nb. AppName is not configured. This client can still make
-			// requests that don't use the implicit AppName.
-		})
-		if err != nil {
-			return nil, err
-		}
-		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
+	if err != nil {
+		return nil, err
 	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	return ctx, nil
 }
