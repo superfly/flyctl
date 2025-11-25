@@ -9,9 +9,9 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -254,7 +254,7 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 }
 
 // Runs a command on the specified machine ID in the named app.
-func ExecOnMachine(ctx context.Context, client *flaps.Client, appName, machineId, command string) error {
+func ExecOnMachine(ctx context.Context, client flapsutil.FlapsClient, appName, machineId, command string) error {
 	var (
 		io = iostreams.FromContext(ctx)
 	)
@@ -280,7 +280,7 @@ func ExecOnMachine(ctx context.Context, client *flaps.Client, appName, machineId
 }
 
 // Runs a command on the leader of the named cluster.
-func ExecOnLeader(ctx context.Context, client *flaps.Client, appName, command string) error {
+func ExecOnLeader(ctx context.Context, client flapsutil.FlapsClient, appName, command string) error {
 	machines, err := client.ListActive(ctx, appName)
 	if err != nil {
 		return err
