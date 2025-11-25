@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -47,12 +48,15 @@ func runMachineKill(ctx context.Context) (err error) {
 	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	// appName is added to context by selectOneMachine
+	appName := appconfig.NameFromContext(ctx)
+
 	if current.State == "destroyed" {
 		return fmt.Errorf("machine %s has already been destroyed", current.ID)
 	}
 	fmt.Fprintf(io.Out, "machine %s was found and is currently in a %s state, attempting to kill...\n", current.ID, current.State)
 
-	err = flapsClient.Kill(ctx, current.ID)
+	err = flapsClient.Kill(ctx, appName, current.ID)
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, current.ID); err != nil {
 			return err

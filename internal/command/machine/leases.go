@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -99,10 +100,13 @@ func runLeaseView(ctx context.Context) (err error) {
 	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	// appName is added to context by selectManyMachines
+	appName := appconfig.NameFromContext(ctx)
+
 	leases := make(map[string]*fly.MachineLease)
 
 	for _, machine := range machines {
-		lease, err := flapsClient.FindLease(ctx, machine.ID)
+		lease, err := flapsClient.FindLease(ctx, appName, machine.ID)
 		if err != nil {
 			if strings.Contains(err.Error(), " lease not found") {
 				continue
@@ -156,8 +160,11 @@ func runLeaseClear(ctx context.Context) (err error) {
 	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	// appName is added to context by selectManyMachineIDs
+	appName := appconfig.NameFromContext(ctx)
+
 	for _, machineID := range machineIDs {
-		lease, err := flapsClient.FindLease(ctx, machineID)
+		lease, err := flapsClient.FindLease(ctx, appName, machineID)
 		if err != nil {
 			if strings.Contains(err.Error(), " lease not found") {
 				continue
@@ -166,7 +173,7 @@ func runLeaseClear(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "clearing lease for machine %s\n", machineID)
 
-		if err := flapsClient.ReleaseLease(ctx, machineID, lease.Data.Nonce); err != nil {
+		if err := flapsClient.ReleaseLease(ctx, appName, machineID, lease.Data.Nonce); err != nil {
 			return err
 		}
 	}

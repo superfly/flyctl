@@ -108,7 +108,7 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Orga
 		return err
 	}
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -148,7 +148,7 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Orga
 			SkipHealthChecks:  skipHealthChecks,
 			MinSecretsVersion: minvers,
 		}
-		mach.Update(ctx, machine, input)
+		mach.Update(ctx, app.Name, machine, input)
 	}
 	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
 
