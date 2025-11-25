@@ -54,7 +54,7 @@ func resolvePeerIP(ip string) string {
 	return net.IP(natsIPBytes[:]).String()
 }
 
-func Launch(ctx context.Context, client FlapsClient, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+func Launch(ctx context.Context, client FlapsClient, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 	metrics.Started(ctx, "machine_launch")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
 	defer func() {
@@ -63,10 +63,10 @@ func Launch(ctx context.Context, client FlapsClient, builder fly.LaunchMachineIn
 			sendUpdateMetrics()
 		}
 	}()
-	return client.Launch(ctx, builder)
+	return client.Launch(ctx, appName, builder)
 }
 
-func Update(ctx context.Context, client FlapsClient, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+func Update(ctx context.Context, client FlapsClient, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 	metrics.Started(ctx, "machine_update")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update/duration")
 	defer func() {
@@ -75,18 +75,18 @@ func Update(ctx context.Context, client FlapsClient, builder fly.LaunchMachineIn
 			sendUpdateMetrics()
 		}
 	}()
-	return client.Update(ctx, builder, nonce)
+	return client.Update(ctx, appName, builder, nonce)
 }
 
-func Start(ctx context.Context, client FlapsClient, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
+func Start(ctx context.Context, client FlapsClient, appName, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
 	metrics.Started(ctx, "machine_start")
 	defer func() {
 		metrics.Status(ctx, "machine_start", err == nil)
 	}()
-	return client.Start(ctx, machineID, nonce)
+	return client.Start(ctx, appName, machineID, nonce)
 }
 
-func Cordon(ctx context.Context, client FlapsClient, machineID string, nonce string) (err error) {
+func Cordon(ctx context.Context, client FlapsClient, appName, machineID string, nonce string) (err error) {
 	metrics.Started(ctx, "machine_cordon")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_cordon/duration")
 	defer func() {
@@ -95,10 +95,10 @@ func Cordon(ctx context.Context, client FlapsClient, machineID string, nonce str
 			sendUpdateMetrics()
 		}
 	}()
-	return client.Cordon(ctx, machineID, nonce)
+	return client.Cordon(ctx, appName, machineID, nonce)
 }
 
-func Uncordon(ctx context.Context, client FlapsClient, machineID string, nonce string) (err error) {
+func Uncordon(ctx context.Context, client FlapsClient, appName, machineID string, nonce string) (err error) {
 	metrics.Started(ctx, "machine_uncordon")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_uncordon/duration")
 	defer func() {
@@ -107,5 +107,5 @@ func Uncordon(ctx context.Context, client FlapsClient, machineID string, nonce s
 			sendUpdateMetrics()
 		}
 	}()
-	return client.Uncordon(ctx, machineID, nonce)
+	return client.Uncordon(ctx, appName, machineID, nonce)
 }
