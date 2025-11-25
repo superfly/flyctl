@@ -144,9 +144,20 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		// don't try to generate a name
 		flag.Bool{
-			Name:        "no-create",
-			Description: "Do not create an app, only generate configuration files",
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
+			Aliases:     []string{"no-create"},
 		},
 		flag.String{
 			Name:        "auto-stop",
@@ -337,6 +348,44 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
+	}
+
+	// For "generate" step, if an --org flag was provided, update the manifest's org slug
+	// This is necessary because buildManifest() (which calls determineOrg()) is skipped
+	// when loading a manifest from a file in the generate step
+	if launchManifest != nil && planStep == "generate" {
+		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
+			// Update the manifest's org slug directly
+			// We don't validate here to avoid extra API calls - validation happens later
+			launchManifest.Plan.OrgSlug = orgRequested
+		}
+
+		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
+		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
+		if launchManifest.PlanSource == nil {
+			launchManifest.PlanSource = &launchPlanSource{
+				appNameSource:  "from manifest",
+				regionSource:   "from manifest",
+				orgSource:      "from manifest",
+				computeSource:  "from manifest",
+				postgresSource: "from manifest",
+				redisSource:    "from manifest",
+				tigrisSource:   "from manifest",
+				sentrySource:   "from manifest",
+			}
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -354,7 +403,10 @@ func run(ctx context.Context) (err error) {
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
+			if errors.As(err, &recoverableErr) {
+				if !canEnterUi {
+					return err
+				}
 			} else {
 				return err
 			}
@@ -419,7 +471,6 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
 		colorize := io.ColorScheme()
 
