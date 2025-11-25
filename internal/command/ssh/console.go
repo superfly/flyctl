@@ -251,7 +251,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 		return nil, err
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -340,12 +340,12 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 	if selectedMachine != nil {
 		if selectedMachine.State != "started" {
 			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
-			_, err := flapsClient.Start(ctx, selectedMachine.ID, "")
+			_, err := flapsClient.Start(ctx, app.Name, selectedMachine.ID, "")
 			if err != nil {
 				return nil, err
 			}
 
-			err = flapsClient.Wait(ctx, selectedMachine, "started", 60*time.Second)
+			err = flapsClient.Wait(ctx, app.Name, selectedMachine, "started", 60*time.Second)
 
 			if err != nil {
 				return nil, err

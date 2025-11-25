@@ -45,7 +45,7 @@ func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (r
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
-	machines, err := machine.ListActive(ctx)
+	machines, err := machine.ListActive(ctx, appName)
 	if err != nil {
 		return false, false, false, fmt.Errorf("could not list machines: %w", err)
 	}

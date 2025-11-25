@@ -172,7 +172,7 @@ func runCreate(ctx context.Context) error {
 
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
-		volume, err := flapsClient.CreateVolume(ctx, input)
+		volume, err := flapsClient.CreateVolume(ctx, appName, input)
 		if err != nil {
 			return err
 		}
@@ -203,7 +203,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	}
 
 	// If we have more than 0 volumes with this name already, return early
-	if matches, err := countVolumesMatchingName(ctx, volumeName); err != nil {
+	if matches, err := countVolumesMatchingName(ctx, appName, volumeName); err != nil {
 		return false, err
 	} else if matches > 0 {
 		return true, nil

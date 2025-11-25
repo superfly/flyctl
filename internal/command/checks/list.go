@@ -27,7 +27,7 @@ func runAppCheckList(ctx context.Context) error {
 		return err
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}

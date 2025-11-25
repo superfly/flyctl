@@ -90,7 +90,7 @@ func runUpdate(ctx context.Context) error {
 		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
-	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)
+	updatedVolume, err := flapsClient.UpdateVolume(ctx, appName, volumeID, input)
 	if err != nil {
 		return fmt.Errorf("failed updating volume: %w", err)
 	}

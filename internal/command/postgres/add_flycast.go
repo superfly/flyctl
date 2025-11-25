@@ -60,15 +60,15 @@ func runAddFlycast(ctx context.Context) error {
 		return err
 	}
 
-	if err := doAddFlycast(ctx); err != nil {
+	if err := doAddFlycast(ctx, appName); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func doAddFlycast(ctx context.Context) error {
-	machines, err := mach.ListActive(ctx)
+func doAddFlycast(ctx context.Context, appName string) error {
+	machines, err := mach.ListActive(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
@@ -125,13 +125,12 @@ func doAddFlycast(ctx context.Context) error {
 			},
 		}
 
-		appName := appconfig.NameFromContext(ctx)
 		minvers, err := appsecrets.GetMinvers(appName)
 		if err != nil {
 			return err
 		}
 
-		err = mach.Update(ctx, machine, &fly.LaunchMachineInput{
+		err = mach.Update(ctx, appName, machine, &fly.LaunchMachineInput{
 			Config:            conf,
 			MinSecretsVersion: minvers,
 		})

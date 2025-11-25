@@ -82,7 +82,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		return err
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return err
 	}

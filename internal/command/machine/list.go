@@ -61,7 +61,7 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.List(ctx, "")
+	machines, err := flapsClient.List(ctx, appName, "")
 	if err != nil {
 		return err
 	}
