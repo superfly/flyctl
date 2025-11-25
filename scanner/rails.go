@@ -129,19 +129,36 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// mysql
 		s.DatabaseDesired = DatabaseKindMySQL
 		s.SkipDatabase = false
-	} else if !checksPass(sourceDir, fileExists("Dockerfile")) || checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
-		// postgresql
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
+		// postgresql (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
 	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
-		// sqlite
+		// sqlite (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
-		s.ObjectStorageDesired = true
-	} else {
-		// no database
-		s.DatabaseDesired = DatabaseKindNone
+		// Only request object storage if not skipping extensions (for litestream replication)
+		if os.Getenv("SKIP_EXTENSIONS") == "" {
+			s.ObjectStorageDesired = true
+		}
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*sqlite")) {
+		// sqlite (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
+		// Don't set ObjectStorageDesired here - let the normal object storage detection
+		// logic handle it by checking for aws-sdk-s3, active_storage, etc.
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*(mysql|trilogy)")) {
+		// mysql (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindMySQL
+		s.SkipDatabase = false
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*postgres")) {
+		// postgresql (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
+	} else {
+		// no database or unable to detect - default to postgresql for compatibility
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
 	}
 
 	// enable redis if there are any action cable / anycable channels
@@ -354,6 +371,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 					}
 				}
 			}
+
 			return nil
 		} else {
 			return errors.New("No Dockerfile found and bundle/ruby not available to generate one")

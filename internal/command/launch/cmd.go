@@ -369,6 +369,21 @@ func run(ctx context.Context) (err error) {
 			// We don't validate here to avoid extra API calls - validation happens later
 			launchManifest.Plan.OrgSlug = orgRequested
 		}
+
+		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
+		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
+		if launchManifest.PlanSource == nil {
+			launchManifest.PlanSource = &launchPlanSource{
+				appNameSource:  "from manifest",
+				regionSource:   "from manifest",
+				orgSource:      "from manifest",
+				computeSource:  "from manifest",
+				postgresSource: "from manifest",
+				redisSource:    "from manifest",
+				tigrisSource:   "from manifest",
+				sentrySource:   "from manifest",
+			}
+		}
 	}
 
 	// "--from" arg handling
