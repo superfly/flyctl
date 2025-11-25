@@ -14,7 +14,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -389,11 +388,7 @@ func runMachineRun(ctx context.Context) error {
 		MinSecretsVersion: minvers,
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return fmt.Errorf("could not make API client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
@@ -553,10 +548,8 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
 
-		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-		if err != nil {
-			return nil, err
-		} else if err := f.WaitForApp(ctx, appc.Name); err != nil {
+		f := flapsutil.ClientFromContext(ctx)
+		if err := f.WaitForApp(ctx, appc.Name); err != nil {
 			return nil, err
 		}
 	}
@@ -602,10 +595,8 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		return nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	f := flapsutil.ClientFromContext(ctx)
+	if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 

@@ -7,11 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -39,12 +37,6 @@ func newAllocate() *cobra.Command {
 }
 
 func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (requiresDedicated bool, hasServices bool, hasUDP bool, err error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return false, false, false, fmt.Errorf("could not create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	machines, err := machine.ListActive(ctx, appName)
 	if err != nil {
 		return false, false, false, fmt.Errorf("could not list machines: %w", err)
