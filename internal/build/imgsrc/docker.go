@@ -32,11 +32,13 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/macaroon/flyio/machinesapi"
@@ -82,12 +84,17 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 						return nil, err
 					}
 				} else {
-					var org *fly.Organization
-					org, err = apiClient.GetOrganizationByApp(ctx, appName)
+					flapsClient := flapsutil.ClientFromContext(ctx)
+					app, err := flapsClient.GetApp(ctx, appName)
 					if err != nil {
 						return nil, err
 					}
-					provisioner := NewProvisioner(org)
+					uiexClient := uiexutil.ClientFromContext(ctx)
+					org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+					if err != nil {
+						return nil, err
+					}
+					provisioner := NewProvisionerUiexOrg(org)
 					builderMachine, builderApp, err = provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
 					if err != nil {
 						return nil, err
@@ -333,7 +340,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			_ = appsecrets.DeleteMinvers(ctx, app.Name)
 
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
-			machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, false)
+			machine, app, err = remoteBuilderMachine(ctx, appName, false)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to init remote builder machine")
 				return nil, err
@@ -777,16 +784,23 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, o
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
+func remoteBuilderMachine(ctx context.Context, appName string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
 
-	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return nil, nil, err
 	}
-	provisioner := NewProvisioner(org)
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	provisioner := NewProvisionerUiexOrg(org)
 	builderMachine, builderApp, err := provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
 	return builderMachine, builderApp, err
 }
