@@ -73,27 +73,29 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					err            error
 				)
 
+				flapsClient := flapsutil.ClientFromContext(ctx)
+				app, err := flapsClient.GetApp(ctx, appName)
+				if err != nil {
+					return nil, err
+				}
+
 				managed := daemonType.UseManagedBuilder()
 				if cfg.DisableManagedBuilders {
 					managed = false
 				}
 				if managed {
 					connectOverWireguard = false
-					builderMachine, builderApp, err = remoteManagedBuilderMachine(ctx, apiClient, appName)
+					builderMachine, builderApp, err = remoteManagedBuilderMachine(ctx, app.Organization.Slug)
 					if err != nil {
 						return nil, err
 					}
 				} else {
-					flapsClient := flapsutil.ClientFromContext(ctx)
-					app, err := flapsClient.GetApp(ctx, appName)
-					if err != nil {
-						return nil, err
-					}
 					uiexClient := uiexutil.ClientFromContext(ctx)
 					org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 					if err != nil {
 						return nil, err
 					}
+
 					provisioner := NewProvisionerUiexOrg(org)
 					builderMachine, builderApp, err = provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
 					if err != nil {
@@ -805,17 +807,13 @@ func remoteBuilderMachine(ctx context.Context, appName string, recreateBuilder b
 	return builderMachine, builderApp, err
 }
 
-func remoteManagedBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *flaps.App, error) {
+func remoteManagedBuilderMachine(ctx context.Context, orgSlug string) (*fly.Machine, *flaps.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
 
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	org, err := apiClient.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return nil, nil, err
-	}
-	builderMachine, builderApp, err := EnsureFlyManagedBuilder(ctx, org, region)
+	builderMachine, builderApp, err := EnsureFlyManagedBuilder(ctx, orgSlug, region)
 	return builderMachine, builderApp, err
 }
 
