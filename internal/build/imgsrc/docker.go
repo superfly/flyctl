@@ -103,7 +103,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					}
 				}
 
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, builderApp, builderMachine)
+				return newRemoteDockerClient(ctx, apiClient, flapsClient, appName, streams, build, cachedDocker, connectOverWireguard, builderApp, builderMachine)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -273,7 +273,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *flaps.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsClient flapsutil.FlapsClient, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool, builderApp *flaps.App, builderMachine *fly.Machine) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -333,7 +333,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 automatically deleting and recreating builder"))
 			span.AddEvent("automatically deleting and recreating builder")
 
-			err := apiClient.DeleteApp(ctx, app.Name)
+			err := flapsClient.DeleteApp(ctx, app.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
 				return nil, err
