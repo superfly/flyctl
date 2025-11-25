@@ -575,33 +575,22 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 		CheckRedirect: dockerclient.CheckRedirect,
 	}))
 
-	var app *fly.AppBasic
-	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
-		tracing.RecordError(span, err, "error fetching target app")
-		return nil, fmt.Errorf("error fetching target app: %w", err)
-	}
-
-	var agentclient *agent.Client
-	if agentclient, err = agent.Establish(ctx, apiClient); err != nil {
-		tracing.RecordError(span, err, "failed to establish agent")
-		return
-	}
-
-	var dialer agent.Dialer
-	if dialer, err = agentclient.Dialer(ctx, app.Organization.Slug, ""); err != nil {
-		tracing.RecordError(span, err, "failed to dial wg agent")
-		return
-	}
-
-	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug, ""); err == nil {
-		opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
-	}
-
+	flapClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapClient.GetApp(ctx, appName)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for tunnel")
+		tracing.RecordError(span, err, "failed to get app")
+		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
-	return
+	_, dialer, err := agent.BringUpAgentOrgSlug(ctx, apiClient, app.Organization.Slug, app.Network, true)
+	if err != nil {
+		tracing.RecordError(span, err, "failed to bring up agent")
+		return nil, err
+	}
+
+	opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
+
+	return opts, nil
 }
 
 func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool, err error) {
