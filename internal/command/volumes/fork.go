@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -71,14 +70,15 @@ func runFork(ctx context.Context) error {
 		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	var vol *fly.Volume
+	var (
+		vol *fly.Volume
+		err error
+	)
 	if volID == "" {
-		app, err := client.GetAppBasic(ctx, appName)
+		var app *fly.AppBasic
+		app, err = client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}

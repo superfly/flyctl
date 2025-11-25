@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/agent"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -184,12 +183,6 @@ func runConsole(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get app network: %w", err)
 	}
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return fmt.Errorf("failed to create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {

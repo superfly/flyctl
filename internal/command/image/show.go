@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -65,10 +64,7 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 		cfg      = config.FromContext(ctx)
 	)
 
-	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
+	flaps := flapsutil.ClientFromContext(ctx)
 
 	// if we have machine_id as an arg, we want to show the image for that machine only
 	if len(flag.Args(ctx)) > 0 {

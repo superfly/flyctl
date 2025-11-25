@@ -6,7 +6,6 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -59,11 +58,7 @@ func runExtend(ctx context.Context) error {
 		volID    = flag.FirstArg(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
