@@ -56,9 +56,7 @@ func runMachineList(ctx context.Context) (err error) {
 		cfg     = config.FromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}

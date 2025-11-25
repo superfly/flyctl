@@ -43,9 +43,7 @@ func runList(ctx context.Context) error {
 		return fmt.Errorf("outputting to json is not yet supported")
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}

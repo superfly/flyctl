@@ -190,9 +190,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	if flapsClient == nil {
-		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: args.AppCompact.Name,
-		})
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 		if err != nil {
 			tracing.RecordError(span, err, "failed to init flaps client")
 			return nil, err

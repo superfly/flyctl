@@ -77,9 +77,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}

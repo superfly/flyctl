@@ -22,9 +22,7 @@ func runAppCheckList(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	nameFilter := flag.GetString(ctx, "check-name")
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}
