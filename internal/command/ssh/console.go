@@ -14,7 +14,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -246,10 +245,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 
 func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return nil, err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
