@@ -49,7 +49,7 @@ func create(ctx context.Context) error {
 		return err
 	}
 
-	err = flapsClient.CreateVolumeSnapshot(ctx, volumeId)
+	err = flapsClient.CreateVolumeSnapshot(ctx, appName, volumeId)
 	if err != nil {
 		return err
 	}

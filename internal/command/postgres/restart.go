@@ -86,7 +86,7 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 		force = flag.GetBool(ctx, "force")
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, appName)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 
 	// Restarting replicas
 	for _, replica := range replicas {
-		if err = mach.Restart(ctx, replica, input, replica.LeaseNonce); err != nil {
+		if err = mach.Restart(ctx, appName, replica, input, replica.LeaseNonce); err != nil {
 			return err
 		}
 	}
@@ -143,7 +143,7 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 		}
 	}
 
-	if err = mach.Restart(ctx, leader, input, leader.LeaseNonce); err != nil {
+	if err = mach.Restart(ctx, appName, leader, input, leader.LeaseNonce); err != nil {
 		return err
 	}
 

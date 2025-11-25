@@ -71,7 +71,7 @@ func printVolume(w io.Writer, vol *fly.Volume, appName string) error {
 	return err
 }
 
-func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, error) {
+func countVolumesMatchingName(ctx context.Context, appName string, volumeName string) (int32, error) {
 	var (
 		volumes []fly.Volume
 		err     error
@@ -79,7 +79,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
-	if volumes, err = flapsClient.GetVolumes(ctx); err != nil {
+	if volumes, err = flapsClient.GetVolumes(ctx, appName); err != nil {
 		return 0, err
 	}
 
@@ -135,7 +135,7 @@ func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBa
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}
-	volumes, err := flapsClient.GetVolumes(ctx)
+	volumes, err := flapsClient.GetVolumes(ctx, app.Name)
 	if err != nil {
 		return nil, err
 	}

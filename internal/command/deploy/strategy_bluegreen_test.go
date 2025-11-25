@@ -45,6 +45,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 		colorize:      ios.ColorScheme(),
 		timeout:       1 * time.Second,
 		blueMachines:  machines,
+		app:           &fly.AppCompact{Name: "test-app"},
 	}
 	strategy.initialize()
 

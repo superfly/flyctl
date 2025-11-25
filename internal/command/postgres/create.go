@@ -176,7 +176,7 @@ func run(ctx context.Context) (err error) {
 			return err
 		}
 
-		machines, err := mach.ListActive(ctx)
+		machines, err := mach.ListActive(ctx, forkApp.Name)
 		if err != nil {
 			return fmt.Errorf("Failed to list machines associated with %s: %w", forkApp.Name, err)
 		}
@@ -197,7 +197,7 @@ func run(ctx context.Context) (err error) {
 		flapsClient := flapsutil.ClientFromContext(ctx)
 
 		// Resolve the volume
-		vol, err := flapsClient.GetVolume(ctx, params.ForkFrom)
+		vol, err := flapsClient.GetVolume(ctx, forkApp.Name, params.ForkFrom)
 		if err != nil {
 			return fmt.Errorf("Failed to resolve the specified fork-from volume %s: %w", params.ForkFrom, err)
 		}

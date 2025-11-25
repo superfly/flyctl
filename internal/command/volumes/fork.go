@@ -87,7 +87,7 @@ func runFork(ctx context.Context) error {
 			return err
 		}
 	} else {
-		vol, err = flapsClient.GetVolume(ctx, volID)
+		vol, err = flapsClient.GetVolume(ctx, appName, volID)
 		if err != nil {
 			return fmt.Errorf("failed to get volume: %w", err)
 		}
@@ -103,7 +103,7 @@ func runFork(ctx context.Context) error {
 	var attachedMachineImage string
 	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
-		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
+		m, err := flapsClient.Get(ctx, appName, *vol.AttachedMachine)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func runFork(ctx context.Context) error {
 		Region:              region,
 	}
 
-	volume, err := flapsClient.CreateVolume(ctx, input)
+	volume, err := flapsClient.CreateVolume(ctx, appName, input)
 	if err != nil {
 		return fmt.Errorf("failed to fork volume: %w", err)
 	}

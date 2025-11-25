@@ -41,7 +41,7 @@ func runDeploy(ctx context.Context) (err error) {
 		return err
 	}
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}

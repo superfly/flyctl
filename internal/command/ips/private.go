@@ -41,7 +41,7 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 		return err
 	}
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}
