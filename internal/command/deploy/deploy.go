@@ -212,7 +212,6 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
-		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
