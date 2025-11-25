@@ -175,11 +175,11 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	return machine, app, nil
 }
 
-func EnsureFlyManagedBuilder(ctx context.Context, org *fly.Organization, region string) (*fly.Machine, *flaps.App, error) {
+func EnsureFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (*fly.Machine, *flaps.App, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_fly_managed_builder")
 	defer span.End()
 
-	app, machine, err := createFlyManagedBuilder(ctx, org, region)
+	app, machine, err := createFlyManagedBuilder(ctx, orgSlug, region)
 	if err != nil {
 		tracing.RecordError(span, err, "error creating fly managed builder")
 		return nil, nil, err
@@ -540,13 +540,13 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	return
 }
 
-func createFlyManagedBuilder(ctx context.Context, org *fly.Organization, region string) (app *flaps.App, mach *fly.Machine, retErr error) {
+func createFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (app *flaps.App, mach *fly.Machine, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	response, error := uiexClient.CreateFlyManagedBuilder(ctx, org.Slug, region)
+	response, error := uiexClient.CreateFlyManagedBuilder(ctx, orgSlug, region)
 	if error != nil {
 		tracing.RecordError(span, retErr, "error creating managed builder")
 		return nil, nil, retErr
