@@ -74,7 +74,7 @@ func runShow(ctx context.Context) error {
 			return err
 		}
 	} else {
-		volume, err = flapsClient.GetVolume(ctx, volumeID)
+		volume, err = flapsClient.GetVolume(ctx, appName, volumeID)
 		if err != nil {
 			return fmt.Errorf("failed retrieving volume: %w", err)
 		}

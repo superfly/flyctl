@@ -73,7 +73,7 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 	// if we have machine_id as an arg, we want to show the image for that machine only
 	if len(flag.Args(ctx)) > 0 {
 
-		machine, err := flaps.Get(ctx, flag.FirstArg(ctx))
+		machine, err := flaps.Get(ctx, app.Name, flag.FirstArg(ctx))
 		if err != nil {
 			return fmt.Errorf("failed to get machine: %w", err)
 		}
@@ -136,7 +136,7 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 
 	}
 	// get machines
-	machines, err := flaps.List(ctx, "")
+	machines, err := flaps.List(ctx, app.Name, "")
 	if err != nil {
 		return fmt.Errorf("failed to get machines: %w", err)
 	}

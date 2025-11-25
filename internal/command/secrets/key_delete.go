@@ -60,7 +60,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 		return err
 	}
 
-	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
+	secrets, err := flapsClient.ListSecretKeys(ctx, appName, nil)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 			}
 		}
 
-		err = flapsClient.DeleteSecretKey(ctx, secret.Name)
+		err = flapsClient.DeleteSecretKey(ctx, appName, secret.Name)
 		if err != nil {
 			var ferr *flaps.FlapsError
 			if errors.As(err, &ferr) && ferr.ResponseStatusCode == 404 {

@@ -177,7 +177,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 		MinPostgresFlexVersion       = "0.0.3"
 	)
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, params.AppName)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}

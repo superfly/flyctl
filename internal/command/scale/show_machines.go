@@ -27,7 +27,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}

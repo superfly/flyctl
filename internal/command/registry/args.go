@@ -108,7 +108,7 @@ func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, 
 		return nil, err
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func argsGetMachineByID(ctx context.Context, app *fly.AppCompact) (*fly.Machine,
 	}
 
 	machineID := flag.GetString(ctx, "machine")
-	machine, err := flapsClient.Get(ctx, machineID)
+	machine, err := flapsClient.Get(ctx, app.Name, machineID)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func argsGetOrgAppImages(ctx context.Context, orgName, orgId, appName string) (m
 		return nil, fmt.Errorf("failed to create flaps client for %q: %w", appName, err)
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return nil, err
 	}

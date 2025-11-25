@@ -92,7 +92,7 @@ func runBackupRestore(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -132,7 +132,7 @@ func runBackupRestore(ctx context.Context) error {
 		Cmd: "bash -c \"echo $S3_ARCHIVE_CONFIG\"",
 	}
 
-	out, err := flapsClient.Exec(ctx, leader.ID, in)
+	out, err := flapsClient.Exec(ctx, appName, leader.ID, in)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func runBackupCreate(ctx context.Context) error {
 		cmd += " -n " + name
 	}
 
-	return ExecOnLeader(ctx, flapsClient, cmd)
+	return ExecOnLeader(ctx, flapsClient, appName, cmd)
 }
 
 func newBackupEnable() *cobra.Command {
@@ -319,7 +319,7 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("backups are already enabled")
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -404,7 +404,7 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -432,7 +432,7 @@ func runBackupList(ctx context.Context) error {
 		return err
 	}
 
-	return ExecOnMachine(ctx, flapsClient, machine.ID, "flexctl backup list")
+	return ExecOnMachine(ctx, flapsClient, appName, machine.ID, "flexctl backup list")
 }
 
 func resolveRestoreTarget(ctx context.Context) string {
@@ -545,7 +545,7 @@ func runBackupConfigShow(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -572,7 +572,7 @@ func runBackupConfigShow(ctx context.Context) error {
 		return err
 	}
 
-	return ExecOnLeader(ctx, flapsClient, "flexctl backup config show")
+	return ExecOnLeader(ctx, flapsClient, appName, "flexctl backup config show")
 }
 
 func runBackupConfigUpdate(ctx context.Context) error {
@@ -585,7 +585,7 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -630,5 +630,5 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		command += " --minimum-redundancy " + flag.GetString(ctx, "minimum-redundancy")
 	}
 
-	return ExecOnLeader(ctx, flapsClient, command)
+	return ExecOnLeader(ctx, flapsClient, appName, command)
 }
