@@ -109,7 +109,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		splitVolumeInfo := strings.Split(volumeInfo, ":")
 		volID := splitVolumeInfo[0]
 
-		vol, err = flapsClient.GetVolume(ctx, volID)
+		vol, err = flapsClient.GetVolume(ctx, appName, volID)
 		if err != nil {
 			return fmt.Errorf("could not get existing volume: %w", err)
 		}
@@ -184,7 +184,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		var vol *fly.Volume
 		if volID != "" {
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
-			vol, err = flapsClient.GetVolume(ctx, volID)
+			vol, err = flapsClient.GetVolume(ctx, appName, volID)
 			if err != nil {
 				return fmt.Errorf("could not get existing volume: %w", err)
 			}
@@ -196,7 +196,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			var snapshotID *string
 			switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
 			case "last":
-				snapshots, err := flapsClient.GetVolumeSnapshots(ctx, mnt.Volume)
+				snapshots, err := flapsClient.GetVolumeSnapshots(ctx, appName, mnt.Volume)
 				if err != nil {
 					return err
 				}
@@ -225,7 +225,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				ComputeRequirements: targetConfig.Guest,
 				ComputeImage:        targetConfig.Image,
 			}
-			vol, err = flapsClient.CreateVolume(ctx, volInput)
+			vol, err = flapsClient.CreateVolume(ctx, appName, volInput)
 			if err != nil {
 				return err
 			}
@@ -271,7 +271,7 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	fmt.Fprintf(out, "Provisioning a new Machine with image %s...\n", source.Config.Image)
 
-	launchedMachine, err := flapsClient.Launch(ctx, input)
+	launchedMachine, err := flapsClient.Launch(ctx, appName, input)
 	if err != nil {
 		return err
 	}
@@ -286,12 +286,12 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(out, "  Waiting for Machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
 		// wait for a machine to be started
-		err = mach.WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
+		err = mach.WaitForStartOrStop(ctx, appName, launchedMachine, "start", time.Minute*5)
 		if err != nil {
 			return err
 		}
 
-		if err = watch.MachinesChecks(ctx, []*fly.Machine{launchedMachine}); err != nil {
+		if err = watch.MachinesChecks(ctx, appName, []*fly.Machine{launchedMachine}); err != nil {
 			return fmt.Errorf("error while watching health checks: %w", err)
 		}
 	}

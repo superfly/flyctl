@@ -9,13 +9,17 @@ import (
 
 	"github.com/spf13/pflag"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -50,11 +54,24 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	if flyutil.ClientFromContext(ctx) == nil {
-		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
-		logger.Debug("client initialized.")
-		ctx = flyutil.NewContextWithClient(ctx, client)
+	client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+	logger.Debug("client initialized.")
+	ctx = flyutil.NewContextWithClient(ctx, client)
+
+	uiexClient, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+		Logger: logger,
+		Tokens: cfg.Tokens,
+	})
+	if err != nil {
+		return nil, err
 	}
+	ctx = uiexutil.NewContextWithClient(ctx, uiexClient)
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
+	if err != nil {
+		return nil, err
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	return ctx, nil
 }

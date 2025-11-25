@@ -18,7 +18,7 @@ var cpusPerKind = map[string][]int{
 	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16, 32, 64, 128},
 }
 
-func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) error {
+func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.LaunchMachineInput) error {
 	var (
 		flapsClient    = flapsutil.ClientFromContext(ctx)
 		io             = iostreams.FromContext(ctx)
@@ -80,7 +80,7 @@ func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) 
 	fmt.Fprintf(io.Out, "Updating machine %s\n", colorize.Bold(m.ID))
 
 	input.ID = m.ID
-	updatedMachine, err = flapsClient.Update(ctx, *input, m.LeaseNonce)
+	updatedMachine, err = flapsClient.Update(ctx, appName, *input, m.LeaseNonce)
 	if err != nil {
 		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}
@@ -95,13 +95,13 @@ func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) 
 		waitTimeout = time.Duration(input.Timeout) * time.Second
 	}
 
-	if err := WaitForStartOrStop(ctx, updatedMachine, waitForAction, waitTimeout); err != nil {
+	if err := WaitForStartOrStop(ctx, appName, updatedMachine, waitForAction, waitTimeout); err != nil {
 		return err
 	}
 
 	if !input.SkipLaunch {
 		if !input.SkipHealthChecks {
-			if err := watch.MachinesChecks(ctx, []*fly.Machine{updatedMachine}); err != nil {
+			if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
 				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 			}
 		}

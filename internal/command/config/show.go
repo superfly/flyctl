@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -50,14 +48,7 @@ func runShow(ctx context.Context) error {
 	var cfg *appconfig.Config
 
 	if !flag.GetBool(ctx, "local") {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: appName,
-		})
-		if err != nil {
-			return err
-		}
-		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
+		var err error
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
 			return err
