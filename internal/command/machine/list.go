@@ -7,7 +7,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -56,10 +55,7 @@ func runMachineList(ctx context.Context) (err error) {
 		cfg     = config.FromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, err := flapsClient.List(ctx, appName, "")
 	if err != nil {

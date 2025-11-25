@@ -8,11 +8,9 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -46,14 +44,9 @@ func runOpen(ctx context.Context) error {
 	iostream := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
+		var err error
 		appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
 			return errors.New("The app config could not be found")

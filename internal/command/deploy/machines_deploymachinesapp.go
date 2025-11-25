@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -45,8 +44,6 @@ type ProcessGroupsDiff struct {
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
 	defer span.End()
-
-	ctx = flapsutil.NewContextWithClient(ctx, md.flapsClient)
 
 	onInterruptContext := context.WithoutCancel(ctx)
 

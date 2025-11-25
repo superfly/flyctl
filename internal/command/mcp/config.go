@@ -18,11 +18,8 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
-
-	"github.com/superfly/fly-go/flaps"
 )
 
 var McpClients = map[string]string{
@@ -145,15 +142,6 @@ func runAdd(ctx context.Context) error {
 		if appName == "" {
 			return errors.New("app name is required")
 		} else {
-			// Set up flaps client in context before calling FromRemoteApp
-			if flapsutil.ClientFromContext(ctx) == nil {
-				flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-				if err != nil {
-					return fmt.Errorf("could not create flaps client: %w", err)
-				}
-				ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-			}
-
 			var err error
 			appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 			if err != nil {
