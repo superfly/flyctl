@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
-func WaitForStartOrStop(ctx context.Context, machine *fly.Machine, action string, timeout time.Duration) error {
+func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -38,7 +38,7 @@ func WaitForStartOrStop(ctx context.Context, machine *fly.Machine, action string
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, machine, waitOnAction, 60*time.Second)
+		err := flapsClient.Wait(waitCtx, appName, machine, waitOnAction, 60*time.Second)
 		if err == nil {
 			return nil
 		}
