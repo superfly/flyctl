@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -22,6 +23,8 @@ import (
 
 // MockUiexClient implements the uiexutil.Client interface for testing
 type MockUiexClient struct {
+	ListOrganizationsFunc           func(ctx context.Context, admin bool) ([]uiex.Organization, error)
+	GetOrganizationFunc             func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
 	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClustersFunc         func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
@@ -40,6 +43,20 @@ type MockUiexClient struct {
 	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
 	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
 	CreateFlyManagedBuilderFunc     func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+}
+
+func (m *MockUiexClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
+	if m.ListOrganizationsFunc != nil {
+		return m.ListOrganizationsFunc(ctx, admin)
+	}
+	return []uiex.Organization{}, nil
+}
+
+func (m *MockUiexClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error) {
+	if m.GetOrganizationFunc != nil {
+		return m.GetOrganizationFunc(ctx, orgSlug)
+	}
+	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
 func (m *MockUiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
@@ -126,11 +143,43 @@ func (m *MockUiexClient) CreateDatabase(ctx context.Context, id string, input ui
 	return uiex.CreateDatabaseResponse{}, nil
 }
 
+func (m *MockUiexClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+	return &uiex.BuildResponse{}, nil
+}
+
+func (m *MockUiexClient) FinishBuild(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error) {
+	return &uiex.BuildResponse{}, nil
+}
+
+func (m *MockUiexClient) EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error) {
+	return &uiex.EnsureDepotBuilderResponse{}, nil
+}
+
 func (m *MockUiexClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error) {
 	if m.CreateUserFunc != nil {
 		return m.CreateFlyManagedBuilderFunc(ctx, orgSlug, region)
 	}
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
+}
+
+func (m *MockUiexClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
+	return &map[string]time.Time{}, nil
+}
+
+func (m *MockUiexClient) ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error) {
+	return []uiex.Release{}, nil
+}
+
+func (m *MockUiexClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
+}
+
+func (m *MockUiexClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
+}
+
+func (m *MockUiexClient) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (*uiex.Release, error) {
+	return &uiex.Release{}, nil
 }
 
 func (m *MockUiexClient) CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {

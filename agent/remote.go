@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -39,4 +40,38 @@ func BringUpAgent(ctx context.Context, client flyutil.Client, app *fly.AppCompac
 	}
 
 	return agentclient, dialer, nil
+}
+
+func BringUpAgentOrgSlug(ctx context.Context, client flyutil.Client, orgSlug string, network string, quiet bool) (*Client, Dialer, error) {
+	if orgSlug != "personal" {
+		// The agent keys tunnels based on web's org Slug, rather than RawSlug,
+		// so we need to use "personal" if the orgSlug belongs to the current
+		// user's personal org.
+		//
+		// It'd be good to standardize on RawSlug instead, but there are lots of
+		// callers to the agent and we don't want to touch them all at once.
+		uiexClient := uiexutil.ClientFromContext(ctx)
+		uiexOrg, err := uiexClient.GetOrganization(ctx, orgSlug)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		orgSlug = uiexOrg.Slug
+	}
+
+	appCompact := &fly.AppCompact{
+		// Name is only used for additional context in error reporting, so for
+		// simplicity we're going to ignore it.
+		Name: "",
+		Organization: &fly.OrganizationBasic{
+			Slug: orgSlug,
+		},
+	}
+
+	// The default network is referred "default" by flaps and "" by web.
+	if network == "default" {
+		network = ""
+	}
+
+	return BringUpAgent(ctx, client, appCompact, network, quiet)
 }

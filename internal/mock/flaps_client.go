@@ -28,7 +28,9 @@ type FlapsClient struct {
 	FindLeaseFunc            func(ctx context.Context, machineID string) (*fly.MachineLease, error)
 	GenerateSecretKeyFunc    func(ctx context.Context, name string, typ string) (*fly.SetSecretKeyResp, error)
 	GetFunc                  func(ctx context.Context, machineID string) (*fly.Machine, error)
+	GetAppFunc               func(ctx context.Context, name string) (app *flaps.App, err error)
 	GetAllVolumesFunc        func(ctx context.Context) ([]fly.Volume, error)
+	GetIPAssignmentsFunc     func(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetManyFunc              func(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadataFunc          func(ctx context.Context, machineID string) (map[string]string, error)
 	GetProcessesFunc         func(ctx context.Context, machineID string) (fly.MachinePsResponse, error)
@@ -39,6 +41,7 @@ type FlapsClient struct {
 	LaunchFunc               func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error)
 	ListFunc                 func(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActiveFunc           func(ctx context.Context) ([]*fly.Machine, error)
+	ListAppsFunc             func(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error)
 	ListFlyAppsMachinesFunc  func(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
 	ListAppSecretsFunc       func(ctx context.Context, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListSecretKeysFunc       func(ctx context.Context, version *uint64) ([]fly.SecretKey, error)
@@ -120,8 +123,16 @@ func (m *FlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, 
 	return m.GetFunc(ctx, machineID)
 }
 
+func (m *FlapsClient) GetApp(ctx context.Context, name string) (app *flaps.App, err error) {
+	return m.GetAppFunc(ctx, name)
+}
+
 func (m *FlapsClient) GetAllVolumes(ctx context.Context) ([]fly.Volume, error) {
 	return m.GetAllVolumesFunc(ctx)
+}
+
+func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
+	return m.GetIPAssignmentsFunc(ctx, appName)
 }
 
 func (m *FlapsClient) GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error) {
@@ -162,6 +173,10 @@ func (m *FlapsClient) List(ctx context.Context, state string) ([]*fly.Machine, e
 
 func (m *FlapsClient) ListActive(ctx context.Context) ([]*fly.Machine, error) {
 	return m.ListActiveFunc(ctx)
+}
+
+func (m *FlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error) {
+	return m.ListAppsFunc(ctx, req)
 }
 
 func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error) {
