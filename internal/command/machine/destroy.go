@@ -62,16 +62,11 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return fmt.Errorf("--image requires --app flag or must be run from app directory")
 	}
 
-	ctx, err = buildContextFromAppName(ctx, appconfig.NameFromContext(ctx))
-	if err != nil {
-		return err
-	}
-
 	var machinesToBeDeleted []*fly.Machine
 
 	switch {
 	case image != "":
-		machines, err := flapsutil.ClientFromContext(ctx).ListActive(ctx)
+		machines, err := flapsutil.ClientFromContext(ctx).ListActive(ctx, appconfig.NameFromContext(ctx))
 		if err != nil {
 			return err
 		}
@@ -118,7 +113,9 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return nil
 	}
 
-	machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
+	appName := appconfig.NameFromContext(ctx)
+
+	machines, release, err := mach.AcquireLeases(ctx, appName, machinesToBeDeleted)
 	defer release()
 	if err != nil {
 		return err
@@ -186,7 +183,7 @@ func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, for
 	}
 	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machine.ID, machine.State)
 
-	err := flapsClient.Destroy(ctx, input, machine.LeaseNonce)
+	err := flapsClient.Destroy(ctx, app.Name, input, machine.LeaseNonce)
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err

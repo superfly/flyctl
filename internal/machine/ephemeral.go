@@ -23,7 +23,7 @@ type EphemeralInput struct {
 	What        string
 }
 
-func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, func(), error) {
+func LaunchEphemeral(ctx context.Context, appName string, input *EphemeralInput) (*fly.Machine, func(), error) {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -34,7 +34,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 		return nil, nil, errors.New("ephemeral machines must be configured to auto-destroy (this is a bug)")
 	}
 
-	machine, err := flapsutil.Launch(ctx, flapsClient, input.LaunchInput)
+	machine, err := flapsutil.Launch(ctx, flapsClient, appName, input.LaunchInput)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -57,9 +57,9 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 	defer t.Stop()
 
 	for {
-		err = flapsClient.Wait(ctx, machine, fly.MachineStateStarted, waitTimeout)
+		err = flapsClient.Wait(ctx, appName, machine, fly.MachineStateStarted, waitTimeout)
 		if err == nil {
-			return machine, makeCleanupFunc(ctx, machine), nil
+			return machine, makeCleanupFunc(ctx, appName, machine), nil
 		}
 
 		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusRequestTimeout {
@@ -78,7 +78,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 
 	var destroyed bool
 	if flapsErr != nil && flapsErr.ResponseStatusCode == http.StatusNotFound {
-		destroyed, err = checkMachineDestruction(ctx, machine, err)
+		destroyed, err = checkMachineDestruction(ctx, appName, machine, err)
 	}
 
 	if !destroyed {
@@ -87,9 +87,9 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 	return nil, nil, err
 }
 
-func checkMachineDestruction(ctx context.Context, machine *fly.Machine, firstErr error) (bool, error) {
+func checkMachineDestruction(ctx context.Context, appName string, machine *fly.Machine, firstErr error) (bool, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	machine, err := flapsClient.Get(ctx, machine.ID)
+	machine, err := flapsClient.Get(ctx, appName, machine.ID)
 	if err != nil {
 		return false, fmt.Errorf("failed to check status of machine: %w", err)
 	}
@@ -118,7 +118,7 @@ func checkMachineDestruction(ctx context.Context, machine *fly.Machine, firstErr
 	return true, fmt.Errorf("machine exited unexpectedly with code %v", exitCode)
 }
 
-func makeCleanupFunc(ctx context.Context, machine *fly.Machine) func() {
+func makeCleanupFunc(ctx context.Context, appName string, machine *fly.Machine) func() {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -138,7 +138,7 @@ func makeCleanupFunc(ctx context.Context, machine *fly.Machine) func() {
 			ID:      machine.ID,
 			Timeout: fly.Duration{Duration: stopTimeout},
 		}
-		if err := flapsClient.Stop(stopCtx, stopInput, ""); err != nil {
+		if err := flapsClient.Stop(stopCtx, appName, stopInput, ""); err != nil {
 			terminal.Warnf("Failed to stop ephemeral machine: %v", err)
 			terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
 			return
@@ -146,7 +146,7 @@ func makeCleanupFunc(ctx context.Context, machine *fly.Machine) func() {
 
 		if cmdutil.IsTerminal(os.Stdout) {
 			fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
-			if err := flapsClient.Wait(stopCtx, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
+			if err := flapsClient.Wait(stopCtx, appName, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
 				fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
 				terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
 				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
@@ -154,7 +154,7 @@ func makeCleanupFunc(ctx context.Context, machine *fly.Machine) func() {
 				fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
 			}
 		} else {
-			if err := flapsClient.Wait(stopCtx, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
+			if err := flapsClient.Wait(stopCtx, appName, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
 				fmt.Fprintf(io.ErrOut, "Attempt to destroy ephemeral machine %s failed: %v", machine.ID, err)
 				fmt.Fprint(io.ErrOut, "You may need to destroy it manually (`fly machine destroy`).")
 			}

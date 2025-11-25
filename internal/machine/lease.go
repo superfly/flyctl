@@ -17,17 +17,17 @@ const maxConcurrentLeases = 20
 type releaseLeaseFunc func()
 
 // AcquireAllLeases works to acquire/attach a lease for each active machine.
-func AcquireAllLeases(ctx context.Context) ([]*fly.Machine, releaseLeaseFunc, error) {
-	machines, err := ListActive(ctx)
+func AcquireAllLeases(ctx context.Context, appName string) ([]*fly.Machine, releaseLeaseFunc, error) {
+	machines, err := ListActive(ctx, appName)
 	if err != nil {
 		return nil, func() {}, err
 	}
 
-	return AcquireLeases(ctx, machines)
+	return AcquireLeases(ctx, appName, machines)
 }
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
-func AcquireLeases(ctx context.Context, machines []*fly.Machine) ([]*fly.Machine, releaseLeaseFunc, error) {
+func AcquireLeases(ctx context.Context, appName string, machines []*fly.Machine) ([]*fly.Machine, releaseLeaseFunc, error) {
 	acquirePool := pool.NewWithResults[*fly.Machine]().
 		WithErrors().
 		WithMaxGoroutines(maxConcurrentLeases)
@@ -40,7 +40,7 @@ func AcquireLeases(ctx context.Context, machines []*fly.Machine) ([]*fly.Machine
 				return m, nil
 			}
 
-			m, _, err := AcquireLease(ctx, m)
+			m, _, err := AcquireLease(ctx, appName, m)
 			return m, err
 		})
 	}
@@ -50,7 +50,7 @@ func AcquireLeases(ctx context.Context, machines []*fly.Machine) ([]*fly.Machine
 	releaseFunc := func() {
 		p := pool.New()
 		for _, m := range leaseHoldingMachines {
-			p.Go(func() { releaseLease(ctx, m) })
+			p.Go(func() { releaseLease(ctx, appName, m) })
 		}
 		p.Wait()
 	}
@@ -58,7 +58,7 @@ func AcquireLeases(ctx context.Context, machines []*fly.Machine) ([]*fly.Machine
 	return leaseHoldingMachines, releaseFunc, err
 }
 
-func releaseLease(ctx context.Context, machine *fly.Machine) {
+func releaseLease(ctx context.Context, appName string, machine *fly.Machine) {
 	if machine == nil || machine.LeaseNonce == "" {
 		return
 	}
@@ -75,7 +75,7 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 		fmt.Fprintf(io.Out, "Releasing lease for machine %s...\n", machine.ID)
 	}
 
-	if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+	if err := flapsClient.ReleaseLease(ctx, appName, machine.ID, machine.LeaseNonce); err != nil {
 		if !strings.Contains(err.Error(), "lease not found") {
 			fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s\n", machine.ID, err.Error())
 		}
@@ -84,7 +84,7 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 
 // AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
-func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, releaseLeaseFunc, error) {
+func AcquireLease(ctx context.Context, appName string, machine *fly.Machine) (*fly.Machine, releaseLeaseFunc, error) {
 	// if we haven't gotten the lease after 2s, we print a message so users
 	// aren't left wondering.
 	abortStatusUpdate := make(chan struct{})
@@ -103,11 +103,11 @@ func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, rele
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	lease, err := flapsClient.AcquireLease(ctx, machine.ID, fly.IntPointer(120))
+	lease, err := flapsClient.AcquireLease(ctx, appName, machine.ID, fly.IntPointer(120))
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to obtain lease: %w", err)
 	}
-	releaseFunc := func() { releaseLease(ctx, machine) }
+	releaseFunc := func() { releaseLease(ctx, appName, machine) }
 
 	// Set lease nonce before we re-fetch the Machines latest configuration.
 	// This will ensure the lease can still be released in the event the upcoming GET fails.
@@ -119,12 +119,12 @@ func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, rele
 	}
 
 	// Re-query machine post-lease acquisition to ensure we are working against the latest configuration.
-	updatedMachine, err := flapsClient.Get(ctx, machine.ID)
+	updatedMachine, err := flapsClient.Get(ctx, appName, machine.ID)
 	if err != nil {
 		return machine, releaseFunc, err
 	}
 
 	updatedMachine.LeaseNonce = lease.Data.Nonce
-	releaseFunc = func() { releaseLease(ctx, updatedMachine) }
+	releaseFunc = func() { releaseLease(ctx, appName, updatedMachine) }
 	return updatedMachine, releaseFunc, nil
 }

@@ -32,7 +32,7 @@ func TestUpdateExistingMachinesWRecovery(t *testing.T) {
 
 	err = md.updateExistingMachinesWRecovery(ctx, []*machineUpdateEntry{
 		{
-			leasableMachine: machine.NewLeasableMachine(client, ios, &fly.Machine{}, false),
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
 			launchInput:     &fly.LaunchMachineInput{},
 		},
 	})
@@ -61,7 +61,7 @@ func TestDeployMachinesApp(t *testing.T) {
 		apiClient:       webClient,
 		strategy:        "canary",
 		appConfig:       &appconfig.Config{},
-		machineSet:      machine.NewMachineSet(client, ios, client.machines, false),
+		machineSet:      machine.NewMachineSet(client, ios, "", client.machines, false),
 		skipSmokeChecks: true,
 		waitTimeout:     1 * time.Second,
 	}

@@ -32,7 +32,7 @@ func TestValidateBuilder(t *testing.T) {
 	hasVolumes := false
 	hasMachines := false
 	flapsClient := mock.FlapsClient{
-		GetVolumesFunc: func(ctx context.Context) ([]fly.Volume, error) {
+		GetVolumesFunc: func(ctx context.Context, appName string) ([]fly.Volume, error) {
 			if hasVolumes {
 				return []fly.Volume{{
 					ID: "bigvolume",
@@ -41,7 +41,7 @@ func TestValidateBuilder(t *testing.T) {
 				return []fly.Volume{}, nil
 			}
 		},
-		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			if hasMachines {
 				return []*fly.Machine{{
 					ID:    "bigmachine",
@@ -84,7 +84,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	responseStatusCode := 500
 
 	flapsClient := mock.FlapsClient{
-		GetVolumesFunc: func(ctx context.Context) ([]fly.Volume, error) {
+		GetVolumesFunc: func(ctx context.Context, appName string) ([]fly.Volume, error) {
 			if volumesShouldFail {
 				volumeRetries += 1
 
@@ -100,7 +100,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 			}}, nil
 
 		},
-		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			if machinesShouldFail {
 				machineRetries += 1
 
@@ -169,7 +169,7 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 	provisioner := NewProvisioner(&fly.Organization{})
 	provisioner.useVolume = false
 
-	client.EXPECT().List(gomock.Any(), gomock.Any()).Return([]*fly.Machine{
+	client.EXPECT().List(gomock.Any(), gomock.Eq(""), gomock.Any()).Return([]*fly.Machine{
 		{State: "stopped"},
 	}, nil)
 	machine, err := provisioner.validateBuilder(ctx, &fly.App{})
@@ -220,7 +220,7 @@ func TestCreateBuilder(t *testing.T) {
 			}
 			return nil
 		},
-		CreateVolumeFunc: func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+		CreateVolumeFunc: func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 			if createVolumeShouldFail {
 				createVolumeAttempts += 1
 
@@ -235,10 +235,10 @@ func TestCreateBuilder(t *testing.T) {
 				ID: "bigvolume",
 			}, nil
 		},
-		DeleteVolumeFunc: func(ctx context.Context, volumeId string) (*fly.Volume, error) {
+		DeleteVolumeFunc: func(ctx context.Context, appName, volumeId string) (*fly.Volume, error) {
 			return nil, nil
 		},
-		LaunchFunc: func(ctx context.Context, input fly.LaunchMachineInput) (*fly.Machine, error) {
+		LaunchFunc: func(ctx context.Context, appName string, input fly.LaunchMachineInput) (*fly.Machine, error) {
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")
 			}
@@ -247,7 +247,7 @@ func TestCreateBuilder(t *testing.T) {
 				State: "started",
 			}, nil
 		},
-		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			time.Sleep(1 * time.Second)
 			return nil
 		},
@@ -296,7 +296,7 @@ func TestRestartBuilderMachine(t *testing.T) {
 
 	couldNotReserveResources := false
 	flapsClient := mock.FlapsClient{
-		RestartFunc: func(ctx context.Context, input fly.RestartMachineInput, nonce string) error {
+		RestartFunc: func(ctx context.Context, appName string, input fly.RestartMachineInput, nonce string) error {
 			if couldNotReserveResources {
 				return &flaps.FlapsError{
 					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
@@ -304,17 +304,17 @@ func TestRestartBuilderMachine(t *testing.T) {
 			}
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			return nil
 		},
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
-	err := restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err := restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.NoError(t, err)
 
 	couldNotReserveResources = true
-	err = restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err = restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
 }
