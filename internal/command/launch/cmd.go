@@ -40,7 +40,7 @@ func New() (cmd *cobra.Command) {
 		short = `Create and configure a new app from source code or a Docker image`
 	)
 
-	cmd = command.New("launch", short, long, run, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
+	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
 	flags := []flag.Flag{
