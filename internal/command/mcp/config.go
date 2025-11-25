@@ -147,9 +147,7 @@ func runAdd(ctx context.Context) error {
 		} else {
 			// Set up flaps client in context before calling FromRemoteApp
 			if flapsutil.ClientFromContext(ctx) == nil {
-				flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-					AppName: appName,
-				})
+				flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 				if err != nil {
 					return fmt.Errorf("could not create flaps client: %w", err)
 				}

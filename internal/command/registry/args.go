@@ -79,9 +79,7 @@ func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
 }
 
 func getFlapsClient(ctx context.Context, app *fly.AppCompact) (*flaps.Client, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)
 	}
@@ -250,10 +248,7 @@ func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, er
 // argsGetOrgAppImages returns a list of images for an org/app in ImgInfo format
 // from `running`.
 func argsGetOrgAppImages(ctx context.Context, orgName, orgId, appName string) (map[ImgInfo]Unit, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		OrgSlug: orgId,
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flaps client for %q: %w", appName, err)
 	}

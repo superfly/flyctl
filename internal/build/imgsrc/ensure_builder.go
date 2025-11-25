@@ -91,10 +91,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		builderApp := org.RemoteBuilderApp
 		if builderApp != nil {
 			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
-			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-				AppName: builderApp.Name,
-				OrgSlug: builderApp.Organization.Slug,
-			})
+			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 			if err != nil {
 				tracing.RecordError(span, err, "error creating flaps client")
 				return nil, nil, err
@@ -155,10 +152,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	builderName := "fly-builder-" + haikunator.Haikunator().Build()
 	span.SetAttributes(attribute.String("builder_name", builderName))
 	// we want to lauch the machine to the builder
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: builderName,
-		OrgSlug: org.Slug,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		tracing.RecordError(span, err, "error creating flaps client")
 		return nil, nil, err

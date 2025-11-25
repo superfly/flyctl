@@ -116,9 +116,7 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 }
 
 func buildContextFromAppName(ctx context.Context, appName string) (context.Context, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
@@ -145,13 +143,9 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 			return nil, fmt.Errorf("could not get machine from GraphQL to determine app name: %w", err)
 		}
 		ctx = appconfig.WithName(ctx, gqlMachine.App.Name)
-		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: gqlMachine.App.Name,
-		})
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	} else {
-		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: appName,
-		})
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)

@@ -59,9 +59,7 @@ func runExtend(ctx context.Context) error {
 		volID    = flag.FirstArg(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}

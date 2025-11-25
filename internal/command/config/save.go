@@ -53,9 +53,7 @@ func runSave(ctx context.Context) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}
