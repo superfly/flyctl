@@ -66,7 +66,7 @@ func (md *machineDeployment) appState(ctx context.Context, existingAppState *App
 	ctx, span := tracing.GetTracer().Start(ctx, "app_state")
 	defer span.End()
 
-	machines, err := md.flapsClient.List(ctx, "")
+	machines, err := md.flapsClient.List(ctx, md.app.Name, "")
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
@@ -433,7 +433,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			}
 
 			machine.LeaseNonce = lease.Data.Nonce
-			lm := mach.NewLeasableMachine(md.flapsClient, md.io, machine, false)
+			lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, machine, false)
 			lm.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquired lease for %s", machine.ID))
 			return nil
@@ -548,7 +548,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		return err
 	}
 
-	lm := mach.NewLeasableMachine(md.flapsClient, io, machine, false)
+	lm := mach.NewLeasableMachine(md.flapsClient, io, md.app.Name, machine, false)
 
 	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
 	span.SetAttributes(attribute.Bool("should_start", shouldStart))
@@ -658,7 +658,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 }
 
 func (md *machineDeployment) destroyMachine(ctx context.Context, machineID string, lease string) error {
-	err := md.flapsClient.Destroy(ctx, fly.RemoveMachineInput{
+	err := md.flapsClient.Destroy(ctx, md.app.Name, fly.RemoveMachineInput{
 		ID:   machineID,
 		Kill: true,
 	}, lease)
@@ -673,7 +673,7 @@ func (md *machineDeployment) clearMachineLease(ctx context.Context, machID, leas
 	// TODO: remove this when the flaps retry work is done
 	attempts := 0
 	for {
-		err := md.flapsClient.ReleaseLease(ctx, machID, leaseNonce)
+		err := md.flapsClient.ReleaseLease(ctx, md.app.Name, machID, leaseNonce)
 		if err == nil {
 			return nil
 		}
@@ -747,7 +747,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
 	leaseTimeout := int(md.leaseTimeout.Seconds())
-	lease, err := md.flapsClient.AcquireLease(ctx, machID, &leaseTimeout)
+	lease, err := md.flapsClient.AcquireLease(ctx, md.app.Name, machID, &leaseTimeout)
 	if err != nil {
 		// TODO: tell users how to manually clear the lease
 		// TODO: have a flag to automatically clear the lease
@@ -775,7 +775,7 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	input.Config = newMachineConfig
 	input.RequiresReplacement = input.RequiresReplacement || shouldReplace
 
-	lm := mach.NewLeasableMachine(md.flapsClient, md.io, oldMachine, false)
+	lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, oldMachine, false)
 	entry := &machineUpdateEntry{
 		leasableMachine: lm,
 		launchInput:     input,
@@ -788,7 +788,7 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 }
 
 func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
-	machine, err := md.flapsClient.Launch(ctx, fly.LaunchMachineInput{
+	machine, err := md.flapsClient.Launch(ctx, md.app.Name, fly.LaunchMachineInput{
 		Config: machConfig,
 		Region: region,
 	})

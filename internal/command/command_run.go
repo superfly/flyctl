@@ -352,7 +352,7 @@ func parseFiles(ctx context.Context, flagName string, cb func(value string, file
 	return machineFiles, nil
 }
 
-func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region string) ([]fly.MachineMount, error) {
+func DetermineMounts(ctx context.Context, appName string, mounts []fly.MachineMount, region string) ([]fly.MachineMount, error) {
 	unattachedVolumes := make(map[string][]fly.Volume)
 
 	pathIndex := make(map[string]int)
@@ -374,7 +374,7 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 			// Load app volumes the first time
 			if len(unattachedVolumes) == 0 {
 				var err error
-				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
+				unattachedVolumes, err = getUnattachedVolumes(ctx, appName, region)
 				if err != nil {
 					return nil, err
 				}
@@ -399,7 +399,7 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 	return mounts, nil
 }
 
-func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]fly.Volume, error) {
+func getUnattachedVolumes(ctx context.Context, appName, regionCode string) (map[string][]fly.Volume, error) {
 	apiclient := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
@@ -411,7 +411,7 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 		regionCode = region.Code
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
+	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
 	}

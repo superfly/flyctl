@@ -10,7 +10,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -21,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/validation"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -212,7 +210,6 @@ func New() *Command {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
-		command.RequireUiex,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -276,17 +273,6 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 			tracing.RecordError(span, err, "error deploying")
 		}
 	}()
-
-	// Instantiate FLAPS client if we haven't initialized one via a unit test.
-	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: appName,
-		})
-		if err != nil {
-			return fmt.Errorf("could not create flaps client: %w", err)
-		}
-		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-	}
 
 	client := flyutil.ClientFromContext(ctx)
 
