@@ -17,8 +17,10 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -641,8 +643,10 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
-		// first reset the client
+		// first reset the clients
 		ctx = flyutil.NewContextWithClient(ctx, nil)
+		ctx = uiexutil.NewContextWithClient(ctx, nil)
+		ctx = flapsutil.NewContextWithClient(ctx, nil)
 
 		// Re-run the auth preparers to update the client with the new token
 		logger.FromContext(ctx).Debug("re-running auth preparers after login")

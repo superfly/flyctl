@@ -72,10 +72,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 
 	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			// nb. AppName is not configured. This client can still make
-			// requests that don't use the implicit AppName.
-		})
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 		if err != nil {
 			return nil, err
 		}
