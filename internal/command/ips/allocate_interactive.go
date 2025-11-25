@@ -39,9 +39,7 @@ func newAllocate() *cobra.Command {
 }
 
 func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (requiresDedicated bool, hasServices bool, hasUDP bool, err error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return false, false, false, fmt.Errorf("could not create flaps client: %w", err)
 	}

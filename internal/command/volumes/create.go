@@ -102,9 +102,7 @@ func runCreate(ctx context.Context) error {
 		count      = flag.GetInt(ctx, "count")
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}

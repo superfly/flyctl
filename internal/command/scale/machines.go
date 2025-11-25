@@ -14,9 +14,7 @@ import (
 )
 
 func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*fly.VMSize, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, err
 	}

@@ -87,9 +87,7 @@ func runBackupRestore(ctx context.Context) error {
 		destAppName = flag.FirstArg(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}
@@ -217,9 +215,7 @@ func runBackupCreate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -403,9 +399,7 @@ func runBackupList(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -546,9 +540,7 @@ func runBackupConfigShow(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}
@@ -588,9 +580,7 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to initialize flaps client: %w", err)
 	}

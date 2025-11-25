@@ -389,9 +389,7 @@ func runMachineRun(ctx context.Context) error {
 		MinSecretsVersion: minvers,
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
@@ -555,7 +553,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
 
-		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: appc.Name})
+		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 		if err != nil {
 			return nil, err
 		} else if err := f.WaitForApp(ctx, appc.Name); err != nil {
@@ -604,7 +602,7 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		return nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, err
 	} else if err := f.WaitForApp(ctx, app.Name); err != nil {

@@ -246,9 +246,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 
 func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, err
 	}
