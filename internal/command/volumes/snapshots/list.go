@@ -72,7 +72,7 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, appName, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}

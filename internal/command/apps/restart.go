@@ -90,12 +90,12 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 		return err
 	}
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, app.Name)
 	if err != nil {
 		return err
 	}
 
-	machines, releaseFunc, err := machine.AcquireLeases(ctx, machines)
+	machines, releaseFunc, err := machine.AcquireLeases(ctx, app.Name, machines)
 	defer releaseFunc()
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 			continue
 		}
 
-		if err := machine.Restart(ctx, m, input, m.LeaseNonce); err != nil {
+		if err := machine.Restart(ctx, app.Name, m, input, m.LeaseNonce); err != nil {
 			return err
 		}
 	}

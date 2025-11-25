@@ -74,7 +74,7 @@ func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app
 		validDays = flag.GetInt(ctx, "valid-days")
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err

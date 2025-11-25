@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -46,7 +47,10 @@ func runMachineUncordon(ctx context.Context) (err error) {
 		return err
 	}
 
-	machines, release, err := mach.AcquireLeases(ctx, machines)
+	// appName is added to context by selectManyMachines
+	appName := appconfig.NameFromContext(ctx)
+
+	machines, release, err := mach.AcquireLeases(ctx, appName, machines)
 	defer release()
 	if err != nil {
 		return err
@@ -56,7 +60,7 @@ func runMachineUncordon(ctx context.Context) (err error) {
 
 	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "Deactivating cordon on machine %s...\n", machine.ID)
-		if err = flapsClient.Uncordon(ctx, machine.ID, machine.LeaseNonce); err != nil {
+		if err = flapsClient.Uncordon(ctx, appName, machine.ID, machine.LeaseNonce); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "done!\n")

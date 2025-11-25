@@ -237,7 +237,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			volInput.SizeGb = config.VolumeSize
 		}
 
-		vol, err = flapsClient.CreateVolume(ctx, volInput)
+		vol, err = flapsClient.CreateVolume(ctx, app.Name, volInput)
 		if err != nil {
 			return fmt.Errorf("failed to %s volume: %w", action, err)
 		}
@@ -257,7 +257,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			MinSecretsVersion: minvers,
 		}
 
-		machine, err := flapsClient.Launch(ctx, launchInput)
+		machine, err := flapsClient.Launch(ctx, app.Name, launchInput)
 		if err != nil {
 			return err
 		}
@@ -269,7 +269,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+		err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}
@@ -281,7 +281,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	if !detach {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, nodes); err != nil {
+		if err := watch.MachinesChecks(ctx, app.Name, nodes); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)

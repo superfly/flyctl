@@ -18,7 +18,7 @@ func List(ctx context.Context, client flapsutil.FlapsClient, appName string) ([]
 	if err != nil {
 		return nil, err
 	}
-	return client.ListAppSecrets(ctx, minver, false)
+	return client.ListAppSecrets(ctx, appName, minver, false)
 }
 
 // Update sets setSecrets and unsets unsetSecrets. client must be a flaps client for appName.
@@ -38,7 +38,7 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 		return nil
 	}
 
-	resp, err := client.UpdateAppSecrets(ctx, update)
+	resp, err := client.UpdateAppSecrets(ctx, appName, update)
 	if err != nil {
 		return err
 	}
