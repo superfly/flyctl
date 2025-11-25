@@ -65,9 +65,7 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 		cfg      = config.FromContext(ctx)
 	)
 
-	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
+	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}

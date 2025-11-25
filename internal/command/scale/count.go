@@ -48,9 +48,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	}

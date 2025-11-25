@@ -279,9 +279,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	// Instantiate FLAPS client if we haven't initialized one via a unit test.
 	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: appName,
-		})
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 		if err != nil {
 			return fmt.Errorf("could not create flaps client: %w", err)
 		}

@@ -50,9 +50,7 @@ func runShow(ctx context.Context) error {
 	var cfg *appconfig.Config
 
 	if !flag.GetBool(ctx, "local") {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: appName,
-		})
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 		if err != nil {
 			return err
 		}

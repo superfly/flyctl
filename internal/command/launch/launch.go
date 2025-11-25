@@ -70,12 +70,12 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if flapsClient == nil {
-		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: state.appConfig.AppName})
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 		if err != nil {
 			return err
 		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
@@ -354,7 +354,7 @@ func (state *launchState) createApp(ctx context.Context) (flapsutil.FlapsClient,
 		return nil, nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return nil, nil, err
 	} else if err := f.WaitForApp(ctx, app.Name); err != nil {

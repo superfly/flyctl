@@ -46,9 +46,7 @@ func runOpen(ctx context.Context) error {
 	iostream := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}

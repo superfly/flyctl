@@ -118,7 +118,7 @@ func RunCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
 	if err != nil {
 		return err
 	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
