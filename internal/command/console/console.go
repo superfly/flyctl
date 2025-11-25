@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/agent"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -185,14 +184,6 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app network: %w", err)
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		appConfig, err = appconfig.FromRemoteApp(ctx, appName)
@@ -247,7 +238,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfi
 	if flag.GetBool(ctx, "select") {
 		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
-		return getMachineByID(ctx)
+		return getMachineByID(ctx, app.Name)
 	} else {
 		guest, err := determineEphemeralConsoleMachineGuest(ctx, appConfig)
 		if err != nil {
@@ -263,7 +254,7 @@ func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appco
 	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -294,7 +285,7 @@ func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appco
 	}
 }
 
-func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
+func getMachineByID(ctx context.Context, appName string) (*fly.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "vm-cpus") {
 		return nil, nil, errors.New("--vm-cpus can't be used with --machine")
 	}
@@ -307,7 +298,7 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	machineID := flag.GetString(ctx, "machine")
-	machine, err := flapsClient.Get(ctx, machineID)
+	machine, err := flapsClient.Get(ctx, appName, machineID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -341,7 +332,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 		return nil, nil, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
 
-	machConfig.Mounts, err = command.DetermineMounts(ctx, machConfig.Mounts, config.FromContext(ctx).Region)
+	machConfig.Mounts, err = command.DetermineMounts(ctx, app.Name, machConfig.Mounts, config.FromContext(ctx).Region)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to process mounts: %w", err)
 	}
@@ -408,7 +399,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 		},
 		What: "to run the console",
 	}
-	return machine.LaunchEphemeral(ctx, input)
+	return machine.LaunchEphemeral(ctx, app.Name, input)
 }
 
 func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*fly.MachineGuest, error) {

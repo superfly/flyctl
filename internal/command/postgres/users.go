@@ -91,7 +91,7 @@ func runMachineListUsers(ctx context.Context, app *fly.AppCompact) (err error) {
 		MinPostgresStandaloneVersion = "0.0.7"
 	)
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}

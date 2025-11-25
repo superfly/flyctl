@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -58,7 +58,7 @@ func FlushMetrics(ctx context.Context) error {
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, "FLY_NO_UPDATE_CHECK=1")
 
-		agent.SetSysProcAttributes(cmd)
+		cmdutil.SetSysProcAttributes(cmd)
 
 		if err := cmd.Start(); err != nil {
 			return err

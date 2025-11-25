@@ -75,7 +75,7 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, args DeploymentArgs
 	if flapsClient == nil {
 		return fmt.Errorf("flaps client missing from context")
 	}
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, app.Name)
 	if err != nil {
 		return err
 	}

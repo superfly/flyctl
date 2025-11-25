@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -102,13 +101,7 @@ func runCreate(ctx context.Context) error {
 		count      = flag.GetInt(ctx, "count")
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)
@@ -174,7 +167,7 @@ func runCreate(ctx context.Context) error {
 
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
-		volume, err := flapsClient.CreateVolume(ctx, input)
+		volume, err := flapsClient.CreateVolume(ctx, appName, input)
 		if err != nil {
 			return err
 		}
@@ -205,7 +198,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	}
 
 	// If we have more than 0 volumes with this name already, return early
-	if matches, err := countVolumesMatchingName(ctx, volumeName); err != nil {
+	if matches, err := countVolumesMatchingName(ctx, appName, volumeName); err != nil {
 		return false, err
 	} else if matches > 0 {
 		return true, nil
