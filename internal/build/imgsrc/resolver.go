@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -258,11 +259,17 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	if r.provisioner.UseBuildkit() {
 		strategies = append(strategies, NewBuildkitBuilder(flag.GetBuildkitAddr(ctx), r.provisioner))
 	} else if r.dockerFactory.mode.UseNixpacks() {
-		org, err := r.apiClient.GetOrganizationByApp(ctx, opts.AppName)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		app, err := flapsClient.GetApp(ctx, opts.AppName)
 		if err != nil {
 			return nil, err
 		}
-		strategies = append(strategies, &nixpacksBuilder{provisioner: NewProvisioner(org)})
+		uiexClient := uiexutil.ClientFromContext(ctx)
+		org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+		if err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, &nixpacksBuilder{provisioner: NewProvisionerUiexOrg(org)})
 	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
 		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
