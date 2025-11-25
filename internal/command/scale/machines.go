@@ -6,20 +6,12 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*fly.VMSize, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return nil, err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	// Quickly validate sizeName before any network call
 	if err := (&fly.MachineGuest{}).SetSize(sizeName); err != nil && sizeName != "" {
 		return nil, err

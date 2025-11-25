@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
@@ -22,10 +21,7 @@ func runAppCheckList(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	nameFilter := flag.GetString(ctx, "check-name")
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {

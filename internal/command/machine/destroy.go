@@ -62,11 +62,6 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return fmt.Errorf("--image requires --app flag or must be run from app directory")
 	}
 
-	ctx, err = buildContextFromAppName(ctx, appconfig.NameFromContext(ctx))
-	if err != nil {
-		return err
-	}
-
 	var machinesToBeDeleted []*fly.Machine
 
 	switch {

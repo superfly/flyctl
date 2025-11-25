@@ -17,7 +17,6 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
-	"github.com/superfly/fly-go/flaps"
 	iostreams "github.com/superfly/flyctl/iostreams"
 )
 
@@ -133,11 +132,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := l.setSecrets(ctx, config)
 	if err != nil {
@@ -406,10 +401,8 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 		return nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	f := flapsutil.ClientFromContext(ctx)
+	if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 

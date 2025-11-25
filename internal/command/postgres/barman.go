@@ -10,7 +10,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -100,11 +99,7 @@ func runBarmanCreate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
@@ -525,10 +520,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 
 func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return "", err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
