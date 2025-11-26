@@ -35,12 +35,9 @@ func newSync() (cmd *cobra.Command) {
 // of the version set elsewhere, such as by the dashboard or another flyctl.
 func runSync(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := appsecrets.Sync(ctx, flapsClient, app.Name); err != nil {
+	if err := appsecrets.Sync(ctx, flapsClient, appName); err != nil {
 		return fmt.Errorf("sync secrets: %w", err)
 	}
 	return nil

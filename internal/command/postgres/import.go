@@ -88,10 +88,13 @@ func runImport(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed to resolve app: %w", err)
+		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("The target app must be a Postgres app")

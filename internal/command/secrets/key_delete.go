@@ -55,10 +55,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 	}
 
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := flapsClient.ListSecretKeys(ctx, appName, nil)
 	if err != nil {

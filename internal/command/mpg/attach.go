@@ -241,10 +241,7 @@ func runAttach(ctx context.Context) error {
 		db = credentials.DBName
 	}
 
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	variableName := flag.GetString(ctx, "variable-name")
 

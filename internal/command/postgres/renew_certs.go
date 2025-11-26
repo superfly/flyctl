@@ -49,10 +49,13 @@ func runRefreshSSHCerts(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("app %s is not a postgres app", appName)
