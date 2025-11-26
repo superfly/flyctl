@@ -30,18 +30,21 @@ func configureStatic(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Port:   8080,
 	}
 
+	// Prepare template variables
+	vars := map[string]interface{}{}
+
 	// If content is in a subdirectory, we need to adjust what we copy
 	if contentRoot != sourceDir {
 		// Extract the relative path from sourceDir
 		relPath, _ := filepath.Rel(sourceDir, contentRoot)
 		// Set Version to show the base directory in detection message
 		s.Version = "(base path: " + relPath + ")"
-		// Generate template with the specific subdirectory
-		vars := map[string]interface{}{"contentDir": relPath}
-		s.Files = templatesExecute("templates/static", vars)
-	} else {
-		s.Files = templates("templates/static")
+		// Set contentDir variable for template
+		vars["contentDir"] = relPath
 	}
+
+	// Always execute the template to render any template syntax
+	s.Files = templatesExecute("templates/static", vars)
 
 	return s, nil
 }
