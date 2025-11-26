@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -19,7 +20,7 @@ func TestUpdateExistingMachinesWRecovery(t *testing.T) {
 	client := &mockFlapsClient{}
 	client.machines = []*fly.Machine{{ID: "test-machine-id", LeaseNonce: "foobar"}}
 	md := &machineDeployment{
-		app:         &fly.AppCompact{},
+		app:         &flaps.App{},
 		io:          ios,
 		colorize:    ios.ColorScheme(),
 		flapsClient: client,
@@ -54,7 +55,7 @@ func TestDeployMachinesApp(t *testing.T) {
 		{ID: "m4", LeaseNonce: "m4-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
 	}
 	md := &machineDeployment{
-		app:             &fly.AppCompact{},
+		app:             &flaps.App{},
 		io:              ios,
 		colorize:        ios.ColorScheme(),
 		flapsClient:     client,
