@@ -82,7 +82,7 @@ func runFailover(ctx context.Context) (err error) {
 		return err
 	}
 
-	machines, releaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseFunc, err := mach.AcquireAllLeases(ctx, appName)
 	defer releaseFunc()
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
@@ -107,7 +107,7 @@ func runFailover(ctx context.Context) (err error) {
 		allowSecondaryRegion := flag.GetBool(ctx, "allow-secondary-region")
 
 		if failoverErr := flexFailover(ctx, machines, app, force, allowSecondaryRegion); failoverErr != nil {
-			if err := handleFlexFailoverFail(ctx, machines); err != nil {
+			if err := handleFlexFailoverFail(ctx, app, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
 			return fmt.Errorf("Failed to run failover: %s", failoverErr)
@@ -130,7 +130,7 @@ func runFailover(ctx context.Context) (err error) {
 	if err := retry.Do(
 		func() error {
 			var err error
-			leader, err = flapsClient.Get(ctx, leader.ID)
+			leader, err = flapsClient.Get(ctx, app.Name, leader.ID)
 			if err != nil {
 				return err
 			} else if machineRole(leader) == "leader" {
@@ -144,7 +144,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	// wait for health checks to pass
-	if err := watch.MachinesChecks(ctx, machines); err != nil {
+	if err := watch.MachinesChecks(ctx, app.Name, machines); err != nil {
 		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 	}
 
@@ -216,13 +216,13 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	err = flapsClient.Stop(ctx, machineStopInput, oldLeader.LeaseNonce)
+	err = flapsClient.Stop(ctx, app.Name, machineStopInput, oldLeader.LeaseNonce)
 	if err != nil {
 		return fmt.Errorf("could not stop pg leader %s: %w", oldLeader.ID, err)
 	}
 
 	fmt.Println("Starting new leader")
-	_, err = flapsClient.Start(ctx, newLeader.ID, newLeader.LeaseNonce)
+	_, err = flapsClient.Start(ctx, app.Name, newLeader.ID, newLeader.LeaseNonce)
 	if err != nil {
 		return err
 	}
@@ -249,14 +249,14 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	fmt.Println("Waiting 30 seconds for the old leader to stop...")
-	err = flapsClient.Wait(ctx, oldLeader, "stopped", time.Second*30)
+	err = flapsClient.Wait(ctx, app.Name, oldLeader, "stopped", time.Second*30)
 	if err != nil {
 		return err
 	}
 
 	// Restart the old leader
 	fmt.Fprintf(io.Out, "Restarting old leader... %s\n", oldLeader.ID)
-	mach, err := flapsClient.Start(ctx, oldLeader.ID, oldLeader.LeaseNonce)
+	mach, err := flapsClient.Start(ctx, app.Name, oldLeader.ID, oldLeader.LeaseNonce)
 	if err != nil {
 		return fmt.Errorf("failed to start machine %s: %s", oldLeader.ID, err)
 	}
@@ -267,7 +267,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	fmt.Printf("Waiting for leadership to swap to %s...\n", newLeader.ID)
 	if err := retry.Do(
 		func() error {
-			oldLeader, err = flapsClient.Get(ctx, newLeader.ID)
+			oldLeader, err = flapsClient.Get(ctx, app.Name, newLeader.ID)
 			if err != nil {
 				return err
 			}
@@ -284,7 +284,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	// wait for health checks to pass
-	if err := watch.MachinesChecks(ctx, machines); err != nil {
+	if err := watch.MachinesChecks(ctx, app.Name, machines); err != nil {
 		return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 	}
 
@@ -292,7 +292,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	return nil
 }
 
-func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err error) {
+func handleFlexFailoverFail(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) (err error) {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
@@ -305,7 +305,7 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	fmt.Println("Waiting for old leader to finish stopping")
 	if err := retry.Do(
 		func() error {
-			leader, err = flapsClient.Get(ctx, leader.ID)
+			leader, err = flapsClient.Get(ctx, app.Name, leader.ID)
 			if err != nil {
 				return err
 			}
@@ -330,25 +330,25 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	fmt.Println("Clearing existing machine lease...")
 
 	// Clear the existing lease on this machine
-	lease, err := flapsClient.FindLease(ctx, leader.ID)
+	lease, err := flapsClient.FindLease(ctx, app.Name, leader.ID)
 	if err != nil {
 		if !strings.Contains(err.Error(), " lease not found") {
 			return err
 		}
 	} else if lease.Data != nil {
-		if err := flapsClient.ReleaseLease(ctx, leader.ID, lease.Data.Nonce); err != nil {
+		if err := flapsClient.ReleaseLease(ctx, app.Name, leader.ID, lease.Data.Nonce); err != nil {
 			return err
 		}
 	}
 
 	fmt.Println("Trying to start old leader")
 	// Start the machine again
-	leader, err = flapsClient.Get(ctx, leader.ID)
+	leader, err = flapsClient.Get(ctx, app.Name, leader.ID)
 	if err != nil {
 		return err
 	}
 
-	mach, err := flapsClient.Start(ctx, leader.ID, leader.LeaseNonce)
+	mach, err := flapsClient.Start(ctx, app.Name, leader.ID, leader.LeaseNonce)
 	if err != nil {
 		return err
 	}

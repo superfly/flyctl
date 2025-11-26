@@ -17,9 +17,9 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -643,8 +643,10 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
-		// first reset the client
+		// first reset the clients
 		ctx = flyutil.NewContextWithClient(ctx, nil)
+		ctx = uiexutil.NewContextWithClient(ctx, nil)
+		ctx = flapsutil.NewContextWithClient(ctx, nil)
 
 		// Re-run the auth preparers to update the client with the new token
 		logger.FromContext(ctx).Debug("re-running auth preparers after login")
@@ -656,24 +658,6 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 	} else {
 		return nil, fly.ErrNoAuthToken
 	}
-}
-
-// Apply uiex client to uiex
-func RequireUiex(ctx context.Context) (context.Context, error) {
-	cfg := config.FromContext(ctx)
-
-	if uiexutil.ClientFromContext(ctx) == nil {
-		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger.FromContext(ctx),
-			Tokens: cfg.Tokens,
-		})
-		if err != nil {
-			return nil, err
-		}
-		ctx = uiexutil.NewContextWithClient(ctx, client)
-	}
-
-	return ctx, nil
 }
 
 func tryOpenUserURL(ctx context.Context, url string) error {

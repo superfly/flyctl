@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -118,10 +117,8 @@ func RunCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
-	if err != nil {
-		return err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	f := flapsutil.ClientFromContext(ctx)
+	if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return err
 	}
 

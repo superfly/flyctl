@@ -10,7 +10,6 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -67,14 +66,9 @@ func runList(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, appName, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}

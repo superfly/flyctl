@@ -49,10 +49,13 @@ func runRefreshSSHCerts(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("app %s is not a postgres app", appName)
@@ -74,7 +77,7 @@ func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app
 		validDays = flag.GetInt(ctx, "valid-days")
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err

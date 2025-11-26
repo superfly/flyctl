@@ -50,10 +50,12 @@ func runDetach(ctx context.Context) error {
 		appName   = appconfig.NameFromContext(ctx)
 	)
 
-	ctx, appFlapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	appFlapsClient := flapsutil.ClientFromContext(ctx)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
@@ -74,12 +76,12 @@ func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient,
 		MinPostgresStandaloneVersion = "0.0.7"
 	)
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, pgApp.Name)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(pgApp.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

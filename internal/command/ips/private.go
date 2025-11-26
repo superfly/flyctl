@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -36,14 +35,9 @@ func newPrivate() *cobra.Command {
 func runPrivateIPAddressesList(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}

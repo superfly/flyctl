@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -71,12 +70,7 @@ func runUpdate(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var snapshotRetention *int
 	if flag.GetInt(ctx, "snapshot-retention") != 0 {
@@ -92,7 +86,7 @@ func runUpdate(ctx context.Context) error {
 		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
-	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)
+	updatedVolume, err := flapsClient.UpdateVolume(ctx, appName, volumeID, input)
 	if err != nil {
 		return fmt.Errorf("failed updating volume: %w", err)
 	}

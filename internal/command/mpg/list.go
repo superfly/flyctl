@@ -28,7 +28,6 @@ If no organization is specified, the user's personal organization is used.`
 
 	cmd := command.New(usage, short, long, runList,
 		command.RequireSession,
-		command.RequireUiex,
 	)
 
 	cmd.Aliases = []string{"ls"}

@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -45,8 +44,6 @@ type ProcessGroupsDiff struct {
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
 	defer span.End()
-
-	ctx = flapsutil.NewContextWithClient(ctx, md.flapsClient)
 
 	onInterruptContext := context.WithoutCancel(ctx)
 
@@ -992,12 +989,12 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	// while we wait for its state and/or health checks
 	e.launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
-	newMachineRaw, err := md.flapsClient.Launch(ctx, *e.launchInput)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *e.launchInput)
 	if err != nil {
 		return err
 	}
 
-	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
+	lm = machine.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, newMachineRaw, false)
 	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
 	return nil
@@ -1065,7 +1062,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// while we wait for its state and/or health checks
 	launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
-	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		relCmdWarning := ""
 		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {
@@ -1074,7 +1071,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return nil, fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
-	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
+	lm := machine.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
 	defer releaseLease(ctx, lm)
 
@@ -1211,7 +1208,7 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 		}
 	}
 
-	processes, err := md.flapsClient.GetProcesses(ctx, lm.Machine().ID)
+	processes, err := md.flapsClient.GetProcesses(ctx, md.app.Name, lm.Machine().ID)
 	// Let's not fail the whole deployment because of this, as listen address check is just a warning
 	if err != nil {
 		return
