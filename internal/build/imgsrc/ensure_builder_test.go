@@ -214,6 +214,14 @@ func TestCreateBuilder(t *testing.T) {
 	createVolumeAttempts := 0
 
 	flapsClient := mock.FlapsClient{
+		CreateAppFunc: func(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+			if createAppShouldFail {
+				return nil, errors.New("create app failed")
+			}
+			return &flaps.App{
+				Name: req.Name,
+			}, nil
+		},
 		WaitForAppFunc: func(ctx context.Context, name string) error {
 			if waitForAppShouldFail {
 				return errors.New("wait for app failed")
