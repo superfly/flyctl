@@ -14,7 +14,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -389,13 +388,7 @@ func runMachineRun(ctx context.Context) error {
 		MinSecretsVersion: minvers,
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("could not make API client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
@@ -432,7 +425,7 @@ func runMachineRun(ctx context.Context) error {
 	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
-	machine, err := flapsClient.Launch(ctx, input)
+	machine, err := flapsClient.Launch(ctx, app.Name, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
@@ -462,7 +455,7 @@ func runMachineRun(ctx context.Context) error {
 
 	s.Start()
 	// wait for machine to be started
-	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
+	err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
 	s.Stop()
 	if err != nil {
 		return err
@@ -510,7 +503,7 @@ func runMachineRun(ctx context.Context) error {
 	if !flag.GetDetach(ctx) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
+		if err := watch.MachinesChecks(ctx, app.Name, []*fly.Machine{machine}); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)
@@ -555,10 +548,8 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
 
-		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: appc.Name})
-		if err != nil {
-			return nil, err
-		} else if err := f.WaitForApp(ctx, appc.Name); err != nil {
+		f := flapsutil.ClientFromContext(ctx)
+		if err := f.WaitForApp(ctx, appc.Name); err != nil {
 			return nil, err
 		}
 	}
@@ -604,10 +595,8 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		return nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
-	if err != nil {
-		return nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	f := flapsutil.ClientFromContext(ctx)
+	if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
@@ -814,7 +803,7 @@ func determineMachineConfig(
 		return machineConf, errors.New("invalid restart provided")
 	}
 
-	machineConf.Mounts, err = command.DetermineMounts(ctx, machineConf.Mounts, input.region)
+	machineConf.Mounts, err = command.DetermineMounts(ctx, input.appName, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}

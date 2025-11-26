@@ -93,7 +93,7 @@ func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}

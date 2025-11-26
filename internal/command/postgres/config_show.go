@@ -76,7 +76,7 @@ func runMachineConfigShow(ctx context.Context, app *fly.AppCompact) (err error) 
 		return err
 	}
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}

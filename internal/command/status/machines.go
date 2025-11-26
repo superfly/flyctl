@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -77,14 +76,9 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return err
 	}

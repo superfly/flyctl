@@ -159,7 +159,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				AutoBackupEnabled:   m.ScheduledSnapshots,
 			}
 
-			vol, err := md.flapsClient.CreateVolume(ctx, input)
+			vol, err := md.flapsClient.CreateVolume(ctx, md.app.Name, input)
 			if err != nil {
 				return err
 			}

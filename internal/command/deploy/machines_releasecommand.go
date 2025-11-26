@@ -238,14 +238,14 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 		return err
 	}
 
-	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
+	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
 
 	statuslogger.Logf(ctx, "Created release_command machine %s", md.colorize.Bold(releaseCmdMachine.ID))
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*fly.Machine{releaseCmdMachine}, true)
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, []*fly.Machine{releaseCmdMachine}, true)
 
 	lm := md.releaseCommandMachine.GetMachines()[0]
 	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, machine.WithJustCreated()); err != nil {

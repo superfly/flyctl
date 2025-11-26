@@ -61,7 +61,7 @@ func TestAppState(t *testing.T) {
 	}
 
 	flapsClient := &mock.FlapsClient{
-		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			return machines, nil
 		},
 	}
@@ -69,6 +69,7 @@ func TestAppState(t *testing.T) {
 	ctx := context.Background()
 	md := &machineDeployment{
 		flapsClient: flapsClient,
+		app:         &fly.AppCompact{Name: "test-app"},
 	}
 	appState, error := md.appState(ctx, nil)
 	assert.NoError(t, error)
@@ -105,7 +106,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	sl := statuslogger.Line(0)
 
 	badFlapsClient := &mock.FlapsClient{
-		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			return nil, assert.AnError
 		},
 	}
@@ -124,18 +125,18 @@ func TestUpdateMachineConfig(t *testing.T) {
 	destroyedMachine := false
 	// recreate machines when we specify that
 	flapsClient := &mock.FlapsClient{
-		DestroyFunc: func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			destroyedMachine = true
 			return nil
 		},
-		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			return &fly.Machine{
 				ID:         builder.ID,
 				HostStatus: fly.HostStatusOk,
 				Config:     builder.Config,
 			}, nil
 		},
-		LaunchFunc: func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+		LaunchFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 			return &fly.Machine{
 				ID:         builder.ID,
 				HostStatus: fly.HostStatusOk,
@@ -143,7 +144,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 			}, nil
 		},
 
-		ReleaseLeaseFunc: func(ctx context.Context, machineID, nonce string) error {
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
 			return nil
 		},
 	}
@@ -215,7 +216,7 @@ func TestUpdateMachines(t *testing.T) {
 	acquiredLeases := sync.Map{}
 
 	flapsClient := &mock.FlapsClient{
-		AcquireLeaseFunc: func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
+		AcquireLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
 			if _, ok := acquiredLeases.Load(machineID); ok {
 				return nil, assert.AnError
 			}
@@ -226,13 +227,13 @@ func TestUpdateMachines(t *testing.T) {
 				},
 			}, nil
 		},
-		ReleaseLeaseFunc: func(ctx context.Context, machineID, nonce string) error {
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
 			if _, loaded := acquiredLeases.LoadAndDelete(machineID); !loaded {
 				t.Error("Release lease not found for machine:", machineID)
 			}
 			return nil
 		},
-		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			return &fly.Machine{
 				ID:         builder.ID,
 				Config:     builder.Config,
@@ -240,7 +241,7 @@ func TestUpdateMachines(t *testing.T) {
 				HostStatus: fly.HostStatusOk,
 			}, nil
 		},
-		LaunchFunc: func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+		LaunchFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 			return &fly.Machine{
 				ID:         builder.ID,
 				Config:     builder.Config,
@@ -248,10 +249,10 @@ func TestUpdateMachines(t *testing.T) {
 				HostStatus: fly.HostStatusOk,
 			}, nil
 		},
-		DestroyFunc: func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			if state == "started" {
 				machine.State = "started"
 				return nil
@@ -259,22 +260,22 @@ func TestUpdateMachines(t *testing.T) {
 				return assert.AnError
 			}
 		},
-		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			return oldMachines, nil
 		},
-		StartFunc: func(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
+		StartFunc: func(ctx context.Context, appName, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
 			return &fly.MachineStartResponse{}, nil
 		},
-		GetFunc: func(ctx context.Context, machineID string) (*fly.Machine, error) {
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
 			newMachine, _ := lo.Find(newMachines, func(m *fly.Machine) bool {
 				return m.ID == machineID
 			})
 			return newMachine, nil
 		},
-		GetProcessesFunc: func(ctx context.Context, machineID string) (fly.MachinePsResponse, error) {
+		GetProcessesFunc: func(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error) {
 			return fly.MachinePsResponse{}, nil
 		},
-		RefreshLeaseFunc: func(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
+		RefreshLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
 			return &fly.MachineLease{
 				Status: "success",
 				Data: &fly.MachineLeaseData{
@@ -318,7 +319,7 @@ func TestUpdateMachines(t *testing.T) {
 	// let's make sure we retry deploys a few times
 	numFailures := 0
 	maxNumFailures := 3
-	flapsClient.UpdateFunc = func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+	flapsClient.UpdateFunc = func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 		if builder.ID == "machine2" {
 			numFailures++
 			if numFailures < maxNumFailures {
@@ -346,7 +347,7 @@ func TestUpdateMachines(t *testing.T) {
 
 	var sentUnrecoverable atomic.Bool
 	// we only return a single unrecoverable error, but that's enough to fail the deploy
-	flapsClient.UpdateFunc = func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+	flapsClient.UpdateFunc = func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 		if !sentUnrecoverable.Load() {
 			sentUnrecoverable.Store(true)
 			return nil, &unrecoverableError{err: assert.AnError}
@@ -383,18 +384,18 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 	}
 
 	flapsClient := &mock.FlapsClient{
-		AcquireLeaseFunc: func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
+		AcquireLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
 			return &fly.MachineLease{
 				Data: &fly.MachineLeaseData{
 					Nonce: "nonce",
 				},
 			}, nil
 		},
-		DestroyFunc: func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			destroyedMachine = true
 			return nil
 		},
-		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			updatedMachine = true
 			return &fly.Machine{
 				ID:         builder.ID,
@@ -404,7 +405,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 				LeaseNonce: "nonce",
 			}, nil
 		},
-		LaunchFunc: func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+		LaunchFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 			createMachine = true
 			return &fly.Machine{
 				ID:         builder.ID,

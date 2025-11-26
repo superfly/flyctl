@@ -91,15 +91,6 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		builderApp := org.RemoteBuilderApp
 		if builderApp != nil {
 			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
-			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-				AppName: builderApp.Name,
-				OrgSlug: builderApp.Organization.Slug,
-			})
-			if err != nil {
-				tracing.RecordError(span, err, "error creating flaps client")
-				return nil, nil, err
-			}
-			ctx = flapsutil.NewContextWithClient(ctx, flaps)
 		}
 
 		builderMachine, err := p.validateBuilder(ctx, builderApp)
@@ -114,7 +105,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			err := restartBuilderMachine(ctx, builderMachine)
+			err := restartBuilderMachine(ctx, builderApp.Name, builderMachine)
 			switch {
 			case errors.Is(err, ShouldReplaceBuilderMachine):
 				span.AddEvent("recreating builder due to resource reservation error")
@@ -155,15 +146,6 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	builderName := "fly-builder-" + haikunator.Haikunator().Build()
 	span.SetAttributes(attribute.String("builder_name", builderName))
 	// we want to lauch the machine to the builder
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: builderName,
-		OrgSlug: org.Slug,
-	})
-	if err != nil {
-		tracing.RecordError(span, err, "error creating flaps client")
-		return nil, nil, err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	app, machine, err := p.createBuilder(ctx, region, builderName)
 	if err != nil {
 		tracing.RecordError(span, err, "error creating builder")
@@ -249,12 +231,12 @@ func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *fly.App) 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if p.useVolume {
-		if _, err := validateBuilderVolumes(ctx, flapsClient); err != nil {
+		if _, err := validateBuilderVolumes(ctx, flapsClient, app.Name); err != nil {
 			tracing.RecordError(span, err, "error validating builder volumes")
 			return nil, err
 		}
 	}
-	machine, err := validateBuilderMachines(ctx, flapsClient)
+	machine, err := validateBuilderMachines(ctx, flapsClient, app.Name)
 	if err != nil {
 		tracing.RecordError(span, err, "error validating builder machines")
 		return nil, err
@@ -268,7 +250,7 @@ func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *fly.App) 
 	return machine, nil
 }
 
-func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Volume, error) {
+func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Volume, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_volumes")
 	defer span.End()
 
@@ -278,7 +260,7 @@ func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClie
 	for {
 		var err error
 
-		volumes, err = flapsClient.GetVolumes(ctx)
+		volumes, err = flapsClient.GetVolumes(ctx, appName)
 		if err == nil {
 			break
 		}
@@ -308,7 +290,7 @@ func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClie
 	return &volumes[0], nil
 }
 
-func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Machine, error) {
+func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_machines")
 	defer span.End()
 
@@ -317,7 +299,7 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 	for {
 		var err error
 
-		machines, err = flapsClient.List(ctx, "")
+		machines, err = flapsClient.List(ctx, appName, "")
 		if err == nil {
 			break
 		}
@@ -471,7 +453,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		var volume *fly.Volume
 		numRetries := 0
 		for {
-			volume, retErr = flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
+			volume, retErr = flapsClient.CreateVolume(ctx, builderName, fly.CreateVolumeRequest{
 				Name:                "machine_data",
 				SizeGb:              fly.IntPointer(50),
 				AutoBackupEnabled:   fly.BoolPointer(false),
@@ -502,7 +484,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		defer func() {
 			if retErr != nil {
 				span.AddEvent("cleaning up new volume due to error")
-				flapsClient.DeleteVolume(ctx, volume.ID)
+				flapsClient.DeleteVolume(ctx, builderName, volume.ID)
 			}
 		}()
 
@@ -526,7 +508,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	if err != nil {
 		return nil, nil, err
 	}
-	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
+	mach, retErr = flapsClient.Launch(ctx, builderName, fly.LaunchMachineInput{
 		Region:            region,
 		Config:            config,
 		MinSecretsVersion: minvers,
@@ -536,7 +518,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		return nil, nil, retErr
 	}
 
-	retErr = flapsClient.Wait(ctx, mach, "started", 60*time.Second)
+	retErr = flapsClient.Wait(ctx, builderName, mach, "started", 60*time.Second)
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
 		return nil, nil, retErr
@@ -568,13 +550,13 @@ func createFlyManagedBuilder(ctx context.Context, org *fly.Organization, region 
 	return builderApp, machine, nil
 }
 
-func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) error {
+func restartBuilderMachine(ctx context.Context, appName string, builderMachine *fly.Machine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
+	if err := flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
 		ID: builderMachine.ID,
 	}, ""); err != nil {
 		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
@@ -587,7 +569,7 @@ func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) err
 		return err
 	}
 
-	if err := flapsClient.Wait(ctx, builderMachine, "started", time.Second*60); err != nil {
+	if err := flapsClient.Wait(ctx, appName, builderMachine, "started", time.Second*60); err != nil {
 		tracing.RecordError(span, err, "error waiting for builder machine to start")
 		return err
 	}

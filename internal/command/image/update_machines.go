@@ -24,7 +24,7 @@ func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
 	)
 
 	// Acquire leases for all machines
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
 			SkipHealthChecks:  skipHealthChecks,
 			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 			return err
 		}
 	}
@@ -94,7 +94,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 	)
 
 	// Acquire leases
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 			Config:            &member.TargetConfig,
 			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 			return err
 		}
 	}
@@ -194,7 +194,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 			SkipHealthChecks:  true,
 			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 			return err
 		}
 	}
@@ -209,7 +209,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 				Config:            &primary.TargetConfig,
 				MinSecretsVersion: minvers,
 			}
-			if err := mach.Update(ctx, machine, input); err != nil {
+			if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 				return err
 			}
 		}
@@ -244,7 +244,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 				Config:            &leader.TargetConfig,
 				MinSecretsVersion: minvers,
 			}
-			if err := mach.Update(ctx, machine, input); err != nil {
+			if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 				return err
 			}
 		}

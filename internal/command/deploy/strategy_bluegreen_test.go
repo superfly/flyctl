@@ -24,7 +24,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 
 	for i := 0; i < numberOfExistingMachines; i++ {
 		machines = append(machines, &machineUpdateEntry{
-			leasableMachine: machine.NewLeasableMachine(client, ios, &fly.Machine{}, false),
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
 			launchInput: &fly.LaunchMachineInput{
 				Config: &fly.MachineConfig{
 					Metadata: map[string]string{},
@@ -45,6 +45,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 		colorize:      ios.ColorScheme(),
 		timeout:       1 * time.Second,
 		blueMachines:  machines,
+		app:           &fly.AppCompact{Name: "test-app"},
 	}
 	strategy.initialize()
 
