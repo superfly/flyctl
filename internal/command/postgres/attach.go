@@ -213,10 +213,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		superuser = params.SuperUser
 	)
 
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if dbName == "" {
 		dbName = appName

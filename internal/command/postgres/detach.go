@@ -50,10 +50,12 @@ func runDetach(ctx context.Context) error {
 		appName   = appconfig.NameFromContext(ctx)
 	)
 
-	ctx, appFlapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	appFlapsClient := flapsutil.ClientFromContext(ctx)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {

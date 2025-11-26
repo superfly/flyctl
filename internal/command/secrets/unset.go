@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newUnset() (cmd *cobra.Command) {
@@ -33,10 +34,14 @@ func newUnset() (cmd *cobra.Command) {
 
 func runUnset(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	return UnsetSecretsAndDeploy(ctx, flapsClient, app, flag.Args(ctx), DeploymentArgs{
 		Stage:    flag.GetBool(ctx, "stage"),

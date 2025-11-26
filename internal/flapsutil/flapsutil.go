@@ -7,7 +7,6 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 )
@@ -26,15 +25,6 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 	}
 
 	return flaps.NewWithOptions(ctx, opts)
-}
-
-func resolveApp(ctx context.Context, app *fly.AppCompact, appName string) (*fly.AppCompact, error) {
-	var err error
-	if app == nil {
-		client := flyutil.ClientFromContext(ctx)
-		app, err = client.GetAppCompact(ctx, appName)
-	}
-	return app, err
 }
 
 func Launch(ctx context.Context, client FlapsClient, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
