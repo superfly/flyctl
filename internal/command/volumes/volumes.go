@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -71,7 +70,7 @@ func printVolume(w io.Writer, vol *fly.Volume, appName string) error {
 	return err
 }
 
-func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, error) {
+func countVolumesMatchingName(ctx context.Context, appName string, volumeName string) (int32, error) {
 	var (
 		volumes []fly.Volume
 		err     error
@@ -79,7 +78,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
-	if volumes, err = flapsClient.GetVolumes(ctx); err != nil {
+	if volumes, err = flapsClient.GetVolumes(ctx, appName); err != nil {
 		return 0, err
 	}
 
@@ -131,11 +130,11 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	return nil
 }
 
-func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBasic) (*fly.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppBasic) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}
-	volumes, err := flapsClient.GetVolumes(ctx)
+	volumes, err := flapsClient.GetVolumes(ctx, app.Name)
 	if err != nil {
 		return nil, err
 	}

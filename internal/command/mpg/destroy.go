@@ -23,7 +23,6 @@ This action is not reversible.`
 
 	cmd := command.New(usage, short, long, runDestroy,
 		command.RequireSession,
-		command.RequireUiex,
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Aliases = []string{"delete", "remove", "rm"}

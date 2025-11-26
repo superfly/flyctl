@@ -40,7 +40,7 @@ func New() (cmd *cobra.Command) {
 		short = `Create and configure a new app from source code or a Docker image`
 	)
 
-	cmd = command.New("launch", short, long, run, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
+	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
 	flags := []flag.Flag{
@@ -545,12 +545,7 @@ func run(ctx context.Context) (err error) {
 				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
 			}
 
-			// This might be duplicate work? Is there a saner place to build the client and stash it in the context?
-			parentCtx, flapsClient, _, err := flapsutil.SetClient(parentCtx, nil, parentConfig.AppName)
-			if err != nil {
-				return fmt.Errorf("making client for %s: %w", parentConfig.AppName, err)
-			}
-
+			flapsClient := flapsutil.ClientFromContext(parentCtx)
 			err = appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
 			if err != nil {
 				return err

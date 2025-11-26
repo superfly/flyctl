@@ -9,7 +9,6 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -21,15 +20,9 @@ func runMachinesScaleShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}
