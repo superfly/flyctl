@@ -68,6 +68,7 @@ type leasableMachine struct {
 	flapsClient            flapsutil.FlapsClient
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
+	appName                string
 	machine                *fly.Machine
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
@@ -81,12 +82,13 @@ type leasableMachine struct {
 
 // NewLeasableMachine creates a wrapper for the given machine.
 // A lease must be held before calling this function.
-func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
+func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, appName string, machine *fly.Machine, showLogs bool) LeasableMachine {
 	// TODO: make sure the other functions handle showLogs correctly
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
 		colorize:    io.ColorScheme(),
+		appName:     appName,
 		machine:     machine,
 		leaseNonce:  machine.LeaseNonce,
 		showLogs:    showLogs,
@@ -101,7 +103,7 @@ func (lm *leasableMachine) Update(ctx context.Context, input fly.LaunchMachineIn
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
 	input.ID = lm.machine.ID
-	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
+	updateMachine, err := lm.flapsClient.Update(ctx, lm.appName, input, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -119,7 +121,7 @@ func (lm *leasableMachine) Stop(ctx context.Context, signal string) error {
 		Signal: signal,
 	}
 
-	return lm.flapsClient.Stop(ctx, input, lm.leaseNonce)
+	return lm.flapsClient.Stop(ctx, lm.appName, input, lm.leaseNonce)
 }
 
 func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
@@ -130,7 +132,7 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 		ID:   lm.machine.ID,
 		Kill: kill,
 	}
-	err := lm.flapsClient.Destroy(ctx, input, lm.leaseNonce)
+	err := lm.flapsClient.Destroy(ctx, lm.appName, input, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -143,7 +145,7 @@ func (lm *leasableMachine) Cordon(ctx context.Context) error {
 		return fmt.Errorf("cannon cordon machine %s that was already destroyed", lm.machine.ID)
 	}
 
-	return lm.flapsClient.Cordon(ctx, lm.machine.ID, lm.leaseNonce)
+	return lm.flapsClient.Cordon(ctx, lm.appName, lm.machine.ID, lm.leaseNonce)
 }
 
 func (lm *leasableMachine) FormattedMachineId() string {
@@ -188,7 +190,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.showLogs {
 		lm.logStatusWaiting(ctx, fly.MachineStateStarted)
 	}
-	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
+	_, err := lm.flapsClient.Start(ctx, lm.appName, lm.machine.ID, "")
 	if err != nil {
 		return err
 	}
@@ -234,7 +236,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		lm.logStatusWaiting(ctx, desiredState)
 	}
 	for {
-		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
+		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine(), desiredState, timeout)
 		notFoundResponse := false
 		if err != nil {
 			var flapsErr *flaps.FlapsError
@@ -319,7 +321,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 	}
 
 	for {
-		machine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		machine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
 		startedAt, startedAtErr := machine.MostRecentStartTimeAfterLaunch()
 		uptime := 0 * time.Second
 		if startedAtErr == nil {
@@ -368,7 +370,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 
 	printedFirst := false
 	for {
-		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			span.RecordError(err)
@@ -411,7 +413,7 @@ func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType strin
 		statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType))
 	}
 	for {
-		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return nil, err
@@ -446,7 +448,7 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 	}
 	statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType1))
 	for {
-		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return nil, err
@@ -484,7 +486,7 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 		return nil
 	}
 	seconds := int(duration.Seconds())
-	lease, err := lm.flapsClient.AcquireLease(ctx, lm.machine.ID, &seconds)
+	lease, err := lm.flapsClient.AcquireLease(ctx, lm.appName, lm.machine.ID, &seconds)
 	if err != nil {
 		return err
 	}
@@ -504,7 +506,7 @@ func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Durat
 	defer lm.mu.Unlock()
 
 	seconds := int(duration.Seconds())
-	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
+	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.appName, lm.machine.ID, &seconds, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -568,7 +570,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	return lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
+	return lm.flapsClient.ReleaseLease(ctx, lm.appName, lm.machine.ID, nonce)
 }
 
 func (lm *leasableMachine) resetLease() {
@@ -607,9 +609,9 @@ func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, tim
 }
 
 func (lm *leasableMachine) GetMetadata(ctx context.Context) (map[string]string, error) {
-	return lm.flapsClient.GetMetadata(ctx, lm.machine.ID)
+	return lm.flapsClient.GetMetadata(ctx, lm.appName, lm.machine.ID)
 }
 
 func (lm *leasableMachine) SetMetadata(ctx context.Context, k, v string) error {
-	return lm.flapsClient.SetMetadata(ctx, lm.machine.ID, k, v)
+	return lm.flapsClient.SetMetadata(ctx, lm.appName, lm.machine.ID, k, v)
 }

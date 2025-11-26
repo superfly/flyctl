@@ -13,6 +13,7 @@ import (
 	"github.com/azazeal/pause"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/logger"
@@ -51,7 +52,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	cmd.Env = env
 
-	SetSysProcAttributes(cmd)
+	cmdutil.SetSysProcAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		err = forkError{err}

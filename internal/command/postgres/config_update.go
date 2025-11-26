@@ -121,7 +121,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 		MinPostgresFlexVersion       = "0.0.6"
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
@@ -225,7 +225,7 @@ func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string)
 		return false, err
 	}
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return false, err
 	}

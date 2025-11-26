@@ -55,12 +55,9 @@ func runKeyDelete(ctx context.Context) (err error) {
 	}
 
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
+	secrets, err := flapsClient.ListSecretKeys(ctx, appName, nil)
 	if err != nil {
 		return err
 	}
@@ -100,7 +97,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 			}
 		}
 
-		err = flapsClient.DeleteSecretKey(ctx, secret.Name)
+		err = flapsClient.DeleteSecretKey(ctx, appName, secret.Name)
 		if err != nil {
 			var ferr *flaps.FlapsError
 			if errors.As(err, &ferr) && ferr.ResponseStatusCode == 404 {

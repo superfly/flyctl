@@ -11,12 +11,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
-	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func newScaleCount() *cobra.Command {
@@ -48,13 +46,6 @@ For pricing, see https://fly.io/docs/about/pricing/`
 
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {

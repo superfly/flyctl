@@ -60,12 +60,9 @@ func newPlace() (cmd *cobra.Command) {
 }
 
 func runPlace(ctx context.Context) error {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	guest := &fly.MachineGuest{}
-	err = guest.SetSize("performance-1x")
+	err := guest.SetSize("performance-1x")
 	if err != nil {
 		return err
 	}

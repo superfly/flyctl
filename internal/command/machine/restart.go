@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -76,8 +77,11 @@ func runMachineRestart(ctx context.Context) error {
 		return err
 	}
 
+	// appName is added to context by selectManyMachines
+	appName := appconfig.NameFromContext(ctx)
+
 	// Acquire leases
-	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, machines)
+	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, appName, machines)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -85,7 +89,7 @@ func runMachineRestart(ctx context.Context) error {
 
 	// Restart each machine
 	for _, machine := range machines {
-		if err := mach.Restart(ctx, machine, input, machine.LeaseNonce); err != nil {
+		if err := mach.Restart(ctx, appName, machine, input, machine.LeaseNonce); err != nil {
 			return fmt.Errorf("failed to restart machine %s: %w", machine.ID, err)
 		}
 	}

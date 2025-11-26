@@ -45,10 +45,14 @@ func runAttach(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
 	consulPayload, err := apiClient.EnablePostgresConsul(ctx, appName)
 	if err != nil {
 		return nil

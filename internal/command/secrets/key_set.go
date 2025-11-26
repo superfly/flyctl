@@ -81,12 +81,9 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	}
 
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	secrets, err := flapsClient.ListSecretKeys(ctx, nil)
+	secrets, err := flapsClient.ListSecretKeys(ctx, appName, nil)
 	if err != nil {
 		return err
 	}
@@ -138,9 +135,9 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	}
 
 	if gen {
-		_, err = flapsClient.GenerateSecretKey(ctx, label, typ)
+		_, err = flapsClient.GenerateSecretKey(ctx, appName, label, typ)
 	} else {
-		_, err = flapsClient.SetSecretKey(ctx, label, typ, val)
+		_, err = flapsClient.SetSecretKey(ctx, appName, label, typ, val)
 	}
 	if err != nil {
 		return err
