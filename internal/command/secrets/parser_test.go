@@ -140,3 +140,15 @@ NORMAL=regular`)
 		"NORMAL":     "regular",
 	}, secrets)
 }
+
+// Test single-line triple quotes with spaces around equals
+func Test_parse_singleline_triple_quotes_with_spaces(t *testing.T) {
+	reader := strings.NewReader(`VARIABLE = """my-single-line-multiline-string"""
+ANOTHER = """another"""`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"VARIABLE": "my-single-line-multiline-string",
+		"ANOTHER":  "another",
+	}, secrets)
+}
