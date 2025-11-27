@@ -222,7 +222,7 @@ If this is intentional, type Y to continue.`, region)
 	fmt.Printf("%s\n", v6.String())
 	fmt.Println("Newly-allocated egress IPs may need 5 - 10 minutes to take effect on existing machines.")
 
-	sanityCheckAppScopedEgressIps(ctx, nil, nil)
+	SanityCheckAppScopedEgressIps(ctx, nil, nil, nil)
 
 	return nil
 }

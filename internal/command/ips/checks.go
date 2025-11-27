@@ -19,7 +19,7 @@ type appScopedEgressIpsRegionCounters struct {
 	v6 int
 }
 
-func sanityCheckAppScopedEgressIps(ctx context.Context, ips map[string][]fly.EgressIPAddress, machines []*fly.Machine) {
+func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]any, ips map[string][]fly.EgressIPAddress, machines []*fly.Machine) {
 	var err error
 
 	client := flyutil.ClientFromContext(ctx)
@@ -29,13 +29,6 @@ func sanityCheckAppScopedEgressIps(ctx context.Context, ips map[string][]fly.Egr
 
 	if ips == nil {
 		ips, err = client.GetAppScopedEgressIPAddresses(ctx, appName)
-		if err != nil {
-			return
-		}
-	}
-
-	if machines == nil {
-		machines, err = flapsClient.List(ctx, appName, "")
 		if err != nil {
 			return
 		}
@@ -63,6 +56,18 @@ func sanityCheckAppScopedEgressIps(ctx context.Context, ips map[string][]fly.Egr
 		ipRegions[region] = counter
 	}
 
+	// Short-circuit
+	if !hasEgressIps {
+		return
+	}
+
+	if machines == nil {
+		machines, err = flapsClient.List(ctx, appName, "")
+		if err != nil {
+			return
+		}
+	}
+
 	for _, m := range machines {
 		if _, ok := machineRegions[m.Region]; !ok {
 			machineRegions[m.Region] = 0
@@ -72,6 +77,11 @@ func sanityCheckAppScopedEgressIps(ctx context.Context, ips map[string][]fly.Egr
 	}
 
 	for region, ipCounter := range ipRegions {
+		// Only apply the filter before we emit warnings -- since we might need to know whether this apps has egress IPs anywhere
+		if _, ok := regionFilter[region]; regionFilter != nil && !ok {
+			continue
+		}
+
 		machineCount, ok := machineRegions[region]
 		if !ok || machineCount == 0 {
 			fmt.Fprintf(errOut, "Warning: Your app has egress IP(s) assigned in region %s but you have no machines there.\n", region)
@@ -97,6 +107,10 @@ func sanityCheckAppScopedEgressIps(ctx context.Context, ips map[string][]fly.Egr
 	}
 
 	for region := range machineRegions {
+		if _, ok := regionFilter[region]; regionFilter != nil && !ok {
+			continue
+		}
+
 		ipCounter, ok := ipRegions[region]
 		if hasEgressIps && (!ok || (ipCounter.v4 == 0 && ipCounter.v6 == 0)) {
 			fmt.Fprintf(errOut, "Warning: Your app has machines in region %s but no egress IPs allocated there. Since you have egress IPs assigned elsewhere, you may want to assign an egress IP in this region as well.\n", region)
