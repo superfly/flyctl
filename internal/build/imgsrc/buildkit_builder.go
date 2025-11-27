@@ -9,12 +9,11 @@ import (
 
 	"github.com/containerd/containerd/api/services/content/v1"
 	"github.com/moby/buildkit/client"
-	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -91,10 +90,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 		span.End()
 	}()
 
-	app, err := r.provisioner.GetRemoteBuilderApp(ctx)
-	if err != nil {
-		return nil, err
-	}
+	app := r.provisioner.org.RemoteBuilderApp
 	if r.addr == "" && app != nil {
 		r.addr = fmt.Sprintf("%s.flycast:%d", app.Name, buildkitGRPCPort)
 	}
@@ -105,7 +101,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 
 	streams.StartProgressIndicator()
 
-	buildkitClient, err := r.connectClient(ctx, app, opts.AppName)
+	buildkitClient, err := r.connectClient(ctx, appToAppCompact(app), opts.AppName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create buildkit client: %w", err)
 	}
@@ -124,24 +120,25 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
-func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, appName string) (*client.Client, error) {
+func (r *BuildkitBuilder) connectClient(ctx context.Context, app *fly.AppCompact, appName string) (*client.Client, error) {
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 	ensureBuilder := false
 	if r.addr == "" || recreateBuilder {
 		updateProgress(ctx, "Updating remote builder...")
-		_, app, err := r.provisioner.EnsureBuilder(
+		_, builderApp, err := r.provisioner.EnsureBuilder(
 			ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder,
 		)
 		if err != nil {
 			return nil, err
 		}
+		app = appToAppCompact(builderApp)
 		r.addr = fmt.Sprintf("%s.flycast:%d", app.Name, buildkitGRPCPort)
 		ensureBuilder = true
 	}
 	var opts []client.ClientOpt
 	apiClient := flyutil.ClientFromContext(ctx)
 	if app != nil {
-		_, dialer, err := agent.BringUpAgentOrgSlug(ctx, apiClient, app.Organization.Slug, app.Network, true)
+		_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, app.Network, true)
 		if err != nil {
 			return nil, fmt.Errorf("failed wireguard connection: %w", err)
 		}
@@ -158,8 +155,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, app
 	_, err = buildkitClient.Info(ctx)
 	if err != nil {
 		if app == nil { // Retry with Wireguard connection
-			flapsClient := flapsutil.ClientFromContext(ctx)
-			app, err = flapsClient.GetApp(ctx, appName)
+			app, err = apiClient.GetAppCompact(ctx, appName)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get app: %w", err)
 			}

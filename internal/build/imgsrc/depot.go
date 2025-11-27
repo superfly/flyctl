@@ -21,11 +21,10 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
@@ -198,14 +197,14 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		span.End()
 	}()
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
 	if region != "" {
 		region = "fly-" + region
 	}
 	span.SetAttributes(attribute.String("depot_builder_region", region))
 
-	buildInfo, err := uiexClient.EnsureDepotBuilder(ctx, uiex.EnsureDepotBuilderRequest{
+	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
 		AppName:      &appName,
 		Region:       &region,
 		BuilderScope: fly.StringPointer(builderScope.String()),
@@ -214,7 +213,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		return nil, nil, err
 	}
 
-	build, err := depotbuild.FromExistingBuild(ctx, *buildInfo.BuildId, *buildInfo.BuildToken)
+	build, err := depotbuild.FromExistingBuild(ctx, *buildInfo.EnsureDepotRemoteBuilder.BuildId, *buildInfo.EnsureDepotRemoteBuilder.BuildToken)
 	if err != nil {
 		return nil, nil, err
 	}

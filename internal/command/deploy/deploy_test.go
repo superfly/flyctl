@@ -17,9 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/inmem"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/task"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -72,7 +70,6 @@ func TestCommand_Execute(t *testing.T) {
 
 	ctx = flyutil.NewContextWithClient(ctx, server.Client())
 	ctx = flapsutil.NewContextWithClient(ctx, server.FlapsClient("test-basic"))
-	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{})
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)

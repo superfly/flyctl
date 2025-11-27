@@ -24,12 +24,9 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/terminal"
@@ -127,7 +124,7 @@ type DeploymentImage struct {
 	Tag       string
 	Digest    string
 	Size      int64
-	BuildID   int64
+	BuildID   string
 	BuilderID string
 	Labels    map[string]string
 }
@@ -261,17 +258,11 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	if r.provisioner.UseBuildkit() {
 		strategies = append(strategies, NewBuildkitBuilder(flag.GetBuildkitAddr(ctx), r.provisioner))
 	} else if r.dockerFactory.mode.UseNixpacks() {
-		flapsClient := flapsutil.ClientFromContext(ctx)
-		app, err := flapsClient.GetApp(ctx, opts.AppName)
+		org, err := r.apiClient.GetOrganizationByApp(ctx, opts.AppName)
 		if err != nil {
 			return nil, err
 		}
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
-		if err != nil {
-			return nil, err
-		}
-		strategies = append(strategies, &nixpacksBuilder{provisioner: NewProvisionerUiexOrg(org)})
+		strategies = append(strategies, &nixpacksBuilder{provisioner: NewProvisioner(org)})
 	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
 		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
@@ -367,7 +358,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	builderType := "remote"
 	switch {
@@ -379,13 +370,14 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		builderType = "local"
 	}
 
-	input := uiex.CreateBuildRequest{
+	input := fly.CreateBuildInput{
 		AppName:             r.appName,
 		BuilderType:         builderType,
+		ImageOpts:           *imageOpts,
 		MachineId:           "",
 		StrategiesAvailable: strategiesAvailable,
 	}
-	resp, err := uiexClient.CreateBuild(ctx, input)
+	resp, err := client.CreateBuild(ctx, input)
 	if err != nil {
 		var gqlErr *gqlerror.Error
 		isAppNotFoundErr := errors.As(err, &gqlErr) && gqlErr.Path.String() == "createBuild" && gqlErr.Message == "Could not find App"
@@ -408,7 +400,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		return newFailedBuild(), err
 	}
 
-	b := newBuild(resp.Id, false)
+	b := newBuild(resp.CreateBuild.Id, false)
 	// TODO: maybe try to capture SIGINT, SIGTERM and send r.FinishBuild(). I tried, and it usually segfaulted. (tvd, 2022-10-14)
 	return b, nil
 }
@@ -422,25 +414,25 @@ func limitLogs(log string) string {
 
 type build struct {
 	CreateApiFailed bool
-	BuildId         int64
-	BuilderMeta     *uiex.BuilderMeta
-	StrategyResults []uiex.BuildStrategyAttempt
-	Timings         *uiex.BuildTimings
-	StartTimes      *uiex.BuildTimings
+	BuildId         string
+	BuilderMeta     *fly.BuilderMetaInput
+	StrategyResults []fly.BuildStrategyAttemptInput
+	Timings         *fly.BuildTimingsInput
+	StartTimes      *fly.BuildTimingsInput
 }
 
 func newFailedBuild() *build {
-	return newBuild(0, true)
+	return newBuild("", true)
 }
 
-func newBuild(buildId int64, createApiFailed bool) *build {
+func newBuild(buildId string, createApiFailed bool) *build {
 	return &build{
 		CreateApiFailed: createApiFailed,
 		BuildId:         buildId,
-		BuilderMeta:     &uiex.BuilderMeta{},
-		StrategyResults: make([]uiex.BuildStrategyAttempt, 0),
-		StartTimes:      &uiex.BuildTimings{},
-		Timings: &uiex.BuildTimings{
+		BuilderMeta:     &fly.BuilderMetaInput{},
+		StrategyResults: make([]fly.BuildStrategyAttemptInput, 0),
+		StartTimes:      &fly.BuildTimingsInput{},
+		Timings: &fly.BuildTimingsInput{
 			BuildAndPushMs: -1,
 			BuilderInitMs:  -1,
 			BuildMs:        -1,
@@ -477,8 +469,8 @@ func (b *build) SetBuilderMetaPart2(buildkitEnabled bool, dockerVersion string, 
 
 // call this at the start of each strategy to restart all the timers
 func (b *build) ResetTimings() {
-	b.StartTimes = &uiex.BuildTimings{}
-	b.Timings = &uiex.BuildTimings{
+	b.StartTimes = &fly.BuildTimingsInput{}
+	b.Timings = &fly.BuildTimingsInput{
 		BuildAndPushMs: -1,
 		BuilderInitMs:  -1,
 		BuildMs:        -1,
@@ -545,7 +537,7 @@ func (b *build) finishStrategyCommon(strategy string, failed bool, err error, no
 	if err != nil {
 		errMsg = err.Error()
 	}
-	r := uiex.BuildStrategyAttempt{
+	r := fly.BuildStrategyAttemptInput{
 		Strategy: strategy,
 		Result:   result,
 		Error:    limitLogs(errMsg),
@@ -563,7 +555,7 @@ func (b *build) FinishImageStrategy(strategy imageResolver, failed bool, err err
 }
 
 type buildResult struct {
-	BuildId         int64
+	BuildId         string
 	Status          string
 	wallclockTimeMs int
 }
@@ -573,13 +565,13 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
 		return nil, nil
 	}
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	status := "failed"
 	if !failed {
 		status = "completed"
 	}
-	input := uiex.FinishBuildRequest{
+	input := fly.FinishBuildInput{
 		BuildId:             build.BuildId,
 		AppName:             r.appName,
 		MachineId:           "",
@@ -590,13 +582,13 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		Timings:             *build.Timings,
 	}
 	if img != nil {
-		input.FinalImage = uiex.BuildFinalImage{
+		input.FinalImage = fly.BuildFinalImageInput{
 			Id:        img.ID,
 			Tag:       img.Tag,
 			SizeBytes: img.Size,
 		}
 	}
-	resp, err := uiexClient.FinishBuild(ctx, input)
+	resp, err := client.FinishBuild(ctx, input)
 	if err != nil {
 		terminal.Warnf("failed to finish build in graphql: %v\n", err)
 		sentry.CaptureException(err,
@@ -621,9 +613,9 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		return nil, err
 	}
 	return &buildResult{
-		BuildId:         resp.Id,
-		Status:          resp.Status,
-		wallclockTimeMs: resp.WallclockTimeMs,
+		BuildId:         resp.FinishBuild.Id,
+		Status:          resp.FinishBuild.Status,
+		wallclockTimeMs: resp.FinishBuild.WallclockTimeMs,
 	}, nil
 }
 
