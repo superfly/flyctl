@@ -70,6 +70,7 @@ func runIPAddressesList(ctx context.Context) error {
 	}
 
 	renderListTable(ctx, ipAddresses)
+	sanityCheckAppScopedEgressIps(ctx, egressIpAddresses, nil)
 	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/networking/services/")
 	return nil
 }

@@ -189,7 +189,7 @@ func runAllocateEgressIPAddresses(ctx context.Context) (err error) {
 	}
 
 	if !flag.GetBool(ctx, "yes") {
-		msg := `Looks like you're allocating an egress IP address. This type of IPs are used when your machine accesses an external resource, and cannot be used to access your app.
+		msg := `You are allocating an egress IP address. This type of IPs are used when your machine accesses an external resource, and cannot be used to access your app.
 If you don't know what this is, you probably want to allocate an Anycast IP using allocate-v4 or allocate-v6 instead.
 Please confirm that this is what you need.`
 
@@ -221,6 +221,8 @@ If this is intentional, type Y to continue.`, region)
 	fmt.Printf("%s\n", v4.String())
 	fmt.Printf("%s\n", v6.String())
 	fmt.Println("Newly-allocated egress IPs may need 5 - 10 minutes to take effect on existing machines.")
+
+	sanityCheckAppScopedEgressIps(ctx, nil, nil)
 
 	return nil
 }

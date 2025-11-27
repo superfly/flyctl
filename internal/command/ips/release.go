@@ -91,5 +91,7 @@ func runReleaseEgressIPAddress(ctx context.Context) error {
 		fmt.Printf("Released %s from %s\n", address, appName)
 	}
 
+	sanityCheckAppScopedEgressIps(ctx, nil, nil)
+
 	return nil
 }
