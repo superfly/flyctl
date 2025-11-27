@@ -2,6 +2,7 @@ package ips
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -62,6 +63,26 @@ func newAllocatev6() *cobra.Command {
 			Name:        "network",
 			Description: "Target network name for a Flycast private IPv6 address",
 		},
+	)
+
+	return cmd
+}
+
+func newAllocateEgress() *cobra.Command {
+	const (
+		long  = `(Beta) Allocates a pair of egress IP addresses for an app`
+		short = `(Beta) Allocate app-scoped egress IPs`
+	)
+
+	cmd := command.New("allocate-egress", short, long, runAllocateEgressIPAddresses,
+		command.RequireSession,
+		command.RequireAppName)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.Region(),
+		flag.Yes(),
 	)
 
 	return cmd
@@ -140,5 +161,42 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	ipAddresses := []fly.IPAddress{*ipAddress}
 	renderListTable(ctx, ipAddresses)
+	return nil
+}
+
+func runAllocateEgressIPAddresses(ctx context.Context) (err error) {
+	client := flyutil.ClientFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	region := flag.GetRegion(ctx)
+	if region == "" {
+		return fmt.Errorf("a region must be provided when allocating an app-scoped egress IP address")
+	}
+
+	if !flag.GetBool(ctx, "yes") {
+		msg := `Looks like you're allocating an egress IP address. This type of IPs are used when your machine accesses an external resource, and cannot be used to access your app.
+If you don't know what this is, you probably want to allocate an Anycast IP using allocate-v4 or allocate-v6 instead.
+Please confirm that this is what you need.`
+
+		switch confirmed, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	v4, v6, err := client.AllocateAppScopedEgressIPAddress(ctx, appName, region)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Allocated egress IPs for region %s:\n", region)
+	fmt.Printf("%s\n", v4.String())
+	fmt.Printf("%s\n", v6.String())
+
 	return nil
 }

@@ -40,6 +40,10 @@ func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (
 	panic("TODO")
 }
 
+func (m *Client) AllocateAppScopedEgressIPAddress(ctx context.Context, appName string, region string) (net.IP, net.IP, error) {
+	panic("TODO")
+}
+
 func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
 	panic("TODO")
 }
@@ -252,6 +256,10 @@ func (m *Client) GetAppsForOrganization(ctx context.Context, orgID string) ([]fl
 	panic("TODO")
 }
 
+func (m *Client) GetAppScopedEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
 	return m.CurrentUser, nil
 }
@@ -353,6 +361,10 @@ func (m *Client) NewRequest(q string) *graphql.Request {
 }
 
 func (m *Client) PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error) {
+	panic("TODO")
+}
+
+func (m *Client) ReleaseAppScopedEgressIPAddress(ctx context.Context, appName, ip string) error {
 	panic("TODO")
 }
 
