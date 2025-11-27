@@ -30,7 +30,7 @@ jobs:
           repository: superfly/docs
           token: ${{ steps.installationToken.outputs.token }}
           path: docs
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
           check-latest: true
