@@ -399,11 +399,16 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	)
 	defer span.End()
 
+	platform := "linux/amd64"
+	if p := os.Getenv("FLY_DEV_PLATFORM"); p != "" {
+		platform = p
+	}
+
 	options := types.ImageBuildOptions{
 		Tags:        []string{opts.Tag},
 		BuildArgs:   buildArgs,
 		AuthConfigs: authConfigs(config.Tokens(ctx).Docker()),
-		Platform:    "linux/amd64",
+		Platform:    platform,
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
 		NoCache:     opts.NoCache,
@@ -432,12 +437,17 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 }
 
 func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) client.SolveOpt {
+	// Fly.io only supports linux/amd64, but local Docker Engine could be running on ARM,
+	// including Apple Silicon. Use FLY_DEV_PLATFORM to override for local testing.
+	platform := "linux/amd64"
+	if p := os.Getenv("FLY_DEV_PLATFORM"); p != "" {
+		platform = p
+	}
+
 	attrs := map[string]string{
 		"filename": filepath.Base(dockerfilePath),
 		"target":   opts.Target,
-		// Fly.io only supports linux/amd64, but local Docker Engine could be running on ARM,
-		// including Apple Silicon.
-		"platform": "linux/amd64",
+		"platform": platform,
 	}
 	attrs["target"] = opts.Target
 	if opts.NoCache {
