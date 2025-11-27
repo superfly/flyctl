@@ -119,7 +119,7 @@ func (m *FlapsClient) GetAllVolumes(ctx context.Context, appName string) ([]fly.
 }
 
 func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
-	panic("TODO")
+	return &flaps.ListIPAssignmentsResponse{}, nil
 }
 
 func (m *FlapsClient) GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error) {

@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -78,7 +79,7 @@ type blueGreen struct {
 	hangingBlueMachines []string
 	timestamp           string
 	maxConcurrent       int
-	app                 *fly.AppCompact
+	app                 *flaps.App
 
 	rollbackLog RollbackLog
 
