@@ -12,7 +12,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -135,13 +135,13 @@ func (m *DeployManifest) ToBase64() (string, error) {
 
 func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 	var (
-		io = iostreams.FromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
 	)
 
 	fmt.Fprintf(io.Out, "Resuming %s deploy from manifest\n", manifest.AppName)
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.GetApp(ctx, manifest.AppName)
+	app, err := client.GetAppCompact(ctx, manifest.AppName)
 	if err != nil {
 		sentry.CaptureException(err)
 		return err
@@ -153,13 +153,13 @@ func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
-		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err
 	}
 	return nil
