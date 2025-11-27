@@ -110,3 +110,45 @@ func Test_parse_with_comment(t *testing.T) {
 		"FOO": "BAR BAZ",
 	}, secrets)
 }
+
+// Test single-line triple-quoted strings
+func Test_parse_singleline_triple_quotes(t *testing.T) {
+	reader := strings.NewReader(`VARIABLE="""my-single-line-multiline-string"""
+ANOTHER="""another"""`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"VARIABLE": "my-single-line-multiline-string",
+		"ANOTHER":  "another",
+	}, secrets)
+}
+
+// Test edge cases for triple quotes
+func Test_parse_triple_quotes_edge_cases(t *testing.T) {
+	reader := strings.NewReader(`EMPTY=""""""
+SINGLE="""x"""
+WITHSPACES="""  spaces  """
+MIXED="""line1"""
+NORMAL=regular`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"EMPTY":      "",
+		"SINGLE":     "x",
+		"WITHSPACES": "  spaces  ",
+		"MIXED":      "line1",
+		"NORMAL":     "regular",
+	}, secrets)
+}
+
+// Test single-line triple quotes with spaces around equals
+func Test_parse_singleline_triple_quotes_with_spaces(t *testing.T) {
+	reader := strings.NewReader(`VARIABLE = """my-single-line-multiline-string"""
+ANOTHER = """another"""`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"VARIABLE": "my-single-line-multiline-string",
+		"ANOTHER":  "another",
+	}, secrets)
+}
