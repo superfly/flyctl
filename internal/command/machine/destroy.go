@@ -146,7 +146,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
 
-	err = Destroy(ctx, app.Name, machine, force)
+	err = Destroy(ctx, app, machine, force)
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	return nil
 }
 
-func Destroy(ctx context.Context, appName string, machine *fly.Machine, force bool) error {
+func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, force bool) error {
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flapsutil.ClientFromContext(ctx)
@@ -183,7 +183,7 @@ func Destroy(ctx context.Context, appName string, machine *fly.Machine, force bo
 	}
 	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machine.ID, machine.State)
 
-	err := flapsClient.Destroy(ctx, appName, input, machine.LeaseNonce)
+	err := flapsClient.Destroy(ctx, app.Name, input, machine.LeaseNonce)
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
@@ -192,7 +192,7 @@ func Destroy(ctx context.Context, appName string, machine *fly.Machine, force bo
 	}
 
 	// Best effort post-deletion hook.
-	runOnDeletionHook(ctx, appName, machine)
+	runOnDeletionHook(ctx, app, machine)
 
 	return nil
 }
