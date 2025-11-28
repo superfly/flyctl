@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
@@ -49,7 +51,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -92,6 +94,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	)
 
 	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	span.SetAttributes(attribute.String("daemon_type", daemonType.String()))
@@ -101,7 +104,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		terminal.Warnf("%s", err.Error())
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appConfig.AppName)
+	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +118,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	if buildkitAddr != "" || buildkitImage != "" {
 		provisioner = imgsrc.NewBuildkitProvisioner(org, buildkitAddr, buildkitImage)
 	} else {
-		provisioner = imgsrc.NewProvisioner(org)
+		provisioner = imgsrc.NewProvisionerUiexOrg(org)
 	}
 	resolver := imgsrc.NewResolver(
 		daemonType, client, appConfig.AppName, io,
