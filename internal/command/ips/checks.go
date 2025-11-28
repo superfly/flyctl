@@ -13,6 +13,8 @@ import (
 )
 
 const MAX_MACHINES_PER_APP_EGRESS = 64
+const MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN = 32
+const MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD = 40
 
 type appScopedEgressIpsRegionCounters struct {
 	v4 int
@@ -68,6 +70,13 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 		}
 	}
 
+	strategy := ""
+	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+		strategy = cfg.DeployStrategy()
+	} else if cfg, err := appconfig.FromRemoteApp(ctx, appName); err == nil && cfg != nil {
+		strategy = cfg.DeployStrategy()
+	}
+
 	for _, m := range machines {
 		if _, ok := machineRegions[m.Region]; !ok {
 			machineRegions[m.Region] = 0
@@ -84,7 +93,8 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 
 		machineCount, ok := machineRegions[region]
 		if !ok || machineCount == 0 {
-			fmt.Fprintf(errOut, "Warning: Your app has egress IP(s) assigned in region %s but you have no machines there.\n", region)
+			fmt.Fprintf(errOut, "Warning: Your app has egress IP(s) assigned in region %s but you have no machines there. Only machines in the same region can make use of egress IPs in that region.\n", region)
+			continue
 		}
 
 		if ipCounter.v4 != ipCounter.v6 {
@@ -97,12 +107,38 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 			}
 		}
 
+		warnedAboutMax := false
+
 		if machineCount >= MAX_MACHINES_PER_APP_EGRESS*ipCounter.v4 {
+			warnedAboutMax = true
 			fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv4(s). You need at least %d more to cover all machines.\n", machineCount, region, ipCounter.v4, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS)))-ipCounter.v4)
 		}
 
 		if machineCount >= MAX_MACHINES_PER_APP_EGRESS*ipCounter.v6 {
+			warnedAboutMax = true
 			fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv6(s). You need at least %d more to cover all machines.\n", machineCount, region, ipCounter.v6, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS)))-ipCounter.v6)
+		}
+
+		if !warnedAboutMax {
+			if strategy == "bluegreen" {
+				// TODO: These warnings may show if a user invokes another command in parallel to a bluegreen deployment. This should be
+				// rare, but it would be nice if we can detect it in the future... somehow
+				if machineCount >= MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN*ipCounter.v4 {
+					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv4(s). For bluegreen deployments, you need at least %d more, because bluegreen deployments may temporarily double the number of machines.\n", machineCount, region, ipCounter.v4, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN)))-ipCounter.v4)
+				}
+
+				if machineCount >= MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN*ipCounter.v6 {
+					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv6(s). For bluegreen deployments, you need at least %d more, because bluegreen deployments may temporarily double the number of machines.\n", machineCount, region, ipCounter.v6, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN)))-ipCounter.v6)
+				}
+			} else {
+				if machineCount >= MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD*ipCounter.v4 {
+					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s with %d egress IPv4(s). You might want to allocate more to avoid problems while scaling up or during deployments.\n", machineCount, region, ipCounter.v4)
+				}
+
+				if machineCount >= MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD*ipCounter.v6 {
+					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s with %d egress IPv6(s). You might want to allocate more to avoid problems while scaling up or during deployments.\n", machineCount, region, ipCounter.v6)
+				}
+			}
 		}
 	}
 
@@ -113,7 +149,7 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 
 		ipCounter, ok := ipRegions[region]
 		if hasEgressIps && (!ok || (ipCounter.v4 == 0 && ipCounter.v6 == 0)) {
-			fmt.Fprintf(errOut, "Warning: Your app has machines in region %s but no egress IPs allocated there. Since you have egress IPs assigned elsewhere, you may want to assign an egress IP in this region as well.\n", region)
+			fmt.Fprintf(errOut, "Warning: Your app has machines in region %s but no egress IPs allocated there. Since you have egress IPs assigned elsewhere, you might want to assign an egress IP in this region as well.\n", region)
 			continue
 		}
 	}

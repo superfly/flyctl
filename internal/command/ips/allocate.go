@@ -202,7 +202,7 @@ Please confirm that this is what you need.`
 		if err == nil && !slices.ContainsFunc(machines, func(m *fly.Machine) bool {
 			return m.Region == region
 		}) {
-			msg = fmt.Sprintf(`You are allocating a egress IP in region %s but your app has no machines there.
+			msg = fmt.Sprintf(`You are allocating a egress IP in region %s but your app has no machines there (yet).
 Only machines in the same region can make use of egress IPs in that region.
 If this is intentional, type Y to continue.`, region)
 
