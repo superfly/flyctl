@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploycontext"
+	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
@@ -705,6 +706,10 @@ func deployToMachines(
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err
 	}
+
+	// Deployments are a good time to check if the app's egress IP config makes sense
+	// Bluegreen may also require more egress IPs
+	ips.SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, status.Strategy)
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {

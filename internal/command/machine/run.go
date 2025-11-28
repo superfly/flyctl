@@ -515,7 +515,7 @@ func runMachineRun(ctx context.Context) error {
 
 	// We created a new machine, this might change how many app-scoped egress IPs are needed
 	// But only check the relevant region
-	ips.SanityCheckAppScopedEgressIps(ctx, map[string]any{machine.Region: nil}, nil, nil)
+	ips.SanityCheckAppScopedEgressIps(ctx, map[string]any{machine.Region: nil}, nil, nil, "")
 
 	return nil
 }

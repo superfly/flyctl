@@ -187,7 +187,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	for _, r := range regions {
 		regionMap[r] = nil
 	}
-	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil)
+	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
 	return nil
 }
 
