@@ -117,12 +117,12 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 
 		warnedAboutMax := false
 
-		if machineCount > MAX_MACHINES_PER_APP_EGRESS*ipCounter.v4 {
+		if ipCounter.v4 > 0 && machineCount > MAX_MACHINES_PER_APP_EGRESS*ipCounter.v4 {
 			warnedAboutMax = true
 			fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv4(s). You need at least %d more to cover all machines.\n", machineCount, region, ipCounter.v4, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS)))-ipCounter.v4)
 		}
 
-		if machineCount > MAX_MACHINES_PER_APP_EGRESS*ipCounter.v6 {
+		if ipCounter.v6 > 0 && machineCount > MAX_MACHINES_PER_APP_EGRESS*ipCounter.v6 {
 			warnedAboutMax = true
 			fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv6(s). You need at least %d more to cover all machines.\n", machineCount, region, ipCounter.v6, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS)))-ipCounter.v6)
 		}
@@ -131,19 +131,19 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 			if deploymentStrategy == "bluegreen" {
 				// TODO: These warnings may show if a user invokes another command in parallel to a bluegreen deployment. This should be
 				// rare, but it would be nice if we can detect it in the future... somehow
-				if machineCount > MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN*ipCounter.v4 {
+				if ipCounter.v4 > 0 && machineCount > MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN*ipCounter.v4 {
 					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv4(s). For bluegreen deployments, you need at least %d more, because bluegreen deployments may temporarily double the number of machines.\n", machineCount, region, ipCounter.v4, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN)))-ipCounter.v4)
 				}
 
-				if machineCount > MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN*ipCounter.v6 {
+				if ipCounter.v6 > 0 && machineCount > MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN*ipCounter.v6 {
 					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s but only %d egress IPv6(s). For bluegreen deployments, you need at least %d more, because bluegreen deployments may temporarily double the number of machines.\n", machineCount, region, ipCounter.v6, int(math.Ceil(float64(machineCount)/float64(MAX_MACHINES_PER_APP_EGRESS_BLUEGREEN)))-ipCounter.v6)
 				}
 			} else {
-				if machineCount > MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD*ipCounter.v4 {
+				if ipCounter.v4 > 0 && machineCount > MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD*ipCounter.v4 {
 					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s with %d egress IPv4(s). You might want to allocate more to avoid problems while scaling up or during deployments.\n", machineCount, region, ipCounter.v4)
 				}
 
-				if machineCount > MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD*ipCounter.v6 {
+				if ipCounter.v6 > 0 && machineCount > MACHINES_PER_APP_EGRESS_WARNING_THRESHOLD*ipCounter.v6 {
 					fmt.Fprintf(errOut, "Warning: Your app has %d machines in region %s with %d egress IPv6(s). You might want to allocate more to avoid problems while scaling up or during deployments.\n", machineCount, region, ipCounter.v6)
 				}
 			}
