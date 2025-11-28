@@ -226,33 +226,33 @@ func runPropose(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "[DEBUG runPropose] calling RunPlan\n")
-	RunPlan(ctx, "propose")
-	fmt.Fprintf(os.Stderr, "[DEBUG runPropose] RunPlan completed\n")
+	err := RunPlan(ctx, "propose")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[DEBUG runPropose] RunPlan returned error: %v\n", err)
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "[DEBUG runPropose] RunPlan completed successfully\n")
 	return nil
 }
 
 func runCreate(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
-	RunPlan(ctx, "create")
-	return nil
+	return RunPlan(ctx, "create")
 }
 
 func runPostgres(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
-	RunPlan(ctx, "postgres")
-	return nil
+	return RunPlan(ctx, "postgres")
 }
 
 func runRedis(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
-	RunPlan(ctx, "redis")
-	return nil
+	return RunPlan(ctx, "redis")
 }
 
 func runTigris(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
-	RunPlan(ctx, "tigris")
-	return nil
+	return RunPlan(ctx, "tigris")
 }
 
 func runGenerate(ctx context.Context) error {
