@@ -257,7 +257,7 @@ func (m *Client) GetAppsForOrganization(ctx context.Context, orgID string) ([]fl
 }
 
 func (m *Client) GetAppScopedEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
-	panic("TODO")
+	return make(map[string][]fly.EgressIPAddress), nil
 }
 
 func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
