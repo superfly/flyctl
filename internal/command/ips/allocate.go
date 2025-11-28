@@ -190,7 +190,7 @@ func runAllocateEgressIPAddresses(ctx context.Context) (err error) {
 
 	if !flag.GetBool(ctx, "yes") {
 		msg := `You are allocating an egress IP address. This type of IPs are used when your machine accesses an external resource, and cannot be used to access your app.
-If you don't know what this is, you probably want to allocate an Anycast IP using allocate-v4 or allocate-v6 instead.
+If you don't know what this is, you probably want to allocate an Anycast ingress IP using allocate-v4 or allocate-v6 instead.
 Please confirm that this is what you need.`
 
 		if err := confirmAlloc(ctx, msg); err != nil {
@@ -202,7 +202,7 @@ Please confirm that this is what you need.`
 		if err == nil && !slices.ContainsFunc(machines, func(m *fly.Machine) bool {
 			return m.Region == region
 		}) {
-			msg = fmt.Sprintf(`You are allocating a egress IP in region %s but your app has no machines there (yet).
+			msg = fmt.Sprintf(`You are allocating an egress IP in region %s but your app has no machines there (yet).
 Only machines in the same region can make use of egress IPs in that region.
 If this is intentional, type Y to continue.`, region)
 
