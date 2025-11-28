@@ -14,6 +14,7 @@ var _ Client = (*fly.Client)(nil)
 
 type Client interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
+	AllocateAppScopedEgressIPAddress(ctx context.Context, appName string, region string) (net.IP, net.IP, error)
 	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error)
 	AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
@@ -57,6 +58,7 @@ type Client interface {
 	GetAppReleasesMachines(ctx context.Context, appName, status string, limit int) ([]fly.Release, error)
 	GetApps(ctx context.Context, role *string) ([]fly.App, error)
 	GetAppsForOrganization(ctx context.Context, orgID string) ([]fly.App, error)
+	GetAppScopedEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error)
 	GetCurrentUser(ctx context.Context) (*fly.User, error)
 	GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
@@ -83,6 +85,7 @@ type Client interface {
 	MoveApp(ctx context.Context, appName string, orgID string) (*fly.App, error)
 	NewRequest(q string) *graphql.Request
 	PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error)
+	ReleaseAppScopedEgressIPAddress(ctx context.Context, appName, ip string) error
 	ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
 	ReleaseIPAddress(ctx context.Context, appName string, ip string) error
 	RemoveWireGuardPeer(ctx context.Context, orgID string, name string) error
