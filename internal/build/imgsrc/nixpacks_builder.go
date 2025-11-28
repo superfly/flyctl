@@ -125,13 +125,6 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	dockerHost := docker.DaemonHost()
 
 	if dockerFactory.IsRemote() {
-		agentclient, err := agent.Establish(ctx, dockerFactory.apiClient)
-		if err != nil {
-			build.BuilderInitFinish()
-			build.BuildFinish()
-			return nil, "", err
-		}
-
 		machine, app, err := b.provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), false)
 		if err != nil {
 			return nil, "", err
@@ -144,7 +137,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			return nil, "", fmt.Errorf("could not find machine IP")
 		}
 
-		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug, "", false)
+		_, dialer, err := agent.BringUpAgentOrgSlug(ctx, dockerFactory.apiClient, app.Organization.Slug, "", false)
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
