@@ -489,7 +489,7 @@ func runMachineRun(ctx context.Context) error {
 
 		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true, "")
 		if destroy {
-			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
+			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app.Name, machine, true))
 		}
 
 		if err != nil {

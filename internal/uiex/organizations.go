@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/superfly/flyctl/internal/config"
@@ -59,16 +60,19 @@ func (c *Client) ListOrganizations(ctx context.Context, admin bool) ([]Organizat
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return []Organization{}, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusOK:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		if err = json.Unmarshal(body, &response); err != nil {
 			return []Organization{}, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 		return response.Organizations, nil
-	case http.StatusNotFound:
-		return []Organization{}, err
 	default:
-		return []Organization{}, err
+		return []Organization{}, fmt.Errorf("failed to list organizations (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
@@ -96,15 +100,18 @@ func (c *Client) GetOrganization(ctx context.Context, orgSlug string) (*Organiza
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusOK:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		if err = json.Unmarshal(body, &response); err != nil {
 			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 		return &response.Organization, nil
-	case http.StatusNotFound:
-		return nil, err
 	default:
-		return nil, err
+		return nil, fmt.Errorf("failed to get organization %s (status %d): %s", orgSlug, res.StatusCode, string(body))
 	}
 }

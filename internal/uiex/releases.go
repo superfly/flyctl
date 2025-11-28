@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -66,14 +67,19 @@ func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *m
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusOK:
-		if err = json.NewDecoder(res.Body).Decode(&out); err != nil {
+		if err = json.Unmarshal(body, &out); err != nil {
 			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 		return out, nil
 	default:
-		return nil, err
+		return nil, fmt.Errorf("failed to get current release timestamps (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
@@ -105,17 +111,24 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return []Release{}, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusOK:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		if err = json.Unmarshal(body, &response); err != nil {
 			return []Release{}, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 		return response.Releases, nil
 	default:
-		return []Release{}, err
+		return []Release{}, fmt.Errorf("failed to list releases (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
+// GetCurrentRelease retrieves the current release for an app.
+// Returns nil release (without error) if the app has no current release (404).
 func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release *Release, err error) {
 	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/apps/%s/releases/current", c.baseUrl, appName)
@@ -134,13 +147,22 @@ func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusOK {
-		if err = json.NewDecoder(res.Body).Decode(&release); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
-		}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &release); err != nil {
+			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+		}
+		return release, nil
+	case http.StatusNotFound:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("failed to get current release (status %d): %s", res.StatusCode, string(body))
+	}
 }
 
 func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest) (release *Release, err error) {
@@ -170,14 +192,20 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusOK {
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
-		}
-		release = &response.Release
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return nil, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return &response.Release, nil
+	default:
+		return nil, fmt.Errorf("failed to create release (status %d): %s", res.StatusCode, string(body))
+	}
 }
 
 func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (response *Release, err error) {
@@ -208,11 +236,18 @@ func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, me
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusOK {
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
-		}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return nil, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	default:
+		return nil, fmt.Errorf("failed to update release (status %d): %s", res.StatusCode, string(body))
+	}
 }

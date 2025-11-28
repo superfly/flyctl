@@ -39,7 +39,11 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				value = strings.TrimRight(l, " ")
 			}
 
-			if strings.HasPrefix(value, `"""`) {
+			if strings.HasPrefix(value, `"""`) && strings.HasSuffix(value, `"""`) && len(value) >= 6 {
+				// Single-line triple-quoted string
+				value = value[3 : len(value)-3]
+				secrets[key] = value
+			} else if strings.HasPrefix(value, `"""`) {
 				// Switch to multiline
 				parserState = parserStateMultiline
 				parsedKey = key
