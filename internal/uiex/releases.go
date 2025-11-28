@@ -198,7 +198,7 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 	}
 
 	switch res.StatusCode {
-	case http.StatusCreated:
+	case http.StatusOK, http.StatusCreated:
 		if err = json.Unmarshal(body, &response); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
