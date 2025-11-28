@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout flyctl
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - uses: jnwng/github-app-installation-token-action@778da2ab509f3ef5e4b902bc15daf25ef3e34939
         id: installationToken
         with:
@@ -25,7 +25,7 @@ jobs:
           installationId: 37947271
           privateKey: ${{ secrets.DOCS_SYNCER_GITHUB_APP_PRIVATE_KEY }}
       - name: Checkout docs
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: superfly/docs
           token: ${{ steps.installationToken.outputs.token }}
