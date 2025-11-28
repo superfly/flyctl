@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -176,7 +177,18 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
-	return updatePool.Wait()
+	err = updatePool.Wait()
+	if err != nil {
+		return err
+	}
+
+	// Scaling may change the situation of app-scoped egress IPs in affected regions
+	regionMap := make(map[string]any, len(regions))
+	for _, r := range regions {
+		regionMap[r] = nil
+	}
+	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
+	return nil
 }
 
 func launchMachine(ctx context.Context, appName string, action *planItem, idx int) (*fly.Machine, error) {

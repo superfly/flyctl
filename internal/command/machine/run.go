@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -511,6 +512,10 @@ func runMachineRun(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Machine started, you can connect via the following private ip\n")
 	fmt.Fprintf(io.Out, "  %s\n", privateIP)
+
+	// We created a new machine, this might change how many app-scoped egress IPs are needed
+	// But only check the relevant region
+	ips.SanityCheckAppScopedEgressIps(ctx, map[string]any{machine.Region: nil}, nil, nil, "")
 
 	return nil
 }
