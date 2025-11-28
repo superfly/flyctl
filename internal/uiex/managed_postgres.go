@@ -151,16 +151,21 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusOK:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 		return response, nil
 	case http.StatusNotFound:
-		return response, err
+		return response, fmt.Errorf("cluster %s not found in organization %s", id, orgSlug)
 	default:
-		return response, err
+		return response, fmt.Errorf("failed to get cluster (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
