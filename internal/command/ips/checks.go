@@ -31,7 +31,7 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 
 	if ips == nil {
 		ips, err = client.GetAppScopedEgressIPAddresses(ctx, appName)
-		if err != nil {
+		if err != nil || len(ips) == 0 {
 			return
 		}
 	}
@@ -79,6 +79,10 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 	}
 
 	for _, m := range machines {
+		if m == nil {
+			continue
+		}
+
 		if _, ok := machineRegions[m.Region]; !ok {
 			machineRegions[m.Region] = 0
 		}
@@ -88,8 +92,11 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 
 	for region, ipCounter := range ipRegions {
 		// Only apply the filter before we emit warnings -- since we might need to know whether this apps has egress IPs anywhere
-		if _, ok := regionFilter[region]; regionFilter != nil && !ok {
-			continue
+		// Also, only apply if the filter is specified (i.e. not nil)
+		if regionFilter != nil {
+			if _, ok := regionFilter[region]; !ok {
+				continue
+			}
 		}
 
 		machineCount, ok := machineRegions[region]
@@ -144,8 +151,10 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 	}
 
 	for region := range machineRegions {
-		if _, ok := regionFilter[region]; regionFilter != nil && !ok {
-			continue
+		if regionFilter != nil {
+			if _, ok := regionFilter[region]; !ok {
+				continue
+			}
 		}
 
 		ipCounter, ok := ipRegions[region]
