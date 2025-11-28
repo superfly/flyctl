@@ -26,13 +26,17 @@ func renderListTable(ctx context.Context, ipAddresses []fly.IPAddress) {
 
 		switch {
 		case ipAddr.Type == "v4":
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated, $2/mo)", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v4", ipAddr.Address, "public ingress (dedicated, $2/mo)", ipAddr.Region, createdAt})
 		case ipAddr.Type == "shared_v4":
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v4", ipAddr.Address, "public ingress (shared)", ipAddr.Region, createdAt})
 		case ipAddr.Type == "v6":
-			rows = append(rows, []string{"v6", ipAddr.Address, "public (dedicated)", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v6", ipAddr.Address, "public ingress (dedicated)", ipAddr.Region, createdAt})
 		case ipAddr.Type == "private_v6":
-			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v6", ipAddr.Address, "private ingress", ipAddr.Region, createdAt})
+		case ipAddr.Type == "egress_v4":
+			rows = append(rows, []string{"v4", ipAddr.Address, "egress", ipAddr.Region, createdAt})
+		case ipAddr.Type == "egress_v6":
+			rows = append(rows, []string{"v6", ipAddr.Address, "egress", ipAddr.Region, createdAt})
 		default:
 			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, createdAt})
 		}

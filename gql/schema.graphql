@@ -514,7 +514,12 @@ input AllocateEgressIPAddressInput {
   """
   ID of the machine
   """
-  machineId: ID!
+  machineId: ID
+
+  """
+  If set, allocate an app-scoped egress IP (instead of machine-scoped) in the region
+  """
+  region: String
 }
 
 """
@@ -865,6 +870,27 @@ type App implements Node {
   Find a deployment by id, defaults to latest
   """
   deploymentStatus(evaluationId: String, id: ID): DeploymentStatus
+  egressIpAddresses(
+    """
+    Returns the elements in the list that come after the specified cursor.
+    """
+    after: String
+
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+
+    """
+    Returns the first _n_ elements from the list.
+    """
+    first: Int
+
+    """
+    Returns the last _n_ elements from the list.
+    """
+    last: Int
+  ): EgressIPAddressConnection!
 
   """
   Check if this app has a configured deployment source
@@ -3435,6 +3461,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
+  
   """
   path: [String!]
 
@@ -4323,6 +4350,8 @@ type DummyWireGuardPeerPayload {
 }
 
 type EgressIPAddress implements Node {
+  createdAt: ISO8601DateTime!
+
   """
   ID of the object.
   """
@@ -8375,9 +8404,14 @@ input ReleaseEgressIPAddressInput {
   clientMutationId: String
 
   """
+  The IP address to release (in the case of app-scoped egress IPs)
+  """
+  ip: String
+
+  """
   The ID of the machine
   """
-  machineId: ID!
+  machineId: ID
 }
 
 """

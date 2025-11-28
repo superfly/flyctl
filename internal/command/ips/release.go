@@ -14,11 +14,31 @@ import (
 
 func newRelease() *cobra.Command {
 	const (
-		long  = `Releases one or more IP addresses from the application`
-		short = `Release IP addresses`
+		long  = `Releases one or more ingress IP addresses from the application`
+		short = `Release ingress IP addresses`
 	)
 
 	cmd := command.New("release [flags] ADDRESS ADDRESS ...", short, long, runReleaseIPAddress,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	cmd.Args = cobra.MinimumNArgs(1)
+	return cmd
+}
+
+func newReleaseEgress() *cobra.Command {
+	const (
+		long  = `Releases one or more egress IP addresses from the application`
+		short = `Release egress IP addresses`
+	)
+
+	cmd := command.New("release-egress [flags] ADDRESS ADDRESS ...", short, long, runReleaseEgressIPAddress,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -49,6 +69,29 @@ func runReleaseIPAddress(ctx context.Context) error {
 
 		fmt.Printf("Released %s from %s\n", address, appName)
 	}
+
+	return nil
+}
+
+func runReleaseEgressIPAddress(ctx context.Context) error {
+	client := flyutil.ClientFromContext(ctx)
+
+	appName := appconfig.NameFromContext(ctx)
+
+	for _, address := range flag.Args(ctx) {
+
+		if ip := net.ParseIP(address); ip == nil {
+			return fmt.Errorf("Invalid IP address: '%s'", address)
+		}
+
+		if err := client.ReleaseAppScopedEgressIPAddress(ctx, appName, address); err != nil {
+			return err
+		}
+
+		fmt.Printf("Released %s from %s\n", address, appName)
+	}
+
+	SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, "")
 
 	return nil
 }
