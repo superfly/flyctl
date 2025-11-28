@@ -17,6 +17,7 @@ type Client struct {
 	AddCertificateFunc                     func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
 	AllocateIPAddressFunc                  func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddressFunc            func(ctx context.Context, appName string) (net.IP, error)
+	AllocateAppScopedEgressIPAddressFunc   func(ctx context.Context, appName string, region string) (net.IP, net.IP, error)
 	AllocateEgressIPAddressFunc            func(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailableFunc                   func(ctx context.Context, appName string) (bool, error)
 	AttachPostgresClusterFunc              func(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
@@ -57,6 +58,7 @@ type Client struct {
 	GetAppNameStateFromVolumeFunc          func(ctx context.Context, volID string) (*string, *string, error)
 	GetAppNetworkFunc                      func(ctx context.Context, appName string) (*string, error)
 	GetAppReleasesMachinesFunc             func(ctx context.Context, appName, status string, limit int) ([]fly.Release, error)
+	GetAppScopedEgressIPAddressesFunc      func(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetAppSecretsFunc                      func(ctx context.Context, appName string) ([]fly.Secret, error)
 	GetAppsFunc                            func(ctx context.Context, role *string) ([]fly.App, error)
 	GetAppsForOrganizationFunc             func(ctx context.Context, orgID string) ([]fly.App, error)
@@ -86,6 +88,7 @@ type Client struct {
 	NewRequestFunc                         func(q string) *graphql.Request
 	PlatformRegionsFunc                    func(ctx context.Context) ([]fly.Region, *fly.Region, error)
 	ReleaseIPAddressFunc                   func(ctx context.Context, appName string, ip string) error
+	ReleaseAppScopedEgressIPAddressFunc    func(ctx context.Context, appName, ip string) error
 	ReleaseEgressIPAddressFunc             func(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
 	RemoveWireGuardPeerFunc                func(ctx context.Context, orgID string, name string) error
 	ResolveImageForAppFunc                 func(ctx context.Context, appName, imageRef string) (*fly.Image, error)
@@ -102,6 +105,10 @@ type Client struct {
 
 func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error) {
 	return m.AddCertificateFunc(ctx, appName, hostname)
+}
+
+func (m *Client) AllocateAppScopedEgressIPAddress(ctx context.Context, appName string, region string) (net.IP, net.IP, error) {
+	return m.AllocateAppScopedEgressIPAddressFunc(ctx, appName, region)
 }
 
 func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
@@ -272,6 +279,10 @@ func (m *Client) GetAppReleasesMachines(ctx context.Context, appName, status str
 	return m.GetAppReleasesMachinesFunc(ctx, appName, status, limit)
 }
 
+func (m *Client) GetAppScopedEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+	return m.GetAppScopedEgressIPAddressesFunc(ctx, appName)
+}
+
 func (m *Client) GetAppSecrets(ctx context.Context, appName string) ([]fly.Secret, error) {
 	return m.GetAppSecretsFunc(ctx, appName)
 }
@@ -382,6 +393,10 @@ func (m *Client) NewRequest(q string) *graphql.Request {
 
 func (m *Client) PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error) {
 	return m.PlatformRegionsFunc(ctx)
+}
+
+func (m *Client) ReleaseAppScopedEgressIPAddress(ctx context.Context, appName, ip string) error {
+	return m.ReleaseAppScopedEgressIPAddressFunc(ctx, appName, ip)
 }
 
 func (m *Client) ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error) {
