@@ -101,6 +101,7 @@ require (
 )
 
 require (
+	cyphar.com/go-pathrs v0.2.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -174,7 +175,7 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/containerd/ttrpc v1.2.7 // indirect
 	github.com/containerd/typeurl/v2 v2.2.3 // indirect
-	github.com/cyphar/filepath-securejoin v0.3.6 // indirect
+	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -238,7 +239,7 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
-	github.com/opencontainers/selinux v1.11.1 // indirect
+	github.com/opencontainers/selinux v1.13.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
