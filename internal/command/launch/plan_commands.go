@@ -34,7 +34,7 @@ func NewPlan() *cobra.Command {
 
 func newPropose() *cobra.Command {
 	const desc = "[experimental] propose a plan based on scanning the source code or Dockerfile"
-	cmd := command.New("propose", desc, desc, runPropose, command.LoadAppConfigIfPresent)
+	cmd := command.New("propose", desc, desc, runPropose, command.RequireSession, command.LoadAppConfigIfPresent)
 
 	flag.Add(cmd,
 		flag.Region(),
@@ -176,7 +176,7 @@ func newTigris() *cobra.Command {
 
 func newGenerate() *cobra.Command {
 	const desc = "[experimental] generate Dockerfile and other configuration files based on the plan"
-	cmd := command.New("generate", desc, desc, runGenerate)
+	cmd := command.New("generate", desc, desc, runGenerate, command.RequireSession)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
