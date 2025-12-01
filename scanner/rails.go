@@ -129,19 +129,36 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// mysql
 		s.DatabaseDesired = DatabaseKindMySQL
 		s.SkipDatabase = false
-	} else if !checksPass(sourceDir, fileExists("Dockerfile")) || checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
-		// postgresql
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
+		// postgresql (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
 	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
-		// sqlite
+		// sqlite (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
-		s.ObjectStorageDesired = true
-	} else {
-		// no database
-		s.DatabaseDesired = DatabaseKindNone
+		// Only request object storage if not skipping extensions (for litestream replication)
+		if os.Getenv("SKIP_EXTENSIONS") == "" {
+			s.ObjectStorageDesired = true
+		}
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*sqlite")) {
+		// sqlite (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
+		// Don't set ObjectStorageDesired here - let the normal object storage detection
+		// logic handle it by checking for aws-sdk-s3, active_storage, etc.
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*(mysql|trilogy)")) {
+		// mysql (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindMySQL
+		s.SkipDatabase = false
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*postgres")) {
+		// postgresql (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
+	} else {
+		// no database or unable to detect - default to postgresql for compatibility
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
 	}
 
 	// enable redis if there are any action cable / anycable channels
@@ -290,22 +307,30 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	}
 
 	// fetch healthcheck route in a separate thread
-	go func() {
-		ruby, err := exec.LookPath("ruby")
-		if err != nil {
+	// Skip in tests to avoid file handle issues on Windows during cleanup
+	if config.SkipHealthcheck {
+		// Send empty value immediately to avoid blocking code that reads from the channel
+		go func() {
 			healthcheck_channel <- ""
-			return
-		}
+		}()
+	} else {
+		go func() {
+			ruby, err := exec.LookPath("ruby")
+			if err != nil {
+				healthcheck_channel <- ""
+				return
+			}
 
-		out, err := exec.Command(ruby, binrails, "runner",
-			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+			out, err := exec.Command(ruby, binrails, "runner",
+				"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
 
-		if err == nil {
-			healthcheck_channel <- strings.TrimSpace(string(out))
-		} else {
-			healthcheck_channel <- ""
-		}
-	}()
+			if err == nil {
+				healthcheck_channel <- strings.TrimSpace(string(out))
+			} else {
+				healthcheck_channel <- ""
+			}
+		}()
+	}
 
 	return s, nil
 }
@@ -346,6 +371,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 					}
 				}
 			}
+
 			return nil
 		} else {
 			return errors.New("No Dockerfile found and bundle/ruby not available to generate one")
@@ -468,8 +494,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// base generate command
-	args := []string{binrails, "generate", "dockerfile",
-		"--label=fly_launch_runtime:rails"}
+	args := []string{binrails, "generate", "dockerfile"}
+	// TODO: Rails doesn't support --label flag, commenting out for now
+	// "--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
@@ -481,9 +508,17 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		}
 	}
 
-	// add postgres
-	if plan.Postgres.Provider() != nil {
+	// Pass database flags based on what the app actually uses, not what's in the plan
+	// This ensures the Dockerfile is configured correctly even if the plan includes
+	// a different database (e.g., when migrating from SQLite to Postgres or when
+	// extensions are skipped in tests)
+	switch srcInfo.DatabaseDesired {
+	case DatabaseKindPostgres:
 		args = append(args, "--postgresql", "--no-prepare")
+	case DatabaseKindMySQL:
+		args = append(args, "--mysql")
+	case DatabaseKindSqlite:
+		args = append(args, "--sqlite3")
 	}
 
 	// add redis
