@@ -494,8 +494,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// base generate command
-	args := []string{binrails, "generate", "dockerfile",
-		"--label=fly_launch_runtime:rails"}
+	args := []string{binrails, "generate", "dockerfile"}
+	// TODO: Rails doesn't support --label flag, commenting out for now
+	// "--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
