@@ -1,0 +1,13 @@
+app = "{{apps.0}}"
+primary_region = '{{region}}'
+
+[deploy]
+  release_command = "sleep 2"
+
+[env]
+  TEST_ID = "{{test.id}}"
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
