@@ -25,14 +25,14 @@ permissions:
 
 jobs:
   debug:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     steps:
       - run: echo "$GITHUB_CONTEXT"
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
 
   meta:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       sha_short: ${{ steps.gen.outputs.sha_short }}
       json: ${{ steps.gen.outputs.json }}
@@ -67,7 +67,7 @@ jobs:
     strategy:
       matrix:
         GOOS: [linux, windows, darwin]
-    runs-on: ubuntu-latest-m
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v6
         with:
@@ -106,7 +106,7 @@ jobs:
           GGOOS: ${{ matrix.GOOS }}
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs: [meta, build]
     steps:
       - uses: actions/checkout@v6
