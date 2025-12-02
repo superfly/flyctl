@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test_build:
-    runs-on: ubuntu-latest-m
+    runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v6
         with:
