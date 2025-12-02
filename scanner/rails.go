@@ -545,7 +545,8 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// run command if the generator is available
 	if generatorInstalled {
 		fmt.Printf("Running: %s\n", strings.Join(args, " "))
-		cmd := exec.Command(ruby, args...)
+		// Execute binrails directly (either ./bin/rails or rake) with the rest of the args
+		cmd := exec.Command(binrails, args[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
