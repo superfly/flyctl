@@ -20,7 +20,6 @@ import (
 
 var healthcheck_channel = make(chan string)
 var bundle, ruby string
-var binrails = filepath.Join(".", "bin", "rails")
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
@@ -243,6 +242,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
 	// sequence for production credentials to determine the RAILS_MASTER_KEY.
+	binrails := filepath.Join(".", "bin", "rails")
 	masterKey, err := os.ReadFile("config/credentials/production.key")
 	if err != nil {
 		masterKey, err = os.ReadFile("config/master.key")
@@ -343,6 +343,8 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	//
 	// If the generator fails but a Dockerfile exists, warn the user and proceed.  Only fail if no
 	// Dockerfile exists at the end of this process.
+
+	binrails := filepath.Join(".", "bin", "rails")
 
 	// If bundle or ruby are not available, check if Dockerfile exists and skip generator
 	if bundle == "" || ruby == "" {
