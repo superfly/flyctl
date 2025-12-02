@@ -282,7 +282,6 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(os.Stderr, "[DEBUG run] entered run() function\n")
 
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
@@ -400,11 +399,8 @@ func run(ctx context.Context) (err error) {
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	if launchManifest == nil {
-		fmt.Fprintf(os.Stderr, "[DEBUG run] launchManifest is nil, building manifest\n")
-
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[DEBUG run] buildManifest returned error: %v\n", err)
 			var recoverableErr recoverableInUiError
 			if errors.As(err, &recoverableErr) {
 				if !canEnterUi {
@@ -414,38 +410,27 @@ func run(ctx context.Context) (err error) {
 				return err
 			}
 		}
-		fmt.Fprintf(os.Stderr, "[DEBUG run] buildManifest completed successfully\n")
 
 		manifestFlag := flag.GetBool(ctx, "manifest")
 		manifestPath := flag.GetString(ctx, "manifest-path")
-		fmt.Fprintf(os.Stderr, "[DEBUG run] manifest flag=%v, manifest-path=%q\n", manifestFlag, manifestPath)
 
 		if manifestFlag {
-			fmt.Fprintf(os.Stderr, "[DEBUG run] manifest flag is true, writing manifest\n")
 			var jsonEncoder *json.Encoder
 			if manifestPath != "" {
-				fmt.Fprintf(os.Stderr, "[DEBUG run] opening manifest file: %s\n", manifestPath)
 				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "[DEBUG run] error opening file: %v\n", err)
 					return err
 				}
 				defer file.Close()
 
 				jsonEncoder = json.NewEncoder(file)
 			} else {
-				fmt.Fprintf(os.Stderr, "[DEBUG run] writing manifest to stdout\n")
 				jsonEncoder = json.NewEncoder(io.Out)
 			}
 			jsonEncoder.SetIndent("", "  ")
-			fmt.Fprintf(os.Stderr, "[DEBUG run] encoding manifest to JSON\n")
 			encodeErr := jsonEncoder.Encode(launchManifest)
-			fmt.Fprintf(os.Stderr, "[DEBUG run] encode result: err=%v\n", encodeErr)
 			return encodeErr
 		}
-		fmt.Fprintf(os.Stderr, "[DEBUG run] manifest flag is false, not writing manifest\n")
-	} else {
-		fmt.Fprintf(os.Stderr, "[DEBUG run] launchManifest already exists, skipping build\n")
 	}
 
 	// Override internal port if requested using --internal-port flag

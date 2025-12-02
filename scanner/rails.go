@@ -519,9 +519,6 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		args = append(args, "--postgresql", "--no-prepare")
 	case DatabaseKindMySQL:
 		args = append(args, "--mysql")
-	case DatabaseKindSqlite:
-		// TODO: Rails doesn't support --sqlite3 flag, SQLite is the default
-		// args = append(args, "--sqlite3")
 	}
 
 	// add redis

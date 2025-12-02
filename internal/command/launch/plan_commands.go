@@ -2,7 +2,6 @@ package launch
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -219,19 +218,15 @@ func RunPlan(ctx context.Context, step string) error {
 
 func runPropose(ctx context.Context) error {
 	manifestPath := flag.GetString(ctx, "manifest-path")
-	fmt.Fprintf(os.Stderr, "[DEBUG runPropose] manifest-path=%q\n", manifestPath)
 
 	if manifestPath == "" {
 		ctx = logger.NewContext(ctx, logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
 	}
 
-	fmt.Fprintf(os.Stderr, "[DEBUG runPropose] calling RunPlan\n")
 	err := RunPlan(ctx, "propose")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[DEBUG runPropose] RunPlan returned error: %v\n", err)
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "[DEBUG runPropose] RunPlan completed successfully\n")
 	return nil
 }
 
