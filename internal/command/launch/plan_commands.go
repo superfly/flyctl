@@ -33,9 +33,11 @@ func NewPlan() *cobra.Command {
 
 func newPropose() *cobra.Command {
 	const desc = "[experimental] propose a plan based on scanning the source code or Dockerfile"
-	cmd := command.New("propose", desc, desc, runPropose)
+	cmd := command.New("propose", desc, desc, runPropose, command.RequireSession, command.LoadAppConfigIfPresent)
 
 	flag.Add(cmd,
+		flag.Region(),
+		flag.Org(),
 		flag.String{
 			Name:        "from",
 			Description: "A github repo URL to use as a template for the new app",
@@ -56,11 +58,32 @@ func newPropose() *cobra.Command {
 			Name:        "name",
 			Description: `Name of the new app`,
 		},
+		flag.Bool{
+			Name:   "force-name",
+			Hidden: true,
+		},
+		flag.Bool{
+			Name:        "copy-config",
+			Description: "Use the configuration file if present without prompting",
+			Default:     false,
+		},
 		flag.String{
 			Name:        "manifest-path",
 			Description: "Path to write the manifest to",
 			Default:     "",
 			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "no-blank",
+			Description: "Don't allow a \"blank\" app (nothing could be detected)",
+			Default:     true,
+		},
+		flag.Compression(),
+		flag.CompressionLevel(),
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
 		},
 	)
 
@@ -74,12 +97,20 @@ func newCreate() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.String{
-			Name:        "manifest-path",
+			Name:        "from-manifest",
 			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
 		},
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
+		flag.Compression(),
+		flag.CompressionLevel(),
 	)
 
 	return cmd
@@ -92,8 +123,9 @@ func newPostgres() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.String{
-			Name:        "manifest-path",
+			Name:        "from-manifest",
 			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -110,8 +142,9 @@ func newRedis() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.String{
-			Name:        "manifest-path",
+			Name:        "from-manifest",
 			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -128,8 +161,9 @@ func newTigris() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.String{
-			Name:        "manifest-path",
+			Name:        "from-manifest",
 			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
 			Description: "Path to read the manifest from",
 			Default:     "",
 			Hidden:      true,
@@ -141,32 +175,36 @@ func newTigris() *cobra.Command {
 
 func newGenerate() *cobra.Command {
 	const desc = "[experimental] generate Dockerfile and other configuration files based on the plan"
-	cmd := command.New("generate", desc, desc, runGenerate)
+	cmd := command.New("generate", desc, desc, runGenerate, command.RequireSession)
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
+		// Experimentally re-enabling these
 		flag.App(),
 		flag.Region(),
 		flag.Org(),
 		flag.AppConfig(),
+		// Experimentally re-enabling these
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Don't deploy the app",
 			Default:     true,
 			Hidden:      true,
 		},
+		flag.String{
+			Name:        "from-manifest",
+			Shorthand:   "p",
+			Aliases:     []string{"manifest-path"},
+			Description: "Path to read the manifest from",
+			Default:     "",
+			Hidden:      true,
+		},
+		flag.Compression(),
+		flag.CompressionLevel(),
 		flag.Int{
 			Name:        "internal-port",
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
-			Hidden:      true,
-		},
-		flag.String{
-			Name:        "manifest-path",
-			Shorthand:   "p",
-			Description: "Path to read the manifest from",
-			Default:     "",
-			Hidden:      true,
 		},
 	)
 
@@ -179,40 +217,40 @@ func RunPlan(ctx context.Context, step string) error {
 }
 
 func runPropose(ctx context.Context) error {
-	if flag.GetString(ctx, "manifest-path") == "" {
-		ctx = logger.NewContext(context.Background(), logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
+	manifestPath := flag.GetString(ctx, "manifest-path")
+
+	if manifestPath == "" {
+		ctx = logger.NewContext(ctx, logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
 	}
 
-	RunPlan(ctx, "propose")
+	err := RunPlan(ctx, "propose")
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func runCreate(ctx context.Context) error {
-	flag.SetString(ctx, "manifest-path", flag.FirstArg(ctx))
-	RunPlan(ctx, "create")
-	return nil
+	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+	return RunPlan(ctx, "create")
 }
 
 func runPostgres(ctx context.Context) error {
-	flag.SetString(ctx, "manifest-path", flag.FirstArg(ctx))
-	RunPlan(ctx, "postgres")
-	return nil
+	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+	return RunPlan(ctx, "postgres")
 }
 
 func runRedis(ctx context.Context) error {
-	flag.SetString(ctx, "manifest-path", flag.FirstArg(ctx))
-	RunPlan(ctx, "redis")
-	return nil
+	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+	return RunPlan(ctx, "redis")
 }
 
 func runTigris(ctx context.Context) error {
-	flag.SetString(ctx, "manifest-path", flag.FirstArg(ctx))
-	RunPlan(ctx, "tigris")
-	return nil
+	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+	return RunPlan(ctx, "tigris")
 }
 
 func runGenerate(ctx context.Context) error {
-	flag.SetString(ctx, "manifest-path", flag.FirstArg(ctx))
-	RunPlan(ctx, "generate")
-	return nil
+	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+	return RunPlan(ctx, "generate")
 }
