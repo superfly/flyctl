@@ -13,10 +13,10 @@ jobs:
   test_build:
     runs-on: ubuntu-latest-m
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -30,7 +30,7 @@ jobs:
           version: latest
           args: build --clean --snapshot --verbose
       - name: Upload flyctl for preflight
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl

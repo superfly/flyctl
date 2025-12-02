@@ -10,7 +10,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -38,14 +37,12 @@ func newRegions() (cmd *cobra.Command) {
 }
 
 func runRegions(ctx context.Context) error {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
-	if err != nil {
-		return err
-	}
-	regions, err := flapsClient.GetRegions(ctx, "")
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	regionsRes, err := flapsClient.GetRegions(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
+	regions := regionsRes.Regions
 
 	// Filter out deprecated regions
 	regions = lo.Filter(regions, func(r fly.Region, _ int) bool {

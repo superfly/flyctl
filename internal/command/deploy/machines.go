@@ -24,6 +24,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
@@ -44,7 +46,7 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact            *fly.AppCompact
+	App                   *flaps.App
 	DeploymentImage       string
 	Strategy              string
 	EnvFromFlags          []string
@@ -75,13 +77,13 @@ type MachineDeploymentArgs struct {
 	RestartPolicy         *fly.MachineRestartPolicy
 	RestartMaxRetries     int
 	DeployRetries         int
-	BuildID               string
+	BuildID               int64
 	BuilderID             string
 }
 
-func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
+func argsFromManifest(manifest *DeployManifest, app *flaps.App) MachineDeploymentArgs {
 	return MachineDeploymentArgs{
-		AppCompact:            app,
+		App:                   app,
 		DeploymentImage:       manifest.DeploymentImage,
 		Strategy:              manifest.Strategy,
 		EnvFromFlags:          manifest.EnvFromFlags,
@@ -114,15 +116,17 @@ func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDepl
 }
 
 type machineDeployment struct {
-	// apiClient is a client to use web.
+	// apiClient is a client to use web GraphQL.
 	apiClient webClient
 	// flapsClient is a client to use flaps.
 	flapsClient flapsutil.FlapsClient
-	io          *iostreams.IOStreams
-	colorize    *iostreams.ColorScheme
-	app         *fly.AppCompact
-	appConfig   *appconfig.Config
-	img         string
+	// uiexClient is a client to use api.fly.io, which is implemented by both ui-ex and web.
+	uiexClient uiexutil.Client
+	io         *iostreams.IOStreams
+	colorize   *iostreams.ColorScheme
+	app        *flaps.App
+	appConfig  *appconfig.Config
+	img        string
 	// machineSet is this application's machines.
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
@@ -155,7 +159,7 @@ type machineDeployment struct {
 	volumeInitialSize     int
 	tigrisStatics         *statics.DeployerState
 	deployRetries         int
-	buildID               string
+	buildID               int64
 	builderID             string
 }
 
@@ -184,21 +188,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		return nil, err
 	}
 
-	if args.AppCompact == nil {
-		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
+	if args.App == nil {
+		return nil, fmt.Errorf("BUG: args.App should be set when calling this method")
 	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	if flapsClient == nil {
-		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppCompact: args.AppCompact,
-			AppName:    args.AppCompact.Name,
-		})
-		if err != nil {
-			tracing.RecordError(span, err, "failed to init flaps client")
-			return nil, err
-		}
-	}
 
 	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
@@ -242,6 +236,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 
 	apiClient := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
 	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
@@ -256,9 +251,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	md := &machineDeployment{
 		apiClient:             apiClient,
 		flapsClient:           flapsClient,
+		uiexClient:            uiexClient,
 		io:                    io,
 		colorize:              io.ColorScheme(),
-		app:                   args.AppCompact,
+		app:                   args.App,
 		appConfig:             appConfig,
 		img:                   args.DeploymentImage,
 		skipSmokeChecks:       args.SkipSmokeChecks,
@@ -333,7 +329,7 @@ func (md *machineDeployment) setFirstDeploy(_ context.Context) error {
 	// by checking for any existent machine.
 	// This is not exaustive as the app could still be scaled down to zero but the
 	// workaround works better for now until it is fixed
-	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed && md.machineSet.IsEmpty())
+	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed() && md.machineSet.IsEmpty())
 	return nil
 }
 
@@ -341,7 +337,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	ctx, span := tracing.GetTracer().Start(ctx, "set_machines_for_deployment")
 	defer span.End()
 
-	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx)
+	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list machines")
 		return err
@@ -350,7 +346,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	nMachines := len(machines)
 	if nMachines == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
-		activeMachines, err := md.flapsClient.ListActive(ctx)
+		activeMachines, err := md.flapsClient.ListActive(ctx, md.app.Name)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to list machines")
 			return err
@@ -429,12 +425,12 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 	}
 
-	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines, true)
+	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, machines, true)
 	var releaseCmdSet []*fly.Machine
 	if releaseCmdMachine != nil {
 		releaseCmdSet = []*fly.Machine{releaseCmdMachine}
 	}
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, releaseCmdSet, true)
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, releaseCmdSet, true)
 	return nil
 }
 
@@ -443,7 +439,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 		return nil
 	}
 
-	volumes, err := md.flapsClient.GetVolumes(ctx)
+	volumes, err := md.flapsClient.GetVolumes(ctx, md.app.Name)
 	if err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	}
@@ -588,20 +584,19 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
 	defer span.End()
 
-	resp, err := md.apiClient.CreateRelease(ctx, fly.CreateReleaseInput{
-		AppId:           md.app.Name,
-		PlatformVersion: "machines",
-		Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
-		Definition:      md.appConfig,
-		Image:           md.img,
-		BuildId:         md.buildID,
+	resp, err := md.uiexClient.CreateRelease(ctx, uiex.CreateReleaseRequest{
+		AppName:    md.app.Name,
+		Strategy:   uiex.DeploymentStrategy(strings.ToUpper(md.strategy)),
+		Definition: md.appConfig,
+		Image:      md.img,
+		BuildId:    md.buildID,
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
 		return err
 	}
-	md.releaseId = resp.CreateRelease.Release.Id
-	md.releaseVersion = resp.CreateRelease.Release.Version
+	md.releaseId = resp.ID
+	md.releaseVersion = resp.Version
 	return nil
 }
 
@@ -612,13 +607,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	))
 	defer span.End()
 
-	input := fly.UpdateReleaseInput{
-		ReleaseId: md.releaseId,
-		Status:    status,
-		Metadata:  metadata,
-	}
-
-	_, err := md.apiClient.UpdateRelease(ctx, input)
+	_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")

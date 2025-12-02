@@ -12,7 +12,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -78,17 +77,6 @@ func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
 	return app, nil
 }
 
-func getFlapsClient(ctx context.Context, app *fly.AppCompact) (*flaps.Client, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)
-	}
-	return flapsClient, nil
-}
-
 // argsGetMachine returns the selected machine, using `app`, `select` and `machine`.
 func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
 	if flag.IsSpecified(ctx, "machine") {
@@ -106,12 +94,9 @@ func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, err
 func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
 	anyMachine := !flag.GetBool(ctx, "select")
 
-	flapsClient, err := getFlapsClient(ctx, app)
-	if err != nil {
-		return nil, err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +124,10 @@ func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, 
 
 // argsGetMachineByID returns an app's machine using the `machine` argument.
 func argsGetMachineByID(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
-	flapsClient, err := getFlapsClient(ctx, app)
-	if err != nil {
-		return nil, err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machineID := flag.GetString(ctx, "machine")
-	machine, err := flapsClient.Get(ctx, machineID)
+	machine, err := flapsClient.Get(ctx, app.Name, machineID)
 	if err != nil {
 		return nil, err
 	}
@@ -251,15 +233,9 @@ func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, er
 // argsGetOrgAppImages returns a list of images for an org/app in ImgInfo format
 // from `running`.
 func argsGetOrgAppImages(ctx context.Context, orgName, orgId, appName string) (map[ImgInfo]Unit, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		OrgSlug: orgId,
-		AppName: appName,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create flaps client for %q: %w", appName, err)
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return nil, err
 	}

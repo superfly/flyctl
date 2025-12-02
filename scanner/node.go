@@ -138,21 +138,15 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	vars["build"] = scripts["build"] != nil
 
-	if !ok || scripts["start"] == nil {
-		s.DeployDocs = `
-Your Node app doesn't define a start script in package.json.  You will need
-to add one before you deploy.  Also be sure to set your listen port
-to 8080 using code similar to the following:
+	hasStartScript := ok && scripts["start"] != nil
 
-    const port = process.env.PORT || "8080";
-`
+	if !hasStartScript {
+		// No start script - might be a static site, let it fall through to configureStatic
+		return nil, nil
 	} else if remix {
-		s.DeployDocs = `
-Your Remix app is prepared for deployment.
-`
+		s.DeployDocs = "Your Remix app is prepared for deployment.\n"
 	} else {
-		s.DeployDocs = `
-Your Node app is prepared for deployment.  Be sure to set your listen port
+		s.DeployDocs = `Your Node app is prepared for deployment. Be sure to set your listen port
 to 8080 using code similar to the following:
 
     const port = process.env.PORT || "8080";

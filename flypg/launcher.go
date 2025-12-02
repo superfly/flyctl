@@ -17,7 +17,6 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
-	"github.com/superfly/fly-go/flaps"
 	iostreams "github.com/superfly/flyctl/iostreams"
 )
 
@@ -115,7 +114,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var addr *fly.IPAddress
 
 	if config.Manager == ReplicationManager {
-		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, config.Organization, "")
+		orgID := ""
+		if config.Organization != nil {
+			orgID = config.Organization.ID
+		}
+		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, orgID, "")
 		if err != nil {
 			return err
 		}
@@ -129,14 +132,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := l.setSecrets(ctx, config)
 	if err != nil {
@@ -236,7 +232,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			volInput.SizeGb = config.VolumeSize
 		}
 
-		vol, err = flapsClient.CreateVolume(ctx, volInput)
+		vol, err = flapsClient.CreateVolume(ctx, app.Name, volInput)
 		if err != nil {
 			return fmt.Errorf("failed to %s volume: %w", action, err)
 		}
@@ -256,7 +252,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			MinSecretsVersion: minvers,
 		}
 
-		machine, err := flapsClient.Launch(ctx, launchInput)
+		machine, err := flapsClient.Launch(ctx, app.Name, launchInput)
 		if err != nil {
 			return err
 		}
@@ -268,7 +264,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			waitTimeout = time.Hour
 		}
 
-		err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+		err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", waitTimeout)
 		if err != nil {
 			return err
 		}
@@ -280,7 +276,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	if !detach {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, nodes); err != nil {
+		if err := watch.MachinesChecks(ctx, app.Name, nodes); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)
@@ -405,10 +401,8 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 		return nil, err
 	}
 
-	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
-	if err != nil {
-		return nil, err
-	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
+	f := flapsutil.ClientFromContext(ctx)
+	if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
@@ -475,7 +469,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		validHours := 876600
 
 		app := fly.App{Name: config.AppName}
-		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization.GetID(), []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 		if err != nil {
 			return nil, err
 		}

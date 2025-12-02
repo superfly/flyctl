@@ -4,19 +4,10 @@ package agent
 
 import (
 	"fmt"
-	"os/exec"
 	"os/user"
-	"syscall"
 
 	"golang.org/x/sys/windows"
 )
-
-func SetSysProcAttributes(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
-	}
-}
 
 // Use UNIX sockets since 10.0.17063
 // https://devblogs.microsoft.com/commandline/af_unix-comes-to-windows/

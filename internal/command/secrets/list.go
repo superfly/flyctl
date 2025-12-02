@@ -38,15 +38,12 @@ actual value of the secret is only available to the application.`
 
 func runList(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
-	secrets, err := appsecrets.List(ctx, flapsClient, app.Name)
+	secrets, err := appsecrets.List(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}

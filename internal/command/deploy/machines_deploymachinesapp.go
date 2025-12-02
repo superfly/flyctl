@@ -25,7 +25,6 @@ import (
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -45,8 +44,6 @@ type ProcessGroupsDiff struct {
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
 	defer span.End()
-
-	ctx = flapsutil.NewContextWithClient(ctx, md.flapsClient)
 
 	onInterruptContext := context.WithoutCancel(ctx)
 
@@ -298,7 +295,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 
 			defer func() {
 				if err == nil {
-					if destroyErr := machcmd.Destroy(ctx, md.app, lm.Machine(), true); destroyErr != nil {
+					if destroyErr := machcmd.Destroy(ctx, md.app.Name, lm.Machine(), true); destroyErr != nil {
 						err = destroyErr
 					}
 				}
@@ -452,7 +449,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		return err
 	}
 	for _, mach := range processGroupMachineDiff.machinesToRemove {
-		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
+		if err := machcmd.Destroy(ctx, md.app.Name, mach.Machine(), true); err != nil {
 			return err
 		}
 	}
@@ -529,7 +526,8 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 			if timeoutErr.DesiredState() == fly.MachineStateStarted {
 				// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
 				// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
-				descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
+				// We also suggest checking the Dockerfile since an immediate exit can appear as a timeout.
+				descript = "Your machine was created, but never started or exited immediately. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue.\n\nAlternatively, your app may have exited immediately due to a startup failure. Check your Dockerfile\nto ensure it specifies a valid start command (e.g., check that your 'CMD' or 'ENTRYPOINT' is correct).\nYou can also try running 'fly logs' to see what happened when the machine tried to start."
 				suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
 			} else {
 				// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
@@ -991,12 +989,12 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	// while we wait for its state and/or health checks
 	e.launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
-	newMachineRaw, err := md.flapsClient.Launch(ctx, *e.launchInput)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *e.launchInput)
 	if err != nil {
 		return err
 	}
 
-	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
+	lm = machine.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, newMachineRaw, false)
 	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
 	return nil
@@ -1064,7 +1062,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// while we wait for its state and/or health checks
 	launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
-	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
+	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		relCmdWarning := ""
 		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {
@@ -1073,7 +1071,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return nil, fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
-	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
+	lm := machine.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
 	defer releaseLease(ctx, lm)
 
@@ -1210,7 +1208,7 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 		}
 	}
 
-	processes, err := md.flapsClient.GetProcesses(ctx, lm.Machine().ID)
+	processes, err := md.flapsClient.GetProcesses(ctx, md.app.Name, lm.Machine().ID)
 	// Let's not fail the whole deployment because of this, as listen address check is just a warning
 	if err != nil {
 		return
@@ -1352,12 +1350,13 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*70)
 	defer cancel()
 
-	client := flyutil.ClientFromContext(ctx)
-	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	ipRes, err := flapsClient.GetIPAssignments(ctx, md.appConfig.AppName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
 		return err
 	}
+	ipAddrs := ipRes.IPs
 
 	if appURL := md.appConfig.URL(); appURL != nil && len(ipAddrs) > 0 {
 		iostreams := iostreams.FromContext(ctx)
@@ -1381,9 +1380,9 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
-				if (ipAddr.Type == "v4" && ipAddr.Region == "global") || ipAddr.Type == "shared_v4" {
+				if strings.Contains(ipAddr.IP, ".") && (ipAddr.Region == "global" || ipAddr.Shared) {
 					numIPv4 += 1
-				} else if ipAddr.Type == "v6" && ipAddr.Region == "global" {
+				} else if strings.Contains(ipAddr.IP, ":") && ipAddr.Region == "global" {
 					numIPv6 += 1
 				}
 			}

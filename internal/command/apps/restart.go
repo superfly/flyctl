@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -85,20 +84,14 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 	}
 
 	// Rolling restart against exclusively the machines managed by the Apps platform
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, app.Name)
 	if err != nil {
 		return err
 	}
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
-	if err != nil {
-		return err
-	}
-
-	machines, releaseFunc, err := machine.AcquireLeases(ctx, machines)
+	machines, releaseFunc, err := machine.AcquireLeases(ctx, app.Name, machines)
 	defer releaseFunc()
 	if err != nil {
 		return err
@@ -111,7 +104,7 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 			continue
 		}
 
-		if err := machine.Restart(ctx, m, input, m.LeaseNonce); err != nil {
+		if err := machine.Restart(ctx, app.Name, m, input, m.LeaseNonce); err != nil {
 			return err
 		}
 	}

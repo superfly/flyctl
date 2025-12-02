@@ -30,7 +30,6 @@ func newAttach() *cobra.Command {
 	cmd := command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
-		command.RequireUiex,
 	)
 	// cmd.Args = cobra.ExactArgs(1)
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -242,10 +241,7 @@ func runAttach(ctx context.Context) error {
 		db = credentials.DBName
 	}
 
-	ctx, flapsClient, _, err := flapsutil.SetClient(ctx, nil, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	variableName := flag.GetString(ctx, "variable-name")
 

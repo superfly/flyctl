@@ -19,8 +19,10 @@ func New() *cobra.Command {
 		newAllocate(),
 		newAllocatev4(),
 		newAllocatev6(),
+		newAllocateEgress(),
 		newPrivate(),
 		newRelease(),
+		newReleaseEgress(),
 	)
 	return cmd
 }

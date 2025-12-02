@@ -7,11 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -39,15 +37,7 @@ func newAllocate() *cobra.Command {
 }
 
 func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (requiresDedicated bool, hasServices bool, hasUDP bool, err error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return false, false, false, fmt.Errorf("could not create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	machines, err := machine.ListActive(ctx)
+	machines, err := machine.ListActive(ctx, appName)
 	if err != nil {
 		return false, false, false, fmt.Errorf("could not list machines: %w", err)
 	}
@@ -245,7 +235,7 @@ Would you like to allocate the following address?
 	if allocateDedicatedV4 {
 		fmt.Fprintln(io.Out, "Allocating dedicated IPv4...")
 		region := flag.GetRegion(ctx)
-		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v4", region, nil, "")
+		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v4", region, "", "")
 		if err != nil {
 			return fmt.Errorf("failed to allocate dedicated IPv4: %w", err)
 		}
@@ -257,7 +247,7 @@ Would you like to allocate the following address?
 	if allocateV6 {
 		fmt.Fprintln(io.Out, "Allocating IPv6...")
 		region := flag.GetRegion(ctx)
-		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v6", region, nil, "")
+		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v6", region, "", "")
 		if err != nil {
 			return fmt.Errorf("failed to allocate IPv6: %w", err)
 		}

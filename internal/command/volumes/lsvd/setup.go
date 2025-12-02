@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -33,10 +34,14 @@ func newSetup() *cobra.Command {
 
 func runSetup(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	ctx, flapsClient, app, err := flapsutil.SetClient(ctx, nil, appName)
+
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	io := iostreams.FromContext(ctx)
 

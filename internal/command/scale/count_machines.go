@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -29,7 +30,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	ctx = appconfig.WithConfig(ctx, appConfig)
 	apiClient := flyutil.ClientFromContext(ctx)
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -59,7 +60,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
+	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	// XXX: Don't acquire the leases until the user confirms it wants to execute any action
 	//      The downside is that AcquireLeases has the side effect of fetching an updated copy of machine config
 	//      that we don't use here, but it also updates the `LeaseNonce` field of the original machine which we rely on
-	_, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	_, releaseFunc, err := mach.AcquireLeases(ctx, appName, machines)
 	defer releaseFunc() // It's important to call the release func even in case of errors
 	if err != nil {
 		return err
@@ -146,7 +147,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
 				updatePool.Go(func(ctx context.Context) error {
-					m, err := launchMachine(ctx, action, i)
+					m, err := launchMachine(ctx, appName, action, i)
 					if err != nil {
 						return err
 					}
@@ -165,7 +166,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 			for i := 0; i > action.Delta; i-- {
 				updatePool.Go(func(ctx context.Context) error {
 					m := action.Machines[-i]
-					err := destroyMachine(ctx, m)
+					err := destroyMachine(ctx, appName, m)
 					if err != nil {
 						return err
 					}
@@ -176,10 +177,21 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
-	return updatePool.Wait()
+	err = updatePool.Wait()
+	if err != nil {
+		return err
+	}
+
+	// Scaling may change the situation of app-scoped egress IPs in affected regions
+	regionMap := make(map[string]any, len(regions))
+	for _, r := range regions {
+		regionMap[r] = nil
+	}
+	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
+	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine, error) {
+func launchMachine(ctx context.Context, appName string, action *planItem, idx int) (*fly.Machine, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
@@ -204,7 +216,7 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine
 			fmt.Fprintln(io.Out)
 
 			var err error
-			volume, err = flapsClient.CreateVolume(ctx, *cvr)
+			volume, err = flapsClient.CreateVolume(ctx, appName, *cvr)
 			if err != nil {
 				return nil, err
 			}
@@ -214,16 +226,16 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine
 		input.Config.Mounts[0].Volume = volume.ID
 	}
 
-	return flapsClient.Launch(ctx, input)
+	return flapsClient.Launch(ctx, appName, input)
 }
 
-func destroyMachine(ctx context.Context, machine *fly.Machine) error {
+func destroyMachine(ctx context.Context, appName string, machine *fly.Machine) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	input := fly.RemoveMachineInput{
 		ID:   machine.ID,
 		Kill: true,
 	}
-	return flapsClient.Destroy(ctx, input, machine.LeaseNonce)
+	return flapsClient.Destroy(ctx, appName, input, machine.LeaseNonce)
 }
 
 type planItem struct {

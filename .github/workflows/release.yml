@@ -39,11 +39,11 @@ jobs:
       version: ${{ fromJSON(steps.gen.outputs.json).version }}
       tag: ${{ fromJSON(steps.gen.outputs.json).tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
       - name: Generate release meta
@@ -55,7 +55,7 @@ jobs:
           cat release.json | jq
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: build-artifacts
           path: |
@@ -69,10 +69,10 @@ jobs:
         GOOS: [linux, windows, darwin]
     runs-on: ubuntu-latest-m
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
       - name: Place wintun.dll
@@ -109,10 +109,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [meta, build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
       # copy the caches from prepare
@@ -132,7 +132,7 @@ jobs:
         env:
           RELEASE_JSON: ${{ needs.meta.outputs.json }}
         run: echo "$RELEASE_JSON" > ./dist/release.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: build-artifacts
           path: |

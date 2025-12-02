@@ -1,6 +1,6 @@
 //go:build !windows
 
-package agent
+package cmdutil
 
 import (
 	"os/exec"

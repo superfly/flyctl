@@ -104,7 +104,7 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 
 	pubkey, privatekey := C25519pair()
 
-	data, err := apiClient.CreateWireGuardPeer(ctx, org, regionCode, name, pubkey, network)
+	data, err := apiClient.CreateWireGuardPeer(ctx, org.ID, regionCode, name, pubkey, network)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -24,7 +25,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 
 	for i := 0; i < numberOfExistingMachines; i++ {
 		machines = append(machines, &machineUpdateEntry{
-			leasableMachine: machine.NewLeasableMachine(client, ios, &fly.Machine{}, false),
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
 			launchInput: &fly.LaunchMachineInput{
 				Config: &fly.MachineConfig{
 					Metadata: map[string]string{},
@@ -45,6 +46,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 		colorize:      ios.ColorScheme(),
 		timeout:       1 * time.Second,
 		blueMachines:  machines,
+		app:           &flaps.App{Name: "test-app"},
 	}
 	strategy.initialize()
 

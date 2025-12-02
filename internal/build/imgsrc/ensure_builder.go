@@ -14,31 +14,52 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type Provisioner struct {
-	org           *fly.Organization
-	useVolume     bool
-	buildkitAddr  string
-	buildkitImage string
+	orgID                 string
+	orgSlug               string
+	orgPaidPlan           bool
+	orgRemoteBuilderImage string
+	useVolume             bool
+	buildkitAddr          string
+	buildkitImage         string
 }
 
+// NewProvisioner is deprecated and will be replaced by NewProvisionerUiexOrg
 func NewProvisioner(org *fly.Organization) *Provisioner {
 	return &Provisioner{
-		org:       org,
-		useVolume: true,
+		orgID:                 org.ID,
+		orgSlug:               org.Slug,
+		orgPaidPlan:           org.PaidPlan,
+		orgRemoteBuilderImage: org.RemoteBuilderImage,
+		useVolume:             true,
 	}
 }
 
-func NewBuildkitProvisioner(org *fly.Organization, addr, image string) *Provisioner {
+func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
-		org:           org,
-		useVolume:     true,
-		buildkitAddr:  addr,
-		buildkitImage: image,
+		orgID:                 org.ID,
+		orgSlug:               org.Slug,
+		orgPaidPlan:           org.PaidPlan,
+		orgRemoteBuilderImage: org.RemoteBuilderImage,
+		useVolume:             true,
+	}
+}
+
+func NewBuildkitProvisioner(org *uiex.Organization, addr, image string) *Provisioner {
+	return &Provisioner{
+		orgID:                 org.ID,
+		orgSlug:               org.Slug,
+		orgPaidPlan:           org.PaidPlan,
+		orgRemoteBuilderImage: org.RemoteBuilderImage,
+		useVolume:             true,
+		buildkitAddr:          addr,
+		buildkitImage:         image,
 	}
 }
 
@@ -48,59 +69,49 @@ func (p *Provisioner) UseBuildkit() bool {
 
 const defaultImage = "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"
 const DefaultBuildkitImage = "docker-hub-mirror.fly.io/flyio/buildkit@sha256:0fe49e6f506f0961cb2fc45d56171df0e852229facf352f834090345658b7e1c"
+const appRoleRemoteBuilder = "remote-docker-builder"
 
 func (p *Provisioner) image() string {
 	if p.buildkitImage != "" {
 		return p.buildkitImage
 	}
-	if p.org.RemoteBuilderImage != "" {
-		return p.org.RemoteBuilderImage
+	if p.orgRemoteBuilderImage != "" {
+		return p.orgRemoteBuilderImage
 	}
 	return defaultImage
 }
 
-func appToAppCompact(app *fly.App) *fly.AppCompact {
-	if app == nil {
-		return nil
+// GetRemoteBuilderApp returns the org's first app with appRoleRemoteBuilder, or nil if it none exist
+func (p *Provisioner) GetRemoteBuilderApp(ctx context.Context) (*flaps.App, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	apps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{
+		OrgSlug: p.orgSlug,
+		AppRole: appRoleRemoteBuilder,
+	})
+	if err != nil {
+		return nil, err
 	}
-	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
-		Organization: &fly.OrganizationBasic{
-			ID:       app.Organization.ID,
-			Name:     app.Organization.Name,
-			Slug:     app.Organization.Slug,
-			RawSlug:  app.Organization.RawSlug,
-			PaidPlan: app.Organization.PaidPlan,
-		},
-		PlatformVersion: app.PlatformVersion,
-		PostgresAppRole: app.PostgresAppRole,
+
+	if len(apps) == 0 {
+		return nil, nil
 	}
+
+	return &apps[0], nil
 }
 
-func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
-	org := p.org
+func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_builder")
 	defer span.End()
 
+	builderApp, err := p.GetRemoteBuilderApp(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if !recreateBuilder {
-		builderApp := org.RemoteBuilderApp
 		if builderApp != nil {
 			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
-			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-				AppName:    builderApp.Name,
-				AppCompact: appToAppCompact(builderApp),
-				OrgSlug:    builderApp.Organization.Slug,
-			})
-			if err != nil {
-				tracing.RecordError(span, err, "error creating flaps client")
-				return nil, nil, err
-			}
-			ctx = flapsutil.NewContextWithClient(ctx, flaps)
 		}
 
 		builderMachine, err := p.validateBuilder(ctx, builderApp)
@@ -115,7 +126,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			err := restartBuilderMachine(ctx, builderMachine)
+			err := restartBuilderMachine(ctx, builderApp.Name, builderMachine)
 			switch {
 			case errors.Is(err, ShouldReplaceBuilderMachine):
 				span.AddEvent("recreating builder due to resource reservation error")
@@ -141,30 +152,21 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		}
 	} else {
 		span.AddEvent("recreating builder")
-		if org.RemoteBuilderApp != nil {
+		if builderApp != nil {
 			client := flyutil.ClientFromContext(ctx)
-			err := client.DeleteApp(ctx, org.RemoteBuilderApp.Name)
+			err := client.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "error deleting existing builder app")
 				return nil, nil, err
 			}
 
-			_ = appsecrets.DeleteMinvers(ctx, org.RemoteBuilderApp.Name)
+			_ = appsecrets.DeleteMinvers(ctx, builderApp.Name)
 		}
 	}
 
 	builderName := "fly-builder-" + haikunator.Haikunator().Build()
 	span.SetAttributes(attribute.String("builder_name", builderName))
 	// we want to lauch the machine to the builder
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: builderName,
-		OrgSlug: org.Slug,
-	})
-	if err != nil {
-		tracing.RecordError(span, err, "error creating flaps client")
-		return nil, nil, err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	app, machine, err := p.createBuilder(ctx, region, builderName)
 	if err != nil {
 		tracing.RecordError(span, err, "error creating builder")
@@ -173,11 +175,11 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	return machine, app, nil
 }
 
-func EnsureFlyManagedBuilder(ctx context.Context, org *fly.Organization, region string) (*fly.Machine, *fly.App, error) {
+func EnsureFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (*fly.Machine, *flaps.App, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_fly_managed_builder")
 	defer span.End()
 
-	app, machine, err := createFlyManagedBuilder(ctx, org, region)
+	app, machine, err := createFlyManagedBuilder(ctx, orgSlug, region)
 	if err != nil {
 		tracing.RecordError(span, err, "error creating fly managed builder")
 		return nil, nil, err
@@ -215,7 +217,7 @@ const (
 )
 
 // validateBuilder returns a machine if it is available for building images.
-func (p *Provisioner) validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
+func (p *Provisioner) validateBuilder(ctx context.Context, app *flaps.App) (*fly.Machine, error) {
 	machine, err := p.validateBuilderMachine(ctx, app)
 	if err != nil {
 		// validateBuilderMachine returns a machine even if there is an error.
@@ -234,7 +236,7 @@ func (p *Provisioner) validateBuilder(ctx context.Context, app *fly.App) (*fly.M
 	return nil, ShouldReplaceBuilderMachine
 }
 
-func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *fly.App) (*fly.Machine, error) {
+func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *flaps.App) (*fly.Machine, error) {
 	var builderAppName string
 	if app != nil {
 		builderAppName = app.Name
@@ -250,12 +252,12 @@ func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *fly.App) 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if p.useVolume {
-		if _, err := validateBuilderVolumes(ctx, flapsClient); err != nil {
+		if _, err := validateBuilderVolumes(ctx, flapsClient, app.Name); err != nil {
 			tracing.RecordError(span, err, "error validating builder volumes")
 			return nil, err
 		}
 	}
-	machine, err := validateBuilderMachines(ctx, flapsClient)
+	machine, err := validateBuilderMachines(ctx, flapsClient, app.Name)
 	if err != nil {
 		tracing.RecordError(span, err, "error validating builder machines")
 		return nil, err
@@ -269,7 +271,7 @@ func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *fly.App) 
 	return machine, nil
 }
 
-func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Volume, error) {
+func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Volume, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_volumes")
 	defer span.End()
 
@@ -279,7 +281,7 @@ func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClie
 	for {
 		var err error
 
-		volumes, err = flapsClient.GetVolumes(ctx)
+		volumes, err = flapsClient.GetVolumes(ctx, appName)
 		if err == nil {
 			break
 		}
@@ -309,7 +311,7 @@ func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClie
 	return &volumes[0], nil
 }
 
-func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Machine, error) {
+func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_machines")
 	defer span.End()
 
@@ -318,7 +320,7 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 	for {
 		var err error
 
-		machines, err = flapsClient.List(ctx, "")
+		machines, err = flapsClient.List(ctx, appName, "")
 		if err == nil {
 			break
 		}
@@ -349,22 +351,19 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 	return machines[0], nil
 }
 
-func (p *Provisioner) createBuilder(ctx context.Context, region, builderName string) (app *fly.App, mach *fly.Machine, retErr error) {
+func (p *Provisioner) createBuilder(ctx context.Context, region, builderName string) (app *flaps.App, mach *fly.Machine, retErr error) {
 	buildkit := p.UseBuildkit()
 
-	org := p.org
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
 	client := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	app, retErr = client.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.ID,
-		Name:            builderName,
-		AppRoleID:       "remote-docker-builder",
-		Machines:        true,
-		PreferredRegion: fly.StringPointer(region),
+	app, retErr = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Org:       p.orgSlug,
+		Name:      builderName,
+		AppRoleID: appRoleRemoteBuilder,
 	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error creating app")
@@ -380,13 +379,13 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	}()
 
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", org, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", p.orgID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
 		}
 	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org, "")
+		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", p.orgID, "")
 		if retErr != nil {
 			tracing.RecordError(span, retErr, "error allocating ip address")
 			return nil, nil, retErr
@@ -398,7 +397,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		CPUs:     4,
 		MemoryMB: 4096,
 	}
-	if org.PaidPlan {
+	if p.orgPaidPlan {
 		guest = fly.MachineGuest{
 			CPUKind:  "shared",
 			CPUs:     8,
@@ -414,7 +413,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 	config := &fly.MachineConfig{
 		Env: map[string]string{
-			"ALLOW_ORG_SLUG": org.Slug,
+			"ALLOW_ORG_SLUG": p.orgSlug,
 			"LOG_LEVEL":      "debug",
 		},
 		Guest: &guest,
@@ -467,7 +466,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		var volume *fly.Volume
 		numRetries := 0
 		for {
-			volume, retErr = flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
+			volume, retErr = flapsClient.CreateVolume(ctx, builderName, fly.CreateVolumeRequest{
 				Name:                "machine_data",
 				SizeGb:              fly.IntPointer(50),
 				AutoBackupEnabled:   fly.BoolPointer(false),
@@ -498,7 +497,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		defer func() {
 			if retErr != nil {
 				span.AddEvent("cleaning up new volume due to error")
-				flapsClient.DeleteVolume(ctx, volume.ID)
+				flapsClient.DeleteVolume(ctx, builderName, volume.ID)
 			}
 		}()
 
@@ -522,7 +521,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	if err != nil {
 		return nil, nil, err
 	}
-	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
+	mach, retErr = flapsClient.Launch(ctx, builderName, fly.LaunchMachineInput{
 		Region:            region,
 		Config:            config,
 		MinSecretsVersion: minvers,
@@ -532,7 +531,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		return nil, nil, retErr
 	}
 
-	retErr = flapsClient.Wait(ctx, mach, "started", 60*time.Second)
+	retErr = flapsClient.Wait(ctx, builderName, mach, "started", 60*time.Second)
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
 		return nil, nil, retErr
@@ -541,19 +540,19 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	return
 }
 
-func createFlyManagedBuilder(ctx context.Context, org *fly.Organization, region string) (app *fly.App, mach *fly.Machine, retErr error) {
+func createFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (app *flaps.App, mach *fly.Machine, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	response, error := uiexClient.CreateFlyManagedBuilder(ctx, org.Slug, region)
+	response, error := uiexClient.CreateFlyManagedBuilder(ctx, orgSlug, region)
 	if error != nil {
 		tracing.RecordError(span, retErr, "error creating managed builder")
 		return nil, nil, retErr
 	}
 
-	builderApp := &fly.App{
+	builderApp := &flaps.App{
 		Name: response.Data.AppName,
 	}
 
@@ -564,13 +563,13 @@ func createFlyManagedBuilder(ctx context.Context, org *fly.Organization, region 
 	return builderApp, machine, nil
 }
 
-func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) error {
+func restartBuilderMachine(ctx context.Context, appName string, builderMachine *fly.Machine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
+	if err := flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
 		ID: builderMachine.ID,
 	}, ""); err != nil {
 		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
@@ -583,7 +582,7 @@ func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) err
 		return err
 	}
 
-	if err := flapsClient.Wait(ctx, builderMachine, "started", time.Second*60); err != nil {
+	if err := flapsClient.Wait(ctx, appName, builderMachine, "started", time.Second*60); err != nil {
 		tracing.RecordError(span, err, "error waiting for builder machine to start")
 		return err
 	}

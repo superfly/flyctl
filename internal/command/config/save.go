@@ -9,11 +9,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -52,14 +50,6 @@ func runSave(ctx context.Context) error {
 		appName     = appconfig.NameFromContext(ctx)
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {

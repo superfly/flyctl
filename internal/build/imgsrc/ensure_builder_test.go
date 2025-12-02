@@ -32,7 +32,7 @@ func TestValidateBuilder(t *testing.T) {
 	hasVolumes := false
 	hasMachines := false
 	flapsClient := mock.FlapsClient{
-		GetVolumesFunc: func(ctx context.Context) ([]fly.Volume, error) {
+		GetVolumesFunc: func(ctx context.Context, appName string) ([]fly.Volume, error) {
 			if hasVolumes {
 				return []fly.Volume{{
 					ID: "bigvolume",
@@ -41,7 +41,7 @@ func TestValidateBuilder(t *testing.T) {
 				return []fly.Volume{}, nil
 			}
 		},
-		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			if hasMachines {
 				return []*fly.Machine{{
 					ID:    "bigmachine",
@@ -57,15 +57,15 @@ func TestValidateBuilder(t *testing.T) {
 	_, err := p.validateBuilder(ctx, nil)
 	assert.EqualError(t, err, NoBuilderApp.Error())
 
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.EqualError(t, err, NoBuilderVolume.Error())
 
 	hasVolumes = true
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.EqualError(t, err, InvalidMachineCount.Error())
 
 	hasMachines = true
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.NoError(t, err)
 }
 
@@ -84,7 +84,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	responseStatusCode := 500
 
 	flapsClient := mock.FlapsClient{
-		GetVolumesFunc: func(ctx context.Context) ([]fly.Volume, error) {
+		GetVolumesFunc: func(ctx context.Context, appName string) ([]fly.Volume, error) {
 			if volumesShouldFail {
 				volumeRetries += 1
 
@@ -100,7 +100,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 			}}, nil
 
 		},
-		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			if machinesShouldFail {
 				machineRetries += 1
 
@@ -120,18 +120,18 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
 
 	volumesShouldFail = true
-	_, err := p.validateBuilder(ctx, &fly.App{})
+	_, err := p.validateBuilder(ctx, &flaps.App{})
 	assert.NoError(t, err)
 
 	volumeRetries = 0
 	maxVolumeRetries = 7
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.Error(t, err)
 
 	volumeRetries = 0
 	responseStatusCode = 404
 	// we should only try once if the error is not a server error
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	var flapsErr *flaps.FlapsError
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
@@ -140,18 +140,18 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 	volumesShouldFail = false
 	machinesShouldFail = true
 	responseStatusCode = 500
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.NoError(t, err)
 
 	machineRetries = 0
 	maxMachineRetries = 7
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.Error(t, err)
 
 	machineRetries = 0
 	responseStatusCode = 404
 	// we should only try once if the error is not a server error
-	_, err = p.validateBuilder(ctx, &fly.App{})
+	_, err = p.validateBuilder(ctx, &flaps.App{})
 	assert.True(t, errors.As(err, &flapsErr))
 	assert.Equal(t, 404, flapsErr.ResponseStatusCode)
 	assert.Equal(t, 1, machineRetries)
@@ -169,10 +169,10 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 	provisioner := NewProvisioner(&fly.Organization{})
 	provisioner.useVolume = false
 
-	client.EXPECT().List(gomock.Any(), gomock.Any()).Return([]*fly.Machine{
+	client.EXPECT().List(gomock.Any(), gomock.Eq(""), gomock.Any()).Return([]*fly.Machine{
 		{State: "stopped"},
 	}, nil)
-	machine, err := provisioner.validateBuilder(ctx, &fly.App{})
+	machine, err := provisioner.validateBuilder(ctx, &flaps.App{})
 	assert.ErrorIs(t, err, BuilderMachineNotStarted)
 	assert.NotNil(t, machine, "Go functions usually return either a value or an error, but this is not")
 }
@@ -198,7 +198,7 @@ func TestCreateBuilder(t *testing.T) {
 		DeleteAppFunc: func(ctx context.Context, appName string) error {
 			return nil
 		},
-		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error) {
+		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
 			if allocateIPAddressShouldFail {
 				return nil, errors.New("allocate ip address failed")
 			}
@@ -214,13 +214,21 @@ func TestCreateBuilder(t *testing.T) {
 	createVolumeAttempts := 0
 
 	flapsClient := mock.FlapsClient{
+		CreateAppFunc: func(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+			if createAppShouldFail {
+				return nil, errors.New("create app failed")
+			}
+			return &flaps.App{
+				Name: req.Name,
+			}, nil
+		},
 		WaitForAppFunc: func(ctx context.Context, name string) error {
 			if waitForAppShouldFail {
 				return errors.New("wait for app failed")
 			}
 			return nil
 		},
-		CreateVolumeFunc: func(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+		CreateVolumeFunc: func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 			if createVolumeShouldFail {
 				createVolumeAttempts += 1
 
@@ -235,10 +243,10 @@ func TestCreateBuilder(t *testing.T) {
 				ID: "bigvolume",
 			}, nil
 		},
-		DeleteVolumeFunc: func(ctx context.Context, volumeId string) (*fly.Volume, error) {
+		DeleteVolumeFunc: func(ctx context.Context, appName, volumeId string) (*fly.Volume, error) {
 			return nil, nil
 		},
-		LaunchFunc: func(ctx context.Context, input fly.LaunchMachineInput) (*fly.Machine, error) {
+		LaunchFunc: func(ctx context.Context, appName string, input fly.LaunchMachineInput) (*fly.Machine, error) {
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")
 			}
@@ -247,7 +255,7 @@ func TestCreateBuilder(t *testing.T) {
 				State: "started",
 			}, nil
 		},
-		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			time.Sleep(1 * time.Second)
 			return nil
 		},
@@ -296,7 +304,7 @@ func TestRestartBuilderMachine(t *testing.T) {
 
 	couldNotReserveResources := false
 	flapsClient := mock.FlapsClient{
-		RestartFunc: func(ctx context.Context, input fly.RestartMachineInput, nonce string) error {
+		RestartFunc: func(ctx context.Context, appName string, input fly.RestartMachineInput, nonce string) error {
 			if couldNotReserveResources {
 				return &flaps.FlapsError{
 					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
@@ -304,17 +312,17 @@ func TestRestartBuilderMachine(t *testing.T) {
 			}
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			return nil
 		},
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
-	err := restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err := restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.NoError(t, err)
 
 	couldNotReserveResources = true
-	err = restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err = restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
 }

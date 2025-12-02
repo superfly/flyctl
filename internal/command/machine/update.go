@@ -102,7 +102,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Acquire lease
-	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
+	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, appName, machine)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -161,7 +161,7 @@ func runUpdate(ctx context.Context) (err error) {
 		Timeout:           flag.GetInt(ctx, "wait-timeout"),
 		MinSecretsVersion: minvers,
 	}
-	if err := mach.Update(ctx, machine, input); err != nil {
+	if err := mach.Update(ctx, appName, machine, input); err != nil {
 		var timeoutErr mach.WaitTimeoutErr
 		if errors.As(err, &timeoutErr) {
 			return flyerr.GenericErr{
@@ -177,7 +177,7 @@ func runUpdate(ctx context.Context) (err error) {
 	if !(input.SkipLaunch || flag.GetDetach(ctx)) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
+		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{machine}); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)
