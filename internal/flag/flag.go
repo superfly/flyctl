@@ -343,7 +343,7 @@ func Yes() Bool {
 	return Bool{
 		Name:        flagnames.Yes,
 		Shorthand:   "y",
-		Description: "Accept all confirmations",
+		Description: "Accept all confirmations (also --auto-confirm)",
 		Aliases:     []string{"auto-confirm"},
 	}
 }
@@ -436,7 +436,7 @@ const httpsFailover = "https-failover"
 func HttpsFailover() Bool {
 	return Bool{
 		Name:        httpsFailover,
-		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
+		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails (also --http-failover)",
 		Aliases:     []string{"http-failover"},
 		Default:     true,
 	}
@@ -636,7 +636,7 @@ func JSONOutput() Bool {
 
 func ProcessGroup(desc string) String {
 	if desc == "" {
-		desc = "The target process group"
+		desc = "The target process group (also --group)"
 	}
 
 	return String{
