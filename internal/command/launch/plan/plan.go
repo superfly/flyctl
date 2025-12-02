@@ -14,7 +14,7 @@ type LaunchPlan struct {
 	HighAvailability bool   `json:"ha"`
 
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
-	CPUKind string `json:"vm_cpukind,omitempty"`
+	CPUKind string `json:"vm_cpu_kind,omitempty"`
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
 	CPUs int `json:"vm_cpus,omitempty"`
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
@@ -42,8 +42,9 @@ type LaunchPlan struct {
 }
 
 type RuntimeStruct struct {
-	Language string `json:"language"`
-	Version  string `json:"version"`
+	Language          string `json:"language"`
+	Version           string `json:"version"`
+	NoInstallRequired bool   `json:"no_install_required"`
 }
 
 // Guest returns the guest described by the *raw* guest fields in a Plan.
