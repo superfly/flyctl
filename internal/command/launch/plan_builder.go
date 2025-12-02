@@ -106,8 +106,6 @@ func (r *recoverableErrorBuilder) build() string {
 }
 
 func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
-	io := iostreams.FromContext(ctx)
-
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -134,12 +132,6 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
 			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
-		}
-		if flag.GetBool(ctx, "manifest") {
-			fmt.Fprintln(io.ErrOut,
-				"Warning: --manifest does not serialize an entire app configuration.\n"+
-					"Creating a manifest from an existing fly.toml may be a lossy process!",
-			)
 		}
 		if service := appConfig.HTTPService; service != nil {
 			httpServicePort = service.InternalPort
@@ -284,9 +276,12 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		lp.Runtime = srcInfo.Runtime
 	}
 
+	appConfig.AppName = lp.AppName
+
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
+		Config:     appConfig,
 	}, buildCache, nil
 }
 
@@ -436,6 +431,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		LaunchManifest: LaunchManifest{
 			m.Plan,
 			m.PlanSource,
+			appConfig,
 		},
 		env: envVars,
 		planBuildCache: planBuildCache{
@@ -456,7 +452,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	if existingConfig != nil {
 		colorize := io.ColorScheme()
 
-		if existingConfig.AppName != "" {
+		if existingConfig.AppName != "" && !flag.IsSpecified(ctx, "copy-config") {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
@@ -557,6 +553,16 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 	appName := flag.GetString(ctx, "name")
 	cause := "specified on the command line"
+
+	if flag.GetBool(ctx, "force-name") {
+		if appName == "" {
+			return "", "", flyerr.GenericErr{
+				Err:     "app name required when using --force-name",
+				Suggest: "Specify the app name with the --name flag",
+			}
+		}
+		return appName, cause, nil
+	}
 
 	if !flag.GetBool(ctx, "generate-name") {
 		// --generate-name wasn't specified, so we try to get a name from the config file or directory name.
@@ -862,8 +868,9 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
 	if !billable && p.HighAvailability {
-		// Silently turn off high availability if no payment method
-		// The billing check will handle informing the user about payment methods
+		if print {
+			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
+		}
 		return false
 	}
 	return true

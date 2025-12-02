@@ -144,9 +144,20 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		// don't try to generate a name
 		flag.Bool{
-			Name:        "no-create",
-			Description: "Do not create an app, only generate configuration files",
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
+			Aliases:     []string{"no-create"},
 		},
 		flag.String{
 			Name:        "auto-stop",
@@ -271,6 +282,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(os.Stderr, "[DEBUG run] entered run() function\n")
 
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
@@ -337,6 +349,44 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
+	}
+
+	// For "generate" step, if an --org flag was provided, update the manifest's org slug
+	// This is necessary because buildManifest() (which calls determineOrg()) is skipped
+	// when loading a manifest from a file in the generate step
+	if launchManifest != nil && planStep == "generate" {
+		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
+			// Update the manifest's org slug directly
+			// We don't validate here to avoid extra API calls - validation happens later
+			launchManifest.Plan.OrgSlug = orgRequested
+		}
+
+		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
+		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
+		if launchManifest.PlanSource == nil {
+			launchManifest.PlanSource = &launchPlanSource{
+				appNameSource:  "from manifest",
+				regionSource:   "from manifest",
+				orgSource:      "from manifest",
+				computeSource:  "from manifest",
+				postgresSource: "from manifest",
+				redisSource:    "from manifest",
+				tigrisSource:   "from manifest",
+				sentrySource:   "from manifest",
+			}
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -350,32 +400,52 @@ func run(ctx context.Context) (err error) {
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	if launchManifest == nil {
+		fmt.Fprintf(os.Stderr, "[DEBUG run] launchManifest is nil, building manifest\n")
 
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "[DEBUG run] buildManifest returned error: %v\n", err)
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
+			if errors.As(err, &recoverableErr) {
+				if !canEnterUi {
+					return err
+				}
 			} else {
 				return err
 			}
 		}
+		fmt.Fprintf(os.Stderr, "[DEBUG run] buildManifest completed successfully\n")
 
-		if flag.GetBool(ctx, "manifest") {
+		manifestFlag := flag.GetBool(ctx, "manifest")
+		manifestPath := flag.GetString(ctx, "manifest-path")
+		fmt.Fprintf(os.Stderr, "[DEBUG run] manifest flag=%v, manifest-path=%q\n", manifestFlag, manifestPath)
+
+		if manifestFlag {
+			fmt.Fprintf(os.Stderr, "[DEBUG run] manifest flag is true, writing manifest\n")
 			var jsonEncoder *json.Encoder
-			if manifestPath := flag.GetString(ctx, "manifest-path"); manifestPath != "" {
+			if manifestPath != "" {
+				fmt.Fprintf(os.Stderr, "[DEBUG run] opening manifest file: %s\n", manifestPath)
 				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 				if err != nil {
+					fmt.Fprintf(os.Stderr, "[DEBUG run] error opening file: %v\n", err)
 					return err
 				}
 				defer file.Close()
 
 				jsonEncoder = json.NewEncoder(file)
 			} else {
+				fmt.Fprintf(os.Stderr, "[DEBUG run] writing manifest to stdout\n")
 				jsonEncoder = json.NewEncoder(io.Out)
 			}
 			jsonEncoder.SetIndent("", "  ")
-			return jsonEncoder.Encode(launchManifest)
+			fmt.Fprintf(os.Stderr, "[DEBUG run] encoding manifest to JSON\n")
+			encodeErr := jsonEncoder.Encode(launchManifest)
+			fmt.Fprintf(os.Stderr, "[DEBUG run] encode result: err=%v\n", encodeErr)
+			return encodeErr
 		}
+		fmt.Fprintf(os.Stderr, "[DEBUG run] manifest flag is false, not writing manifest\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "[DEBUG run] launchManifest already exists, skipping build\n")
 	}
 
 	// Override internal port if requested using --internal-port flag
@@ -419,7 +489,6 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
 		colorize := io.ColorScheme()
 
