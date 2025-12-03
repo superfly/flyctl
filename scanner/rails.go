@@ -240,16 +240,19 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 			},
 		}
 	} else {
-		if _, err = os.Stat(binrails); errors.Is(err, os.ErrNotExist) {
-			// find absolute path to rake executable
-			binrails, err = exec.LookPath("rake")
-			if err != nil {
-				if errors.Is(err, exec.ErrDot) {
-					binrails, err = filepath.Abs(binrails)
-				}
-
+		// Only look for rake if bundle is available (not using Dockerfile-only mode)
+		if bundle != "" {
+			if _, err = os.Stat(binrails); errors.Is(err, os.ErrNotExist) {
+				// find absolute path to rake executable
+				binrails, err = exec.LookPath("rake")
 				if err != nil {
-					return nil, errors.Wrap(err, "failure finding rake executable")
+					if errors.Is(err, exec.ErrDot) {
+						binrails, err = filepath.Abs(binrails)
+					}
+
+					if err != nil {
+						return nil, errors.Wrap(err, "failure finding rake executable")
+					}
 				}
 			}
 		}
