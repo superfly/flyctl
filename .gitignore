@@ -44,3 +44,4 @@ release.json
 
 .fly
 CLAUDE.md
+.claude/settings.local.json
