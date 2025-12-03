@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appconfig"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
@@ -31,8 +32,9 @@ type launchPlanSource struct {
 }
 
 type LaunchManifest struct {
-	Plan       *plan.LaunchPlan
-	PlanSource *launchPlanSource
+	Plan       *plan.LaunchPlan  `json:"plan,omitempty"`
+	PlanSource *launchPlanSource `json:"plan_source,omitempty"`
+	Config     *appconfig.Config `json:"config,omitempty"`
 }
 
 type launchState struct {
