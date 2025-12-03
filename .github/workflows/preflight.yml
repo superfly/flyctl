@@ -26,9 +26,6 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
