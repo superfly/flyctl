@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -78,7 +79,8 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	package_files := []string{"package.json"}
 
 	_, err = os.Stat("yarn.lock")
-	vars["yarn"] = !os.IsNotExist(err)
+	// install yarn if there's a yarn.lock and if nodejs version is under 18
+	vars["yarn"] = !os.IsNotExist(err) && nodeVersion < "18"
 
 	if os.IsNotExist(err) {
 		vars["packager"] = "npm"
@@ -170,6 +172,8 @@ Now: run 'fly deploy' to deploy your Node app.
 	}
 
 	s.Env = env
+
+	s.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersion}
 
 	return s, nil
 }
