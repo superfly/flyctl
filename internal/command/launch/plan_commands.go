@@ -33,7 +33,7 @@ func NewPlan() *cobra.Command {
 
 func newPropose() *cobra.Command {
 	const desc = "[experimental] propose a plan based on scanning the source code or Dockerfile"
-	cmd := command.New("propose", desc, desc, runPropose, command.RequireSession, command.LoadAppConfigIfPresent)
+	cmd := command.New("propose", desc, desc, runPropose, command.RequireSession)
 
 	flag.Add(cmd,
 		flag.Region(),
