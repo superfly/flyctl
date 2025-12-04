@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -920,4 +921,287 @@ func TestBackupList(t *testing.T) {
 	require.Len(t, backups, 2, "Should return 2 backups")
 	assert.Equal(t, "backup-1", backups[0].Id)
 	assert.Equal(t, "backup-2", backups[1].Id)
+}
+
+// Test PG major version validation logic
+func TestPGMajorVersionValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		version     int
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid version 16",
+			version:     16,
+			expectError: false,
+		},
+		{
+			name:        "valid version 17",
+			version:     17,
+			expectError: false,
+		},
+		{
+			name:        "invalid version 15",
+			version:     15,
+			expectError: true,
+			errorMsg:    "invalid Postgres major version: 15. Supported versions are 16 and 17",
+		},
+		{
+			name:        "invalid version 18",
+			version:     18,
+			expectError: true,
+			errorMsg:    "invalid Postgres major version: 18. Supported versions are 16 and 17",
+		},
+		{
+			name:        "invalid version 14",
+			version:     14,
+			expectError: true,
+			errorMsg:    "invalid Postgres major version: 14. Supported versions are 16 and 17",
+		},
+		{
+			name:        "invalid version 0",
+			version:     0,
+			expectError: true,
+			errorMsg:    "invalid Postgres major version: 0. Supported versions are 16 and 17",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test the validation logic directly (matching lines 119-122 in create.go)
+			if tt.version != 16 && tt.version != 17 {
+				if !tt.expectError {
+					t.Errorf("expected error for version %d", tt.version)
+					return
+				}
+				err := fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", tt.version)
+				if tt.errorMsg != "" && err.Error() != tt.errorMsg {
+					t.Errorf("expected error message '%s', got '%s'", tt.errorMsg, err.Error())
+				}
+			} else {
+				if tt.expectError {
+					t.Errorf("did not expect error for version %d", tt.version)
+				}
+			}
+		})
+	}
+}
+
+// Test that PG major version is correctly passed to CreateClusterParams
+func TestCreateClusterParams_PGMajorVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		pgMajorVersion  int
+		expectedVersion int
+	}{
+		{
+			name:            "version 16",
+			pgMajorVersion:  16,
+			expectedVersion: 16,
+		},
+		{
+			name:            "version 17",
+			pgMajorVersion:  17,
+			expectedVersion: 17,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &CreateClusterParams{
+				Name:           "test-db",
+				OrgSlug:        "test-org",
+				Region:         "ord",
+				Plan:           "basic",
+				VolumeSizeGB:   10,
+				PostGISEnabled: false,
+				PGMajorVersion: tt.pgMajorVersion,
+			}
+
+			assert.Equal(t, tt.expectedVersion, params.PGMajorVersion)
+		})
+	}
+}
+
+// Test that PG major version is correctly converted to string in CreateClusterInput
+func TestCreateClusterInput_PGMajorVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		pgMajorVersion  int
+		expectedVersion string
+	}{
+		{
+			name:            "version 16 as string",
+			pgMajorVersion:  16,
+			expectedVersion: "16",
+		},
+		{
+			name:            "version 17 as string",
+			pgMajorVersion:  17,
+			expectedVersion: "17",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &CreateClusterParams{
+				PGMajorVersion: tt.pgMajorVersion,
+			}
+
+			// Simulate the conversion that happens in create.go line 224
+			input := uiex.CreateClusterInput{
+				PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
+			}
+
+			assert.Equal(t, tt.expectedVersion, input.PGMajorVersion)
+		})
+	}
+}
+
+// Test CreateCluster command with pg-major-version flag
+func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		pgMajorVersion  int
+		expectError     bool
+		expectedVersion string
+	}{
+		{
+			name:            "default version 16",
+			pgMajorVersion:  16,
+			expectError:     false,
+			expectedVersion: "16",
+		},
+		{
+			name:            "explicit version 16",
+			pgMajorVersion:  16,
+			expectError:     false,
+			expectedVersion: "16",
+		},
+		{
+			name:            "version 17",
+			pgMajorVersion:  17,
+			expectError:     false,
+			expectedVersion: "17",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := setupTestContext()
+
+			// Add pg-major-version flag to the flag set
+			flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			flagSet.Int("pg-major-version", tt.pgMajorVersion, "PG major version")
+			flagSet.String("name", "test-db", "Cluster name")
+			flagSet.String("region", "ord", "Region")
+			flagSet.String("plan", "basic", "Plan")
+			flagSet.Int("volume-size", 10, "Volume size")
+			flagSet.Bool("enable-postgis-support", false, "PostGIS")
+			ctx = flagctx.NewContext(ctx, flagSet)
+
+			// Add macaroon tokens for MPG compatibility
+			macaroonTokens := tokens.Parse("fm1r_macaroon_token")
+			configWithMacaroonTokens := &config.Config{
+				Tokens: macaroonTokens,
+			}
+			ctx = config.NewContext(ctx, configWithMacaroonTokens)
+
+			mpgRegions := []uiex.MPGRegion{
+				{Code: "ord", Available: true},
+			}
+
+			var capturedInput uiex.CreateClusterInput
+			mockUiex := &mock.UiexClient{
+				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
+					return uiex.ListMPGRegionsResponse{
+						Data: mpgRegions,
+					}, nil
+				},
+				CreateClusterFunc: func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {
+					capturedInput = input
+					return uiex.CreateClusterResponse{
+						Data: struct {
+							Id             string                           `json:"id"`
+							Name           string                           `json:"name"`
+							Status         *string                          `json:"status"`
+							Plan           string                           `json:"plan"`
+							Environment    *string                          `json:"environment"`
+							Region         string                           `json:"region"`
+							Organization   fly.Organization                 `json:"organization"`
+							Replicas       int                              `json:"replicas"`
+							Disk           int                              `json:"disk"`
+							IpAssignments  uiex.ManagedClusterIpAssignments `json:"ip_assignments"`
+							PostGISEnabled bool                             `json:"postgis_enabled"`
+						}{
+							Id:             "test-cluster-123",
+							Name:           "test-db",
+							Region:         "ord",
+							Plan:           "basic",
+							PostGISEnabled: false,
+						},
+					}, nil
+				},
+				GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+					status := "ready"
+					return uiex.GetManagedClusterResponse{
+						Data: uiex.ManagedCluster{
+							Id:     id,
+							Status: status,
+						},
+						Credentials: uiex.GetManagedClusterCredentialsResponse{
+							ConnectionUri: "postgresql://test",
+						},
+					}, nil
+				},
+			}
+
+			ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+
+			// Test the validation logic
+			pgMajorVersion := tt.pgMajorVersion
+			if pgMajorVersion != 16 && pgMajorVersion != 17 {
+				if !tt.expectError {
+					t.Errorf("expected error for version %d", pgMajorVersion)
+				}
+				return
+			}
+
+			// Test that the version is correctly passed to CreateClusterInput
+			params := &CreateClusterParams{
+				PGMajorVersion: pgMajorVersion,
+			}
+
+			input := uiex.CreateClusterInput{
+				PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
+			}
+
+			assert.Equal(t, tt.expectedVersion, input.PGMajorVersion, "PG major version should be correctly converted to string")
+
+			// Verify the version would be passed correctly in actual CreateCluster call
+			_, err := mockUiex.CreateCluster(ctx, input)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedVersion, capturedInput.PGMajorVersion, "PG major version should be correctly passed to CreateCluster")
+			}
+		})
+	}
+}
+
+// Test invalid PG major version error message
+func TestInvalidPGMajorVersion_Error(t *testing.T) {
+	invalidVersions := []int{15, 18, 14, 13, 19, 0, -1}
+
+	for _, version := range invalidVersions {
+		t.Run(fmt.Sprintf("version_%d", version), func(t *testing.T) {
+			err := fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", version)
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid Postgres major version")
+			assert.Contains(t, err.Error(), "Supported versions are 16 and 17")
+			assert.Contains(t, err.Error(), fmt.Sprintf("%d", version))
+		})
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ type CreateClusterParams struct {
 	Plan           string
 	VolumeSizeGB   int
 	PostGISEnabled bool
+	PGMajorVersion int
 }
 
 func newCreate() *cobra.Command {
@@ -61,6 +63,11 @@ func newCreate() *cobra.Command {
 			Name:        "enable-postgis-support",
 			Description: "Enable PostGIS for the Postgres cluster",
 			Default:     false,
+		},
+		flag.Int{
+			Name:        "pg-major-version",
+			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16 and 17.",
+			Default:     16,
 		},
 	)
 
@@ -107,6 +114,11 @@ func runCreate(ctx context.Context) error {
 
 	if len(mpgRegions) == 0 {
 		return fmt.Errorf("no valid regions found for Managed Postgres")
+	}
+
+	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
+	if pgMajorVersion != 16 && pgMajorVersion != 17 {
+		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
 	}
 
 	// Check if region was specified via flag
@@ -197,6 +209,7 @@ func runCreate(ctx context.Context) error {
 		Plan:           plan,
 		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
 		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+		PGMajorVersion: pgMajorVersion,
 	}
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
@@ -208,6 +221,7 @@ func runCreate(ctx context.Context) error {
 		OrgSlug:        params.OrgSlug,
 		Disk:           params.VolumeSizeGB,
 		PostGISEnabled: params.PostGISEnabled,
+		PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
