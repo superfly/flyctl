@@ -360,14 +360,23 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	// For "generate" step, if an --org flag was provided, update the manifest's org slug
-	// This is necessary because buildManifest() (which calls determineOrg()) is skipped
-	// when loading a manifest from a file in the generate step
+	// For "generate" step, allow command-line flags to override manifest values
+	// This is necessary because buildManifest() is skipped when loading a manifest from file
 	if launchManifest != nil && planStep == "generate" {
+		// Override org if --org flag was provided
 		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
-			// Update the manifest's org slug directly
-			// We don't validate here to avoid extra API calls - validation happens later
 			launchManifest.Plan.OrgSlug = orgRequested
+		}
+
+		// Override app name if --app flag was provided
+		// This allows explicit override while preserving manifest value by default
+		if appRequested := flag.GetApp(ctx); appRequested != "" && flag.IsSpecified(ctx, "app") {
+			launchManifest.Plan.AppName = appRequested
+		}
+
+		// Override region if --region flag was provided
+		if regionRequested := flag.GetRegion(ctx); regionRequested != "" && flag.IsSpecified(ctx, "region") {
+			launchManifest.Plan.RegionCode = regionRequested
 		}
 
 		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)

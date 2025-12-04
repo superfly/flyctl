@@ -179,12 +179,10 @@ func newGenerate() *cobra.Command {
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
-		// Experimentally re-enabling these
 		flag.App(),
 		flag.Region(),
 		flag.Org(),
 		flag.AppConfig(),
-		// Experimentally re-enabling these
 		flag.Bool{
 			Name:        "no-deploy",
 			Description: "Don't deploy the app",
