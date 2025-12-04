@@ -603,6 +603,7 @@ type CreateClusterInput struct {
 	OrgSlug        string `json:"org_slug"`
 	Disk           int    `json:"disk"`
 	PostGISEnabled bool   `json:"postgis_enabled"`
+	PGMajorVersion string `json:"pg_major_version"`
 }
 
 type CreateClusterResponse struct {
