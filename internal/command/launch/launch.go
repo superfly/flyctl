@@ -313,10 +313,10 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
 			for _, compute := range appConfig.Compute {
-				if compute == nil {
+				if compute == nil || compute.MachineGuest == nil {
 					continue
 				}
-				if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
+				if compute.MachineGuest.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
 					break
 				}
