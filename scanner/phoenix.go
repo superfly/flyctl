@@ -78,12 +78,22 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	// This adds support on launch UI for repos with different .tool-versions
 	deployTrigger := os.Getenv("DEPLOY_TRIGGER")
 	if deployTrigger == "launch" && helpers.FileExists(filepath.Join(sourceDir, ".tool-versions")) {
+		// Check if asdf is installed
+		if _, err := exec.LookPath("asdf"); err != nil {
+			return nil, errors.New("We detected a .tool-versions file but 'asdf' is not installed or not in PATH. Please install asdf (https://asdf-vm.com/) or remove the .tool-versions file.")
+		}
+
 		cmd := exec.Command("asdf", "install")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
 			return nil, errors.Wrap(err, "We identified .tool-versions but after running `asdf install` we ran into some errors. Please check that your `asdf install` builds successfully and try again.")
+		}
+
+		// Check if mix is installed after asdf install
+		if _, err := exec.LookPath("mix"); err != nil {
+			return nil, errors.New("After running 'asdf install', the 'mix' command is not available. Please ensure Elixir is properly installed via asdf and in your PATH.")
 		}
 
 		cmd = exec.Command("mix", "local.hex", "--force")
