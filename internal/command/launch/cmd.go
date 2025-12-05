@@ -144,9 +144,20 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		// don't try to generate a name
 		flag.Bool{
-			Name:        "no-create",
-			Description: "Do not create an app, only generate configuration files",
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
+			Aliases:     []string{"no-create"},
 		},
 		flag.String{
 			Name:        "auto-stop",
@@ -337,6 +348,53 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
+	}
+
+	// For "generate" step, allow command-line flags to override manifest values
+	// This is necessary because buildManifest() is skipped when loading a manifest from file
+	if launchManifest != nil && planStep == "generate" {
+		// Override org if --org flag was provided
+		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
+			launchManifest.Plan.OrgSlug = orgRequested
+		}
+
+		// Override app name if --app flag was provided
+		// This allows explicit override while preserving manifest value by default
+		if appRequested := flag.GetApp(ctx); appRequested != "" && flag.IsSpecified(ctx, "app") {
+			launchManifest.Plan.AppName = appRequested
+		}
+
+		// Override region if --region flag was provided
+		if regionRequested := flag.GetRegion(ctx); regionRequested != "" && flag.IsSpecified(ctx, "region") {
+			launchManifest.Plan.RegionCode = regionRequested
+		}
+
+		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
+		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
+		if launchManifest.PlanSource == nil {
+			launchManifest.PlanSource = &launchPlanSource{
+				appNameSource:  "from manifest",
+				regionSource:   "from manifest",
+				orgSource:      "from manifest",
+				computeSource:  "from manifest",
+				postgresSource: "from manifest",
+				redisSource:    "from manifest",
+				tigrisSource:   "from manifest",
+				sentrySource:   "from manifest",
+			}
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -350,19 +408,20 @@ func run(ctx context.Context) (err error) {
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	if launchManifest == nil {
-
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
-			} else {
+			if !errors.As(err, &recoverableErr) || !canEnterUi {
 				return err
 			}
 		}
 
-		if flag.GetBool(ctx, "manifest") {
+		manifestFlag := flag.GetBool(ctx, "manifest")
+		manifestPath := flag.GetString(ctx, "manifest-path")
+
+		if manifestFlag {
 			var jsonEncoder *json.Encoder
-			if manifestPath := flag.GetString(ctx, "manifest-path"); manifestPath != "" {
+			if manifestPath != "" {
 				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 				if err != nil {
 					return err
@@ -374,7 +433,8 @@ func run(ctx context.Context) (err error) {
 				jsonEncoder = json.NewEncoder(io.Out)
 			}
 			jsonEncoder.SetIndent("", "  ")
-			return jsonEncoder.Encode(launchManifest)
+			encodeErr := jsonEncoder.Encode(launchManifest)
+			return encodeErr
 		}
 	}
 
@@ -419,7 +479,6 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
 		colorize := io.ColorScheme()
 
