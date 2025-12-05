@@ -155,8 +155,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
 	} else {
-		// no database or unable to detect - default to postgresql for compatibility
-		s.DatabaseDesired = DatabaseKindPostgres
+		s.DatabaseDesired = DatabaseKindNone
 		s.SkipDatabase = false
 	}
 
@@ -517,6 +516,12 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		args = append(args, "--postgresql", "--no-prepare")
 	case DatabaseKindMySQL:
 		args = append(args, "--mysql")
+	case DatabaseKindSqlite:
+		// No additional flags needed for SQLite here
+	case DatabaseKindNone:
+		// No database flags needed
+	default:
+		// Unknown database kind; no flags added
 	}
 
 	// add redis
