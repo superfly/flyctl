@@ -17,12 +17,11 @@ import (
 )
 
 func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
-	args := flag.Args(ctx)
-	if len(args) >= (nth + 1) {
-		return args[nth], nil
+	val := flag.GetArg(ctx, nth)
+	if val != "" {
+		return val, nil
 	}
 
-	val := ""
 	err := survey.AskOne(
 		&survey.Input{Message: prompt},
 		&val,
@@ -32,48 +31,42 @@ func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
 }
 
 func orgByArg(ctx context.Context) (*fly.Organization, error) {
-	args := flag.Args(ctx)
-
-	if len(args) == 0 {
-		org, err := prompt.Org(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		return org, nil
+	org := flag.FirstArg(ctx)
+	if org != "" {
+		apiClient := flyutil.ClientFromContext(ctx)
+		return apiClient.GetOrganizationBySlug(ctx, org)
 	}
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	return apiClient.GetOrganizationBySlug(ctx, args[0])
+	return prompt.Org(ctx)
 }
 
 func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {
 	io := iostreams.FromContext(ctx)
 	var f *os.File
-	var filename string
 
+	filename := flag.GetArg(ctx, idx)
 	for {
-		filename, err = argOrPrompt(ctx, idx, prompt)
-		if err != nil {
-			return nil, false, err
-		}
-
-		if filename == "" {
-			fmt.Fprintln(io.Out, "Provide a filename (or 'stdout')")
-			continue
-		}
-
 		if filename == "stdout" {
 			return os.Stdout, false, nil
 		}
 
-		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err == nil {
-			return f, true, nil
+		if filename != "" {
+			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+			if err == nil {
+				return f, true, nil
+			}
+			fmt.Fprintf(io.Out, "Can't create '%s': %s\n", filename, err)
 		}
 
-		fmt.Fprintf(io.Out, "Can't create '%s': %s\n", filename, err)
+		err := survey.AskOne(
+			&survey.Input{Message: prompt},
+			&filename,
+		)
+		if err != nil {
+			return nil, false, err
+		}
 	}
+
 }
 
 func generateWgConf(peer *fly.CreatedWireGuardPeer, privkey string, w io.Writer) {
