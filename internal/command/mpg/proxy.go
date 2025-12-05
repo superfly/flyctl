@@ -32,6 +32,12 @@ func newProxy() (cmd *cobra.Command) {
 			Default:     "127.0.0.1",
 			Description: "Local address to bind to",
 		},
+		flag.String{
+			Name:        flagnames.LocalPort,
+			Shorthand:   "p",
+			Default:     "16380",
+			Description: "Local port to proxy on",
+		},
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -45,7 +51,7 @@ func runProxy(ctx context.Context) (err error) {
 		return err
 	}
 
-	localProxyPort := "16380"
+	localProxyPort := flag.GetString(ctx, flagnames.LocalPort)
 	_, params, _, err := getMpgProxyParams(ctx, localProxyPort, "")
 	if err != nil {
 		return err
