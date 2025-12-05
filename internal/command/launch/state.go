@@ -31,6 +31,20 @@ type launchPlanSource struct {
 	sentrySource   string
 }
 
+// newDefaultPlanSource creates a launchPlanSource with all fields set to the provided source description
+func newDefaultPlanSource(source string) *launchPlanSource {
+	return &launchPlanSource{
+		appNameSource:  source,
+		regionSource:   source,
+		orgSource:      source,
+		computeSource:  source,
+		postgresSource: source,
+		redisSource:    source,
+		tigrisSource:   source,
+		sentrySource:   source,
+	}
+}
+
 type LaunchManifest struct {
 	Plan       *plan.LaunchPlan  `json:"plan,omitempty"`
 	PlanSource *launchPlanSource `json:"plan_source,omitempty"`

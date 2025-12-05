@@ -57,6 +57,31 @@ func setupTestContext() context.Context {
 	return ctx
 }
 
+// Test NewMPGService returns error when uiex client is nil
+func TestNewMPGService_NilClient(t *testing.T) {
+	ctx := context.Background()
+
+	// Test with nil uiex client in context
+	service, err := NewMPGService(ctx)
+	assert.Error(t, err)
+	assert.Nil(t, service)
+	assert.Contains(t, err.Error(), "uiex client not found in context")
+}
+
+// Test NewMPGService succeeds with valid client
+func TestNewMPGService_ValidClient(t *testing.T) {
+	ctx := setupTestContext()
+
+	mockUiex := &mock.UiexClient{}
+	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+
+	service, err := NewMPGService(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, service)
+	assert.NotNil(t, service.uiexClient)
+	assert.NotNil(t, service.regionProvider)
+}
+
 // Test the actual filterMPGRegions function with real data
 func TestFilterMPGRegions_RealFunctionality(t *testing.T) {
 	platformRegions := []fly.Region{

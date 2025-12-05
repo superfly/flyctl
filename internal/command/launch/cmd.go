@@ -360,8 +360,10 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	// For "generate" step, allow command-line flags to override manifest values
-	// This is necessary because buildManifest() is skipped when loading a manifest from file
+	// For "generate" step, allow command-line flags to override manifest values.
+	// This is necessary because buildManifest() is skipped when loading a manifest from file.
+	// The "generate" step specifically needs this because it's called after propose/create steps,
+	// and the deployer wrapper needs to be able to override specific values without re-proposing.
 	if launchManifest != nil && planStep == "generate" {
 		// Override org if --org flag was provided
 		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
@@ -382,16 +384,7 @@ func run(ctx context.Context) (err error) {
 		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
 		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
 		if launchManifest.PlanSource == nil {
-			launchManifest.PlanSource = &launchPlanSource{
-				appNameSource:  "from manifest",
-				regionSource:   "from manifest",
-				orgSource:      "from manifest",
-				computeSource:  "from manifest",
-				postgresSource: "from manifest",
-				redisSource:    "from manifest",
-				tigrisSource:   "from manifest",
-				sentrySource:   "from manifest",
-			}
+			launchManifest.PlanSource = newDefaultPlanSource("from manifest")
 		}
 	}
 

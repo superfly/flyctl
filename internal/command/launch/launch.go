@@ -283,8 +283,12 @@ func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Con
 	return nil
 }
 
+// isComputeValid checks if a compute configuration is valid and can be safely modified
+func isComputeValid(c *appconfig.Compute) bool {
+	return c != nil && c.MachineGuest != nil
+}
+
 // updateConfig populates the appConfig with the plan's values
-// func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
 func (state *launchState) updateConfig(ctx context.Context) {
 	appConfig := state.appConfig
 	env := state.env
@@ -313,7 +317,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
 			for _, compute := range appConfig.Compute {
-				if compute == nil || compute.MachineGuest == nil {
+				if !isComputeValid(compute) {
 					continue
 				}
 				if compute.MachineGuest.GPUKind != "" {
@@ -349,7 +353,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	// Only set fields that haven't already been set (defensive against updateComputeFromDeprecatedGuestFields)
 	if plan.CPUKind != "" {
 		for i := range appConfig.Compute {
-			if appConfig.Compute[i] != nil && appConfig.Compute[i].MachineGuest != nil && appConfig.Compute[i].CPUKind == "" {
+			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].CPUKind == "" {
 				appConfig.Compute[i].CPUKind = plan.CPUKind
 			}
 		}
@@ -357,7 +361,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.CPUs != 0 {
 		for i := range appConfig.Compute {
-			if appConfig.Compute[i] != nil && appConfig.Compute[i].MachineGuest != nil && appConfig.Compute[i].CPUs == 0 {
+			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].CPUs == 0 {
 				appConfig.Compute[i].CPUs = plan.CPUs
 			}
 		}
@@ -365,7 +369,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.MemoryMB != 0 {
 		for i := range appConfig.Compute {
-			if appConfig.Compute[i] != nil && appConfig.Compute[i].MachineGuest != nil && appConfig.Compute[i].MemoryMB == 0 {
+			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].MemoryMB == 0 {
 				appConfig.Compute[i].MemoryMB = plan.MemoryMB
 			}
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
@@ -151,7 +150,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 				ID:  imageRef,
 				Tag: imageRef,
 			}
-			log.Printf("failed to resolve reference for prebuilt docker image, using imageRef %s, error: %v", img.String(), err)
+			terminal.Debugf("Failed to resolve reference for prebuilt docker image, using imageRef %s: %v\n", img.String(), err)
 			err = nil
 		}
 
