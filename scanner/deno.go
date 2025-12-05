@@ -18,13 +18,18 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, nil
 	}
 
+	// Check for common Deno entrypoint files
 	var entrypoint string
-
-	for _, path := range []string{"index.ts", "app.ts", "server.ts"} {
+	for _, path := range []string{"main.ts", "index.ts", "app.ts", "server.ts", "mod.ts"} {
 		if absFileExists(filepath.Join(sourceDir, path)) {
 			entrypoint = path
 			break
 		}
+	}
+
+	// If no common entrypoint found, default to main.ts
+	if entrypoint == "" {
+		entrypoint = "main.ts"
 	}
 
 	s := &SourceInfo{
