@@ -19,6 +19,44 @@ import (
 
 var packageJson map[string]interface{}
 
+// detectPortFromSource scans common entry point files for port definitions
+// Returns the detected port or 0 if not found
+func detectPortFromSource() int {
+	// Common entry point files to check
+	entryPoints := []string{"server.js", "index.js", "app.js", "src/server.js", "src/index.js", "src/app.js"}
+
+	// Regex patterns to match port definitions
+	// Matches: process.env.PORT || "8080", process.env.PORT || 8080, const port = 8080
+	portPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`process\.env\.PORT\s*\|\|\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`const\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`let\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`var\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`PORT\s*[:=]\s*['"]?(\d{4,5})['"]?`), // For Bun/Deno style
+	}
+
+	for _, entryPoint := range entryPoints {
+		data, err := os.ReadFile(entryPoint)
+		if err != nil {
+			continue
+		}
+
+		content := string(data)
+		for _, pattern := range portPatterns {
+			if matches := pattern.FindStringSubmatch(content); len(matches) > 1 {
+				if port, err := strconv.Atoi(matches[1]); err == nil {
+					// Common web server ports
+					if port >= 3000 && port <= 9999 {
+						return port
+					}
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
 // Handle js frameworks separate from other node applications.  Currently the requirements
 // for a framework is pretty low: to have a "start" script.  Because we are actually
 // going to be running a js application to generate a Dockerfile there is one more
@@ -202,9 +240,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.SkipDatabase = true
 	}
 
-	// default to port 3000
-	srcInfo.Port = 3000
-
 	// etract port from EXPOSE statement in dockerfile
 	dockerfile, err := os.ReadFile("Dockerfile")
 	if err == nil {
@@ -259,6 +294,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
+	}
+
+	// Try to detect port from source code if not found in Dockerfile
+	if srcInfo.Port == 0 {
+		if detectedPort := detectPortFromSource(); detectedPort != 0 {
+			srcInfo.Port = detectedPort
+		}
+	}
+
+	if srcInfo.Port == 0 {
+		srcInfo.Port = 3000
 	}
 
 	return srcInfo, nil
