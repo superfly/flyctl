@@ -411,11 +411,7 @@ func run(ctx context.Context) (err error) {
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) {
-				if !canEnterUi {
-					return err
-				}
-			} else {
+			if !errors.As(err, &recoverableErr) || !canEnterUi {
 				return err
 			}
 		}
