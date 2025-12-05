@@ -299,6 +299,10 @@ For detailed documentation, see https://fly.dev/docs/django/
 	} else if vars["wsgiFound"] == true && vars["hasGunicorn"] == true {
 		cmd = []string{"gunicorn", "--bind", ":8000", "--workers", "2", vars["wsgiName"].(string) + ".wsgi"}
 	} else {
+		// Warn if WSGI is found but gunicorn is not available
+		if vars["wsgiFound"] == true && vars["hasGunicorn"] != true {
+			fmt.Printf("%s\n", aurora.Yellow("WARNING: WSGI entrypoint detected but Gunicorn is not installed. Falling back to the Django development server, which is not suitable for production. Please add Gunicorn to your dependencies for production deployments."))
+		}
 		cmd = []string{"python", "manage.py", "runserver", "0.0.0.0:8000"}
 	}
 
