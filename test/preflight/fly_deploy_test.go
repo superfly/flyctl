@@ -180,7 +180,7 @@ func copyFixtureIntoWorkDir(workDir, name string) error {
 func TestDeployNodeApp(t *testing.T) {
 	t.Run("With Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilder))
 	t.Run("Without Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilderWithoutWireguard))
-	t.Run("With Depot", WithParallel(testDeployNodeAppWithDepotRemoteBuilder))
+	t.Run("With BuildKit", WithParallel(testDeployNodeAppWithBuildKitRemoteBuilder))
 }
 
 func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
@@ -251,7 +251,7 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
+func testDeployNodeAppWithBuildKitRemoteBuilder(tt *testing.T) {
 	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
@@ -271,11 +271,11 @@ func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Logf("deploy %s with Depot", appName)
-	f.Fly("deploy --depot --ha=false")
+	t.Logf("deploy %s with BuildKit", appName)
+	f.Fly("deploy --buildkit --ha=false")
 
-	t.Logf("deploy %s again with Depot", appName)
-	f.Fly("deploy --depot --strategy immediate --ha=false")
+	t.Logf("deploy %s again with BuildKit", appName)
+	f.Fly("deploy --buildkit --strategy immediate --ha=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
