@@ -43,13 +43,13 @@ func TestFlyDeployHA(t *testing.T) {
 	destination = "/data"
 	`, f.ReadFile("fly.toml"))
 
-	x := f.FlyAllowExitFailure("deploy")
+	x := f.FlyAllowExitFailure("deploy --buildkit")
 	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
 	// Create two volumes because fly launch will start 2 machines because of HA setup
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.SecondaryRegion())
-	f.Fly("deploy")
+	f.Fly("deploy --buildkit")
 }
 
 // This test overlaps partially in functionality with TestFlyDeployHA, but runs
@@ -73,11 +73,11 @@ func TestFlyDeploy_AddNewMount(t *testing.T) {
 	destination = "/data"
 	`, f.ReadFile("fly.toml"))
 
-	x := f.FlyAllowExitFailure("deploy")
+	x := f.FlyAllowExitFailure("deploy --buildkit")
 	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
-	f.Fly("deploy")
+	f.Fly("deploy --buildkit")
 }
 
 func TestFlyDeployHAPlacement(t *testing.T) {
@@ -88,7 +88,7 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
-	f.Fly("deploy")
+	f.Fly("deploy --buildkit")
 
 	assertHostDistribution(t, f, appName, 2)
 }
@@ -98,7 +98,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
-	f.Fly("deploy")
+	f.Fly("deploy --buildkit")
 }
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
@@ -113,7 +113,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 `
 	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
-	deployRes := f.FlyAllowExitFailure("deploy")
+	deployRes := f.FlyAllowExitFailure("deploy --buildkit")
 	output := deployRes.StdErrString()
 	require.Contains(f, output, "the app appears to be crashing")
 	require.NotContains(f, output, "401 Unauthorized")
@@ -131,7 +131,7 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 `
 	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
-	deployRes := f.FlyAllowExitFailure("deploy")
+	deployRes := f.FlyAllowExitFailure("deploy --buildkit")
 	output := deployRes.StdErrString()
 	require.Contains(f, output, "exited with non-zero status of 1")
 	require.NotContains(f, output, "401 Unauthorized")
@@ -164,7 +164,7 @@ func TestFlyDeploySlowMetrics(t *testing.T) {
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
-	f.Fly("deploy")
+	f.Fly("deploy --buildkit")
 }
 
 func getRootPath() string {
@@ -204,10 +204,10 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s", appName)
-	f.Fly("deploy --remote-only --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 
 	t.Logf("deploy %s again", appName)
-	f.Fly("deploy --remote-only --strategy immediate --ha=false")
+	f.Fly("deploy --buildkit --remote-only --strategy immediate --ha=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s without WireGuard", appName)
-	f.Fly("deploy --remote-only --ha=false --wg=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false --wg=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -309,7 +309,7 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 
 	f.Fly("wireguard websockets enable")
 
-	f.Fly("deploy --remote-only --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 
 	f.Fly("wireguard websockets disable")
 
@@ -332,7 +332,7 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
-	deployRes := f.Fly("deploy")
+	deployRes := f.Fly("deploy --buildkit")
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
 }
@@ -350,7 +350,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
-	deployRes := f.Fly("deploy")
+	deployRes := f.Fly("deploy --buildkit")
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
 }
@@ -368,7 +368,7 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
-	deployRes := f.Fly("deploy")
+	deployRes := f.Fly("deploy --buildkit")
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
 }
@@ -379,7 +379,7 @@ func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
-	f.Fly("deploy")
+	f.Fly("deploy --buildkit")
 }
 
 func TestDeployManifest(t *testing.T) {
@@ -390,7 +390,7 @@ func TestDeployManifest(t *testing.T) {
 
 	var manifestPath = filepath.Join(f.WorkDir(), "manifest.json")
 
-	f.Fly("deploy --export-manifest %s", manifestPath)
+	f.Fly("deploy --buildkit --export-manifest %s", manifestPath)
 
 	manifest := f.ReadFile("manifest.json")
 	require.Contains(t, manifest, `"AppName": "`+appName+`"`)
@@ -400,7 +400,7 @@ func TestDeployManifest(t *testing.T) {
 	// require.Contains(t, manifest, `"strategy": "rolling"`) FIX: fly launch doesn't set strategy
 	require.Contains(t, manifest, `"image": "nginx:latest"`)
 
-	deployRes := f.Fly("deploy --from-manifest %s", manifestPath)
+	deployRes := f.Fly("deploy --buildkit --from-manifest %s", manifestPath)
 
 	output := deployRes.StdOutString()
 	require.Contains(t, output, fmt.Sprintf("Resuming %s deploy from manifest", appName))
@@ -411,7 +411,7 @@ func testDeploy(t *testing.T, appDir string) {
 	app := f.CreateRandomAppMachines()
 	url := fmt.Sprintf("https://%s.fly.dev", app)
 
-	result := f.Fly("deploy --app %s %s", app, appDir)
+	result := f.Fly("deploy --buildkit --app %s %s", app, appDir)
 	t.Log(result.StdOutString())
 
 	var resp *http.Response
