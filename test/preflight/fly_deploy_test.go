@@ -434,6 +434,9 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping buildpack test in CI: buildpacks require wireguard connectivity which is not available in CI environment")
+		}
 		t.Parallel()
 		// Buildpacks cannot use BuildKit, so they use Depot (which falls back to remote builders)
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
