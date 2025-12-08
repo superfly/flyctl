@@ -406,12 +406,12 @@ func TestDeployManifest(t *testing.T) {
 	require.Contains(t, output, fmt.Sprintf("Resuming %s deploy from manifest", appName))
 }
 
-func testDeploy(t *testing.T, appDir string) {
+func testDeploy(t *testing.T, appDir string, builderFlag string) {
 	f := testlib.NewTestEnvFromEnv(t)
 	app := f.CreateRandomAppMachines()
 	url := fmt.Sprintf("https://%s.fly.dev", app)
 
-	result := f.Fly("deploy --buildkit --app %s %s", app, appDir)
+	result := f.Fly("deploy %s --app %s %s", builderFlag, app, appDir)
 	t.Log(result.StdOutString())
 
 	var resp *http.Response
@@ -430,10 +430,11 @@ func testDeploy(t *testing.T, appDir string) {
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		t.Parallel()
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"))
+		// Buildpacks don't support BuildKit, use remote-only builder
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--remote-only")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		t.Parallel()
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"))
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"), "--buildkit")
 	})
 }
