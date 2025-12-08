@@ -430,8 +430,8 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		t.Parallel()
-		// Buildpacks don't support BuildKit, use remote-only builder
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--remote-only")
+		// Buildpacks don't support BuildKit, use Depot which is reliable and available
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		t.Parallel()
