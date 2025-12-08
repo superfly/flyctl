@@ -54,7 +54,7 @@ primary_region = "%s"
 	destination = "/data"
 	`, appName, f.PrimaryRegion())
 
-	f.Fly("deploy --ha=false")
+	f.Fly("deploy --buildkit --ha=false")
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 
