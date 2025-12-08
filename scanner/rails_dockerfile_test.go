@@ -35,7 +35,7 @@ CMD ["rails", "server"]
 
 		// Change to test directory
 		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
+		t.Cleanup(func() { os.Chdir(originalDir) })
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
@@ -76,7 +76,7 @@ CMD ["rails", "server"]`
 		require.NoError(t, err)
 
 		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
+		t.Cleanup(func() { os.Chdir(originalDir) })
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
@@ -109,7 +109,7 @@ CMD ["rails", "server"]`
 		require.NoError(t, err)
 
 		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
+		t.Cleanup(func() { os.Chdir(originalDir) })
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
@@ -135,7 +135,7 @@ CMD ["rails", "server"]`
 		// Note: No Dockerfile created
 
 		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
+		t.Cleanup(func() { os.Chdir(originalDir) })
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
@@ -183,7 +183,7 @@ EXPOSE 3000`
 		require.NoError(t, err)
 
 		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
+		t.Cleanup(func() { os.Chdir(originalDir) })
 		err = os.Chdir(dir)
 		require.NoError(t, err)
 
