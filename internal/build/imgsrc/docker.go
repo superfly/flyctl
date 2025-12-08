@@ -594,7 +594,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 }
 
 func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool, err error) {
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Minute) // 5 minutes for daemon to become responsive (includes DNS propagation time)
 	defer cancel()
 
 	b := &backoff.Backoff{
