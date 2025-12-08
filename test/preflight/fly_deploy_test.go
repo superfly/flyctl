@@ -435,9 +435,8 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		t.Parallel()
-		// Buildpacks use default behavior (detected from fly.toml builder field)
-		// BuildKit doesn't support buildpacks
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "")
+		// Buildpacks cannot use BuildKit, so they use Depot (which falls back to remote builders)
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		t.Parallel()
