@@ -87,6 +87,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
+		client   = flyutil.ClientFromContext(ctx)
 
 		autoConfirm = flag.GetBool(ctx, "yes")
 
@@ -98,6 +99,12 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
+	}
+
+	// Check if backups are enabled and preserve backup secrets
+	backupEnabled, err := isBackupEnabled(ctx, app.Name, client)
+	if err != nil {
+		return fmt.Errorf("failed to check backup status: %w", err)
 	}
 
 	// Identify target images
@@ -252,6 +259,12 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 
 	fmt.Fprintln(io.Out, "Postgres cluster has been successfully updated!")
 
+	// If backups were enabled, remind user to redeploy secrets to restore backup configuration
+	if backupEnabled {
+		fmt.Fprintln(io.Out, colorize.Yellow("⚠️  Backup configuration may need to be restored after image update."))
+		fmt.Fprintf(io.Out, colorize.Yellow("   Run `fly secrets deploy -a %s` to ensure backup configuration is active.\n"), app.Name)
+	}
+
 	return nil
 }
 
@@ -294,4 +307,20 @@ func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 	}
 
 	return image, nil
+}
+
+// isBackupEnabled checks if the Postgres app has backups enabled by looking for the backup secret
+func isBackupEnabled(ctx context.Context, appName string, client flyutil.Client) (bool, error) {
+	secrets, err := client.GetAppSecrets(ctx, appName)
+	if err != nil {
+		return false, err
+	}
+
+	for _, secret := range secrets {
+		if secret.Name == "S3_ARCHIVE_CONFIG" {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
