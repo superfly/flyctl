@@ -81,7 +81,7 @@ destination = "/data"
 
 	f.WriteFlyToml("%s", config)
 
-	f.Fly("deploy --buildkit --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 	assertMachineCount(t, f, appName, 1)
 
 	t.Logf("scale up %s to %d machines", appName, n)
@@ -111,7 +111,7 @@ primary_region = "%s"
 	destination = "/data"
 	`, appName, f.PrimaryRegion())
 
-	f.Fly("deploy --buildkit --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 

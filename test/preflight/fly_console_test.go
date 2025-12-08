@@ -34,7 +34,7 @@ console_command = "/bin/echo '%s'"
 		appName, f.PrimaryRegion(), targetOutput,
 	)
 
-	f.Fly("deploy --buildkit --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 
 	t.Run("console_command", func(t *testing.T) {
 		result := f.Fly("console")
