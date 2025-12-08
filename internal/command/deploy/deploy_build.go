@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
@@ -265,17 +269,71 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
+// isURL checks if a string is a valid URL with http or https scheme
+func isURL(str string) bool {
+	parsed, err := url.Parse(str)
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https")
+}
+
+// downloadFile downloads a file from a URL and returns the path to the temporary file
+func downloadFile(ctx context.Context, url string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to download from %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to download from %s: HTTP %d", url, resp.StatusCode)
+	}
+
+	// Create a temporary file
+	tmpFile, err := os.CreateTemp("", "dockerfile-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	// Copy the response body to the temporary file
+	_, err = io.Copy(tmpFile, resp.Body)
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("failed to write to temporary file: %w", err)
+	}
+
+	return tmpFile.Name(), nil
+}
+
 // resolveDockerfilePath returns the absolute path to the Dockerfile
 // if one was specified in the app config or a command line argument
+// If the Dockerfile is a URL, it downloads it to a temporary file
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
 	defer func() {
-		if err == nil && path != "" {
+		if err == nil && path != "" && !isURL(path) {
 			path, err = filepath.Abs(path)
 		}
 	}()
 
 	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		// If the dockerfile path is a URL, download it
+		if isURL(path) {
+			terminal.Debugf("Downloading Dockerfile from URL: %s\n", path)
+			downloadedPath, downloadErr := downloadFile(ctx, path)
+			if downloadErr != nil {
+				err = fmt.Errorf("failed to download Dockerfile from URL %s: %w", path, downloadErr)
+				return
+			}
+			path = downloadedPath
+			terminal.Debugf("Downloaded Dockerfile to temporary file: %s\n", path)
+		} else {
+			// It's a local path, join with config file directory
+			path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		}
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
 	}
