@@ -411,7 +411,12 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 	app := f.CreateRandomAppMachines()
 	url := fmt.Sprintf("https://%s.fly.dev", app)
 
-	result := f.Fly("deploy %s --app %s %s", builderFlag, app, appDir)
+	var result *testlib.FlyctlResult
+	if builderFlag != "" {
+		result = f.Fly("deploy %s --app %s %s", builderFlag, app, appDir)
+	} else {
+		result = f.Fly("deploy --app %s %s", app, appDir)
+	}
 	t.Log(result.StdOutString())
 
 	var resp *http.Response
@@ -430,11 +435,13 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		t.Parallel()
-		// Buildpacks don't support BuildKit, use Depot which is reliable and available
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
+		// Buildpacks use default behavior (detected from fly.toml builder field)
+		// BuildKit doesn't support buildpacks
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		t.Parallel()
+		// Dockerfiles explicitly use BuildKit
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"), "--buildkit")
 	})
 }
