@@ -4,16 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-zglob"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 // setup django with a postgres database
@@ -297,10 +296,14 @@ For detailed documentation, see https://fly.dev/docs/django/
 		cmd = []string{"gunicorn", "--bind", ":8000", "--workers", "2", "--worker-class", "uvicorn.workers.UvicornWorker", vars["asgiName"].(string) + ".asgi"}
 	} else if vars["asgiFound"] == true && vars["hasDaphne"] == true {
 		cmd = []string{"daphne", "-b", "0.0.0.0", "-p", "8000", vars["asgiName"].(string) + ".asgi"}
-	} else if vars["wsgiFound"] == true {
+	} else if vars["wsgiFound"] == true && vars["hasGunicorn"] == true {
 		cmd = []string{"gunicorn", "--bind", ":8000", "--workers", "2", vars["wsgiName"].(string) + ".wsgi"}
 	} else {
-		cmd = []string{"python", "manage.py", "runserver"}
+		// Warn if WSGI is found but gunicorn is not available
+		if vars["wsgiFound"] == true && vars["hasGunicorn"] != true {
+			fmt.Printf("%s\n", aurora.Yellow("WARNING: WSGI entrypoint detected but Gunicorn is not installed. Falling back to the Django development server, which is not suitable for production. Please add Gunicorn to your dependencies for production deployments."))
+		}
+		cmd = []string{"python", "manage.py", "runserver", "0.0.0.0:8000"}
 	}
 
 	// Serialize the array to JSON
@@ -341,36 +344,7 @@ For detailed documentation, see https://fly.dev/docs/django/
 
 	s.Files = templatesExecute("templates/django", vars)
 
+	s.Runtime = plan.RuntimeStruct{Language: "python", Version: pythonVersion}
+
 	return s, nil
-}
-
-func extractPythonVersion() (string, bool, error) {
-	/* Example Output:
-	   Python 3.11.2
-	   Python 3.12.0b4
-	*/
-	pythonVersionOutput := "Python 3.12.0" // Fallback to 3.12
-
-	cmd := exec.Command("python3", "--version")
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		pythonVersionOutput = string(out)
-	} else {
-		cmd := exec.Command("python", "--version")
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			pythonVersionOutput = string(out)
-		}
-	}
-
-	re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z]+[0-9]+)?)`)
-	match := re.FindStringSubmatch(pythonVersionOutput)
-
-	if len(match) > 1 {
-		version := match[1]
-		nonNumericRegex := regexp.MustCompile(`[^0-9.]`)
-		pinned := nonNumericRegex.MatchString(version)
-		return version, pinned, nil
-	}
-	return "", false, fmt.Errorf("Could not find Python version")
 }
