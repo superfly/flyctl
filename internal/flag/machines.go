@@ -108,17 +108,17 @@ var VMSizeFlags = Set{
 	},
 	Int{
 		Name:        "vm-cpus",
-		Description: "Number of CPUs",
+		Description: "Number of CPUs (also --cpus)",
 		Aliases:     []string{"cpus"},
 	},
 	String{
 		Name:        "vm-cpu-kind",
-		Description: "The kind of CPU to use ('shared' or 'performance')",
+		Description: "The kind of CPU to use ('shared' or 'performance') (also --vm-cpukind)",
 		Aliases:     []string{"vm-cpukind"},
 	},
 	String{
 		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the VM",
+		Description: "Memory (in megabytes) to attribute to the VM (also --memory)",
 		Aliases:     []string{"memory"},
 	},
 	Int{
@@ -127,7 +127,7 @@ var VMSizeFlags = Set{
 	},
 	String{
 		Name:        "vm-gpu-kind",
-		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUKinds, ", ")),
+		Description: fmt.Sprintf("If set, the GPU model to attach (%v) (also --vm-gpukind)", strings.Join(validGPUKinds, ", ")),
 		Aliases:     []string{"vm-gpukind"},
 	},
 	String{
