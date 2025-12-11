@@ -83,10 +83,18 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 			return nil, errors.New("We detected a .tool-versions file but 'asdf' is not installed or not in PATH. Please install asdf (https://asdf-vm.com/) or remove the .tool-versions file.")
 		}
 
-		cmd := exec.Command("asdf", "install")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+		// Run asdf install with one retry on failure
+		var cmd *exec.Cmd
+		var err error
+		for attempt := 0; attempt < 2; attempt++ {
+			cmd = exec.Command("asdf", "install")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err == nil {
+				break
+			}
+		}
 		if err != nil {
 			return nil, errors.Wrap(err, "We identified .tool-versions but after running `asdf install` we ran into some errors. Please check that your `asdf install` builds successfully and try again.")
 		}
