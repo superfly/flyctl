@@ -29,10 +29,17 @@ jobs:
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
-      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
+      - name: Set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
-          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+      - name: Generate go test slice
+        id: test_split
+        uses: hashicorp-forge/go-test-split-action@v1
+        with:
+          total: ${{ matrix.parallelism }}
+          index: ${{ matrix.index }}
+          packages: ./test/preflight/...
+          flags: --tags=integration
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
       - uses: actions/download-artifact@v6
         id: download-flyctl
@@ -55,8 +62,23 @@ jobs:
           (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
+          test_opts=""
+          if [[ "${{ github.ref }}" != "refs/heads/master" ]]; then
+            test_opts="-short"
+          fi
+          test_log="$(mktemp)"
+          function finish {
+            rm "$test_log"
+          }
+          trap finish EXIT
+          set +e
+          go test ./test/preflight/... --tags=integration -v -timeout=15m $test_opts -run "${{ steps.test_split.outputs.run }}" | tee "$test_log"
+          test_status=$?
+          set -e
           echo -n failed= >> $GITHUB_OUTPUT
-          ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
+          awk '/^--- FAIL:/{ printf("%s ", $3) }' "$test_log" >> $GITHUB_OUTPUT
+          echo >> $GITHUB_OUTPUT
+          exit $test_status
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a
