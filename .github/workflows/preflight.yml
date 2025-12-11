@@ -59,8 +59,13 @@ jobs:
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: 'true'
           FLY_FORCE_TRACE: 'true'
         run: |
-          (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
-          chmod +x bin/flyctl
+          mkdir -p bin
+          if [ -e master-build/flyctl ]; then
+            mv master-build/flyctl bin/flyctl
+          fi
+          if [ -e bin/flyctl ]; then
+            chmod +x bin/flyctl
+          fi
           export PATH=$PWD/bin:$PATH
           test_opts=""
           if [[ "${{ github.ref }}" != "refs/heads/master" ]]; then
