@@ -146,10 +146,10 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		span.SetAttributes(opts.ToSpanAttributes()...)
 		img, err = resolver.ResolveReference(ctx, io, opts)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
 			if trigger := os.Getenv("DEPLOY_TRIGGER"); trigger == "" {
 				return
 			} else {
-				tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
 				img = &imgsrc.DeploymentImage{
 					ID:  imageRef,
 					Tag: imageRef,
