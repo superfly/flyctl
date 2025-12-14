@@ -105,6 +105,21 @@ func TestValidatePostgresFlags(t *testing.T) {
 	}
 }
 
+func TestNewDefaultPlanSource(t *testing.T) {
+	source := "test source"
+	planSource := newDefaultPlanSource(source)
+
+	assert.NotNil(t, planSource)
+	assert.Equal(t, source, planSource.appNameSource)
+	assert.Equal(t, source, planSource.regionSource)
+	assert.Equal(t, source, planSource.orgSource)
+	assert.Equal(t, source, planSource.computeSource)
+	assert.Equal(t, source, planSource.postgresSource)
+	assert.Equal(t, source, planSource.redisSource)
+	assert.Equal(t, source, planSource.tigrisSource)
+	assert.Equal(t, source, planSource.sentrySource)
+}
+
 func TestParseMountOptions(t *testing.T) {
 	tests := []struct {
 		name          string

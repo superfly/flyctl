@@ -35,6 +35,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 				},
 			},
 		},
+		Runtime: plan.RuntimeStruct{Language: "elixir"},
 	}
 
 	// Detect if --copy-config and --now flags are set. If so, limited set of
@@ -72,6 +73,52 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 			Args:        []string{"phx.gen.release", "--docker"},
 			Description: "Running Docker release generator",
 		},
+	}
+
+	// This adds support on launch UI for repos with different .tool-versions
+	deployTrigger := os.Getenv("DEPLOY_TRIGGER")
+	if deployTrigger == "launch" && helpers.FileExists(filepath.Join(sourceDir, ".tool-versions")) {
+		// Check if asdf is installed
+		if _, err := exec.LookPath("asdf"); err != nil {
+			return nil, errors.New("We detected a .tool-versions file but 'asdf' is not installed or not in PATH. Please install asdf (https://asdf-vm.com/) or remove the .tool-versions file.")
+		}
+
+		// Run asdf install with one retry on failure
+		var cmd *exec.Cmd
+		var err error
+		for attempt := 0; attempt < 2; attempt++ {
+			cmd = exec.Command("asdf", "install")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "We identified .tool-versions but after running `asdf install` we ran into some errors. Please check that your `asdf install` builds successfully and try again.")
+		}
+
+		// Check if mix is installed after asdf install
+		if _, err := exec.LookPath("mix"); err != nil {
+			return nil, errors.New("After running 'asdf install', the 'mix' command is not available. Please ensure Elixir is properly installed via asdf and in your PATH.")
+		}
+
+		cmd = exec.Command("mix", "local.hex", "--force")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if err != nil {
+			return nil, errors.Wrap(err, "After installing your elixir version with asdf we found an error while running `mix local.hex --force`. Please confirm that running this command works locally and try again.")
+		}
+
+		cmd = exec.Command("mix", "local.rebar", "--force")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if err != nil {
+			return nil, errors.Wrap(err, "After installing your elixir version with asdf we found an error while running `mix local.rebar --force`. Please confirm that running this command works locally and try again.")
+		}
 	}
 
 	// We found Phoenix, so check if the project compiles.

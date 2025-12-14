@@ -147,7 +147,7 @@ func isValidTraceID(id string) bool {
 }
 
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
-	if env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
+	if cmd != nil && env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
 		printGHAErrorAnnotation(cmd, err)
 	}
 
@@ -181,8 +181,10 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 		fmt.Fprintln(io.ErrOut)
 	}
 
-	if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
-		fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
+	if cmd != nil {
+		if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
+			fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
+		}
 	}
 }
 
