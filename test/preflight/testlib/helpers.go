@@ -32,7 +32,7 @@ func primaryRegionFromEnv() string {
 	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
 	if regions == "" {
 		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS so using: %s", defaultRegion)
-		return defaultRegion
+		return strings.SplitN(defaultRegion, " ", 2)
 	}
 	pieces := strings.SplitN(regions, " ", 2)
 	return pieces[0]
