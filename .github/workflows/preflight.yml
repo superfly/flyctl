@@ -62,6 +62,7 @@ jobs:
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
         run: |
+          mkdir -p bin
           (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
