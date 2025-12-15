@@ -34,7 +34,7 @@ console_command = "/bin/echo '%s'"
 		appName, f.PrimaryRegion(), targetOutput,
 	)
 
-	f.Fly("deploy --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 
 	t.Run("console_command", func(t *testing.T) {
 		result := f.Fly("console")
@@ -50,11 +50,11 @@ CMD ["/bin/sleep", "inf"]
 `), 0644)
 		require.NoError(t, err)
 
-		result := f.Fly("console -a %s --dockerfile %s", appName, dockerfile)
+		result := f.Fly("console -a %s --dockerfile %s --buildkit --remote-only", appName, dockerfile)
 		assert.Contains(t, result.StdOutString(), targetOutput, "console_command is still used")
 
 		// Because of the dockerfile, the image here is Alpine.
-		result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
+		result = f.Fly("console -a %s --dockerfile %s --buildkit --remote-only --command 'cat /etc/os-release'", appName, dockerfile)
 		assert.Contains(t, result.StdOutString(), "ID=alpine")
 	})
 
