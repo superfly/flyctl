@@ -89,7 +89,7 @@ ENV BUILT_BY_DOCKERFILE=true
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
-	f.Fly("deploy --detach")
+	f.Fly("deploy --buildkit --remote-only --detach")
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
@@ -112,7 +112,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
 	require.NoError(t, err)
 
-	f.Fly("deploy --detach")
+	f.Fly("deploy --buildkit --remote-only --detach")
 
 	result := f.Fly("config show -a %s", appName)
 	require.Contains(f, result.StdOutString(), `"internal_port": 80`)
@@ -210,7 +210,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		toml = "app = \"" + appName + "\"\n" + toml
 		err := os.WriteFile(configFilePath, []byte(toml), 0666)
 		require.NoError(t, err, "error trying to write %s", configFilePath)
-		cmd := f.Fly("deploy --detach --now --image nginx --ha=false")
+		cmd := f.Fly("deploy --buildkit --remote-only --detach --now --image nginx --ha=false")
 		cmd.AssertSuccessfulExit()
 		return cmd
 	}
@@ -444,10 +444,10 @@ func testDeployDetach(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	res := f.Fly("deploy --detach")
+	res := f.Fly("deploy --buildkit --remote-only --detach")
 	require.NotContains(f, res.StdOutString(), "started")
 
-	res = f.Fly("deploy")
+	res = f.Fly("deploy --buildkit --remote-only")
 	require.Contains(f, res.StdOutString(), "started")
 }
 
@@ -458,10 +458,10 @@ func testDeployDetachBatching(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("scale count 6 --yes")
 
-	res := f.Fly("deploy --detach")
+	res := f.Fly("deploy --buildkit --remote-only --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
 
-	res = f.Fly("deploy")
+	res = f.Fly("deploy --buildkit --remote-only")
 	require.Contains(f, res.StdOutString(), "started", false)
 }
 
@@ -518,7 +518,7 @@ ENV BUILT_BY_DOCKERFILE=true
 	}
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
-	f.Fly("deploy --label Z=ZZZ -a %s", appName)
+	f.Fly("deploy --buildkit --remote-only --label Z=ZZZ -a %s", appName)
 	res := f.Fly("image show -a %s --json", appName)
 
 	var machineImages []map[string]string
