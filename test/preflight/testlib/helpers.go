@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -28,9 +30,67 @@ import (
 
 const defaultRegion = "cdg"
 
+type platformRegion struct {
+	Code              string `json:"code"`
+	Name              string `json:"name"`
+	GatewayAvailable  bool   `json:"gateway_available"`
+	RequiresPaidPlan  bool   `json:"requires_paid_plan"`
+	Deprecated        bool   `json:"deprecated"`
+	Capacity          int    `json:"capacity"`
+}
+
+// getBestRegions fetches platform regions and returns the top N regions
+// with the most available capacity, filtering for usable regions
+func getBestRegions(count int) ([]string, error) {
+	flyctlBin := currentRepoFlyctl()
+
+	cmd := exec.Command(flyctlBin, "platform", "regions", "--json")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get platform regions: %w", err)
+	}
+
+	var regions []platformRegion
+	if err := json.Unmarshal(output, &regions); err != nil {
+		return nil, fmt.Errorf("failed to parse regions JSON: %w", err)
+	}
+
+	// Filter for usable regions (not deprecated, not paid-only, has gateway)
+	var usable []platformRegion
+	for _, r := range regions {
+		if !r.Deprecated && !r.RequiresPaidPlan && r.GatewayAvailable {
+			usable = append(usable, r)
+		}
+	}
+
+	// Sort by capacity (highest first)
+	sort.Slice(usable, func(i, j int) bool {
+		return usable[i].Capacity > usable[j].Capacity
+	})
+
+	// Take top N regions
+	if len(usable) < count {
+		count = len(usable)
+	}
+
+	result := make([]string, count)
+	for i := 0; i < count; i++ {
+		result[i] = usable[i].Code
+	}
+
+	return result, nil
+}
+
 func primaryRegionFromEnv() string {
 	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
 	if regions == "" {
+		// Try to dynamically select best region
+		best, err := getBestRegions(1)
+		if err == nil && len(best) > 0 {
+			terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, auto-selected region with best capacity: %s", best[0])
+			return best[0]
+		}
+		// Fall back to hardcoded default
 		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS so using: %s", defaultRegion)
 		return defaultRegion
 	}
@@ -41,6 +101,11 @@ func primaryRegionFromEnv() string {
 func otherRegionsFromEnv() []string {
 	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
 	if regions == "" {
+		// Try to dynamically select best regions (get top 2, skip the first since it's primary)
+		best, err := getBestRegions(2)
+		if err == nil && len(best) > 1 {
+			return best[1:]
+		}
 		return nil
 	}
 	pieces := strings.Split(regions, " ")
