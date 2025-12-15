@@ -46,6 +46,15 @@ func getBestRegions(count int) ([]string, error) {
 
 	cmd := exec.Command(flyctlBin, "platform", "regions", "--json")
 	cmd.Env = os.Environ() // Inherit environment for auth tokens
+
+	// If using preflight test token, map it to FLY_API_TOKEN for the command
+	if preflightToken := os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"); preflightToken != "" {
+		// Create new env with FLY_API_TOKEN set
+		env := os.Environ()
+		env = append(env, "FLY_API_TOKEN="+preflightToken)
+		cmd.Env = env
+	}
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get platform regions (exit code %v): %s", err, string(output))
