@@ -45,14 +45,15 @@ func getBestRegions(count int) ([]string, error) {
 	flyctlBin := currentRepoFlyctl()
 
 	cmd := exec.Command(flyctlBin, "platform", "regions", "--json")
-	output, err := cmd.Output()
+	cmd.Env = os.Environ() // Inherit environment for auth tokens
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get platform regions: %w", err)
+		return nil, fmt.Errorf("failed to get platform regions (exit code %v): %s", err, string(output))
 	}
 
 	var regions []platformRegion
 	if err := json.Unmarshal(output, &regions); err != nil {
-		return nil, fmt.Errorf("failed to parse regions JSON: %w", err)
+		return nil, fmt.Errorf("failed to parse regions JSON: %w (output: %s)", err, string(output))
 	}
 
 	// Filter for usable regions (not deprecated, not paid-only, has gateway)
@@ -91,7 +92,7 @@ func primaryRegionFromEnv() string {
 			return best[0]
 		}
 		// Fall back to hardcoded default
-		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS so using: %s", defaultRegion)
+		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, failed to auto-select (%v), using fallback: %s", err, defaultRegion)
 		return defaultRegion
 	}
 	pieces := strings.SplitN(regions, " ", 2)
