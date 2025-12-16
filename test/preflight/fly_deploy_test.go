@@ -93,19 +93,23 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 	// Retry the deploy command to handle Corrosion replication lag race conditions
 	// The backend may not have replicated the app record to all hosts yet when
 	// creating the second machine for HA, resulting in "sql: no rows in result set" errors
+	var lastError string
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
 		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 		if result.ExitCode() != 0 {
 			stderr := result.StdErrString()
+			lastError = stderr
 			// Only retry if it's the known Corrosion replication lag error
 			if strings.Contains(stderr, "failed to get app: sql: no rows in result set") {
+				t.Logf("Corrosion replication lag detected, retrying... (error: %s)", stderr)
 				assert.Fail(c, "Corrosion replication lag, retrying...")
 			} else {
-				// If it's a different error, fail immediately
-				f.Fatalf("deploy failed with unexpected error: %s", stderr)
+				// Log the unexpected error and fail without retrying
+				t.Logf("Deploy failed with unexpected error (will not retry): %s", stderr)
+				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
 			}
 		}
-	}, 30*time.Second, 5*time.Second, "deploy should succeed after Corrosion replication")
+	}, 30*time.Second, 5*time.Second, "deploy should succeed after Corrosion replication, last error: %s", lastError)
 
 	assertHostDistribution(t, f, appName, 2)
 }
