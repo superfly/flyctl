@@ -43,14 +43,6 @@ jobs:
       - name: Set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
-      - name: Generate go test slice
-        id: test_split
-        uses: hashicorp-forge/go-test-split-action@v1
-        with:
-          total: ${{ matrix.parallelism }}
-          index: ${{ matrix.index }}
-          packages: ./test/preflight/...
-          flags: --tags=integration
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
       - uses: actions/download-artifact@v6
         id: download-flyctl
