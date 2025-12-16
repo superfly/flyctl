@@ -66,11 +66,9 @@ CMD ["/bin/sleep", "inf"]
 		result := f.Fly("console -a %s --dockerfile %s", appName, dockerfile)
 		assert.Contains(t, result.StdOutString(), targetOutput, "console_command is still used")
 
-		// TODO: Known issue - fly console --dockerfile --command doesn't execute the command
-		// The command builds the image and connects but doesn't run the specified command
 		// Because of the dockerfile, the image here is Alpine.
-		// result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
-		// assert.Contains(t, result.StdOutString(), "ID=alpine")
+		result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
+		assert.Contains(t, result.StdOutString(), "ID=alpine")
 	})
 
 	// All the tests above make ephemeral machines. They should be gone eventually.
