@@ -63,6 +63,22 @@ func (f *FlyctlTestEnv) OtherRegions() []string {
 	return f.otherRegions
 }
 
+// SkipIfCannotCreateDeployTokens skips the test if the current authentication
+// token cannot create deploy tokens (e.g., it's a limited access token).
+// Deploy token creation requires a user token, not a limited access token.
+func (f *FlyctlTestEnv) SkipIfCannotCreateDeployTokens() {
+	authInfo := f.FlyAllowExitFailure("auth whoami")
+	if authInfo.ExitCode() != 0 {
+		f.t.Skip("Cannot determine auth type, skipping deploy token test")
+		return
+	}
+
+	authOutput := authInfo.StdOutString()
+	if strings.Contains(authOutput, "@tokens.fly.io") {
+		f.t.Skip("Deploy token tests require a user token, but current auth is a limited access token")
+	}
+}
+
 // Great name I know
 func NewTestEnvFromEnvWithEnv(t testing.TB, envVariables map[string]string) *FlyctlTestEnv {
 	tempDir := socketSafeTempDir(t)

@@ -95,13 +95,10 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
-
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
 
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOutString())
@@ -110,6 +107,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -119,11 +117,6 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
   entrypoint = "/bin/false"
 `
 	f.WriteFlyToml("%s", appConfig)
-
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
 
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOutString())
@@ -135,6 +128,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -144,11 +138,6 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
   release_command = "/bin/false"
 `
 	f.WriteFlyToml("%s", appConfig)
-
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
 
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
@@ -342,6 +331,8 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 
 func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -353,11 +344,6 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
-
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
 	deployRes := f.Fly("deploy --buildkit --remote-only")
@@ -367,6 +353,8 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 
 func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -378,11 +366,6 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
-
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
 	deployRes := f.Fly("deploy --buildkit --remote-only")
@@ -392,6 +375,8 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -403,11 +388,6 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
-
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
 	deployRes := f.Fly("deploy --buildkit --remote-only")
@@ -417,14 +397,11 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 
 func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.SkipIfCannotCreateDeployTokens()
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
-
-	// Log authentication context before creating deploy token
-	f.Logf("Creating deploy token for org: %s, app: %s", f.OrgSlug(), appName)
-	authInfo := f.Fly("auth whoami")
-	f.Logf("Current auth context: %s", authInfo.StdOutString())
 
 	tokenResult := f.Fly("tokens deploy")
 	f.OverrideAuthAccessToken(tokenResult.StdOutString())
