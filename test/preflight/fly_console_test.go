@@ -34,10 +34,23 @@ console_command = "/bin/echo '%s'"
 		appName, f.PrimaryRegion(), targetOutput,
 	)
 
-	f.Fly("deploy --ha=false")
+	deployResult := f.Fly("deploy --buildkit --remote-only --ha=false")
+	f.Logf("Deploy output: %s", deployResult.StdOutString())
+	f.Logf("Deploy stderr: %s", deployResult.StdErrString())
+
+	// Wait for machine to be started and ready
+	require.EventuallyWithT(f, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 1, len(ml), "should have 1 machine")
+		if len(ml) > 0 {
+			assert.Equal(c, "started", ml[0].State, "machine should be started")
+		}
+	}, 60*time.Second, 2*time.Second, "machine should be started before running console")
 
 	t.Run("console_command", func(t *testing.T) {
 		result := f.Fly("console")
+		f.Logf("Console output: %s", result.StdOutString())
+		f.Logf("Console stderr: %s", result.StdErrString())
 		output := result.StdOutString()
 		require.Contains(f, output, targetOutput)
 	})
@@ -54,7 +67,9 @@ CMD ["/bin/sleep", "inf"]
 		assert.Contains(t, result.StdOutString(), targetOutput, "console_command is still used")
 
 		// Because of the dockerfile, the image here is Alpine.
-		result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
+		result = f.Fly("console -a %s --dockerfile %s -C 'cat /etc/os-release'", appName, dockerfile)
+		f.Logf("Console dockerfile output: %s", result.StdOutString())
+		f.Logf("Console dockerfile stderr: %s", result.StdErrString())
 		assert.Contains(t, result.StdOutString(), "ID=alpine")
 	})
 
