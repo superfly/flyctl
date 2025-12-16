@@ -56,7 +56,8 @@ jobs:
       - name: Run preflight tests
         id: preflight
         env:
-          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          # Use user token if available (required for deploy token tests), otherwise fall back to limited token
+          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN || secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: 'true'

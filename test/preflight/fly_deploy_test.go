@@ -95,8 +95,6 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
-
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 
@@ -107,7 +105,6 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -128,7 +125,6 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -331,7 +327,6 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 
 func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -353,7 +348,6 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 
 func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -375,7 +369,6 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -397,7 +390,6 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 
 func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	f.SkipIfCannotCreateDeployTokens()
 
 	appName := f.CreateRandomAppName()
 
