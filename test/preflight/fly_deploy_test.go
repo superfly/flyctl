@@ -108,6 +108,9 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 				t.Logf("Deploy failed with unexpected error (will not retry): %s", stderr)
 				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
 			}
+		} else {
+			// Explicitly assert success so EventuallyWithT knows we passed
+			assert.True(c, true, "deploy succeeded")
 		}
 	}, 30*time.Second, 5*time.Second, "deploy should succeed after Corrosion replication, last error: %s", lastError)
 
