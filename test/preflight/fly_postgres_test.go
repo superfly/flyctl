@@ -140,10 +140,37 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 	appName := f.CreateRandomAppName()
 
-	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1",
-		f.OrgSlug(), appName, f.PrimaryRegion(),
-	)
+	// Retry pg create up to 3 times due to transient volume provisioning issues
+	var pgCreateErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		result := f.FlyAllowExitFailure(
+			"pg create --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1",
+			f.OrgSlug(), appName, f.PrimaryRegion(),
+		)
+
+		if result.ExitCode() == 0 {
+			// Success!
+			pgCreateErr = nil
+			break
+		}
+
+		pgCreateErr = fmt.Errorf("pg create failed (attempt %d/3): %s", attempt, result.StdErrString())
+
+		// If this was a volume-related error and we have retries left, clean up and retry
+		if strings.Contains(result.StdErrString(), "volume not found") && attempt < 3 {
+			f.Logf("Volume provisioning failed (attempt %d/3), retrying...", attempt)
+			// Clean up the partially created app before retrying
+			f.FlyAllowExitFailure("apps destroy %s --yes", appName)
+			time.Sleep(5 * time.Second) // Give the platform time to clean up
+		} else if attempt < 3 {
+			// Other error, still retry but don't clean up
+			f.Logf("pg create failed (attempt %d/3): %v, retrying...", attempt, result.StdErrString())
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	require.NoError(f, pgCreateErr, "pg create failed after 3 attempts")
+
 	f.Fly("status -a %s", appName)
 	f.Fly("config save -a %s", appName)
 	ml := f.MachinesList(appName)
