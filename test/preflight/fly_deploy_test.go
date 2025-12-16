@@ -86,7 +86,7 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 
 	// Create the app without deploying to avoid the Corrosion replication race
 	f.Fly(
-		"launch --org %s --name %s --region %s --image nginx --internal-port 80",
+		"launch --org %s --name %s --region %s --image nginx --internal-port 80 --no-deploy",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
