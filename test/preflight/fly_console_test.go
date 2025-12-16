@@ -67,7 +67,9 @@ CMD ["/bin/sleep", "inf"]
 		assert.Contains(t, result.StdOutString(), targetOutput, "console_command is still used")
 
 		// Because of the dockerfile, the image here is Alpine.
-		result = f.Fly("console -a %s --dockerfile %s --command 'cat /etc/os-release'", appName, dockerfile)
+		result = f.Fly("console -a %s --dockerfile %s -C 'cat /etc/os-release'", appName, dockerfile)
+		f.Logf("Console dockerfile output: %s", result.StdOutString())
+		f.Logf("Console dockerfile stderr: %s", result.StdErrString())
 		assert.Contains(t, result.StdOutString(), "ID=alpine")
 	})
 
