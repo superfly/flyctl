@@ -4,7 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/fly-go/flaps"
@@ -270,17 +275,73 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
+// downloadDockerfileFromURL downloads a Dockerfile from a URL to a temporary file
+func downloadDockerfileFromURL(ctx context.Context, dockerfileURL string) (tempPath string, err error) {
+	// Create a temporary file for the Dockerfile
+	tempFile, err := os.CreateTemp("", "dockerfile-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer tempFile.Close()
+
+	// Download the Dockerfile
+	resp, err := http.Get(dockerfileURL)
+	if err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to download Dockerfile from %s: %w", dockerfileURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to download Dockerfile from %s: HTTP %d", dockerfileURL, resp.StatusCode)
+	}
+
+	// Copy the content to the temporary file
+	_, err = io.Copy(tempFile, resp.Body)
+	if err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to write Dockerfile to temporary file: %w", err)
+	}
+
+	return tempFile.Name(), nil
+}
+
+// isURL checks if a string is a valid HTTP or HTTPS URL
+func isURL(path string) bool {
+	if !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://") {
+		return false
+	}
+	parsed, err := url.Parse(path)
+	if err != nil {
+		return false
+	}
+	// Ensure the URL has a host
+	return parsed.Host != ""
+}
+
 // resolveDockerfilePath returns the absolute path to the Dockerfile
 // if one was specified in the app config or a command line argument
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
 	defer func() {
-		if err == nil && path != "" {
+		if err == nil && path != "" && !isURL(path) {
 			path, err = filepath.Abs(path)
 		}
 	}()
 
 	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		// Check if the path is a URL
+		if isURL(path) {
+			// Download the Dockerfile from the URL
+			tempPath, downloadErr := downloadDockerfileFromURL(ctx, path)
+			if downloadErr != nil {
+				return "", fmt.Errorf("failed to download Dockerfile from URL %s: %w", path, downloadErr)
+			}
+			path = tempPath
+		} else {
+			// Treat as local path relative to the config file
+			path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		}
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
 	}
