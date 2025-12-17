@@ -175,7 +175,12 @@ ENV PREFLIGHT_TEST=true`)
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
+		// Use FlyAllowExitFailure to handle transient WireGuard API failures (HTTP 500)
+		sshResult := f.FlyAllowExitFailure("ssh console -C 'printenv PREFLIGHT_TEST'")
+		if sshResult.ExitCode() != 0 {
+			assert.Fail(c, "ssh command failed, will retry", "exit code: %d, stderr: %s", sshResult.ExitCode(), sshResult.StdErrString())
+			return
+		}
 		assert.Equal(c, "true", strings.TrimSpace(sshResult.StdOutString()), "expected PREFLIGHT_TEST env var to be set in machine")
 	}, 30*time.Second, 2*time.Second)
 }
