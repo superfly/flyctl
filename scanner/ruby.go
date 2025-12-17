@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -23,6 +24,8 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	if err != nil {
 		return nil, errors.Wrap(err, "failure extracting Ruby version")
 	}
+
+	s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: rubyVersion}
 
 	vars := make(map[string]interface{})
 	vars["rubyVersion"] = rubyVersion
