@@ -299,7 +299,29 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 	appName := f.CreateRandomAppName()
-	f.Fly("apps create %s --org %s --machines", appName, f.orgSlug).AssertSuccessfulExit()
+
+	// Retry app creation to handle intermittent authorization issues
+	// Related to LimitedAccessTokenConnection latency
+	const maxAttempts = 3
+	var result *FlyctlResult
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result = f.FlyAllowExitFailure("apps create %s --org %s --machines", appName, f.orgSlug)
+		if result.ExitCode() == 0 {
+			break
+		}
+
+		// Allow retry for authorization errors (LimitedAccessTokenConnection latency)
+		stderr := result.StdErrString()
+		if !strings.Contains(stderr, "Not authorized") && !strings.Contains(stderr, "LimitedAccessTokenConnection") {
+			result.AssertSuccessfulExit()
+		}
+
+		if attempt < maxAttempts {
+			time.Sleep(5 * time.Second)
+		}
+	}
+	result.AssertSuccessfulExit()
+
 	return appName
 }
 
