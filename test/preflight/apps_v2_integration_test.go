@@ -128,9 +128,9 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 	appName := f.CreateRandomAppMachines()
 	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
-	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
-	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
-	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName, f.PrimaryRegion())
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName, f.PrimaryRegion())
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx tail -F /dev/null", appName, f.PrimaryRegion())
 	f.Fly("m list -a %s", appName)
 	result := f.Fly("config save -a %s", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
@@ -151,7 +151,7 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 	appName := f.CreateRandomAppMachines()
 	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
-	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx tail -F /dev/null", appName, f.PrimaryRegion())
 	if _, err := os.Stat(configFilePath); !errors.Is(err, os.ErrNotExist) {
 		f.Fatalf("config file exists at %s :-(", configFilePath)
 	}

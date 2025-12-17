@@ -279,7 +279,22 @@ func (f *FlyctlTestEnv) verifyTestOrgExists() {
 	result.AssertSuccessfulExit()
 	var orgMap map[string]string
 	result.StdOutJSON(&orgMap)
-	if _, present := orgMap[f.orgSlug]; !present {
+
+	// Check if org exists as a key (old format) or as a value (new format)
+	found := false
+	if _, present := orgMap[f.orgSlug]; present {
+		found = true
+	} else {
+		// Check values for org slug (handles {"personal": "flyctl-ci-preflight"} format)
+		for _, v := range orgMap {
+			if v == f.orgSlug {
+				found = true
+				break
+			}
+		}
+	}
+
+	if !found {
 		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
 }
