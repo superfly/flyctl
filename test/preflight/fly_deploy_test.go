@@ -397,6 +397,10 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 // }
 
 func TestDeployManifest(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping in short mode: test suite approaches 15m timeout with this test included")
+	}
+
 	f := testlib.NewTestEnvFromEnv(t)
 
 	appName := f.CreateRandomAppName()
