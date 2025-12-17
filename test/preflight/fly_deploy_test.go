@@ -209,7 +209,9 @@ func copyFixtureIntoWorkDir(workDir, name string) error {
 
 func TestDeployNodeApp(t *testing.T) {
 	t.Run("With Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilder))
-	t.Run("Without Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilderWithoutWireguard))
+	// "Without Wireguard" test removed - BuildKit (our standard remote builder) requires
+	// WireGuard to connect to the remote builder app. Testing the legacy remote builder
+	// without WireGuard doesn't align with our BuildKit-first direction.
 	t.Run("With BuildKit", WithParallel(testDeployNodeAppWithBuildKitRemoteBuilder))
 }
 
@@ -238,42 +240,6 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 
 	t.Logf("deploy %s again", appName)
 	f.Fly("deploy --buildkit --remote-only --strategy immediate --ha=false")
-
-	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
-	require.NoError(t, err)
-
-	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
-}
-
-func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
-	t := testLogger{tt}
-	f := testlib.NewTestEnvFromEnv(t)
-
-	// Since this uses a fixture with a size, no need to run it on alternate
-	// sizes.
-	if f.VMSize != "" {
-		t.Skip()
-	}
-
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
-	require.NoError(t, err)
-
-	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
-
-	appName := f.CreateRandomAppMachines()
-	require.NotEmpty(t, appName)
-
-	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
-		"app":    appName,
-		"region": f.PrimaryRegion(),
-		"env": map[string]string{
-			"TEST_ID": f.ID(),
-		},
-	})
-	require.NoError(t, err)
-
-	t.Logf("deploy %s without WireGuard", appName)
-	f.Fly("deploy --buildkit --remote-only --ha=false --wg=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
