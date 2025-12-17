@@ -456,6 +456,9 @@ func TestDeploy(t *testing.T) {
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping in short mode: test suite approaches 15m timeout with this test included")
+		}
 		t.Parallel()
 		// Dockerfiles explicitly use BuildKit with remote building
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"), "--buildkit --remote-only")
