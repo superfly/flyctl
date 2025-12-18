@@ -76,6 +76,9 @@ type Client struct {
 	GetOrganizationRemoteBuilderBySlugFunc func(ctx context.Context, slug string) (*fly.Organization, error)
 	GetOrganizationByAppFunc               func(ctx context.Context, appName string) (*fly.Organization, error)
 	GetOrganizationsFunc                   func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
+	GetAllowedReplaySourceOrgSlugsFunc     func(ctx context.Context, slug string) ([]string, error)
+	AddAllowedReplaySourceOrgsFunc         func(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error)
+	RemoveAllowedReplaySourceOrgsFunc      func(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error)
 	GetSnapshotsFromVolumeFunc             func(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
 	GetWireGuardPeerFunc                   func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeersFunc                  func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
@@ -349,6 +352,18 @@ func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly
 
 func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
 	return m.GetOrganizationsFunc(ctx, filters...)
+}
+
+func (m *Client) GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error) {
+	return m.GetAllowedReplaySourceOrgSlugsFunc(ctx, slug)
+}
+
+func (m *Client) AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error) {
+	return m.AddAllowedReplaySourceOrgsFunc(ctx, orgSlug, sourceOrgSlugs)
+}
+
+func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error) {
+	return m.RemoveAllowedReplaySourceOrgsFunc(ctx, orgSlug, orgSlugsToRemove)
 }
 
 func (m *Client) GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error) {
