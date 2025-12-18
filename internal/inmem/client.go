@@ -320,6 +320,18 @@ func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.Organizati
 	panic("TODO")
 }
 
+func (m *Client) GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error) {
+	panic("TODO")
+}
+
+func (m *Client) AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error) {
 	panic("TODO")
 }
