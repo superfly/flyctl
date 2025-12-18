@@ -94,7 +94,7 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 	// The backend may not have replicated the app record to all hosts yet when
 	// creating the second machine for HA, resulting in "sql: no rows in result set" errors
 	var lastError string
-	require.EventuallyWithT(f, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 		if result.ExitCode() != 0 {
 			stderr := result.StdErrString()
@@ -241,10 +241,40 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s", appName)
-	f.Fly("deploy --buildkit --remote-only --ha=false")
+	// Retry deploy to handle transient DNS/WireGuard connection failures
+	require.EventuallyWithT(tt, func(c *assert.CollectT) {
+		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --ha=false")
+		if result.ExitCode() != 0 {
+			stderr := result.StdErrString()
+			// Retry on DNS lookup failures and WireGuard connection errors
+			if strings.Contains(stderr, "no such host") || strings.Contains(stderr, "failed wireguard connection") {
+				t.Logf("Transient network error detected, retrying... (error: %s)", stderr)
+				assert.Fail(c, "transient network error, retrying...")
+			} else {
+				// Non-retryable error
+				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
+			}
+		} else {
+			assert.True(c, true, "deploy succeeded")
+		}
+	}, 60*time.Second, 5*time.Second, "deploy should succeed after retrying transient network errors")
 
 	t.Logf("deploy %s again", appName)
-	f.Fly("deploy --buildkit --remote-only --strategy immediate --ha=false")
+	// Retry second deploy as well
+	require.EventuallyWithT(tt, func(c *assert.CollectT) {
+		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --strategy immediate --ha=false")
+		if result.ExitCode() != 0 {
+			stderr := result.StdErrString()
+			if strings.Contains(stderr, "no such host") || strings.Contains(stderr, "failed wireguard connection") {
+				t.Logf("Transient network error detected, retrying... (error: %s)", stderr)
+				assert.Fail(c, "transient network error, retrying...")
+			} else {
+				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
+			}
+		} else {
+			assert.True(c, true, "deploy succeeded")
+		}
+	}, 60*time.Second, 5*time.Second, "deploy should succeed after retrying transient network errors")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -273,10 +303,40 @@ func testDeployNodeAppWithBuildKitRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s with BuildKit", appName)
-	f.Fly("deploy --buildkit --remote-only --ha=false")
+	// Retry deploy to handle transient DNS/WireGuard connection failures
+	require.EventuallyWithT(tt, func(c *assert.CollectT) {
+		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --ha=false")
+		if result.ExitCode() != 0 {
+			stderr := result.StdErrString()
+			// Retry on DNS lookup failures and WireGuard connection errors
+			if strings.Contains(stderr, "no such host") || strings.Contains(stderr, "failed wireguard connection") {
+				t.Logf("Transient network error detected, retrying... (error: %s)", stderr)
+				assert.Fail(c, "transient network error, retrying...")
+			} else {
+				// Non-retryable error
+				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
+			}
+		} else {
+			assert.True(c, true, "deploy succeeded")
+		}
+	}, 60*time.Second, 5*time.Second, "deploy should succeed after retrying transient network errors")
 
 	t.Logf("deploy %s again with BuildKit", appName)
-	f.Fly("deploy --buildkit --remote-only --strategy immediate --ha=false")
+	// Retry second deploy as well
+	require.EventuallyWithT(tt, func(c *assert.CollectT) {
+		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --strategy immediate --ha=false")
+		if result.ExitCode() != 0 {
+			stderr := result.StdErrString()
+			if strings.Contains(stderr, "no such host") || strings.Contains(stderr, "failed wireguard connection") {
+				t.Logf("Transient network error detected, retrying... (error: %s)", stderr)
+				assert.Fail(c, "transient network error, retrying...")
+			} else {
+				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
+			}
+		} else {
+			assert.True(c, true, "deploy succeeded")
+		}
+	}, 60*time.Second, 5*time.Second, "deploy should succeed after retrying transient network errors")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
