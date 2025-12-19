@@ -231,7 +231,11 @@ func runConsole(ctx context.Context) error {
 		consoleCommand = flag.GetString(ctx, "command")
 	}
 
-	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
+	// Allocate PTY only when no command is specified or when explicitly requested
+	// This matches the behavior of `fly ssh console`
+	allocPTY := consoleCommand == "" || flag.GetBool(ctx, "pty")
+
+	return ssh.Console(ctx, sshClient, consoleCommand, allocPTY, params.Container)
 }
 
 func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
