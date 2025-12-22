@@ -320,7 +320,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Schedule for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"hourly", "daily", "monthly"},
+				Enum:        []string{"hourly", "daily", "weekly", "monthly"},
 			},
 			"skip-dns-registration": {
 				Description: "Skip DNS registration for the new machine",
@@ -997,7 +997,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Schedule for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"hourly", "daily", "monthly"},
+				Enum:        []string{"hourly", "daily", "weekly", "monthly"},
 			},
 			"skip-dns-registration": {
 				Description: "Skip DNS registration for the new machine",
@@ -1488,7 +1488,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Schedule for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"hourly", "daily", "monthly"},
+				Enum:        []string{"hourly", "daily", "weekly", "monthly"},
 			},
 			"skip-dns-registration": {
 				Description: "Skip DNS registration for the new machine",
