@@ -202,7 +202,7 @@ func runCertificatesAdd(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "\nOnce your DNS is configured correctly, we will automatically provision your certificate.\n")
-	fmt.Fprintf(io.Out, "Run %s to check the progress.\n", colorize.Bold("fly certs check "+hostname))
+	fmt.Fprintf(io.Out, "To check progress, run: %s\n", colorize.Bold(fmt.Sprintf("fly certs check '%s'", hostname)))
 
 	return nil
 }
