@@ -109,7 +109,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "schedule",
-		Description: `Schedule a Machine run at hourly, daily and monthly intervals`,
+		Description: `Schedule a Machine run at hourly, daily, weekly and monthly intervals`,
 	},
 	flag.Bool{
 		Name:        "skip-dns-registration",
