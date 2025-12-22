@@ -41,7 +41,7 @@ jobs:
           packages: ./test/preflight/...
           flags: --tags=integration
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         id: download-flyctl
         with:
           name: flyctl
