@@ -107,7 +107,9 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
 		if err == nil {
-			err = fmt.Errorf("failed to set final release status: %w", updateErr)
+			// Deployment succeeded, but we couldn't update the release status
+			// This is not critical enough to fail the entire deployment
+			terminal.Warnf("failed to set final release status after successful deployment: %v\n", updateErr)
 		} else {
 			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
 		}

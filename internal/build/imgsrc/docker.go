@@ -301,6 +301,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 	if !connectOverWireguard && !wglessCompatible {
 		client := &http.Client{
+			Timeout: 30 * time.Second, // Add timeout for each request
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					return tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", app.Name), &tls.Config{})
@@ -322,9 +323,29 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 		fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("👀 checking remote builder compatibility with wireguardless deploys ..."))
 		span.AddEvent("checking remote builder compatibility with wireguardless deploys")
 
-		res, err := client.Do(req)
+		// Retry with backoff to allow DNS propagation time
+		var res *http.Response
+		b := &backoff.Backoff{
+			Min:    2 * time.Second,
+			Max:    30 * time.Second,
+			Factor: 2,
+			Jitter: true,
+		}
+		maxRetries := 10 // Up to ~5 minutes total with backoff
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			res, err = client.Do(req)
+			if err == nil {
+				break
+			}
+
+			if attempt < maxRetries-1 {
+				dur := b.Duration()
+				terminal.Debugf("Remote builder compatibility check failed (attempt %d/%d), retrying in %s (err: %v)\n", attempt+1, maxRetries, dur, err)
+				pause.For(ctx, dur)
+			}
+		}
 		if err != nil {
-			tracing.RecordError(span, err, "failed to get remote builder settings")
+			tracing.RecordError(span, err, "failed to get remote builder settings after retries")
 			return nil, err
 		}
 
@@ -594,7 +615,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 }
 
 func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool, err error) {
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Minute) // 5 minutes for daemon to become responsive (includes DNS propagation time)
 	defer cancel()
 
 	b := &backoff.Backoff{

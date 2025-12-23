@@ -531,7 +531,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		return nil, nil, retErr
 	}
 
-	retErr = flapsClient.Wait(ctx, builderName, mach, "started", 60*time.Second)
+	retErr = flapsClient.Wait(ctx, builderName, mach, "started", 180*time.Second) // 3 minutes for machine start + DNS propagation
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
 		return nil, nil, retErr
@@ -582,7 +582,7 @@ func restartBuilderMachine(ctx context.Context, appName string, builderMachine *
 		return err
 	}
 
-	if err := flapsClient.Wait(ctx, appName, builderMachine, "started", time.Second*60); err != nil {
+	if err := flapsClient.Wait(ctx, appName, builderMachine, "started", time.Second*180); err != nil { // 3 minutes for restart + DNS propagation
 		tracing.RecordError(span, err, "error waiting for builder machine to start")
 		return err
 	}

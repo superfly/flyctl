@@ -317,14 +317,15 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 		delete(mConfig.Env, "FLY_STANDBY_FOR")
 
 		for region, delta := range regionDiffs {
+			existingMachinesInRegion := perRegionMachines[region]
 			actions = append(actions, &planItem{
 				GroupName:           groupName,
 				Region:              region,
 				Delta:               delta,
-				Machines:            perRegionMachines[region],
+				Machines:            existingMachinesInRegion,
 				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
-				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
+				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta, len(existingMachinesInRegion)),
 			})
 		}
 	}
@@ -352,7 +353,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 				Delta:               delta,
 				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
-				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
+				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta, 0), // No existing machines for new groups
 			})
 		}
 	}

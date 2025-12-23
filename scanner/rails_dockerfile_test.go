@@ -46,13 +46,8 @@ CMD ["rails", "server"]
 		err = os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(customDockerfile), 0644)
 		require.NoError(t, err)
 
-		// Change to test directory
-		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
-		err = os.Chdir(dir)
-		require.NoError(t, err)
-
 		// Run the scanner - it should detect the Rails app
+		// No need to change directories, configureRails accepts a directory path
 		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 
@@ -89,11 +84,7 @@ CMD ["rails", "server"]`
 		err = os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(customDockerfile), 0644)
 		require.NoError(t, err)
 
-		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
-		err = os.Chdir(dir)
-		require.NoError(t, err)
-
+		// No need to change directories, configureRails accepts a directory path
 		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
@@ -123,11 +114,7 @@ CMD ["rails", "server"]`
 		err = os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(customDockerfile), 0644)
 		require.NoError(t, err)
 
-		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
-		err = os.Chdir(dir)
-		require.NoError(t, err)
-
+		// No need to change directories, configureRails accepts a directory path
 		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)
@@ -150,12 +137,8 @@ CMD ["rails", "server"]`
 
 		// Note: No Dockerfile created
 
-		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
-		err = os.Chdir(dir)
-		require.NoError(t, err)
-
 		// This test would need bundle to not be available, which is hard to simulate
+		// No need to change directories, configureRails accepts a directory path
 		// The scanner will either find bundle (and try to use it) or not find it
 		// If bundle is not found and no Dockerfile exists, it should fail
 
@@ -199,11 +182,7 @@ EXPOSE 3000`
 		err = os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(customDockerfile), 0644)
 		require.NoError(t, err)
 
-		originalDir, _ := os.Getwd()
-		defer os.Chdir(originalDir)
-		err = os.Chdir(dir)
-		require.NoError(t, err)
-
+		// No need to change directories, configureRails accepts a directory path
 		si, err := configureRails(dir, &ScannerConfig{SkipHealthcheck: true})
 		drainHealthcheckChannel() // Wait for goroutine to complete before cleanup
 		require.NoError(t, err)

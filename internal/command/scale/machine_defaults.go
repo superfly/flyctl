@@ -118,17 +118,23 @@ func (d *defaultValues) PopAvailableVolumes(mConfig *fly.MachineConfig, region s
 	return availableVolumes
 }
 
-func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region string, delta int) *fly.CreateVolumeRequest {
+func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region string, delta int, existingMachineCount int) *fly.CreateVolumeRequest {
 	if len(mConfig.Mounts) == 0 || delta <= 0 {
 		return nil
 	}
 	mount := mConfig.Mounts[0]
+
+	// Enable RequireUniqueZone for HA scenarios (when total machines in region > 1)
+	// This ensures volumes (and their attached machines) are distributed across different hosts
+	totalMachinesInRegion := existingMachineCount + delta
+	requireUniqueZone := totalMachinesInRegion > 1
+
 	return &fly.CreateVolumeRequest{
 		Name:                mount.Name,
 		Region:              region,
 		SizeGb:              &mount.SizeGb,
 		Encrypted:           fly.Pointer(mount.Encrypted),
-		RequireUniqueZone:   fly.Pointer(false),
+		RequireUniqueZone:   fly.Pointer(requireUniqueZone),
 		SnapshotID:          d.snapshotID,
 		ComputeRequirements: mConfig.Guest,
 		ComputeImage:        mConfig.Image,
