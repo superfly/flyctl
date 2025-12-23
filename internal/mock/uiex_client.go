@@ -31,6 +31,7 @@ type UiexClient struct {
 	ListManagedClusterBackupsFunc          func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
 	CreateManagedClusterBackupFunc         func(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
 	RestoreManagedClusterBackupFunc        func(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
+	CreateAttachmentFunc                   func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error)
 	CreateBuildFunc                        func(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error)
 	FinishBuildFunc                        func(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error)
 	EnsureDepotBuilderFunc                 func(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error)
@@ -236,4 +237,11 @@ func (m *UiexClient) RestoreManagedClusterBackup(ctx context.Context, clusterID 
 		return m.RestoreManagedClusterBackupFunc(ctx, clusterID, input)
 	}
 	return uiex.RestoreManagedClusterBackupResponse{}, nil
+}
+
+func (m *UiexClient) CreateAttachment(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+	if m.CreateAttachmentFunc != nil {
+		return m.CreateAttachmentFunc(ctx, clusterId, input)
+	}
+	return uiex.CreateAttachmentResponse{}, nil
 }
