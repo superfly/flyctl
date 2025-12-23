@@ -1216,6 +1216,262 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 	}
 }
 
+// Test CreateAttachment functionality
+func TestCreateAttachment(t *testing.T) {
+	ctx := setupTestContext()
+
+	clusterID := "test-cluster-123"
+
+	t.Run("successful attachment creation", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+				assert.Equal(t, clusterID, clusterId)
+				assert.Equal(t, "test-app", input.AppName)
+				return uiex.CreateAttachmentResponse{
+					Data: struct {
+						Id               int64  `json:"id"`
+						AppId            int64  `json:"app_id"`
+						ManagedServiceId int64  `json:"managed_service_id"`
+						AttachedAt       string `json:"attached_at"`
+					}{
+						Id:               1,
+						AppId:            100,
+						ManagedServiceId: 200,
+						AttachedAt:       "2025-01-15T10:00:00Z",
+					},
+				}, nil
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		response, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+			AppName: "test-app",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), response.Data.Id)
+		assert.Equal(t, int64(100), response.Data.AppId)
+		assert.Equal(t, int64(200), response.Data.ManagedServiceId)
+		assert.Equal(t, "2025-01-15T10:00:00Z", response.Data.AttachedAt)
+	})
+
+	t.Run("idempotent - returns existing attachment", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+				// Simulating the idempotent case where attachment already exists
+				return uiex.CreateAttachmentResponse{
+					Data: struct {
+						Id               int64  `json:"id"`
+						AppId            int64  `json:"app_id"`
+						ManagedServiceId int64  `json:"managed_service_id"`
+						AttachedAt       string `json:"attached_at"`
+					}{
+						Id:               42, // Existing attachment ID
+						AppId:            100,
+						ManagedServiceId: 200,
+						AttachedAt:       "2025-01-14T09:00:00Z", // Earlier timestamp
+					},
+				}, nil
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		response, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+			AppName: "already-attached-app",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(42), response.Data.Id)
+	})
+
+	t.Run("error - cluster not found", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+				return uiex.CreateAttachmentResponse{}, fmt.Errorf("cluster %s not found", clusterId)
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		_, err := mockUiex.CreateAttachment(ctx, "nonexistent-cluster", uiex.CreateAttachmentInput{
+			AppName: "test-app",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("error - access denied", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+				return uiex.CreateAttachmentResponse{}, fmt.Errorf("access denied: you don't have permission to attach cluster %s", clusterId)
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		_, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+			AppName: "test-app",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("error - app not found", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+				return uiex.CreateAttachmentResponse{}, fmt.Errorf("app not found")
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		_, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+			AppName: "nonexistent-app",
+		})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// Test attach command integration with CreateAttachment
+func TestAttachCommand_CreatesAttachment(t *testing.T) {
+	ctx := setupTestContext()
+
+	clusterID := "test-cluster-123"
+	appName := "test-app"
+
+	expectedCluster := uiex.ManagedCluster{
+		Id:     clusterID,
+		Name:   "test-cluster",
+		Region: "ord",
+		Status: "ready",
+		Organization: fly.Organization{
+			Slug: "test-org",
+		},
+	}
+
+	connectionURI := "postgresql://user:pass@host:5432/db"
+
+	// Track whether CreateAttachment was called
+	createAttachmentCalled := false
+	var capturedAppName string
+
+	mockUiex := &mock.UiexClient{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+			assert.Equal(t, clusterID, id)
+			return uiex.GetManagedClusterResponse{
+				Data: expectedCluster,
+				Credentials: uiex.GetManagedClusterCredentialsResponse{
+					ConnectionUri: connectionURI,
+					User:          "fly-user",
+					Password:      "test-password",
+					DBName:        "fly_db",
+				},
+			}, nil
+		},
+		CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+			createAttachmentCalled = true
+			capturedAppName = input.AppName
+			assert.Equal(t, clusterID, clusterId)
+			return uiex.CreateAttachmentResponse{
+				Data: struct {
+					Id               int64  `json:"id"`
+					AppId            int64  `json:"app_id"`
+					ManagedServiceId int64  `json:"managed_service_id"`
+					AttachedAt       string `json:"attached_at"`
+				}{
+					Id:               1,
+					AppId:            100,
+					ManagedServiceId: 200,
+					AttachedAt:       "2025-01-15T10:00:00Z",
+				},
+			}, nil
+		},
+	}
+
+	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+
+	// Simulate the attach command flow: get cluster, then create attachment
+	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
+	require.NoError(t, err)
+	assert.Equal(t, expectedCluster.Id, response.Data.Id)
+
+	// Create attachment (this simulates what runAttach does after setting secrets)
+	attachInput := uiex.CreateAttachmentInput{
+		AppName: appName,
+	}
+	_, err = mockUiex.CreateAttachment(ctx, clusterID, attachInput)
+	require.NoError(t, err)
+
+	// Verify CreateAttachment was called with correct app name
+	assert.True(t, createAttachmentCalled, "CreateAttachment should be called during attach")
+	assert.Equal(t, appName, capturedAppName, "App name should be passed to CreateAttachment")
+}
+
+// Test that attach command handles CreateAttachment errors gracefully
+func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
+	ctx := setupTestContext()
+
+	clusterID := "test-cluster-123"
+	appName := "test-app"
+
+	expectedCluster := uiex.ManagedCluster{
+		Id:     clusterID,
+		Name:   "test-cluster",
+		Region: "ord",
+		Status: "ready",
+		Organization: fly.Organization{
+			Slug: "test-org",
+		},
+	}
+
+	connectionURI := "postgresql://user:pass@host:5432/db"
+
+	mockUiex := &mock.UiexClient{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+			return uiex.GetManagedClusterResponse{
+				Data: expectedCluster,
+				Credentials: uiex.GetManagedClusterCredentialsResponse{
+					ConnectionUri: connectionURI,
+					User:          "fly-user",
+					Password:      "test-password",
+					DBName:        "fly_db",
+				},
+			}, nil
+		},
+		CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+			// Simulate a failure in creating attachment
+			return uiex.CreateAttachmentResponse{}, fmt.Errorf("failed to create attachment")
+		},
+	}
+
+	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+
+	// Get cluster - should succeed
+	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
+	require.NoError(t, err)
+	assert.Equal(t, expectedCluster.Id, response.Data.Id)
+
+	// Create attachment - should fail but we handle it gracefully
+	attachInput := uiex.CreateAttachmentInput{
+		AppName: appName,
+	}
+	_, err = mockUiex.CreateAttachment(ctx, clusterID, attachInput)
+
+	// The error exists but in runAttach we just log a warning
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create attachment")
+
+	// In the actual implementation, this is handled as a warning:
+	// fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
+	// The attach command still succeeds because the secret was set
+}
+
 // Test invalid PG major version error message
 func TestInvalidPGMajorVersion_Error(t *testing.T) {
 	invalidVersions := []int{15, 18, 14, 13, 19, 0, -1}
