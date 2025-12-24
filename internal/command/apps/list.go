@@ -41,6 +41,7 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 	})
 
 	cmd.Aliases = []string{"ls"}
+	cmd.Args = cobra.NoArgs
 	return cmd
 }
 
