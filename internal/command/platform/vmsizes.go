@@ -71,41 +71,35 @@ func runMachineVMSizes(ctx context.Context) error {
 			vmSizes[preset.strings[0]] = preset.guest
 		}
 		return render.JSON(out, vmSizes)
-	} else {
-		// Filter and display shared cpu sizes.
-		shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-			return p.strings, p.guest.CPUKind == "shared" && p.guest.GPUKind == ""
-		})
-		if err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory"); err != nil {
-			return err
-		}
-
-		// Filter and display performance cpu sizes.
-		performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-			return p.strings, p.guest.CPUKind == "performance" && p.guest.GPUKind == ""
-		})
-		if err := render.Table(out, "", performance, "Name", "CPU Cores", "Memory"); err != nil {
-			return err
-		}
-
-		// Filter and display gpu sizes.
-		gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-			return p.strings, p.guest.GPUKind != ""
-		})
-		return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
 	}
+
+	// Filter and display shared cpu sizes.
+	shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+		return p.strings, p.guest.CPUKind == "shared" && p.guest.GPUKind == ""
+	})
+	if err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory"); err != nil {
+		return err
+	}
+
+	// Filter and display performance cpu sizes.
+	performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+		return p.strings, p.guest.CPUKind == "performance" && p.guest.GPUKind == ""
+	})
+	if err := render.Table(out, "", performance, "Name", "CPU Cores", "Memory"); err != nil {
+		return err
+	}
+
+	// Filter and display gpu sizes.
+	gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+		return p.strings, p.guest.GPUKind != ""
+	})
+	return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
 }
 
 func cores(cores int) string {
-	if cores < 1.0 {
-		return fmt.Sprintf("%d", cores)
-	}
 	return fmt.Sprintf("%d", cores)
 }
 
 func memory(size int) string {
-	if size < 1024 {
-		return fmt.Sprintf("%d MB", size)
-	}
-	return fmt.Sprintf("%d GB", size/1024)
+	return fmt.Sprintf("%d MB", size)
 }
