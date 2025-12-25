@@ -281,6 +281,15 @@ func runAttach(ctx context.Context) error {
 		return err
 	}
 
+	// Create attachment record to track the cluster-app relationship
+	attachInput := uiex.CreateAttachmentInput{
+		AppName: appName,
+	}
+	if _, err := uiexClient.CreateAttachment(ctx, cluster.Id, attachInput); err != nil {
+		// Log warning but don't fail - the secret was set successfully
+		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
+	}
+
 	fmt.Fprintf(io.Out, "\nPostgres cluster %s is being attached to %s\n", cluster.Id, appName)
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
 

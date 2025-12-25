@@ -111,6 +111,10 @@ func (m *mockUIEXClient) RestoreManagedClusterBackup(ctx context.Context, cluste
 	return uiex.RestoreManagedClusterBackupResponse{}, nil
 }
 
+func (m *mockUIEXClient) CreateAttachment(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+	return uiex.CreateAttachmentResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
 	return &uiex.BuildResponse{}, nil
 }
