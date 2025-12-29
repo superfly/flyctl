@@ -54,6 +54,11 @@ type RestoreManagedClusterBackupResponse struct {
 	Data ManagedCluster `json:"data"`
 }
 
+type AttachedApp struct {
+	Name string `json:"name"`
+	Id   int64  `json:"id"`
+}
+
 type ManagedCluster struct {
 	Id            string                      `json:"id"`
 	Name          string                      `json:"name"`
@@ -64,6 +69,7 @@ type ManagedCluster struct {
 	Replicas      int                         `json:"replicas"`
 	Organization  fly.Organization            `json:"organization"`
 	IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
+	AttachedApps  []AttachedApp               `json:"attached_apps"`
 }
 
 type ListManagedClustersResponse struct {

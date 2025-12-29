@@ -1486,3 +1486,119 @@ func TestInvalidPGMajorVersion_Error(t *testing.T) {
 		})
 	}
 }
+
+// Test formatAttachedApps function
+func TestFormatAttachedApps(t *testing.T) {
+	tests := []struct {
+		name     string
+		apps     []uiex.AttachedApp
+		expected string
+	}{
+		{
+			name:     "no attached apps",
+			apps:     []uiex.AttachedApp{},
+			expected: "<no attached apps>",
+		},
+		{
+			name:     "nil apps",
+			apps:     nil,
+			expected: "<no attached apps>",
+		},
+		{
+			name: "single app",
+			apps: []uiex.AttachedApp{
+				{Name: "my-web-app", Id: 1},
+			},
+			expected: "my-web-app",
+		},
+		{
+			name: "two apps",
+			apps: []uiex.AttachedApp{
+				{Name: "my-web-app", Id: 1},
+				{Name: "my-api", Id: 2},
+			},
+			expected: "my-web-app, my-api",
+		},
+		{
+			name: "three apps",
+			apps: []uiex.AttachedApp{
+				{Name: "app-one", Id: 1},
+				{Name: "app-two", Id: 2},
+				{Name: "app-three", Id: 3},
+			},
+			expected: "app-one, app-two, app-three",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatAttachedApps(tt.apps)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// Test the list command with attached apps
+func TestListCommand_WithAttachedApps(t *testing.T) {
+	ctx := setupTestContext()
+
+	expectedClusters := []uiex.ManagedCluster{
+		{
+			Id:     "cluster-1",
+			Name:   "test-cluster-1",
+			Region: "ord",
+			Status: "ready",
+			Plan:   "development",
+			Organization: fly.Organization{
+				Slug: "test-org",
+			},
+			AttachedApps: []uiex.AttachedApp{
+				{Name: "web-app", Id: 100},
+				{Name: "api-app", Id: 101},
+			},
+		},
+		{
+			Id:     "cluster-2",
+			Name:   "test-cluster-2",
+			Region: "lax",
+			Status: "ready",
+			Plan:   "production",
+			Organization: fly.Organization{
+				Slug: "test-org",
+			},
+			AttachedApps: []uiex.AttachedApp{}, // No attached apps
+		},
+	}
+
+	mockUiex := &mock.UiexClient{
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
+			assert.Equal(t, "test-org", orgSlug)
+			return uiex.ListManagedClustersResponse{
+				Data: expectedClusters,
+			}, nil
+		},
+	}
+
+	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+
+	// Test successful cluster listing with attached apps
+	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org", false)
+	require.NoError(t, err)
+	assert.Len(t, clusters.Data, 2)
+
+	// Verify first cluster has attached apps
+	assert.Len(t, clusters.Data[0].AttachedApps, 2)
+	assert.Equal(t, "web-app", clusters.Data[0].AttachedApps[0].Name)
+	assert.Equal(t, "api-app", clusters.Data[0].AttachedApps[1].Name)
+
+	// Verify attached apps formatting for first cluster
+	formattedApps := formatAttachedApps(clusters.Data[0].AttachedApps)
+	assert.Equal(t, "web-app, api-app", formattedApps)
+
+	// Verify second cluster has no attached apps
+	assert.Len(t, clusters.Data[1].AttachedApps, 0)
+
+	// Verify attached apps formatting for second cluster (empty)
+	formattedApps = formatAttachedApps(clusters.Data[1].AttachedApps)
+	assert.Equal(t, "<no attached apps>", formattedApps)
+}
