@@ -54,6 +54,11 @@ type RestoreManagedClusterBackupResponse struct {
 	Data ManagedCluster `json:"data"`
 }
 
+type AttachedApp struct {
+	Name string `json:"name"`
+	Id   int64  `json:"id"`
+}
+
 type ManagedCluster struct {
 	Id            string                      `json:"id"`
 	Name          string                      `json:"name"`
@@ -64,6 +69,7 @@ type ManagedCluster struct {
 	Replicas      int                         `json:"replicas"`
 	Organization  fly.Organization            `json:"organization"`
 	IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
+	AttachedApps  []AttachedApp               `json:"attached_apps"`
 }
 
 type ListManagedClustersResponse struct {
@@ -878,5 +884,63 @@ func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) 
 		return fmt.Errorf("access denied: you don't have permission to destroy cluster %s", id)
 	default:
 		return fmt.Errorf("failed to destroy cluster (status %d): %s", res.StatusCode, string(body))
+	}
+}
+
+type CreateAttachmentInput struct {
+	AppName string `json:"app_name"`
+}
+
+type CreateAttachmentResponse struct {
+	Data struct {
+		Id               int64  `json:"id"`
+		AppId            int64  `json:"app_id"`
+		ManagedServiceId int64  `json:"managed_service_id"`
+		AttachedAt       string `json:"attached_at"`
+	} `json:"data"`
+}
+
+// CreateAttachment creates a ManagedServiceAttachment record linking an app to a managed Postgres cluster
+func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input CreateAttachmentInput) (CreateAttachmentResponse, error) {
+	var response CreateAttachmentResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments", c.baseUrl, clusterId)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return response, fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s not found", clusterId)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to attach cluster %s", clusterId)
+	default:
+		return response, fmt.Errorf("failed to create attachment (status %d): %s", res.StatusCode, string(body))
 	}
 }
