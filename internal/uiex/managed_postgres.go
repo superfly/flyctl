@@ -944,3 +944,48 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 		return response, fmt.Errorf("failed to create attachment (status %d): %s", res.StatusCode, string(body))
 	}
 }
+
+type DeleteAttachmentResponse struct {
+	Data struct {
+		Message string `json:"message"`
+	} `json:"data"`
+}
+
+// DeleteAttachment removes a ManagedServiceAttachment record linking an app to a managed Postgres cluster
+func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName string) (DeleteAttachmentResponse, error) {
+	var response DeleteAttachmentResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments/%s", c.baseUrl, clusterId, appName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("attachment not found for app '%s' on cluster %s", appName, clusterId)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to detach from cluster %s", clusterId)
+	default:
+		return response, fmt.Errorf("failed to delete attachment (status %d): %s", res.StatusCode, string(body))
+	}
+}

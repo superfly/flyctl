@@ -115,6 +115,10 @@ func (m *mockUIEXClient) CreateAttachment(ctx context.Context, clusterId string,
 	return uiex.CreateAttachmentResponse{}, nil
 }
 
+func (m *mockUIEXClient) DeleteAttachment(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
+	return uiex.DeleteAttachmentResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
 	return &uiex.BuildResponse{}, nil
 }

@@ -1538,6 +1538,81 @@ func TestFormatAttachedApps(t *testing.T) {
 	}
 }
 
+// Test DeleteAttachment functionality
+func TestDeleteAttachment(t *testing.T) {
+	ctx := setupTestContext()
+
+	clusterID := "test-cluster-123"
+
+	t.Run("successful attachment deletion", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
+				assert.Equal(t, clusterID, clusterId)
+				assert.Equal(t, "test-app", appName)
+				return uiex.DeleteAttachmentResponse{
+					Data: struct {
+						Message string `json:"message"`
+					}{
+						Message: "Attachment deleted successfully",
+					},
+				}, nil
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		response, err := mockUiex.DeleteAttachment(ctx, clusterID, "test-app")
+
+		require.NoError(t, err)
+		assert.Equal(t, "Attachment deleted successfully", response.Data.Message)
+	})
+
+	t.Run("error - attachment not found", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
+				return uiex.DeleteAttachmentResponse{}, fmt.Errorf("attachment not found for app '%s' on cluster %s", appName, clusterId)
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		_, err := mockUiex.DeleteAttachment(ctx, clusterID, "nonexistent-app")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "attachment not found")
+	})
+
+	t.Run("error - access denied", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
+				return uiex.DeleteAttachmentResponse{}, fmt.Errorf("access denied: you don't have permission to detach from cluster %s", clusterId)
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		_, err := mockUiex.DeleteAttachment(ctx, clusterID, "test-app")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("error - cluster not found", func(t *testing.T) {
+		mockUiex := &mock.UiexClient{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
+				return uiex.DeleteAttachmentResponse{}, fmt.Errorf("cluster %s not found", clusterId)
+			},
+		}
+
+		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+
+		_, err := mockUiex.DeleteAttachment(ctx, "nonexistent-cluster", "test-app")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
 // Test the list command with attached apps
 func TestListCommand_WithAttachedApps(t *testing.T) {
 	ctx := setupTestContext()
