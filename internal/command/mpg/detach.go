@@ -31,7 +31,6 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Yes(),
 	)
 
 	return cmd
