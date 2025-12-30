@@ -76,6 +76,7 @@ func New() *cobra.Command {
 		newProxy(),
 		newConnect(),
 		newAttach(),
+		newDetach(),
 		newStatus(),
 		newList(),
 		newCreate(),
