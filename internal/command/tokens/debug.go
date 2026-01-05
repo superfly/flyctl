@@ -24,6 +24,7 @@ func newDebug() *cobra.Command {
 	)
 
 	cmd := command.New(usage, short, long, runDebug)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
 		flag.String{
