@@ -92,8 +92,8 @@ func newAllocatev6() *cobra.Command {
 
 func newAllocateEgress() *cobra.Command {
 	const (
-		long  = `(Beta) Allocates a pair of egress IP addresses for an app`
-		short = `(Beta) Allocate app-scoped egress IPs`
+		long  = `Allocates a pair of egress IP addresses for an app`
+		short = `Allocate app-scoped egress IPs`
 	)
 
 	cmd := command.New("allocate-egress", short, long, runAllocateEgressIPAddresses,

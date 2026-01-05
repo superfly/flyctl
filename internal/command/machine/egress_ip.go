@@ -16,7 +16,7 @@ import (
 
 func newEgressIp() *cobra.Command {
 	const (
-		long  = `Manage static egress (outgoing) IP addresses for machines`
+		long  = `(Deprecated) Manage static egress (outgoing) IP addresses for machines`
 		short = `Manage static egress IPs`
 		usage = "egress-ip <command>"
 	)
@@ -36,7 +36,7 @@ func newEgressIp() *cobra.Command {
 
 func newAllocateEgressIp() *cobra.Command {
 	const (
-		long  = `Allocate a pair of static egress IPv4 and IPv6 for a machine`
+		long  = `(Deprecated) Allocate a pair of static egress IPv4 and IPv6 for a machine`
 		short = `Allocate static egress IPs`
 		usage = "allocate <machine-id>"
 	)
@@ -111,7 +111,8 @@ func runAllocateEgressIP(ctx context.Context) (err error) {
 	)
 
 	if !flag.GetYes(ctx) {
-		msg := `Looks like you're allocating a static egress (outgoing) IP. This is an advanced feature, and is not needed by most apps.
+		msg := `You're allocating a machine-scoped static egress (outgoing) IP.
+This is deprecated, and new apps should use app-scoped egress IPs instead (using the command 'fly ip allocate-egress -r <region>').
 Are you sure this is what you want?`
 
 		switch confirmed, err := prompt.Confirm(ctx, msg); {
