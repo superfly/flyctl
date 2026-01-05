@@ -3,10 +3,12 @@ package mpg
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -95,8 +97,22 @@ func runList(ctx context.Context) error {
 			cluster.Region,
 			cluster.Status,
 			cluster.Plan,
+			formatAttachedApps(cluster.AttachedApps),
 		})
 	}
 
-	return render.Table(out, "", rows, "ID", "Name", "Org", "Region", "Status", "Plan")
+	return render.Table(out, "", rows, "ID", "Name", "Org", "Region", "Status", "Plan", "Attached Apps")
+}
+
+// formatAttachedApps formats the list of attached apps for display
+func formatAttachedApps(apps []uiex.AttachedApp) string {
+	if len(apps) == 0 {
+		return "<no attached apps>"
+	}
+
+	names := make([]string, len(apps))
+	for i, app := range apps {
+		names[i] = app.Name
+	}
+	return strings.Join(names, ", ")
 }
