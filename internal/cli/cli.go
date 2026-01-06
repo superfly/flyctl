@@ -82,15 +82,16 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true
 
+	cs := io.ColorScheme()
+
 	// configure help templates and helpers
 	cobra.AddTemplateFuncs(template.FuncMap{
 		"wrapFlagUsages": wrapFlagUsages,
 		"wrapText":       wrapText,
+		"purple":         cs.Purple,
 	})
 	cmd.SetUsageTemplate(usageTemplate)
 	cmd.SetHelpTemplate(helpTemplate)
-
-	cs := io.ColorScheme()
 
 	cmd, err = cmd.ExecuteContextC(ctx)
 
@@ -241,7 +242,7 @@ const helpTemplate = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces | 
 
 {{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
 
-// identical to the default cobra usage template, but utilizes wrapFlagUsages
+// identical to the default cobra usage template, but utilizes wrapFlagUsages and adds purple color to command names
 // https://github.com/spf13/cobra/blob/fd865a44e3c48afeb6a6dbddadb8a5519173e029/command.go#L539-L568
 const usageTemplate = `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
@@ -254,13 +255,13 @@ Examples:
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
 
 Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+  {{rpad .Name .NamePadding | purple}} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
 
 {{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+  {{rpad .Name .NamePadding | purple}} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
 
 Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+  {{rpad .Name .NamePadding | purple}} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Flags:
 {{wrapFlagUsages .LocalFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
@@ -269,7 +270,7 @@ Global Flags:
 {{wrapFlagUsages .InheritedFlags | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
 
 Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+  {{rpad .CommandPath .CommandPathPadding | purple}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
