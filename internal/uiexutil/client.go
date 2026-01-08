@@ -30,6 +30,8 @@ type Client interface {
 	ListManagedClusterBackups(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
 	CreateManagedClusterBackup(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
 	RestoreManagedClusterBackup(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
+	CreateAttachment(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error)
+	DeleteAttachment(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error)
 
 	// Builders
 	CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error)
