@@ -3,6 +3,8 @@ package platform
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/samber/lo"
@@ -36,6 +38,10 @@ func newVMSizes() (cmd *cobra.Command) {
 func runMachineVMSizes(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
+
+	if config.FromContext(ctx).JSONOutput {
+		return render.JSON(out, slices.Collect(maps.Values(fly.MachinePresets)))
+	}
 
 	type preset struct {
 		guest   *fly.MachineGuest
