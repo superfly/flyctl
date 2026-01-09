@@ -9,7 +9,11 @@ import (
 )
 
 func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("*.csproj", "Microsoft.NET.Sdk.Web")) {
+	if !checksPass(sourceDir, or(
+		dirContains("*.csproj", "Microsoft.NET.Sdk.Web"),
+		dirContains("*.fsproj", "Microsoft.NET.Sdk.Web"),
+		dirContains("*.vbproj", "Microsoft.NET.Sdk.Web"),
+	)) {
 		return nil, nil
 	}
 
@@ -57,8 +61,9 @@ func findCSProjFile(dir string) (string, string, error) {
 			return err
 		}
 
-		if !info.IsDir() && filepath.Ext(path) == ".csproj" {
-			csprojName = strings.TrimSuffix(info.Name(), ".csproj")
+		ext := filepath.Ext(path)
+		if !info.IsDir() && (ext == ".csproj" || ext == ".fsproj" || ext == ".vbproj") {
+			csprojName = strings.TrimSuffix(info.Name(), ext)
 			csprojPath = path
 			return filepath.SkipDir // Stop walking the directory
 		}
