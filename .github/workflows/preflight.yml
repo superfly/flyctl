@@ -12,14 +12,25 @@ on:
 
 jobs:
   preflight-tests:
+    name: "preflight-tests (${{ matrix.group }})"
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        parallelism: [20]
-        index:
-          [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        group:
+          - apps
+          - deploy
+          - launch
+          - scale
+          - volume
+          - console
+          - logs
+          - machine
+          - postgres
+          - tokens
+          - wireguard
+          - misc
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -32,14 +43,6 @@ jobs:
       - name: Set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
-      - name: Generate go test slice
-        id: test_split
-        uses: hashicorp-forge/go-test-split-action@v1
-        with:
-          total: ${{ matrix.parallelism }}
-          index: ${{ matrix.index }}
-          packages: ./test/preflight/...
-          flags: --tags=integration
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
       - uses: actions/download-artifact@v7
         id: download-flyctl
@@ -53,37 +56,19 @@ jobs:
       - name: Run preflight tests
         id: preflight
         env:
-          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          # Use user token if available (required for deploy token tests), otherwise fall back to limited token
+          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN || secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: 'true'
           FLY_FORCE_TRACE: 'true'
         run: |
           mkdir -p bin
-          if [ -e master-build/flyctl ]; then
-            mv master-build/flyctl bin/flyctl
-          fi
-          if [ -e bin/flyctl ]; then
-            chmod +x bin/flyctl
-          fi
+          (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
+          chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
-          test_opts=""
-          if [[ "${{ github.ref }}" != "refs/heads/master" ]]; then
-            test_opts="-short"
-          fi
-          test_log="$(mktemp)"
-          function finish {
-            rm "$test_log"
-          }
-          trap finish EXIT
-          set +e
-          go test ./test/preflight/... --tags=integration -v -timeout=15m $test_opts -run "${{ steps.test_split.outputs.run }}" | tee "$test_log"
-          test_status=$?
-          set -e
           echo -n failed= >> $GITHUB_OUTPUT
-          awk '/^--- FAIL:/{ printf("%s ", $3) }' "$test_log" >> $GITHUB_OUTPUT
-          echo >> $GITHUB_OUTPUT
-          exit $test_status
+          ./scripts/preflight.sh -r "${{ github.ref }}" -g "${{ matrix.group }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a
