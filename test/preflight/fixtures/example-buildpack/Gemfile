@@ -15,4 +15,4 @@ gem "rackup"
 # https://bugs.ruby-lang.org/issues/17303
 gem "puma"
 
-gem "sinatra", "~> 4.1"
+gem "sinatra", "~> 4.2"
