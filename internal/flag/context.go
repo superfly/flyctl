@@ -28,14 +28,18 @@ func Args(ctx context.Context) []string {
 	return FromContext(ctx).Args()
 }
 
+// GetArg returns argument specified by zero-based idx or an empty string.
+func GetArg(ctx context.Context, idx int) string {
+	if args := Args(ctx); len(args) > idx {
+		return args[idx]
+	}
+	return ""
+}
+
 // FirstArg returns the first arg ctx carries or an empty string in case ctx
 // carries an empty argument set. It panics in case ctx carries no FlagSet.
 func FirstArg(ctx context.Context) string {
-	if args := Args(ctx); len(args) > 0 {
-		return args[0]
-	}
-
-	return ""
+	return GetArg(ctx, 0)
 }
 
 // GetString returns the value of the named string flag ctx carries.
