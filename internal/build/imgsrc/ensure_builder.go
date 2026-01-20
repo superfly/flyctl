@@ -23,6 +23,7 @@ import (
 type Provisioner struct {
 	orgID                 string
 	orgSlug               string
+	orgTrial              bool
 	orgPaidPlan           bool
 	orgRemoteBuilderImage string
 	useVolume             bool
@@ -34,6 +35,7 @@ func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
 		orgID:                 org.ID,
 		orgSlug:               org.Slug,
+		orgTrial:              org.BillingStatus == uiex.BillingStatusTrialActive,
 		orgPaidPlan:           org.PaidPlan,
 		orgRemoteBuilderImage: org.RemoteBuilderImage,
 		useVolume:             true,
@@ -386,7 +388,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		CPUs:     4,
 		MemoryMB: 4096,
 	}
-	if p.orgPaidPlan {
+	if p.orgPaidPlan && !p.orgTrial {
 		guest = fly.MachineGuest{
 			CPUKind:  "shared",
 			CPUs:     8,
