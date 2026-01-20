@@ -23,6 +23,7 @@ import (
 type Provisioner struct {
 	orgID                 string
 	orgSlug               string
+	orgTrial              bool
 	orgPaidPlan           bool
 	orgRemoteBuilderImage string
 	useVolume             bool
@@ -30,21 +31,11 @@ type Provisioner struct {
 	buildkitImage         string
 }
 
-// NewProvisioner is deprecated and will be replaced by NewProvisionerUiexOrg
-func NewProvisioner(org *fly.Organization) *Provisioner {
-	return &Provisioner{
-		orgID:                 org.ID,
-		orgSlug:               org.Slug,
-		orgPaidPlan:           org.PaidPlan,
-		orgRemoteBuilderImage: org.RemoteBuilderImage,
-		useVolume:             true,
-	}
-}
-
 func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
 		orgID:                 org.ID,
 		orgSlug:               org.Slug,
+		orgTrial:              org.BillingStatus == uiex.BillingStatusTrialActive,
 		orgPaidPlan:           org.PaidPlan,
 		orgRemoteBuilderImage: org.RemoteBuilderImage,
 		useVolume:             true,
@@ -397,7 +388,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		CPUs:     4,
 		MemoryMB: 4096,
 	}
-	if p.orgPaidPlan {
+	if p.orgPaidPlan && !p.orgTrial {
 		guest = fly.MachineGuest{
 			CPUKind:  "shared",
 			CPUs:     8,
