@@ -30,17 +30,6 @@ type Provisioner struct {
 	buildkitImage         string
 }
 
-// NewProvisioner is deprecated and will be replaced by NewProvisionerUiexOrg
-func NewProvisioner(org *fly.Organization) *Provisioner {
-	return &Provisioner{
-		orgID:                 org.ID,
-		orgSlug:               org.Slug,
-		orgPaidPlan:           org.PaidPlan,
-		orgRemoteBuilderImage: org.RemoteBuilderImage,
-		useVolume:             true,
-	}
-}
-
 func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
 		orgID:                 org.ID,

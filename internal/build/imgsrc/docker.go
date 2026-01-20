@@ -38,6 +38,7 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -780,13 +781,13 @@ func ResolveDockerfile(cwd string) string {
 	return ""
 }
 
-func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, recreateBuilder bool) {
+func EagerlyEnsureRemoteBuilder(ctx context.Context, org *uiex.Organization, recreateBuilder bool) {
 	// skip if local docker is available
 	if _, err := NewLocalDockerClient(); err == nil {
 		return
 	}
 
-	provisioner := NewProvisioner(org)
+	provisioner := NewProvisionerUiexOrg(org)
 	_, app, err := provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
