@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -325,12 +326,10 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
-	var (
-		io     = iostreams.FromContext(ctx)
-		client = flyutil.ClientFromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
-	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	org, err := uiexClient.GetOrganization(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +337,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org, flag.GetRecreateBuilder(ctx))
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, org, flag.GetRecreateBuilder(ctx))
 	}
 
 	var (

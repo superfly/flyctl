@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
 	"go.uber.org/mock/gomock"
 )
 
@@ -27,7 +28,7 @@ func testingContext(t *testing.T) context.Context {
 
 func TestValidateBuilder(t *testing.T) {
 	ctx := testingContext(t)
-	p := NewProvisioner(&fly.Organization{})
+	p := NewProvisionerUiexOrg(&uiex.Organization{})
 
 	hasVolumes := false
 	hasMachines := false
@@ -71,7 +72,7 @@ func TestValidateBuilder(t *testing.T) {
 
 func TestValidateBuilderAPIErrors(t *testing.T) {
 	ctx := testingContext(t)
-	p := NewProvisioner(&fly.Organization{})
+	p := NewProvisionerUiexOrg(&uiex.Organization{})
 
 	maxVolumeRetries := 3
 	volumeRetries := 0
@@ -166,7 +167,7 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 	ctx := testingContext(t)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 
-	provisioner := NewProvisioner(&fly.Organization{})
+	provisioner := NewProvisionerUiexOrg(&uiex.Organization{})
 	provisioner.useVolume = false
 
 	client.EXPECT().List(gomock.Any(), gomock.Eq(""), gomock.Any()).Return([]*fly.Machine{
@@ -179,10 +180,10 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 
 func TestCreateBuilder(t *testing.T) {
 	ctx := testingContext(t)
-	org := &fly.Organization{
+	org := &uiex.Organization{
 		Slug: "bigorg",
 	}
-	p := NewProvisioner(org)
+	p := NewProvisionerUiexOrg(org)
 
 	createAppShouldFail := false
 	allocateIPAddressShouldFail := false

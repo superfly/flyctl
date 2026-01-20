@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
@@ -37,7 +38,8 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	appCompact, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +47,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
 		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
-			OrganizationID: appCompact.Organization.InternalNumericID,
+			OrganizationID: fmt.Sprint(app.Organization.InternalNumericID),
 			UserID:         0,
 		})
 		if err != nil {
@@ -54,7 +56,8 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +67,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"), useManagedBuilder)
 	resolver := imgsrc.NewResolver(
 		daemonType, client, appName, io, flag.GetWireguard(ctx), false,
-		imgsrc.WithProvisioner(imgsrc.NewProvisioner(org)),
+		imgsrc.WithProvisioner(imgsrc.NewProvisionerUiexOrg(org)),
 	)
 
 	// build if relative or absolute path
