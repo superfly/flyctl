@@ -27,6 +27,7 @@ func newConnect() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.RedisDatabase(),
 	)
 
 	return cmd
