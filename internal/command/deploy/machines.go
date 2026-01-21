@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -311,7 +312,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 
 	// validations must happen after every else
-	if err := md.validateVolumeConfig(); err != nil {
+	if err := md.validateVolumeConfig(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to validate volume config")
 		return nil, err
 	}
@@ -465,7 +466,7 @@ func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
 	return nil
 }
 
-func (md *machineDeployment) validateVolumeConfig() error {
+func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 	machineGroups := lo.GroupBy(
 		lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *fly.Machine {
 			return lm.Machine()
@@ -494,13 +495,23 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			for _, m := range ms {
 				mConfig := m.GetConfig()
 				if mntDst == "" && len(mConfig.Mounts) != 0 {
-					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
-					// We should show a warning and ask the user for confirmation and let it happen instead of failing here.
-					return fmt.Errorf(
-						"machine %s [%s] has a volume mounted but app config does not specify a volume; "+
-							"remove the volume from the machine or add a [mounts] section to fly.toml",
-						m.ID, groupName,
-					)
+					msg := fmt.Sprintf("Warning! machine %s [%s] has a volume mounted but app config does not specify a volume.\nThis usually indicates a misconfiguration.", m.ID, groupName)
+					fmt.Fprintln(md.io.ErrOut, md.colorize.Red(msg))
+
+					switch confirmed, err := prompt.Confirm(ctx, "Do you still want to continue and detach the volume? This will replace the machine."); {
+					case err == nil:
+						if !confirmed {
+							return fmt.Errorf(
+								"deployment cancelled: machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+									"remove the volume from the machine or add a [mounts] section to fly.toml",
+								m.ID, groupName,
+							)
+						}
+					case prompt.IsNonInteractive(err):
+						return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+					default:
+						return err
+					}
 				}
 
 				if mntDst != "" && len(mConfig.Mounts) == 0 {
