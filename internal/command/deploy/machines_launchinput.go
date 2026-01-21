@@ -152,7 +152,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
 			machineShouldBeReplaced = true
-			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
 		case oMounts[0].Name == "":
 			// It's rare but can happen, we don't know the mounted volume name
 			// so can't be sure it matches the mounts defined in fly.toml, in this
