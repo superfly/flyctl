@@ -21,6 +21,7 @@ func newProxy() *cobra.Command {
 	)
 
 	cmd := command.New(usage, short, long, runMachineProxy, command.RequireSession)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
 		flag.Org(),

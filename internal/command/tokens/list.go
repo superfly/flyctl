@@ -40,6 +40,7 @@ func newList() *cobra.Command {
 	)
 
 	cmd.Aliases = []string{"ls"}
+	cmd.Args = cobra.NoArgs
 
 	return cmd
 }

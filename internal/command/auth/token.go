@@ -40,6 +40,7 @@ instead, to create narrowly-scoped tokens with a custom expiry.`
 	)
 
 	cmd.Hidden = true
+	cmd.Args = cobra.NoArgs
 
 	return cmd
 }
