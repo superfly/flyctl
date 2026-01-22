@@ -37,6 +37,11 @@ func create() (cmd *cobra.Command) {
 }
 
 func runCreate(ctx context.Context) (err error) {
+	bucketName := flag.GetString(ctx, "name")
+	if err := validateBucketName(bucketName); err != nil {
+		return err
+	}
+
 	appName := appconfig.NameFromContext(ctx)
 	params := extensions_core.ExtensionParams{}
 
@@ -120,4 +125,25 @@ func isShadowBucketSpecified(accessKey, secretKey, region, name, endpoint string
 		return false, fmt.Errorf("You must set all required shadow bucket values: shadow-access-key, shadow-secret-key, shadow-region, shadow-name, shadow-endpoint")
 	}
 	return n == len(values), nil
+}
+
+// validateBucketName validates that the bucket name length is within the allowed range.
+// Bucket names must be between 3 and 63 characters.
+// See: https://www.tigrisdata.com/docs/buckets/bucket-rules/
+func validateBucketName(name string) error {
+	const bucketNamingRulesURL = "https://www.tigrisdata.com/docs/buckets/bucket-rules/"
+
+	if name == "" {
+		return nil // Empty name will be handled by the prompt or auto-generated
+	}
+
+	if len(name) < 3 {
+		return fmt.Errorf("bucket name %q is too short: must be at least 3 characters, got %d. See %s", name, len(name), bucketNamingRulesURL)
+	}
+
+	if len(name) > 63 {
+		return fmt.Errorf("bucket name %q is too long: must be at most 63 characters, got %d. See %s", name, len(name), bucketNamingRulesURL)
+	}
+
+	return nil
 }
