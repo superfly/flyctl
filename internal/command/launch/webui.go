@@ -123,7 +123,10 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 			}
 
 			// Apply settings from the form
+			// Check both "db_name" (Go struct json tag) and "name" (API/UI convention)
 			if dbName, ok := mpgData["db_name"].(string); ok && dbName != "" {
+				state.Plan.Postgres.ManagedPostgres.DbName = dbName
+			} else if dbName, ok := mpgData["name"].(string); ok && dbName != "" {
 				state.Plan.Postgres.ManagedPostgres.DbName = dbName
 			}
 			if plan, ok := mpgData["plan"].(string); ok && plan != "" {
