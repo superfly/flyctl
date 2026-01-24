@@ -47,6 +47,7 @@ func New() *cobra.Command {
 		newSet(),
 		newSync(),
 		newUnset(),
+		newUnsetAll(),
 		newImport(),
 		newDeploy(),
 		newKeys(),
