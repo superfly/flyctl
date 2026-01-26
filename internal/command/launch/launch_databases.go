@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -398,9 +399,22 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 			state.Plan.AppName, appOrgSlug, clusterID, clusterOrgSlug)
 	}
 
+	// Build connection URI with the database name from the plan (if provided)
+	connectionUri := cluster.Credentials.ConnectionUri
+	dbName := state.Plan.Postgres.ManagedPostgres.DbName
+	if dbName != "" {
+		// Parse the base connection URI and replace the database name
+		parsedUri, err := url.Parse(cluster.Credentials.ConnectionUri)
+		if err != nil {
+			return fmt.Errorf("failed to parse connection URI: %w", err)
+		}
+		parsedUri.Path = "/" + dbName
+		connectionUri = parsedUri.String()
+	}
+
 	// Set the connection string as a secret
 	secrets := map[string]string{
-		"DATABASE_URL": cluster.Credentials.ConnectionUri,
+		"DATABASE_URL": connectionUri,
 	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -409,7 +423,7 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	}
 
 	fmt.Fprintf(io.Out, "Managed Postgres cluster %s is now attached to %s\n", clusterID, state.Plan.AppName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, connectionUri)
 
 	return nil
 }
