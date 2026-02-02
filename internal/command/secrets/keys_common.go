@@ -33,6 +33,7 @@ var supportedKeyTypes = []KeyTypeInfo{
 	{SECRETKEY_TYPE_HS384, SemTypeSigning},
 	{SECRETKEY_TYPE_HS512, SemTypeSigning},
 	{SECRETKEY_TYPE_XAES256GCM, SemTypeEncrypting},
+	{SECRETKEY_TYPE_ES256, SemTypeSigning},
 
 	// Unsupported:
 	// SECRETKEY_TYPE_NACL_BOX, SemTypePublicEncrypting
