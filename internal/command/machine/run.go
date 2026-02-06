@@ -148,6 +148,14 @@ var sharedFlags = flag.Set{
 		Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
 	},
 	flag.VMSizeFlags,
+	flag.String{
+		Name:        "rootfs-persist",
+		Description: "Whether to persist the root filesystem across restarts. Options include 'never', 'always', and 'restart'.",
+	},
+	flag.Int{
+		Name:        "rootfs-size",
+		Description: "Root filesystem size in GB. Uses an overlayfs to allow the root filesystem to exceed its default size.",
+	},
 }
 
 var runOrCreateFlags = flag.Set{
@@ -695,6 +703,34 @@ func determineMachineConfig(
 
 	if len(flag.GetStringArray(ctx, "kernel-arg")) != 0 {
 		machineConf.Guest.KernelArgs = flag.GetStringArray(ctx, "kernel-arg")
+	}
+
+	// Root filesystem persistence and size
+	if flag.IsSpecified(ctx, "rootfs-persist") || flag.IsSpecified(ctx, "rootfs-size") {
+		if machineConf.Rootfs == nil {
+			machineConf.Rootfs = &fly.MachineRootfs{}
+		}
+
+		if flag.IsSpecified(ctx, "rootfs-persist") {
+			switch flag.GetString(ctx, "rootfs-persist") {
+			case "never":
+				machineConf.Rootfs.Persist = fly.MachinePersistRootfsNever
+			case "always":
+				machineConf.Rootfs.Persist = fly.MachinePersistRootfsAlways
+			case "restart":
+				machineConf.Rootfs.Persist = fly.MachinePersistRootfsRestart
+			default:
+				return machineConf, fmt.Errorf("invalid rootfs-persist value, must be one of: never, always, restart")
+			}
+		}
+
+		if flag.IsSpecified(ctx, "rootfs-size") {
+			size := flag.GetInt(ctx, "rootfs-size")
+			if size <= 0 {
+				return machineConf, fmt.Errorf("--rootfs-size must be greater than zero")
+			}
+			machineConf.Rootfs.SizeGB = uint64(size)
+		}
 	}
 
 	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
