@@ -31,12 +31,12 @@ import (
 const defaultRegion = "cdg"
 
 type platformRegion struct {
-	Code              string `json:"code"`
-	Name              string `json:"name"`
-	GatewayAvailable  bool   `json:"gateway_available"`
-	RequiresPaidPlan  bool   `json:"requires_paid_plan"`
-	Deprecated        bool   `json:"deprecated"`
-	Capacity          int    `json:"capacity"`
+	Code             string `json:"code"`
+	Name             string `json:"name"`
+	GatewayAvailable bool   `json:"gateway_available"`
+	RequiresPaidPlan bool   `json:"requires_paid_plan"`
+	Deprecated       bool   `json:"deprecated"`
+	Capacity         int    `json:"capacity"`
 }
 
 // getBestRegions fetches platform regions and returns the top N regions
