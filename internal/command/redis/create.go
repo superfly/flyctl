@@ -29,10 +29,10 @@ const (
 // but existing databases can remain on them
 // These match the normalized display names (lowercase, spaces replaced with underscores)
 var legacyPlans = []string{
-	"pro_2k",    // "Pro 2k"
-	"pro_10k",   // "Pro 10k"
-	"starter",   // "Starter"
-	"standard",  // "Standard"
+	"pro_2k",   // "Pro 2k"
+	"pro_10k",  // "Pro 10k"
+	"starter",  // "Starter"
+	"standard", // "Standard"
 }
 
 func isLegacyPlan(planName string) bool {
