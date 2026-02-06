@@ -1,8 +1,10 @@
 package appconfig
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +39,21 @@ func mapToConfig(cfgMap map[string]any) (*Config, error) {
 	if err != nil {
 		return cfg, err
 	}
-	return cfg, json.Unmarshal(newbuf, cfg)
+
+	decoder := json.NewDecoder(bytes.NewReader(newbuf))
+	decoder.DisallowUnknownFields()
+	err = decoder.Decode(cfg)
+
+	if err != nil {
+		message := fmt.Sprintf("%v", err)
+		if strings.HasPrefix(message, "json: ") && strings.Contains(message, "unknown field") {
+			// just warn about the unknown fields, omitting the "json: " prefix
+			fmt.Fprintln(os.Stderr, "Error: "+message[6:])
+			err = nil
+		}
+	}
+
+	return cfg, err
 }
 
 // Migrate whatever we found in old fly.toml files to newish format
