@@ -685,16 +685,61 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
+	explicitPath := flag.GetAppConfigFilePath(ctx)
+	var candidates []string
+
+	if explicitPath != "" {
+		if err := validateConfigPath(explicitPath); err != nil {
+			return nil, err
+		}
+		candidates = []string{explicitPath}
+	} else {
+		candidates = buildDefaultCandidates(ctx)
+	}
+
+	return loadConfig(ctx, candidates, explicitPath)
+}
+
+func validateConfigPath(path string) error {
+	stat, err := os.Stat(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("the path given with --config (%q) does not exist", path)
+		}
+		return fmt.Errorf("failed to stat %q: %w", path, err)
+	}
+
+	if stat.IsDir() {
+		return fmt.Errorf("the path given with --config (%q) is a directory, not a file", path)
+	}
+
+	return nil
+}
+
+func buildDefaultCandidates(ctx context.Context) []string {
+	wd := state.WorkingDirectory(ctx)
+	base := filepath.Join(wd, appconfig.DefaultConfigFileName)
+	pathNoExt := strings.TrimSuffix(base, filepath.Ext(base))
+
+	return []string{
+		base,
+		pathNoExt + ".json",
+		pathNoExt + ".yaml",
+	}
+}
+
+func loadConfig(ctx context.Context, candidates []string, explicitPath string) (context.Context, error) {
 	logger := logger.FromContext(ctx)
-	for _, path := range appConfigFilePaths(ctx) {
+
+	for _, path := range candidates {
 		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
-				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				logger.Warnf("config at '%s' is not valid: %s", path, err)
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
-			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
+			return appconfig.WithConfig(ctx, cfg), nil
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
 			continue
@@ -703,27 +748,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	return ctx, nil
-}
-
-// appConfigFilePaths returns the possible paths at which we may find a fly.toml
-// in order of preference. it takes into consideration whether the user has
-// specified a command-line path to a config file.
-func appConfigFilePaths(ctx context.Context) (paths []string) {
-	if p := flag.GetAppConfigFilePath(ctx); p != "" {
-		paths = append(paths, p, filepath.Join(p, appconfig.DefaultConfigFileName))
-
-		return
+	if explicitPath != "" {
+		return nil, fmt.Errorf("no app config could be loaded from %q", explicitPath)
 	}
 
-	wd := state.WorkingDirectory(ctx)
-	paths = append(paths,
-		filepath.Join(wd, appconfig.DefaultConfigFileName),
-		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".json", 1)),
-		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".yaml", 1)),
-	)
-
-	return
+	return ctx, nil
 }
 
 var ErrRequireAppName = fmt.Errorf("the config for your app is missing an app name, add an app field to the fly.toml file or specify with the -a flag")
