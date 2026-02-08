@@ -78,7 +78,12 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 
 	var compose ComposeFile
 	if err := yaml.Unmarshal(data, &compose); err != nil {
-		return nil, fmt.Errorf("failed to parse compose file: %w", err)
+		// Try to extract more detailed error information from yaml.TypeError
+		if typeErr, ok := err.(*yaml.TypeError); ok && len(typeErr.Errors) > 0 {
+			return nil, fmt.Errorf("YAML syntax error in compose file %s: %s", composePath, typeErr.Errors[0])
+		}
+		// Provide the file path and line/column info if available in the error message
+		return nil, fmt.Errorf("YAML syntax error in compose file %s: %w", composePath, err)
 	}
 
 	return &compose, nil
