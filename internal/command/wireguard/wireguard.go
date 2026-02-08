@@ -129,17 +129,8 @@ func runWireguardCreate(ctx context.Context) error {
 		return err
 	}
 
-	args := flag.Args(ctx)
-	var region string
-	var name string
-
-	if len(args) > 1 && args[1] != "" {
-		region = args[1]
-	}
-
-	if len(args) > 2 && args[2] != "" {
-		name = args[2]
-	}
+	region := flag.GetArg(ctx, 1)
+	name := flag.GetArg(ctx, 2)
 
 	network := flag.GetString(ctx, "network")
 
@@ -183,11 +174,8 @@ func runWireguardRemove(ctx context.Context) error {
 		return err
 	}
 
-	args := flag.Args(ctx)
-	var name string
-	if len(args) >= 2 {
-		name = args[1]
-	} else {
+	name := flag.GetArg(ctx, 1)
+	if name == "" {
 		name, err = selectWireGuardPeer(ctx, apiClient, org.Slug)
 		if err != nil {
 			return err
