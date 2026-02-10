@@ -158,6 +158,10 @@ var sharedFlags = flag.Set{
 		Name:        "rootfs-size",
 		Description: "Root filesystem size in GB. Uses an overlayfs to allow the root filesystem to exceed its default size.",
 	},
+	flag.Int{
+		Name:        "rootfs-fs-size",
+		Description: "Root filesystem size in GB. Sets the size of the filesystem itself, independent of the rootfs volume size.",
+	},
 	flag.String{
 		Name:        "swap-size",
 		Description: "Swap size in MB. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb).",
@@ -712,7 +716,7 @@ func determineMachineConfig(
 	}
 
 	// Root filesystem persistence and size
-	if flag.IsSpecified(ctx, "rootfs-persist") || flag.IsSpecified(ctx, "rootfs-size") {
+	if flag.IsSpecified(ctx, "rootfs-persist") || flag.IsSpecified(ctx, "rootfs-size") || flag.IsSpecified(ctx, "rootfs-fs-size") {
 		if machineConf.Rootfs == nil {
 			machineConf.Rootfs = &fly.MachineRootfs{}
 		}
@@ -736,6 +740,22 @@ func determineMachineConfig(
 				return machineConf, fmt.Errorf("--rootfs-size must be greater than zero")
 			}
 			machineConf.Rootfs.SizeGB = uint64(size)
+		}
+
+		if flag.IsSpecified(ctx, "rootfs-fs-size") {
+			size := flag.GetInt(ctx, "rootfs-fs-size")
+			if size <= 0 {
+				return machineConf, fmt.Errorf("--rootfs-fs-size must be greater than zero")
+			}
+			machineConf.Rootfs.FsSizeGB = uint64(size)
+		}
+
+		if machineConf.Rootfs.FsSizeGB > 0 {
+			if machineConf.Rootfs.SizeGB == 0 {
+				machineConf.Rootfs.SizeGB = machineConf.Rootfs.FsSizeGB
+			} else if machineConf.Rootfs.FsSizeGB > machineConf.Rootfs.SizeGB {
+				return machineConf, fmt.Errorf("--rootfs-fs-size must be smaller than or equal to --rootfs-size")
+			}
 		}
 	}
 
