@@ -127,6 +127,53 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	require.Equal(f, []string{s1.ID}, s2.Config.Standbys)
 }
 
+// test --rootfs-size and --rootfs-fs-size flags
+func TestFlyMachineRun_rootfsSize(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+
+	// Run with --rootfs-size only
+	f.Fly("machine run -a %s nginx --rootfs-size 5 --region %s", appName, f.PrimaryRegion())
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	m := ml[0]
+	require.NotNil(f, m.Config.Rootfs)
+	require.Equal(f, uint64(5), m.Config.Rootfs.SizeGB)
+	require.Equal(f, uint64(0), m.Config.Rootfs.FsSizeGB)
+
+	// Update with --rootfs-fs-size, must be <= rootfs-size
+	f.Fly("machine update -a %s %s --rootfs-fs-size 3 -y", appName, m.ID)
+	m = f.MachinesList(appName)[0]
+	require.NotNil(f, m.Config.Rootfs)
+	require.Equal(f, uint64(5), m.Config.Rootfs.SizeGB)
+	require.Equal(f, uint64(3), m.Config.Rootfs.FsSizeGB)
+
+	// Update with human-readable size
+	f.Fly("machine update -a %s %s --rootfs-size 10gb -y", appName, m.ID)
+	m = f.MachinesList(appName)[0]
+	require.NotNil(f, m.Config.Rootfs)
+	require.Equal(f, uint64(10), m.Config.Rootfs.SizeGB)
+
+	// Run with --rootfs-fs-size only, should default rootfs-size to match
+	f.Fly("machine run -a %s nginx --rootfs-fs-size 4 --region %s", appName, f.PrimaryRegion())
+	ml = f.MachinesList(appName)
+	require.Equal(f, 2, len(ml))
+	m = ml[1]
+	require.NotNil(f, m.Config.Rootfs)
+	require.Equal(f, uint64(4), m.Config.Rootfs.SizeGB)
+	require.Equal(f, uint64(4), m.Config.Rootfs.FsSizeGB)
+
+	// Unset rootfs-fs-size by passing 0
+	f.Fly("machine update -a %s %s --rootfs-fs-size 0 -y", appName, m.ID)
+	m = f.MachinesList(appName)[1]
+	require.NotNil(f, m.Config.Rootfs)
+	require.Equal(f, uint64(0), m.Config.Rootfs.FsSizeGB)
+
+	// Error: rootfs-fs-size > rootfs-size
+	result := f.FlyAllowExitFailure("machine run -a %s nginx --rootfs-size 2 --rootfs-fs-size 5 --region %s", appName, f.PrimaryRegion())
+	require.NotEqual(f, 0, result.ExitCode())
+}
+
 // test --port (add, update, remove services and ports)
 func TestFlyMachineRun_port(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
