@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -155,6 +157,10 @@ var sharedFlags = flag.Set{
 	flag.Int{
 		Name:        "rootfs-size",
 		Description: "Root filesystem size in GB. Uses an overlayfs to allow the root filesystem to exceed its default size.",
+	},
+	flag.String{
+		Name:        "swap-size",
+		Description: "Swap size in MB. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb).",
 	},
 }
 
@@ -731,6 +737,17 @@ func determineMachineConfig(
 			}
 			machineConf.Rootfs.SizeGB = uint64(size)
 		}
+	}
+
+	if flag.IsSpecified(ctx, "swap-size") {
+		sizeMB, err := helpers.ParseSize(flag.GetString(ctx, "swap-size"), units.RAMInBytes, units.MiB)
+		if err != nil {
+			return machineConf, fmt.Errorf("invalid swap size: %w", err)
+		}
+		if sizeMB <= 0 {
+			return machineConf, fmt.Errorf("--swap-size must be greater than zero")
+		}
+		machineConf.Init.SwapSizeMB = fly.Pointer(sizeMB)
 	}
 
 	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
