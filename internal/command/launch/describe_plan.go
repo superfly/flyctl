@@ -63,7 +63,7 @@ func describeRedisPlan(ctx context.Context, p plan.RedisPlan) (string, error) {
 }
 
 func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan) (string, error) {
-	plan, err := redis.DeterminePlan(ctx)
+	plan, err := redis.DeterminePlan(ctx, "")
 	if err != nil {
 		return "<plan not found, this is an error>", fmt.Errorf("redis plan not found: %w", err)
 	}

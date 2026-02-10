@@ -64,6 +64,18 @@ func runStatus(ctx context.Context) (err error) {
 		evictionStatus = "Enabled"
 	}
 
+	autoUpgradeStatus := "Disabled"
+
+	if options["auto_upgrade"] != nil && options["auto_upgrade"].(bool) {
+		autoUpgradeStatus = "Enabled"
+	}
+
+	prodPackStatus := "Disabled"
+
+	if options["prod_pack"] != nil && options["prod_pack"].(bool) {
+		prodPackStatus = "Enabled"
+	}
+
 	obj := [][]string{
 		{
 			addOn.Id,
@@ -72,11 +84,13 @@ func runStatus(ctx context.Context) (err error) {
 			addOn.PrimaryRegion,
 			readRegions,
 			evictionStatus,
+			autoUpgradeStatus,
+			prodPackStatus,
 			addOn.PublicUrl,
 		},
 	}
 
-	var cols = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Private URL"}
+	var cols = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Auto-Upgrade", "ProdPack", "Private URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

@@ -496,7 +496,14 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		}
 	}
 
-	db, err := redis.Create(ctx, org, dbName, &region, len(readReplicaRegions) == 0, redisPlan.Eviction, &readReplicaRegions)
+	// Get the default plan (pay-as-you-go)
+	plan, err := redis.DeterminePlan(ctx, "")
+	if err != nil {
+		return err
+	}
+
+	// Launch uses defaults: no auto-upgrade (not available for pay-as-you-go anyway), no prodpack
+	db, err := redis.Create(ctx, org, dbName, &region, plan, len(readReplicaRegions) == 0, redisPlan.Eviction, false, false, &readReplicaRegions)
 	if err != nil {
 		return err
 	}
