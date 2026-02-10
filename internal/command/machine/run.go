@@ -154,9 +154,13 @@ var sharedFlags = flag.Set{
 		Name:        "rootfs-persist",
 		Description: "Whether to persist the root filesystem across restarts. Options include 'never', 'always', and 'restart'.",
 	},
-	flag.Int{
+	flag.String{
 		Name:        "rootfs-size",
-		Description: "Root filesystem size in GB. Uses an overlayfs to allow the root filesystem to exceed its default size.",
+		Description: "Root filesystem size in GB. Accepts a plain number (in GB) or a human-readable size (e.g. 2gb, 5gb). Uses an overlayfs to allow the root filesystem to exceed its default size. Set to 0 to unset.",
+	},
+	flag.String{
+		Name:        "rootfs-fs-size",
+		Description: "Root filesystem size in GB. Accepts a plain number (in GB) or a human-readable size (e.g. 2gb, 5gb). Sets the size of the filesystem itself, independent of the rootfs volume size. Set to 0 to unset.",
 	},
 	flag.String{
 		Name:        "swap-size",
@@ -712,7 +716,7 @@ func determineMachineConfig(
 	}
 
 	// Root filesystem persistence and size
-	if flag.IsSpecified(ctx, "rootfs-persist") || flag.IsSpecified(ctx, "rootfs-size") {
+	if flag.IsSpecified(ctx, "rootfs-persist") || flag.IsSpecified(ctx, "rootfs-size") || flag.IsSpecified(ctx, "rootfs-fs-size") {
 		if machineConf.Rootfs == nil {
 			machineConf.Rootfs = &fly.MachineRootfs{}
 		}
@@ -731,11 +735,33 @@ func determineMachineConfig(
 		}
 
 		if flag.IsSpecified(ctx, "rootfs-size") {
-			size := flag.GetInt(ctx, "rootfs-size")
-			if size <= 0 {
-				return machineConf, fmt.Errorf("--rootfs-size must be greater than zero")
+			sizeGB, err := helpers.ParseSize(flag.GetString(ctx, "rootfs-size"), units.RAMInBytes, units.GiB)
+			if err != nil {
+				return machineConf, fmt.Errorf("invalid rootfs size: %w", err)
 			}
-			machineConf.Rootfs.SizeGB = uint64(size)
+			if sizeGB < 0 {
+				return machineConf, fmt.Errorf("--rootfs-size must not be negative")
+			}
+			machineConf.Rootfs.SizeGB = uint64(sizeGB)
+		}
+
+		if flag.IsSpecified(ctx, "rootfs-fs-size") {
+			sizeGB, err := helpers.ParseSize(flag.GetString(ctx, "rootfs-fs-size"), units.RAMInBytes, units.GiB)
+			if err != nil {
+				return machineConf, fmt.Errorf("invalid rootfs fs size: %w", err)
+			}
+			if sizeGB < 0 {
+				return machineConf, fmt.Errorf("--rootfs-fs-size must not be negative")
+			}
+			machineConf.Rootfs.FsSizeGB = uint64(sizeGB)
+		}
+
+		if machineConf.Rootfs.FsSizeGB > 0 {
+			if machineConf.Rootfs.SizeGB == 0 {
+				machineConf.Rootfs.SizeGB = machineConf.Rootfs.FsSizeGB
+			} else if machineConf.Rootfs.FsSizeGB > machineConf.Rootfs.SizeGB {
+				return machineConf, fmt.Errorf("--rootfs-fs-size must be smaller than or equal to --rootfs-size")
+			}
 		}
 	}
 
