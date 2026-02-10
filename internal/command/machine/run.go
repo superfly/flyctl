@@ -156,11 +156,11 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "rootfs-size",
-		Description: "Root filesystem size in GB. Accepts a plain number (in GB) or a human-readable size (e.g. 2gb, 5gb). Uses an overlayfs to allow the root filesystem to exceed its default size.",
+		Description: "Root filesystem size in GB. Accepts a plain number (in GB) or a human-readable size (e.g. 2gb, 5gb). Uses an overlayfs to allow the root filesystem to exceed its default size. Set to 0 to unset.",
 	},
 	flag.String{
 		Name:        "rootfs-fs-size",
-		Description: "Root filesystem size in GB. Accepts a plain number (in GB) or a human-readable size (e.g. 2gb, 5gb). Sets the size of the filesystem itself, independent of the rootfs volume size.",
+		Description: "Root filesystem size in GB. Accepts a plain number (in GB) or a human-readable size (e.g. 2gb, 5gb). Sets the size of the filesystem itself, independent of the rootfs volume size. Set to 0 to unset.",
 	},
 	flag.String{
 		Name:        "swap-size",
