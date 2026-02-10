@@ -739,8 +739,8 @@ func determineMachineConfig(
 			if err != nil {
 				return machineConf, fmt.Errorf("invalid rootfs size: %w", err)
 			}
-			if sizeGB <= 0 {
-				return machineConf, fmt.Errorf("--rootfs-size must be greater than zero")
+			if sizeGB < 0 {
+				return machineConf, fmt.Errorf("--rootfs-size must not be negative")
 			}
 			machineConf.Rootfs.SizeGB = uint64(sizeGB)
 		}
@@ -750,8 +750,8 @@ func determineMachineConfig(
 			if err != nil {
 				return machineConf, fmt.Errorf("invalid rootfs fs size: %w", err)
 			}
-			if sizeGB <= 0 {
-				return machineConf, fmt.Errorf("--rootfs-fs-size must be greater than zero")
+			if sizeGB < 0 {
+				return machineConf, fmt.Errorf("--rootfs-fs-size must not be negative")
 			}
 			machineConf.Rootfs.FsSizeGB = uint64(sizeGB)
 		}
