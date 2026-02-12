@@ -74,6 +74,21 @@ func (mr *MockFlapsClientMockRecorder) AssignIP(ctx, appName, req any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AssignIP", reflect.TypeOf((*MockFlapsClient)(nil).AssignIP), ctx, appName, req)
 }
 
+// CheckCertificate mocks base method.
+func (m *MockFlapsClient) CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CheckCertificate", ctx, appName, hostname)
+	ret0, _ := ret[0].(*fly.CertificateDetailResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CheckCertificate indicates an expected call of CheckCertificate.
+func (mr *MockFlapsClientMockRecorder) CheckCertificate(ctx, appName, hostname any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckCertificate", reflect.TypeOf((*MockFlapsClient)(nil).CheckCertificate), ctx, appName, hostname)
+}
+
 // Cordon mocks base method.
 func (m *MockFlapsClient) Cordon(ctx context.Context, appName, machineID, nonce string) error {
 	m.ctrl.T.Helper()
@@ -86,6 +101,21 @@ func (m *MockFlapsClient) Cordon(ctx context.Context, appName, machineID, nonce 
 func (mr *MockFlapsClientMockRecorder) Cordon(ctx, appName, machineID, nonce any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cordon", reflect.TypeOf((*MockFlapsClient)(nil).Cordon), ctx, appName, machineID, nonce)
+}
+
+// CreateACMECertificate mocks base method.
+func (m *MockFlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateACMECertificate", ctx, appName, req)
+	ret0, _ := ret[0].(*fly.CertificateDetailResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateACMECertificate indicates an expected call of CreateACMECertificate.
+func (mr *MockFlapsClientMockRecorder) CreateACMECertificate(ctx, appName, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateACMECertificate", reflect.TypeOf((*MockFlapsClient)(nil).CreateACMECertificate), ctx, appName, req)
 }
 
 // CreateApp mocks base method.
@@ -101,6 +131,21 @@ func (m *MockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequ
 func (mr *MockFlapsClientMockRecorder) CreateApp(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateApp", reflect.TypeOf((*MockFlapsClient)(nil).CreateApp), ctx, req)
+}
+
+// CreateCustomCertificate mocks base method.
+func (m *MockFlapsClient) CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateCustomCertificate", ctx, appName, req)
+	ret0, _ := ret[0].(*fly.CertificateDetailResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateCustomCertificate indicates an expected call of CreateCustomCertificate.
+func (mr *MockFlapsClientMockRecorder) CreateCustomCertificate(ctx, appName, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCustomCertificate", reflect.TypeOf((*MockFlapsClient)(nil).CreateCustomCertificate), ctx, appName, req)
 }
 
 // CreateVolume mocks base method.
@@ -132,6 +177,20 @@ func (mr *MockFlapsClientMockRecorder) CreateVolumeSnapshot(ctx, appName, volume
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateVolumeSnapshot", reflect.TypeOf((*MockFlapsClient)(nil).CreateVolumeSnapshot), ctx, appName, volumeId)
 }
 
+// DeleteACMECertificate mocks base method.
+func (m *MockFlapsClient) DeleteACMECertificate(ctx context.Context, appName, hostname string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteACMECertificate", ctx, appName, hostname)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteACMECertificate indicates an expected call of DeleteACMECertificate.
+func (mr *MockFlapsClientMockRecorder) DeleteACMECertificate(ctx, appName, hostname any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteACMECertificate", reflect.TypeOf((*MockFlapsClient)(nil).DeleteACMECertificate), ctx, appName, hostname)
+}
+
 // DeleteApp mocks base method.
 func (m *MockFlapsClient) DeleteApp(ctx context.Context, name string) error {
 	m.ctrl.T.Helper()
@@ -159,6 +218,34 @@ func (m *MockFlapsClient) DeleteAppSecret(ctx context.Context, appName, name str
 func (mr *MockFlapsClientMockRecorder) DeleteAppSecret(ctx, appName, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAppSecret", reflect.TypeOf((*MockFlapsClient)(nil).DeleteAppSecret), ctx, appName, name)
+}
+
+// DeleteCertificate mocks base method.
+func (m *MockFlapsClient) DeleteCertificate(ctx context.Context, appName, hostname string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCertificate", ctx, appName, hostname)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteCertificate indicates an expected call of DeleteCertificate.
+func (mr *MockFlapsClientMockRecorder) DeleteCertificate(ctx, appName, hostname any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCertificate", reflect.TypeOf((*MockFlapsClient)(nil).DeleteCertificate), ctx, appName, hostname)
+}
+
+// DeleteCustomCertificate mocks base method.
+func (m *MockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCustomCertificate", ctx, appName, hostname)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteCustomCertificate indicates an expected call of DeleteCustomCertificate.
+func (mr *MockFlapsClientMockRecorder) DeleteCustomCertificate(ctx, appName, hostname any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomCertificate", reflect.TypeOf((*MockFlapsClient)(nil).DeleteCustomCertificate), ctx, appName, hostname)
 }
 
 // DeleteIPAssignment mocks base method.
@@ -336,6 +423,21 @@ func (m *MockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, 
 func (mr *MockFlapsClientMockRecorder) GetApp(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApp", reflect.TypeOf((*MockFlapsClient)(nil).GetApp), ctx, name)
+}
+
+// GetCertificate mocks base method.
+func (m *MockFlapsClient) GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCertificate", ctx, appName, hostname)
+	ret0, _ := ret[0].(*fly.CertificateDetailResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCertificate indicates an expected call of GetCertificate.
+func (mr *MockFlapsClientMockRecorder) GetCertificate(ctx, appName, hostname any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCertificate", reflect.TypeOf((*MockFlapsClient)(nil).GetCertificate), ctx, appName, hostname)
 }
 
 // GetIPAssignments mocks base method.
@@ -560,6 +662,21 @@ func (m *MockFlapsClient) ListApps(ctx context.Context, req flaps.ListAppsReques
 func (mr *MockFlapsClientMockRecorder) ListApps(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListApps", reflect.TypeOf((*MockFlapsClient)(nil).ListApps), ctx, req)
+}
+
+// ListCertificates mocks base method.
+func (m *MockFlapsClient) ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListCertificates", ctx, appName, opts)
+	ret0, _ := ret[0].(*fly.ListCertificatesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListCertificates indicates an expected call of ListCertificates.
+func (mr *MockFlapsClientMockRecorder) ListCertificates(ctx, appName, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCertificates", reflect.TypeOf((*MockFlapsClient)(nil).ListCertificates), ctx, appName, opts)
 }
 
 // ListFlyAppsMachines mocks base method.

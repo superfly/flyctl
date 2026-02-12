@@ -33,11 +33,19 @@ func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.As
 	panic("TODO")
 }
 
+func (m *FlapsClient) CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) Cordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
 	panic("TODO")
 }
 
 func (m *FlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
 	panic("TODO")
 }
 
@@ -50,6 +58,18 @@ func (m *FlapsClient) CreateVolumeSnapshot(ctx context.Context, appName, volumeI
 }
 
 func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteACMECertificate(ctx context.Context, appName, hostname string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteCertificate(ctx context.Context, appName, hostname string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
 	panic("TODO")
 }
 
@@ -118,6 +138,10 @@ func (m *FlapsClient) GetAllVolumes(ctx context.Context, appName string) ([]fly.
 	panic("TODO")
 }
 
+func (m *FlapsClient) GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return &flaps.ListIPAssignmentsResponse{}, nil
 }
@@ -154,6 +178,10 @@ func (m *FlapsClient) GetVolumes(ctx context.Context, appName string) ([]fly.Vol
 	panic("TODO")
 }
 
+func (m *FlapsClient) CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) Kill(ctx context.Context, appName, machineID string) (err error) {
 	panic("TODO")
 }
@@ -183,6 +211,14 @@ func (m *FlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) (
 	panic("TODO")
 }
 
+func (m *FlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (machines []*fly.Machine, releaseCmdMachine *fly.Machine, err error) {
 	m.server.mu.Lock()
 	defer m.server.mu.Unlock()
@@ -196,10 +232,6 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 		}
 	}
 	return machines, releaseCmdMachine, nil
-}
-
-func (m *FlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
-	panic("TODO")
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
