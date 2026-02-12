@@ -3,17 +3,17 @@ package certificates
 import (
 	"context"
 	"fmt"
-	"net"
+	"os"
 	"strings"
 
 	"github.com/dustin/go-humanize"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/certificate"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -34,6 +34,7 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 	cmd.AddCommand(
 		newCertificatesList(),
 		newCertificatesAdd(),
+		newCertificatesImport(),
 		newCertificatesRemove(),
 		newCertificatesCheck(),
 		newCertificatesSetup(),
@@ -79,11 +80,118 @@ as a parameter for the certificate.`
 	return cmd
 }
 
+func newCertificatesImport() *cobra.Command {
+	const (
+		short = "Import a custom certificate"
+		long  = `Import a custom TLS certificate for a hostname.
+
+Upload your own certificate and private key in PEM format. Requires domain
+ownership verification via DNS before the certificate becomes active.`
+	)
+	cmd := command.New("import <hostname>", short, long, runCertificatesImport,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.String{
+			Name:        "fullchain",
+			Description: "Path to certificate chain file (PEM format)",
+		},
+		flag.String{
+			Name:        "private-key",
+			Description: "Path to private key file (PEM format)",
+		},
+		flag.JSONOutput(),
+	)
+	cmd.Args = cobra.ExactArgs(1)
+	cmd.MarkFlagRequired("fullchain")
+	cmd.MarkFlagRequired("private-key")
+	return cmd
+}
+
+func runCertificatesImport(ctx context.Context) error {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+	hostname := flag.FirstArg(ctx)
+
+	fullchainPath := flag.GetString(ctx, "fullchain")
+	privateKeyPath := flag.GetString(ctx, "private-key")
+
+	fullchain, err := os.ReadFile(fullchainPath)
+	if err != nil {
+		return fmt.Errorf("failed to read certificate file: %w", err)
+	}
+
+	privateKey, err := os.ReadFile(privateKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read private key file: %w", err)
+	}
+
+	resp, err := flapsClient.CreateCustomCertificate(ctx, appName, fly.ImportCertificateRequest{
+		Hostname:   hostname,
+		Fullchain:  string(fullchain),
+		PrivateKey: string(privateKey),
+	})
+	if err != nil {
+		return err
+	}
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, resp)
+		return nil
+	}
+
+	fmt.Fprintf(io.Out, "Certificate uploaded for %s\n", colorize.Bold(resp.Hostname))
+
+	var customCert *fly.CertificateDetail
+	for i := range resp.Certificates {
+		if resp.Certificates[i].Source == "custom" {
+			customCert = &resp.Certificates[i]
+			break
+		}
+	}
+
+	if customCert == nil {
+		return fmt.Errorf("unexpected response: no custom certificate in response")
+	}
+
+	switch customCert.Status {
+	case "pending_ownership":
+		ov := resp.DNSRequirements.Ownership
+		fmt.Fprintln(io.Out)
+		if strings.HasPrefix(hostname, "*.") {
+			fmt.Fprintf(io.Out, "%s Your custom certificate is uploaded but not yet active. Add a TXT record to verify domain ownership.\n", colorize.WarningIcon())
+		} else {
+			fmt.Fprintf(io.Out, "%s Your custom certificate is uploaded but not yet active. Add a TXT or AAAA record to verify domain ownership.\n", colorize.WarningIcon())
+		}
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "    %s  %s  %s\n", ov.Name, colorize.Cyan("TXT"), ov.AppValue)
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "Run %s to verify.\n", colorize.Bold("fly certs check "+quoteHostname(hostname)))
+	case "active":
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "%s Certificate is active!\n", colorize.SuccessIcon())
+		if customCert.ExpiresAt != nil && !customCert.ExpiresAt.IsZero() {
+			fmt.Fprintf(io.Out, "Expires: %s\n", humanize.Time(*customCert.ExpiresAt))
+		}
+	}
+
+	return nil
+}
+
 func newCertificatesRemove() *cobra.Command {
 	const (
 		short = "Removes a certificate from an app"
 		long  = `Removes a certificate from an application. Takes hostname
-as a parameter to locate the certificate.`
+as a parameter to locate the certificate.
+
+Use --custom to remove only the custom certificate while keeping ACME certificates.
+Use --acme to stop ACME certificate issuance while keeping custom certificates.`
 	)
 	cmd := command.New("remove <hostname>", short, long, runCertificatesRemove,
 		command.RequireSession,
@@ -93,6 +201,16 @@ as a parameter to locate the certificate.`
 		flag.App(),
 		flag.AppConfig(),
 		flag.Yes(),
+		flag.Bool{
+			Name:        "custom",
+			Description: "Remove only the custom certificate, keeping ACME certificates",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "acme",
+			Description: "Stop ACME certificate issuance, keeping custom certificates",
+			Default:     false,
+		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Aliases = []string{"delete"}
@@ -140,82 +258,201 @@ Takes hostname as a parameter to show the setup instructions for that certificat
 
 func runCertificatesList(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	certs, err := apiClient.GetAppCertificates(ctx, appName)
+	resp, err := flapsClient.ListCertificates(ctx, appName, &flaps.ListCertificatesOpts{Limit: 50})
 	if err != nil {
 		return err
 	}
 
-	return printCertificates(ctx, certs)
+	if err := printCertificates(ctx, resp.Certificates); err != nil {
+		return err
+	}
+
+	if resp.NextCursor != "" {
+		io := iostreams.FromContext(ctx)
+		fmt.Fprintf(io.Out, "\nShowing %d of %d certificates. Use the Machines API to paginate through all results.\n",
+			len(resp.Certificates), resp.TotalCount)
+	}
+
+	return nil
 }
 
 func runCertificatesCheck(ctx context.Context) error {
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
-	cert, hostcheck, err := apiClient.CheckAppCertificate(ctx, appName, hostname)
+	resp, err := flapsClient.CheckCertificate(ctx, appName, hostname)
 	if err != nil {
 		return err
 	}
 
-	printCertificate(ctx, cert)
-
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	if cert.ClientStatus == "Ready" {
-		fmt.Fprintf(io.Out, "\n%s\n", colorize.Green("✓ Your certificate has been issued!"))
-		fmt.Fprintf(io.Out, "%s\n", colorize.Green("Your DNS is correctly configured and this certificate will auto-renew before expiration."))
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, resp)
 		return nil
 	}
 
-	// If certificates were issued but status is not ready, DNS is broken
-	if len(cert.Issued.Nodes) > 0 {
-		fmt.Fprintf(io.Out, "\n%s\n", colorize.Yellow("Your certificate was issued but your DNS configuration has issues."))
-		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("This certificate may not renew automatically. Please fix your DNS configuration."))
+	printCertificateDetail(ctx, resp)
+
+	if len(resp.ValidationErrors) > 0 {
+		fmt.Fprintln(io.Out)
+		for _, ve := range resp.ValidationErrors {
+			fmt.Fprintf(io.Out, "%s %s\n", colorize.WarningIcon(), colorize.Yellow(ve.Message))
+			if ve.Remediation != "" {
+				fmt.Fprintf(io.Out, "  %s\n", ve.Remediation)
+			}
+		}
 	}
 
-	if len(cert.ValidationErrors) > 0 {
-		certificate.DisplayValidationErrors(io, cert.ValidationErrors)
+	hasActive := false
+	hasPendingOwnership := false
+	for _, cert := range resp.Certificates {
+		if cert.Status == "active" {
+			hasActive = true
+		}
+		if cert.Status == "pending_ownership" {
+			hasPendingOwnership = true
+		}
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplaySkip)
+	fmt.Fprintln(io.Out)
+
+	if hasActive {
+		fmt.Fprintf(io.Out, "%s %s\n", colorize.SuccessIcon(), colorize.Green("Certificate is verified and active"))
+		return nil
+	}
+
+	if hasPendingOwnership {
+		ownership := resp.DNSRequirements.Ownership
+		if ownership.Name != "" {
+			fmt.Fprintln(io.Out, "Add this DNS record to verify domain ownership:")
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "  TXT %s → %s\n", ownership.Name, ownership.AppValue)
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "Run %s after adding the record.\n", colorize.Bold("fly certs check "+quoteHostname(hostname)))
+		}
+		return nil
+	}
+
+	fmt.Fprintf(io.Out, "Run %s to view DNS setup instructions.\n", colorize.Bold("fly certs setup "+quoteHostname(hostname)))
+
+	return nil
 }
 
 func runCertificatesAdd(ctx context.Context) error {
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
-	cert, hostcheck, err := apiClient.AddCertificate(ctx, appName, hostname)
+	resp, err := flapsClient.CreateACMECertificate(ctx, appName, fly.CreateCertificateRequest{
+		Hostname: hostname,
+	})
 	if err != nil {
 		return err
 	}
 
-	err = reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplayForce)
-	if err != nil {
-		return err
+	if config.FromContext(ctx).JSONOutput {
+		io := iostreams.FromContext(ctx)
+		render.JSON(io.Out, resp)
+		return nil
 	}
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "\nOnce your DNS is configured correctly, we will automatically provision your certificate.\n")
-	fmt.Fprintf(io.Out, "To check progress, run: %s\n", colorize.Bold(fmt.Sprintf("fly certs check '%s'", hostname)))
+	printCertAdded(ctx, hostname, resp)
 
 	return nil
+}
+
+func quoteHostname(hostname string) string {
+	if strings.Contains(hostname, "*") {
+		return "'" + hostname + "'"
+	}
+	return hostname
+}
+
+func printCertAdded(ctx context.Context, hostname string, resp *fly.CertificateDetailResponse) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	var ipV4, ipV6 string
+	if len(resp.DNSRequirements.A) > 0 {
+		ipV4 = resp.DNSRequirements.A[0]
+	}
+	if len(resp.DNSRequirements.AAAA) > 0 {
+		ipV6 = resp.DNSRequirements.AAAA[0]
+	}
+
+	isWildcard := strings.HasPrefix(hostname, "*.")
+	quoted := quoteHostname(hostname)
+
+	fmt.Fprintf(io.Out, "%s Certificate created for %s\n", colorize.SuccessIcon(), colorize.Bold(hostname))
+	fmt.Fprintln(io.Out)
+
+	if ipV4 == "" && ipV6 == "" {
+		fmt.Fprintf(io.Out, "%s Your app has no public IP addresses.\n", colorize.WarningIcon())
+		fmt.Fprintf(io.Out, "Run %s to allocate IPs.\n", colorize.Bold("fly ips allocate"))
+	} else {
+		fmt.Fprintln(io.Out, colorize.Bold("Recommended DNS setup:"))
+		if ipV4 != "" {
+			fmt.Fprintf(io.Out, "  %s    %s \u2192 %s\n", colorize.Cyan("A"), hostname, ipV4)
+		}
+		if ipV6 != "" {
+			fmt.Fprintf(io.Out, "  %s %s \u2192 %s\n", colorize.Cyan("AAAA"), hostname, ipV6)
+		}
+
+		if ipV4 == "" {
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "Run %s to add an IPv4 address.\n", colorize.Bold("fly ips allocate"))
+		}
+	}
+
+	if isWildcard {
+		acme := resp.DNSRequirements.ACMEChallenge
+		if acme.Name != "" && acme.Target != "" {
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "%s Wildcard certificates require DNS validation:\n", colorize.WarningIcon())
+			fmt.Fprintf(io.Out, "  %s %s \u2192 %s\n", colorize.Cyan("CNAME"), acme.Name, acme.Target)
+		}
+	}
+
+	if !isWildcard && needsAlternateHostname(hostname) {
+		alternateHostname := getAlternateHostname(hostname)
+		if strings.HasPrefix(alternateHostname, "www.") {
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "%s Run %s to cover the www subdomain.\n", colorize.Gray("Tip:"), colorize.Bold("fly certs add "+alternateHostname))
+		}
+	}
+
+	fmt.Fprintln(io.Out)
+	fmt.Fprintf(io.Out, "Run %s to check validation progress.\n", colorize.Bold("fly certs check "+quoted))
+	fmt.Fprintf(io.Out, "Run %s for alternative DNS setups.\n", colorize.Bold("fly certs setup "+quoted))
 }
 
 func runCertificatesRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
+	customOnly := flag.GetBool(ctx, "custom")
+	acmeOnly := flag.GetBool(ctx, "acme")
+
+	if customOnly && acmeOnly {
+		return fmt.Errorf("cannot specify both --custom and --acme")
+	}
 
 	if !flag.GetYes(ctx) {
-		message := fmt.Sprintf("Remove certificate %s from app %s?", hostname, appName)
+		var message string
+		if customOnly {
+			message = fmt.Sprintf("Remove custom certificate for %s from app %s?", hostname, appName)
+		} else if acmeOnly {
+			message = fmt.Sprintf("Stop ACME certificate issuance for %s on app %s?", hostname, appName)
+		} else {
+			message = fmt.Sprintf("Remove certificate %s from app %s?", hostname, appName)
+		}
 
 		confirm, err := prompt.Confirm(ctx, message)
 		if err != nil {
@@ -227,334 +464,267 @@ func runCertificatesRemove(ctx context.Context) error {
 		}
 	}
 
-	cert, err := apiClient.DeleteCertificate(ctx, appName, hostname)
+	var err error
+	if customOnly {
+		err = flapsClient.DeleteCustomCertificate(ctx, appName, hostname)
+	} else if acmeOnly {
+		err = flapsClient.DeleteACMECertificate(ctx, appName, hostname)
+	} else {
+		err = flapsClient.DeleteCertificate(ctx, appName, hostname)
+	}
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "Certificate %s deleted from app %s\n",
-		colorize.Bold(cert.Certificate.Hostname),
-		colorize.Bold(cert.App.Name),
-	)
+	if customOnly {
+		fmt.Fprintf(io.Out, "%s Custom certificate for %s deleted from app %s\n",
+			colorize.SuccessIcon(),
+			colorize.Bold(hostname),
+			colorize.Bold(appName),
+		)
+	} else if acmeOnly {
+		fmt.Fprintf(io.Out, "%s ACME certificate issuance stopped for %s on app %s\n",
+			colorize.SuccessIcon(),
+			colorize.Bold(hostname),
+			colorize.Bold(appName),
+		)
+	} else {
+		fmt.Fprintf(io.Out, "%s Certificate %s deleted from app %s\n",
+			colorize.SuccessIcon(),
+			colorize.Bold(hostname),
+			colorize.Bold(appName),
+		)
+	}
 
 	return nil
 }
 
 func runCertificatesSetup(ctx context.Context) error {
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
-	cert, hostcheck, err := apiClient.CheckAppCertificate(ctx, appName, hostname)
+	resp, err := flapsClient.CheckCertificate(ctx, appName, hostname)
 	if err != nil {
 		return err
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck, DNSDisplayForce)
-}
-
-type DNSDisplayMode int
-
-const (
-	DNSDisplayAuto  DNSDisplayMode = iota // Show setup steps if required
-	DNSDisplayForce                       // Always show setup steps
-	DNSDisplaySkip                        // Never show setup steps
-)
-
-func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck, dnsMode DNSDisplayMode) error {
-	io := iostreams.FromContext(ctx)
-
-	// print a blank line, easier to read!
-	fmt.Fprintln(io.Out)
-
-	colorize := io.ColorScheme()
-	appName := appconfig.NameFromContext(ctx)
-	apiClient := flyutil.ClientFromContext(ctx)
-
-	// These are the IPs we have for the app
-	ips, err := apiClient.GetIPAddresses(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	cnameTarget, err := apiClient.GetAppCNAMETarget(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	var ipV4 fly.IPAddress
-	var ipV6 fly.IPAddress
-	var configuredipV4 bool
-	var configuredipV6 bool
-	var externalProxyHint bool
-
-	// Extract the v4 and v6 addresses we have allocated
-	for _, x := range ips {
-		switch x.Type {
-		case "v4", "shared_v4":
-			ipV4 = x
-		case "v6":
-			ipV6 = x
-		}
-	}
-
-	// Do we have A records
-	if len(hostcheck.ARecords) > 0 {
-		// Let's check the first A record against our recorded addresses
-		ip := net.ParseIP(hostcheck.ARecords[0])
-		if !ip.Equal(net.ParseIP(ipV4.Address)) {
-			if isExternalProxied(cert.DNSProvider, ip) {
-				externalProxyHint = true
-			} else {
-				fmt.Fprintf(io.Out, colorize.Yellow("A Record (%s) does not match app's IP (%s)\n"), hostcheck.ARecords[0], ipV4.Address)
-			}
-		} else {
-			configuredipV4 = true
-		}
-	}
-
-	if len(hostcheck.AAAARecords) > 0 {
-		// Let's check the first A record against our recorded addresses
-		ip := net.ParseIP(hostcheck.AAAARecords[0])
-		if !ip.Equal(net.ParseIP(ipV6.Address)) {
-			if isExternalProxied(cert.DNSProvider, ip) {
-				externalProxyHint = true
-			} else {
-				fmt.Fprintf(io.Out, colorize.Yellow("AAAA Record (%s) does not match app's IP (%s)\n"), hostcheck.AAAARecords[0], ipV6.Address)
-			}
-		} else {
-			configuredipV6 = true
-		}
-	}
-
-	if len(hostcheck.ResolvedAddresses) > 0 {
-		for _, address := range hostcheck.ResolvedAddresses {
-			ip := net.ParseIP(address)
-			if ip.Equal(net.ParseIP(ipV4.Address)) {
-				configuredipV4 = true
-			} else if ip.Equal(net.ParseIP(ipV6.Address)) {
-				configuredipV6 = true
-			} else {
-				if isExternalProxied(cert.DNSProvider, ip) {
-					externalProxyHint = true
-				} else {
-					fmt.Fprintf(io.Out, colorize.Yellow("Address resolution (%s) does not match app's IP (%s/%s)\n"), address, ipV4.Address, ipV6.Address)
-				}
-			}
-		}
-	}
-
-	var addDNSConfig bool
-	switch {
-	case cert.IsApex:
-		addDNSConfig = !configuredipV4 || !configuredipV6
-	case cert.IsWildcard:
-		addDNSConfig = !configuredipV4 || !cert.AcmeDNSConfigured
-	default:
-		nothingConfigured := !(configuredipV4 && configuredipV6)
-		onlyV4Configured := configuredipV4 && !configuredipV6
-		addDNSConfig = nothingConfigured || onlyV4Configured
-	}
-
-	switch {
-	case dnsMode == DNSDisplaySkip && addDNSConfig:
-		fmt.Fprintln(io.Out, "Your DNS is not yet configured correctly.")
-		fmt.Fprintf(io.Out, "Run %s to view DNS setup instructions.\n", colorize.Bold("fly certs setup "+hostname))
-	case dnsMode == DNSDisplayForce || (dnsMode == DNSDisplayAuto && addDNSConfig):
-		printDNSSetupOptions(DNSSetupFlags{
-			Context:               ctx,
-			Hostname:              hostname,
-			Certificate:           cert,
-			IPv4Address:           ipV4,
-			IPv6Address:           ipV6,
-			CNAMETarget:           cnameTarget,
-			ExternalProxyDetected: externalProxyHint,
-		})
-	case cert.ClientStatus == "Ready":
-		fmt.Fprintf(io.Out, "Your certificate for %s has been issued. \n", hostname)
-	default:
-		fmt.Fprintf(io.Out, "Your certificate for %s is being issued. Status is %s. \n", hostname, cert.ClientStatus)
-	}
-
-	if dnsMode != DNSDisplaySkip && !cert.IsWildcard && needsAlternateHostname(hostname) {
-		alternateHostname := getAlternateHostname(hostname)
-		fmt.Fprintf(io.Out, "Make sure to create another certificate for %s. \n", alternateHostname)
-	}
-
+	printDNSOptions(ctx, hostname, resp)
 	return nil
 }
 
-func isExternalProxied(provider string, ip net.IP) bool {
-	if provider == CLOUDFLARE {
-		for _, ipnet := range CloudflareIPs {
-			if ipnet.Contains(ip) {
-				return true
-			}
-		}
-	} else {
-		for _, ipnet := range FastlyIPs {
-			if ipnet.Contains(ip) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-type DNSSetupFlags struct {
-	Context               context.Context
-	Hostname              string
-	Certificate           *fly.AppCertificate
-	IPv4Address           fly.IPAddress
-	IPv6Address           fly.IPAddress
-	CNAMETarget           string
-	ExternalProxyDetected bool
-}
-
-func printDNSSetupOptions(opts DNSSetupFlags) error {
-	io := iostreams.FromContext(opts.Context)
+func printDNSOptions(ctx context.Context, hostname string, resp *fly.CertificateDetailResponse) {
+	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	hasIPv4 := opts.IPv4Address.Address != ""
-	hasIPv6 := opts.IPv6Address.Address != ""
-	promoteExtProxy := opts.ExternalProxyDetected && !opts.Certificate.IsWildcard
 
-	fmt.Fprintf(io.Out, "You are creating a certificate for %s\n", colorize.Bold(opts.Hostname))
-	fmt.Fprintf(io.Out, "We are using %s for this certificate.\n\n", readableCertAuthority(opts.Certificate.CertificateAuthority))
+	var ipV4, ipV6 string
+	if len(resp.DNSRequirements.A) > 0 {
+		ipV4 = resp.DNSRequirements.A[0]
+	}
+	if len(resp.DNSRequirements.AAAA) > 0 {
+		ipV6 = resp.DNSRequirements.AAAA[0]
+	}
+	cnameTarget := resp.DNSRequirements.CNAME
 
-	if promoteExtProxy {
-		fmt.Fprintln(io.Out, colorize.Blue("It looks like your hostname currently resolves to a proxy or CDN."))
-		fmt.Fprintln(io.Out, "If you are planning to use a proxy or CDN in front of your Fly application,")
-		fmt.Fprintf(io.Out, "using the %s will ensure Fly can generate a certificate automatically.\n", colorize.Green("external proxy setup"))
-		fmt.Fprintln(io.Out)
+	isWildcard := strings.HasPrefix(hostname, "*.")
+	hasACME := resp.AcmeRequested
+	hasCustom := false
+	for _, cert := range resp.Certificates {
+		if cert.Source == "custom" {
+			hasCustom = true
+		} else {
+			hasACME = true
+		}
+	}
+	if !hasCustom {
+		hasACME = true
 	}
 
-	fmt.Fprintln(io.Out, "You can direct traffic to your Fly application by adding records to your DNS provider.")
-	fmt.Fprintln(io.Out)
+	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
+	isApex := hostname == eTLD
+	showCNAME := cnameTarget != "" && !isApex
 
-	fmt.Fprintln(io.Out, colorize.Bold("Choose your DNS setup:"))
-	fmt.Fprintln(io.Out)
+	fmt.Fprintf(io.Out, "%s\n", colorize.Bold(fmt.Sprintf("DNS Setup Options for %s", hostname)))
+
+	hasRoutingOptions := (ipV4 != "" || ipV6 != "") || showCNAME
+	if hasRoutingOptions {
+		fmt.Fprintln(io.Out)
+		if showCNAME {
+			fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Route traffic to your app with one of:"))
+		} else {
+			fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Route traffic to your app:"))
+		}
+	}
 
 	optionNum := 1
-
-	if promoteExtProxy {
-		if hasIPv4 {
-			fmt.Fprintf(io.Out, colorize.Green("%d. External proxy setup\n\n"), optionNum)
-			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
-			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
-			fmt.Fprintln(io.Out)
-			optionNum++
-		} else {
-			fmt.Fprintf(io.Out, colorize.Yellow("%d. External proxy setup (requires IPv6 allocation)\n"), optionNum)
-			fmt.Fprintf(io.Out, "   Run: %s to allocate IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
-			fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n\n", colorize.Bold("fly certs setup "+opts.Hostname))
-			fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
-			fmt.Fprintln(io.Out)
-			optionNum++
-		}
-	}
-
-	fmt.Fprintf(io.Out, colorize.Green("%d. A and AAAA records (recommended for direct connections)\n\n"), optionNum)
-	if hasIPv4 {
-		fmt.Fprintf(io.Out, "   A    %s → %s\n", getRecordName(opts.Hostname), opts.IPv4Address.Address)
-	} else {
-		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv4 addresses are allocated for your application."))
-		fmt.Fprintf(io.Out, "   Run: %s to allocate recommended addresses\n", colorize.Bold("fly ips allocate"))
-		fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n", colorize.Bold("fly certs setup "+opts.Hostname))
-	}
-	if hasIPv6 {
-		fmt.Fprintf(io.Out, "   AAAA %s → %s\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
-	} else {
-		fmt.Fprintf(io.Out, "\n   %s\n", colorize.Yellow("No IPv6 addresses are allocated for your application."))
-		fmt.Fprintf(io.Out, "   Run: %s to allocate a dedicated IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
-		fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n", colorize.Bold("fly certs setup "+opts.Hostname))
-	}
-	fmt.Fprintln(io.Out)
-	optionNum++
-
-	if !opts.Certificate.IsApex && (hasIPv4 || hasIPv6) && opts.CNAMETarget != "" {
-		fmt.Fprintf(io.Out, colorize.Cyan("%d. CNAME record\n\n"), optionNum)
-		fmt.Fprintf(io.Out, "   CNAME %s → %s\n", getRecordName(opts.Hostname), opts.CNAMETarget)
+	if ipV4 != "" || ipV6 != "" {
 		fmt.Fprintln(io.Out)
+		if showCNAME {
+			fmt.Fprintf(io.Out, "  %s\n", colorize.Green(fmt.Sprintf("%d. A and AAAA Records (recommended)", optionNum)))
+		} else {
+			fmt.Fprintf(io.Out, "  %s\n", colorize.Green("A and AAAA Records"))
+		}
+		if ipV4 != "" {
+			fmt.Fprintf(io.Out, "     %s    %s \u2192 %s\n", colorize.Cyan("A"), hostname, ipV4)
+		}
+		if ipV6 != "" {
+			fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("AAAA"), hostname, ipV6)
+		}
 		optionNum++
 	}
 
-	if !promoteExtProxy && !opts.Certificate.IsWildcard {
-		fmt.Fprintf(io.Out, colorize.Blue("%d. External proxy setup\n\n"), optionNum)
-		if hasIPv6 {
-			fmt.Fprintf(io.Out, "   AAAA %s → %s\n\n", getRecordName(opts.Hostname), opts.IPv6Address.Address)
-		} else {
-			fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("No IPv6 addresses are allocated for your application."))
-			fmt.Fprintf(io.Out, "   Run: %s to allocate a dedicated IPv6 address\n", colorize.Bold("fly ips allocate-v6"))
-			fmt.Fprintf(io.Out, "   Then: %s to view these instructions again\n\n", colorize.Bold("fly certs setup "+opts.Hostname))
-		}
-		fmt.Fprintln(io.Out, "   Use this setup when configuring a proxy or CDN in front of your Fly application.")
-		fmt.Fprintln(io.Out, "   When proxying traffic, you should only use your application's IPv6 address.")
+	if showCNAME {
 		fmt.Fprintln(io.Out)
-		// optionNum++ uncomment if steps added.
+		fmt.Fprintf(io.Out, "  %s\n", fmt.Sprintf("%d. CNAME Record", optionNum))
+		fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("CNAME"), hostname, cnameTarget)
 	}
 
-	if opts.Certificate.IsWildcard {
-		fmt.Fprint(io.Out, colorize.Yellow("Required: DNS Challenge\n\n"))
-	} else {
-		fmt.Fprint(io.Out, colorize.Yellow("Optional: DNS Challenge\n\n"))
+	acme := resp.DNSRequirements.ACMEChallenge
+	showACME := hasACME && acme.Name != "" && acme.Target != ""
+
+	ownership := resp.DNSRequirements.Ownership
+	showOwnership := ownership.Name != "" && !(hasACME && !hasCustom && isWildcard)
+
+	if showACME || showOwnership {
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Additional DNS records:"))
 	}
-	fmt.Fprintf(io.Out, "   CNAME %s → %s\n\n", opts.Certificate.DNSValidationHostname, opts.Certificate.DNSValidationTarget)
-	fmt.Fprintln(io.Out, "   Additional to one of the DNS setups.")
-	if opts.Certificate.IsWildcard {
-		fmt.Fprintf(io.Out, "   %s\n", colorize.Yellow("Required for this wildcard certificate."))
-	} else {
-		fmt.Fprintln(io.Out, "   Required for wildcard certificates, or to generate")
-		fmt.Fprintln(io.Out, "   a certificate before directing traffic to your application.")
+
+	if showACME {
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "  ACME DNS Challenge\n")
+		fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("CNAME"), acme.Name, acme.Target)
+		if isWildcard {
+			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Required to issue fly-managed wildcard certificates."))
+		} else {
+			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Only needed if you want to generate the certificate before directing traffic to your application."))
+		}
 	}
+
+	if showOwnership {
+		fmt.Fprintln(io.Out)
+		fmt.Fprintf(io.Out, "  Ownership TXT Record\n")
+		if ownership.AppValue != "" {
+			fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("TXT"), ownership.Name, ownership.AppValue)
+		}
+		if hasCustom && isWildcard {
+			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Required to verify ownership for custom wildcard certificates."))
+		} else {
+			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Required if your app doesn't have an IPv6 address, or if traffic is routed through a CDN or proxy."))
+		}
+	}
+
 	fmt.Fprintln(io.Out)
-
-	return nil
 }
 
-func getRecordName(hostname string) string {
-	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
-	subdomainname := strings.TrimSuffix(hostname, eTLD)
-
-	if subdomainname == "" {
-		return "@"
-	}
-	return strings.TrimSuffix(subdomainname, ".")
-}
-
-func printCertificate(ctx context.Context, cert *fly.AppCertificate) {
+func printCertificateDetail(ctx context.Context, resp *fly.CertificateDetailResponse) {
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 
-	if config.FromContext(ctx).JSONOutput {
-		render.JSON(io.Out, cert)
+	myprnt := func(label string, value string) {
+		fmt.Fprintf(io.Out, "  %s = %s\n", colorize.Gray(fmt.Sprintf("%-23s", label)), value)
+	}
+
+	var customCert, flyCert *fly.CertificateDetail
+	for i := range resp.Certificates {
+		if resp.Certificates[i].Source == "custom" {
+			customCert = &resp.Certificates[i]
+		} else {
+			flyCert = &resp.Certificates[i]
+		}
+	}
+
+	if customCert == nil {
+		if flyCert != nil {
+			printCertSection(colorize, myprnt, resp.Hostname, flyCert, "")
+		} else {
+			myprnt("Status", colorize.Yellow("Not verified"))
+			myprnt("Hostname", resp.Hostname)
+		}
 		return
 	}
 
-	myprnt := func(label string, value string) {
-		fmt.Fprintf(io.Out, "%-25s = %s\n", label, value)
+	fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Custom Certificate"))
+	printCertSection(colorize, myprnt, resp.Hostname, customCert, "")
+	fmt.Fprintln(io.Out)
+
+	fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Fly-Managed Certificate"))
+	if flyCert != nil {
+		flyStatus := ""
+		if customCert.Status == "active" {
+			flyStatus = "Fallback"
+		}
+		printCertSection(colorize, myprnt, resp.Hostname, flyCert, flyStatus)
+	} else {
+		myprnt("Status", colorize.Gray("disabled"))
+	}
+}
+
+func friendlyStatus(source, rawStatus string) string {
+	switch rawStatus {
+	case "active":
+		if source == "custom" {
+			return "Verified"
+		}
+		return "Issued"
+	case "pending_ownership":
+		return "Not verified"
+	default:
+		if source == "custom" {
+			return "Not verified"
+		}
+		return "Issuing..."
+	}
+}
+
+func printCertSection(colorize *iostreams.ColorScheme, myprnt func(string, string), hostname string, cert *fly.CertificateDetail, statusOverride string) {
+	status := friendlyStatus(cert.Source, cert.Status)
+	if statusOverride != "" {
+		status = statusOverride
 	}
 
-	certtypes := []string{}
-	var expiresAt string
+	var coloredStatus string
+	switch status {
+	case "Verified", "Issued":
+		coloredStatus = colorize.Green(status)
+	case "Issuing...":
+		coloredStatus = colorize.Yellow(status)
+	case "Not verified":
+		coloredStatus = colorize.Yellow(status)
+	default:
+		coloredStatus = colorize.Gray(status)
+	}
+	myprnt("Status", coloredStatus)
+	myprnt("Hostname", hostname)
 
-	for _, v := range cert.Issued.Nodes {
-		certtypes = append(certtypes, v.Type)
-		// Get the expiration time (all certs should expire at the same time)
-		if expiresAt == "" && !v.ExpiresAt.IsZero() {
-			expiresAt = humanize.Time(v.ExpiresAt)
+	for _, issued := range cert.Issued {
+		if issued.CertificateAuthority != "" {
+			myprnt("Certificate Authority", readableCertAuthority(issued.CertificateAuthority))
+			break
 		}
 	}
 
-	myprnt("Status", cert.ClientStatus)
-	myprnt("Hostname", cert.Hostname)
-	myprnt("DNS Provider", cert.DNSProvider)
-	myprnt("Certificate Authority", readableCertAuthority(cert.CertificateAuthority))
-	myprnt("Issued", strings.Join(certtypes, ","))
-	myprnt("Added to App", humanize.Time(cert.CreatedAt))
-	if expiresAt != "" {
-		myprnt("Expires", expiresAt)
+	if cert.Issuer != "" {
+		myprnt("Issuer", cert.Issuer)
 	}
-	myprnt("Source", cert.Source)
+
+	if len(cert.Issued) > 0 {
+		var certTypes []string
+		for _, issued := range cert.Issued {
+			certTypes = append(certTypes, issued.Type)
+		}
+		myprnt("Issued", strings.Join(certTypes, ","))
+	}
+
+	if cert.CreatedAt != nil && !cert.CreatedAt.IsZero() {
+		myprnt("Added to App", humanize.Time(*cert.CreatedAt))
+	}
+
+	if cert.ExpiresAt != nil && !cert.ExpiresAt.IsZero() {
+		myprnt("Expires", humanize.Time(*cert.ExpiresAt))
+	} else if len(cert.Issued) > 0 && !cert.Issued[0].ExpiresAt.IsZero() {
+		myprnt("Expires", humanize.Time(cert.Issued[0].ExpiresAt))
+	}
 }
 
 func readableCertAuthority(ca string) string {
@@ -564,7 +734,7 @@ func readableCertAuthority(ca string) string {
 	return ca
 }
 
-func printCertificates(ctx context.Context, certs []fly.AppCertificateCompact) error {
+func printCertificates(ctx context.Context, certs []fly.CertificateSummary) error {
 	io := iostreams.FromContext(ctx)
 
 	if config.FromContext(ctx).JSONOutput {
@@ -573,12 +743,38 @@ func printCertificates(ctx context.Context, certs []fly.AppCertificateCompact) e
 	}
 
 	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "%-25s %-20s %s\n", "Host Name", "Added", "Status")
+	fmt.Fprintf(io.Out, "%s\n", colorize.Bold(fmt.Sprintf("%-30s %-10s %s", "HOSTNAME", "SOURCE", "STATUS")))
+
 	for _, v := range certs {
-		line := fmt.Sprintf("%-25s %-20s %s", v.Hostname, humanize.Time(v.CreatedAt), v.ClientStatus)
-		if v.ClientStatus == "Ready" {
-			line = colorize.Green(line)
+		source := "-"
+		if v.HasCustomCertificate {
+			source = "Custom"
+		} else if v.HasFlyCertificate || v.AcmeRequested {
+			source = "Fly"
+		}
+
+		var status string
+		if v.HasCustomCertificate {
+			if v.Configured {
+				status = "Verified"
+			} else {
+				status = "Not verified"
+			}
+		} else if v.Configured {
+			status = "Issued"
+		} else if v.AcmeDNSConfigured || v.AcmeALPNConfigured || v.AcmeHTTPConfigured {
+			status = "Issuing..."
 		} else {
+			status = "Not verified"
+		}
+
+		line := fmt.Sprintf("%-30s %-10s %s", v.Hostname, source, status)
+		switch status {
+		case "Verified", "Issued":
+			line = colorize.Green(line)
+		case "Not verified":
+			line = colorize.Yellow(line)
+		default:
 			line = colorize.Yellow(line)
 		}
 		fmt.Fprintf(io.Out, "%s\n", line)
@@ -597,63 +793,4 @@ func getAlternateHostname(hostname string) string {
 	} else {
 		return "www." + hostname
 	}
-}
-
-func mustParseCIDR(s string) *net.IPNet {
-	_, ipnet, err := net.ParseCIDR(s)
-	if err != nil {
-		panic(err)
-	}
-	return ipnet
-}
-
-const CLOUDFLARE = "cloudflare"
-
-var CloudflareIPs = []*net.IPNet{
-	mustParseCIDR("173.245.48.0/20"),
-	mustParseCIDR("103.21.244.0/22"),
-	mustParseCIDR("103.22.200.0/22"),
-	mustParseCIDR("103.31.4.0/22"),
-	mustParseCIDR("141.101.64.0/18"),
-	mustParseCIDR("108.162.192.0/18"),
-	mustParseCIDR("190.93.240.0/20"),
-	mustParseCIDR("188.114.96.0/20"),
-	mustParseCIDR("197.234.240.0/22"),
-	mustParseCIDR("198.41.128.0/17"),
-	mustParseCIDR("162.158.0.0/15"),
-	mustParseCIDR("104.16.0.0/13"),
-	mustParseCIDR("104.24.0.0/14"),
-	mustParseCIDR("172.64.0.0/13"),
-	mustParseCIDR("131.0.72.0/22"),
-	mustParseCIDR("2400:cb00::/32"),
-	mustParseCIDR("2606:4700::/32"),
-	mustParseCIDR("2803:f800::/32"),
-	mustParseCIDR("2405:b500::/32"),
-	mustParseCIDR("2405:8100::/32"),
-	mustParseCIDR("2a06:98c0::/29"),
-	mustParseCIDR("2c0f:f248::/32"),
-}
-
-var FastlyIPs = []*net.IPNet{
-	mustParseCIDR("23.235.32.0/20"),
-	mustParseCIDR("43.249.72.0/22"),
-	mustParseCIDR("103.244.50.0/24"),
-	mustParseCIDR("103.245.222.0/23"),
-	mustParseCIDR("103.245.224.0/24"),
-	mustParseCIDR("104.156.80.0/20"),
-	mustParseCIDR("140.248.64.0/18"),
-	mustParseCIDR("140.248.128.0/17"),
-	mustParseCIDR("146.75.0.0/17"),
-	mustParseCIDR("151.101.0.0/16"),
-	mustParseCIDR("157.52.64.0/18"),
-	mustParseCIDR("167.82.0.0/17"),
-	mustParseCIDR("167.82.128.0/20"),
-	mustParseCIDR("167.82.160.0/20"),
-	mustParseCIDR("167.82.224.0/20"),
-	mustParseCIDR("172.111.64.0/18"),
-	mustParseCIDR("185.31.16.0/22"),
-	mustParseCIDR("199.27.72.0/21"),
-	mustParseCIDR("199.232.0.0/16"),
-	mustParseCIDR("2a04:4e40::/32"),
-	mustParseCIDR("2a04:4e42::/32"),
 }
