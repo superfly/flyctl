@@ -43,12 +43,24 @@ func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flap
 	return nil, fmt.Errorf("failed to assign IP to %s", appName)
 }
 
+func (m *mockFlapsClient) CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) Cordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
 	return fmt.Errorf("failed to cordon %s", machineID)
 }
 
+func (m *mockFlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
 	return nil, fmt.Errorf("failed to create app")
+}
+
+func (m *mockFlapsClient) CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -59,8 +71,20 @@ func (m *mockFlapsClient) CreateVolumeSnapshot(ctx context.Context, appName, vol
 	return fmt.Errorf("failed to create volume snapshot %s", volumeId)
 }
 
+func (m *mockFlapsClient) DeleteACMECertificate(ctx context.Context, appName, hostname string) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) DeleteApp(ctx context.Context, name string) error {
 	return fmt.Errorf("failed to delete app %s", name)
+}
+
+func (m *mockFlapsClient) DeleteCertificate(ctx context.Context, appName, hostname string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
+	return fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
@@ -117,6 +141,10 @@ func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, 
 
 func (m *mockFlapsClient) GetAllVolumes(ctx context.Context, appName string) ([]fly.Volume, error) {
 	return nil, fmt.Errorf("failed to get all volumes")
+}
+
+func (m *mockFlapsClient) GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
@@ -186,6 +214,10 @@ func (m *mockFlapsClient) ListActive(ctx context.Context, appName string) ([]*fl
 
 func (m *mockFlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error) {
 	return nil, fmt.Errorf("failed to list apps")
+}
+
+func (m *mockFlapsClient) ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
