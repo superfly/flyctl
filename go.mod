@@ -44,6 +44,7 @@ require (
 	github.com/itchyny/json2yaml v0.1.4
 	github.com/jinzhu/copier v0.4.0
 	github.com/jpillora/backoff v1.0.0
+	github.com/karrick/tparse/v2 v2.8.2
 	github.com/kr/text v0.2.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.4.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
