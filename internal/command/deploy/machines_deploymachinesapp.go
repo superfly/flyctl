@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math"
 	"net"
+	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
@@ -1382,9 +1383,18 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
-				if strings.Contains(ipAddr.IP, ".") && (ipAddr.Region == "global" || ipAddr.Shared) {
+				ip, err := netip.ParseAddr(ipAddr.IP)
+				if err != nil {
+					terminal.Debugf("failed to parse IP: %v", err)
+					continue
+				}
+				if ip.IsPrivate() {
+					continue
+				}
+
+				if ip.Is4() && (ipAddr.Region == "global" || ipAddr.Shared) {
 					numIPv4 += 1
-				} else if strings.Contains(ipAddr.IP, ":") && ipAddr.Region == "global" {
+				} else if ip.Is6() && ipAddr.Region == "global" {
 					numIPv6 += 1
 				}
 			}
