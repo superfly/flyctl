@@ -136,10 +136,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// sqlite (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
-		// Only request object storage if not skipping extensions (for litestream replication)
-		if os.Getenv("SKIP_EXTENSIONS") == "" {
-			s.ObjectStorageDesired = true
-		}
 	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*sqlite")) {
 		// sqlite (detected from database.yml)
 		s.DatabaseDesired = DatabaseKindSqlite
@@ -198,7 +194,11 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	if checksPass(sourceDir, dirContains("Gemfile", "aws-sdk-s3")) || checksPass(sourceDir, dirContains("Gemfile.lock", "aws-sdk-s3")) {
 		s.ObjectStorageDesired = true
 	} else if checksPass(sourceDir+"/db/migrate", dirContains("*.rb", ":active_storage_attachments")) {
-		s.ObjectStorageDesired = true
+		// Rails apps may keep old Active Storage migrations around even when
+		// runtime storage is explicitly local. Avoid a false positive in that case.
+		if !railsProductionActiveStorageIsLocal(sourceDir) {
+			s.ObjectStorageDesired = true
+		}
 	} else if checksPass(sourceDir+"/config", fileExists("storage.yml")) {
 		cfgMap := map[string]any{}
 		buf, err := os.ReadFile(path.Join(sourceDir, "config", "storage.yml"))
@@ -209,8 +209,13 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 		if err == nil {
 			for _, v := range cfgMap {
-				submap, ok := v.(map[interface{}]interface{})
-				if ok {
+				switch submap := v.(type) {
+				case map[interface{}]interface{}:
+					service, ok := submap["service"].(string)
+					if ok && service == "S3" {
+						s.ObjectStorageDesired = true
+					}
+				case map[string]interface{}:
 					service, ok := submap["service"].(string)
 					if ok && service == "S3" {
 						s.ObjectStorageDesired = true
@@ -332,6 +337,22 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	}
 
 	return s, nil
+}
+
+func railsProductionActiveStorageIsLocal(sourceDir string) bool {
+	buf, err := os.ReadFile(path.Join(sourceDir, "config", "environments", "production.rb"))
+	if err != nil {
+		return false
+	}
+
+	prodEnv := string(buf)
+	re := regexp.MustCompile(`(?m)config\.active_storage\.service\s*=\s*:(local|test)\b`)
+	if re.MatchString(prodEnv) {
+		return true
+	}
+
+	re = regexp.MustCompile(`(?m)config\.active_storage\.service\s*=\s*["'](local|test)["']\b`)
+	return re.MatchString(prodEnv)
 }
 
 func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
