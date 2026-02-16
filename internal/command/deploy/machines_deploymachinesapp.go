@@ -1362,9 +1362,9 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 	if appURL := md.appConfig.URL(); appURL != nil && len(ipAddrs) > 0 {
 		iostreams := iostreams.FromContext(ctx)
-		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(appURL.Host))
+		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(appURL.Hostname()))
 
-		fqdn := dns.Fqdn(appURL.Host)
+		fqdn := dns.Fqdn(appURL.Hostname())
 		c := dns.Client{
 			Dialer:       &net.Dialer{Timeout: time.Minute},
 			Timeout:      time.Minute,
@@ -1380,8 +1380,13 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		_, err = backoff.Retry(ctx, func() (any, error) {
 			m := new(dns.Msg)
 
+			_, ulaBlock, _ := net.ParseCIDR("fc00::/7")
+
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
+				if ip := net.ParseIP(ipAddr.IP); ip != nil && ulaBlock.Contains(ip) {
+					continue
+				}
 				if strings.Contains(ipAddr.IP, ".") && (ipAddr.Region == "global" || ipAddr.Shared) {
 					numIPv4 += 1
 				} else if strings.Contains(ipAddr.IP, ":") && ipAddr.Region == "global" {
@@ -1433,7 +1438,6 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 }
 
 func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
-
 	for _, static := range md.appConfig.Statics {
 		if statics.StaticIsCandidateForTigrisPush(static) {
 			return true
