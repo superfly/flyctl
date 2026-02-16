@@ -1364,7 +1364,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		iostreams := iostreams.FromContext(ctx)
 		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(appURL.Host))
 
-		fqdn := dns.Fqdn(appURL.Host)
+		fqdn := dns.Fqdn(appURL.Hostname())
 		c := dns.Client{
 			Dialer:       &net.Dialer{Timeout: time.Minute},
 			Timeout:      time.Minute,
