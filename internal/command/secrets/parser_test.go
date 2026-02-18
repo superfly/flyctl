@@ -111,6 +111,16 @@ func Test_parse_with_comment(t *testing.T) {
 	}, secrets)
 }
 
+func Test_parse_with_single_quotes(t *testing.T) {
+	reader := strings.NewReader("FOO='BAR BAZ'\nKEY='value'")
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"FOO": "BAR BAZ",
+		"KEY": "value",
+	}, secrets)
+}
+
 // Test single-line triple-quoted strings
 func Test_parse_singleline_triple_quotes(t *testing.T) {
 	reader := strings.NewReader(`VARIABLE="""my-single-line-multiline-string"""
