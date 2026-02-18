@@ -53,6 +53,9 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
 					// Remove double quotes
 					value = value[1 : len(value)-1]
+				} else if strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
+					// Remove single quotes
+					value = value[1 : len(value)-1]
 				}
 				secrets[key] = value
 			}
