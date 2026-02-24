@@ -95,10 +95,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run GoReleaser
         if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: latest
+          version: "~> v2"
           args: release --clean -f .goreleaser.2.yml --fail-fast --split
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
@@ -143,10 +143,10 @@ jobs:
           overwrite: true
       - name: Github release
         if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/master'
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: latest
+          version: "~> v2"
           args: continue --merge
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}

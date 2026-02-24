@@ -1,3 +1,5 @@
+version: 2
+
 env:
   - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
 
@@ -95,7 +97,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{.Version}}-{{.Branch}}.{{.CommitTimestamp}}"
+  version_template: "{{.Version}}-{{.Branch}}.{{.CommitTimestamp}}"
 
 changelog:
   sort: asc
@@ -108,7 +110,7 @@ brews:
   - repository:
       owner: superfly
       name: homebrew-tap
-    folder: Formula
+    directory: Formula
     homepage: https://fly.io
     skip_upload: auto
     test: |
