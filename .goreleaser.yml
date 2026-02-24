@@ -110,7 +110,7 @@ brews:
   - repository:
       owner: superfly
       name: homebrew-tap
-    folder: Formula
+    directory: Formula
     homepage: https://fly.io
     skip_upload: auto
     test: |
