@@ -27,7 +27,7 @@ jobs:
         env:
           BUILD_ENV: "development"
         with:
-          version: latest
+          version: "~> v2"
           args: build --clean --snapshot --verbose
       - name: Upload flyctl for preflight
         uses: actions/upload-artifact@v6

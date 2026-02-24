@@ -98,7 +98,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: latest
+          version: "~> v2"
           args: release --clean -f .goreleaser.2.yml --fail-fast --split
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
@@ -146,7 +146,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: latest
+          version: "~> v2"
           args: continue --merge
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
