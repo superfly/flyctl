@@ -1,6 +1,8 @@
 # This config targets the new flypkgs distribution system. Once all releases are
 # being served by flypkgs, this file will replace .goreleaser.yml and .goreleaser.dev.yml
 
+version: 2
+
 env:
   - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
 
