@@ -68,6 +68,8 @@ func scaleVertically(ctx context.Context, group, sizeName string, memoryMB int) 
 
 	fmt.Fprintf(io.Out, "%15s: %s\n", "CPU Cores", formatCores(*size))
 	fmt.Fprintf(io.Out, "%15s: %s\n", "Memory", formatMemory(*size))
+
+	warnVMConfigMismatch(ctx, group, sizeName, memoryMB)
 	return nil
 }
 
