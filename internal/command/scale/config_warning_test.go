@@ -42,8 +42,8 @@ func TestResolveComputeSettings(t *testing.T) {
 			expectedMemory: 512,
 		},
 		{
-			name:    "no size defaults to shared-cpu-1x",
-			compute: &appconfig.Compute{},
+			name:           "no size defaults to shared-cpu-1x",
+			compute:        &appconfig.Compute{},
 			expectedSize:   "shared-cpu-1x",
 			expectedMemory: 256,
 		},

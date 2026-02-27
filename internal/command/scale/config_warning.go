@@ -58,10 +58,9 @@ func warnVMConfigMismatch(ctx context.Context, group, sizeName string, memoryMB 
 	}
 
 	fmt.Fprintln(io.ErrOut)
-	fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf(
-		"%s Your fly.toml has a [[vm]] section with different settings than what was just applied.",
-		colorize.WarningIcon(),
-	)))
+	fmt.Fprintf(io.ErrOut, "%s %s\n", colorize.WarningIcon(), colorize.Yellow(
+		"Your fly.toml has a [[vm]] section with different settings than what was just applied.",
+	))
 	fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf(
 		"  Machines now: size=%s memory=%dMB", machineSize, machineMem,
 	)))
