@@ -559,7 +559,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	}
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
-		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
 		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
 		if err != nil {
 			span.RecordError(err)
