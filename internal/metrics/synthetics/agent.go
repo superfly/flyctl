@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/superfly/flyctl/internal/logger"
 )
@@ -93,7 +93,7 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 		logBuf bytes.Buffer
 	)
 
-	sl := log.NewLogfmtLogger(log.NewSyncWriter(&logBuf))
+	sl := slog.New(slog.NewTextHandler(&logBuf, nil))
 
 	if !isFlyInfraTarget(probeMessage.Target) {
 		logger.Warnf("skipping probe message for non-fly infra endpoint %s", probeMessage.Target)
