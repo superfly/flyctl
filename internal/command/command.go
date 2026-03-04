@@ -566,11 +566,13 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		return handleReLogin(ctx, "not_authenticated")
 	}
 
-	// Skip timestamp validation if token is from environment variable (CI/CD use case)
-	// This allows automated pipelines to continue working without session timeout
-	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
+	// Skip timestamp validation if token is explicitly provided via environment
+	// variable or -t flag (CI/CD and scripted use cases).
+	// This allows automated pipelines to continue working without session timeout.
+	tokenExplicit := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != "" ||
+		flag.IsSpecified(ctx, "access-token")
 
-	if !tokenFromEnv {
+	if !tokenExplicit {
 		// Check if the token has expired due to age
 		// If LastLogin is zero, it means the user has an old config without the timestamp
 		if cfg.LastLogin.IsZero() {
