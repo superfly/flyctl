@@ -1,6 +1,6 @@
 module github.com/superfly/flyctl
 
-go 1.24.5
+go 1.25.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -86,14 +86,14 @@ require (
 	go.opentelemetry.io/otel/sdk v1.40.0
 	go.opentelemetry.io/otel/trace v1.40.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/crypto v0.47.0
-	golang.org/x/mod v0.32.0
-	golang.org/x/net v0.49.0
+	golang.org/x/crypto v0.48.0
+	golang.org/x/mod v0.33.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.40.0
-	golang.org/x/term v0.39.0
-	golang.org/x/text v0.33.0
-	golang.org/x/time v0.13.0
+	golang.org/x/sys v0.41.0
+	golang.org/x/term v0.40.0
+	golang.org/x/text v0.34.0
+	golang.org/x/time v0.14.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	google.golang.org/grpc v1.77.0
 	gopkg.in/yaml.v3 v3.0.1
