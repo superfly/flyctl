@@ -108,7 +108,7 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	s1 = findMachineByID(ml, s1.ID)
 	require.Equal(f, 2, len(ml))
 	// Updating a stopped machine doesn't start it
-	require.Equal(f, "started", s1.State)
+	require.Equal(f, "stopped", s1.State)
 	require.Empty(f, s1.Config.Standbys)
 
 	// Clone and set its standby to the source
