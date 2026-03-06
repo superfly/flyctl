@@ -85,8 +85,25 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}
 
-	waitForAction := "start"
-	if input.SkipLaunch || m.Config.Schedule != "" || m.State != fly.MachineStateStarted {
+	waitForAction := "none"
+	switch m.State {
+	case fly.MachineStateStarted, "failed", "starting":
+		waitForAction = "start"
+	case fly.MachineStateStopped, fly.MachineStateSuspended, "stopping", "suspending":
+		waitForAction = "stop"
+	default:
+		// look for past machine events
+		for _, ev := range m.Events {
+			if ev.Type == "start" || ev.Status == "started" || ev.Status == "starting" {
+				waitForAction = "start"
+				break
+			} else if ev.Status == "stopped" || ev.Status == "stopping" || ev.Status == "suspended" || ev.Status == "suspending" {
+				waitForAction = "stop"
+				break
+			}
+		}
+	}
+	if input.SkipLaunch {
 		waitForAction = "stop"
 	}
 
@@ -99,11 +116,9 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		return err
 	}
 
-	if !input.SkipLaunch {
-		if !input.SkipHealthChecks {
-			if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
-				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
-			}
+	if waitForAction == "start" && !input.SkipHealthChecks {
+		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
+			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}
 
