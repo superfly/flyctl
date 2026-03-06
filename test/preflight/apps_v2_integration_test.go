@@ -441,10 +441,20 @@ func testDeployDetach(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	res := f.Fly("deploy --buildkit --remote-only --detach")
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	m := ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started")
 
-	res = f.Fly("deploy --buildkit --remote-only")
+	ml = f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	m = ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started")
 }
 
@@ -455,10 +465,20 @@ func testDeployDetachBatching(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("scale count 6 --yes")
 
-	res := f.Fly("deploy --buildkit --remote-only --detach")
+	ml := f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m := ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
 
-	res = f.Fly("deploy --buildkit --remote-only")
+	ml = f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m = ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started", false)
 }
 
