@@ -142,7 +142,7 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 
 func (lm *leasableMachine) Cordon(ctx context.Context) error {
 	if lm.IsDestroyed() {
-		return fmt.Errorf("cannon cordon machine %s that was already destroyed", lm.machine.ID)
+		return fmt.Errorf("cannot cordon machine %s that was already destroyed", lm.machine.ID)
 	}
 
 	return lm.flapsClient.Cordon(ctx, lm.appName, lm.machine.ID, lm.leaseNonce)
@@ -535,6 +535,10 @@ func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, durati
 
 	for {
 		time.Sleep(b.Duration())
+		if lm.IsDestroyed() {
+			return
+		}
+
 		switch err := lm.RefreshLease(ctx, duration); {
 		case err == nil:
 			// good times
@@ -556,7 +560,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 
 	nonce := lm.leaseNonce
 	lm.resetLease()
-	if nonce == "" {
+	if nonce == "" || lm.IsDestroyed() {
 		return nil
 	}
 

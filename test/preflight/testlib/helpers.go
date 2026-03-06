@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,16 @@ import (
 )
 
 const defaultRegion = "cdg"
+
+type selectedRegions struct {
+	primary string
+	other   []string
+}
+
+var (
+	regionSelectionOnce sync.Once
+	regionSelection     selectedRegions
+)
 
 type platformRegion struct {
 	Code             string `json:"code"`
@@ -92,37 +103,43 @@ func getBestRegions(count int) ([]string, error) {
 }
 
 func primaryRegionFromEnv() string {
-	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
-	if regions == "" {
-		// Try to dynamically select best region
-		best, err := getBestRegions(1)
-		if err == nil && len(best) > 0 {
-			terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, auto-selected region with best capacity: %s", best[0])
-			return best[0]
-		}
-		// Fall back to hardcoded default
-		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, failed to auto-select (%v), using fallback: %s", err, defaultRegion)
-		return defaultRegion
-	}
-	pieces := strings.SplitN(regions, " ", 2)
-	return pieces[0]
+	regions := selectRegionsFromEnv()
+	return regions.primary
 }
 
 func otherRegionsFromEnv() []string {
-	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
-	if regions == "" {
-		// Try to dynamically select best regions (get top 2, skip the first since it's primary)
-		best, err := getBestRegions(2)
-		if err == nil && len(best) > 1 {
-			return best[1:]
+	regions := selectRegionsFromEnv()
+	return append([]string(nil), regions.other...)
+}
+
+func selectRegionsFromEnv() selectedRegions {
+	regionSelectionOnce.Do(func() {
+		regions := strings.Fields(os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS"))
+		if len(regions) > 0 {
+			regionSelection.primary = regions[0]
+			if len(regions) > 1 {
+				regionSelection.other = append([]string(nil), regions[1:]...)
+			}
+			return
 		}
-		return nil
-	}
-	pieces := strings.Split(regions, " ")
-	if len(pieces) > 1 {
-		return pieces[1:]
-	} else {
-		return nil
+
+		best, err := getBestRegions(2)
+		if err == nil && len(best) > 0 {
+			regionSelection.primary = best[0]
+			if len(best) > 1 {
+				regionSelection.other = append([]string(nil), best[1:]...)
+			}
+			terminal.Debugf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, auto-selected region with best capacity: %s", best[0])
+			return
+		}
+
+		regionSelection.primary = defaultRegion
+		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, failed to auto-select (%v), using fallback: %s", err, defaultRegion)
+	})
+
+	return selectedRegions{
+		primary: regionSelection.primary,
+		other:   append([]string(nil), regionSelection.other...),
 	}
 }
 
