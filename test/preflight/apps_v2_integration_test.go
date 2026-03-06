@@ -4,7 +4,6 @@
 package preflight
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -345,13 +344,15 @@ web = "nginx -g 'daemon off;'"
 		"web": 1,
 	})
 
-	// json dump `machines` variable as well, to verify that the machine IDs are what we expect
-	machinesJson, _ := json.MarshalIndent(machines, "", "  ")
-	f.Logf("machines variable dump: %s", string(machinesJson))
-	f.Logf("machines before clone: %s", f.Fly("machines list -a %s --json", appName).StdOutString())
-
 	// Step 5: Set secrets, to ensure that machine data is kept during a 'restartOnly' deploy.
 	f.Fly("machine update %s -m CUSTOM=META -y", webMachId).AssertSuccessfulExit()
+	// XXX: this sucks but until update waits for the machine to reach a terminal state
+	// before returning, we have to wait an arbitrary amount of time here to ensure
+	// that the machine is ready for another update.
+	// TODO: Replace with an eventually loop
+	time.Sleep(10 * time.Second)
+
+	f.Logf("machines before update: %s", f.Fly("m status -d -a %s %s", appName, webMachId).StdOutString())
 	f.Fly("secrets set 'SOME=MY_SECRET_TEST_STRING' -a %s", appName).AssertSuccessfulExit()
 
 	machines = f.MachinesList(appName)

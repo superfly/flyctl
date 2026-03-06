@@ -27,6 +27,8 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		waitOnAction = "started"
 	case "stop":
 		waitOnAction = "stopped"
+	case "none":
+		return nil
 	default:
 		return invalidAction
 	}
