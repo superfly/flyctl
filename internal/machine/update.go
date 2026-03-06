@@ -85,25 +85,23 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}
 
-	waitForAction := "start"
-	if input.SkipLaunch || m.Config.Schedule != "" || m.State != fly.MachineStateStarted {
-		waitForAction = "stop"
-	}
-
 	waitTimeout := time.Second * 300
 	if input.Timeout != 0 {
 		waitTimeout = time.Duration(input.Timeout) * time.Second
 	}
 
-	if err := WaitForStartOrStop(ctx, appName, updatedMachine, waitForAction, waitTimeout); err != nil {
-		return err
+	state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout)
+	if err != nil {
+		return fmt.Errorf("error while waiting for machine to update: %w", err)
 	}
 
-	if !input.SkipLaunch {
-		if !input.SkipHealthChecks {
-			if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
-				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
-			}
+	if state == "failed" {
+		return fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, state)
+	}
+
+	if state == "started" && !input.SkipHealthChecks {
+		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
+			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}
 

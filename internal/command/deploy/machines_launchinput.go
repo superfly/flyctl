@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -297,18 +298,14 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	}
 
 	switch {
-	case state == fly.MachineStateStarted:
+	case slices.Contains([]string{fly.MachineStateStarted, "starting", "failed"}, state):
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case state == fly.MachineStateStopped, state == fly.MachineStateSuspended:
-		for _, s := range mConfig.Services {
-			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
-				return true
-			}
-		}
+	case origMachineRaw == nil:
+		return false
 	}
-	return false
+	return true
 }
 
 // updateContainerImage sets container.Image = mConfig.Image in any container where image == "."

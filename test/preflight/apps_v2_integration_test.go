@@ -84,7 +84,7 @@ func TestAppsV2Example(t *testing.T) {
 ENV BUILT_BY_DOCKERFILE=true
 `
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
-	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0o644)
 	if err != nil {
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
@@ -109,7 +109,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	newConfigFile := strings.Replace(string(configFileBytes), `FOO = 'BAR'`, `BAR = "QUX"`, 1)
 	require.Contains(f, newConfigFile, `BAR = "QUX"`)
 
-	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
+	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0o666)
 	require.NoError(t, err)
 
 	f.Fly("deploy --buildkit --remote-only --detach")
@@ -177,7 +177,7 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 	  auto_rollback = true
 	`
 
-	err := os.WriteFile(configFilePath, []byte(config), 0644)
+	err := os.WriteFile(configFilePath, []byte(config), 0o644)
 	require.NoError(t, err, "error trying to write %s", configFilePath)
 
 	result := f.Fly("launch --no-deploy --ha=false --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
@@ -208,7 +208,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 
 	deployToml := func(toml string) *testlib.FlyctlResult {
 		toml = "app = \"" + appName + "\"\n" + toml
-		err := os.WriteFile(configFilePath, []byte(toml), 0666)
+		err := os.WriteFile(configFilePath, []byte(toml), 0o666)
 		require.NoError(t, err, "error trying to write %s", configFilePath)
 		cmd := f.Fly("deploy --buildkit --remote-only --detach --now --image nginx --ha=false")
 		cmd.AssertSuccessfulExit()
@@ -252,10 +252,8 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 
 	deployOut := deployToml(`
 [[services]]
-  http_checks = []
   internal_port = 8080
   protocol = "tcp"
-  script_checks = []
 
 		[[services.ports]]
 		port = 80
@@ -279,10 +277,8 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 
 [[services]]
   processes = ["web"] # this service only applies to the web process
-  http_checks = []
   internal_port = 8080
   protocol = "tcp"
-  script_checks = []
 
 		[[services.ports]]
 		port = 80
@@ -320,6 +316,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	if len(f.OtherRegions()) > 0 {
 		secondaryRegion = f.OtherRegions()[0]
 	}
+
 	f.Fly("m clone %s --region %s", barWebMachId, secondaryRegion)
 	f.Fly("machine update %s -m ABCD=EFGH -y", webMachId).AssertSuccessfulExit()
 
@@ -444,10 +441,20 @@ func testDeployDetach(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	res := f.Fly("deploy --buildkit --remote-only --detach")
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	m := ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started")
 
-	res = f.Fly("deploy --buildkit --remote-only")
+	ml = f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	m = ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started")
 }
 
@@ -458,10 +465,20 @@ func testDeployDetachBatching(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("scale count 6 --yes")
 
-	res := f.Fly("deploy --buildkit --remote-only --detach")
+	ml := f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m := ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
 
-	res = f.Fly("deploy --buildkit --remote-only")
+	ml = f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m = ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
+	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started", false)
 }
 
@@ -512,7 +529,7 @@ func TestImageLabel(t *testing.T) {
 ENV BUILT_BY_DOCKERFILE=true
 `
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
-	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0o644)
 	if err != nil {
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
