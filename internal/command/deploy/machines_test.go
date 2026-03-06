@@ -279,6 +279,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}, li)
 
 	origMachine := &fly.Machine{
+		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
@@ -329,6 +330,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &fly.Machine{
+		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		ID:         "OrigID",
 		Config: &fly.MachineConfig{
@@ -371,6 +373,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &fly.Machine{
+		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		ID:         "OrigID",
 		Config: &fly.MachineConfig{
