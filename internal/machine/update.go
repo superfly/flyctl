@@ -95,6 +95,10 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		return fmt.Errorf("error while waiting for machine to update: %w", err)
 	}
 
+	if state == "failed" {
+		return fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, state)
+	}
+
 	if state == "started" && !input.SkipHealthChecks {
 		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
