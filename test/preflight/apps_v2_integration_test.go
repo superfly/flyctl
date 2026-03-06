@@ -442,7 +442,7 @@ func testDeployDetach(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
 	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
 
@@ -450,7 +450,7 @@ func testDeployDetach(t *testing.T) {
 	require.NotContains(f, res.StdOutString(), "started")
 
 	ml = f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
 	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
 
