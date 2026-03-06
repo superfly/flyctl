@@ -346,13 +346,6 @@ web = "nginx -g 'daemon off;'"
 
 	// Step 5: Set secrets, to ensure that machine data is kept during a 'restartOnly' deploy.
 	f.Fly("machine update %s -m CUSTOM=META -y", webMachId).AssertSuccessfulExit()
-	// XXX: this sucks but until update waits for the machine to reach a terminal state
-	// before returning, we have to wait an arbitrary amount of time here to ensure
-	// that the machine is ready for another update.
-	// TODO: Replace with an eventually loop
-	time.Sleep(10 * time.Second)
-
-	f.Logf("machines before update: %s", f.Fly("m status -d -a %s %s", appName, webMachId).StdOutString())
 	f.Fly("secrets set 'SOME=MY_SECRET_TEST_STRING' -a %s", appName).AssertSuccessfulExit()
 
 	machines = f.MachinesList(appName)
