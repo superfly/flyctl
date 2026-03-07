@@ -15,6 +15,22 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
+func WaitForState(ctx context.Context, appName string, machine *fly.Machine, desiredState string, timeout time.Duration) (string, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	if err := WaitForStartOrStop(ctx, appName, machine, desiredState, timeout); err != nil {
+		return "", err
+	}
+	if desiredState == "settled" {
+		m, err := flapsClient.Get(ctx, appName, machine.ID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get machine after waiting for it to settle: %w", err)
+		}
+		return m.State, nil
+	}
+	return desiredState, nil
+}
+
 func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
@@ -27,6 +43,8 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		waitOnAction = "started"
 	case "stop":
 		waitOnAction = "stopped"
+	case "settled":
+		waitOnAction = "settled"
 	default:
 		return invalidAction
 	}

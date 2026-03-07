@@ -15,7 +15,7 @@ import (
 )
 
 func makeTerminalLoggerQuiet(tb testing.TB) {
-	var originalLogger = terminal.DefaultLogger
+	originalLogger := terminal.DefaultLogger
 	terminal.DefaultLogger = logger.New(os.Stdout, logger.Error, true)
 
 	tb.Cleanup(func() {
@@ -85,6 +85,7 @@ func testLaunchInputForBasic(t *testing.T) {
 		Region:     li.Region,
 		Config:     helpers.Clone(li.Config),
 		HostStatus: fly.HostStatusOk,
+		State:      fly.MachineStateStarted,
 	}
 	// also must preserve any user's added metadata except for known fly metadata keys
 	origMachineRaw.Config.Metadata["user-added-me"] = "keep it"
@@ -104,6 +105,7 @@ func testLaunchInputForBasic(t *testing.T) {
 		Region:     li.Region,
 		Config:     helpers.Clone(li.Config),
 		HostStatus: fly.HostStatusOk,
+		State:      fly.MachineStateStarted,
 	}
 	want.Config.Image = "super/globe"
 	want.Config.Env["NOT_SET_ON_RESTART_ONLY"] = "true"
@@ -253,7 +255,6 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.True(t, li.RequiresReplacement)
 	assert.Empty(t, li.Config.Mounts)
-
 }
 
 // test mounts with auto volume resize
