@@ -509,6 +509,12 @@ func runCertificatesSetup(ctx context.Context) error {
 		return err
 	}
 
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, resp)
+		return nil
+	}
+
 	printDNSOptions(ctx, hostname, resp)
 	return nil
 }
