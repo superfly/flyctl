@@ -309,11 +309,21 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 }
 
 // updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
+// It also substitutes image_config references of "." in files with the build image.
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
-	if len(mConfig.Containers) != 0 {
-		for i := range mConfig.Containers {
-			if mConfig.Containers[i].Image == "." {
-				mConfig.Containers[i].Image = mConfig.Image
+	for j := range mConfig.Files {
+		if mConfig.Files[j].ImageConfig != nil && *mConfig.Files[j].ImageConfig == "." {
+			mConfig.Files[j].ImageConfig = &mConfig.Image
+		}
+	}
+
+	for i := range mConfig.Containers {
+		if mConfig.Containers[i].Image == "." {
+			mConfig.Containers[i].Image = mConfig.Image
+		}
+		for j := range mConfig.Containers[i].Files {
+			if mConfig.Containers[i].Files[j].ImageConfig != nil && *mConfig.Containers[i].Files[j].ImageConfig == "." {
+				mConfig.Containers[i].Files[j].ImageConfig = &mConfig.Image
 			}
 		}
 	}
