@@ -686,7 +686,8 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	}
 
 	logger := logger.FromContext(ctx)
-	for _, path := range appConfigFilePaths(ctx) {
+	configPaths := appConfigFilePaths(ctx)
+	for _, path := range configPaths {
 		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
@@ -701,6 +702,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
 		}
+	}
+
+	// If the user explicitly specified a config file path and we couldn't find it, return an error
+	if configPath := flag.GetAppConfigFilePath(ctx); configPath != "" {
+		return nil, fmt.Errorf("config file not found at specified path: %s (also tried: %s)", configPath, filepath.Join(configPath, appconfig.DefaultConfigFileName))
 	}
 
 	return ctx, nil
