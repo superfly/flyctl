@@ -36,6 +36,7 @@ func newSaveInstall() *cobra.Command {
 	)
 
 	cmd.Hidden = true
+	cmd.Args = cobra.NoArgs
 
 	return cmd
 }
