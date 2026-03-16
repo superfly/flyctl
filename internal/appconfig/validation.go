@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	ValidationError          = errors.New("invalid app configuration")
-	MachinesDeployStrategies = []string{"canary", "rolling", "immediate", "bluegreen"}
+	ErrInvalidApplicationConfig = errors.New("invalid app configuration")
+	MachinesDeployStrategies    = []string{"canary", "rolling", "immediate", "bluegreen"}
 )
 
 func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
@@ -99,7 +99,7 @@ func (c *Config) validateDeploySection() (extraInfo string, err error) {
 
 	if _, vErr := shlex.Split(c.Deploy.ReleaseCommand); vErr != nil {
 		extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", c.Deploy.ReleaseCommand)
-		err = ValidationError
+		err = ErrInvalidApplicationConfig
 	}
 
 	if s := c.Deploy.Strategy; s != "" {
@@ -108,12 +108,12 @@ func (c *Config) validateDeploySection() (extraInfo string, err error) {
 				"unsupported deployment strategy '%s'; Apps v2 supports the following strategies: %s", s,
 				strings.Join(MachinesDeployStrategies, ", "),
 			)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 
 		if s == "canary" && len(c.Mounts) > 0 {
 			extraInfo += "error canary deployment strategy is not supported when using mounted volumes"
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 	}
 
@@ -124,18 +124,18 @@ func (c *Config) validateChecksSection() (extraInfo string, err error) {
 	for name, check := range c.Checks {
 		if _, vErr := check.toMachineCheck(); vErr != nil {
 			extraInfo += fmt.Sprintf("Can't process top level check '%s': %s\n", name, vErr)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 		// minimum interval in flaps is set to 2 seconds.
-		if check.Interval != nil && check.Interval.Duration.Seconds() < 2 {
+		if check.Interval != nil && check.Interval.Seconds() < 2 {
 			extraInfo += fmt.Sprintf("Check '%s' interval is too short: %s, minimum is 2 seconds\n", name, check.Interval.Duration)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 
 		// max timeout in flaps in set to 60s
-		if check.Timeout != nil && check.Timeout.Duration.Seconds() > 60 {
+		if check.Timeout != nil && check.Timeout.Seconds() > 60 {
 			extraInfo += fmt.Sprintf("Check '%s' timeout is too long: %s, maximum is 60 seconds\n", name, check.Timeout.Duration)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 	}
 
@@ -155,7 +155,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 				"Service has no processes set but app has %d processes defined; update fly.toml to set processes for each service\n",
 				processCount,
 			)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		default:
 			for _, processName := range service.Processes {
 				if !slices.Contains(validGroupNames, processName) {
@@ -164,7 +164,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 							"update fly.toml [processes] to add '%s' process or remove it from service's processes list\n",
 						processName, processName,
 					)
-					err = ValidationError
+					err = ErrInvalidApplicationConfig
 				}
 			}
 		}
@@ -233,7 +233,7 @@ func (c *Config) validateProcessesSection() (extraInfo string, err error) {
 				"Could not parse command for '%s' process group; check [processes] section: %s\n",
 				processName, vErr,
 			)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 	}
 
@@ -244,7 +244,7 @@ func (c *Config) validateMachineConversion() (extraInfo string, err error) {
 	for _, name := range c.ProcessNames() {
 		if _, vErr := c.ToMachineConfig(name, nil); err != nil {
 			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 	}
 	return
@@ -253,7 +253,7 @@ func (c *Config) validateMachineConversion() (extraInfo string, err error) {
 func (c *Config) validateConsoleCommand() (extraInfo string, err error) {
 	if _, vErr := shlex.Split(c.ConsoleCommand); vErr != nil {
 		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", c.ConsoleCommand)
-		err = ValidationError
+		err = ErrInvalidApplicationConfig
 	}
 	return
 }
@@ -261,7 +261,7 @@ func (c *Config) validateConsoleCommand() (extraInfo string, err error) {
 func (c *Config) validateMounts() (extraInfo string, err error) {
 	if c.configFilePath == "--flatten--" && len(c.Mounts) > 1 {
 		extraInfo += fmt.Sprintf("group '%s' has more than one [[mounts]] section defined\n", c.defaultGroupName)
-		err = ValidationError
+		err = ErrInvalidApplicationConfig
 	}
 
 	for _, m := range c.Mounts {
@@ -270,16 +270,16 @@ func (c *Config) validateMounts() (extraInfo string, err error) {
 			switch {
 			case vErr != nil:
 				extraInfo += fmt.Sprintf("mount '%s' with initial_size '%s' will fail because of: %s\n", m.Source, m.InitialSize, vErr)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			case v < 1:
 				extraInfo += fmt.Sprintf("mount '%s' has an initial_size '%s' value which is smaller than 1GB\n", m.Source, m.InitialSize)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 
 		if m.SnapshotRetention != nil && (*m.SnapshotRetention < 1 || *m.SnapshotRetention > 60) {
 			extraInfo += fmt.Sprintf("mount '%s' has a snapshot_retention value which is not between 1 and 60 days inclusive\n", m.Source)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 
 		var autoExtendSizeIncrement, autoExtendSizeLimit int
@@ -289,10 +289,10 @@ func (c *Config) validateMounts() (extraInfo string, err error) {
 			switch {
 			case vErr != nil:
 				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_increment '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeIncrement, vErr)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			case autoExtendSizeIncrement < 1:
 				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_increment '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeIncrement)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 		if m.AutoExtendSizeLimit != "" {
@@ -300,29 +300,29 @@ func (c *Config) validateMounts() (extraInfo string, err error) {
 			switch {
 			case vErr != nil:
 				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_limit '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeLimit, vErr)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			case autoExtendSizeLimit < 1:
 				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_limit '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeLimit)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 
 		if m.AutoExtendSizeThreshold != 0 || autoExtendSizeIncrement != 0 || autoExtendSizeLimit != 0 {
 			if m.AutoExtendSizeThreshold != 0 && autoExtendSizeIncrement == 0 && autoExtendSizeLimit == 0 {
 				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold, auto_extend_size_increment and auto_extend_size_limit must be all defined or none\n", m.Source)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 			if m.AutoExtendSizeThreshold < 50 || m.AutoExtendSizeThreshold > 99 {
 				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold must be between 50 and 99\n", m.Source)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 			if autoExtendSizeIncrement < 1 || autoExtendSizeIncrement > 100 {
 				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_increment must be between 1GB and 100GB\n", m.Source)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 			if autoExtendSizeLimit != 0 && (autoExtendSizeLimit < 1 || autoExtendSizeLimit > 500) {
 				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_limit must be between 1GB and 500GB\n", m.Source)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 	}
@@ -344,14 +344,14 @@ func (c *Config) validateRestartPolicy() (extraInfo string, err error) {
 					"update fly.toml [processes] to add '%s' process or remove it from restart policy's processes list\n",
 					processName, processName,
 				)
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 
 		_, vErr := parseRestartPolicy(restart.Policy)
 		if vErr != nil {
 			extraInfo += fmt.Sprintf("%s\n", vErr)
-			err = ValidationError
+			err = ErrInvalidApplicationConfig
 		}
 	}
 
@@ -363,14 +363,14 @@ func (c *Config) validateCompression() (extraInfo string, err error) {
 		if c.Build.Compression != "" {
 			if vErr := validation.ValidateCompressionFlag(c.Build.Compression); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 
 		if c.Build.CompressionLevel != nil {
 			if vErr := validation.ValidateCompressionLevelFlag(*c.Build.CompressionLevel); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
-				err = ValidationError
+				err = ErrInvalidApplicationConfig
 			}
 		}
 	}

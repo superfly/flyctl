@@ -66,11 +66,12 @@ func runStatus(ctx context.Context) (err error) {
 		for _, v := range []string{"size", "cpu", "memory", "disk"} {
 			var unit string
 			if options[v] != nil {
-				if v == "size" {
+				switch v {
+				case "size":
 					unit = "members"
-				} else if v == "cpu" {
+				case "cpu":
 					unit = "cores"
-				} else {
+				default:
 					unit = "GB"
 				}
 				obj[0] = append(obj[0], fmt.Sprintf("%d %s", int(options[v].(float64)), unit))

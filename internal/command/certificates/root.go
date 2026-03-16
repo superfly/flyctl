@@ -583,7 +583,7 @@ func printDNSOptions(ctx context.Context, hostname string, resp *fly.Certificate
 	showACME := hasACME && acme.Name != "" && acme.Target != ""
 
 	ownership := resp.DNSRequirements.Ownership
-	showOwnership := ownership.Name != "" && !(hasACME && !hasCustom && isWildcard)
+	showOwnership := ownership.Name != "" && (!hasACME || hasCustom || !isWildcard)
 
 	if showACME || showOwnership {
 		fmt.Fprintln(io.Out)

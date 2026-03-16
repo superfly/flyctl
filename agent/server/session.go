@@ -158,7 +158,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 	_ = s.marshal(agent.PingResponse{
 		Version:    buildinfo.Version().String(),
 		PID:        os.Getpid(),
-		Background: s.srv.Options.Background,
+		Background: s.srv.Background,
 	})
 }
 

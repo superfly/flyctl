@@ -12,7 +12,7 @@ var globalLogFile = logFile{
 
 func InitLogFile() error {
 	if !globalLogFile.destroyed {
-		return logfileAlreadyInitializedError
+		return errLogfileAlreadyInitialized
 	}
 	rawFile, err := logfile.CreateLogFile()
 	globalLogFile = logFile{
@@ -25,7 +25,7 @@ func InitLogFile() error {
 
 func CloseLogFile() error {
 	if globalLogFile.destroyed {
-		return logfileAlreadyClosedError
+		return errLogfileAlreadyClosed
 	}
 	defer func() {
 		globalLogFile.writer = nil

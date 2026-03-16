@@ -226,11 +226,12 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 	}
 	dnsIps := make(map[string]bool)
 	for _, a := range r.Answer {
-		if qType == "A" {
+		switch qType {
+		case "A":
 			if aRec, ok := a.(*dns.A); ok {
 				dnsIps[aRec.A.String()] = true
 			}
-		} else if qType == "AAAA" {
+		case "AAAA":
 			if aRec, ok := a.(*dns.AAAA); ok {
 				dnsIps[aRec.AAAA.String()] = true
 			}

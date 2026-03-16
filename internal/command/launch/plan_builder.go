@@ -576,9 +576,10 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 		if parentConfig != nil && parentConfig.AppName != "" {
 			appName = parentConfig.AppName + "-" + appName
-			if cause == "from your fly.toml" {
+			switch cause {
+			case "from your fly.toml":
 				cause = "from parent name and fly.toml"
-			} else if cause == "derived from your directory name" {
+			case "derived from your directory name":
 				if flag.GetString(ctx, "into") != "" {
 					cause = "from parent name and --into"
 				} else if flag.GetString(ctx, "from") != "" {
@@ -831,9 +832,9 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 
 	// Restore original values for fields the Web UI does not return
 	if originalGuest != nil {
-		c.MachineGuest.KernelArgs = originalGuest.KernelArgs
-		c.MachineGuest.GPUs = originalGuest.GPUs
-		c.MachineGuest.HostDedicationID = originalGuest.HostDedicationID
+		c.KernelArgs = originalGuest.KernelArgs
+		c.GPUs = originalGuest.GPUs
+		c.HostDedicationID = originalGuest.HostDedicationID
 	}
 }
 

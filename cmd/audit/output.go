@@ -38,7 +38,7 @@ type tableOutput struct {
 }
 
 func (t *tableOutput) Flush() error {
-	t.Table.Render()
+	t.Render()
 	return nil
 }
 

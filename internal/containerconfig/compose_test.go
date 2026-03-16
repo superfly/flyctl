@@ -220,9 +220,10 @@ services:
 	var nginxContainer *fly.ContainerConfig
 	var echoContainer *fly.ContainerConfig
 	for _, container := range mConfig.Containers {
-		if container.Name == "nginx" {
+		switch container.Name {
+		case "nginx":
 			nginxContainer = container
-		} else if container.Name == "echo" {
+		case "echo":
 			echoContainer = container
 		}
 	}

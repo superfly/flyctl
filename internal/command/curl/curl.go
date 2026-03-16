@@ -324,7 +324,7 @@ func renderJSONTimings(w io.Writer, timings []*timing) {
 			items[t.region] = struct {
 				Error string `json:"error"`
 			}{
-				Error: t.error.Error(),
+				Error: t.Error(),
 			}
 		} else {
 			items[t.region] = t

@@ -312,8 +312,8 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	var gpuKinds, cpuKinds []string
 	for _, compute := range appConfig.Compute {
 		if compute != nil && compute.MachineGuest != nil {
-			gpuKinds = append(gpuKinds, compute.MachineGuest.GPUKind)
-			cpuKinds = append(cpuKinds, compute.MachineGuest.CPUKind)
+			gpuKinds = append(gpuKinds, compute.GPUKind)
+			cpuKinds = append(cpuKinds, compute.CPUKind)
 		}
 	}
 

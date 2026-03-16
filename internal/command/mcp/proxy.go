@@ -223,9 +223,10 @@ func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspec
 		if proxyInfo.Instance != "" {
 			args = append(args, "--instance", proxyInfo.Instance)
 		}
-		if proxyInfo.Mode == "sse" {
+		switch proxyInfo.Mode {
+		case "sse":
 			args = append(args, "--sse")
-		} else if proxyInfo.Mode == "stream" {
+		case "stream":
 			args = append(args, "--stream")
 		}
 		if proxyInfo.Timeout > 0 {
@@ -326,9 +327,10 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 
 	remotePort := parsedURL.Port()
 	if remotePort == "" {
-		if parsedURL.Scheme == "http" {
+		switch parsedURL.Scheme {
+		case "http":
 			remotePort = "80"
-		} else if parsedURL.Scheme == "https" {
+		case "https":
 			remotePort = "443"
 		}
 	}

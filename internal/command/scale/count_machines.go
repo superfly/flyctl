@@ -361,7 +361,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	return actions, nil
 }
 
-var MaxPerRegionError = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
+var ErrMaxPerRegion = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
 
 func convergeGroupCounts(expectedTotal int, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
 	diffs := make(map[string]int)
@@ -372,7 +372,7 @@ func convergeGroupCounts(expectedTotal int, current map[string]int, regions []st
 
 	if maxPerRegion >= 0 {
 		if len(regions)*maxPerRegion < expectedTotal {
-			return nil, MaxPerRegionError
+			return nil, ErrMaxPerRegion
 		}
 
 		// Compute the diff to any region with more machines than the maximum allowed

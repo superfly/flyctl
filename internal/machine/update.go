@@ -51,9 +51,10 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		// Check memory sizes
 		var min_memory_size int
 
-		if input.Config.Guest.CPUKind == "shared" {
+		switch input.Config.Guest.CPUKind {
+		case "shared":
 			min_memory_size = fly.MIN_MEMORY_MB_PER_SHARED_CPU * input.Config.Guest.CPUs
-		} else if input.Config.Guest.CPUKind == "performance" {
+		case "performance":
 			min_memory_size = fly.MIN_MEMORY_MB_PER_CPU * input.Config.Guest.CPUs
 		}
 
@@ -64,9 +65,10 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 
 		var maxMemory int
 
-		if input.Config.Guest.CPUKind == "shared" {
+		switch input.Config.Guest.CPUKind {
+		case "shared":
 			maxMemory = input.Config.Guest.CPUs * fly.MAX_MEMORY_MB_PER_SHARED_CPU
-		} else if input.Config.Guest.CPUKind == "performance" {
+		case "performance":
 			maxMemory = input.Config.Guest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
 		}
 
@@ -166,9 +168,10 @@ func (e InvalidConfigErr) Suggestion() string {
 	case memoryTooLow:
 		var min_memory_size int
 
-		if e.guest.CPUKind == "shared" {
+		switch e.guest.CPUKind {
+		case "shared":
 			min_memory_size = fly.MIN_MEMORY_MB_PER_SHARED_CPU * e.guest.CPUs
-		} else if e.guest.CPUKind == "performance" {
+		case "performance":
 			min_memory_size = fly.MIN_MEMORY_MB_PER_CPU * e.guest.CPUs
 		}
 
@@ -176,9 +179,10 @@ func (e InvalidConfigErr) Suggestion() string {
 
 	case memoryTooHigh:
 		var max_memory_size int
-		if e.guest.CPUKind == "shared" {
+		switch e.guest.CPUKind {
+		case "shared":
 			max_memory_size = fly.MAX_MEMORY_MB_PER_SHARED_CPU * e.guest.CPUs
-		} else if e.guest.CPUKind == "performance" {
+		case "performance":
 			max_memory_size = fly.MAX_MEMORY_MB_PER_CPU * e.guest.CPUs
 		}
 

@@ -320,7 +320,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				if !isComputeValid(compute) {
 					continue
 				}
-				if compute.MachineGuest.GPUKind != "" {
+				if compute.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
 					break
 				}

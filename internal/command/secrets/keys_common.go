@@ -162,7 +162,7 @@ func SplitLabelKeyver(label string) (Keyver, string, error) {
 	l, nstr := m[1], m[2]
 	n, _ := strconv.ParseUint(nstr, 10, 64)
 	ver := Keyver(n)
-	if !(KeyverZero <= ver && ver <= KeyverMax) {
+	if KeyverZero > ver || ver > KeyverMax {
 		return KeyverUnspec, label, nil
 	}
 

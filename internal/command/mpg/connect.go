@@ -223,7 +223,7 @@ func runConnect(ctx context.Context) (err error) {
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			// Check if the process was terminated by a signal (e.g., our Kill() call)
-			if ws, ok := exitErr.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 				return nil
 			}
 		}

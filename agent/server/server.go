@@ -245,7 +245,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	}
 
 	// WIP: can't stay this way, need something more clever than this
-	if env.IsCI() || os.Getenv("WSWG") != "" || s.Options.ConfigWebsockets {
+	if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
 		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
 			return
 		}
