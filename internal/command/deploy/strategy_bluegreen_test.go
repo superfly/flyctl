@@ -23,7 +23,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	var machines []*machineUpdateEntry
 	ios, _, _, _ := iostreams.Test()
 
-	for i := 0; i < numberOfExistingMachines; i++ {
+	for range numberOfExistingMachines {
 		machines = append(machines, &machineUpdateEntry{
 			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
 			launchInput: &fly.LaunchMachineInput{

@@ -25,6 +25,7 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 	case *plan.ManagedPostgresPlan:
 		return describeManagedPostgresPlan(provider, launchPlan)
 	}
+
 	return descriptionNone, nil
 }
 
@@ -59,6 +60,7 @@ func describeRedisPlan(ctx context.Context, p plan.RedisPlan) (string, error) {
 	case *plan.UpstashRedisPlan:
 		return describeUpstashRedisPlan(ctx, provider)
 	}
+
 	return descriptionNone, nil
 }
 
@@ -69,6 +71,7 @@ func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan) (st
 	}
 
 	evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
+
 	return fmt.Sprintf("%s Plan: %s Max Data Size, eviction %s", plan.DisplayName, plan.MaxDataSize, evictionStatus), nil
 }
 

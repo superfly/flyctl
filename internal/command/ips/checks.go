@@ -102,6 +102,7 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 		machineCount, ok := machineRegions[region]
 		if !ok || machineCount == 0 {
 			fmt.Fprintf(errOut, "Warning: Your app has egress IP(s) assigned in region %s but you have no machines there. Only machines in the same region can make use of egress IPs in that region.\n", region)
+
 			continue
 		}
 
@@ -160,6 +161,7 @@ func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]
 		ipCounter, ok := ipRegions[region]
 		if hasEgressIps && (!ok || (ipCounter.v4 == 0 && ipCounter.v6 == 0)) {
 			fmt.Fprintf(errOut, "Warning: Your app has machines in region %s but no egress IPs allocated there. Since you have egress IPs assigned elsewhere, you might want to assign an egress IP in this region as well.\n", region)
+
 			continue
 		}
 	}

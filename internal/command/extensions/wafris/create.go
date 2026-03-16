@@ -31,6 +31,7 @@ func create() (cmd *cobra.Command) {
 			Description: "The name of your WAF",
 		},
 	)
+
 	return cmd
 }
 

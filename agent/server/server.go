@@ -245,7 +245,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	}
 
 	// WIP: can't stay this way, need something more clever than this
-	if env.IsCI() || os.Getenv("WSWG") != "" || s.Options.ConfigWebsockets {
+	if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
 		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
 			return
 		}
@@ -281,17 +281,19 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 
 	ret := &agent.Instances{}
 
-	for _, region := range strings.Split(regions, ",") {
+	for region := range strings.SplitSeq(regions, ",") {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
 		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
 			s.printf("can't lookup records for %s: %s", name, err)
+
 			continue
 		}
 
 		if len(addrs) == 1 {
 			ret.Labels = append(ret.Labels, name)
 			ret.Addresses = append(ret.Addresses, addrs[0].String())
+
 			continue
 		}
 
@@ -428,10 +430,10 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	s.cancelTokenMonitoring = cancelMonitor
 }
 
-func (s *server) print(v ...interface{}) {
+func (s *server) print(v ...any) {
 	s.Logger.Print(v...)
 }
 
-func (s *server) printf(format string, v ...interface{}) {
+func (s *server) printf(format string, v ...any) {
 	s.Logger.Printf(format, v...)
 }

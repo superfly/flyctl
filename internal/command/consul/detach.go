@@ -32,6 +32,7 @@ func newDetach() *cobra.Command {
 			Description: "The secret name that will be removed from the app.",
 		},
 	)
+
 	return cmd
 }
 
@@ -55,5 +56,6 @@ func runDetach(ctx context.Context) error {
 		Detach:   false,
 		CheckDNS: true,
 	})
+
 	return err
 }

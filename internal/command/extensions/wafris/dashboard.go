@@ -28,6 +28,7 @@ func dashboard() (cmd *cobra.Command) {
 		extensions_core.SharedFlags,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 

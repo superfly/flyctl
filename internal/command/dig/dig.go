@@ -131,8 +131,8 @@ func run(ctx context.Context) error {
 		}
 
 		if flag.GetBool(ctx, "short") {
-			if reply.MsgHdr.Rcode != dns.RcodeSuccess {
-				return fmt.Errorf("lookup failed: %s", dns.RcodeToString[reply.MsgHdr.Rcode])
+			if reply.Rcode != dns.RcodeSuccess {
+				return fmt.Errorf("lookup failed: %s", dns.RcodeToString[reply.Rcode])
 			}
 
 			switch dtype {
@@ -269,5 +269,6 @@ func fixNameError(err error, ns string) error {
 	if err == nil {
 		return err
 	}
+
 	return errors.New(nameErrorRx.ReplaceAllString(err.Error(), fmt.Sprintf("[%s]:53", ns)))
 }

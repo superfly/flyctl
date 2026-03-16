@@ -61,6 +61,7 @@ func runConfigShow(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineConfigShow(ctx, app)
 }
 

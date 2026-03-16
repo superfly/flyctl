@@ -11,6 +11,7 @@ import (
 
 func RefreshTags(dir string) error {
 	repo := newGitRepo(dir)
+
 	return repo.RefreshTags()
 }
 

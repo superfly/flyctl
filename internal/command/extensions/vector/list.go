@@ -27,6 +27,7 @@ func list() (cmd *cobra.Command) {
 		flag.Org(),
 		extensions_core.SharedFlags,
 	)
+
 	return cmd
 }
 

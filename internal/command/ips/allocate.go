@@ -58,6 +58,7 @@ func newAllocatev4() *cobra.Command {
 		flag.AppConfig(),
 		flag.Region(),
 	)
+
 	return cmd
 }
 
@@ -122,6 +123,7 @@ Are you ok with this? Alternatively, you could allocate a shared IPv4 address wi
 			return err
 		}
 	}
+
 	return runAllocateIPAddress(ctx, addrType, nil, "")
 }
 
@@ -176,6 +178,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	ipAddresses := []fly.IPAddress{*ipAddress}
 	renderListTable(ctx, ipAddresses)
+
 	return nil
 }
 

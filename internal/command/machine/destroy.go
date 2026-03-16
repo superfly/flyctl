@@ -110,6 +110,7 @@ func runMachineDestroy(ctx context.Context) (err error) {
 
 	if len(machinesToBeDeleted) == 0 {
 		fmt.Fprint(iostreams.FromContext(ctx).Out, "No machine to destroy, exiting\n")
+
 		return nil
 	}
 
@@ -188,6 +189,7 @@ func Destroy(ctx context.Context, appName string, machine *fly.Machine, force bo
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not destroy machine %s: %w", machine.ID, err)
 	}
 

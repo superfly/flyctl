@@ -85,7 +85,7 @@ type natsDialer struct {
 }
 
 func (d *natsDialer) Dial(network, address string) (net.Conn, error) {
-	return d.Dialer.DialContext(d.ctx, network, address)
+	return d.DialContext(d.ctx, network, address)
 }
 
 func fromNats(ctx context.Context, out chan<- LogEntry, nc *nats.Conn, opts *LogOptions) (err error) {

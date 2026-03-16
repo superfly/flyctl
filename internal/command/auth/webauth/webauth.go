@@ -51,7 +51,7 @@ func SaveToken(ctx context.Context, token string) error {
 }
 
 func RunWebLogin(ctx context.Context, signup bool) (string, error) {
-	args := map[string]interface{}{
+	args := map[string]any{
 		"signup": signup,
 		"target": "auth",
 	}
@@ -60,11 +60,11 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		lockOrg      = os.Getenv("FLY_TOKEN_LOCK_ORG")
 		lockApp      = os.Getenv("FLY_TOKEN_LOCK_APP")
 		lockInstance = os.Getenv("FLY_TOKEN_LOCK_INSTANCE")
-		metadata     map[string]interface{}
+		metadata     map[string]any
 	)
 
 	if lockOrg != "" || lockApp != "" || lockInstance != "" {
-		metadata = map[string]interface{}{}
+		metadata = map[string]any{}
 		args["metadata"] = metadata
 	}
 	if lockOrg != "" {

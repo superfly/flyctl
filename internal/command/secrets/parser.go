@@ -60,9 +60,9 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				secrets[key] = value
 			}
 		case parserStateMultiline:
-			if strings.HasSuffix(line, `"""`) {
+			if before, ok := strings.CutSuffix(line, `"""`); ok {
 				// End of multiline
-				parsedVal.WriteString(strings.TrimSuffix(line, `"""`))
+				parsedVal.WriteString(before)
 				secrets[parsedKey] = parsedVal.String()
 				parsedVal.Reset()
 				parserState = parserStateSingleline

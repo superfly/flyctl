@@ -148,6 +148,7 @@ func runConnect(ctx context.Context) (err error) {
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
 		fmt.Fprintf(io.Out, "Could not find psql in your $PATH. Install it or point your psql at: %s", "someurl")
+
 		return err
 	}
 
@@ -205,6 +206,7 @@ func runConnect(ctx context.Context) (err error) {
 					if !lastSigTime.IsZero() && now.Sub(lastSigTime) < 2*time.Second {
 						cmd.Process.Kill()
 						psqlCancel()
+
 						return
 					}
 
@@ -223,7 +225,7 @@ func runConnect(ctx context.Context) (err error) {
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			// Check if the process was terminated by a signal (e.g., our Kill() call)
-			if ws, ok := exitErr.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 				return nil
 			}
 		}

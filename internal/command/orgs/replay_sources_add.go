@@ -77,6 +77,7 @@ func runReplaySourcesAdd(ctx context.Context) error {
 
 		if len(options) == 0 {
 			fmt.Fprintln(io.Out, "No organizations available to add")
+
 			return nil
 		}
 

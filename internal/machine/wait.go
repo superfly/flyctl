@@ -26,8 +26,10 @@ func WaitForState(ctx context.Context, appName string, machine *fly.Machine, des
 		if err != nil {
 			return "", fmt.Errorf("failed to get machine after waiting for it to settle: %w", err)
 		}
+
 		return m.State, nil
 	}
+
 	return desiredState, nil
 }
 

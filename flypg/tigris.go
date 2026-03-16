@@ -22,11 +22,11 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 	)
 	fmt.Fprintln(io.Out, "Creating Tigris bucket for backup storage")
 
-	options := map[string]interface{}{
+	options := map[string]any{
 		"Public":     false,
 		"Accelerate": false,
 	}
-	options["website"] = map[string]interface{}{
+	options["website"] = map[string]any{
 		"domain_name": "",
 	}
 	name := config.AppName + "-postgres"
@@ -63,7 +63,7 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 		return nil
 	}
 
-	env := extension.Data.Environment.(map[string]interface{})
+	env := extension.Data.Environment.(map[string]any)
 
 	accessKeyId, ok := env["AWS_ACCESS_KEY_ID"].(string)
 	if !ok || accessKeyId == "" {

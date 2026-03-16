@@ -22,6 +22,7 @@ func New() *cobra.Command {
 		newWireguardWebsockets(),
 		newWireguardToken(),
 	)
+
 	return cmd
 }
 
@@ -37,6 +38,7 @@ func newWireguardList() *cobra.Command {
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -55,6 +57,7 @@ func newWireguardCreate() *cobra.Command {
 			Description: "Custom network name",
 		},
 	)
+
 	return cmd
 }
 
@@ -67,6 +70,7 @@ func newWireguardRemove() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
+
 	return cmd
 }
 
@@ -79,6 +83,7 @@ func newWireguardReset() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -91,6 +96,7 @@ func newWireguardWebsockets() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.ExactArgs(1)
+
 	return cmd
 }
 
@@ -109,6 +115,7 @@ func newWireguardToken() *cobra.Command {
 		newWireguardTokenStart(),
 		newWireguardTokenUpdate(),
 	)
+
 	return cmd
 }
 
@@ -124,6 +131,7 @@ func newWireguardTokenList() *cobra.Command {
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -136,6 +144,7 @@ func newWireguardTokenCreate() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
+
 	return cmd
 }
 
@@ -148,6 +157,7 @@ func newWireguardTokenDelete() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
+
 	return cmd
 }
 
@@ -160,6 +170,7 @@ func newWireguardTokenStart() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(4)
+
 	return cmd
 }
 
@@ -172,5 +183,6 @@ func newWireguardTokenUpdate() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
+
 	return cmd
 }

@@ -26,6 +26,7 @@ func New() *cobra.Command {
 		newIncidentsList(),
 		hosts.New(),
 	)
+
 	return cmd
 }
 
@@ -45,6 +46,7 @@ func newIncidentsList() *cobra.Command {
 		flag.Org(),
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 

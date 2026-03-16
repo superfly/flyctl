@@ -24,5 +24,6 @@ func New() *cobra.Command {
 		newRelease(),
 		newReleaseEgress(),
 	)
+
 	return cmd
 }

@@ -37,6 +37,7 @@ func (r *gitRepo) runGit(args ...string) (string, error) {
 	if err != nil {
 		return "", gitError{message: string(out)}
 	}
+
 	return strings.TrimSpace(string(out)), nil
 }
 
@@ -49,6 +50,7 @@ func (r *gitRepo) gitCommitTime(ref string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid commit time - expected \"%s\" to be a unix timestamp", out)
 	}
+
 	return time.Unix(i, 0).UTC(), nil
 }
 
@@ -78,6 +80,7 @@ func (r *gitRepo) branchFromHEAD() (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get current git branch")
 	}
+
 	return strings.TrimSpace(output), nil
 }
 
@@ -149,6 +152,7 @@ func (r *gitRepo) gitDirty() (bool, error) {
 func (r *gitRepo) RefreshTags() error {
 	originName := "origin"
 	_, err := r.runGit("fetch", "--tags", "--force", originName)
+
 	return err
 }
 
@@ -158,6 +162,7 @@ func (r *gitRepo) currentTag(sha string) (string, error) {
 		return "", err
 	}
 	outNoNL := strings.Split(out, "\n")
+
 	return strings.TrimSpace(outNoNL[len(outNoNL)-1]), nil
 }
 
@@ -174,6 +179,7 @@ func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string,
 		v, err := version.Parse(tag)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
+
 			continue
 		}
 
@@ -181,12 +187,14 @@ func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string,
 		if semverOnly && !version.IsCalVer(v) && channel == "stable" && v.Channel == "" {
 			// latest = &v
 			latestTag = tag
+
 			break
 		}
 
 		if v.Channel == channel {
 			// latest = &v
 			latestTag = tag
+
 			break
 		}
 	}
@@ -200,6 +208,7 @@ func (r *gitRepo) previousTag(currentTag string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return strings.TrimSpace(out), nil
 }
 
@@ -208,6 +217,7 @@ func (r *gitRepo) isDetachedHead() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return strings.TrimSpace(out) == "HEAD", nil
 }
 
@@ -218,9 +228,9 @@ func (r *gitRepo) branchesPointingAt(ref string) ([]string, error) {
 	}
 
 	var branches []string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "origin/") {
-			branches = append(branches, strings.TrimPrefix(line, "origin/"))
+	for line := range strings.SplitSeq(out, "\n") {
+		if after, ok := strings.CutPrefix(line, "origin/"); ok {
+			branches = append(branches, after)
 		}
 	}
 
@@ -243,21 +253,23 @@ func channelFromRef(ref string) (string, error) {
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to get PR number from ref %q", ref)
 		}
+
 		return fmt.Sprintf("pr%d", num), nil
 	}
 
 	// return the version's channel if ref is a tag
-	if strings.HasPrefix(ref, "refs/tags/v") {
-		ver, err := version.Parse(strings.TrimPrefix(ref, "refs/tags/v"))
+	if after, ok := strings.CutPrefix(ref, "refs/tags/v"); ok {
+		ver, err := version.Parse(after)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to parse version from ref %q", ref)
 		}
+
 		return version.ChannelFromCalverOrSemver(ver), nil
 	}
 
 	// return the branch name if ref is a branch
-	if strings.HasPrefix(ref, "refs/heads/") {
-		return strings.TrimPrefix(ref, "refs/heads/"), nil
+	if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+		return after, nil
 	}
 
 	return "", fmt.Errorf("unable to determine channel from ref: %q", ref)
@@ -272,5 +284,6 @@ func prNumber(ref string) (int, error) {
 	if err != nil {
 		return -1, errors.Wrapf(err, "error parsing PR number from ref \"%s\"", ref)
 	}
+
 	return num, nil
 }

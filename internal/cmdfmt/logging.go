@@ -8,5 +8,6 @@ func AppendMissingLineFeed(msg string) string {
 	if len(buff) == 0 || buff[len(buff)-1] != lineFeed {
 		buff = append(buff, lineFeed)
 	}
+
 	return string(buff)
 }
