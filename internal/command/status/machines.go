@@ -31,6 +31,7 @@ func getProcessgroup(m *fly.Machine) string {
 	if m.HostStatus != fly.HostStatusOk {
 		name += "💀"
 	}
+
 	return name
 }
 
@@ -113,8 +114,10 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		if err != nil {
 			if strings.Contains(err.Error(), "Unknown repository") {
 				unknownRepos[image] = true
+
 				continue
 			}
+
 			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
 		}
 
@@ -268,6 +271,7 @@ func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines 
 		"PlatformVersion": app.PlatformVersion,
 		"Machines":        machinesToShow,
 	}
+
 	return render.JSON(out, status)
 }
 
@@ -287,6 +291,7 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 		}
 	} else {
 		fmt.Fprintf(out, "No machines are available on this app %s\n", app.Name)
+
 		return
 	}
 

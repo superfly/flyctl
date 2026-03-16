@@ -77,12 +77,12 @@ func (s *HTTPService) ToService() *Service {
 		HTTPChecks:    s.HTTPChecks,
 		MachineChecks: s.MachineChecks,
 		Ports: []fly.MachinePort{{
-			Port:        fly.IntPointer(80),
+			Port:        new(80),
 			Handlers:    []string{"http"},
 			ForceHTTPS:  s.ForceHTTPS,
 			HTTPOptions: s.HTTPOptions,
 		}, {
-			Port:        fly.IntPointer(443),
+			Port:        new(443),
 			Handlers:    []string{"http", "tls"},
 			HTTPOptions: s.HTTPOptions,
 			TLSOptions:  s.TLSOptions,
@@ -98,6 +98,7 @@ func (c *Config) AllServices() (services []Service) {
 		services = append(services, *c.HTTPService.ToService())
 	}
 	services = append(services, c.Services...)
+
 	return services
 }
 
@@ -118,12 +119,13 @@ func (svc *Service) toMachineService() *fly.MachineService {
 	for _, hc := range svc.HTTPChecks {
 		s.Checks = append(s.Checks, *hc.toMachineCheck())
 	}
+
 	return s
 }
 
 func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineServiceCheck {
 	return &fly.MachineServiceCheck{
-		Type:              fly.Pointer("http"),
+		Type:              new("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
 		GracePeriod:       chk.GracePeriod,
@@ -145,7 +147,7 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 
 func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineServiceCheck {
 	return &fly.MachineServiceCheck{
-		Type:        fly.Pointer("tcp"),
+		Type:        new("tcp"),
 		Interval:    chk.Interval,
 		Timeout:     chk.Timeout,
 		GracePeriod: chk.GracePeriod,
@@ -171,6 +173,7 @@ func serviceFromMachineService(ctx context.Context, ms fly.MachineService, proce
 			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &Service{
 		Protocol:           ms.Protocol,
 		InternalPort:       ms.InternalPort,
@@ -203,6 +206,7 @@ func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineServiceCheck) 
 			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &ServiceHTTPCheck{
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,

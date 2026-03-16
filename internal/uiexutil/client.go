@@ -59,5 +59,6 @@ func NewContextWithClient(ctx context.Context, c Client) context.Context {
 // ClientFromContext returns the Client ctx carries.
 func ClientFromContext(ctx context.Context) Client {
 	c, _ := ctx.Value(clientContextKey).(Client)
+
 	return c
 }

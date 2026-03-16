@@ -44,10 +44,10 @@ func runList(ctx context.Context) (err error) {
 	var rows [][]string
 
 	for _, addon := range response.AddOns.Nodes {
-		options, _ := addon.Options.(map[string]interface{})
+		options, _ := addon.Options.(map[string]any)
 
 		if options == nil {
-			options = make(map[string]interface{})
+			options = make(map[string]any)
 		}
 		eviction := "Disabled"
 

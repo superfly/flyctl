@@ -106,6 +106,7 @@ func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 	if err != nil {
 		return err
 	}
+
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
 		Org:      app.Organization,

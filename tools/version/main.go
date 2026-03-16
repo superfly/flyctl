@@ -12,9 +12,7 @@ import (
 // TODO[md]: remove this when we're done with the semver to calver migration
 const stableChannelStillOnSemver = true
 
-var (
-	gitDir string
-)
+var gitDir string
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -61,9 +59,8 @@ func runShow(cmd *cobra.Command, args []string) error {
 	}
 
 	enc := json.NewEncoder(cmd.OutOrStdout())
-	enc.Encode(meta)
 
-	return nil
+	return enc.Encode(meta)
 }
 
 func runNext(cmd *cobra.Command, args []string) error {

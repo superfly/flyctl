@@ -210,12 +210,12 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		if err == nil {
 			for _, v := range cfgMap {
 				switch submap := v.(type) {
-				case map[interface{}]interface{}:
+				case map[any]any:
 					service, ok := submap["service"].(string)
 					if ok && service == "S3" {
 						s.ObjectStorageDesired = true
 					}
-				case map[string]interface{}:
+				case map[string]any:
 					service, ok := submap["service"].(string)
 					if ok && service == "S3" {
 						s.ObjectStorageDesired = true
@@ -322,6 +322,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 			ruby, err := exec.LookPath("ruby")
 			if err != nil {
 				healthcheck_channel <- ""
+
 				return
 			}
 
@@ -352,6 +353,7 @@ func railsProductionActiveStorageIsLocal(sourceDir string) bool {
 	}
 
 	re = regexp.MustCompile(`(?m)config\.active_storage\.service\s*=\s*["'](local|test)["']\b`)
+
 	return re.MatchString(prodEnv)
 }
 

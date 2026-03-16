@@ -44,6 +44,7 @@ func orgByArg(ctx context.Context) (*fly.Organization, error) {
 	}
 
 	apiClient := flyutil.ClientFromContext(ctx)
+
 	return apiClient.GetOrganizationBySlug(ctx, args[0])
 }
 
@@ -60,6 +61,7 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 
 		if filename == "" {
 			fmt.Fprintln(io.Out, "Provide a filename (or 'stdout')")
+
 			continue
 		}
 

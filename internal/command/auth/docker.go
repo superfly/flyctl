@@ -53,6 +53,7 @@ func ensureDockerConfigDir(home string) error {
 	} else if !fi.IsDir() {
 		return errors.New("~/.docker is not a dir")
 	}
+
 	return nil
 }
 
@@ -85,13 +86,13 @@ func addFlyAuthToDockerConfig(cfg *config.Config, configJSON []byte) ([]byte, er
 		dockerAuthProviders = make(map[string]json.RawMessage)
 	}
 
-	var flyAuth map[string]interface{}
+	var flyAuth map[string]any
 	if a, ok := dockerAuthProviders[cfg.RegistryHost]; ok {
 		if err := json.Unmarshal(a, &flyAuth); err != nil {
 			return nil, err
 		}
 	} else {
-		flyAuth = make(map[string]interface{})
+		flyAuth = make(map[string]any)
 	}
 	flyAuth["auth"] = base64.URLEncoding.EncodeToString([]byte("x:" + cfg.Tokens.Docker()))
 
@@ -145,6 +146,7 @@ func runDocker(ctx context.Context) error {
 		if err := configureDockerJSON(cfg); err == nil {
 			return nil
 		}
+
 		return fmt.Errorf("docker cli not found - make sure it's installed and try again: %w", err)
 	}
 

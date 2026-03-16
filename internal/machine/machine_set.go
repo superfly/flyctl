@@ -37,6 +37,7 @@ func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, a
 	for _, m := range machines {
 		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, appName, m, showLogs))
 	}
+
 	return &machineSet{
 		machines: leaseMachines,
 	}
@@ -70,8 +71,10 @@ func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration)
 		if err := ms.ReleaseLeases(ctx); err != nil {
 			terminal.Warnf("error releasing machine leases: %v\n", err)
 		}
+
 		return waitErr
 	}
+
 	return nil
 }
 
@@ -89,6 +92,7 @@ func (ms *machineSet) RemoveMachines(ctx context.Context, machines []LeasableMac
 	ms.machines = tempMachines
 
 	subset := machineSet{machines: machines}
+
 	return subset.ReleaseLeases(ctx)
 }
 
@@ -137,6 +141,7 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	if hadError {
 		return fmt.Errorf("error releasing leases on machines")
 	}
+
 	return nil
 }
 
@@ -168,6 +173,7 @@ func (ms *machineSet) WaitForMachineSetState(ctx context.Context, state string, 
 			if errors.As(err, &flapsErr) {
 				if flapsErr.ResponseStatusCode == http.StatusNotFound && allowNotFound {
 					results <- nil
+
 					return
 				}
 			}
@@ -191,5 +197,6 @@ func (ms *machineSet) WaitForMachineSetState(ctx context.Context, state string, 
 	if hadError {
 		return badMachineIDs, fmt.Errorf("error waiting for state on all machines")
 	}
+
 	return nil, nil
 }

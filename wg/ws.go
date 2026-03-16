@@ -92,6 +92,7 @@ func (wswg *WsWgProxy) lastIo() time.Duration {
 	wswg.lock.RLock()
 	s := time.Since(wswg.atime)
 	wswg.lock.RUnlock()
+
 	return s
 }
 
@@ -127,7 +128,7 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 
 	log.Printf("(re-)connecting to %s", rurl)
 
-	ws, _, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
+	ws, resp, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
@@ -144,6 +145,7 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 	if err != nil {
 		return fmt.Errorf("websocket: %w", err)
 	}
+	defer resp.Body.Close()
 
 	wsConn := websocket.NetConn(ctx, ws, websocket.MessageText)
 
@@ -175,6 +177,7 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	defer wswg.wrlock.Unlock()
 
 	_, err := c.Write(b)
+
 	return err
 }
 

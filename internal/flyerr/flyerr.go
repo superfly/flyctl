@@ -40,6 +40,7 @@ func GetErrorDocUrl(err error) string {
 	if errors.As(err, &ferr) {
 		return ferr.DocURL()
 	}
+
 	return ""
 }
 
@@ -57,6 +58,7 @@ func GetErrorDescription(err error) string {
 	if errors.As(err, &ferr) {
 		return ferr.Description()
 	}
+
 	return ""
 }
 
@@ -71,6 +73,7 @@ func GetErrorSuggestion(err error) string {
 	if errors.As(err, &ferr) {
 		return ferr.Suggestion()
 	}
+
 	return ""
 }
 

@@ -58,32 +58,34 @@ func FromAppAndMachineSet(ctx context.Context, appName string, machines machine.
 		return strings.TrimSpace(w) != ""
 	})
 	mostCommonConfig.SetMachinesPlatform()
+
 	return mostCommonConfig, strings.Join(finalWarningMsgs, "\n"), nil
 }
 
 func prettyDiff(original, new string, colorize *iostreams.ColorScheme) string {
 	diff := cmp.Diff(original, new)
 	diffSlice := strings.Split(diff, "\n")
-	var str string
+	var str strings.Builder
 	additionReg := regexp.MustCompile(`^\+.*`)
 	deletionReg := regexp.MustCompile(`^\-.*`)
 	for _, val := range diffSlice {
 		vB := []byte(val)
 
 		if additionReg.Match(vB) {
-			str += colorize.Green(val) + "\n"
+			str.WriteString(colorize.Green(val) + "\n")
 		} else if deletionReg.Match(vB) {
-			str += colorize.Red(val) + "\n"
+			str.WriteString(colorize.Red(val) + "\n")
 		} else {
-			str += val + "\n"
+			str.WriteString(val + "\n")
 		}
 	}
 	delim := "\"\"\""
 	rx := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(delim) + `(.*?)` + regexp.QuoteMeta(delim))
-	match := rx.FindStringSubmatch(str)
+	match := rx.FindStringSubmatch(str.String())
 	if len(match) > 0 {
 		return strings.Trim(match[1], "\n")
 	}
+
 	return ""
 }
 
@@ -98,6 +100,7 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 	for k, v := range m.Machine().Config.Env {
 		if k == "PRIMARY_REGION" || k == "FLY_PRIMARY_REGION" {
 			primaryRegion = v
+
 			break
 		}
 	}
@@ -115,14 +118,14 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 	}
 
 	if len(m.Machine().Config.Mounts) > 1 {
-		var otherMounts string
+		var otherMounts strings.Builder
 		for _, mnt := range m.Machine().Config.Mounts {
-			otherMounts += fmt.Sprintf("    %s (%s)\n", mnt.Path, mnt.Volume)
+			otherMounts.WriteString(fmt.Sprintf("    %s (%s)\n", mnt.Path, mnt.Volume))
 		}
 		warningMsg += warning("mounts", `more than one mount attached to machine %s
 fly.toml only supports one mount per machine at this time. These mounts will be removed on the next deploy:
 %s
-`, m.Machine().ID, otherMounts)
+`, m.Machine().ID, otherMounts.String())
 	}
 	if len(m.Machine().Config.Checks) > 0 {
 		topLevelChecks = make(map[string]*ToplevelCheck)
@@ -142,6 +145,7 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	cfg.Processes = processGroups.processes
 	cfg.Checks = topLevelChecks
 	cfg.Services = processGroups.services
+
 	return cfg, warningMsg
 }
 
@@ -175,6 +179,7 @@ func quotePosixWords(words []string) []string {
 	for _, w := range words {
 		quoted = append(quoted, quotePosixOneWord(w))
 	}
+
 	return quoted
 }
 
@@ -205,16 +210,16 @@ func processGroupsFromMachineSet(ctx context.Context, ms machine.MachineSet) (*p
 		for _, m := range report.otherValues {
 			otherMachineIds = append(otherMachineIds, m.Machine().ID)
 		}
-		otherCmds := ""
+		var otherCmds strings.Builder
 		for _, cmd := range report.others {
-			otherCmds += fmt.Sprintf("    %s\n", cmd)
+			otherCmds.WriteString(fmt.Sprintf("    %s\n", cmd))
 		}
 		warningMsg += warning("processes", `Found these additional commands on some machines. Consider adding process groups to your fly.toml and run machines with those process groups.
 For more info please see: https://fly.io/docs/reference/configuration/#the-processes-section
 Machine IDs that were not saved to fly.toml: %s
 Commands they are running:
 %s
-`, strings.Join(otherMachineIds, ", "), otherCmds)
+`, strings.Join(otherMachineIds, ", "), otherCmds.String())
 		warningMsg += "\n"
 	}
 
@@ -298,6 +303,7 @@ func (c *freqCounter[T]) Capture(valueForComparison any, originalValue T) error 
 	}
 	c.items[key].count += 1
 	c.items[key].originalValues = append(c.items[key].originalValues, originalValue)
+
 	return nil
 }
 
@@ -319,6 +325,7 @@ func (c *freqCounter[T]) Report() *report[T] {
 			rep.otherValues = append(rep.otherValues, item.originalValues...)
 		}
 	}
+
 	return rep
 }
 
@@ -334,17 +341,19 @@ type processGroupInfo struct {
 	services  []Service
 }
 
-func warning(section, msg string, vals ...interface{}) string {
+func warning(section, msg string, vals ...any) string {
 	w := fmt.Sprintf("WARNING [%s]: ", section)
-	prefix := "\n"
+	var prefix strings.Builder
+	prefix.WriteString("\n")
 	for range w {
-		prefix += " "
+		prefix.WriteString(" ")
 	}
 	for i, l := range strings.Split(fmt.Sprintf(msg, vals...), "\n") {
 		if i > 0 {
-			w += prefix
+			w += prefix.String()
 		}
 		w += l
 	}
+
 	return w
 }

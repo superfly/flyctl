@@ -167,6 +167,7 @@ func DetermineServices(ctx context.Context, services []fly.MachineService) ([]fl
 		// A dash handler removes the service: --port 5432/tcp:-
 		if slices.Equal(handlers, []string{"-"}) {
 			svc.Ports = nil
+
 			continue
 		}
 
@@ -200,6 +201,7 @@ func DetermineServices(ctx context.Context, services []fly.MachineService) ([]fl
 		if s != nil && len(s.Ports) > 0 {
 			return *s, true
 		}
+
 		return fly.MachineService{}, false
 	})
 
@@ -215,6 +217,7 @@ func parsePortFlag(str string) (internalPort int, protocol string, port, startPo
 		handlers = append(handlers, splittedProtoHandlers[1:]...)
 	} else if len(splittedPortsProto) > 2 {
 		err = errors.New("port must be at most two elements (ports/protocol:handler)")
+
 		return
 	}
 
@@ -227,6 +230,7 @@ func parsePortFlag(str string) (internalPort int, protocol string, port, startPo
 			internalPort = *startPort
 		}
 	}
+
 	return
 }
 
@@ -237,14 +241,16 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 		external_port, err = strconv.Atoi(split[0])
 		if err != nil {
 			err = errors.Wrap(err, "invalid port")
+
 			return
 		}
 
-		port = fly.IntPointer(external_port)
+		port = new(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
 			err = errors.Wrap(err, "invalid machine (internal) port")
+
 			return
 		}
 
@@ -254,28 +260,31 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 			external_port, err = strconv.Atoi(external_split[0])
 			if err != nil {
 				err = errors.Wrap(err, "invalid external port")
+
 				return
 			}
 
-			port = fly.IntPointer(external_port)
+			port = new(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
 			if err != nil {
 				err = errors.Wrap(err, "invalid start port for port range")
+
 				return
 			}
 
-			start_port = fly.IntPointer(start)
+			start_port = new(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
 			if err != nil {
 				err = errors.Wrap(err, "invalid end port for port range")
+
 				return
 			}
 
-			end_port = fly.IntPointer(end)
+			end_port = new(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}
@@ -298,6 +307,7 @@ func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
 		}
 		rawValue := base64.StdEncoding.EncodeToString(content)
 		file.RawValue = &rawValue
+
 		return nil
 	})
 	if err != nil {
@@ -308,6 +318,7 @@ func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
 	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *fly.File) error {
 		encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
 		file.RawValue = &encodedValue
+
 		return nil
 	})
 	if err != nil {
@@ -317,6 +328,7 @@ func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
 
 	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *fly.File) error {
 		file.SecretName = &value
+
 		return nil
 	})
 	if err != nil {
@@ -399,6 +411,7 @@ func DetermineMounts(ctx context.Context, appName string, mounts []fly.MachineMo
 			})
 		}
 	}
+
 	return mounts, nil
 }
 
@@ -427,5 +440,6 @@ func getUnattachedVolumes(ctx context.Context, appName, regionCode string) (map[
 	}
 
 	unattachedMap := lo.GroupBy(unattached, func(v fly.Volume) string { return v.Name })
+
 	return unattachedMap, nil
 }

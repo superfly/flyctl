@@ -18,6 +18,7 @@ func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*
 	if err != nil {
 		return nil, err
 	}
+
 	return fc.updateMachineConfig(src)
 }
 
@@ -397,6 +398,7 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 			MaxRetries: restart.MaxRetries,
 		}
 	}
+
 	return mConfig, nil
 }
 
@@ -446,7 +448,7 @@ func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 	switch {
 	case compute.Size != "":
 		size = compute.Size
-	case compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "":
+	case compute.MachineGuest != nil && compute.GPUKind != "":
 		size = fly.DefaultGPUVMSize
 	}
 

@@ -91,6 +91,7 @@ func manifestFromReader(r io.Reader) (*DeployManifest, error) {
 	if err := json.NewDecoder(r).Decode(manifest); err != nil {
 		return nil, err
 	}
+
 	return manifest, nil
 }
 
@@ -102,12 +103,14 @@ func manifestFromFile(filename string) (*DeployManifest, error) {
 	defer func() {
 		_ = file.Close()
 	}()
+
 	return manifestFromReader(file)
 }
 
 func (m *DeployManifest) Encode(w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+
 	return enc.Encode(m)
 }
 
@@ -144,6 +147,7 @@ func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 	app, err := flapsClient.GetApp(ctx, manifest.AppName)
 	if err != nil {
 		sentry.CaptureException(err)
+
 		return err
 	}
 
@@ -154,13 +158,16 @@ func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
+
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
+
 		return err
 	}
+
 	return nil
 }

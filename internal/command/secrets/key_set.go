@@ -110,6 +110,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		semType2, _ := SecretTypeToSemanticType(secret.Type)
 		if semType2 != semType {
 			typs := secretTypeToString(secret.Type)
+
 			return fmt.Errorf("key %v (%v) has conflicting type %v (%v)", prefix, secret.Name, semType2, typs)
 		}
 
@@ -142,5 +143,6 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

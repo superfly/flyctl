@@ -38,6 +38,7 @@ func newList() *cobra.Command {
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd, flag.App(), flag.JSONOutput())
+
 	return cmd
 }
 
@@ -45,6 +46,7 @@ func timeToString(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
+
 	return humanize.Time(t)
 }
 
@@ -84,6 +86,7 @@ func runList(ctx context.Context) error {
 
 	if len(snapshots) == 0 {
 		fmt.Fprintf(io.ErrOut, "No snapshots available for volume %s\n", volID)
+
 		return nil
 	}
 

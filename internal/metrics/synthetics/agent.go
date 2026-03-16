@@ -25,6 +25,7 @@ func RunAgent(ctx context.Context) error {
 
 	if err = ws.Connect(ctx); err != nil {
 		logger.Errorf("error connecting to flynthetics: %v", err)
+
 		return err
 	}
 
@@ -84,6 +85,7 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 	err := json.Unmarshal(probeMessageJSON, &probeMessage)
 	if err != nil {
 		logger.Error("JSON parse error:", err)
+
 		return err
 	}
 
@@ -101,6 +103,7 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 		mfs, err = probeHTTP(ctx, probeMessage, sl)
 		if err != nil {
 			logger.Errorf("error processing probe for endpoint %s. error: %v", probeMessage.Target, err)
+
 			return err
 		}
 	}

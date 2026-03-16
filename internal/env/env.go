@@ -60,21 +60,25 @@ func IS_GH_ACTION() bool {
 
 func GitCommitSHA() string {
 	sha := os.Getenv("GITHUB_SHA")
+
 	return sha
 }
 
 func GitActionEventName() string {
 	eventName := os.Getenv("GITHUB_EVENT_NAME")
+
 	return eventName
 }
 
 func GitActionName() string {
 	eventName := os.Getenv("GITHUB_ACTION")
+
 	return eventName
 }
 
 func GitRepoAndOwner() string {
 	repoAndOwner := os.Getenv("GITHUB_REPOSITORY")
+
 	return repoAndOwner
 }
 

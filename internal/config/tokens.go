@@ -238,12 +238,14 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		toks, err := macaroon.Parse(tok)
 		if err != nil {
 			log.Debugf("pruning token: failed to parse macaroon: %v", err)
+
 			return true
 		}
 
 		permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
 		if err != nil {
 			log.Debugf("pruning token: failed to find permission token: %v", err)
+
 			return true
 		}
 
@@ -255,15 +257,18 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		oid, err := flyio.OrganizationScope(&permMacs[0].UnsafeCaveats)
 		if err != nil {
 			log.Debugf("pruning token: failed to calculate org scope: %v", err)
+
 			return true
 		}
 
 		if _, hasOrg := graphIDByNumericID[oid]; !hasOrg {
 			log.Debug("pruning token: not in org")
+
 			return true
 		}
 
 		tokOIDS[oid] = true
+
 		return false
 	})
 
@@ -289,22 +294,21 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		macToks = append(macToks, m)
 	}
 	for graphID := range maps.Values(graphIDByNumericID) {
-		graphID := graphID
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			log.Debugf("fetching macaroons for org %s", graphID)
 			newToksStr, err := mintToken(ctx, c, graphID)
 			if err != nil {
 				addErr(fmt.Errorf("failed to get macaroons for org %s: %w", graphID, err))
+
 				return
 			}
 
 			newToks, err := macaroon.Parse(newToksStr)
 			if err != nil {
 				addErr(fmt.Errorf("bad macaroons for org %s: %w", graphID, err))
+
 				return
 			}
 
@@ -312,18 +316,20 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 				m, err := macaroon.Decode(newTok)
 				if err != nil {
 					addErr(fmt.Errorf("bad macaroon for org %s: %w", graphID, err))
+
 					return
 				}
 
 				mStr, err := m.String()
 				if err != nil {
 					addErr(fmt.Errorf("failed encoding macaroon for org %s: %w", graphID, err))
+
 					return
 				}
 
 				addMac(mStr)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
