@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"time"
@@ -133,7 +132,6 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 		return fmt.Errorf("wireguard dialer: failed to read HTTP response: %w", err)
 	}
 	defer resp.Body.Close()
-	defer io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != 404 {
 		return fmt.Errorf("wireguard dialer: expected 404, got %d", resp.StatusCode)

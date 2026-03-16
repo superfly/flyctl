@@ -60,7 +60,7 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 		HTTPHeader: headers,
 	}
 
-	wsConn, resp, err := websocket.Dial(ctx, rurl, opts)
+	wsConn, resp, err := websocket.Dial(ctx, rurl, opts) // nolint: bodyclose
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
 			// Handle 401 Unauthorized
@@ -76,7 +76,6 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 
 		return fmt.Errorf("error connecting synthetics agent to fynthetics: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if ws.wsConn != nil {
 		_ = ws.wsConn.CloseNow()

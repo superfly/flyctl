@@ -237,7 +237,6 @@ func runWireguardTokenStart(ctx context.Context) error {
 		return err
 	}
 	defer resp.Body.Close()
-	defer io.Copy(io.Discard, resp.Body)
 
 	peerStatus := &PeerStatusJson{}
 	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {

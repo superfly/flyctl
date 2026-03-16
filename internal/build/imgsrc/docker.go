@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -360,7 +359,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 		}
 
 		defer res.Body.Close()
-		defer io.Copy(io.Discard, res.Body) // Ensure body is fully read
 
 		if res.StatusCode == http.StatusNotFound {
 			logClearLinesAbove(streams, 1)
