@@ -120,7 +120,7 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 	if len(m.Machine().Config.Mounts) > 1 {
 		var otherMounts strings.Builder
 		for _, mnt := range m.Machine().Config.Mounts {
-			otherMounts.WriteString(fmt.Sprintf("    %s (%s)\n", mnt.Path, mnt.Volume))
+			fmt.Fprintf(&otherMounts, "    %s (%s)\n", mnt.Path, mnt.Volume)
 		}
 		warningMsg += warning("mounts", `more than one mount attached to machine %s
 fly.toml only supports one mount per machine at this time. These mounts will be removed on the next deploy:
@@ -212,7 +212,7 @@ func processGroupsFromMachineSet(ctx context.Context, ms machine.MachineSet) (*p
 		}
 		var otherCmds strings.Builder
 		for _, cmd := range report.others {
-			otherCmds.WriteString(fmt.Sprintf("    %s\n", cmd))
+			fmt.Fprintf(&otherCmds, "    %s\n", cmd)
 		}
 		warningMsg += warning("processes", `Found these additional commands on some machines. Consider adding process groups to your fly.toml and run machines with those process groups.
 For more info please see: https://fly.io/docs/reference/configuration/#the-processes-section

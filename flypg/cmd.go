@@ -109,7 +109,7 @@ func (pc *Command) ListEvents(ctx context.Context, leaderIP string, flagsName []
 	// Loops through flagsName to add selected options to the command. The format will look like this -->
 	// gosu postgres repmgr -f /data/repmgr.conf cluster event --compact --event primary_register --limit 5 --node-id 34244738
 	for _, flagName := range flagsName {
-		cmd.WriteString(fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName)))
+		fmt.Fprintf(&cmd, "--%s %s ", flagName, flag.GetString(ctx, flagName))
 	}
 
 	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd.String(), ssh.DefaultSshUsername)

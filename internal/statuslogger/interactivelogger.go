@@ -201,7 +201,7 @@ func (il *interactiveLogger) lockedDraw() {
 
 	// Draw the entire status block, clearing each row to prevent overwriting
 	var buf strings.Builder
-	buf.WriteString(fmt.Sprintf("%s\n%s\n", il.clearStr(), divider))
+	fmt.Fprintf(&buf, "%s\n%s\n", il.clearStr(), divider)
 	for _, line := range currentLines {
 		buf.WriteString(" ")
 		line_len := 0

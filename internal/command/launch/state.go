@@ -207,7 +207,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		labelSpaces := strings.Repeat(" ", colLengths[0]-len(label))
 		valueSpaces := strings.Repeat(" ", colLengths[1]-len(value))
 
-		ret.WriteString(fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source)))
+		fmt.Fprintf(&ret, "%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
 	}
 
 	return ret.String(), nil

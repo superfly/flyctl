@@ -104,7 +104,7 @@ func (r *recoverableErrorBuilder) build() string {
 
 	var allErrors strings.Builder
 	for _, err := range r.errors {
-		allErrors.WriteString(fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   ")))
+		fmt.Fprintf(&allErrors, " * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
 	}
 
 	return allErrors.String()
