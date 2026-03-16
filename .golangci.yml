@@ -13,6 +13,11 @@ linters:
     - unconvert
     - unused
     - misspell
+    - nlreturn
+    - bodyclose
+    - gocheckcompilerdirectives
+    - errchkjson
+    #- errname
   settings:
     errcheck:
       exclude-functions:
@@ -36,11 +41,6 @@ linters:
         - -ST1003 # struct field ... should be ... (mostly acronyms such as Http -> HTTP)
         - -ST1005 # error strings should not be capitalized
         - -ST1008 # error should be returned as the last argument
-        - -ST1012 # error var ... should have name of the form Err...
-        - -QF1001 # could apply De Morgan's law
-        - -QF1002 # could use tagged switch
-        - -QF1003 # could use tagged switch on app
-        - -QF1008 # could remove embedded field ... from selector
   exclusions:
     generated: lax
     presets:

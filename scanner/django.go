@@ -260,6 +260,7 @@ Optionally, you can use django.core.management.utils.get_random_secret_key() to 
 `, settingsPath, randomSecretKey, settingsPath)
 					}
 				}
+
 				break
 			}
 		}

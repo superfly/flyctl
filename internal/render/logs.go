@@ -102,6 +102,7 @@ func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
 	buf.WriteByte('\n')
 
 	_, err = buf.WriteTo(w)
+
 	return err
 }
 

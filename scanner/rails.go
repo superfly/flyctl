@@ -322,6 +322,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 			ruby, err := exec.LookPath("ruby")
 			if err != nil {
 				healthcheck_channel <- ""
+
 				return
 			}
 
@@ -352,6 +353,7 @@ func railsProductionActiveStorageIsLocal(sourceDir string) bool {
 	}
 
 	re = regexp.MustCompile(`(?m)config\.active_storage\.service\s*=\s*["'](local|test)["']\b`)
+
 	return re.MatchString(prodEnv)
 }
 

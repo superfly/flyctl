@@ -18,6 +18,7 @@ func New() *cobra.Command {
 
 	cmd := command.New("jobs", short, long, run)
 	cmd.AddCommand(NewOpen())
+
 	return cmd
 }
 func run(ctx context.Context) (err error) {
@@ -33,5 +34,6 @@ Check out https://fly.io/jobs to see our open roles. Or run: fly jobs open`)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }

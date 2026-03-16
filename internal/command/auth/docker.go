@@ -53,6 +53,7 @@ func ensureDockerConfigDir(home string) error {
 	} else if !fi.IsDir() {
 		return errors.New("~/.docker is not a dir")
 	}
+
 	return nil
 }
 
@@ -145,6 +146,7 @@ func runDocker(ctx context.Context) error {
 		if err := configureDockerJSON(cfg); err == nil {
 			return nil
 		}
+
 		return fmt.Errorf("docker cli not found - make sure it's installed and try again: %w", err)
 	}
 

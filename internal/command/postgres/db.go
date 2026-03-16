@@ -32,6 +32,7 @@ func newDb() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -78,6 +79,7 @@ func runListDbs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineListDbs(ctx, app)
 }
 
@@ -124,6 +126,7 @@ func listDBs(ctx context.Context, leaderIP string) error {
 
 	if len(databases) == 0 {
 		fmt.Fprintf(io.Out, "No databases found\n")
+
 		return nil
 	}
 

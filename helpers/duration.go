@@ -16,6 +16,7 @@ func Duration(d time.Duration, dicimal int) time.Duration {
 				break
 			}
 			d = d / div * div
+
 			break
 		}
 	}

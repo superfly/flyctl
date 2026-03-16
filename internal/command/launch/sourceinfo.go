@@ -37,6 +37,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
 		build.Image = img
+
 		return srcInfo, build, nil
 	}
 
@@ -56,11 +57,13 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		if err != nil {
 			return nil, nil, err
 		}
+
 		return srcInfo, build, nil
 	}
 
 	if strategies := appConfig.BuildStrategies(); len(strategies) > 0 {
 		fmt.Fprintf(io.Out, "Using build strategies '%s'. Remove [build] from fly.toml to force a rescan\n", aurora.Yellow(strategies))
+
 		return srcInfo, appConfig.Build, nil
 	}
 
@@ -91,6 +94,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		if noBlank {
 			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
 		}
+
 		return srcInfo, nil, err
 	}
 
@@ -115,6 +119,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 			Buildpacks: srcInfo.Buildpacks,
 		}
 	}
+
 	return srcInfo, build, nil
 }
 
@@ -123,5 +128,6 @@ func articleFor(w string) string {
 	if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(w)); matched {
 		article += "n"
 	}
+
 	return article
 }

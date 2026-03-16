@@ -80,6 +80,7 @@ func runListUsers(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineListUsers(ctx, app)
 }
 
@@ -124,6 +125,7 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 
 	if len(users) == 0 {
 		fmt.Fprintf(io.Out, "No users found\n")
+
 		return nil
 	}
 

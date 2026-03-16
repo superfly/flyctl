@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -34,6 +35,7 @@ func runWireguardTokenList(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, tokens)
+
 		return nil
 	}
 
@@ -131,6 +133,7 @@ func runWireguardTokenDelete(ctx context.Context) error {
 	}
 
 	fmt.Fprintln(io.Out, "Removed token.")
+
 	return nil
 }
 
@@ -233,6 +236,8 @@ func runWireguardTokenStart(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+	defer io.Copy(io.Discard, resp.Body)
 
 	peerStatus := &PeerStatusJson{}
 	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {
@@ -275,6 +280,8 @@ func runWireguardTokenUpdate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+	defer io.Copy(io.Discard, resp.Body)
 
 	peerStatus := &PeerStatusJson{}
 	if err = json.NewDecoder(resp.Body).Decode(peerStatus); err != nil {

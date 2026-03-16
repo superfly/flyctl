@@ -110,6 +110,7 @@ func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer ag
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
@@ -204,11 +205,13 @@ func runConsole(ctx context.Context) error {
 	sshc, err := Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
 	if err := Console(ctx, sshc, cmd, allocPTY, params.Container); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
@@ -221,6 +224,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
 			return err
 		}
+
 		return nil
 	}()
 
@@ -397,6 +401,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 					fmt.Printf("No container specified, using %s\n", availableContainers[0])
 				}
 			}
+
 			return availableContainers[selected], nil
 		} else {
 			if slices.Contains(availableContainers, container) {

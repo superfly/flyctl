@@ -320,8 +320,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				if !isComputeValid(compute) {
 					continue
 				}
-				if compute.MachineGuest.GPUKind != "" {
+				if compute.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
+
 					break
 				}
 
@@ -329,6 +330,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
 					if err != nil || mb >= 2048 {
 						autostop = fly.MachineAutostopStop
+
 						break
 					}
 				}

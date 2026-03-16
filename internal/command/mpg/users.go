@@ -80,6 +80,7 @@ func runUsersList(ctx context.Context) error {
 
 	if len(users.Data) == 0 {
 		fmt.Fprintf(out, "No users found for cluster %s\n", clusterID)
+
 		return nil
 	}
 

@@ -101,8 +101,10 @@ func findEntrypoint(dep string) *os.File {
 				return err
 			}
 		}
+
 		return nil
 	})
+
 	return entrypoint
 }
 
@@ -121,6 +123,7 @@ func parsePyDep(dep string) string {
 	dep = strings.Split(dep, ">")[0]
 	dep = strings.Split(dep, "<")[0]
 	dep = strings.Split(dep, "~=")[0]
+
 	return dep
 }
 
@@ -139,6 +142,7 @@ func readLines(filename string) ([]string, error) {
 		return nil, err
 	}
 	file.Close()
+
 	return lines, nil
 }
 
@@ -152,6 +156,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			app = PyApp(dep)
 		} else if slices.Contains(supportedApps, PyApp(dep)) && app != "" {
 			terminal.Warn("Multiple supported Python frameworks found")
+
 			return nil, nil
 		}
 	}
@@ -160,11 +165,14 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 
 	vars[string(cfg.depStyle)] = true
 	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
-	if app == "" {
+	switch app {
+	case "":
 		terminal.Warn("No supported Python frameworks found")
+
 		return nil, nil
-	} else if app == FastAPI {
+	case FastAPI:
 		vars["fastapi"] = true
+
 		return &SourceInfo{
 			Files:                templatesExecute("templates/python-docker", vars),
 			Family:               "FastAPI",
@@ -172,8 +180,9 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			ObjectStorageDesired: objectStorage,
 			Runtime:              runtime,
 		}, nil
-	} else if app == Flask {
+	case Flask:
 		vars["flask"] = true
+
 		return &SourceInfo{
 			Files:                templatesExecute("templates/python-docker", vars),
 			Family:               "Flask",
@@ -181,7 +190,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			ObjectStorageDesired: objectStorage,
 			Runtime:              runtime,
 		}, nil
-	} else if app == Streamlit {
+	case Streamlit:
 		vars["streamlit"] = true
 		entrypoint := findEntrypoint("streamlit")
 		if entrypoint == nil {
@@ -189,6 +198,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 		} else {
 			vars["entrypoint"] = entrypoint.Name()
 		}
+
 		return &SourceInfo{
 			Files:                templatesExecute("templates/python-docker", vars),
 			Family:               "Streamlit",
@@ -196,7 +206,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			ObjectStorageDesired: objectStorage,
 			Runtime:              runtime,
 		}, nil
-	} else {
+	default:
 		return nil, nil
 	}
 }
@@ -230,6 +240,7 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	pyVersion = strings.TrimPrefix(pyVersion, "^")
 	pyVersion = parsePyDep(pyVersion)
 	cfg := PyCfg{pyVersion, appName, depList, Poetry}
+
 	return intoSource(cfg)
 }
 
@@ -270,6 +281,7 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 
 	cfg := PyCfg{pyVersion, appName, depList, Pep621}
+
 	return intoSource(cfg)
 }
 
@@ -303,6 +315,7 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 
 	appName := filepath.Base(sourceDir)
 	cfg := PyCfg{pyVersion, appName, depList, Pipenv}
+
 	return intoSource(cfg)
 }
 
@@ -339,6 +352,7 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 	}
 	appName := filepath.Base(sourceDir)
 	cfg := PyCfg{pyVersion, appName, depList, Pip}
+
 	return intoSource(cfg)
 }
 
@@ -420,7 +434,9 @@ func extractPythonVersion() (string, bool, error) {
 		version := match[1]
 		nonNumericRegex := regexp.MustCompile(`[^0-9.]`)
 		pinned := nonNumericRegex.MatchString(version)
+
 		return version, pinned, nil
 	}
+
 	return "", false, fmt.Errorf("Could not find Python version")
 }

@@ -37,6 +37,7 @@ func list() (cmd *cobra.Command) {
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 

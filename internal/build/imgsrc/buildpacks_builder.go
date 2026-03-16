@@ -38,6 +38,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		span.AddEvent(note)
 		terminal.Debug(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -46,6 +47,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		terminal.Debug(note)
 		span.AddEvent(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -60,6 +62,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 
@@ -71,6 +74,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.BuilderInitFinish()
 		build.BuildFinish()
 		tracing.RecordError(span, err, "failed to create packet client")
+
 		return nil, "", err
 	}
 	build.BuilderInitFinish()
@@ -96,6 +100,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		tracing.RecordError(span, err, "error reading .dockerignore")
 		build.ContextBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	build.ContextBuildFinish()
@@ -147,6 +152,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		buildSpan.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
 		tracing.RecordError(buildSpan, err, "failed to build image")
 		buildSpan.End()
+
 		return nil, "", err
 	}
 
@@ -160,6 +166,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
+
 			return nil, "", err
 		}
 		build.PushFinish()
@@ -173,6 +180,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 	if img == nil {
 		tracing.RecordError(span, err, "no image found")
+
 		return nil, "", fmt.Errorf("no image found")
 	}
 
@@ -285,5 +293,6 @@ func (w *fdWrapper) Fd() uintptr {
 	if fd, ok := w.src.(fdWriter); ok {
 		return fd.Fd()
 	}
+
 	return ^(uintptr(0))
 }

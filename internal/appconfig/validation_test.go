@@ -21,6 +21,7 @@ func _getValidationContext(t *testing.T) context.Context {
 	require.NoError(t, err)
 	ctx, err = preparers.InitClient(ctx)
 	require.NoError(t, err)
+
 	return ctx
 }
 

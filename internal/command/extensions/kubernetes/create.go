@@ -41,6 +41,7 @@ func create() (cmd *cobra.Command) {
 			Description: "The output path to save the kubeconfig file",
 		},
 	)
+
 	return cmd
 }
 
@@ -87,5 +88,6 @@ func runK8sCreate(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "Wrote kubeconfig to file %s. Use it to connect to your cluster", outFilename)
+
 	return
 }

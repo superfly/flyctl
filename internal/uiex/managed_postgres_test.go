@@ -221,6 +221,7 @@ func TestCreateDatabase_EmptyName(t *testing.T) {
 
 		if input.Name == "" {
 			w.WriteHeader(http.StatusBadRequest)
+
 			return
 		}
 

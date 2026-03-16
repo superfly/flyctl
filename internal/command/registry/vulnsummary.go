@@ -186,6 +186,7 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 		_, ok := imageScan[img.Path]
 		if ok {
 			mu.Unlock()
+
 			continue
 		}
 		imageScan[img.Path] = nil
@@ -205,6 +206,7 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 				mu.Lock()
 				skipped[img] = msg
 				mu.Unlock()
+
 				return nil
 			}
 
@@ -212,6 +214,7 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 			mu.Lock()
 			imageScan[img.Path] = scan
 			mu.Unlock()
+
 			return nil
 		})
 	}
@@ -224,5 +227,6 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 		msg := skipped[img]
 		fmt.Fprintf(ios.Out, "Skipping %s (%s) %s\n", img.App, img.Mach, msg)
 	}
+
 	return imageScan, nil
 }

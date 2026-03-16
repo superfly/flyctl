@@ -90,8 +90,10 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
 			if numCalls == 0 {
 				numCalls += 1
+
 				return errors.New("first error")
 			}
+
 			return nil
 		},
 		provisioner: &Provisioner{},

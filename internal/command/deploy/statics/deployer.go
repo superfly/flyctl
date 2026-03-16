@@ -108,6 +108,7 @@ func (deployer *DeployerState) Configure(ctx context.Context) error {
 	}
 
 	deployer.root = fmt.Sprintf("fly-statics/%s/%d", deployer.appConfig.AppName, deployer.releaseVersion)
+
 	return nil
 }
 
@@ -143,6 +144,7 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 			if err != nil {
 				return 0, false
 			}
+
 			return num, true
 		})
 		for _, version := range versions {

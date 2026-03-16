@@ -36,6 +36,7 @@ type mockFlapsClient struct {
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
 	nonce := fmt.Sprintf("%x-lease", machineID)
+
 	return m.RefreshLease(ctx, appName, machineID, ttl, nonce)
 }
 
@@ -111,6 +112,7 @@ func (m *mockFlapsClient) Destroy(ctx context.Context, appName string, input fly
 	if m.breakDestroy {
 		return fmt.Errorf("failed to destroy %s", input.ID)
 	}
+
 	return nil
 }
 
@@ -195,6 +197,7 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
 	m.nextMachineID += 1
+
 	return &fly.Machine{
 		ID:         fmt.Sprintf("%x", m.nextMachineID),
 		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
@@ -205,6 +208,7 @@ func (m *mockFlapsClient) List(ctx context.Context, appName, state string) ([]*f
 	if m.breakList {
 		return nil, fmt.Errorf("failed to list machines")
 	}
+
 	return m.machines, nil
 }
 
@@ -276,6 +280,7 @@ func (m *mockFlapsClient) SetMetadata(ctx context.Context, appName, machineID, k
 	if m.breakSetMetadata {
 		return fmt.Errorf("failed to set metadata for %s", machineID)
 	}
+
 	return nil
 }
 
@@ -303,6 +308,7 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 	if m.breakUncordon {
 		return fmt.Errorf("failed to uncordon %s", machineID)
 	}
+
 	return nil
 }
 
@@ -322,6 +328,7 @@ func (m *mockFlapsClient) Wait(ctx context.Context, appName string, machine *fly
 	if m.breakWait {
 		return fmt.Errorf("failed to wait for %s", machine.ID)
 	}
+
 	return nil
 }
 

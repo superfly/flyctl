@@ -28,6 +28,7 @@ func dashboard() (cmd *cobra.Command) {
 		extensions_core.SharedFlags,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -46,5 +47,6 @@ func runDashboard(ctx context.Context) (err error) {
 	}
 
 	err = extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeArcjet)
+
 	return
 }

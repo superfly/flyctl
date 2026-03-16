@@ -16,6 +16,7 @@ func NewContext(ctx context.Context, sl StatusLine) context.Context {
 	if buildinfo.IsDev() && FromContextOptional(ctx) != nil && os.Getenv("FLYCTL_STATUSLOGGER_NO_ERROR") == "" {
 		panic("attempting to create a new statuslogger context when the parent context already has a logger! This is a bug.")
 	}
+
 	return context.WithValue(ctx, contextKey{}, sl)
 }
 
@@ -31,6 +32,7 @@ func FromContextOptional(ctx context.Context) StatusLine {
 	if val == nil {
 		return nil
 	}
+
 	return ctx.Value(contextKey{}).(StatusLine)
 }
 
@@ -46,11 +48,13 @@ func releaseFallback(ctx context.Context, format string, args ...interface{}) bo
 		if buildinfo.IsRelease() || os.Getenv("FLYCTL_STATUSLOGGER_NO_ERROR") != "" {
 			// TODO(Ali): It'd probably be good to have metrics or sentry here.
 			fmt.Fprintf(iostreams.FromContext(ctx).Out, format+"\n", args...)
+
 			return true
 		} else {
 			panic("Tried to log to a status logger that doesn't exist! This is a bug and crashes debug builds.\nUse FLYCTL_STATUSLOGGER_NO_ERROR=1 to ignore this for now.")
 		}
 	}
+
 	return false
 }
 
@@ -109,5 +113,6 @@ func Pause(ctx context.Context) (ret ResumeFn) {
 	if il, ok := line.(*interactiveLine); ok {
 		return il.logger.Pause()
 	}
+
 	return
 }

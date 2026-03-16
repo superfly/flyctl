@@ -31,6 +31,7 @@ func CreateReleaseBundle(meta Meta, w io.WriteCloser) (*Archive, error) {
 func newArchive(w io.WriteCloser) *Archive {
 	gw := gzip.NewWriter(w)
 	tw := tar.NewWriter(gw)
+
 	return &Archive{tw, gw}
 }
 

@@ -41,6 +41,7 @@ func (e recoverableInUiError) String() string {
 			return fmt.Sprintf("%s\n%s\n", flyErr.Err, flyErr.Descript)
 		}
 	}
+
 	return e.base.Error()
 }
 
@@ -89,8 +90,10 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	var asRecoverableErr recoverableInUiError
 	if errors.As(e, &asRecoverableErr) && r.canEnterUi {
 		r.errors = append(r.errors, asRecoverableErr)
+
 		return nil
 	}
+
 	return e
 }
 
@@ -103,6 +106,7 @@ func (r *recoverableErrorBuilder) build() string {
 	for _, err := range r.errors {
 		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
 	}
+
 	return allErrors
 }
 
@@ -322,6 +326,7 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 	default:
 		return true, err
 	}
+
 	return true, nil
 }
 
@@ -420,6 +425,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		if m.Plan.ScannerFamily != scannerFamily {
 			got := familyToAppType(scannerFamily)
 			expected := familyToAppType(m.Plan.ScannerFamily)
+
 			return nil, fmt.Errorf("launch manifest was created for a %s, but this is a %s", expected, got)
 		}
 	}
@@ -507,6 +513,7 @@ func sanitizeAppName(dirName string) string {
 			lastIsUnderscore = false
 		}
 	}
+
 	return strings.Trim(string(sanitized), "-")
 }
 
@@ -515,6 +522,7 @@ func validateAppName(appName string) error {
 	if failRegex.MatchString(appName) {
 		return errors.New("app name must consist of only lowercase letters, numbers, and dashes")
 	}
+
 	return nil
 }
 
@@ -535,6 +543,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 				return outName, true
 			}
 		}
+
 		return "", false
 	}
 
@@ -560,6 +569,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 				Suggest: "Specify the app name with the --name flag",
 			}
 		}
+
 		return appName, cause, nil
 	}
 
@@ -576,9 +586,10 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 		if parentConfig != nil && parentConfig.AppName != "" {
 			appName = parentConfig.AppName + "-" + appName
-			if cause == "from your fly.toml" {
+			switch cause {
+			case "from your fly.toml":
 				cause = "from parent name and fly.toml"
-			} else if cause == "derived from your directory name" {
+			case "derived from your directory name":
 				if flag.GetString(ctx, "into") != "" {
 					cause = "from parent name and --into"
 				} else if flag.GetString(ctx, "from") != "" {
@@ -625,6 +636,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 	if err := validateAppName(appName); err != nil {
 		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
+
 	return appName, cause, nil
 }
 
@@ -635,6 +647,7 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return !available, nil
 }
 
@@ -672,6 +685,7 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
 			} else {
 				o := orgs[0]
+
 				return &o, fmt.Sprintf("defaulting to '%s'", o.Slug), nil
 			}
 		}
@@ -772,8 +786,10 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
 			}
 		}
+
 		return region, explanation, err
 	}
+
 	return closestRegion, "this is the fastest region for you", closestRegionErr
 }
 
@@ -796,6 +812,7 @@ func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error
 			return &r, nil
 		}
 	}
+
 	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
 }
 
@@ -811,6 +828,7 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 			c.MachineGuest = nil
 			c.Memory = ""
 			c.Size = k
+
 			return
 		}
 	}
@@ -831,15 +849,16 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 
 	// Restore original values for fields the Web UI does not return
 	if originalGuest != nil {
-		c.MachineGuest.KernelArgs = originalGuest.KernelArgs
-		c.MachineGuest.GPUs = originalGuest.GPUs
-		c.MachineGuest.HostDedicationID = originalGuest.HostDedicationID
+		c.KernelArgs = originalGuest.KernelArgs
+		c.GPUs = originalGuest.GPUs
+		c.HostDedicationID = originalGuest.HostDedicationID
 	}
 }
 
 func guestToCompute(g *fly.MachineGuest) *appconfig.Compute {
 	var c appconfig.Compute
 	applyGuestToCompute(&c, g)
+
 	return &c
 }
 
@@ -862,6 +881,7 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
 		reason = "specified on the command line"
 	}
+
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
@@ -870,7 +890,9 @@ func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billa
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
 		}
+
 		return false
 	}
+
 	return true
 }

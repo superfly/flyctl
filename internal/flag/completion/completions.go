@@ -52,11 +52,14 @@ func CompleteApps(
 				info = append(info, app.Organization.Name)
 			}
 			info = append(info, app.Status)
+
 			return fmt.Sprintf("%s\t%s", app.Name, strings.Join(info, ", ")), true
 		}
+
 		return "", false
 	})
 	slices.Sort(ret)
+
 	return ret, nil
 }
 
@@ -84,6 +87,7 @@ func CompleteOrgs(
 		return strings.HasPrefix(name, partial)
 	})
 	slices.Sort(ret)
+
 	return ret, nil
 }
 
@@ -114,6 +118,7 @@ func CompleteRegions(
 		if strings.HasPrefix(region.Code, partial) {
 			return format(region), true
 		}
+
 		return "", false
 	})
 	slices.Sort(regionNames)
@@ -125,5 +130,6 @@ func CompleteRegions(
 			regionNames = append([]string{regionNames[idx]}, append(regionNames[:idx], regionNames[idx+1:]...)...)
 		}
 	}
+
 	return regionNames, nil
 }

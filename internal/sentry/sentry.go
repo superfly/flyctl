@@ -128,6 +128,7 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			err,
 			WithTag("feature", featureName),
 		)
+
 		return
 	}
 
@@ -150,6 +151,7 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			WithRequestID(flapsErr.FlyRequestId),
 			WithStatusCode(flapsErr.ResponseStatusCode),
 		)
+
 		return
 	}
 
@@ -175,6 +177,7 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 			err,
 			WithTag("feature", featureName),
 		)
+
 		return
 	}
 
@@ -196,6 +199,7 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 			WithRequestID(flapsErr.FlyRequestId),
 			WithStatusCode(flapsErr.ResponseStatusCode),
 		)
+
 		return
 	}
 

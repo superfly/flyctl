@@ -103,6 +103,7 @@ func runList(ctx context.Context) (err error) {
 		for i, row := range rows {
 			basicSecrets[i] = secretBasic{Name: row[0], Digest: row[1]}
 		}
+
 		return render.JSON(out, basicSecrets)
 	}
 
@@ -191,6 +192,7 @@ func buildRowsWithoutStatus(secrets []fly.AppSecret) [][]string {
 			secret.Digest,
 		})
 	}
+
 	return rows
 }
 
@@ -248,6 +250,7 @@ func filterRelevantMachines(machines []*fly.Machine) []*fly.Machine {
 			relevant = append(relevant, m)
 		}
 	}
+
 	return relevant
 }
 
@@ -255,6 +258,7 @@ func getMachineReleaseVersion(m *fly.Machine) string {
 	if m == nil || m.Config == nil || m.Config.Metadata == nil {
 		return ""
 	}
+
 	return m.Config.Metadata[fly.MachineConfigMetadataKeyFlyReleaseVersion]
 }
 
@@ -318,10 +322,10 @@ func computeSecretStatus(secret fly.AppSecret, vc versionCounts) SecretStatus {
 		}
 	}
 
-	switch {
-	case machinesWithSecret == 0:
+	switch machinesWithSecret {
+	case 0:
 		return StatusStaged
-	case machinesWithSecret == vc.totalMachines:
+	case vc.totalMachines:
 		return StatusDeployed
 	default:
 		return StatusPartiallyDeployed
@@ -340,6 +344,7 @@ func collectReleaseVersions(machines []*fly.Machine) []string {
 			versions = append(versions, version)
 		}
 	}
+
 	return versions
 }
 

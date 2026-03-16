@@ -25,6 +25,7 @@ func create() (cmd *cobra.Command) {
 		flag.AppConfig(),
 		extensions_core.SharedFlags,
 	)
+
 	return cmd
 }
 
@@ -42,5 +43,6 @@ func runSentryCreate(ctx context.Context) (err error) {
 			CheckDNS: true,
 		})
 	}
+
 	return
 }

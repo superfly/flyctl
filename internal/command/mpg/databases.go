@@ -78,6 +78,7 @@ func runDatabasesList(ctx context.Context) error {
 
 	if len(databases.Data) == 0 {
 		fmt.Fprintf(out, "No databases found for cluster %s\n", clusterID)
+
 		return nil
 	}
 

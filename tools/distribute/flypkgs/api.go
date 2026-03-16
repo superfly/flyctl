@@ -36,6 +36,7 @@ func (c *Client) URL(path string, params ...any) string {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
+
 	return fmt.Sprintf(c.BaseURL+path, params...)
 }
 

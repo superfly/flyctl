@@ -41,6 +41,7 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 	})
 
 	cmd.Aliases = []string{"ls"}
+
 	return cmd
 }
 
@@ -79,6 +80,7 @@ func runList(ctx context.Context) (err error) {
 			rows = append(rows, []string{app.Name})
 		}
 		_ = render.Table(out, "", rows)
+
 		return
 	}
 	for _, app := range apps {

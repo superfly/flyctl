@@ -64,6 +64,7 @@ fetch one with 'fly config save -a <app_name>'.`
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 

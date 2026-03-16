@@ -48,6 +48,7 @@ func Create(ctx context.Context, numLines int, showStatusChar bool) StatusLogger
 				status:  StatusNone,
 			}
 		}
+
 		return sl
 	}
 }
@@ -99,6 +100,7 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 			FromContext(ctx).setStatus(StatusSuccess)
 		}
 	})
+
 	return nil
 }
 
@@ -108,5 +110,6 @@ func SingleLine(ctx context.Context, showStatusChar bool) (context.Context, func
 	logger := Create(ctx, 1, showStatusChar)
 	line := logger.Line(0)
 	line.setStatus(StatusRunning)
+
 	return NewContext(ctx, line), logger.Destroy
 }

@@ -143,6 +143,7 @@ func runAuth(ctx context.Context) error {
 	}
 
 	fmt.Println(buffer.String())
+
 	return nil
 }
 
@@ -164,5 +165,6 @@ func makeOrgToken(ctx context.Context, apiClient flyutil.Client, orgID string) (
 	token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
 	token = strings.TrimPrefix(token, tokenPrefix)
 	expiry := time.Now().UTC().Add(time.Hour).Unix()
+
 	return token, expiry, nil
 }

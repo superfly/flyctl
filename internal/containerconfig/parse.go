@@ -40,6 +40,7 @@ func ParseContainerConfig(mConfig *fly.MachineConfig, composePath, machineConfig
 			for _, c := range mConfig.Containers {
 				if c.Name == match {
 					selectedContainer = c
+
 					break
 				}
 			}

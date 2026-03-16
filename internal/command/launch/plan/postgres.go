@@ -30,6 +30,7 @@ func (p *PostgresPlan) Provider() any {
 	if p.ManagedPostgres != nil {
 		return p.ManagedPostgres
 	}
+
 	return nil
 }
 
@@ -91,6 +92,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 
 	// Default to FlyPostgres
 	fmt.Fprintf(io.ErrOut, "Deprecation Warning: We will soon default to Managed Postgres when launching new apps in compatible regions. Pass --db=mpg to use Managed Postgres now and --db=upg to use Unmanaged Postgres.\n")
+
 	return createFlyPostgresPlan(plan), nil
 }
 
@@ -162,6 +164,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 	} else {
 		// Non-interactive: fail with error
 		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, orgSlug)
+
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
 }
@@ -177,6 +180,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "Warning: Unable to find regions that support Managed Postgres. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -192,6 +196,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "%s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -207,6 +212,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "Failed to select region. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -238,6 +244,7 @@ func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
 	if p.VmRam != 0 {
 		guest.MemoryMB = p.VmRam
 	}
+
 	return &guest
 }
 
@@ -250,6 +257,7 @@ func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
 	if p.DbName == "" {
 		return plan.AppName + "-db"
 	}
+
 	return p.DbName
 }
 
@@ -257,6 +265,7 @@ func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
 	if p.Region == "" {
 		return plan.RegionCode
 	}
+
 	return p.Region
 }
 
@@ -272,6 +281,7 @@ func (p *ManagedPostgresPlan) GetDbName(plan *LaunchPlan) string {
 	if p.DbName == "" {
 		return plan.AppName + "-db"
 	}
+
 	return p.DbName
 }
 
@@ -279,5 +289,6 @@ func (p *ManagedPostgresPlan) GetRegion(plan *LaunchPlan) string {
 	if p.Region == "" {
 		return plan.RegionCode
 	}
+
 	return p.Region
 }

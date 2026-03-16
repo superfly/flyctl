@@ -45,6 +45,7 @@ func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.
 			return &extension, nil
 		}
 	}
+
 	return nil, nil
 }
 
@@ -59,6 +60,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 	if bucket != nil {
 		meta := bucket.Metadata.(map[string]interface{})
 		deployer.bucket = meta[staticsMetaBucketName].(string)
+
 		return meta[staticsMetaTokenizedAuth].(string), nil
 	}
 
@@ -141,6 +143,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 	if err != nil {
 		return "", err
 	}
+
 	return tokenizedKey, nil
 }
 

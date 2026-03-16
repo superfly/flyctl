@@ -37,6 +37,7 @@ func (e machineTestErr) Description() string {
 	desc += fmt.Sprintf("Error: test command failed running on machine %s with exit code %d.\n", e.machineID, e.exitCode)
 	desc += fmt.Sprintf("Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n\n", e.machineID)
 	desc += e.testMachineLogs
+
 	return desc
 
 }
@@ -71,6 +72,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 
 	if len(machineChecks) == 0 {
 		span.AddEvent("no machine checks")
+
 		return nil
 	}
 
@@ -84,6 +86,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		}()
 
 		mach, err = md.createTestMachine(ctx, machineCheck, machineToTest, sl)
+
 		return createdTestMachine{mach, err}
 	})
 
@@ -92,6 +95,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	}); hasErr {
 		err := fmt.Errorf("error creating test machine: %w", m.err)
 		tracing.RecordError(span, err, "failed to create test machine")
+
 		return err
 	}
 
@@ -100,6 +104,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 			tracing.RecordError(span, m.err, "failed to create test machine")
 			sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("failed to create test machine: %s", m.err))
 		}
+
 		return m.mach, m.err == nil
 	}), false)
 
@@ -107,6 +112,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	err = md.waitForTestMachinesToFinish(ctx, machineSet, sl)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to wait for test cmd machine")
+
 		return err
 	}
 
@@ -167,6 +173,7 @@ func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine,
 
 		return logs, nil
 	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(timeout))
+
 	return err
 }
 
@@ -181,10 +188,12 @@ func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconf
 	testMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create test machines")
+
 		return nil, fmt.Errorf("error creating a test machine: %w", err)
 	}
 
 	sl.Logf("Created test machine %s", md.colorize.Bold(testMachine.ID))
+
 	return testMachine, nil
 }
 
@@ -212,6 +221,7 @@ func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMac
 	if err != nil {
 		return nil, err
 	}
+
 	return &fly.LaunchMachineInput{
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
@@ -230,6 +240,7 @@ func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, te
 		for _, mach := range badMachineIDs {
 			err = fmt.Errorf("%w\n%s", err, mach)
 		}
+
 		return fmt.Errorf("error waiting for test command machines to start: %w", err)
 	}
 
@@ -239,12 +250,14 @@ func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, te
 		for _, mach := range badMachineIDs {
 			err = fmt.Errorf("%w\n%s", err, mach)
 		}
+
 		return fmt.Errorf("error waiting for test command machines to finish running: %w", err)
 	}
 
 	machs := lo.FilterMap(testMachines.GetMachines(), func(lm machine.LeasableMachine, _ int) (*fly.Machine, bool) {
 		mach := lm.Machine()
 		m, err := md.flapsClient.Get(ctx, md.app.Name, mach.ID)
+
 		return m, err == nil
 	})
 	for _, mach := range machs {

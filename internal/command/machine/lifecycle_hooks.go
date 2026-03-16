@@ -25,12 +25,14 @@ func runOnDeletionHook(ctx context.Context, appName string, machine *fly.Machine
 		if err != nil {
 			fmt.Fprintln(io.Out, "(failed)")
 			fmt.Fprintf(io.Out, "failed to unregister postgres member: %v\n", err)
+
 			return
 		}
 
 		if err := postgres.UnregisterMember(ctx, appCompact, machine); err != nil {
 			fmt.Fprintln(io.Out, "(failed)")
 			fmt.Fprintf(io.Out, "failed to unregister postgres member: %v\n", err)
+
 			return
 		}
 		fmt.Fprintln(io.Out, "(success)")

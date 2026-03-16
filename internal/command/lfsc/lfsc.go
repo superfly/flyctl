@@ -117,6 +117,7 @@ func getOrgID(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed retrieving organization with slug %s: %w", slug, err)
 		}
+
 		return org.ID, nil
 	}
 
@@ -129,5 +130,6 @@ func getOrgID(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return app.Organization.ID, nil
 }

@@ -58,6 +58,7 @@ func newBarman() *cobra.Command {
 	cmd.Hidden = true
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -410,11 +411,13 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 
 func runBarmanCheck(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman check pg")
 }
 
 func runBarmanListBackup(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman list-backup pg")
 }
 
@@ -425,6 +428,7 @@ func runBarmanShowBackup(ctx context.Context) error {
 	backupId := flag.FirstArg(ctx)
 	fmt.Printf("barman show-backup pg %s", backupId)
 	fmt.Fprintf(io.Out, "barman show-backup pg %s", backupId)
+
 	return runConsole(ctx, fmt.Sprintf("barman show-backup pg %s", backupId))
 }
 
@@ -434,6 +438,7 @@ func runBarmanBackup(ctx context.Context) error {
 
 func runBarmanSwitchWal(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman switch-wal pg --force --archive")
 }
 
@@ -489,11 +494,13 @@ func runConsole(ctx context.Context, cmd string) error {
 	sshc, err := ssh.Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
 	if err := ssh.Console(ctx, sshc, cmd, false, ""); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
@@ -511,6 +518,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}

@@ -29,6 +29,7 @@ func newPrivate() *cobra.Command {
 		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
+
 	return cmd
 }
 
@@ -52,6 +53,7 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 		}
 
 		out := iostreams.FromContext(ctx).Out
+
 		return render.JSON(out, privateIpAddresses)
 	} else {
 		renderPrivateTableMachines(ctx, machines)

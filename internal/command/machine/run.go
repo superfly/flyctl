@@ -555,6 +555,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	for appi, appt := range apps {
 		if strings.HasPrefix(appt.Name, "flyctl-interactive-shells-") {
 			appc = &apps[appi]
+
 			break
 		}
 	}
@@ -646,6 +647,7 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 			return nil, fmt.Errorf("invalid key/value pairs specified for flag %s", flagName)
 		}
 	}
+
 	return parsed, nil
 }
 
@@ -692,6 +694,7 @@ func determineMachineConfig(
 		for _, c := range machineConf.Containers {
 			if c.Name == match {
 				container = c
+
 				break
 			}
 		}

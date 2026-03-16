@@ -50,6 +50,7 @@ func runLog(ctx context.Context) (err error) {
 
 	if jsonOutput {
 		render.JSON(out, certs)
+
 		return nil
 	}
 

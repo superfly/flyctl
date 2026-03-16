@@ -40,6 +40,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 		for _, name := range appConfig.ProcessNames() {
 			if v, ok := guestPerGroup[name]; ok {
 				guest = v
+
 				break
 			}
 		}
@@ -61,6 +62,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 
 	defaults.volsizeByName = lo.Reduce(volumes, func(agg map[string]int, v fly.Volume, _ int) map[string]int {
 		agg[v.Name] = lo.Max([]int{agg[v.Name], v.SizeGb})
+
 		return agg
 	}, make(map[string]int))
 
@@ -79,6 +81,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 			},
 		)
 	}
+
 	return &defaults
 }
 
@@ -96,6 +99,7 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*fly.MachineConfig, e
 	mc.Mounts = lo.Map(mc.Mounts, func(mount fly.MachineMount, _ int) fly.MachineMount {
 		mount.SizeGb = lo.ValueOr(d.volsizeByName, mount.Name, d.volsize)
 		mount.Encrypted = true
+
 		return mount
 	})
 	mc.Metadata[fly.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
@@ -115,6 +119,7 @@ func (d *defaultValues) PopAvailableVolumes(mConfig *fly.MachineConfig, region s
 	if len(availableVolumes) > 0 {
 		d.existingVolumes[name][region] = lo.Drop(regionVolumes, len(availableVolumes))
 	}
+
 	return availableVolumes
 }
 

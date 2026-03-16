@@ -24,6 +24,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		appConfig:  appConfig,
 		machineSet: machine.NewMachineSet(nil, nil, "", nil, true),
 	}
+
 	return md, nil
 }
 

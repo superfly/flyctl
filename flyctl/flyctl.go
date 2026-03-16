@@ -22,6 +22,7 @@ func InitConfig() {
 	dir, err := helpers.GetConfigDirectory()
 	if err != nil {
 		fmt.Println("Error accessing home directory", err)
+
 		return
 	}
 
@@ -30,6 +31,7 @@ func InitConfig() {
 			fmt.Sprintf("Error accessing config directory at %s", dir),
 			err,
 		)
+
 		return
 	}
 
@@ -100,6 +102,7 @@ func loadConfig() error {
 	err := viper.ReadInConfig()
 	if err == nil {
 		terminal.Debug("Loaded flyctl config from", viper.ConfigFileUsed())
+
 		return nil
 	}
 
@@ -109,6 +112,7 @@ func loadConfig() error {
 				terminal.Debug("error writing flyctl config", err)
 			}
 		}
+
 		return nil
 	}
 

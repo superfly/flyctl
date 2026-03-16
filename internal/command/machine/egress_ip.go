@@ -135,6 +135,7 @@ Are you sure this is what you want?`
 	fmt.Printf("Allocated egress IPs for machine %s:\n", machineId)
 	fmt.Printf("IPv4: %s\n", ipv4.String())
 	fmt.Printf("IPv6: %s\n", ipv6.String())
+
 	return nil
 }
 
@@ -159,6 +160,7 @@ func runListEgressIps(ctx context.Context) (err error) {
 
 	out := iostreams.FromContext(ctx).Out
 	render.Table(out, "", rows, "Machine ID", "Region", "Type", "Egress IP")
+
 	return nil
 }
 

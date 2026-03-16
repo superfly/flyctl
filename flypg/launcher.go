@@ -499,6 +499,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 	}
 
 	err = appsecrets.Update(ctx, flapsClient, config.AppName, secrets, nil)
+
 	return secrets, err
 }
 

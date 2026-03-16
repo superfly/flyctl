@@ -156,6 +156,7 @@ func parseVolume(volume string) (hostPath, containerPath string, readOnly bool) 
 		if parts[1] == "ro" || parts[1] == "rw" {
 			return "", parts[0], parts[1] == "ro"
 		}
+
 		return parts[0], parts[1], false
 	case 3:
 		// HOST:CONTAINER:ro/rw
@@ -336,6 +337,7 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 				if err != nil {
 					// Log warning but continue
 					fmt.Printf("Warning: Could not read volume file %s: %v\n", hostPath, err)
+
 					continue
 				}
 

@@ -187,6 +187,7 @@ func runLaunch(ctx context.Context) error {
 
 				if len(split) > 0 {
 					serverName = split[len(split)-1]
+
 					break
 				}
 			}

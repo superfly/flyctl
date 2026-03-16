@@ -79,8 +79,10 @@ func fakeOrgFetcher(orgs map[uint64]string, err error) orgFetcher {
 
 func fakeOrgTokenMinter(tb testing.TB, expectedGraphID string, oid uint64) tokenMinter {
 	tb.Helper()
+
 	return func(_ context.Context, _ flyutil.Client, graphID string) (string, error) {
 		require.Equal(tb, expectedGraphID, graphID)
+
 		return fakeTokenHeader(tb, "", oid), nil
 	}
 }
@@ -160,6 +162,7 @@ func fakePermissionToken(tb testing.TB, cavs ...macaroon.Caveat) *macaroon.Macar
 	perm, err := macaroon.New(permKID, flyio.LocationPermission, permK)
 	require.NoError(tb, err)
 	require.NoError(tb, perm.Add(cavs...))
+
 	return perm
 }
 
@@ -171,6 +174,7 @@ func fakeAuthToken(tb testing.TB, perm *macaroon.Macaroon) *macaroon.Macaroon {
 	require.NoError(tb, err)
 	_, auth, err := macaroon.DischargeTicket(authK, flyio.LocationAuthentication, ticket)
 	require.NoError(tb, err)
+
 	return auth
 }
 

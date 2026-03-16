@@ -26,7 +26,11 @@ func ConfirmConfigChanges(ctx context.Context, machine *fly.Machine, targetConfi
 		colorize = io.ColorScheme()
 	)
 
-	diff := configCompare(ctx, *machine.Config, targetConfig)
+	diff, err := configCompare(ctx, *machine.Config, targetConfig)
+	if err != nil {
+		return false, fmt.Errorf("failed to compare machine configs: %v", err)
+	}
+
 	if diff == "" {
 		return false, &ErrNoConfigChangesFound{}
 	}
@@ -60,6 +64,7 @@ func CloneConfig(orig *fly.MachineConfig) *fly.MachineConfig {
 	if orig == nil {
 		return nil
 	}
+
 	return helpers.Clone(orig)
 }
 
@@ -72,15 +77,22 @@ var cmpOptions = cmp.Options{
 			})),
 }
 
-func configCompare(ctx context.Context, original fly.MachineConfig, new fly.MachineConfig) string {
+func configCompare(ctx context.Context, original fly.MachineConfig, new fly.MachineConfig) (string, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	origBytes, _ := json.MarshalIndent(original, "", "  ")
-	newBytes, _ := json.MarshalIndent(new, "", "  ")
+	origBytes, err := json.MarshalIndent(original, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal original config: %v", err)
+	}
+
+	newBytes, err := json.MarshalIndent(new, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal new config: %v", err)
+	}
 
 	if cmp.Equal(origBytes, newBytes, cmpOptions) {
-		return ""
+		return "", nil
 	}
 
 	diff := cmp.Diff(origBytes, newBytes, cmpOptions)
@@ -103,13 +115,13 @@ func configCompare(ctx context.Context, original fly.MachineConfig, new fly.Mach
 		}
 	}
 
-	// Cleanup output
+	// Clean up output
 	delim := "\"\"\""
 	rx := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(delim) + `(.*?)` + regexp.QuoteMeta(delim))
 	match := rx.FindStringSubmatch(str)
 	if len(match) > 0 {
-		return strings.Trim(match[1], "\n")
+		return strings.Trim(match[1], "\n"), nil
 	}
 	// We know the objects are different, if we can't cleanup return the best we have got
-	return str
+	return str, nil
 }

@@ -72,6 +72,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		build.BuildFinish()
 		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
 		tracing.RecordError(span, err, "failed to find dockerfile")
+
 		return nil, "", err
 	case opts.DockerfilePath != "":
 		dockerfile = opts.DockerfilePath
@@ -83,6 +84,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		span.AddEvent("dockerfile not found, skipping")
 		terminal.Debug("dockerfile not found, skipping")
 		build.BuildFinish()
+
 		return nil, "", nil
 	}
 
@@ -93,6 +95,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		if err != nil {
 			tracing.RecordError(span, err, "failed to get relative dockerfile path")
 			build.BuildFinish()
+
 			return nil, "", err
 		}
 		// On Windows, convert \ to a slash / as the docker build will
@@ -109,6 +112,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		build.ImageBuildFinish()
 		build.BuildFinish()
 		tracing.RecordError(span, err, "failed to build image")
+
 		return nil, "", errors.Wrap(err, "error building")
 	}
 	build.BuilderMeta.RemoteMachineId = image.BuilderID
@@ -117,6 +121,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	span.SetAttributes(image.ToSpanAttributes()...)
+
 	return image, "", nil
 }
 
@@ -173,6 +178,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	res, buildErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
 	if buildErr != nil {
 		buildState.BuildAndPushFinish()
+
 		return nil, buildErr
 	}
 	buildState.BuildAndPushFinish()
@@ -295,12 +301,14 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		)
 
 		res, err = buildkitClient.Solve(ctx, nil, solverOptions, ch)
+
 		return err
 	})
 	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
 		span.RecordError(err)
+
 		return nil, err
 	}
 
@@ -368,6 +376,7 @@ func (a *Annotations) Manifest() (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return manifest, nil
 }
 
@@ -375,8 +384,10 @@ func (a *Annotations) Bytes() int64 {
 	manifest, err := a.Manifest()
 	if err != nil {
 		log.Printf("failed to get manifest: %v", err)
+
 		return 0
 	}
+
 	return manifest.Bytes()
 }
 
@@ -392,6 +403,7 @@ func (m *Manifest) Bytes() int64 {
 	for _, layer := range m.Layers {
 		size += layer.Size
 	}
+
 	return size
 }
 

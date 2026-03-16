@@ -20,6 +20,7 @@ func NewOpen() *cobra.Command {
 			if err := open.Run(jobsUrl); err != nil {
 				return fmt.Errorf("failed opening %s: %v", jobsUrl, err)
 			}
+
 			return nil
 		},
 	)

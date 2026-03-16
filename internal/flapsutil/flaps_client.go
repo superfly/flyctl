@@ -87,5 +87,6 @@ func NewContextWithClient(ctx context.Context, c FlapsClient) context.Context {
 // ClientFromContext returns the client ctx carries.
 func ClientFromContext(ctx context.Context) FlapsClient {
 	c, _ := ctx.Value(clientContextKey).(FlapsClient)
+
 	return c
 }

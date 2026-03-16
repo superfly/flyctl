@@ -53,6 +53,7 @@ func MoveBucket(
 
 	if deployer.bucket == prevBucketName {
 		fmt.Fprintf(io.ErrOut, "New statics bucket is the same as the old one!\nPlease delete the storage addon '%s' manually and redeploy the application.\n", prevBucket.Name)
+
 		return nil
 	}
 
@@ -111,6 +112,7 @@ func transferFiles(ctx context.Context, oldS3Client *s3.Client, oldBucket string
 				return err
 			}
 		}
+
 		return nil
 	})
 
