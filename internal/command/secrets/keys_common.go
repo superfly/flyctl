@@ -56,6 +56,7 @@ func GetSupportedSecretTypes() []SecretType {
 			r = append(r, st)
 		}
 	}
+
 	return r
 }
 
@@ -69,6 +70,7 @@ func GetSupportedSemanticTypes() []SemanticType {
 			r = append(r, st)
 		}
 	}
+
 	return r
 }
 
@@ -79,6 +81,7 @@ func SecretTypeToSemanticType(st SecretType) (SemanticType, error) {
 		}
 	}
 	var r SemanticType
+
 	return r, fmt.Errorf("unsupported secret type %s", st)
 }
 
@@ -90,6 +93,7 @@ func SemanticTypeToSecretType(st SemanticType) (SecretType, error) {
 	}
 
 	var r SecretType
+
 	return r, fmt.Errorf("unsupported semantic type %s. use one of %v", st, SupportedSemanticTypes)
 }
 
@@ -106,6 +110,7 @@ func (v Keyver) String() string {
 	if v == KeyverUnspec {
 		return "unspec"
 	}
+
 	return fmt.Sprintf("%d", int64(v))
 }
 
@@ -113,6 +118,7 @@ func (v Keyver) Incr() (Keyver, error) {
 	if v >= KeyverMax {
 		return KeyverUnspec, fmt.Errorf("cannot increment version beyond maximum")
 	}
+
 	return v + 1, nil
 }
 
@@ -142,6 +148,7 @@ func ValidKeyLabel(label string) error {
 	if m == nil {
 		return fmt.Errorf("invalid label")
 	}
+
 	return nil
 }
 
@@ -174,5 +181,6 @@ func JoinLabelVersion(ver Keyver, prefix string) string {
 	if ver == KeyverUnspec {
 		return prefix
 	}
+
 	return fmt.Sprintf("%sv%d", prefix, int64(ver))
 }

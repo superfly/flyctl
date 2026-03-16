@@ -39,6 +39,7 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 		newCertificatesCheck(),
 		newCertificatesSetup(),
 	)
+
 	return cmd
 }
 
@@ -57,6 +58,7 @@ func newCertificatesList() *cobra.Command {
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -77,6 +79,7 @@ as a parameter for the certificate.`
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Aliases = []string{"create"}
+
 	return cmd
 }
 
@@ -108,6 +111,7 @@ ownership verification via DNS before the certificate becomes active.`
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.MarkFlagRequired("fullchain")
 	cmd.MarkFlagRequired("private-key")
+
 	return cmd
 }
 
@@ -143,6 +147,7 @@ func runCertificatesImport(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, resp)
+
 		return nil
 	}
 
@@ -152,6 +157,7 @@ func runCertificatesImport(ctx context.Context) error {
 	for i := range resp.Certificates {
 		if resp.Certificates[i].Source == "custom" {
 			customCert = &resp.Certificates[i]
+
 			break
 		}
 	}
@@ -214,6 +220,7 @@ Use --acme to stop ACME certificate issuance while keeping custom certificates.`
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Aliases = []string{"delete"}
+
 	return cmd
 }
 
@@ -234,6 +241,7 @@ for the specified hostname.`
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Aliases = []string{"show"}
+
 	return cmd
 }
 
@@ -253,6 +261,7 @@ Takes hostname as a parameter to show the setup instructions for that certificat
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
+
 	return cmd
 }
 
@@ -293,6 +302,7 @@ func runCertificatesCheck(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, resp)
+
 		return nil
 	}
 
@@ -323,6 +333,7 @@ func runCertificatesCheck(ctx context.Context) error {
 
 	if hasActive {
 		fmt.Fprintf(io.Out, "%s %s\n", colorize.SuccessIcon(), colorize.Green("Certificate is verified and active"))
+
 		return nil
 	}
 
@@ -335,6 +346,7 @@ func runCertificatesCheck(ctx context.Context) error {
 			fmt.Fprintln(io.Out)
 			fmt.Fprintf(io.Out, "Run %s after adding the record.\n", colorize.Bold("fly certs check "+quoteHostname(hostname)))
 		}
+
 		return nil
 	}
 
@@ -358,6 +370,7 @@ func runCertificatesAdd(ctx context.Context) error {
 	if config.FromContext(ctx).JSONOutput {
 		io := iostreams.FromContext(ctx)
 		render.JSON(io.Out, resp)
+
 		return nil
 	}
 
@@ -370,6 +383,7 @@ func quoteHostname(hostname string) string {
 	if strings.Contains(hostname, "*") {
 		return "'" + hostname + "'"
 	}
+
 	return hostname
 }
 
@@ -510,6 +524,7 @@ func runCertificatesSetup(ctx context.Context) error {
 	}
 
 	printDNSOptions(ctx, hostname, resp)
+
 	return nil
 }
 
@@ -641,6 +656,7 @@ func printCertificateDetail(ctx context.Context, resp *fly.CertificateDetailResp
 			myprnt("Status", colorize.Yellow("Not verified"))
 			myprnt("Hostname", resp.Hostname)
 		}
+
 		return
 	}
 
@@ -666,6 +682,7 @@ func friendlyStatus(source, rawStatus string) string {
 		if source == "custom" {
 			return "Verified"
 		}
+
 		return "Issued"
 	case "pending_ownership":
 		return "Not verified"
@@ -673,6 +690,7 @@ func friendlyStatus(source, rawStatus string) string {
 		if source == "custom" {
 			return "Not verified"
 		}
+
 		return "Issuing..."
 	}
 }
@@ -700,6 +718,7 @@ func printCertSection(colorize *iostreams.ColorScheme, myprnt func(string, strin
 	for _, issued := range cert.Issued {
 		if issued.CertificateAuthority != "" {
 			myprnt("Certificate Authority", readableCertAuthority(issued.CertificateAuthority))
+
 			break
 		}
 	}
@@ -731,6 +750,7 @@ func readableCertAuthority(ca string) string {
 	if ca == "lets_encrypt" {
 		return "Let's Encrypt"
 	}
+
 	return ca
 }
 
@@ -739,6 +759,7 @@ func printCertificates(ctx context.Context, certs []fly.CertificateSummary) erro
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, certs)
+
 		return nil
 	}
 

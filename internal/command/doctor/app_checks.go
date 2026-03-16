@@ -38,6 +38,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		if !jsonOutput {
 			fmt.Println("No app provided; skipping app specific checks")
 		}
+
 		return nil, nil
 	}
 
@@ -110,6 +111,7 @@ func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
 	if err != nil {
 		ac.lprint(nil, "API error listing IP addresses for app %s: %v\n", ac.app.Name, err)
+
 		return nil
 	}
 
@@ -124,6 +126,7 @@ func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	https://fly.io/docs/reference/configuration/#the-services-sections
 `)
 	}
+
 	return ipAddresses
 }
 
@@ -144,6 +147,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 	}
 	if len(v4s) == 0 && len(v6s) == 0 {
 		ac.lprint(nil, "No public ipv4 or ipv6 ip addresses allocated to app %s\n", ac.app.Name)
+
 		return
 	}
 
@@ -153,6 +157,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 	ns, err := getFirstFlyDevNameserver(dnsClient)
 	if err != nil {
 		ac.lprint(nil, "%s. Can't proceed to check A or AAAA records.\n", err.Error())
+
 		return
 	}
 	nsAddr := fmt.Sprintf("%s:53", strings.TrimSuffix(ns, "."))
@@ -209,6 +214,7 @@ func getFirstFlyDevNameserver(dnsClient *dns.Client) (string, error) {
 			return ns.Ns, nil
 		}
 	}
+
 	return "", fmt.Errorf("no NS records found for %s", flydev)
 }
 
@@ -255,6 +261,7 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 		return nil, ""
 	} else if len(ipsOnAppNotInDns) > 0 {
 		missingIps := strings.Join(ipsOnAppNotInDns, ", ")
+
 		return fmt.Errorf(`Nope
 	These IPs are missing from the %s %s record: %s
 	This likely means we had an operational issue when we tried to create the record.
@@ -262,6 +269,7 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 			appFqdn, qType, missingIps), fmt.Sprintf("missing these ips from the %s record: %s", qType, missingIps)
 	} else { // len(ipsInDnsNotInApp) > 0
 		missingIps := strings.Join(ipsInDnsNotInApp, ", ")
+
 		return fmt.Errorf(`Nope
 	These IPs are set in the %s record for %s, but they are not associated with the %s app: %s
 	This likely means we had an operational issue when we tried to create the record.
@@ -282,6 +290,7 @@ func (ac *AppChecker) checkDockerContext() int {
 		dockerfile, err = filepath.Abs(dockerfile)
 		if err != nil || !helpers.FileExists(dockerfile) {
 			ac.lprint(nil, "Nope, Dockerfile '%s' not found\n", dockerfile)
+
 			return -1
 		}
 	} else {
@@ -292,11 +301,13 @@ func (ac *AppChecker) checkDockerContext() int {
 	}
 	if dockerfile == "" {
 		ac.lprint(nil, "Nope, Dockerfile not found")
+
 		return -1
 	}
 	archiveInfo, err := imgsrc.CreateArchive(dockerfile, ac.workDir, ac.appConfig.Ignorefile(), true)
 	if err != nil {
 		ac.lprint(nil, "Nope, failed to create archive\n\t%s", err.Error())
+
 		return -1
 	}
 
@@ -304,6 +315,7 @@ func (ac *AppChecker) checkDockerContext() int {
 	ac.lprint(ac.color.Green, "PASSED")
 	ac.lprint(nil, " (%s)\n", humanize.Bytes(uint64(archiveSize)))
 	ac.checks[checkKey] = strconv.Itoa(archiveSize)
+
 	return archiveSize
 }
 
@@ -323,6 +335,7 @@ func (ac *AppChecker) checkDockerIgnore(printDetailedMsg bool) {
 			More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-file`)
 			ac.lprint(nil, "\n")
 		}
+
 		return
 	}
 	ac.lprint(ac.color.Green, "PASSED\n")

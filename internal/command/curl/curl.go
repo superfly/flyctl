@@ -44,6 +44,7 @@ func New() (cmd *cobra.Command) {
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 
@@ -236,6 +237,7 @@ type timing struct {
 
 func (t *timing) formatedHTTPCode(cs *iostreams.ColorScheme) string {
 	text := strconv.Itoa(t.HTTPCode)
+
 	return colorize(cs, text, float64(t.HTTPCode), 299, 399)
 }
 
@@ -246,6 +248,7 @@ func (t *timing) formattedDNS() string {
 func (t *timing) formattedConnect(cs *iostreams.ColorScheme) string {
 	timing := t.TimeConnect * 1000
 	text := humanize.FtoaWithDigits(timing, 1) + "ms"
+
 	return colorize(cs, text, timing, 200, 500)
 }
 
@@ -256,11 +259,13 @@ func (t *timing) formattedTLS() string {
 func (t *timing) formattedTTFB(cs *iostreams.ColorScheme) string {
 	timing := t.TimeStartTransfer * 1000
 	text := humanize.FtoaWithDigits(timing, 1) + "ms"
+
 	return colorize(cs, text, timing, 400, 1000)
 }
 
 func (t *timing) formattedTotal() string {
 	timing := t.TimeTotal * 1000
+
 	return humanize.FtoaWithDigits(timing, 1) + "ms"
 }
 

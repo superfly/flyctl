@@ -36,6 +36,7 @@ func Launch(ctx context.Context, client FlapsClient, appName string, builder fly
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Launch(ctx, appName, builder)
 }
 
@@ -48,6 +49,7 @@ func Update(ctx context.Context, client FlapsClient, appName string, builder fly
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Update(ctx, appName, builder, nonce)
 }
 
@@ -56,6 +58,7 @@ func Start(ctx context.Context, client FlapsClient, appName, machineID string, n
 	defer func() {
 		metrics.Status(ctx, "machine_start", err == nil)
 	}()
+
 	return client.Start(ctx, appName, machineID, nonce)
 }
 
@@ -68,6 +71,7 @@ func Cordon(ctx context.Context, client FlapsClient, appName, machineID string, 
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Cordon(ctx, appName, machineID, nonce)
 }
 
@@ -80,5 +84,6 @@ func Uncordon(ctx context.Context, client FlapsClient, appName, machineID string
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Uncordon(ctx, appName, machineID, nonce)
 }

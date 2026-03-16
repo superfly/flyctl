@@ -30,6 +30,7 @@ func newVMSizes() (cmd *cobra.Command) {
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 
@@ -49,6 +50,7 @@ func runMachineVMSizes(ctx context.Context) error {
 			memory(value.MemoryMB),
 			value.GPUKind,
 		}
+
 		return preset{value, arr}
 	})
 
@@ -70,6 +72,7 @@ func runMachineVMSizes(ctx context.Context) error {
 		for _, preset := range sortedPresets {
 			vmSizes[preset.strings[0]] = preset.guest
 		}
+
 		return render.JSON(out, vmSizes)
 	}
 
@@ -93,6 +96,7 @@ func runMachineVMSizes(ctx context.Context) error {
 	gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
 		return p.strings, p.guest.GPUKind != ""
 	})
+
 	return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
 }
 

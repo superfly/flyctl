@@ -22,6 +22,7 @@ func (c *Config) ProcessNames() []string {
 		return names
 	case len(names) > 1:
 		slices.Sort(names)
+
 		return names
 	case c.defaultGroupName != "":
 		return []string{c.defaultGroupName}
@@ -55,6 +56,7 @@ func (c *Config) DefaultProcessName() string {
 	if slices.Contains(processNames, defaultGroupName) {
 		return defaultGroupName
 	}
+
 	return c.ProcessNames()[0]
 }
 
@@ -83,6 +85,7 @@ func (c *Config) flattenGroupsMatch(target string, toCheck []string) bool {
 	if len(toCheck) == 0 {
 		return c.flattenGroupMatches(target, "")
 	}
+
 	return lo.SomeBy(toCheck, func(x string) bool {
 		return c.flattenGroupMatches(target, x)
 	})
@@ -206,6 +209,7 @@ func (c *Config) ComputeForGroup(groupName string) *Compute {
 		func(item *Compute, _ *Compute) bool {
 			return slices.Contains(item.Processes, groupName)
 		})
+
 	return compute
 }
 
@@ -225,5 +229,6 @@ func (c *Config) InitCmd(groupName string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not parse command for %s process group: %w", groupName, err)
 	}
+
 	return cmd, nil
 }

@@ -33,6 +33,7 @@ func create() (cmd *cobra.Command) {
 			Description: "The name of your bucket",
 		},
 	)
+
 	return cmd
 }
 
@@ -119,5 +120,6 @@ func isShadowBucketSpecified(accessKey, secretKey, region, name, endpoint string
 	if n > 0 && n < len(values) {
 		return false, fmt.Errorf("You must set all required shadow bucket values: shadow-access-key, shadow-secret-key, shadow-region, shadow-name, shadow-endpoint")
 	}
+
 	return n == len(values), nil
 }

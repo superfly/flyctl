@@ -13,6 +13,7 @@ linters:
     - unconvert
     - unused
     - misspell
+    - nlreturn
   settings:
     errcheck:
       exclude-functions:

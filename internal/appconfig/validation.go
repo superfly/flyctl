@@ -56,10 +56,12 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 
 	if err != nil {
 		extra_info += fmt.Sprintf("\n   %s%s\n", aurora.Red("✘"), err)
+
 		return errors.New("App configuration is not valid"), extra_info
 	}
 
 	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
+
 	return nil, extra_info
 }
 
@@ -78,6 +80,7 @@ func (c *Config) ValidateGroups(ctx context.Context, groups []string) (err error
 			return
 		}
 	}
+
 	return
 }
 
@@ -89,6 +92,7 @@ func (c *Config) validateBuildStrategies() (extraInfo string, err error) {
 		extraInfo += msg + "\n"
 		sentry.CaptureException(errors.New(msg))
 	}
+
 	return
 }
 
@@ -188,6 +192,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "HTTP")
 		}
 	}
+
 	return extraInfo, err
 }
 
@@ -195,6 +200,7 @@ func validateServiceCheckDurations(interval, timeout, gracePeriod *fly.Duration,
 	extraInfo += validateSingleServiceCheckDuration(interval, false, proto, "an interval")
 	extraInfo += validateSingleServiceCheckDuration(timeout, false, proto, "a timeout")
 	extraInfo += validateSingleServiceCheckDuration(gracePeriod, true, proto, "a grace period")
+
 	return
 }
 
@@ -218,6 +224,7 @@ func validateSingleServiceCheckDuration(d *fly.Duration, zeroOK bool, proto, des
 			aurora.Yellow("WARN"), proto, description, d.Duration,
 		)
 	}
+
 	return
 }
 
@@ -247,6 +254,7 @@ func (c *Config) validateMachineConversion() (extraInfo string, err error) {
 			err = ErrInvalidApplicationConfig
 		}
 	}
+
 	return
 }
 
@@ -255,6 +263,7 @@ func (c *Config) validateConsoleCommand() (extraInfo string, err error) {
 		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", c.ConsoleCommand)
 		err = ErrInvalidApplicationConfig
 	}
+
 	return
 }
 
@@ -326,6 +335,7 @@ func (c *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 	}
+
 	return
 }
 

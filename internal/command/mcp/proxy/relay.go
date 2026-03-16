@@ -193,6 +193,7 @@ func addPromptsToServer(ctx context.Context, mcpClient *client.Client, mcpServer
 
 		promptsRequest.Params.Cursor = prompts.NextCursor
 	}
+
 	return nil
 }
 
@@ -216,6 +217,7 @@ func addResourcesToServer(ctx context.Context, mcpClient *client.Client, mcpServ
 				if e != nil {
 					return nil, e
 				}
+
 				return readResource.Contents, nil
 			})
 		}
@@ -250,6 +252,7 @@ func addResourceTemplatesToServer(ctx context.Context, mcpClient *client.Client,
 				if e != nil {
 					return nil, e
 				}
+
 				return readResource.Contents, nil
 			})
 		}

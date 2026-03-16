@@ -117,6 +117,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		if err != nil {
 			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
 			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
+
 			return err
 		} else {
 			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
@@ -226,6 +227,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		func() error {
 			var retryErr error
 			response, retryErr = uiexClient.CreateCluster(ctx, input)
+
 			return retryErr
 		},
 		retry.Context(ctx),
@@ -309,13 +311,16 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		if waitCtx.Err() == context.DeadlineExceeded {
 			fmt.Fprintf(io.Out, "\nCluster creation is taking longer than expected. Continuing with deployment.\n")
 			fmt.Fprintf(io.Out, "You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+
 			return nil
 		}
 		// Check if the user cancelled
 		if ctx.Err() == context.Canceled {
 			fmt.Fprintf(io.Out, "\nContinuing with deployment. You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+
 			return nil
 		}
+
 		return err
 	}
 
@@ -325,6 +330,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		func() error {
 			var retryErr error
 			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+
 			return retryErr
 		},
 		retry.Context(ctx),
@@ -371,6 +377,7 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 		func() error {
 			var retryErr error
 			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, clusterID)
+
 			return retryErr
 		},
 		retry.Context(ctx),
@@ -444,6 +451,7 @@ func containsNetworkError(errMsg string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -461,6 +469,7 @@ func stringContains(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -507,6 +516,7 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return redis.AttachDatabase(ctx, db, state.Plan.AppName)
 }
 

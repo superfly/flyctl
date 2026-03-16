@@ -62,6 +62,7 @@ Use --no-tail to only fetch the logs in the buffer.
 			Description: "Do not continually stream logs",
 		},
 	)
+
 	return
 }
 
@@ -173,6 +174,7 @@ func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
 			return printStream(ctx, out, stream, json)
 		})
 	}
+
 	return eg.Wait()
 }
 

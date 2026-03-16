@@ -34,6 +34,7 @@ func (l *logFile) Write(p []byte) (n int, err error) {
 	if l.destroyed {
 		return 0, errLogfileAlreadyClosed
 	}
+
 	return l.writer.Write(p)
 }
 
@@ -47,6 +48,7 @@ func (l *logFile) Close() error {
 	if err := l.writer.Flush(); err != nil {
 		return err
 	}
+
 	return l.file.Close()
 }
 

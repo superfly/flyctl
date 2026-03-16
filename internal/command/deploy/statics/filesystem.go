@@ -40,6 +40,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 			return nil
 		}
 		files = append(files, name)
+
 		return nil
 	})
 	if err != nil {
@@ -100,6 +101,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 				terminal.Debugf("failed to close file %s: %v", file, err)
 			}
 		}
+
 		return nil
 	})
 

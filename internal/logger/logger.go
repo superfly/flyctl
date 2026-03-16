@@ -100,6 +100,7 @@ func (l *Logger) Debug(v ...interface{}) {
 					jsonStr = outBuf.String()
 				}
 				l.write(Debug, aurora.Faint("DEBUG"), jsonStr)
+
 				return
 			}
 		}

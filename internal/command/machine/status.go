@@ -48,6 +48,7 @@ func newStatus() *cobra.Command {
 func optJsonStrings(v []string) string {
 	if len(v) > 0 {
 		bytes, _ := json.Marshal(v)
+
 		return string(bytes)
 	} else {
 		return ""
@@ -102,6 +103,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to marshal machine config: %w", err)
 		}
 		_, _ = fmt.Fprintln(io.Out, string(prettyConfig))
+
 		return nil
 	}
 

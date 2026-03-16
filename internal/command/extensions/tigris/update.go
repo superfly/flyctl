@@ -48,6 +48,7 @@ func update() (cmd *cobra.Command) {
 		},
 		SharedFlags,
 	)
+
 	return cmd
 }
 
@@ -154,5 +155,6 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	err = runStatus(ctx)
+
 	return err
 }

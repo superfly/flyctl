@@ -448,6 +448,7 @@ func TestFromDefinitionKillTimeoutString(t *testing.T) {
 func dFromJSON(jsonBody string) (*fly.Definition, error) {
 	ret := &fly.Definition{}
 	err := json.Unmarshal([]byte(jsonBody), ret)
+
 	return ret, err
 }
 
@@ -456,5 +457,6 @@ func cfgFromJSON(jsonBody string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return FromDefinition(def)
 }

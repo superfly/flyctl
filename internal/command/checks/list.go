@@ -39,6 +39,7 @@ func runAppCheckList(ctx context.Context) error {
 				checks[machine.ID][i] = *check
 			}
 		}
+
 		return render.JSON(out, checks)
 	}
 

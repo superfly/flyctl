@@ -88,6 +88,7 @@ func newCreate() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -181,6 +182,7 @@ func runCreate(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }
 

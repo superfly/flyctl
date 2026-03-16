@@ -110,6 +110,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 
 			if !validRegion {
 				availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, org.Slug)
+
 				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, availableCodes)
 			}
 
@@ -177,6 +178,7 @@ outer:
 			iface[name] = num
 		}
 	}
+
 	return nil
 }
 

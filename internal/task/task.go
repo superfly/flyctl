@@ -78,6 +78,7 @@ func (m *manager) Start(ctx context.Context) {
 	if started {
 		cancel()
 		log.Debug("Task manager has already started; not starting again")
+
 		return
 	}
 

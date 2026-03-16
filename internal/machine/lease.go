@@ -41,6 +41,7 @@ func AcquireLeases(ctx context.Context, appName string, machines []*fly.Machine)
 			}
 
 			m, _, err := AcquireLease(ctx, appName, m)
+
 			return m, err
 		})
 	}
@@ -126,5 +127,6 @@ func AcquireLease(ctx context.Context, appName string, machine *fly.Machine) (*f
 
 	updatedMachine.LeaseNonce = lease.Data.Nonce
 	releaseFunc = func() { releaseLease(ctx, appName, updatedMachine) }
+
 	return updatedMachine, releaseFunc, nil
 }

@@ -60,6 +60,7 @@ func findCSProjFile(dir string) (string, string, error) {
 		if !info.IsDir() && filepath.Ext(path) == ".csproj" {
 			csprojName = strings.TrimSuffix(info.Name(), ".csproj")
 			csprojPath = path
+
 			return filepath.SkipDir // Stop walking the directory
 		}
 
@@ -83,6 +84,7 @@ func extractDotnetTargetFramework(filePath string) (string, error) {
 	if len(match) > 1 {
 		sdkVersion := strings.TrimPrefix(match[1], "net")
 		sdkVersion = strings.TrimPrefix(sdkVersion, "coreapp") // Handle .NET Core
+
 		return sdkVersion, nil
 	}
 

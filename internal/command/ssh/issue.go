@@ -153,6 +153,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		}
 
 		fmt.Printf("Populated agent with cert:\n%s\n", icert.Certificate)
+
 		return nil
 	}
 
@@ -188,9 +189,11 @@ func runSSHIssue(ctx context.Context) (err error) {
 		} else if _, err = os.Stat(rootname); err == nil {
 			if buf, err := os.ReadFile(rootname); err != nil {
 				fmt.Fprintf(out, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
+
 				continue
 			} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
 				fmt.Fprintf(out, "File exists, but isn't a fly.io ed25519 private key\n")
+
 				continue
 			}
 		}
@@ -199,6 +202,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		if err != nil {
 			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
 			rootname = ""
+
 			continue
 		}
 

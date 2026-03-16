@@ -80,16 +80,19 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 		}()
 		if err != nil {
 			terminal.Debugf("error opening %s file: %v\n", gitIgnore, err)
+
 			continue
 		}
 		relDir, err := filepath.Rel(root, filepath.Dir(gitIgnore))
 		if err != nil {
 			terminal.Debugf("error finding relative directory of %s relative to root %s: %v\n", gitIgnore, root, err)
+
 			continue
 		}
 		relFile, err := filepath.Rel(root, gitIgnore)
 		if err != nil {
 			terminal.Debugf("error finding relative file of %s relative to root %s: %v\n", gitIgnore, root, err)
+
 			continue
 		}
 
@@ -158,6 +161,7 @@ func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
 	// An existing .dockerignore should always be used instead of .gitignore
 	if helpers.FileExists(dockerIgnore) {
 		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
+
 		return
 	}
 
@@ -180,8 +184,10 @@ func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
 			} else {
 				fmt.Fprintf(io.Out, "Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
 			}
+
 			return nil
 		}
 	}
+
 	return
 }

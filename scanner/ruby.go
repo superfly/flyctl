@@ -55,6 +55,7 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 		for i, name := range re.SubexpNames() {
 			if len(m) > 0 && name == "version" {
 				version = m[i]
+
 				break
 			}
 		}
@@ -93,6 +94,7 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 			for i, name := range re.SubexpNames() {
 				if len(m) > 0 && name == "version" {
 					version = m[i]
+
 					break
 				}
 			}

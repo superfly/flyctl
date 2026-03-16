@@ -64,6 +64,7 @@ func StringWithHelp(ctx context.Context, dst *string, msg, def, help string, req
 	if required {
 		opts = append(opts, survey.WithValidator(survey.Required))
 	}
+
 	return survey.AskOne(p, dst, opts...)
 }
 
@@ -88,8 +89,10 @@ func Int(ctx context.Context, dst *int, msg string, def int, required bool) erro
 		if err != nil {
 			return errors.New("must be an integer")
 		}
+
 		return nil
 	}))
+
 	return survey.AskOne(p, dst, opts...)
 }
 
@@ -206,6 +209,7 @@ func (NonInteractiveError) Unwrap() error { return ErrNonInteractive }
 
 func isInteractive(ctx context.Context) bool {
 	io := iostreams.FromContext(ctx)
+
 	return io.IsInteractive()
 }
 
@@ -335,6 +339,7 @@ func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 				Regions:       regions,
 				DefaultRegion: defaultRegion,
 			}
+
 			return regionInfo, err
 		})
 	})
@@ -396,6 +401,7 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 				return regionCode == region.Code
 			})
 		})
+
 		return &regions, nil
 	default:
 
@@ -539,6 +545,7 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []fly.Region, regio
 			selectedRegions = append(selectedRegions, regions[index])
 		}
 	}
+
 	return
 }
 
@@ -558,11 +565,13 @@ func SelectVMSize(ctx context.Context, vmSizes []fly.VMSize) (vmSize *fly.VMSize
 	if err := Select(ctx, &index, "Select VM size:", "", options...); err != nil {
 		return nil, err
 	}
+
 	return &vmSizes[index], nil
 }
 
 func SelectAppName(ctx context.Context) (name string, err error) {
 	const msg = "Choose an app name (leave blank to generate one):"
+
 	return SelectAppNameWithMsg(ctx, msg)
 }
 
@@ -570,5 +579,6 @@ func SelectAppNameWithMsg(ctx context.Context, msg string) (name string, err err
 	if err = String(ctx, &name, msg, "", false); IsNonInteractive(err) {
 		err = NonInteractiveError("name argument or flag must be specified when not running interactively")
 	}
+
 	return
 }

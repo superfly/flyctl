@@ -34,6 +34,7 @@ func runWireguardTokenList(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, tokens)
+
 		return nil
 	}
 
@@ -131,6 +132,7 @@ func runWireguardTokenDelete(ctx context.Context) error {
 	}
 
 	fmt.Fprintln(io.Out, "Removed token.")
+
 	return nil
 }
 

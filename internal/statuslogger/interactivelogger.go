@@ -62,6 +62,7 @@ func (il *interactiveLogger) consoleSize() (int, int) {
 		height = 24
 		width = 80
 	}
+
 	return width, height
 }
 
@@ -134,6 +135,7 @@ func (il *interactiveLogger) currentLines(conHeight int) (finalLines []interacti
 			return finalLines
 		}
 	}
+
 	return finalLines
 }
 
@@ -163,6 +165,7 @@ func (il *interactiveLogger) animateThread() {
 		il.lock.Lock()
 		if il.done {
 			il.lock.Unlock()
+
 			return
 		}
 		if il.active {
@@ -243,6 +246,7 @@ func substrIgnoreAnsi(str string, length int) string {
 			}
 		}
 	}
+
 	return str[:length] + aec.Reset
 }
 

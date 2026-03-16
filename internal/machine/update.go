@@ -34,17 +34,21 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		validNumCpus, ok := cpusPerKind[input.Config.Guest.CPUKind]
 		if !ok {
 			invalidConfigErr.Reason = invalidCpuKind
+
 			return invalidConfigErr
 		} else if !slices.Contains(validNumCpus, input.Config.Guest.CPUs) {
 			invalidConfigErr.Reason = invalidNumCPUs
+
 			return invalidConfigErr
 		}
 
 		if input.Config.Guest.CPUKind == "shared" && input.Config.Guest.MemoryMB%256 != 0 {
 			invalidConfigErr.Reason = invalidMemorySize
+
 			return invalidConfigErr
 		} else if input.Config.Guest.CPUKind == "performance" && input.Config.Guest.MemoryMB%1024 != 0 {
 			invalidConfigErr.Reason = invalidMemorySize
+
 			return invalidConfigErr
 		}
 
@@ -60,6 +64,7 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 
 		if min_memory_size > input.Config.Guest.MemoryMB {
 			invalidConfigErr.Reason = memoryTooLow
+
 			return invalidConfigErr
 		}
 
@@ -74,6 +79,7 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 
 		if input.Config.Guest.MemoryMB > maxMemory {
 			invalidConfigErr.Reason = memoryTooHigh
+
 			return invalidConfigErr
 		}
 
@@ -140,6 +146,7 @@ func (e InvalidConfigErr) Description() string {
 	case memoryTooHigh:
 		return fmt.Sprintf("For %s VMs with %d CPUs, %dMiB of memory is too high", e.guest.CPUKind, e.guest.CPUs, e.guest.MemoryMB)
 	}
+
 	return string(e.Reason)
 }
 
@@ -149,6 +156,7 @@ func (e InvalidConfigErr) Suggestion() string {
 		return fmt.Sprintf("Valid values are %v", maps.Keys(cpusPerKind))
 	case invalidNumCPUs:
 		validNumCpus := cpusPerKind[e.guest.CPUKind]
+
 		return fmt.Sprintf("Valid numbers are %v", validNumCpus)
 	case invalidMemorySize:
 		incrementSize := 1024

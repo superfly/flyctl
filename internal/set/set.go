@@ -32,6 +32,7 @@ func (s *Set[T]) Unset(values ...T) {
 }
 func (s *Set[T]) Has(value T) bool {
 	_, ok := s.values[value]
+
 	return ok
 }
 func (s *Set[T]) HasAll(values ...T) bool {
@@ -40,6 +41,7 @@ func (s *Set[T]) HasAll(values ...T) bool {
 			return false
 		}
 	}
+
 	return true
 }
 func (s *Set[T]) HasAny(values ...T) bool {
@@ -48,14 +50,17 @@ func (s *Set[T]) HasAny(values ...T) bool {
 			return true
 		}
 	}
+
 	return false
 }
 func (s *Set[T]) Values() []T {
 	s.ensureNotNull()
+
 	return lo.Keys(s.values)
 }
 func (s *Set[T]) Len() int {
 	s.ensureNotNull()
+
 	return len(s.values)
 }
 func (s *Set[T]) Clear() {

@@ -44,6 +44,7 @@ func (b *Builtin) ResolveSettings(vars map[string]interface{}) map[string]interf
 				if setting.Name == k {
 					// This is good to add
 					resolvedSettings[k] = v
+
 					break
 				}
 			}

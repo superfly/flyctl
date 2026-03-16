@@ -51,5 +51,6 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		Env:          env,
 		SkipDatabase: true,
 	}
+
 	return s, nil
 }

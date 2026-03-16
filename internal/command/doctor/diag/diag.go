@@ -73,6 +73,7 @@ func Run(ctx context.Context) (err error) {
 
 Run this command from your app's local directory, or
 add the --force flag to send us best-effort diagnostics.`)
+
 		return err
 	}
 
@@ -143,6 +144,7 @@ func cp(z *zip.Writer, name string, f io.Reader) error {
 	}
 
 	_, err = io.Copy(zf, f)
+
 	return err
 }
 
@@ -170,6 +172,7 @@ func grepv(r io.Reader, excludes []string) *bytes.Buffer {
 		for _, xcl := range excludes {
 			if strings.Contains(line, xcl) {
 				exclude = true
+
 				break
 			}
 		}
@@ -247,6 +250,7 @@ func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
 			if !info.IsDir() {
 				size += info.Size()
 			}
+
 			return err
 		})
 
@@ -258,5 +262,6 @@ func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
 
 	buf := &bytes.Buffer{}
 	json.NewEncoder(buf).Encode(diags)
+
 	return cp(z, "diag.json", buf)
 }

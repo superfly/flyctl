@@ -127,6 +127,7 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			aliasFlag := flags.Lookup(alias)
 			if aliasFlag == nil {
 				invalidFlagNames = append(invalidFlagNames, alias)
+
 				continue
 			}
 			if origFlag == nil {
@@ -160,5 +161,6 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			err = fmt.Errorf("%s", errorMessages[0])
 		}
 	}
+
 	return ctx, err
 }

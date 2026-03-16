@@ -25,6 +25,7 @@ type Client struct {
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
 	url := fmt.Sprintf("http://%s:5500", address)
 	terminal.Debugf("flypg will connect to: %s\n", url)
+
 	return &Client{
 		httpClient: newHttpClient(dialer),
 		BaseURL:    url,
@@ -74,6 +75,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 	if res.StatusCode > 299 {
 		err := newError(res.StatusCode, res)
 		_ = res.Body.Close()
+
 		return nil, err
 	}
 
@@ -90,6 +92,7 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 
 	if out == nil {
 		_, _ = io.Copy(io.Discard, body)
+
 		return nil
 	}
 

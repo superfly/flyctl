@@ -20,6 +20,7 @@ func InitLogFile() error {
 		writer:    bufio.NewWriter(rawFile),
 		destroyed: false,
 	}
+
 	return err
 }
 

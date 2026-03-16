@@ -27,6 +27,7 @@ func newList() *cobra.Command {
 
 	flag.Add(cmd, flag.JSONOutput())
 	cmd.Aliases = []string{"ls"}
+
 	return cmd
 }
 
@@ -44,6 +45,7 @@ func runList(ctx context.Context) (err error) {
 
 	if len(apps) == 0 {
 		fmt.Fprintln(io.Out, "No postgres clusters found")
+
 		return
 	}
 

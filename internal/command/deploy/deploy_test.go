@@ -95,6 +95,7 @@ func copyFS(fsys fs.FS, dst string) error {
 		if err != nil {
 			return err
 		}
+
 		return os.WriteFile(target, b, 0o666)
 	})
 }

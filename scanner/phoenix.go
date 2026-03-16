@@ -347,6 +347,7 @@ func install_litestream() error {
 	// If we didn't complete the insertion, return without writing to file
 	if !insertedLitestreamInstall || !insertedEntrypoint || !copiedLitestream {
 		fmt.Println("Failed to insert Litestream installation commands. Skipping Litestream installation.")
+
 		return nil
 	} else {
 		fmt.Fprintln(os.Stdout, "Updating Dockerfile to install Litestream")

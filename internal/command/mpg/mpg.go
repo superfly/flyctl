@@ -30,6 +30,7 @@ func (p *DefaultRegionProvider) GetPlatformRegions(ctx context.Context) ([]fly.R
 	if err != nil {
 		return nil, err
 	}
+
 	return regions.Regions, nil
 }
 
@@ -45,6 +46,7 @@ func NewMPGService(ctx context.Context) (*MPGService, error) {
 	if uiexClient == nil {
 		return nil, fmt.Errorf("uiex client not found in context")
 	}
+
 	return &MPGService{
 		uiexClient:     uiexClient,
 		regionProvider: &DefaultRegionProvider{},
@@ -122,6 +124,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*ui
 				return &clustersResponse.Data[i], orgSlug, nil
 			}
 		}
+
 		return nil, orgSlug, fmt.Errorf("managed postgres cluster %q not found in organization %s", clusterID, orgSlug)
 	} else {
 		// Otherwise, prompt the user to select a cluster
@@ -135,6 +138,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*ui
 		if selectErr != nil {
 			return nil, orgSlug, selectErr
 		}
+
 		return &clustersResponse.Data[index], orgSlug, nil
 	}
 }
@@ -144,6 +148,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*ui
 func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.ManagedCluster, error) {
 	clusterID := flag.GetMPGClusterID(ctx)
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, orgSlug)
+
 	return cluster, err
 }
 
@@ -153,6 +158,7 @@ func GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, 
 	if err != nil {
 		return nil, err
 	}
+
 	return service.GetAvailableMPGRegions(ctx, orgSlug)
 }
 
@@ -184,6 +190,7 @@ func IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (b
 	if err != nil {
 		return false, err
 	}
+
 	return service.IsValidMPGRegion(ctx, orgSlug, regionCode)
 }
 
@@ -199,6 +206,7 @@ func (s *MPGService) IsValidMPGRegion(ctx context.Context, orgSlug string, regio
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
@@ -208,6 +216,7 @@ func GetAvailableMPGRegionCodes(ctx context.Context, orgSlug string) ([]string, 
 	if err != nil {
 		return nil, err
 	}
+
 	return service.GetAvailableMPGRegionCodes(ctx, orgSlug)
 }
 
@@ -222,6 +231,7 @@ func (s *MPGService) GetAvailableMPGRegionCodes(ctx context.Context, orgSlug str
 	for _, region := range availableRegions {
 		codes = append(codes, region.Code)
 	}
+
 	return codes, nil
 }
 
@@ -233,6 +243,7 @@ func filterMPGRegions(platformRegions []fly.Region, mpgRegions []uiex.MPGRegion)
 		for _, allowed := range mpgRegions {
 			if region.Code == allowed.Code && allowed.Available {
 				filteredRegions = append(filteredRegions, region)
+
 				break
 			}
 		}
@@ -344,5 +355,6 @@ Please upgrade your authentication by running:
   flyctl auth login
 `)
 	}
+
 	return nil
 }

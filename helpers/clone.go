@@ -21,6 +21,7 @@ func Clone[T any](v T) T {
 		sentry.CaptureException(fmt.Errorf("failed to clone '%s': %w", typename, err))
 		panic(fmt.Sprintf("failed to deep-copy '%s'. this is a bug!\nerror: %v", typename, err))
 	}
+
 	return ret
 }
 
@@ -58,6 +59,7 @@ func CloneFallible[T any](v T) (T, error) {
 	} else {
 		var cloned T
 		err := deepCopy(v, &cloned)
+
 		return cloned, err
 	}
 }

@@ -84,11 +84,13 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			lprint(color.Red, "FAILED\n(Error: %s)\n", err)
 			checks[name] = err.Error()
+
 			return false
 		}
 
 		lprint(color.Green, "PASSED\n")
 		checks[name] = "ok"
+
 		return true
 	}
 
@@ -112,6 +114,7 @@ We can't authenticate you with your current authentication token.
 Run 'flyctl auth login' to get a working token, or 'flyctl auth signup' if you've
 never signed up before.
 `)
+
 		return nil
 	}
 
@@ -126,6 +129,7 @@ Can't communicate with flyctl's background agent.
 
 Run 'flyctl agent restart'.
 `)
+
 		return nil
 	}
 
@@ -169,6 +173,7 @@ you by running 'flyctl wireguard reset'.
 If your network might be blocking UDP, you can run 'flyctl wireguard websockets enable',
 followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 `)
+
 		return nil
 	}
 
@@ -183,6 +188,7 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 We can't resolve internal DNS for your personal organization.
 This is likely a platform issue, please contact support.
 `)
+
 		return nil
 	}
 
@@ -193,6 +199,7 @@ This is likely a platform issue, please contact support.
 We can't access Flaps via a WireGuard tunnel into your personal organization.
 This is likely a platform issue, please contact support.
 `)
+
 		return nil
 	}
 

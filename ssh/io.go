@@ -43,6 +43,7 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 	}
 
 	fd = int(fdthing.Fd())
+
 	return fd, term.IsTerminal(fd)
 }
 

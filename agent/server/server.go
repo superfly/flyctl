@@ -286,12 +286,14 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
 			s.printf("can't lookup records for %s: %s", name, err)
+
 			continue
 		}
 
 		if len(addrs) == 1 {
 			ret.Labels = append(ret.Labels, name)
 			ret.Addresses = append(ret.Addresses, addrs[0].String())
+
 			continue
 		}
 

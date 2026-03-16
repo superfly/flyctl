@@ -244,6 +244,7 @@ func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspec
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to launch MCP inspector: %w", err)
 		}
+
 		return nil
 	}
 

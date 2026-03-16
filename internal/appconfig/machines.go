@@ -18,6 +18,7 @@ func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*
 	if err != nil {
 		return nil, err
 	}
+
 	return fc.updateMachineConfig(src)
 }
 
@@ -397,6 +398,7 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 			MaxRetries: restart.MaxRetries,
 		}
 	}
+
 	return mConfig, nil
 }
 

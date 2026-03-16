@@ -38,6 +38,7 @@ func loadJSONFile[T any](path string) (T, error) {
 	if err != nil {
 		return data, err
 	}
+
 	return data, nil
 }
 

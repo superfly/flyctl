@@ -35,5 +35,6 @@ func New() (cmd *cobra.Command) {
 		fly_mysql.New(),
 		wafris.New(),
 	)
+
 	return
 }

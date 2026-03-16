@@ -36,6 +36,7 @@ func topLevelCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *To
 			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &ToplevelCheck{
 		Port:              mc.Port,
 		Type:              mc.Type,
@@ -76,6 +77,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*fly.MachineCheck, error) {
 				return fly.MachineHTTPHeader{Name: k, Values: []string{v}}
 			})
 	}
+
 	return res, nil
 }
 

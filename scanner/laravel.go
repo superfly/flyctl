@@ -45,6 +45,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 				Generate: func() (string, error) {
 					// Method used in RandBytes never returns an error
 					r, _ := helpers.RandBytes(32)
+
 					return "base64:" + base64.StdEncoding.EncodeToString(r), nil
 				},
 			},
@@ -258,6 +259,7 @@ func extractPhpVersion() (string, error) {
 				return "7.4", nil
 			}
 		}
+
 		return match[1], nil
 	}
 

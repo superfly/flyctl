@@ -283,6 +283,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 		}
 	} else {
 		fmt.Fprintln(out, "By specifying the --yes flag, you have agreed to the terms displayed above.")
+
 		return nil
 	}
 
@@ -382,6 +383,7 @@ func openUrl(ctx context.Context, url string) (err error) {
 	if err := open.Run(url); err != nil {
 		return fmt.Errorf("failed opening %s: %w", url, err)
 	}
+
 	return
 }
 
@@ -520,6 +522,7 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		}
 
 	}
+
 	return err
 }
 

@@ -267,6 +267,7 @@ func makeToken(ctx context.Context, apiClient flyutil.Client, orgID string, expi
 	if err != nil {
 		return nil, fmt.Errorf("failed creating token: %w", err)
 	}
+
 	return resp, nil
 }
 
@@ -571,6 +572,7 @@ func attenuate(token string, cavs ...macaroon.Caveat) (string, error) {
 	}
 
 	atoken = macaroon.ToAuthorizationHeader(append([][]byte{perm}, disToks...)...)
+
 	return atoken, nil
 }
 

@@ -130,6 +130,7 @@ func (s *session) runCommand(ctx context.Context) {
 		handler = (*session).setToken
 	default:
 		s.error(errUnsupportedCommand)
+
 		return
 	}
 
@@ -209,6 +210,7 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 	for _, org := range orgs {
 		if org.Slug == slug {
 			no := org // copy
+
 			return &no, nil
 		}
 	}
@@ -328,12 +330,14 @@ func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error
 func (s *session) lookupTxt(ctx context.Context, args ...string) {
 	if len(args) != 2 {
 		s.error(fmt.Errorf("lookupTxt: bad args"))
+
 		return
 	}
 
 	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
+
 		return
 	}
 
@@ -343,6 +347,7 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 	if err != nil {
 		if !strings.Contains(err.Error(), "missing port") {
 			s.error(err)
+
 			return
 		}
 
@@ -352,6 +357,7 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 	txt, err := tunnel.LookupTXT(ctx, host)
 	if err != nil {
 		s.error(err)
+
 		return
 	}
 
@@ -443,12 +449,14 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 
 	if len(args) != 1 {
 		s.error(fmt.Errorf("ping6: bad args"))
+
 		return
 	}
 
 	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
+
 		return
 	}
 
@@ -456,6 +464,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 	sock, err := tunnel.ListenPing()
 	if err != nil {
 		s.error(fmt.Errorf("ping6: %w", err))
+
 		return
 	}
 
@@ -487,6 +496,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 			v6addr := net.ParseIP(addr.String()).To16()
 			if v6addr == nil {
 				s.logger.Printf("ping6: bad remote address '%s'", addr)
+
 				continue
 			}
 
@@ -533,6 +543,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		paylen := binary.BigEndian.Uint16(lbuf)
 		if paylen >= 1500 {
 			sockOk(fmt.Errorf("bad payload length (>=1500)"))
+
 			return
 		}
 
@@ -562,6 +573,7 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 		tokStr, err := config.ReadAccessToken(args[1])
 		if err != nil {
 			s.error(err)
+
 			return
 		}
 
@@ -668,6 +680,7 @@ var (
 func redact(buf []byte) []byte {
 	buf = redactPrivateKeyRx.ReplaceAll(buf, []byte(`PrivateKey":"[redacted]"`))
 	buf = redactTokenRx.ReplaceAll(buf, []byte(`$1[redacted]`))
+
 	return buf
 
 }

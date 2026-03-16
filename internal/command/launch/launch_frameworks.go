@@ -92,6 +92,7 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 	if err := state.scannerCreateSecrets(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -106,6 +107,7 @@ func (state *launchState) satisfyScannerAfterDb(ctx context.Context) error {
 	if err := state.scannerSetAppconfig(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -121,6 +123,7 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 		if helpers.FileExists(path) {
 			if flag.GetBool(ctx, "now") {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
+
 				continue
 			}
 			if !flag.GetBool(ctx, "yes") {
@@ -146,6 +149,7 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -188,6 +192,7 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 		}
 		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.Plan.AppName, strings.Join(lo.Keys(secrets), ", "))
 	}
+
 	return nil
 }
 
@@ -280,6 +285,7 @@ func execInitCommand(ctx context.Context, command scanner.InitCommand) (err erro
 	if err = cmd.Wait(); err != nil {
 		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
 	}
+
 	return err
 }
 
@@ -388,5 +394,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		}
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
+
 	return nil
 }

@@ -216,6 +216,7 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &manifest, nil
 }
 
@@ -277,6 +278,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 	ctx = appconfig.WithConfig(ctx, nil)
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
+
 	return ctx, parentConfig, err
 }
 
@@ -286,6 +288,7 @@ func run(ctx context.Context) (err error) {
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+
 		return err
 	}
 
@@ -427,6 +430,7 @@ func run(ctx context.Context) (err error) {
 			}
 			jsonEncoder.SetIndent("", "  ")
 			encodeErr := jsonEncoder.Encode(launchManifest)
+
 			return encodeErr
 		}
 	}
@@ -619,6 +623,7 @@ func familyToAppType(family string) string {
 	case "":
 		return "app"
 	}
+
 	return fmt.Sprintf("%s app", family)
 }
 
@@ -632,6 +637,7 @@ func warnLegacyBehavior(ctx context.Context) error {
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
 		}
 	}
+
 	return nil
 }
 
@@ -686,6 +692,7 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 	if err != nil {
 		// If we can't fetch org data, log the error but don't block the launch
 		fmt.Fprintf(io.ErrOut, "Warning: Could not check billing status: %v\n", err)
+
 		return true, nil
 	}
 
@@ -734,6 +741,7 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 	}
 
 	fmt.Fprintln(io.Out)
+
 	return true, nil
 }
 

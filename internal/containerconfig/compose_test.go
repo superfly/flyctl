@@ -249,6 +249,7 @@ services:
 					t.Errorf("nginx.conf should contain proxy_pass directive")
 				}
 			}
+
 			break
 		}
 	}
@@ -512,6 +513,7 @@ services:
 	for _, container := range mConfig.Containers {
 		if container.Name == "web" {
 			webContainer = container
+
 			break
 		}
 	}

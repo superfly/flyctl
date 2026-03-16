@@ -98,6 +98,7 @@ func (c *Config) AllServices() (services []Service) {
 		services = append(services, *c.HTTPService.ToService())
 	}
 	services = append(services, c.Services...)
+
 	return services
 }
 
@@ -118,6 +119,7 @@ func (svc *Service) toMachineService() *fly.MachineService {
 	for _, hc := range svc.HTTPChecks {
 		s.Checks = append(s.Checks, *hc.toMachineCheck())
 	}
+
 	return s
 }
 
@@ -171,6 +173,7 @@ func serviceFromMachineService(ctx context.Context, ms fly.MachineService, proce
 			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &Service{
 		Protocol:           ms.Protocol,
 		InternalPort:       ms.InternalPort,
@@ -203,6 +206,7 @@ func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineServiceCheck) 
 			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &ServiceHTTPCheck{
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,

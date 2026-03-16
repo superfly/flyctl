@@ -106,6 +106,7 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				fmt.Println("resolver.Dial", network, address)
+
 				return gNet.DialContext(ctx, "tcp", net.JoinHostPort(dnsIP.String(), "53"))
 			},
 		},
@@ -123,6 +124,7 @@ func (t *Tunnel) Close() error {
 	}
 
 	t.dev, t.net, t.tun = nil, nil, nil
+
 	return nil
 }
 
@@ -208,5 +210,6 @@ func (t *Tunnel) queryDNS(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	defer conn.Close()
 
 	r, _, err := client.ExchangeWithConn(msg, conn)
+
 	return r, err
 }

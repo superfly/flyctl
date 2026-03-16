@@ -98,6 +98,7 @@ func runAllocateInteractive(ctx context.Context) error {
 			if prompt.IsNonInteractive(err) {
 				return prompt.NonInteractiveError("use fly ips allocate-v4 or fly ips allocate-v6 in non-interactive mode")
 			}
+
 			return err
 		}
 		if !confirmed {
@@ -140,6 +141,7 @@ func runAllocateInteractive(ctx context.Context) error {
 		}
 		fmt.Fprintf(io.Out, "   %s (dedicated IPv6)\n", colorize.Bold("fly ips allocate-v6"))
 		fmt.Fprintf(io.Out, "   %s (private IPv6)\n", colorize.Bold("fly ips allocate-v6 --private"))
+
 		return nil
 	}
 
@@ -207,6 +209,7 @@ Would you like to allocate the following address?
 		if prompt.IsNonInteractive(err) {
 			return prompt.NonInteractiveError("use fly ips allocate-v4 or fly ips allocate-v6 in non-interactive mode")
 		}
+
 		return err
 	}
 
@@ -218,6 +221,7 @@ Would you like to allocate the following address?
 		}
 		fmt.Fprintf(io.Out, "   %s (dedicated IPv6)\n", colorize.Bold("fly ips allocate-v6"))
 		fmt.Fprintf(io.Out, "   %s (private IPv6)\n", colorize.Bold("fly ips allocate-v6 --private"))
+
 		return nil
 	}
 	fmt.Fprintln(io.Out, "")

@@ -51,6 +51,7 @@ func (m *Manifests) Error() error {
 	if err != nil {
 		return nil
 	}
+
 	return errors.New(string(raw))
 }
 
@@ -155,6 +156,7 @@ func fetchConfigBlob(registry, image, digest string, headers map[string]string) 
 	if err != nil {
 		return nil, err
 	}
+
 	return &config, nil
 }
 
@@ -260,6 +262,7 @@ func getRegistryHeaders(registry string) (string, int, error) {
 	}()
 
 	headers := resp.Header.Get("www-authenticate")
+
 	return headers, resp.StatusCode, nil
 }
 

@@ -66,6 +66,7 @@ func getPushToken(ctx context.Context, org *fly.Organization) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 

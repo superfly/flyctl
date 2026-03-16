@@ -74,6 +74,7 @@ func (v Version) buildSuffixString() string {
 	if v.BuildMeta != "" {
 		return fmt.Sprintf("+%s", v.BuildMeta)
 	}
+
 	return ""
 }
 
@@ -102,6 +103,7 @@ func ChannelFromCalverOrSemver(v Version) string {
 	if IsCalVer(v) {
 		return v.Channel
 	}
+
 	return "stable"
 }
 
@@ -154,12 +156,14 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 	if IsCalVer(latest) && IsCalVer(v) {
 		latestDate := latest.dateFromVersion()
 		currentDate := v.dateFromVersion()
+
 		return latestDate.Sub(currentDate) >= 28*24*time.Hour
 	}
 
 	// latest is calver, current is not. consider out of date if latest is >30 days old
 	if IsCalVer(latest) && !IsCalVer(v) {
 		latestDate := latest.dateFromVersion()
+
 		return time.Until(latestDate) >= 28*24*time.Hour
 	}
 
@@ -173,6 +177,7 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 	if latest.Patch > v.Patch+5 {
 		return true
 	}
+
 	return false
 }
 
@@ -192,6 +197,7 @@ func (v Version) Increment(t time.Time) Version {
 		buildNum = v.Build
 	}
 	buildNum++
+
 	return New(t, v.Channel, buildNum)
 }
 
@@ -307,5 +313,6 @@ func (v *Version) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*v = decodedVer
+
 	return nil
 }

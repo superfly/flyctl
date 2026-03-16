@@ -204,6 +204,7 @@ func (m *FlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Ma
 			a = append(a, machine)
 		}
 	}
+
 	return a, nil
 }
 
@@ -231,6 +232,7 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 			releaseCmdMachine = machine
 		}
 	}
+
 	return machines, releaseCmdMachine, nil
 }
 
@@ -305,6 +307,7 @@ func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Mac
 	if mach.State != state {
 		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
 	}
+
 	return nil
 }
 

@@ -132,6 +132,7 @@ func NewRemove() *cobra.Command {
 			},
 		)
 	}
+
 	return cmd
 }
 
@@ -333,6 +334,7 @@ func ServerMap(configPaths []ConfigPath) (map[string]any, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
+
 			return nil, err
 		}
 
@@ -630,6 +632,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		}
 	} else {
 		log.Warnf("No %s field found, nothing to remove", configKey)
+
 		return nil
 	}
 
@@ -639,6 +642,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		delete(mcpServers, name)
 	} else {
 		log.Warnf("MCP server %s not found, nothing to remove", name)
+
 		return nil
 	}
 
@@ -657,6 +661,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	log.Debugf("Successfully updated existing configuration at %s", path)
+
 	return nil
 }
 

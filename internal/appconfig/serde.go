@@ -128,6 +128,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 	}()
 
 	_, err = c.WriteTo(file, strings.TrimLeft(strings.ToLower(filepath.Ext(filename)), "."))
+
 	return
 }
 
@@ -135,6 +136,7 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	io := iostreams.FromContext(ctx)
 	err = c.WriteToFile(path)
 	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
+
 	return
 }
 
@@ -143,6 +145,7 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	if c == nil {
 		return json.Marshal(nil)
 	}
+
 	return json.Marshal(*c)
 }
 
@@ -201,8 +204,10 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 		var derr *toml.DecodeError
 		if errors.As(err, &derr) {
 			row, col := derr.Position()
+
 			return nil, fmt.Errorf("row %d column %d\n%s", row, col, derr.String())
 		}
+
 		return nil, err
 	}
 	cfg, err := applyPatches(cfgMap)

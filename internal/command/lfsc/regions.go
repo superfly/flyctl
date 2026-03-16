@@ -31,6 +31,7 @@ func newRegions() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		urlFlag(),
 		flag.JSONOutput())
+
 	return
 }
 
@@ -74,5 +75,6 @@ func runRegions(ctx context.Context) error {
 
 		rows = append(rows, []string{regionName, region})
 	}
+
 	return render.Table(out, "", rows, "Name", "Code")
 }

@@ -52,6 +52,7 @@ func Haikunator() *Builder {
 				// it doesn't really matter, this is not security critical
 				return rand2.Intn(max) // skipcq: GSC-G404
 			}
+
 			return int(ret.Int64())
 		},
 	}
@@ -64,12 +65,14 @@ func (b *Builder) choose(list []string) string {
 func (b *Builder) TokenRange(r int) *Builder {
 	newB := helpers.Clone(b)
 	newB.tokRange = r
+
 	return newB
 }
 
 func (b *Builder) Delimiter(d string) *Builder {
 	newB := helpers.Clone(b)
 	newB.delimiter = d
+
 	return newB
 }
 
@@ -81,6 +84,7 @@ func (b *Builder) Build() string {
 	if b.tokRange > 0 {
 		sections = append(sections, strconv.Itoa(b.RandN(b.tokRange)))
 	}
+
 	return strings.Join(sections, b.delimiter)
 }
 
@@ -106,5 +110,6 @@ func (b *Builder) TrimSuffix(s string) string {
 	if _, err := strconv.Atoi(num); err != nil {
 		return s
 	}
+
 	return strings.Join(a[:len(a)-3], b.delimiter)
 }

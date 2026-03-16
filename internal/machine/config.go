@@ -60,6 +60,7 @@ func CloneConfig(orig *fly.MachineConfig) *fly.MachineConfig {
 	if orig == nil {
 		return nil
 	}
+
 	return helpers.Clone(orig)
 }
 

@@ -92,6 +92,7 @@ func (wswg *WsWgProxy) lastIo() time.Duration {
 	wswg.lock.RLock()
 	s := time.Since(wswg.atime)
 	wswg.lock.RUnlock()
+
 	return s
 }
 
@@ -175,6 +176,7 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	defer wswg.wrlock.Unlock()
 
 	_, err := c.Write(b)
+
 	return err
 }
 

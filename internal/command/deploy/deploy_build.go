@@ -47,6 +47,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	if found != config {
 		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, config, appConfig.ConfigFilePath())
 	}
+
 	return nil
 }
 
@@ -130,6 +131,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to fetch image ref")
+
 		return
 	}
 
@@ -160,6 +162,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		}
 
 		span.AddEvent("using pre-built docker image")
+
 		return
 	}
 
@@ -197,6 +200,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to generate cliBuildSecrets")
+
 		return
 	}
 
@@ -208,6 +212,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to parse labels")
+
 		return
 	}
 	if env.IS_GH_ACTION() {
@@ -223,6 +228,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		tracing.RecordError(span, err, "failed to merge build args")
+
 		return
 	}
 
@@ -230,11 +236,13 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveDockerfilePath")
+
 		return
 	}
 
 	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
+
 		return
 	}
 
@@ -251,6 +259,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		tracing.RecordError(span, err, "failed to start heartbeat")
+
 		return nil, err
 	}
 	defer heartbeat.Stop()
@@ -325,6 +334,7 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	for k, v := range cliBuildArgs {
 		args[k] = v
 	}
+
 	return args, nil
 }
 

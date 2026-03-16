@@ -18,6 +18,7 @@ func List(ctx context.Context, client flapsutil.FlapsClient, appName string) ([]
 	if err != nil {
 		return nil, err
 	}
+
 	return client.ListAppSecrets(ctx, appName, minver, false)
 }
 
@@ -46,6 +47,7 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 	if err := SetMinvers(ctx, appName, resp.Version); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -58,5 +60,6 @@ func Sync(ctx context.Context, client flapsutil.FlapsClient, appName string) err
 	_, _ = crand.Read(rand)
 	bogusDummySecret := fmt.Sprintf("BogusDummySecret_%s", hex.EncodeToString(rand))
 	unsetSecrets := []string{bogusDummySecret}
+
 	return Update(ctx, client, appName, nil, unsetSecrets)
 }

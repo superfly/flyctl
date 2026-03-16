@@ -91,6 +91,7 @@ func TestValidatePostgresFlags(t *testing.T) {
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
+
 					return
 				}
 				if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
@@ -231,6 +232,7 @@ func TestParseMountOptions(t *testing.T) {
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
+
 					return
 				}
 				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
@@ -239,6 +241,7 @@ func TestParseMountOptions(t *testing.T) {
 			} else {
 				if err != nil {
 					t.Errorf("expected no error but got: %v", err)
+
 					return
 				}
 

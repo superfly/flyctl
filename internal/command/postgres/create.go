@@ -298,6 +298,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 
 			if flag.IsSpecified(ctx, name) {
 				isCustomMachine = true
+
 				break
 			}
 		}
@@ -460,6 +461,7 @@ func postgresConfigurations(manager string) []PostgresConfiguration {
 	if manager == flypg.StolonManager {
 		return stolonConfigurations()
 	}
+
 	return flexConfigurations()
 }
 

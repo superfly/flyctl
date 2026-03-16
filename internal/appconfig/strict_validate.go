@@ -29,6 +29,7 @@ func StrictValidate(rawConfig map[string]any) *StrictValidateResult {
 		fieldInfo, recognized := recognizedFields[key]
 		if !recognized {
 			result.UnrecognizedSections = append(result.UnrecognizedSections, key)
+
 			continue
 		}
 
@@ -133,6 +134,7 @@ func isNestedType(t reflect.Type) bool {
 // isBuiltinType checks if a type is a builtin that shouldn't be recursively validated
 func isBuiltinType(t reflect.Type) bool {
 	pkg := t.PkgPath()
+
 	return (pkg == "" || strings.HasPrefix(pkg, "time"))
 }
 
@@ -147,6 +149,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 		// For regular structs, validate against struct fields
 		if expectedType.Kind() == reflect.Struct {
 			validateStructKeys(sectionName, valueMap, expectedType, result)
+
 			return
 
 		}
@@ -162,6 +165,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 				section := fmt.Sprintf("%s.%s", sectionName, key)
 				validateNestedSection(section, value, subType, result)
 			}
+
 			return
 		}
 	}
@@ -178,6 +182,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 				section := fmt.Sprintf("%s[%d]", sectionName, i)
 				validateNestedSection(section, elem, elemType, result)
 			}
+
 			return
 		}
 	}
@@ -200,6 +205,7 @@ func validateStructKeys(sectionPath string, data map[string]any, structType refl
 				inlineRecognized := getFields(inlineType)
 				if _, ok := inlineRecognized[key]; ok {
 					recognized = true
+
 					break
 				}
 			}
@@ -210,6 +216,7 @@ func validateStructKeys(sectionPath string, data map[string]any, structType refl
 				result.UnrecognizedKeys[sectionPath] = []string{}
 			}
 			result.UnrecognizedKeys[sectionPath] = append(result.UnrecognizedKeys[sectionPath], key)
+
 			continue
 		}
 

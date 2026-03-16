@@ -269,5 +269,6 @@ func fixNameError(err error, ns string) error {
 	if err == nil {
 		return err
 	}
+
 	return errors.New(nameErrorRx.ReplaceAllString(err.Error(), fmt.Sprintf("[%s]:53", ns)))
 }

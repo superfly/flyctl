@@ -28,6 +28,7 @@ func NewTableOutput(w io.Writer) *tableOutput {
 	t := tablewriter.NewWriter(w)
 	t.SetBorder(false)
 	t.SetAutoWrapText(false)
+
 	return &tableOutput{
 		Table: t,
 	}
@@ -39,6 +40,7 @@ type tableOutput struct {
 
 func (t *tableOutput) Flush() error {
 	t.Render()
+
 	return nil
 }
 
@@ -64,6 +66,7 @@ func (t *csvOutput) Append(row []string) {
 
 func (t *csvOutput) Flush() error {
 	t.w.Flush()
+
 	return t.w.Error()
 }
 

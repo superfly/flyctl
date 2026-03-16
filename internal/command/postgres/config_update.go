@@ -107,6 +107,7 @@ func runConfigUpdate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineConfigUpdate(ctx, app)
 }
 
@@ -370,6 +371,7 @@ func validateConfigValue(setting flypg.PGSetting, key, val string) error {
 				return nil
 			}
 		}
+
 		return fmt.Errorf("invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
 	case "integer":
 		min, err := strconv.Atoi(setting.MinVal)

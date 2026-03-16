@@ -31,6 +31,7 @@ func newUpdate() (cmd *cobra.Command) {
 		flag.ReplicaRegions(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
+
 	return cmd
 }
 

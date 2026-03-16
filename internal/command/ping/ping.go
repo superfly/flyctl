@@ -231,6 +231,7 @@ func run(ctx context.Context) error {
 			}
 			if err != nil || !ok || len(echoRep.Data) < timeLen {
 				fmt.Printf("bogus ICMP from %s: %s", raddr, err)
+
 				continue
 			}
 

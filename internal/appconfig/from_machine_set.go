@@ -58,6 +58,7 @@ func FromAppAndMachineSet(ctx context.Context, appName string, machines machine.
 		return strings.TrimSpace(w) != ""
 	})
 	mostCommonConfig.SetMachinesPlatform()
+
 	return mostCommonConfig, strings.Join(finalWarningMsgs, "\n"), nil
 }
 
@@ -84,6 +85,7 @@ func prettyDiff(original, new string, colorize *iostreams.ColorScheme) string {
 	if len(match) > 0 {
 		return strings.Trim(match[1], "\n")
 	}
+
 	return ""
 }
 
@@ -98,6 +100,7 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 	for k, v := range m.Machine().Config.Env {
 		if k == "PRIMARY_REGION" || k == "FLY_PRIMARY_REGION" {
 			primaryRegion = v
+
 			break
 		}
 	}
@@ -142,6 +145,7 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	cfg.Processes = processGroups.processes
 	cfg.Checks = topLevelChecks
 	cfg.Services = processGroups.services
+
 	return cfg, warningMsg
 }
 
@@ -175,6 +179,7 @@ func quotePosixWords(words []string) []string {
 	for _, w := range words {
 		quoted = append(quoted, quotePosixOneWord(w))
 	}
+
 	return quoted
 }
 
@@ -298,6 +303,7 @@ func (c *freqCounter[T]) Capture(valueForComparison any, originalValue T) error 
 	}
 	c.items[key].count += 1
 	c.items[key].originalValues = append(c.items[key].originalValues, originalValue)
+
 	return nil
 }
 
@@ -319,6 +325,7 @@ func (c *freqCounter[T]) Report() *report[T] {
 			rep.otherValues = append(rep.otherValues, item.originalValues...)
 		}
 	}
+
 	return rep
 }
 
@@ -346,5 +353,6 @@ func warning(section, msg string, vals ...interface{}) string {
 		}
 		w += l
 	}
+
 	return w
 }

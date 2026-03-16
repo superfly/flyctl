@@ -41,6 +41,7 @@ func (cfg *config) nsKey(key string) string {
 	if cfg.ns == NSRoot {
 		return key
 	}
+
 	return cfg.ns + "." + key
 }
 
