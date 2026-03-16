@@ -1,6 +1,8 @@
 package set
 
 import (
+	"slices"
+
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/helpers"
 )
@@ -32,6 +34,7 @@ func (s *Set[T]) Unset(values ...T) {
 }
 func (s *Set[T]) Has(value T) bool {
 	_, ok := s.values[value]
+
 	return ok
 }
 func (s *Set[T]) HasAll(values ...T) bool {
@@ -40,22 +43,20 @@ func (s *Set[T]) HasAll(values ...T) bool {
 			return false
 		}
 	}
+
 	return true
 }
 func (s *Set[T]) HasAny(values ...T) bool {
-	for _, value := range values {
-		if s.Has(value) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(values, s.Has)
 }
 func (s *Set[T]) Values() []T {
 	s.ensureNotNull()
+
 	return lo.Keys(s.values)
 }
 func (s *Set[T]) Len() int {
 	s.ensureNotNull()
+
 	return len(s.values)
 }
 func (s *Set[T]) Clear() {

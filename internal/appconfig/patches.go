@@ -3,6 +3,7 @@ package appconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ func applyPatches(cfgMap map[string]any) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return mapToConfig(cfgMap)
 }
 
@@ -37,6 +39,7 @@ func mapToConfig(cfgMap map[string]any) (*Config, error) {
 	if err != nil {
 		return cfg, err
 	}
+
 	return cfg, json.Unmarshal(newbuf, cfg)
 }
 
@@ -49,6 +52,7 @@ func patchRoot(cfgMap map[string]any) (map[string]any, error) {
 			return cfgMap, err
 		}
 	}
+
 	return cfgMap, nil
 }
 
@@ -56,6 +60,7 @@ func patchTopFields(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["kill_timeout"]; ok {
 		cfg["kill_timeout"] = _castDuration(raw, time.Second)
 	}
+
 	return cfg, nil
 }
 
@@ -69,6 +74,7 @@ func patchEnv(cfg map[string]any) (map[string]any, error) {
 		return nil, err
 	}
 	cfg["env"] = env
+
 	return cfg, nil
 }
 
@@ -82,9 +88,7 @@ func _patchEnv(raw any) (map[string]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			for k, v := range env2 {
-				env[k] = v
-			}
+			maps.Copy(env, env2)
 		}
 	case []any:
 		for _, raw2 := range cast {
@@ -92,9 +96,7 @@ func _patchEnv(raw any) (map[string]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			for k, v := range env2 {
-				env[k] = v
-			}
+			maps.Copy(env, env2)
 		}
 	case map[string]string:
 		env = cast
@@ -124,6 +126,7 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 				}
 			}
 			cfg["processes"] = processes
+
 			return patchProcesses(cfg)
 
 		case []map[string]any:
@@ -149,6 +152,7 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 			return nil, fmt.Errorf("Unknown processes type: %T", cast)
 		}
 	}
+
 	return cfg, nil
 }
 
@@ -243,6 +247,7 @@ func patchCompute(cfg map[string]any) (map[string]any, error) {
 	cfg["vm"] = compute
 	delete(cfg, "compute")
 	delete(cfg, "computes")
+
 	return cfg, nil
 }
 
@@ -265,6 +270,7 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 	}
 	cfg["mounts"] = mounts
 	delete(cfg, "mount")
+
 	return cfg, nil
 }
 
@@ -281,6 +287,7 @@ func patchMetrics(cfg map[string]any) (map[string]any, error) {
 	}
 	cfg["metrics"] = metrics
 	delete(cfg, "metric")
+
 	return cfg, nil
 }
 
@@ -315,9 +322,7 @@ func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
 			if err != nil {
 				return nil, err
 			}
-			for k, v := range subChecks {
-				checks[k] = v
-			}
+			maps.Copy(checks, subChecks)
 		}
 	default:
 		return nil, fmt.Errorf("'checks' section of unknown type: %T", raw)
@@ -325,10 +330,12 @@ func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
 
 	if len(checks) == 0 {
 		delete(cfg, "checks")
+
 		return cfg, nil
 	}
 
 	cfg["checks"] = checks
+
 	return cfg, nil
 }
 
@@ -350,6 +357,7 @@ func _patchTopLevelChecks(raw any) (map[string]any, error) {
 		}
 		cast[k] = check
 	}
+
 	return cast, nil
 }
 
@@ -372,6 +380,7 @@ func patchServices(cfg map[string]any) (map[string]any, error) {
 		}
 		cfg["services"] = newServices
 	}
+
 	return cfg, nil
 }
 
@@ -468,6 +477,7 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 		}
 		checks[idx] = check
 	}
+
 	return checks, nil
 }
 
@@ -490,6 +500,7 @@ func _patchCheck(check map[string]any) (map[string]any, error) {
 			delete(check, "headers")
 		}
 	}
+
 	return check, nil
 }
 
@@ -505,6 +516,7 @@ func _patchCheckHeaders(rawHeaders any) (map[string]string, error) {
 			}
 			acc = append(acc, m)
 		}
+
 		return _patchCheckHeaders(acc)
 
 	case []map[string]any:
@@ -540,6 +552,7 @@ func _castDuration(v any, shift time.Duration) (ret *string) {
 		if cast == "" {
 			return nil
 		}
+
 		return &cast
 	case float64:
 		d := time.Duration(cast)
@@ -547,6 +560,7 @@ func _castDuration(v any, shift time.Duration) (ret *string) {
 			d = d * shift
 		}
 		str := d.String()
+
 		return &str
 	case int64:
 		d := time.Duration(cast)
@@ -554,8 +568,10 @@ func _castDuration(v any, shift time.Duration) (ret *string) {
 			d = d * shift
 		}
 		str := d.String()
+
 		return &str
 	}
+
 	return nil
 }
 
@@ -566,6 +582,7 @@ func castToInt(num any) (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("Can not convert '%s' to integer: %w", cast, err)
 		}
+
 		return n, nil
 
 	case float32:
@@ -594,6 +611,7 @@ func castToString(rawValue any) string {
 	if v, ok := rawValue.(string); ok {
 		return v
 	}
+
 	return fmt.Sprintf("%v", rawValue)
 }
 
@@ -615,6 +633,7 @@ func ensureArrayOfMap(raw any) ([]map[string]any, error) {
 	default:
 		return nil, fmt.Errorf("Unknown type '%T'", cast)
 	}
+
 	return out, nil
 }
 
@@ -636,6 +655,7 @@ func stringOrSliceToSlice(input any, fieldName string) ([]string, error) {
 				return nil, fmt.Errorf("could not cast %v of type %T to string on %s", v, v, fieldName)
 			}
 		}
+
 		return ret, nil
 	} else {
 		return nil, fmt.Errorf("could not cast %v of type %T to []string on %s", input, input, fieldName)

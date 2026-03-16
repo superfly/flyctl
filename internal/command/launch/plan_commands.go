@@ -211,6 +211,7 @@ func newGenerate() *cobra.Command {
 
 func RunPlan(ctx context.Context, step string) error {
 	ctx = context.WithValue(ctx, plan.PlanStepKey, step)
+
 	return run(ctx)
 }
 
@@ -225,30 +226,36 @@ func runPropose(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func runCreate(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+
 	return RunPlan(ctx, "create")
 }
 
 func runPostgres(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+
 	return RunPlan(ctx, "postgres")
 }
 
 func runRedis(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+
 	return RunPlan(ctx, "redis")
 }
 
 func runTigris(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+
 	return RunPlan(ctx, "tigris")
 }
 
 func runGenerate(ctx context.Context) error {
 	flag.SetString(ctx, "from-manifest", flag.FirstArg(ctx))
+
 	return RunPlan(ctx, "generate")
 }

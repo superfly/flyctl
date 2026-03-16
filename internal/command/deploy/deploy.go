@@ -9,7 +9,6 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -258,6 +257,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	tp, err := tracing.InitTraceProvider(ctx, appName)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+
 		return err
 	}
 
@@ -292,12 +292,14 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+
 		return deployFromManifest(ctx, manifest)
 	case manifestPath != "":
 		manifest, err := manifestFromFile(manifestPath)
 		if err != nil {
 			return err
 		}
+
 		return deployFromManifest(ctx, manifest)
 	}
 
@@ -306,14 +308,15 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		if strings.Contains(err.Error(), "Could not find App") {
 			return fmt.Errorf("the app name %s could not be found, did you create the app or misspell it in the fly.toml file or via -a?", appName)
 		}
+
 		return err
 	}
 
 	var gpuKinds, cpuKinds []string
 	for _, compute := range appConfig.Compute {
 		if compute != nil && compute.MachineGuest != nil {
-			gpuKinds = append(gpuKinds, compute.MachineGuest.GPUKind)
-			cpuKinds = append(cpuKinds, compute.MachineGuest.CPUKind)
+			gpuKinds = append(gpuKinds, compute.GPUKind)
+			cpuKinds = append(cpuKinds, compute.CPUKind)
 		}
 	}
 
@@ -321,6 +324,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
 	err = DeployWithConfig(ctx, appConfig, 0, flag.GetYes(ctx))
+
 	return err
 }
 
@@ -397,10 +401,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		if isFirstLaunch {
 			// First launch: Show celebratory ASCII art and borders
 			// Get terminal width for responsive borders
-			termWidth := io.TerminalWidth()
-			if termWidth > 120 {
-				termWidth = 120 // Cap at 120 for readability
-			}
+			termWidth := min(io.TerminalWidth(),
+				// Cap at 120 for readability
+				120)
 			border := strings.Repeat("═", termWidth)
 
 			// Print success box with ASCII art
@@ -476,6 +479,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 	v := flag.GetString(ctx, flagName)
 	if v == "none" {
 		d := time.Duration(0)
+
 		return &d, nil
 	}
 
@@ -488,6 +492,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 		asInt, err := strconv.Atoi(v)
 		if err == nil {
 			duration = time.Duration(asInt) * time.Second
+
 			return &duration, nil
 		}
 	}
@@ -581,7 +586,7 @@ func deployToMachines(
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
 	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = fly.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		maxUnavailable = new(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")
@@ -690,12 +695,14 @@ func deployToMachines(
 			return err
 		}
 		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
+
 		return nil
 	}
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
+
 		return err
 	}
 
@@ -707,6 +714,7 @@ func deployToMachines(
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
 	}
+
 	return err
 }
 
@@ -722,6 +730,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
 			tracing.RecordError(span, err, "get config from remote")
+
 			return nil, err
 		}
 	}
@@ -730,6 +739,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
 		if err != nil {
 			tracing.RecordError(span, err, "parse env")
+
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
@@ -746,6 +756,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 	if err != nil {
 		tracing.RecordError(span, err, "validate config")
+
 		return nil, err
 	}
 
@@ -756,5 +767,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	tb.Done("Verified app config")
+
 	return cfg, nil
 }

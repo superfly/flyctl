@@ -495,7 +495,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 		MergedFiles: []*fly.File{
 			{
 				GuestPath: "/path/to/hello.txt",
-				RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+				RawValue:  new("aGVsbG8gd29ybGQK"),
 			},
 		},
 	})
@@ -522,7 +522,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 			Files: []*fly.File{
 				{
 					GuestPath: "/path/to/hello.txt",
-					RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+					RawValue:  new("aGVsbG8gd29ybGQK"),
 				},
 			},
 		},
@@ -540,11 +540,11 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 		MergedFiles: []*fly.File{
 			{
 				GuestPath:  "/path/to/config/yaml",
-				SecretName: fly.StringPointer("SECRET_CONFIG"),
+				SecretName: new("SECRET_CONFIG"),
 			},
 			{
 				GuestPath: "/path/to/hello.txt",
-				RawValue:  fly.StringPointer("Z29vZGJ5ZQo="),
+				RawValue:  new("Z29vZGJ5ZQo="),
 			},
 		},
 	})
@@ -556,11 +556,11 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 			Files: []*fly.File{
 				{
 					GuestPath: "/path/to/hello.txt",
-					RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+					RawValue:  new("aGVsbG8gd29ybGQK"),
 				},
 				{
 					GuestPath: "/path/to/be/deleted",
-					RawValue:  fly.StringPointer("ZGVsZXRlIG1lCg=="),
+					RawValue:  new("ZGVsZXRlIG1lCg=="),
 				},
 			},
 		},
@@ -585,15 +585,15 @@ func testUpdateContainerImageConfig(t *testing.T) {
 		Files: []*fly.File{
 			{
 				GuestPath:   "/app/image.json",
-				ImageConfig: fly.StringPointer("."),
+				ImageConfig: new("."),
 			},
 			{
 				GuestPath:   "/app/other.json",
-				ImageConfig: fly.StringPointer("nginx:latest"),
+				ImageConfig: new("nginx:latest"),
 			},
 			{
 				GuestPath: "/app/raw.txt",
-				RawValue:  fly.StringPointer("aGVsbG8="),
+				RawValue:  new("aGVsbG8="),
 			},
 		},
 	}
@@ -613,11 +613,11 @@ func testUpdateContainerImageConfig(t *testing.T) {
 				Files: []*fly.File{
 					{
 						GuestPath:   "/app/image.json",
-						ImageConfig: fly.StringPointer("."),
+						ImageConfig: new("."),
 					},
 					{
 						GuestPath:   "/app/sidecar.json",
-						ImageConfig: fly.StringPointer("redis:7"),
+						ImageConfig: new("redis:7"),
 					},
 				},
 			},
@@ -627,7 +627,7 @@ func testUpdateContainerImageConfig(t *testing.T) {
 				Files: []*fly.File{
 					{
 						GuestPath:   "/etc/config.json",
-						ImageConfig: fly.StringPointer("."),
+						ImageConfig: new("."),
 					},
 				},
 			},

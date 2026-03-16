@@ -10,5 +10,6 @@ func New() *cobra.Command {
 	cmd := command.New("lsvd", help, help, nil)
 	cmd.Hidden = true
 	cmd.AddCommand(newSetup())
+
 	return cmd
 }

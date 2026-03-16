@@ -110,6 +110,7 @@ func runFailover(ctx context.Context) (err error) {
 			if err := handleFlexFailoverFail(ctx, app, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
+
 			return fmt.Errorf("Failed to run failover: %s", failoverErr)
 		} else {
 			return nil
@@ -136,6 +137,7 @@ func runFailover(ctx context.Context) (err error) {
 			} else if machineRole(leader) == "leader" {
 				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
 			}
+
 			return nil
 		},
 		retry.Context(ctx), retry.Attempts(30), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay),
@@ -149,6 +151,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "Failover complete\n")
+
 	return
 }
 
@@ -289,6 +292,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	fmt.Fprintf(io.Out, "Failover complete\n")
+
 	return nil
 }
 
@@ -314,11 +318,12 @@ func handleFlexFailoverFail(ctx context.Context, app *fly.AppCompact, machines [
 			//  it's possible that the leader hasn't even been stopped yet before failure
 			// (due to pickNewLeader failing). If that happens, there's no reason to try and
 			// stop that machine again, just to start it.
-			if leader.State == "stopped" || leader.State == "started" {
+			switch leader.State {
+			case "stopped", "started":
 				return nil
-			} else if leader.State == "stopping" {
+			case "stopping":
 				return fmt.Errorf("Old leader hasn't finished stopping")
-			} else {
+			default:
 				return fmt.Errorf("Old leader is in an unexpected state: %s", leader.State)
 			}
 		},

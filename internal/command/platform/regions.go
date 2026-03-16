@@ -31,6 +31,7 @@ func newRegions() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 

@@ -179,6 +179,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to determine app config for machines")
+
 		return nil, err
 	}
 
@@ -186,6 +187,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
 		fmt.Fprint(io.ErrOut, extraInfo)
 		tracing.RecordError(span, err, "failed to validate process groups")
+
 		return nil, err
 	}
 
@@ -199,6 +201,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to split release command")
+
 			return nil, err
 		}
 	}
@@ -244,10 +247,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
-	maxConcurrent := args.MaxConcurrent
-	if maxConcurrent < 1 {
-		maxConcurrent = 1
-	}
+	maxConcurrent := max(args.MaxConcurrent, 1)
 
 	md := &machineDeployment{
 		apiClient:             apiClient,
@@ -285,43 +285,52 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
+
 		return nil, err
 	}
 
 	if err := md.setMachinesForDeployment(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set machines for first deployemt")
+
 		return nil, err
 	}
 	if err := md.setVolumes(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set volumes")
+
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set img")
+
 		return nil, err
 	}
 	if err := md.setFirstDeploy(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set first depoyment")
+
 		return nil, err
 	}
 
 	// Provisioning must come after setVolumes
 	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
 		tracing.RecordError(span, err, "failed to provision first depoloy")
+
 		return nil, err
 	}
 
 	// validations must happen after every else
 	if err := md.validateVolumeConfig(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to validate volume config")
+
 		return nil, err
 	}
 	if err = md.createReleaseInBackend(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to create release in backend")
+
 		return nil, err
 	}
 
 	span.SetAttributes(md.ToSpanAttributes()...)
+
 	return md, nil
 }
 
@@ -331,6 +340,7 @@ func (md *machineDeployment) setFirstDeploy(_ context.Context) error {
 	// This is not exaustive as the app could still be scaled down to zero but the
 	// workaround works better for now until it is fixed
 	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed() && md.machineSet.IsEmpty())
+
 	return nil
 }
 
@@ -341,6 +351,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list machines")
+
 		return err
 	}
 
@@ -350,6 +361,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		activeMachines, err := md.flapsClient.ListActive(ctx, md.app.Name)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to list machines")
+
 			return err
 		}
 		if len(activeMachines) > 0 {
@@ -432,6 +444,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		releaseCmdSet = []*fly.Machine{releaseCmdMachine}
 	}
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, releaseCmdSet, true)
+
 	return nil
 }
 
@@ -452,6 +465,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
 		return v.Name
 	})
+
 	return nil
 }
 
@@ -460,9 +474,11 @@ func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
 	for idx, v := range volumes {
 		if region == "" || region == v.Region {
 			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
+
 			return &v
 		}
 	}
+
 	return nil
 }
 
@@ -574,12 +590,15 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	latestImg, err := md.apiClient.LatestImage(ctx, md.app.Name)
 	if err == nil {
 		md.img = latestImg
+
 		return nil
 	}
 	if !md.machineSet.IsEmpty() {
 		md.img = md.machineSet.GetMachines()[0].Machine().Config.Image
+
 		return nil
 	}
+
 	return fmt.Errorf("could not find image to use for deployment; backend error was: %w", err)
 }
 
@@ -588,6 +607,7 @@ func (md *machineDeployment) setStrategy() error {
 	if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
 		md.strategy = md.appConfig.Deploy.Strategy
 	}
+
 	return nil
 }
 
@@ -604,10 +624,12 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
+
 		return err
 	}
 	md.releaseId = resp.ID
 	md.releaseVersion = resp.Version
+
 	return nil
 }
 
@@ -622,8 +644,10 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
+
 		return err
 	}
+
 	return nil
 }
 
@@ -689,6 +713,7 @@ func (md *machineDeployment) ProcessNames() (names []string) {
 			return !md.processGroups[name]
 		})
 	}
+
 	return
 }
 

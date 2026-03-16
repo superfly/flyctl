@@ -108,6 +108,7 @@ func runList(ctx context.Context) (err error) {
 	}
 
 	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At", "Revoked At")
+
 	return nil
 }
 
@@ -115,6 +116,7 @@ func revokedAtToString(time *time.Time) string {
 	if time != nil {
 		return time.String()
 	}
+
 	return ""
 }
 

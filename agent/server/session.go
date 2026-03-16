@@ -53,13 +53,11 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		<-ctx.Done()
 		_ = conn.Close()
-	}()
+	})
 
 	logger := log.New(srv.Logger.Writer(), id.String()+" ", srv.Logger.Flags())
 	logger.Print("connected ...")
@@ -130,6 +128,7 @@ func (s *session) runCommand(ctx context.Context) {
 		handler = (*session).setToken
 	default:
 		s.error(errUnsupportedCommand)
+
 		return
 	}
 
@@ -158,7 +157,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 	_ = s.marshal(agent.PingResponse{
 		Version:    buildinfo.Version().String(),
 		PID:        os.Getpid(),
-		Background: s.srv.Options.Background,
+		Background: s.srv.Background,
 	})
 }
 
@@ -209,6 +208,7 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 	for _, org := range orgs {
 		if org.Slug == slug {
 			no := org // copy
+
 			return &no, nil
 		}
 	}
@@ -328,12 +328,14 @@ func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error
 func (s *session) lookupTxt(ctx context.Context, args ...string) {
 	if len(args) != 2 {
 		s.error(fmt.Errorf("lookupTxt: bad args"))
+
 		return
 	}
 
 	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
+
 		return
 	}
 
@@ -343,6 +345,7 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 	if err != nil {
 		if !strings.Contains(err.Error(), "missing port") {
 			s.error(err)
+
 			return
 		}
 
@@ -352,6 +355,7 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 	txt, err := tunnel.LookupTXT(ctx, host)
 	if err != nil {
 		s.error(err)
+
 		return
 	}
 
@@ -443,12 +447,14 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 
 	if len(args) != 1 {
 		s.error(fmt.Errorf("ping6: bad args"))
+
 		return
 	}
 
 	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
+
 		return
 	}
 
@@ -456,6 +462,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 	sock, err := tunnel.ListenPing()
 	if err != nil {
 		s.error(fmt.Errorf("ping6: %w", err))
+
 		return
 	}
 
@@ -487,6 +494,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 			v6addr := net.ParseIP(addr.String()).To16()
 			if v6addr == nil {
 				s.logger.Printf("ping6: bad remote address '%s'", addr)
+
 				continue
 			}
 
@@ -533,6 +541,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		paylen := binary.BigEndian.Uint16(lbuf)
 		if paylen >= 1500 {
 			sockOk(fmt.Errorf("bad payload length (>=1500)"))
+
 			return
 		}
 
@@ -562,6 +571,7 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 		tokStr, err := config.ReadAccessToken(args[1])
 		if err != nil {
 			s.error(err)
+
 			return
 		}
 
@@ -638,7 +648,7 @@ func (s *session) exactArgs(count int, args []string, err error) bool {
 	return true
 }
 
-func (s *session) marshal(v interface{}) (ok bool) {
+func (s *session) marshal(v any) (ok bool) {
 	var sb strings.Builder
 
 	enc := json.NewEncoder(&sb)
@@ -668,6 +678,7 @@ var (
 func redact(buf []byte) []byte {
 	buf = redactPrivateKeyRx.ReplaceAll(buf, []byte(`PrivateKey":"[redacted]"`))
 	buf = redactTokenRx.ReplaceAll(buf, []byte(`$1[redacted]`))
+
 	return buf
 
 }

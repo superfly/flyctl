@@ -21,5 +21,6 @@ func newScaleShow() *cobra.Command {
 		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
+
 	return cmd
 }

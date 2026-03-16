@@ -54,6 +54,7 @@ func runReplaySourcesList(ctx context.Context) error {
 
 	if len(sourceOrgSlugs) == 0 {
 		fmt.Fprintf(io.Out, "No replay source organizations configured for %s\n", org.RawSlug)
+
 		return nil
 	}
 

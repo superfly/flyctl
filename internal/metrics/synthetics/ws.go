@@ -35,6 +35,7 @@ func NewMetricsWs() (*SyntheticsWs, error) {
 
 func getFlyntheticsWsUrl(ctx context.Context) string {
 	cfg := config.FromContext(ctx)
+
 	return fmt.Sprintf("%s/ws", cfg.SyntheticsBaseURL)
 }
 
@@ -72,8 +73,10 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 			// Handle non-HTTP errors
 			log.Printf("Dial failed: %v", err)
 		}
+
 		return fmt.Errorf("error connecting synthetics agent to fynthetics: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if ws.wsConn != nil {
 		_ = ws.wsConn.CloseNow()
@@ -111,6 +114,7 @@ func (ws *SyntheticsWs) listen(ctx context.Context) error {
 		if err != nil {
 			logger.Error("read error: ", err)
 			ws.resetConn(c, err)
+
 			continue
 		}
 
@@ -137,6 +141,7 @@ func (ws *SyntheticsWs) write(ctx context.Context, data []byte) (err error) {
 	if err != nil {
 		logger.Error("write error: ", err)
 		ws.resetConn(c, err)
+
 		return err
 	}
 

@@ -83,7 +83,7 @@ func (l *Logger) write(level Level, prefix aurora.Value, v ...any) {
 	l.inner.WriteLog(level, line)
 }
 
-func (l *Logger) Debug(v ...interface{}) {
+func (l *Logger) Debug(v ...any) {
 	if l == nil {
 		return
 	}
@@ -100,6 +100,7 @@ func (l *Logger) Debug(v ...interface{}) {
 					jsonStr = outBuf.String()
 				}
 				l.write(Debug, aurora.Faint("DEBUG"), jsonStr)
+
 				return
 			}
 		}
@@ -108,31 +109,31 @@ func (l *Logger) Debug(v ...interface{}) {
 	l.write(Debug, aurora.Faint("DEBUG"), v...)
 }
 
-func (l *Logger) Debugf(format string, v ...interface{}) {
+func (l *Logger) Debugf(format string, v ...any) {
 	l.Debug(fmt.Sprintf(format, v...))
 }
 
-func (l *Logger) Info(v ...interface{}) {
+func (l *Logger) Info(v ...any) {
 	l.write(Info, aurora.Faint("INFO"), v...)
 }
 
-func (l *Logger) Infof(format string, v ...interface{}) {
+func (l *Logger) Infof(format string, v ...any) {
 	l.Info(fmt.Sprintf(format, v...))
 }
 
-func (l *Logger) Warn(v ...interface{}) {
+func (l *Logger) Warn(v ...any) {
 	l.write(Warn, aurora.Yellow("WARN"), v...)
 }
 
-func (l *Logger) Warnf(format string, v ...interface{}) {
+func (l *Logger) Warnf(format string, v ...any) {
 	l.Warn(fmt.Sprintf(format, v...))
 }
 
-func (l *Logger) Error(v ...interface{}) {
+func (l *Logger) Error(v ...any) {
 	l.write(Error, aurora.Red("ERROR"), v...)
 }
 
-func (l *Logger) Errorf(format string, v ...interface{}) {
+func (l *Logger) Errorf(format string, v ...any) {
 	l.Error(fmt.Sprintf(format, v...))
 }
 
