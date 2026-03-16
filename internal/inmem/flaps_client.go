@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -296,18 +295,7 @@ func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string
 	panic("TODO")
 }
 
-func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-	if state == "" {
-		state = "started"
-	}
-	mach, err := m.server.GetMachine(ctx, appName, machine.ID)
-	if err != nil {
-		return err
-	}
-	if mach.State != state {
-		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
-	}
-
+func (m *FlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 	return nil
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -345,7 +346,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 				return nil, err
 			}
 
-			err = flapsClient.Wait(ctx, app.Name, selectedMachine, "started", 60*time.Second)
+			err = flapsClient.Wait(ctx, app.Name, selectedMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(60*time.Second))
 
 			if err != nil {
 				return nil, err

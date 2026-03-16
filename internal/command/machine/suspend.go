@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -96,7 +97,7 @@ func suspend(ctx context.Context, appName string, machine *fly.Machine, waitTime
 		if err != nil {
 			return fmt.Errorf("could not get Machine %s to wait for suspension: %w", machine.ID, err)
 		}
-		err = client.Wait(ctx, appName, machine, "suspended", waitTimeout)
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("suspended"), flaps.WithWaitTimeout(waitTimeout))
 		if err != nil {
 			return fmt.Errorf("Machine %s was not suspended within the wait timeout: %w", machine.ID, err)
 		}
