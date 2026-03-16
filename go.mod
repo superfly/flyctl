@@ -73,17 +73,17 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
-	github.com/superfly/fly-go v0.3.2-0.20260316035511-9bce86613cfd
+	github.com/superfly/fly-go v0.4.0
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.3.0
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
 	github.com/vektah/gqlparser/v2 v2.5.32
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.65.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
 	go.opentelemetry.io/otel v1.42.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.40.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.40.0
-	go.opentelemetry.io/otel/sdk v1.40.0
+	go.opentelemetry.io/otel/sdk v1.42.0
 	go.opentelemetry.io/otel/trace v1.42.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.49.0
@@ -210,7 +210,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-containerregistry v0.20.6
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
