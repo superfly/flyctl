@@ -15,9 +15,9 @@ linters:
     - misspell
     - nlreturn
     - bodyclose
-    #- gocheckcompilerdirectives
+    - gocheckcompilerdirectives
+    - errchkjson
     #- errname
-    #- errchkjson
   settings:
     errcheck:
       exclude-functions:

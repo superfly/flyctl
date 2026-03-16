@@ -84,7 +84,9 @@ func runUpload(cmd *cobra.Command, args []string) error {
 
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetIndent("", " ")
-	enc.Encode(meta)
+	if err := enc.Encode(meta); err != nil {
+		return err
+	}
 
 	ctx := cmd.Context()
 

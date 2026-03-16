@@ -78,7 +78,11 @@ func runMachinesScaleShow(ctx context.Context) error {
 			}, true
 		})
 
-		prettyJSON, _ := json.MarshalIndent(groups, "", "    ")
+		prettyJSON, err := json.MarshalIndent(groups, "", "    ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal machine groups: %w", err)
+		}
+
 		fmt.Fprintln(io.Out, string(prettyJSON))
 
 		return nil

@@ -263,7 +263,9 @@ func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
 	}
 
 	buf := &bytes.Buffer{}
-	json.NewEncoder(buf).Encode(diags)
+	if err := json.NewEncoder(buf).Encode(diags); err != nil {
+		return err
+	}
 
 	return cp(z, "diag.json", buf)
 }
