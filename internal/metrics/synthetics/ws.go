@@ -76,6 +76,7 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 
 		return fmt.Errorf("error connecting synthetics agent to fynthetics: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if ws.wsConn != nil {
 		_ = ws.wsConn.CloseNow()

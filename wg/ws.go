@@ -128,7 +128,7 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 
 	log.Printf("(re-)connecting to %s", rurl)
 
-	ws, _, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
+	ws, resp, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
@@ -145,6 +145,7 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 	if err != nil {
 		return fmt.Errorf("websocket: %w", err)
 	}
+	defer resp.Body.Close()
 
 	wsConn := websocket.NetConn(ctx, ws, websocket.MessageText)
 

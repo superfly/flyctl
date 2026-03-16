@@ -127,10 +127,12 @@ add the --force flag to send us best-effort diagnostics.`)
 
 	req.Header.Set("Content-Type", "application/zip")
 
-	_, err = http.DefaultClient.Do(req)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("put archive to doctor URL: %w", err)
 	}
+	defer res.Body.Close()
+	defer io.Copy(io.Discard, res.Body)
 
 	fmt.Printf("\nYour Diagnostic Code (safe to share): %s\n", m[1])
 
