@@ -156,6 +156,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 
 	if len(members) == 0 {
 		fmt.Fprintln(io.Out, colorize.Bold("No changes to apply"))
+
 		return nil
 	}
 
@@ -223,6 +224,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 			for _, replica := range members["replicas"] {
 				if replica.Machine.Region == leader.Machine.Region {
 					attemptFailover = true
+
 					break
 				}
 			}
@@ -265,9 +267,11 @@ func machineRole(machine *fly.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+
 			break
 		}
 	}
+
 	return role
 }
 

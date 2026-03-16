@@ -39,11 +39,12 @@ type mockGenqClient struct{}
 func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, resp *genq.Response) error {
 	// Mock the GetOrganization response - just return the same slug
 	// This simulates the ResolveOrganizationSlug behavior
-	resp.Data = map[string]interface{}{
-		"organization": map[string]interface{}{
+	resp.Data = map[string]any{
+		"organization": map[string]any{
 			"rawSlug": "test-org", // Return a fixed value for testing
 		},
 	}
+
 	return nil
 }
 
@@ -278,11 +279,13 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
+
 					return
 				}
 			} else {
 				if err != nil {
 					t.Errorf("expected no error but got: %v", err)
+
 					return
 				}
 			}
@@ -358,6 +361,7 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 
 		if err != nil {
 			t.Errorf("expected no error but got: %v", err)
+
 			return
 		}
 
@@ -388,6 +392,7 @@ func TestCreateFlyPostgresPlan(t *testing.T) {
 
 	if result.FlyPostgres == nil {
 		t.Errorf("expected FlyPostgres plan but got nil")
+
 		return
 	}
 
@@ -426,6 +431,7 @@ func TestCreateManagedPostgresPlan(t *testing.T) {
 
 	if result.ManagedPostgres == nil {
 		t.Errorf("expected ManagedPostgres plan but got nil")
+
 		return
 	}
 

@@ -26,6 +26,7 @@ authenticated and in use.
 	cmd := command.New("whoami", long, short, runWhoAmI,
 		command.RequireSession)
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 

@@ -67,6 +67,7 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 
 	if args.Stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
+
 		return nil
 	}
 
@@ -81,6 +82,7 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 	}
 	if !appCompact.Deployed && len(machines) == 0 {
 		fmt.Fprintln(out, "Secrets are staged for the first deployment")
+
 		return nil
 	}
 
@@ -107,6 +109,7 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
+
 		return err
 	}
 
@@ -114,5 +117,6 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 	}
+
 	return err
 }

@@ -61,6 +61,7 @@ func runMachineKill(ctx context.Context) (err error) {
 		if err := rewriteMachineNotFoundErrors(ctx, err, current.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not kill machine %s: %w", current.ID, err)
 	}
 

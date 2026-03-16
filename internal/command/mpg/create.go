@@ -130,11 +130,13 @@ func runCreate(ctx context.Context) error {
 		for _, region := range mpgRegions {
 			if region.Code == regionCode {
 				selectedRegion = &region
+
 				break
 			}
 		}
 		if selectedRegion == nil {
 			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
+
 			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
 	} else {
@@ -260,6 +262,7 @@ func runCreate(ctx context.Context) error {
 
 		if cluster.Status == "ready" {
 			connectionURI = credentials.ConnectionUri
+
 			break
 		}
 

@@ -41,6 +41,7 @@ retrieved from the Fly service and saved in TOML format.`
 			Description: "Output the configuration in YAML format",
 		},
 	)
+
 	return
 }
 
@@ -129,7 +130,9 @@ func loadPrevConfig(configPath string) (*appconfig.Config, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("error loading prev config: %w", err)
 	}
+
 	return cfg, nil
 }

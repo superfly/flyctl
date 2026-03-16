@@ -27,6 +27,7 @@ secrets and another for config file defined environment variables.`
 	)
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd, flag.App(), flag.AppConfig())
+
 	return
 }
 
@@ -56,5 +57,6 @@ func runEnv(ctx context.Context) error {
 	envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
 		return []string{e.Key, e.Value}
 	})
+
 	return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
 }

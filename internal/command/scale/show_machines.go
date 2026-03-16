@@ -46,6 +46,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 		if len(machines) == 0 {
 			return nil
 		}
+
 		return machines[0].Config.Guest
 	})
 
@@ -64,6 +65,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 			if guest == nil {
 				return res, false
 			}
+
 			return groupData{
 				Process: name,
 				Count:   len(machines),
@@ -76,8 +78,13 @@ func runMachinesScaleShow(ctx context.Context) error {
 			}, true
 		})
 
-		prettyJSON, _ := json.MarshalIndent(groups, "", "    ")
+		prettyJSON, err := json.MarshalIndent(groups, "", "    ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal machine groups: %w", err)
+		}
+
 		fmt.Fprintln(io.Out, string(prettyJSON))
+
 		return nil
 	}
 
@@ -113,9 +120,11 @@ func formatRegions(machines []*fly.Machine) string {
 			if e.Value > 1 {
 				return fmt.Sprintf("%s(%d)", e.Key, e.Value)
 			}
+
 			return e.Key
 		},
 	)
 	slices.Sort(regions)
+
 	return strings.Join(regions, ",")
 }

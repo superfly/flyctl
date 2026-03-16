@@ -71,6 +71,7 @@ func LaunchEphemeral(ctx context.Context, appName string, input *EphemeralInput)
 		select {
 		case <-ctx.Done():
 			terminal.Warn("You may need to destroy the machine manually (`fly machine destroy`).")
+
 			return nil, nil, ctx.Err()
 		case <-t.C:
 		}
@@ -84,6 +85,7 @@ func LaunchEphemeral(ctx context.Context, appName string, input *EphemeralInput)
 	if !destroyed {
 		terminal.Warn("You may need to destroy the machine manually (`fly machine destroy`).")
 	}
+
 	return nil, nil, err
 }
 
@@ -102,6 +104,7 @@ func checkMachineDestruction(ctx context.Context, appName string, machine *fly.M
 	for _, event := range machine.Events {
 		if event.Type == "exit" {
 			exitEvent = event
+
 			break
 		}
 	}
@@ -141,6 +144,7 @@ func makeCleanupFunc(ctx context.Context, appName string, machine *fly.Machine) 
 		if err := flapsClient.Stop(stopCtx, appName, stopInput, ""); err != nil {
 			terminal.Warnf("Failed to stop ephemeral machine: %v", err)
 			terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
+
 			return
 		}
 

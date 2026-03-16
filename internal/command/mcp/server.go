@@ -331,6 +331,7 @@ func runServer(ctx context.Context) error {
 			output, err := execCmd.CombinedOutput()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error executing flyctl: %v\nOutput: %s\n", err, string(output))
+
 				return nil, fmt.Errorf("failed to execute command: %v\nOutput: %s", err, string(output))
 			}
 

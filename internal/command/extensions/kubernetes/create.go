@@ -41,6 +41,7 @@ func create() (cmd *cobra.Command) {
 			Description: "The output path to save the kubeconfig file",
 		},
 	)
+
 	return cmd
 }
 
@@ -80,12 +81,13 @@ func runK8sCreate(ctx context.Context) (err error) {
 	}
 	defer f.Close()
 
-	metadata := resp.AddOn.Metadata.(map[string]interface{})
+	metadata := resp.AddOn.Metadata.(map[string]any)
 	kubeconfig := metadata["kubeconfig"].(string)
 	if _, err := f.Write([]byte(kubeconfig)); err != nil {
 		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", outFilename, err)
 	}
 
 	fmt.Fprintf(io.Out, "Wrote kubeconfig to file %s. Use it to connect to your cluster", outFilename)
+
 	return
 }

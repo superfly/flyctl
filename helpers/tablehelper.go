@@ -23,5 +23,6 @@ func MakeSimpleTable(out io.Writer, headings []string) (table *tablewriter.Table
 	newtable.SetCenterSeparator("*")
 	newtable.SetRowSeparator("-")
 	newtable.SetAutoWrapText(false)
+
 	return newtable
 }

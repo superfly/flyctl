@@ -92,6 +92,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	if len(actions) == 0 {
 		fmt.Fprintf(io.Out, "App already scaled to desired state. No need for changes\n")
+
 		return nil
 	}
 
@@ -142,7 +143,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	fmt.Fprintf(io.Out, "Executing scale plan\n")
 	for _, action := range actions {
-		action := action
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
@@ -159,6 +159,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 						fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
 					}
 					fmt.Fprintln(io.Out)
+
 					return nil
 				})
 			}
@@ -171,6 +172,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 						return err
 					}
 					fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+
 					return nil
 				})
 			}
@@ -188,6 +190,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		regionMap[r] = nil
 	}
 	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
+
 	return nil
 }
 
@@ -235,6 +238,7 @@ func destroyMachine(ctx context.Context, appName string, machine *fly.Machine) e
 		ID:   machine.ID,
 		Kill: true,
 	}
+
 	return flapsClient.Destroy(ctx, appName, input, machine.LeaseNonce)
 }
 
@@ -255,6 +259,7 @@ func (pi *planItem) VolumesDelta() int {
 	if pi.CreateVolumeRequest == nil {
 		return 0
 	}
+
 	return pi.Delta - len(pi.Volumes)
 }
 
@@ -268,6 +273,7 @@ func (pi *planItem) MachineSize() string {
 	if guest := pi.LaunchMachineInput.Config.Guest; guest != nil {
 		return guest.ToSize()
 	}
+
 	return ""
 }
 
@@ -282,6 +288,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 		if c.relative != 0 {
 			count = len(machineGroups[group]) + c.relative
 		}
+
 		return max(count, 0)
 	})
 
@@ -361,7 +368,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	return actions, nil
 }
 
-var MaxPerRegionError = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
+var ErrMaxPerRegion = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
 
 func convergeGroupCounts(expectedTotal int, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
 	diffs := make(map[string]int)
@@ -372,7 +379,7 @@ func convergeGroupCounts(expectedTotal int, current map[string]int, regions []st
 
 	if maxPerRegion >= 0 {
 		if len(regions)*maxPerRegion < expectedTotal {
-			return nil, MaxPerRegionError
+			return nil, ErrMaxPerRegion
 		}
 
 		// Compute the diff to any region with more machines than the maximum allowed

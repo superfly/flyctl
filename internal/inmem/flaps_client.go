@@ -204,6 +204,7 @@ func (m *FlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Ma
 			a = append(a, machine)
 		}
 	}
+
 	return a, nil
 }
 
@@ -231,6 +232,7 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 			releaseCmdMachine = machine
 		}
 	}
+
 	return machines, releaseCmdMachine, nil
 }
 
@@ -238,7 +240,7 @@ func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, versio
 	panic("TODO")
 }
 
-func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	panic("TODO")
 }
 
@@ -305,6 +307,7 @@ func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Mac
 	if mach.State != state {
 		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
 	}
+
 	return nil
 }
 

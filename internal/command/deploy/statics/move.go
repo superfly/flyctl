@@ -36,7 +36,7 @@ func MoveBucket(
 		return err
 	}
 
-	prevBucketMeta := prevBucket.Metadata.(map[string]interface{})
+	prevBucketMeta := prevBucket.Metadata.(map[string]any)
 	prevBucketAuth := prevBucketMeta[staticsMetaTokenizedAuth].(string)
 	oldBucketS3Client, err := s3ClientWithAuth(ctx, prevBucketAuth, prevOrg)
 	if err != nil {
@@ -53,6 +53,7 @@ func MoveBucket(
 
 	if deployer.bucket == prevBucketName {
 		fmt.Fprintf(io.ErrOut, "New statics bucket is the same as the old one!\nPlease delete the storage addon '%s' manually and redeploy the application.\n", prevBucket.Name)
+
 		return nil
 	}
 
@@ -91,16 +92,16 @@ func transferFiles(ctx context.Context, oldS3Client *s3.Client, oldBucket string
 	waitForWorkers := spawnWorkers(ctx, workerCount, func(ctx context.Context) error {
 		for key := range workQueue {
 			reader, err := oldS3Client.GetObject(ctx, &s3.GetObjectInput{
-				Bucket: fly.Pointer(oldBucket),
-				Key:    fly.Pointer(key),
+				Bucket: new(oldBucket),
+				Key:    new(key),
 			})
 			if err != nil {
 				return err
 			}
 
 			_, err = newS3Client.PutObject(ctx, &s3.PutObjectInput{
-				Bucket:      fly.Pointer(newBucket),
-				Key:         fly.Pointer(key),
+				Bucket:      new(newBucket),
+				Key:         new(key),
 				Body:        reader.Body,
 				ContentType: reader.ContentType,
 			})
@@ -111,12 +112,13 @@ func transferFiles(ctx context.Context, oldS3Client *s3.Client, oldBucket string
 				return err
 			}
 		}
+
 		return nil
 	})
 
 	paginator := s3.NewListObjectsV2Paginator(oldS3Client, &s3.ListObjectsV2Input{
-		Bucket:    fly.Pointer(oldBucket),
-		Delimiter: fly.Pointer("/"),
+		Bucket:    new(oldBucket),
+		Delimiter: new("/"),
 	})
 
 	for paginator.HasMorePages() {

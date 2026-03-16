@@ -255,6 +255,7 @@ func hasContainerFiles(mConfig *fly.MachineConfig) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -305,6 +306,7 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	case origMachineRaw == nil:
 		return false
 	}
+
 	return true
 }
 

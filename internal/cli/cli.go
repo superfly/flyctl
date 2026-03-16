@@ -108,11 +108,13 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
 		printError(io, cs, cmd, err)
+
 		return 126
 	case isUnchangedError(err):
 		// This means the deployment was a noop, which is noteworthy but not something we should
 		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
 		printError(io, cs, cmd, err)
+
 		return 0
 	default:
 		printError(io, cs, cmd, err)
@@ -135,6 +137,7 @@ func isUnchangedError(err error) bool {
 	if errors.As(err, &gqlErr) {
 		return gqlErr.Extensions.Code == "UNCHANGED"
 	}
+
 	return false
 }
 
@@ -143,6 +146,7 @@ func isValidTraceID(id string) bool {
 	if err != nil {
 		return false
 	}
+
 	return t.IsValid()
 }
 

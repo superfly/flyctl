@@ -69,6 +69,7 @@ func runReplaySourcesRemove(ctx context.Context) error {
 
 		if len(currentAllowed) == 0 {
 			fmt.Fprintln(io.Out, "No replay source organizations configured")
+
 			return nil
 		}
 

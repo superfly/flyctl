@@ -86,6 +86,7 @@ func runMachineStop(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machine.ID)
 	}
+
 	return
 }
 
@@ -107,6 +108,7 @@ func Stop(ctx context.Context, appName string, machine *fly.Machine, signal stri
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not stop machine %s: %w", machine.ID, err)
 	}
 

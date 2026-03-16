@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -43,7 +44,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 
 	replyBuf := make([]byte, 1000)
 
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		_, err = pinger.WriteTo(ping.EchoRequest(0, i, time.Now(), 12), &net.IPAddr{IP: net.ParseIP(ns)})
 
 		pinger.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
@@ -131,6 +132,8 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: failed to read HTTP response: %w", err)
 	}
+	defer resp.Body.Close()
+	defer io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != 404 {
 		return fmt.Errorf("wireguard dialer: expected 404, got %d", resp.StatusCode)

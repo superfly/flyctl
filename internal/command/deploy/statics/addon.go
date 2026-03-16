@@ -41,10 +41,11 @@ func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.
 		if extension.Organization.Slug != org.Slug {
 			continue
 		}
-		if extension.Metadata.(map[string]interface{})[staticsMetaKeyAppId] == internalAppIdStr {
+		if extension.Metadata.(map[string]any)[staticsMetaKeyAppId] == internalAppIdStr {
 			return &extension, nil
 		}
 	}
+
 	return nil, nil
 }
 
@@ -57,8 +58,9 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		return "", err
 	}
 	if bucket != nil {
-		meta := bucket.Metadata.(map[string]interface{})
+		meta := bucket.Metadata.(map[string]any)
 		deployer.bucket = meta[staticsMetaBucketName].(string)
+
 		return meta[staticsMetaTokenizedAuth].(string), nil
 	}
 
@@ -75,7 +77,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		OverrideRegion:       deployer.appConfig.PrimaryRegion,
 		OverrideName:         &extName,
 	}
-	params.Options["website"] = map[string]interface{}{
+	params.Options["website"] = map[string]any{
 		"domain_name": "",
 	}
 	params.Options["accelerate"] = false
@@ -117,7 +119,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		}
 	}()
 
-	secrets := ext.Data.Environment.(map[string]interface{})
+	secrets := ext.Data.Environment.(map[string]any)
 
 	deployer.bucket = secrets["BUCKET_NAME"].(string)
 
@@ -133,7 +135,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 	}
 
 	// Update the addon with the tokenized key and the name of the app
-	_, err = gql.UpdateAddOn(ctx, client.GenqClient(), extFull.AddOn.Id, extFull.AddOn.AddOnPlan.Id, []string{}, extFull.AddOn.Options, map[string]interface{}{
+	_, err = gql.UpdateAddOn(ctx, client.GenqClient(), extFull.AddOn.Id, extFull.AddOn.AddOnPlan.Id, []string{}, extFull.AddOn.Options, map[string]any{
 		staticsMetaKeyAppId:      internalAppIdStr,
 		staticsMetaTokenizedAuth: tokenizedKey,
 		staticsMetaBucketName:    deployer.bucket,
@@ -141,10 +143,11 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 	if err != nil {
 		return "", err
 	}
+
 	return tokenizedKey, nil
 }
 
-func (deployer *DeployerState) tokenizeTigrisSecrets(secrets map[string]interface{}) (string, error) {
+func (deployer *DeployerState) tokenizeTigrisSecrets(secrets map[string]any) (string, error) {
 
 	orgId, err := strconv.ParseUint(deployer.org.InternalNumericID, 10, 64)
 	if err != nil {
@@ -155,7 +158,7 @@ func (deployer *DeployerState) tokenizeTigrisSecrets(secrets map[string]interfac
 		AuthConfig: &tokenizer.FlyioMacaroonAuthConfig{Access: flyio.Access{
 			Action: resset.ActionWrite,
 			OrgID:  &orgId,
-			AppID:  fly.Pointer(uint64(deployer.app.InternalNumericID)),
+			AppID:  new(uint64(deployer.app.InternalNumericID)),
 		}},
 		ProcessorConfig: &tokenizer.Sigv4ProcessorConfig{
 			AccessKey: secrets["AWS_ACCESS_KEY_ID"].(string),

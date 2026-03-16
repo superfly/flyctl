@@ -37,6 +37,7 @@ func ClientFromContext(ctx context.Context) *Client {
 	if client == nil {
 		return nil
 	}
+
 	return client.(*Client)
 }
 
@@ -73,6 +74,7 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 	_ = ldClient.updateFeatureFlags(timeoutCtx)
 
 	go ldClient.monitor(ctx)
+
 	return ldClient, nil
 }
 
@@ -89,6 +91,7 @@ func NewServiceClient() (*Client, error) {
 	_ = ldClient.updateFeatureFlags(timeoutCtx)
 
 	go ldClient.monitor(ctx)
+
 	return ldClient, nil
 }
 
@@ -119,6 +122,7 @@ func (ldClient *Client) GetFeatureFlagValue(key string, defaultValue any) any {
 		return flag.Value
 	}
 	span.SetAttributes(attribute.Bool("default_flag", true))
+
 	return defaultValue
 
 }
@@ -142,12 +146,14 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		span.RecordError(err)
+
 		return err
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		span.RecordError(err)
+
 		return err
 	}
 	defer response.Body.Close()
@@ -155,11 +161,13 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	var flags map[string]FeatureFlag
 	if err := json.NewDecoder(response.Body).Decode(&flags); err != nil {
 		span.RecordError(err)
+
 		return err
 	}
 
 	if flags == nil {
 		span.AddEvent("no flags returned")
+
 		return nil
 	}
 
@@ -167,15 +175,19 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 		switch flagInfo.Value.(type) {
 		case bool:
 			attr := attribute.Bool(flag, flagInfo.Value.(bool))
+
 			return &attr
 		case string:
 			attr := attribute.String(flag, flagInfo.Value.(string))
+
 			return &attr
 		case float64:
 			attr := attribute.Float64(flag, flagInfo.Value.(float64))
+
 			return &attr
 		default:
 			span.AddEvent(fmt.Sprintf("unaccounted for flag type: %s", reflect.TypeOf(flagInfo.Value)))
+
 			return nil
 		}
 
@@ -196,11 +208,13 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 
 func (ldClient *Client) ManagedPostgresEnabled() bool {
 	choice := ldClient.getLaunchPostgresChoiceFlag()
+
 	return choice == "mpg" || choice == "both"
 }
 
 func (ldClient *Client) UnmanagedPostgresEnabled() bool {
 	choice := ldClient.getLaunchPostgresChoiceFlag()
+
 	return choice == "unmanaged-pg" || choice == "both"
 }
 

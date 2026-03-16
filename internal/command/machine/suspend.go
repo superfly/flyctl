@@ -77,6 +77,7 @@ func runMachineSuspend(ctx context.Context) (err error) {
 			fmt.Fprintf(io.Out, "%s is being suspended\n", machine.ID)
 		}
 	}
+
 	return
 }
 
@@ -86,6 +87,7 @@ func suspend(ctx context.Context, appName string, machine *fly.Machine, waitTime
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not suspend Machine %s: %w", machine.ID, err)
 	}
 

@@ -48,6 +48,7 @@ func update() (cmd *cobra.Command) {
 		},
 		SharedFlags,
 	)
+
 	return cmd
 }
 
@@ -63,16 +64,16 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	addOn := response.AddOn
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
 
 	if options == nil {
-		options = make(map[string]interface{})
+		options = make(map[string]any)
 	}
 
-	metadata, _ := addOn.Options.(map[string]interface{})
+	metadata, _ := addOn.Options.(map[string]any)
 
 	if metadata == nil {
-		metadata = make(map[string]interface{})
+		metadata = make(map[string]any)
 	}
 
 	accessKey := flag.GetString(ctx, "shadow-access-key")
@@ -94,9 +95,9 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	if clearShadow {
-		options["shadow_bucket"] = map[string]interface{}{}
+		options["shadow_bucket"] = map[string]any{}
 	} else if shadowBucketSpecified {
-		options["shadow_bucket"] = map[string]interface{}{
+		options["shadow_bucket"] = map[string]any{
 			"access_key":    accessKey,
 			"secret_key":    secretKey,
 			"region":        region,
@@ -137,13 +138,13 @@ func runUpdate(ctx context.Context) (err error) {
 			return err
 		}
 
-		options["website"] = map[string]interface{}{
+		options["website"] = map[string]any{
 			"domain_name": domain,
 		}
 	}
 
 	if flag.GetBool(ctx, "clear-custom-domain") {
-		options["website"] = map[string]interface{}{
+		options["website"] = map[string]any{
 			"domain_name": "",
 		}
 	}
@@ -154,5 +155,6 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	err = runStatus(ctx)
+
 	return err
 }

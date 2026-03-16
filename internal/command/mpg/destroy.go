@@ -76,5 +76,6 @@ func runDestroy(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Managed Postgres cluster %s (%s) scheduled to be destroyed (may take some time)\n", response.Data.Name, clusterId)
+
 	return nil
 }

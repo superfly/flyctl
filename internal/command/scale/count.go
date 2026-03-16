@@ -41,6 +41,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.VMSizeFlags,
 		flag.Env(),
 	)
+
 	return cmd
 }
 
@@ -104,6 +105,7 @@ func parseGroupCounts(args []string, defaultGroupName string) (groupCounts, erro
 			count.absolute = countNum
 		}
 		groups[group] = count
+
 		return nil
 	}
 

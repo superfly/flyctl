@@ -27,6 +27,7 @@ func (l *SplitLogger) UseAnsi() bool {
 	if l.file != nil {
 		return l.file.UseAnsi()
 	}
+
 	return true
 }
 
@@ -37,5 +38,6 @@ func (l *SplitLogger) Level() Level {
 	if l.file != nil {
 		return l.file.Level()
 	}
+
 	return NoLogLevel
 }
