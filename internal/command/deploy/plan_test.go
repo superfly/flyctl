@@ -257,14 +257,8 @@ func TestUpdateMachines(t *testing.T) {
 		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-			if state == "started" {
-				machine.State = "started"
-
-				return nil
-			} else {
-				return assert.AnError
-			}
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
+			return nil
 		},
 		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			return oldMachines, nil
@@ -456,9 +450,7 @@ func TestUpdateMachinesWithNewMachine(t *testing.T) {
 		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-			machine.State = state
-
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			return nil
 		},
 		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {

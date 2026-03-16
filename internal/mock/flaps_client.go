@@ -3,7 +3,6 @@ package mock
 import (
 	"context"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -72,7 +71,7 @@ type FlapsClient struct {
 	UpdateFunc                  func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecretsFunc        func(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolumeFunc            func(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
-	WaitFunc                    func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error)
+	WaitFunc                    func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForAppFunc              func(ctx context.Context, name string) error
 }
 
@@ -312,8 +311,8 @@ func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string
 	return m.UpdateVolumeFunc(ctx, appName, volumeId, req)
 }
 
-func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-	return m.WaitFunc(ctx, appName, machine, state, timeout)
+func (m *FlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
+	return m.WaitFunc(ctx, appName, machineID, waitOpts...)
 }
 
 func (m *FlapsClient) WaitForApp(ctx context.Context, name string) error {
