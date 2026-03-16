@@ -67,7 +67,7 @@ func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (r
 						requiresDedicated = true
 					} else if port.ContainsPort(80) && !reflect.DeepEqual(port.Handlers, []string{"http"}) {
 						requiresDedicated = true
-					} else if port.ContainsPort(443) && !(reflect.DeepEqual(port.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(port.Handlers, []string{"tls", "http"})) {
+					} else if port.ContainsPort(443) && (!reflect.DeepEqual(port.Handlers, []string{"http", "tls"}) && !reflect.DeepEqual(port.Handlers, []string{"tls", "http"})) {
 						requiresDedicated = true
 					}
 				}

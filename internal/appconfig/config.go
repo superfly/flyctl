@@ -241,7 +241,7 @@ func (c *Config) DetermineIPType(ipType string) string {
 					return "dedicated"
 				} else if p.ContainsPort(80) && !reflect.DeepEqual(p.Handlers, []string{"http"}) {
 					return "dedicated"
-				} else if p.ContainsPort(443) && !(reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
+				} else if p.ContainsPort(443) && (!reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) && !reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
 					return "dedicated"
 				}
 			}
@@ -290,7 +290,7 @@ func (c *Config) DetermineCompression(ctx context.Context) (compression string, 
 // IsUsingGPU returns true if any VMs have a gpu-kind set.
 func (c *Config) IsUsingGPU() bool {
 	for _, vm := range c.Compute {
-		if vm != nil && vm.MachineGuest != nil && vm.MachineGuest.GPUKind != "" {
+		if vm != nil && vm.MachineGuest != nil && vm.GPUKind != "" {
 			return true
 		}
 	}

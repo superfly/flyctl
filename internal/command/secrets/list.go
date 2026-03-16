@@ -318,10 +318,10 @@ func computeSecretStatus(secret fly.AppSecret, vc versionCounts) SecretStatus {
 		}
 	}
 
-	switch {
-	case machinesWithSecret == 0:
+	switch machinesWithSecret {
+	case 0:
 		return StatusStaged
-	case machinesWithSecret == vc.totalMachines:
+	case vc.totalMachines:
 		return StatusDeployed
 	default:
 		return StatusPartiallyDeployed

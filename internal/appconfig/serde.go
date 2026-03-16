@@ -84,11 +84,12 @@ func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	var b []byte
 	var err error
 
-	if format == "json" {
+	switch format {
+	case "json":
 		b, err = json.MarshalIndent(c, "", "  ")
-	} else if format == "yaml" {
+	case "yaml":
 		b, err = c.MarshalAsYAML()
-	} else {
+	default:
 		b, err = c.marshalTOML()
 	}
 

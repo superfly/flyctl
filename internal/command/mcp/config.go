@@ -241,11 +241,12 @@ func ListConfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, err
 
 	// OS-specific paths
 	var configDir string
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		configDir = filepath.Join(home, "Library", "Application Support")
-	} else if runtime.GOOS == "windows" {
+	case "windows":
 		configDir = filepath.Join(home, "AppData", "Roaming")
-	} else {
+	default:
 		configDir = filepath.Join(home, ".config")
 	}
 

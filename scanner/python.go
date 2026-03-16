@@ -160,10 +160,11 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 
 	vars[string(cfg.depStyle)] = true
 	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
-	if app == "" {
+	switch app {
+	case "":
 		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
-	} else if app == FastAPI {
+	case FastAPI:
 		vars["fastapi"] = true
 		return &SourceInfo{
 			Files:                templatesExecute("templates/python-docker", vars),
@@ -172,7 +173,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			ObjectStorageDesired: objectStorage,
 			Runtime:              runtime,
 		}, nil
-	} else if app == Flask {
+	case Flask:
 		vars["flask"] = true
 		return &SourceInfo{
 			Files:                templatesExecute("templates/python-docker", vars),
@@ -181,7 +182,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			ObjectStorageDesired: objectStorage,
 			Runtime:              runtime,
 		}, nil
-	} else if app == Streamlit {
+	case Streamlit:
 		vars["streamlit"] = true
 		entrypoint := findEntrypoint("streamlit")
 		if entrypoint == nil {
@@ -196,7 +197,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			ObjectStorageDesired: objectStorage,
 			Runtime:              runtime,
 		}, nil
-	} else {
+	default:
 		return nil, nil
 	}
 }

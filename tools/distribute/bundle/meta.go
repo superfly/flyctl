@@ -108,11 +108,12 @@ func assetsFromGoReleaserDist(distDir string) ([]Asset, error) {
 					SHA256:       sha,
 				}
 
-				if artifact.Extra.Format == "tar.gz" {
+				switch artifact.Extra.Format {
+				case "tar.gz":
 					a.ContentType = "application/gzip"
-				} else if artifact.Extra.Format == "zip" {
+				case "zip":
 					a.ContentType = "application/zip"
-				} else {
+				default:
 					return errors.Errorf("unknown format %s", artifact.Extra.Format)
 				}
 

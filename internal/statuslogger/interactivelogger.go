@@ -85,16 +85,17 @@ func (il *interactiveLogger) currentLines(conHeight int) (finalLines []interacti
 	twoSecondsAgo := now.Add(-time.Second * 2)
 
 	for _, line := range il.lines {
-		if line.status == StatusFailure {
+		switch line.status {
+		case StatusFailure:
 			errorLines = append(errorLines, *line)
-		} else if line.status == StatusSuccess {
+		case StatusSuccess:
 			if line.doneTime.Before(twoSecondsAgo) {
 				doneLines = append(doneLines, *line)
 			} else {
 				// Hack to ensure that this line is still visible
 				inProgressLines = append(inProgressLines, *line)
 			}
-		} else {
+		default:
 			inProgressLines = append(inProgressLines, *line)
 		}
 	}

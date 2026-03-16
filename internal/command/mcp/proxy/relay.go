@@ -266,7 +266,7 @@ func addResourceTemplatesToServer(ctx context.Context, mcpClient *client.Client,
 
 func addNotificationsToServer(ctx context.Context, mcpClient *client.Client, mcpServer *server.MCPServer) error {
 	mcpClient.OnNotification(func(notification mcp.JSONRPCNotification) {
-		mcpServer.SendNotificationToAllClients(notification.Notification.Method, notification.Notification.Params.AdditionalFields)
+		mcpServer.SendNotificationToAllClients(notification.Method, notification.Params.AdditionalFields)
 	})
 
 	return nil

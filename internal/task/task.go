@@ -89,7 +89,7 @@ func (m *manager) Start(ctx context.Context) {
 		for t := range m.queue {
 			t := t
 			go func() {
-				defer m.WaitGroup.Done()
+				defer m.Done()
 				t(ctx)
 			}()
 		}
@@ -99,7 +99,7 @@ func (m *manager) Start(ctx context.Context) {
 }
 
 func (m *manager) Run(t Task) {
-	m.WaitGroup.Add(1)
+	m.Add(1)
 	m.queue <- t
 }
 
@@ -116,7 +116,7 @@ func (m *manager) Shutdown() {
 	close(m.queue)
 	started := m.started.Swap(true)
 	if started {
-		m.WaitGroup.Wait()
+		m.Wait()
 	}
 }
 
