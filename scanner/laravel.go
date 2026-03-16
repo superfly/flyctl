@@ -140,16 +140,16 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 
 	data, err := os.ReadFile("composer.json")
 	if err == nil {
-		var composerJson map[string]interface{}
+		var composerJson map[string]any
 		err = json.Unmarshal(data, &composerJson)
 		if err == nil {
 			// check for the package in the composer.json
-			require, ok := composerJson["require"].(map[string]interface{})
+			require, ok := composerJson["require"].(map[string]any)
 			if ok && require["fly-apps/dockerfile-laravel"] != nil {
 				installed = true
 			}
 
-			requireDev, ok := composerJson["require-dev"].(map[string]interface{})
+			requireDev, ok := composerJson["require-dev"].(map[string]any)
 			if ok && requireDev["fly-apps/dockerfile-laravel"] != nil {
 				installed = true
 			}
@@ -217,11 +217,11 @@ func extractPhpVersion() (string, error) {
 
 	data, err := os.ReadFile("composer.json")
 	if err == nil {
-		var composerJson map[string]interface{}
+		var composerJson map[string]any
 		err = json.Unmarshal(data, &composerJson)
 		if err == nil {
 			// check for the package in the composer.json
-			require, ok := composerJson["require"].(map[string]interface{})
+			require, ok := composerJson["require"].(map[string]any)
 			if ok && require["php"] != nil {
 				str := fmt.Sprint(require["php"])
 				match = re.FindStringSubmatch(str)

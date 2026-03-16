@@ -210,12 +210,12 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		if err == nil {
 			for _, v := range cfgMap {
 				switch submap := v.(type) {
-				case map[interface{}]interface{}:
+				case map[any]any:
 					service, ok := submap["service"].(string)
 					if ok && service == "S3" {
 						s.ObjectStorageDesired = true
 					}
-				case map[string]interface{}:
+				case map[string]any:
 					service, ok := submap["service"].(string)
 					if ok && service == "S3" {
 						s.ObjectStorageDesired = true

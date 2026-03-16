@@ -24,7 +24,7 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, errors.Wrap(err, "failure extracting Ruby version")
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["rubyVersion"] = rubyVersion
 	s.Files = templatesExecute("templates/ruby", vars)
 

@@ -28,7 +28,6 @@ func List(ctx context.Context, client flapsutil.FlapsClient, appName string) ([]
 func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, setSecrets map[string]string, unsetSecrets []string) error {
 	update := map[string]*string{}
 	for name, value := range setSecrets {
-		value := value
 		update[name] = &value
 	}
 	for _, name := range unsetSecrets {

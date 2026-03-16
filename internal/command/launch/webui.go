@@ -87,9 +87,9 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	// Handle database plan from form data
-	if pgData, ok := finalSession.Metadata["postgres"].(map[string]interface{}); ok {
+	if pgData, ok := finalSession.Metadata["postgres"].(map[string]any); ok {
 		logger.Debugf("Postgres form data: %+v", pgData)
-		if mpgData, ok := pgData["managed_postgres"].(map[string]interface{}); ok {
+		if mpgData, ok := pgData["managed_postgres"].(map[string]any); ok {
 			logger.Debugf("Managed Postgres form data: %+v", mpgData)
 			// Validate region for managed Postgres
 			region := "iad" // Default region

@@ -510,7 +510,7 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	}
 
 	// Initialize configuration data map
-	configData := make(map[string]interface{})
+	configData := make(map[string]any)
 
 	// Read existing configuration if it exists
 	fileExists := false
@@ -529,10 +529,10 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	}
 
 	// Get or create mcpServers field in config
-	var mcpServers map[string]interface{}
+	var mcpServers map[string]any
 
 	if mcpServersRaw, exists := configData[configKey]; exists {
-		if mcpMap, ok := mcpServersRaw.(map[string]interface{}); ok {
+		if mcpMap, ok := mcpServersRaw.(map[string]any); ok {
 			mcpServers = mcpMap
 			log.Debugf("Found existing %s with %d entries", configKey, len(mcpServers))
 		} else {
@@ -540,7 +540,7 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 		}
 	} else {
 		log.Debugf("No %s field found, creating a new one", configKey)
-		mcpServers = make(map[string]interface{})
+		mcpServers = make(map[string]any)
 	}
 
 	// Merge the new MCP server with existing ones
@@ -551,7 +551,7 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	}
 
 	// Build the server map
-	serverMap := map[string]interface{}{
+	serverMap := map[string]any{
 		"command": command,
 		"args":    args,
 	}
@@ -613,7 +613,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Parse the existing configuration
-	configData := make(map[string]interface{})
+	configData := make(map[string]any)
 	err = json.Unmarshal(fileData, &configData)
 	if err != nil {
 		return fmt.Errorf("failed to parse existing configuration at %s: %w", path, err)
@@ -622,9 +622,9 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Get the mcpServers field in config
-	var mcpServers map[string]interface{}
+	var mcpServers map[string]any
 	if mcpServersRaw, exists := configData[configKey]; exists {
-		if mcpMap, ok := mcpServersRaw.(map[string]interface{}); ok {
+		if mcpMap, ok := mcpServersRaw.(map[string]any); ok {
 			mcpServers = mcpMap
 			log.Debugf("Found existing %s with %d entries", configKey, len(mcpServers))
 		} else {
@@ -671,7 +671,7 @@ type MCPServer struct {
 	Command string   `json:"command"`
 }
 
-func configExtract(config ConfigPath, server string) (map[string]interface{}, error) {
+func configExtract(config ConfigPath, server string) (map[string]any, error) {
 	// Check if the file exists
 	// Read the configuration file
 	data, err := os.ReadFile(config.Path)
@@ -680,22 +680,22 @@ func configExtract(config ConfigPath, server string) (map[string]interface{}, er
 	}
 
 	// Parse the JSON data
-	jsonConfig := make(map[string]interface{})
+	jsonConfig := make(map[string]any)
 	if err := json.Unmarshal(data, &jsonConfig); err != nil {
 		return nil, fmt.Errorf("Error parsing JSON: %v", err)
 	}
 
-	jsonServers, ok := jsonConfig[config.ConfigName].(map[string]interface{})
+	jsonServers, ok := jsonConfig[config.ConfigName].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("Error finding MCP server configuration: %v", err)
 	}
 
-	serverConfig, ok := jsonServers[server].(map[string]interface{})
+	serverConfig, ok := jsonServers[server].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("Error finding MCP server configuration: %v", err)
 	}
 
-	args, ok := serverConfig["args"].([]interface{})
+	args, ok := serverConfig["args"].([]any)
 
 	if ok {
 		for i, arg := range args {

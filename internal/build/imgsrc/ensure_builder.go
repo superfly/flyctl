@@ -439,8 +439,8 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		config.Services = []fly.MachineService{
 			{
 				InternalPort: 1234,
-				Ports:        []fly.MachinePort{{Port: fly.IntPointer(1234)}},
-				Autostart:    fly.BoolPointer(true),
+				Ports:        []fly.MachinePort{{Port: new(1234)}},
+				Autostart:    new(true),
 				Autostop:     fly.Pointer(fly.MachineAutostopStop),
 			},
 		}
@@ -450,25 +450,25 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 				Protocol:           "tcp",
 				InternalPort:       8080,
 				Autostop:           fly.Pointer(fly.MachineAutostopOff),
-				Autostart:          fly.BoolPointer(true),
-				MinMachinesRunning: fly.IntPointer(0),
+				Autostart:          new(true),
+				MinMachinesRunning: new(0),
 				Ports: []fly.MachinePort{
 					{
-						Port:       fly.IntPointer(80),
+						Port:       new(80),
 						Handlers:   []string{"http"},
 						ForceHTTPS: true,
 						HTTPOptions: &fly.HTTPOptions{
-							H2Backend: fly.BoolPointer(true),
+							H2Backend: new(true),
 						},
 					},
 					{
-						Port:     fly.IntPointer(443),
+						Port:     new(443),
 						Handlers: []string{"http", "tls"},
 						TLSOptions: &fly.TLSOptions{
 							ALPN: []string{"h2"},
 						},
 						HTTPOptions: &fly.HTTPOptions{
-							H2Backend: fly.BoolPointer(true),
+							H2Backend: new(true),
 						},
 					},
 				},
@@ -483,8 +483,8 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		for {
 			volume, retErr = flapsClient.CreateVolume(ctx, builderName, fly.CreateVolumeRequest{
 				Name:                "machine_data",
-				SizeGb:              fly.IntPointer(50),
-				AutoBackupEnabled:   fly.BoolPointer(false),
+				SizeGb:              new(50),
+				AutoBackupEnabled:   new(false),
 				ComputeRequirements: &guest,
 				Region:              region,
 			})

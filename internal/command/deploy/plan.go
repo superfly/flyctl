@@ -217,7 +217,6 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 
 	// We want to update by process group
 	for _, machineTuples := range machPairByProcessGroup {
-		machineTuples := machineTuples
 		pgroup.Go(func() error {
 			eg, ctx := errgroup.WithContext(ctx)
 
@@ -235,10 +234,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			coldMachines := lo.Reject(machineTuples, isWarm)
 
 			eg.Go(func() (err error) {
-				poolSize := len(coldMachines)
-				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
-					poolSize = STOPPED_MACHINES_POOL_SIZE
-				}
+				poolSize := min(len(coldMachines), STOPPED_MACHINES_POOL_SIZE)
 
 				if len(coldMachines) > 0 {
 					// for cold machines, we can update all of them at once.
@@ -348,7 +344,6 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 	group.SetLimit(poolSize)
 
 	for _, machPair := range machineTuples {
-		machPair := machPair
 		oldMachine := machPair.oldMachine
 		newMachine := machPair.newMachine
 
@@ -417,7 +412,6 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 	leaseGroup.SetLimit(poolSize)
 
 	for _, machineTuple := range machineTuples {
-		machineTuple := machineTuple
 		leaseGroup.Go(func() error {
 
 			var machine *fly.Machine
@@ -478,7 +472,6 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 	leaseGroup.SetLimit(len(machineTuples))
 
 	for _, machineTuple := range machineTuples {
-		machineTuple := machineTuple
 
 		leaseGroup.Go(func() error {
 
@@ -739,7 +732,6 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 	var successfulState string
 
 	for _, state := range possibleStates {
-		state := state
 		go func() {
 			err := lm.WaitForState(ctx, state, timeout)
 			mutex.Lock()

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -136,16 +137,16 @@ func listDBs(ctx context.Context, leaderIP string) error {
 
 	rows := make([][]string, 0, len(databases))
 	for _, db := range databases {
-		var users string
+		var users strings.Builder
 		for index, name := range db.Users {
-			users += name
+			users.WriteString(name)
 			if index < len(db.Users)-1 {
-				users += ", "
+				users.WriteString(", ")
 			}
 		}
 		rows = append(rows, []string{
 			db.Name,
-			users,
+			users.String(),
 		})
 	}
 

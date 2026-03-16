@@ -86,7 +86,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		// Run asdf install with one retry on failure
 		var cmd *exec.Cmd
 		var err error
-		for attempt := 0; attempt < 2; attempt++ {
+		for range 2 {
 			cmd = exec.Command("asdf", "install")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr

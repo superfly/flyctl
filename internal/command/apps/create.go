@@ -110,7 +110,7 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {
-		input.Network = fly.StringPointer(v)
+		input.Network = new(v)
 	}
 
 	app, err := apiClient.CreateApp(ctx, input)

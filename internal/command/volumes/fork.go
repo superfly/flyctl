@@ -119,8 +119,8 @@ func runFork(ctx context.Context) error {
 
 	input := fly.CreateVolumeRequest{
 		Name:                name,
-		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
-		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
+		RequireUniqueZone:   new(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   new(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,

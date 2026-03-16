@@ -532,12 +532,12 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 		Provider:       "tigris",
 		Organization:   org,
 		AppName:        state.Plan.AppName,
-		OverrideName:   fly.Pointer(tigrisPlan.Name),
+		OverrideName:   new(tigrisPlan.Name),
 		OverrideRegion: state.Plan.RegionCode,
 		Options: gql.AddOnOptions{
 			"public":     tigrisPlan.Public,
 			"accelerate": tigrisPlan.Accelerate,
-			"website": map[string]interface{}{
+			"website": map[string]any{
 				"domain_name": tigrisPlan.WebsiteDomainName,
 			},
 		},

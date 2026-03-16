@@ -170,7 +170,7 @@ func templates(name string) (files []SourceFile) {
 }
 
 // same thing as templates (above) but with template execution given a map of variables
-func templatesExecute(name string, vars map[string]interface{}) (files []SourceFile) {
+func templatesExecute(name string, vars map[string]any) (files []SourceFile) {
 	filter := func(input []byte) []byte {
 		template := template.Must(template.New("name").Parse(string(input)))
 		result := strings.Builder{}

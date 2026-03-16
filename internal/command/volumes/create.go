@@ -132,7 +132,7 @@ func runCreate(ctx context.Context) error {
 
 	var snapshotID *string
 	if flag.GetString(ctx, "snapshot-id") != "" {
-		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
+		snapshotID = new(flag.GetString(ctx, "snapshot-id"))
 	}
 
 	var fsType *string
@@ -152,22 +152,22 @@ func runCreate(ctx context.Context) error {
 	input := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              fly.Pointer(flag.GetInt(ctx, "size")),
-		Encrypted:           fly.Pointer(!flag.GetBool(ctx, "no-encryption")),
-		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
-		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
+		SizeGb:              new(flag.GetInt(ctx, "size")),
+		Encrypted:           new(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone:   new(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   new(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
-		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		SnapshotRetention:   new(flag.GetInt(ctx, "snapshot-retention")),
 		FSType:              fsType,
 	}
 
 	if flag.IsSpecified(ctx, "scheduled-snapshots") {
-		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
+		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	for i := 0; i < count; i++ {
+	for range count {
 		volume, err := flapsClient.CreateVolume(ctx, appName, input)
 		if err != nil {
 			return err

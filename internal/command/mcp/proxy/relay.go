@@ -104,7 +104,7 @@ func addToMCPServer(ctx context.Context, mcpClient *client.Client, mcpServer *se
 		Version: buildinfo.Info().Version.String(),
 	}
 	initRequest.Params.Capabilities = mcp.ClientCapabilities{
-		Experimental: make(map[string]interface{}),
+		Experimental: make(map[string]any),
 		Roots:        nil,
 		Sampling:     nil,
 	}

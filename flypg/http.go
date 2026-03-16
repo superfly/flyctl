@@ -59,7 +59,7 @@ func newHttpClient(dialer agent.Dialer) *http.Client {
 	return &http.Client{Transport: logging}
 }
 
-func (c *Client) doRequest(ctx context.Context, method, path string, in interface{}) (io.ReadCloser, error) {
+func (c *Client) doRequest(ctx context.Context, method, path string, in any) (io.ReadCloser, error) {
 	req, err := c.NewRequest(path, method, in)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 	return res.Body, nil
 }
 
-func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
+func (c *Client) Do(ctx context.Context, method, path string, in, out any) error {
 	body, err := c.doRequest(ctx, method, path, in)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	return json.NewDecoder(body).Decode(out)
 }
 
-func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {
+func (c *Client) NewRequest(path string, method string, in any) (*http.Request, error) {
 	var (
 		body    io.Reader
 		headers = make(map[string][]string)

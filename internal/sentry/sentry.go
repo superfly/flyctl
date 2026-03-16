@@ -53,7 +53,7 @@ func init() {
 
 type CaptureOption func(scope *sentry.Scope)
 
-func WithExtra(key string, val interface{}) CaptureOption {
+func WithExtra(key string, val any) CaptureOption {
 	return func(scope *sentry.Scope) {
 		scope.SetExtra(key, val)
 	}
@@ -140,10 +140,10 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			WithTag("feature", featureName),
 			WithTag("app-platform-version", appCompact.PlatformVersion),
 			WithContexts(map[string]sentry.Context{
-				"app": map[string]interface{}{
+				"app": map[string]any{
 					"name": appCompact.Name,
 				},
-				"organization": map[string]interface{}{
+				"organization": map[string]any{
 					"slug": appCompact.Organization.Slug,
 				},
 			}),
@@ -160,10 +160,10 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		WithTag("feature", featureName),
 		WithTag("app-platform-version", appCompact.PlatformVersion),
 		WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": appCompact.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"slug": appCompact.Organization.Slug,
 			},
 		}),
@@ -188,10 +188,10 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 			flapsErr,
 			WithTag("feature", featureName),
 			WithContexts(map[string]sentry.Context{
-				"app": map[string]interface{}{
+				"app": map[string]any{
 					"name": app.Name,
 				},
-				"organization": map[string]interface{}{
+				"organization": map[string]any{
 					"slug": app.Organization.Slug,
 				},
 			}),
@@ -207,10 +207,10 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 		err,
 		WithTag("feature", featureName),
 		WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": app.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"slug": app.Organization.Slug,
 			},
 		}),
@@ -219,7 +219,7 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 }
 
 // Recover records the given panic to sentry.
-func Recover(v interface{}) {
+func Recover(v any) {
 	if !isInitialized() {
 		return
 	}
@@ -229,7 +229,7 @@ func Recover(v interface{}) {
 	printError(v)
 }
 
-func printError(v interface{}) {
+func printError(v any) {
 	var buf bytes.Buffer
 
 	fmt.Fprintln(&buf, aurora.Red("Oops, something went wrong! Could you try that again?"))

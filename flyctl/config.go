@@ -30,7 +30,7 @@ type Config interface {
 	GetStringSlice(key string) []string
 	GetInt(key string) int
 	IsSet(key string) bool
-	Set(key string, value interface{})
+	Set(key string, value any)
 }
 
 type config struct {
@@ -79,7 +79,7 @@ func ConfigNS(ns string) Config {
 	return &config{ns}
 }
 
-func (cfg *config) Set(key string, value interface{}) {
+func (cfg *config) Set(key string, value any) {
 	fullKey := cfg.nsKey(key)
 	viper.Set(fullKey, value)
 }

@@ -323,7 +323,7 @@ func renderTextTimings(w io.Writer, cs *iostreams.ColorScheme, timings []*timing
 }
 
 func renderJSONTimings(w io.Writer, timings []*timing) {
-	items := make(map[string]interface{}, len(timings))
+	items := make(map[string]any, len(timings))
 	for _, t := range timings {
 		if t.error != nil {
 			items[t.region] = struct {

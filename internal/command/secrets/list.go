@@ -372,10 +372,7 @@ func fetchReleaseTimestamps(
 		return timestamps
 	}
 
-	limit := len(uniqueVersions) * 2
-	if limit < 20 {
-		limit = 20
-	}
+	limit := max(len(uniqueVersions)*2, 20)
 	if limit > 200 {
 		limit = 200
 	}

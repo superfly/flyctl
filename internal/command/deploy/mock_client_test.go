@@ -236,7 +236,7 @@ func (m *mockFlapsClient) ListSecretKeys(ctx context.Context, appName string, ve
 	return nil, fmt.Errorf("failed to list secret keys")
 }
 
-func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	return nil, fmt.Errorf("failed to create request")
 }
 

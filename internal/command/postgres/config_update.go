@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -366,10 +367,8 @@ func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {
 func validateConfigValue(setting flypg.PGSetting, key, val string) error {
 	switch setting.VarType {
 	case "enum":
-		for _, enumVal := range setting.EnumVals {
-			if enumVal == val {
-				return nil
-			}
+		if slices.Contains(setting.EnumVals, val) {
+			return nil
 		}
 
 		return fmt.Errorf("invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))

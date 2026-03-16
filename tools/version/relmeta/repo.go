@@ -228,9 +228,9 @@ func (r *gitRepo) branchesPointingAt(ref string) ([]string, error) {
 	}
 
 	var branches []string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "origin/") {
-			branches = append(branches, strings.TrimPrefix(line, "origin/"))
+	for line := range strings.SplitSeq(out, "\n") {
+		if after, ok := strings.CutPrefix(line, "origin/"); ok {
+			branches = append(branches, after)
 		}
 	}
 
@@ -258,8 +258,8 @@ func channelFromRef(ref string) (string, error) {
 	}
 
 	// return the version's channel if ref is a tag
-	if strings.HasPrefix(ref, "refs/tags/v") {
-		ver, err := version.Parse(strings.TrimPrefix(ref, "refs/tags/v"))
+	if after, ok := strings.CutPrefix(ref, "refs/tags/v"); ok {
+		ver, err := version.Parse(after)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to parse version from ref %q", ref)
 		}
@@ -268,8 +268,8 @@ func channelFromRef(ref string) (string, error) {
 	}
 
 	// return the branch name if ref is a branch
-	if strings.HasPrefix(ref, "refs/heads/") {
-		return strings.TrimPrefix(ref, "refs/heads/"), nil
+	if after, ok := strings.CutPrefix(ref, "refs/heads/"); ok {
+		return after, nil
 	}
 
 	return "", fmt.Errorf("unable to determine channel from ref: %q", ref)

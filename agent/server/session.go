@@ -53,13 +53,11 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		<-ctx.Done()
 		_ = conn.Close()
-	}()
+	})
 
 	logger := log.New(srv.Logger.Writer(), id.String()+" ", srv.Logger.Flags())
 	logger.Print("connected ...")
@@ -650,7 +648,7 @@ func (s *session) exactArgs(count int, args []string, err error) bool {
 	return true
 }
 
-func (s *session) marshal(v interface{}) (ok bool) {
+func (s *session) marshal(v any) (ok bool) {
 	var sb strings.Builder
 
 	enc := json.NewEncoder(&sb)

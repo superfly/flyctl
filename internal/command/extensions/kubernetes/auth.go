@@ -40,7 +40,7 @@ type PartialExecCredential struct {
 	APIVersion string `json:"apiVersion"`
 	Spec       struct {
 		Cluster struct {
-			Config map[string]interface{} `json:"config"`
+			Config map[string]any `json:"config"`
 		} `json:"cluster"`
 	} `json:"spec"`
 }

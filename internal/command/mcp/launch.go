@@ -427,7 +427,7 @@ func runLaunch(ctx context.Context) error {
 		args = append(args, server["command"].(string))
 
 		// Convert []interface{} to []string
-		rawArgs, _ := server["args"].([]interface{})
+		rawArgs, _ := server["args"].([]any)
 		for _, v := range rawArgs {
 			if s, ok := v.(string); ok {
 				args = append(args, s)

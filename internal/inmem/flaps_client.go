@@ -240,7 +240,7 @@ func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, versio
 	panic("TODO")
 }
 
-func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	panic("TODO")
 }
 

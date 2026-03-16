@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -331,9 +332,7 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 		return nil, fmt.Errorf("invalid build args: %w", err)
 	}
 
-	for k, v := range cliBuildArgs {
-		args[k] = v
-	}
+	maps.Copy(args, cliBuildArgs)
 
 	return args, nil
 }

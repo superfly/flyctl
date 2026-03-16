@@ -88,7 +88,6 @@ func (m *manager) Start(ctx context.Context) {
 		log.Debug("Starting task manager")
 
 		for t := range m.queue {
-			t := t
 			go func() {
 				defer m.Done()
 				t(ctx)

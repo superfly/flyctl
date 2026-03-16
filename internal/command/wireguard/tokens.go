@@ -137,7 +137,7 @@ func runWireguardTokenDelete(ctx context.Context) error {
 	return nil
 }
 
-func tokenRequest(method, path, token string, data interface{}) (*http.Response, error) {
+func tokenRequest(method, path, token string, data any) (*http.Response, error) {
 	buf := &bytes.Buffer{}
 	if err := json.NewEncoder(buf).Encode(data); err != nil {
 		return nil, err

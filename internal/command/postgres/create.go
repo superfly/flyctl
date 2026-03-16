@@ -390,7 +390,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 				return err
 			}
 		}
-		input.VolumeSize = fly.IntPointer(params.DiskGb)
+		input.VolumeSize = new(params.DiskGb)
 		input.Autostart = params.Autostart
 	} else if input.BarmanRemoteRestoreConfig == "" {
 		// Resolve configuration from pre-defined configuration.
@@ -400,7 +400,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 
 		input.VMSize = vmSize
-		input.VolumeSize = fly.IntPointer(config.DiskGb)
+		input.VolumeSize = new(config.DiskGb)
 		input.InitialClusterSize = config.InitialClusterSize
 		input.ImageRef = params.ImageRef
 		input.Autostart = params.Autostart

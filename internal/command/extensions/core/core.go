@@ -36,7 +36,7 @@ type ExtensionParams struct {
 	Provider             string
 	PlanID               string
 	OrganizationPlanID   string
-	Options              map[string]interface{}
+	Options              map[string]any
 	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
@@ -462,7 +462,7 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		return nil
 	}
 
-	secrets := extension.Data.Environment.(map[string]interface{})
+	secrets := extension.Data.Environment.(map[string]any)
 
 	if app.Name != "" {
 		appResp, err := gql.GetApp(ctx, client, app.Name)

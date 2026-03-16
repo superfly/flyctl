@@ -57,10 +57,10 @@ type launchState struct {
 	LaunchManifest
 	env map[string]string
 	planBuildCache
-	cache map[string]interface{}
+	cache map[string]any
 }
 
-func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
+func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T, error) {
 	if val, ok := cache[key]; ok {
 		return val.(T), nil
 	}
@@ -197,7 +197,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	ret := ""
+	var ret strings.Builder
 	for _, row := range rows {
 
 		label := row[0]
@@ -207,10 +207,10 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		labelSpaces := strings.Repeat(" ", colLengths[0]-len(label))
 		valueSpaces := strings.Repeat(" ", colLengths[1]-len(value))
 
-		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
+		ret.WriteString(fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source)))
 	}
 
-	return ret, nil
+	return ret.String(), nil
 }
 
 func (state *launchState) validateExtensions(ctx context.Context) error {

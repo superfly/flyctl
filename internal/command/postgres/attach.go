@@ -236,9 +236,9 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		AppID:                appName,
 		PostgresClusterAppID: pgAppName,
 		ManualEntry:          true,
-		DatabaseName:         fly.StringPointer(dbName),
-		DatabaseUser:         fly.StringPointer(dbUser),
-		VariableName:         fly.StringPointer(varName),
+		DatabaseName:         new(dbName),
+		DatabaseUser:         new(dbUser),
+		VariableName:         new(varName),
 	}
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)

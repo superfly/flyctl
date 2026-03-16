@@ -65,24 +65,24 @@ type Auth struct {
 }
 
 type Config struct {
-	Hostname     string                 `json:"Hostname"`
-	Domainname   string                 `json:"Domainname"`
-	User         string                 `json:"User"`
-	AttachStdin  bool                   `json:"AttachStdin"`
-	AttachStdout bool                   `json:"AttachStdout"`
-	AttachStderr bool                   `json:"AttachStderr"`
-	Tty          bool                   `json:"Tty"`
-	OpenStdin    bool                   `json:"OpenStdin"`
-	StdinOnce    bool                   `json:"StdinOnce"`
-	Env          []string               `json:"Env"`
-	Cmd          []string               `json:"Cmd"`
-	Image        string                 `json:"Image"`
-	Volumes      map[string]struct{}    `json:"Volumes"`
-	ExposedPorts map[string]interface{} `json:"ExposedPorts"`
-	WorkingDir   string                 `json:"WorkingDir"`
-	Entrypoint   []string               `json:"Entrypoint"`
-	OnBuild      []string               `json:"OnBuild"`
-	Labels       map[string]string      `json:"Labels"`
+	Hostname     string              `json:"Hostname"`
+	Domainname   string              `json:"Domainname"`
+	User         string              `json:"User"`
+	AttachStdin  bool                `json:"AttachStdin"`
+	AttachStdout bool                `json:"AttachStdout"`
+	AttachStderr bool                `json:"AttachStderr"`
+	Tty          bool                `json:"Tty"`
+	OpenStdin    bool                `json:"OpenStdin"`
+	StdinOnce    bool                `json:"StdinOnce"`
+	Env          []string            `json:"Env"`
+	Cmd          []string            `json:"Cmd"`
+	Image        string              `json:"Image"`
+	Volumes      map[string]struct{} `json:"Volumes"`
+	ExposedPorts map[string]any      `json:"ExposedPorts"`
+	WorkingDir   string              `json:"WorkingDir"`
+	Entrypoint   []string            `json:"Entrypoint"`
+	OnBuild      []string            `json:"OnBuild"`
+	Labels       map[string]string   `json:"Labels"`
 }
 
 func GetImageConfig(image string, auth *Auth) (*Config, error) {

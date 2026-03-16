@@ -86,8 +86,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 		Checks: map[string]*appconfig.ToplevelCheck{
 			"alive": {
-				Port: fly.Pointer(8080),
-				Type: fly.Pointer("tcp"),
+				Port: new(8080),
+				Type: new("tcp"),
 			},
 		},
 		Statics: []appconfig.Static{{
@@ -143,8 +143,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			}},
 			Checks: map[string]fly.MachineCheck{
 				"alive": {
-					Port: fly.Pointer(8080),
-					Type: fly.Pointer("tcp"),
+					Port: new(8080),
+					Type: new("tcp"),
 				},
 			},
 		},

@@ -84,7 +84,7 @@ func Int(ctx context.Context, dst *int, msg string, def int, required bool) erro
 		opts = append(opts, survey.WithValidator(survey.Required))
 	}
 	// add a validator to ensure that the input is an integer
-	opts = append(opts, survey.WithValidator(func(val interface{}) error {
+	opts = append(opts, survey.WithValidator(func(val any) error {
 		_, err := strconv.Atoi(val.(string))
 		if err != nil {
 			return errors.New("must be an integer")
@@ -149,7 +149,7 @@ func Select(ctx context.Context, index *int, msg, def string, options ...string)
 	return survey.AskOne(p, index, opt)
 }
 
-func Confirmf(ctx context.Context, format string, a ...interface{}) (bool, error) {
+func Confirmf(ctx context.Context, format string, a ...any) (bool, error) {
 	return Confirm(ctx, fmt.Sprintf(format, a...))
 }
 

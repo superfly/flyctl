@@ -480,10 +480,9 @@ func run(ctx context.Context) (err error) {
 		colorize := io.ColorScheme()
 
 		// Get terminal width for responsive borders
-		termWidth := io.TerminalWidth()
-		if termWidth > 120 {
-			termWidth = 120 // Cap at 120 for readability
-		}
+		termWidth := min(io.TerminalWidth(),
+			// Cap at 120 for readability
+			120)
 		border := strings.Repeat("═", termWidth)
 
 		// Print top border

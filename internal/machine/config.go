@@ -98,7 +98,7 @@ func configCompare(ctx context.Context, original fly.MachineConfig, new fly.Mach
 	diff := cmp.Diff(origBytes, newBytes, cmpOptions)
 	diffSlice := strings.Split(diff, "\n")
 
-	var str string
+	var str strings.Builder
 	additionReg := regexp.MustCompile(`^\+.*`)
 	deletionReg := regexp.MustCompile(`^\-.*`)
 
@@ -107,21 +107,21 @@ func configCompare(ctx context.Context, original fly.MachineConfig, new fly.Mach
 		vB := []byte(val)
 
 		if additionReg.Match(vB) {
-			str += colorize.Green(val) + "\n"
+			str.WriteString(colorize.Green(val) + "\n")
 		} else if deletionReg.Match(vB) {
-			str += colorize.Red(val) + "\n"
+			str.WriteString(colorize.Red(val) + "\n")
 		} else {
-			str += val + "\n"
+			str.WriteString(val + "\n")
 		}
 	}
 
 	// Clean up output
 	delim := "\"\"\""
 	rx := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(delim) + `(.*?)` + regexp.QuoteMeta(delim))
-	match := rx.FindStringSubmatch(str)
+	match := rx.FindStringSubmatch(str.String())
 	if len(match) > 0 {
 		return strings.Trim(match[1], "\n"), nil
 	}
 	// We know the objects are different, if we can't cleanup return the best we have got
-	return str, nil
+	return str.String(), nil
 }

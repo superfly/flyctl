@@ -44,7 +44,7 @@ func runStatus(ctx context.Context) (err error) {
 		return err
 	}
 
-	options, _ := extension.Options.(map[string]interface{})
+	options, _ := extension.Options.(map[string]any)
 
 	obj := [][]string{
 		{

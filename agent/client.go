@@ -557,10 +557,10 @@ func captureError(ctx context.Context, err error, feature, orgSlug, appName stri
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", feature),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": appName,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": orgSlug,
 			},
 		}),
@@ -654,7 +654,7 @@ func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResu
 	return instancesResult{result, nil}
 }
 
-func unmarshal(dst interface{}, data []byte) (err error) {
+func unmarshal(dst any, data []byte) (err error) {
 	src := bytes.NewReader(extractOK(data))
 
 	dec := json.NewDecoder(src)

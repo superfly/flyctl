@@ -1,6 +1,8 @@
 package set
 
 import (
+	"slices"
+
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/helpers"
 )
@@ -45,13 +47,7 @@ func (s *Set[T]) HasAll(values ...T) bool {
 	return true
 }
 func (s *Set[T]) HasAny(values ...T) bool {
-	for _, value := range values {
-		if s.Has(value) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(values, s.Has)
 }
 func (s *Set[T]) Values() []T {
 	s.ensureNotNull()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/docker/docker/api/types/image"
@@ -178,10 +179,8 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 				continue
 			}
 
-			for _, term := range searchTerms {
-				if tag == term {
-					return &img, nil
-				}
+			if slices.Contains(searchTerms, tag) {
+				return &img, nil
 			}
 		}
 	}

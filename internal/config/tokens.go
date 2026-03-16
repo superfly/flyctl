@@ -294,11 +294,8 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		macToks = append(macToks, m)
 	}
 	for graphID := range maps.Values(graphIDByNumericID) {
-		graphID := graphID
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			log.Debugf("fetching macaroons for org %s", graphID)
 			newToksStr, err := mintToken(ctx, c, graphID)
@@ -332,7 +329,7 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 
 				addMac(mStr)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

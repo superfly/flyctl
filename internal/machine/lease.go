@@ -33,7 +33,6 @@ func AcquireLeases(ctx context.Context, appName string, machines []*fly.Machine)
 		WithMaxGoroutines(maxConcurrentLeases)
 
 	for _, m := range machines {
-		m := m
 		acquirePool.Go(func() (*fly.Machine, error) {
 			// Skip leasing for unreachable machines
 			if m.HostStatus != fly.HostStatusOk {
@@ -104,7 +103,7 @@ func AcquireLease(ctx context.Context, appName string, machine *fly.Machine) (*f
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	lease, err := flapsClient.AcquireLease(ctx, appName, machine.ID, fly.IntPointer(120))
+	lease, err := flapsClient.AcquireLease(ctx, appName, machine.ID, new(120))
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to obtain lease: %w", err)
 	}

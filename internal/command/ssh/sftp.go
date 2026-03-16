@@ -587,7 +587,7 @@ var completer = readline.NewPrefixCompleter(
 type sftpContext struct {
 	ftp *sftp.Client
 	wd  string
-	out func(string, ...interface{})
+	out func(string, ...any)
 }
 
 func (sc *sftpContext) cd(args ...string) error {
@@ -953,7 +953,7 @@ func runShell(ctx context.Context) error {
 	defer l.Close()
 	l.CaptureExitSignal()
 
-	out := func(format string, args ...interface{}) {
+	out := func(format string, args ...any) {
 		fmt.Printf(format+"\n", args...)
 	}
 

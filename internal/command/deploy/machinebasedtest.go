@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -135,12 +136,12 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 
 			testLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, testMachine.Machine().ID)
 			if err == nil {
-				var logs string
+				var logs strings.Builder
 				for _, l := range testLogs {
-					logs += l.Message + "\n"
+					logs.WriteString(l.Message + "\n")
 				}
 
-				return machineTestErr{machineID: testMachine.Machine().ID, exitCode: exitCode, testMachineLogs: logs}
+				return machineTestErr{machineID: testMachine.Machine().ID, exitCode: exitCode, testMachineLogs: logs.String()}
 			}
 
 			return fmt.Errorf("Error test command machine %s exited with non-zero status of %d", testMachine.Machine().ID, exitCode)

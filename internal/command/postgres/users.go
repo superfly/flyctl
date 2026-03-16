@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -136,13 +137,13 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 	rows := make([][]string, 0, len(users))
 
 	for _, user := range users {
-		var databases string
+		var databases strings.Builder
 
 		for i, database := range user.Databases {
-			databases += database
+			databases.WriteString(database)
 
 			if i < len(user.Databases)-1 {
-				databases += ", "
+				databases.WriteString(", ")
 			}
 		}
 
@@ -154,7 +155,7 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 		rows = append(rows, []string{
 			user.Username,
 			superuser,
-			databases,
+			databases.String(),
 		})
 	}
 

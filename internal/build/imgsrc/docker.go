@@ -341,7 +341,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 			Jitter: true,
 		}
 		maxRetries := 10 // Up to ~5 minutes total with backoff
-		for attempt := 0; attempt < maxRetries; attempt++ {
+		for attempt := range maxRetries {
 			res, err = client.Do(req)
 			if err == nil {
 				break
@@ -414,13 +414,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 			sentry.WithTag("feature", "remote-build"),
 			sentry.WithTraceID(ctx),
 			sentry.WithContexts(map[string]sentry.Context{
-				"app": map[string]interface{}{
+				"app": map[string]any{
 					"name": appName,
 				},
-				"organization": map[string]interface{}{
+				"organization": map[string]any{
 					"name": remoteBuilderOrg,
 				},
-				"builder": map[string]interface{}{
+				"builder": map[string]any{
 					"app_name": remoteBuilderAppName,
 					"elapsed":  time.Since(startedAt),
 				},

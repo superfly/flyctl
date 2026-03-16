@@ -22,8 +22,8 @@ func NewClient(endpoint, apiKey string) *Client {
 }
 
 type successResponse struct {
-	Code int         `json:"code"`
-	Data interface{} `json:"data"`
+	Code int `json:"code"`
+	Data any `json:"data"`
 }
 
 type Client struct {
@@ -40,7 +40,7 @@ func (c *Client) URL(path string, params ...any) string {
 	return fmt.Sprintf(c.BaseURL+path, params...)
 }
 
-func (c *Client) sendRequest(ctx context.Context, req *http.Request, v interface{}) error {
+func (c *Client) sendRequest(ctx context.Context, req *http.Request, v any) error {
 	req = req.WithContext(ctx)
 
 	if len(req.Header.Values("Content-Type")) == 0 {

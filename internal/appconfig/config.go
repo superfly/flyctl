@@ -193,12 +193,12 @@ type Experimental struct {
 	EnableConsul   bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
-	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+	Attached       Attached `toml:"attached,omitempty" json:"attached"`
 	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
 }
 
 type Attached struct {
-	Secrets AttachedSecrets `toml:"secrets,omitempty" json:"secrets,omitempty"`
+	Secrets AttachedSecrets `toml:"secrets,omitempty" json:"secrets"`
 }
 
 type AttachedSecrets struct {

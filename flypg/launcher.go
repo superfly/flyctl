@@ -211,8 +211,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		volInput := fly.CreateVolumeRequest{
 			Name:                volumeName,
-			Encrypted:           fly.Pointer(true),
-			RequireUniqueZone:   fly.Pointer(true),
+			Encrypted:           new(true),
+			RequireUniqueZone:   new(true),
 			SnapshotID:          snapshot,
 			ComputeRequirements: machineConf.Guest,
 			ComputeImage:        machineConf.Image,
@@ -344,22 +344,22 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 
 	machineConfig.Checks = map[string]fly.MachineCheck{
 		"pg": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathPg,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"role": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathRole,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"vm": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathVm,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},

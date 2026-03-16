@@ -180,8 +180,8 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			input := fly.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              fly.Pointer(initialSize),
-				Encrypted:           fly.Pointer(true),
+				SizeGb:              new(initialSize),
+				Encrypted:           new(true),
 				ComputeRequirements: guest,
 				ComputeImage:        md.img,
 				SnapshotRetention:   m.SnapshotRetention,

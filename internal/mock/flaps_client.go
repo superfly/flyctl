@@ -58,7 +58,7 @@ type FlapsClient struct {
 	ListCertificatesFunc        func(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error)
 	ListFlyAppsMachinesFunc     func(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
 	ListSecretKeysFunc          func(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
-	NewRequestFunc              func(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
+	NewRequestFunc              func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc            func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLeaseFunc            func(ctx context.Context, appName, machineID, nonce string) error
 	RestartFunc                 func(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error)
@@ -256,7 +256,7 @@ func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, versio
 	return m.ListSecretKeysFunc(ctx, appName, version)
 }
 
-func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	return m.NewRequestFunc(ctx, method, path, in, headers)
 }
 

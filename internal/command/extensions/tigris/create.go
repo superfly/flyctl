@@ -72,7 +72,7 @@ func runCreate(ctx context.Context) (err error) {
 
 	// Include 'shadow_bucket' if all values are provided
 	if shadowBucketSpecified {
-		options["shadow_bucket"] = map[string]interface{}{
+		options["shadow_bucket"] = map[string]any{
 			"access_key":    accessKey,
 			"secret_key":    secretKey,
 			"region":        region,
@@ -83,7 +83,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	// Always include 'website' because the Tigris API expects it
-	options["website"] = map[string]interface{}{
+	options["website"] = map[string]any{
 		"domain_name": "",
 	}
 

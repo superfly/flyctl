@@ -296,7 +296,7 @@ func Parse(version string) (Version, error) {
 }
 
 func (v Version) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"%s\"", v.String())), nil
+	return fmt.Appendf(nil, "\"%s\"", v.String()), nil
 }
 
 func (v *Version) UnmarshalJSON(data []byte) error {

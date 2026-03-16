@@ -46,7 +46,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		ConsoleCommand: "/code/manage.py shell",
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 
 	// keep `pythonLatestSupported` up to date: https://devguide.python.org/versions/#supported-versions
 	// Keep the default `pythonVersion` as "3.12"

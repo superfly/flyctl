@@ -4,6 +4,7 @@ package doctor
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
@@ -68,7 +69,7 @@ func run(ctx context.Context) (err error) {
 		checks    = map[string]string{}
 	)
 
-	lprint := func(color func(string) string, fmtstr string, args ...interface{}) {
+	lprint := func(color func(string) string, fmtstr string, args ...any) {
 		if isJson {
 			return
 		}
@@ -215,9 +216,7 @@ This is likely a platform issue, please contact support.
 		return nil
 	}
 	appChecks := appChecker.checkAll()
-	for k, v := range appChecks {
-		checks[k] = v
-	}
+	maps.Copy(checks, appChecks)
 
 	// ------------------------------------------------------------
 

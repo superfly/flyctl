@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -38,7 +37,7 @@ func runList(ctx context.Context) (err error) {
 		cfg    = config.FromContext(ctx)
 	)
 
-	apps, err := client.GetApps(ctx, fly.StringPointer("postgres_cluster"))
+	apps, err := client.GetApps(ctx, new("postgres_cluster"))
 	if err != nil {
 		return fmt.Errorf("failed to list postgres clusters: %w", err)
 	}

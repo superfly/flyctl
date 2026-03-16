@@ -278,17 +278,17 @@ func unmarshalYAML(buf []byte) (*Config, error) {
 // stringifyYAMLMapKeys converts map keys from interface{} to string
 // This is necessary because the yaml.v2 package unmarshals map keys as interface{},
 // which is not compatible with TOML and JSON which unmarshal map keys as strings.
-func stringifyYAMLMapKeys(obj interface{}) interface{} {
-	if arrayobj, ok := obj.([]interface{}); ok {
+func stringifyYAMLMapKeys(obj any) any {
+	if arrayobj, ok := obj.([]any); ok {
 		for i, v := range arrayobj {
 			arrayobj[i] = stringifyYAMLMapKeys(v)
 		}
-	} else if mapobj, ok := obj.(map[string]interface{}); ok {
+	} else if mapobj, ok := obj.(map[string]any); ok {
 		for k, v := range mapobj {
 			mapobj[k] = stringifyYAMLMapKeys(v)
 		}
-	} else if mapobj, ok := obj.(map[interface{}]interface{}); ok {
-		newmap := make(map[string]interface{})
+	} else if mapobj, ok := obj.(map[any]any); ok {
+		newmap := make(map[string]any)
 		for k, v := range mapobj {
 			newmap[k.(string)] = stringifyYAMLMapKeys(v)
 		}

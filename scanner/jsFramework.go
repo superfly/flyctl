@@ -17,7 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
-var packageJson map[string]interface{}
+var packageJson map[string]any
 
 // detectPortFromSource scans common entry point files for port definitions
 // Returns the detected port or 0 if not found
@@ -93,7 +93,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		}
 
 		// check for a start script
-		scripts, ok := packageJson["scripts"].(map[string]interface{})
+		scripts, ok := packageJson["scripts"].(map[string]any)
 		hasStartScript := ok && scripts["start"] != nil
 
 		if hasStartScript {
@@ -191,17 +191,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	}
 
 	// extract deps and devdeps
-	deps, ok := packageJson["dependencies"].(map[string]interface{})
+	deps, ok := packageJson["dependencies"].(map[string]any)
 	if !ok || deps == nil {
-		deps = make(map[string]interface{})
+		deps = make(map[string]any)
 	}
-	devdeps, ok := packageJson["devDependencies"].(map[string]interface{})
+	devdeps, ok := packageJson["devDependencies"].(map[string]any)
 	if !ok || devdeps == nil {
-		devdeps = make(map[string]interface{})
+		devdeps = make(map[string]any)
 	}
-	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	scripts, ok := packageJson["scripts"].(map[string]any)
 	if !ok || scripts == nil {
-		scripts = make(map[string]interface{})
+		scripts = make(map[string]any)
 	}
 
 	// infer db from dependencies
@@ -383,12 +383,12 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		// check first to see if the package is already installed
 		installed := false
 
-		deps, ok := packageJson["dependencies"].(map[string]interface{})
+		deps, ok := packageJson["dependencies"].(map[string]any)
 		if ok && deps["@flydotio/dockerfile"] != nil {
 			installed = true
 		}
 
-		deps, ok = packageJson["devDependencies"].(map[string]interface{})
+		deps, ok = packageJson["devDependencies"].(map[string]any)
 		if ok && deps["@flydotio/dockerfile"] != nil {
 			installed = true
 		}

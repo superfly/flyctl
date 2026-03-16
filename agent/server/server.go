@@ -281,7 +281,7 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 
 	ret := &agent.Instances{}
 
-	for _, region := range strings.Split(regions, ",") {
+	for region := range strings.SplitSeq(regions, ",") {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
 		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
@@ -430,10 +430,10 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	s.cancelTokenMonitoring = cancelMonitor
 }
 
-func (s *server) print(v ...interface{}) {
+func (s *server) print(v ...any) {
 	s.Logger.Print(v...)
 }
 
-func (s *server) printf(format string, v ...interface{}) {
+func (s *server) printf(format string, v ...any) {
 	s.Logger.Printf(format, v...)
 }

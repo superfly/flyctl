@@ -9,7 +9,7 @@ import (
 // Setting is a simple holder for names and defaults in Settings
 type Setting struct {
 	Name        string
-	Default     interface{}
+	Default     any
 	Description string
 }
 
@@ -35,8 +35,8 @@ func GetBuiltin(builtinname string) (*Builtin, error) {
 }
 
 // ResolveSettings - Given defaults abd values return actural settings
-func (b *Builtin) ResolveSettings(vars map[string]interface{}) map[string]interface{} {
-	resolvedSettings := make(map[string]interface{}, len(vars))
+func (b *Builtin) ResolveSettings(vars map[string]any) map[string]any {
+	resolvedSettings := make(map[string]any, len(vars))
 
 	for k, v := range vars {
 		if b.Settings != nil {
@@ -66,7 +66,7 @@ func (b *Builtin) ResolveSettings(vars map[string]interface{}) map[string]interf
 }
 
 // GetVDockerfile - given an map of variables, get the definition and populate it
-func (b *Builtin) GetVDockerfile(vars map[string]interface{}) (string, error) {
+func (b *Builtin) GetVDockerfile(vars map[string]any) (string, error) {
 	template, err := template.New("builtin").Parse(b.Template)
 	if err != nil {
 		return "", err

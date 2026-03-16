@@ -200,34 +200,35 @@ func (il *interactiveLogger) lockedDraw() {
 	}()
 
 	// Draw the entire status block, clearing each row to prevent overwriting
-	buf := fmt.Sprintf("%s\n%s\n", il.clearStr(), divider)
+	var buf strings.Builder
+	buf.WriteString(fmt.Sprintf("%s\n%s\n", il.clearStr(), divider))
 	for _, line := range currentLines {
-		buf += " "
+		buf.WriteString(" ")
 		line_len := 0
 		if il.showStatus {
-			buf += line.status.charFor(il.statusFrame) + " "
+			buf.WriteString(line.status.charFor(il.statusFrame) + " ")
 			line_len += 2
 		}
 		if il.logNumbers {
 			idx := formatIndex(line.lineNum, len(il.lines))
-			buf += idx + " "
+			buf.WriteString(idx + " ")
 			line_len += len(idx) + 1
 		}
 		remainingSpace := conW - line_len - 3
 		switch {
 		case remainingSpace < 0:
 		case len(cmdutil.StripANSI(line.buf)) >= remainingSpace:
-			buf += substrIgnoreAnsi(line.buf, remainingSpace-1) + "…"
+			buf.WriteString(substrIgnoreAnsi(line.buf, remainingSpace-1) + "…")
 		default:
-			buf += line.buf
+			buf.WriteString(line.buf)
 		}
-		buf += "\n"
+		buf.WriteString("\n")
 	}
 	// Erase last line, prevent weird display bug
-	buf += aec.EraseLine(aec.EraseModes.All).String()
+	buf.WriteString(aec.EraseLine(aec.EraseModes.All).String())
 	// Send the cursor back up above the status block
-	buf += aec.Up(uint(il.height(len(currentLines)))).String()
-	fmt.Fprint(il.io.Out, buf)
+	buf.WriteString(aec.Up(uint(il.height(len(currentLines)))).String())
+	fmt.Fprint(il.io.Out, buf.String())
 }
 
 func substrIgnoreAnsi(str string, length int) string {

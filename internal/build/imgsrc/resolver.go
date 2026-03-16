@@ -50,7 +50,7 @@ type ImageOptions struct {
 	Target               string
 	NoCache              bool
 	BuiltIn              string
-	BuiltInSettings      map[string]interface{}
+	BuiltInSettings      map[string]any
 	Builder              string
 	Buildpacks           []string
 	Label                map[string]string
@@ -402,10 +402,10 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 				sentry.WithTraceID(ctx),
 				sentry.WithTag("feature", "build-api-create-build"),
 				sentry.WithContexts(map[string]sentry.Context{
-					"app": map[string]interface{}{
+					"app": map[string]any{
 						"name": input.AppName,
 					},
-					"builder": map[string]interface{}{
+					"builder": map[string]any{
 						"type": input.BuilderType,
 					},
 				}),
@@ -614,13 +614,13 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 			sentry.WithTraceID(ctx),
 			sentry.WithTag("feature", "build-api-finish-build"),
 			sentry.WithContexts(map[string]sentry.Context{
-				"app": map[string]interface{}{
+				"app": map[string]any{
 					"name": r.dockerFactory.appName,
 				},
-				"sourceBuild": map[string]interface{}{
+				"sourceBuild": map[string]any{
 					"id": build.BuildId,
 				},
-				"builder": map[string]interface{}{
+				"builder": map[string]any{
 					"type":            build.BuilderMeta.BuilderType,
 					"appName":         build.BuilderMeta.RemoteAppName,
 					"machineId":       build.BuilderMeta.RemoteMachineId,

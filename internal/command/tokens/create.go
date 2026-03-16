@@ -666,6 +666,7 @@ func runLiteFSCloud(ctx context.Context) (err error) {
 	return nil
 }
 
+//go:fix inline
 func ptr[T any](t T) *T {
-	return &t
+	return new(t)
 }

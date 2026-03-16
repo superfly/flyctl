@@ -37,7 +37,7 @@ func deepCopy(from any, into any) error {
 //   - See Clone
 func CloneFallible[T any](v T) (T, error) {
 	reflectedValue := reflect.ValueOf(v)
-	if reflectedValue.Kind() == reflect.Ptr {
+	if reflectedValue.Kind() == reflect.Pointer {
 
 		var nilT T
 

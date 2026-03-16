@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
@@ -102,15 +103,16 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 }
 
 func (pc *Command) ListEvents(ctx context.Context, leaderIP string, flagsName []string) error {
-	cmd := "gosu postgres repmgr -f /data/repmgr.conf cluster event "
+	var cmd strings.Builder
+	cmd.WriteString("gosu postgres repmgr -f /data/repmgr.conf cluster event ")
 
 	// Loops through flagsName to add selected options to the command. The format will look like this -->
 	// gosu postgres repmgr -f /data/repmgr.conf cluster event --compact --event primary_register --limit 5 --node-id 34244738
 	for _, flagName := range flagsName {
-		cmd += fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName))
+		cmd.WriteString(fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName)))
 	}
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd.String(), ssh.DefaultSshUsername)
 	if err != nil {
 		return err
 	}

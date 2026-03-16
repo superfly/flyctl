@@ -39,8 +39,8 @@ type mockGenqClient struct{}
 func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, resp *genq.Response) error {
 	// Mock the GetOrganization response - just return the same slug
 	// This simulates the ResolveOrganizationSlug behavior
-	resp.Data = map[string]interface{}{
-		"organization": map[string]interface{}{
+	resp.Data = map[string]any{
+		"organization": map[string]any{
 			"rawSlug": "test-org", // Return a fixed value for testing
 		},
 	}

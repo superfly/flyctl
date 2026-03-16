@@ -102,12 +102,12 @@ func (r *recoverableErrorBuilder) build() string {
 		return ""
 	}
 
-	var allErrors string
+	var allErrors strings.Builder
 	for _, err := range r.errors {
-		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+		allErrors.WriteString(fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   ")))
 	}
 
-	return allErrors
+	return allErrors.String()
 }
 
 func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
@@ -444,7 +444,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 			sourceInfo:   srcInfo,
 			warnedNoCcHa: warnedNoCcHa,
 		},
-		cache: map[string]interface{}{},
+		cache: map[string]any{},
 	}, nil
 }
 

@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -204,7 +205,7 @@ var runOrCreateFlags = flag.Set{
 	},
 }
 
-func soManyErrors(args ...interface{}) error {
+func soManyErrors(args ...any) error {
 	sb := &strings.Builder{}
 	errs := 0
 
@@ -776,7 +777,7 @@ func determineMachineConfig(
 		if sizeMB <= 0 {
 			return machineConf, fmt.Errorf("--swap-size must be greater than zero")
 		}
-		machineConf.Init.SwapSizeMB = fly.Pointer(sizeMB)
+		machineConf.Init.SwapSizeMB = new(sizeMB)
 	}
 
 	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
@@ -788,9 +789,7 @@ func determineMachineConfig(
 		machineConf.Env = make(map[string]string)
 	}
 
-	for k, v := range parsedEnv {
-		machineConf.Env[k] = v
-	}
+	maps.Copy(machineConf.Env, parsedEnv)
 
 	if flag.GetString(ctx, "schedule") != "" {
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
@@ -839,9 +838,7 @@ func determineMachineConfig(
 		machineConf.Metadata = make(map[string]string)
 	}
 
-	for k, v := range parsedMetadata {
-		machineConf.Metadata[k] = v
-	}
+	maps.Copy(machineConf.Metadata, parsedMetadata)
 
 	services, err := command.DetermineServices(ctx, machineConf.Services)
 	if err != nil {
@@ -913,7 +910,7 @@ func determineMachineConfig(
 		s := &machineConf.Services[idx]
 		// Use the chance to port the deprecated field
 		if machineConf.DisableMachineAutostart != nil {
-			s.Autostart = fly.Pointer(!(*machineConf.DisableMachineAutostart))
+			s.Autostart = new(!(*machineConf.DisableMachineAutostart))
 			machineConf.DisableMachineAutostart = nil
 		}
 
@@ -933,12 +930,12 @@ func determineMachineConfig(
 				if err := value.UnmarshalText([]byte(asString)); err != nil {
 					return nil, err
 				}
-				s.Autostop = fly.Pointer(value)
+				s.Autostop = new(value)
 			}
 		}
 
 		if flag.IsSpecified(ctx, "autostart") {
-			s.Autostart = fly.Pointer(flag.GetBool(ctx, "autostart"))
+			s.Autostart = new(flag.GetBool(ctx, "autostart"))
 		}
 	}
 

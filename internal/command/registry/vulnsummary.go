@@ -181,7 +181,6 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 	imageScan := make(map[string]*Scan)
 	skipped := make(map[ImgInfo]string)
 	for img := range imgs {
-		img := img
 		mu.Lock()
 		_, ok := imageScan[img.Path]
 		if ok {

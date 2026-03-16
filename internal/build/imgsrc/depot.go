@@ -17,7 +17,6 @@ import (
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/worker/label"
 	"github.com/pkg/errors"
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
@@ -214,7 +213,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	buildInfo, err := uiexClient.EnsureDepotBuilder(ctx, uiex.EnsureDepotBuilderRequest{
 		AppName:      &appName,
 		Region:       &region,
-		BuilderScope: fly.StringPointer(builderScope.String()),
+		BuilderScope: new(builderScope.String()),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -359,7 +358,7 @@ type Descriptor struct {
 	MediaType   string      `json:"mediaType,omitempty"`
 	Digest      string      `json:"digest,omitempty"`
 	Size        int64       `json:"size,omitempty"`
-	Annotations Annotations `json:"annotations,omitempty"`
+	Annotations Annotations `json:"annotations"`
 }
 
 func (d *Descriptor) Bytes() int64 {
@@ -394,7 +393,7 @@ func (a *Annotations) Bytes() int64 {
 type Manifest struct {
 	SchemaVersion int             `json:"schemaVersion,omitempty"`
 	MediaType     string          `json:"mediaType,omitempty"`
-	Config        OCIDescriptor   `json:"config,omitempty"`
+	Config        OCIDescriptor   `json:"config"`
 	Layers        []OCIDescriptor `json:"layers,omitempty"`
 }
 

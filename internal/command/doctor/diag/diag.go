@@ -229,7 +229,7 @@ func fetchDockerfile(ctx context.Context, z *zip.Writer) error {
 }
 
 func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
-	diags := map[string]interface{}{}
+	diags := map[string]any{}
 
 	diags["version"] = buildinfo.Info()
 

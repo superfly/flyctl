@@ -106,7 +106,7 @@ func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
 	return err
 }
 
-func printFieldIfPresent(w io.Writer, name string, value interface{}) (present bool) {
+func printFieldIfPresent(w io.Writer, name string, value any) (present bool) {
 	switch v := value.(type) {
 	case string:
 		if v != "" {

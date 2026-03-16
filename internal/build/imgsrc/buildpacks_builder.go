@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 
 	packclient "github.com/buildpacks/pack/pkg/client"
@@ -198,9 +199,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 func normalizeBuildArgs(buildArgs map[string]string) map[string]string {
 	out := map[string]string{}
 
-	for k, v := range buildArgs {
-		out[k] = v
-	}
+	maps.Copy(out, buildArgs)
 
 	return out
 }
@@ -237,7 +236,7 @@ func (l *packLogger) Debug(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Debugf(format string, v ...interface{}) {
+func (l *packLogger) Debugf(format string, v ...any) {
 	if !l.debug {
 		return
 	}
@@ -248,7 +247,7 @@ func (l *packLogger) Info(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Infof(format string, v ...interface{}) {
+func (l *packLogger) Infof(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -256,7 +255,7 @@ func (l *packLogger) Warn(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Warnf(format string, v ...interface{}) {
+func (l *packLogger) Warnf(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -264,7 +263,7 @@ func (l *packLogger) Error(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Errorf(format string, v ...interface{}) {
+func (l *packLogger) Errorf(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 

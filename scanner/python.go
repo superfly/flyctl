@@ -49,13 +49,13 @@ type PyProjectToml struct {
 		Poetry struct {
 			Name         string
 			Version      string
-			Dependencies map[string]interface{}
+			Dependencies map[string]any
 		}
 	}
 }
 
 type Pipfile struct {
-	Packages map[string]interface{}
+	Packages map[string]any
 	Requires PipfileRequires `json:"requires" toml:"requires"`
 }
 
@@ -147,7 +147,7 @@ func readLines(filename string) ([]string, error) {
 }
 
 func intoSource(cfg PyCfg) (*SourceInfo, error) {
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["pyVersion"] = cfg.pyVersion
 	vars["appName"] = cfg.appName
 	var app PyApp

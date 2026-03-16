@@ -79,7 +79,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	}
 
 	if srcInfo == nil {
-		var colorFn func(arg interface{}) aurora.Value
+		var colorFn func(arg any) aurora.Value
 		noBlank := planStep == "propose"
 		if noBlank {
 			colorFn = aurora.Red

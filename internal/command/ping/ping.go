@@ -158,7 +158,7 @@ func run(ctx context.Context) error {
 
 			regions := strings.Join(regionFrags, "")
 
-			for _, region := range strings.Split(regions, ",") {
+			for region := range strings.SplitSeq(regions, ",") {
 				regHost := fmt.Sprintf("%s.%s.internal", region, app)
 				addrs, err := r.LookupHost(ctx, regHost)
 				if err == nil {
@@ -189,10 +189,7 @@ func run(ctx context.Context) error {
 
 	count := flag.GetInt(ctx, "count")
 
-	pad := uint(flag.GetInt(ctx, "size"))
-	if pad > 1000 {
-		pad = 1000
-	}
+	pad := min(uint(flag.GetInt(ctx, "size")), 1000)
 
 	ticker := time.NewTicker(interval)
 
@@ -298,7 +295,7 @@ func EchoRequest(id, seq int, t time.Time, pad uint) []byte {
 	buf := &bytes.Buffer{}
 	buf.Write(tbuf)
 	buf.Grow(int(pad))
-	for i := uint(0); i < pad; i++ {
+	for range pad {
 		buf.WriteByte('A')
 	}
 

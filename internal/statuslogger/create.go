@@ -22,7 +22,7 @@ func Create(ctx context.Context, numLines int, showStatusChar bool) StatusLogger
 			done:       false,
 		}
 
-		for i := 0; i < numLines; i++ {
+		for i := range numLines {
 			sl.lines[i] = &interactiveLine{
 				logger:  sl,
 				lineNum: i,
@@ -41,7 +41,7 @@ func Create(ctx context.Context, numLines int, showStatusChar bool) StatusLogger
 			logNumbers: logNumbers,
 			showStatus: showStatusChar,
 		}
-		for i := 0; i < numLines; i++ {
+		for i := range numLines {
 			sl.lines[i] = &noninteractiveLine{
 				logger:  sl,
 				lineNum: i,

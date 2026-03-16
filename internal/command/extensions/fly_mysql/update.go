@@ -39,7 +39,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	addOn := response.AddOn
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
 
 	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, optionsFromFlags(ctx, options), addOn.Metadata)
 	if err != nil {

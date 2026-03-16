@@ -41,7 +41,7 @@ func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Port:   8080,
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["dotnetAppName"] = csprojName
 	vars["dotnetSdkVersion"] = dotnetSdkVersion
 	s.Files = templatesExecute("templates/dotnet", vars)

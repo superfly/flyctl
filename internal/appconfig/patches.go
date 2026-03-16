@@ -3,6 +3,7 @@ package appconfig
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -87,9 +88,7 @@ func _patchEnv(raw any) (map[string]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			for k, v := range env2 {
-				env[k] = v
-			}
+			maps.Copy(env, env2)
 		}
 	case []any:
 		for _, raw2 := range cast {
@@ -97,9 +96,7 @@ func _patchEnv(raw any) (map[string]string, error) {
 			if err != nil {
 				return nil, err
 			}
-			for k, v := range env2 {
-				env[k] = v
-			}
+			maps.Copy(env, env2)
 		}
 	case map[string]string:
 		env = cast
@@ -325,9 +322,7 @@ func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
 			if err != nil {
 				return nil, err
 			}
-			for k, v := range subChecks {
-				checks[k] = v
-			}
+			maps.Copy(checks, subChecks)
 		}
 	default:
 		return nil, fmt.Errorf("'checks' section of unknown type: %T", raw)

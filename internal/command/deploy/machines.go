@@ -247,10 +247,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
-	maxConcurrent := args.MaxConcurrent
-	if maxConcurrent < 1 {
-		maxConcurrent = 1
-	}
+	maxConcurrent := max(args.MaxConcurrent, 1)
 
 	md := &machineDeployment{
 		apiClient:             apiClient,

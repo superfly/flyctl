@@ -748,7 +748,6 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 	}
 
 	for i, e := range updateEntries {
-		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
 		fmtID := e.leasableMachine.FormattedMachineId()
 		statusRunning := func() {
@@ -832,7 +831,6 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		WithCancelOnError()
 
 	for group, entries := range entriesByGroup {
-		entries := entries
 
 		warmMachines := lo.Filter(entries, func(e *machineUpdateEntry, i int) bool {
 			return e.leasableMachine.Machine().State == "started"
@@ -848,10 +846,7 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 			if len(coldMachines) > 0 {
 				eg.Go(func() error {
 					// Capping the size just in case, it may be okay to stop all of them at once.
-					chunk := len(coldMachines)
-					if chunk >= STOPPED_MACHINES_POOL_SIZE {
-						chunk = STOPPED_MACHINES_POOL_SIZE
-					}
+					chunk := min(len(coldMachines), STOPPED_MACHINES_POOL_SIZE)
 
 					return md.updateEntriesGroup(ctx, group, coldMachines, sl, coldIdx, chunk)
 				})
@@ -907,7 +902,6 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 		WithCancelOnError()
 
 	for idx, e := range entries {
-		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+idx))
 		fmtID := e.leasableMachine.FormattedMachineId()
 		span.SetAttributes(attribute.String("state", e.leasableMachine.Machine().State))
@@ -1483,11 +1477,5 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 }
 
 func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
-	for _, static := range md.appConfig.Statics {
-		if statics.StaticIsCandidateForTigrisPush(static) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(md.appConfig.Statics, statics.StaticIsCandidateForTigrisPush)
 }

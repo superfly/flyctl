@@ -161,7 +161,6 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(createConcurrency)
 	for _, mach := range bg.blueMachines {
-		mach := mach
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -475,7 +474,6 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.greenMachines.machines() {
-		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -503,7 +501,6 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
-		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -534,7 +531,6 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
-		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -620,7 +616,6 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 
 	var mu sync.Mutex
 	for _, gm := range bg.blueMachines {
-		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -1011,7 +1006,6 @@ func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error
 
 	p := pool.New().WithErrors().WithFirstError().WithMaxGoroutines(bg.maxConcurrent)
 	for _, mach := range bg.blueMachines {
-		mach := mach
 		p.Go(func() error {
 			return mach.leasableMachine.SetMetadata(ctx, fly.MachineConfigMetadataKeyFlyctlBGTag, "safe_to_destroy")
 		})

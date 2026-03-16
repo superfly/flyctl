@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/iostreams"
@@ -138,14 +137,14 @@ func TestParseMountOptions(t *testing.T) {
 			name:    "scheduled_snapshots true",
 			options: "scheduled_snapshots=true",
 			expectedMount: appconfig.Mount{
-				ScheduledSnapshots: fly.Pointer(true),
+				ScheduledSnapshots: new(true),
 			},
 		},
 		{
 			name:    "scheduled_snapshots false",
 			options: "scheduled_snapshots=false",
 			expectedMount: appconfig.Mount{
-				ScheduledSnapshots: fly.Pointer(false),
+				ScheduledSnapshots: new(false),
 			},
 		},
 		{
@@ -158,7 +157,7 @@ func TestParseMountOptions(t *testing.T) {
 			name:    "snapshot_retention",
 			options: "snapshot_retention=7",
 			expectedMount: appconfig.Mount{
-				SnapshotRetention: fly.Pointer(7),
+				SnapshotRetention: new(7),
 			},
 		},
 		{
@@ -206,8 +205,8 @@ func TestParseMountOptions(t *testing.T) {
 			options: "initial_size=10GB,scheduled_snapshots=true,snapshot_retention=14",
 			expectedMount: appconfig.Mount{
 				InitialSize:        "10GB",
-				ScheduledSnapshots: fly.Pointer(true),
-				SnapshotRetention:  fly.Pointer(14),
+				ScheduledSnapshots: new(true),
+				SnapshotRetention:  new(14),
 			},
 		},
 		{

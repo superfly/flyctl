@@ -100,16 +100,16 @@ func runUpdate(ctx context.Context) (err error) {
 	selectedPlanIsLegacy := isLegacyPlan(selectedPlan.DisplayName)
 	selectedPlanIsFixed := isFixedPlan(selectedPlan.DisplayName)
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
 
 	if options == nil {
-		options = make(map[string]interface{})
+		options = make(map[string]any)
 	}
 
-	metadata, _ := addOn.Metadata.(map[string]interface{})
+	metadata, _ := addOn.Metadata.(map[string]any)
 
 	if metadata == nil {
-		metadata = make(map[string]interface{})
+		metadata = make(map[string]any)
 	}
 
 	// Eviction prompt (always available)

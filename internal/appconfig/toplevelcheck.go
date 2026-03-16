@@ -69,7 +69,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*fly.MachineCheck, error) {
 		HTTPTLSServerName: chk.HTTPTLSServerName,
 	}
 	if chk.HTTPMethod != nil {
-		res.HTTPMethod = fly.Pointer(strings.ToUpper(*chk.HTTPMethod))
+		res.HTTPMethod = new(strings.ToUpper(*chk.HTTPMethod))
 	}
 	if len(chk.HTTPHeaders) > 0 {
 		res.HTTPHeaders = lo.MapToSlice(

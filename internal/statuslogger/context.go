@@ -38,7 +38,7 @@ func FromContextOptional(ctx context.Context) StatusLine {
 
 // Shorthands for FromContext(ctx).Foo()
 
-func releaseFallback(ctx context.Context, format string, args ...interface{}) bool {
+func releaseFallback(ctx context.Context, format string, args ...any) bool {
 	// For debug builds, we'll let logging functions crash if we haven't set up a status logger.
 	// In release builds, we'll log to stdout instead of crashing so we don't break things for users.
 	//
@@ -67,7 +67,7 @@ func Log(ctx context.Context, s string) {
 }
 
 // Logf into the StatusLine ctx carries. Panics if ctx doesn't contain a StatusLine.
-func Logf(ctx context.Context, format string, args ...interface{}) {
+func Logf(ctx context.Context, format string, args ...any) {
 	if releaseFallback(ctx, format, args...) {
 		return
 	}
@@ -83,7 +83,7 @@ func LogStatus(ctx context.Context, s Status, str string) {
 }
 
 // LogfStatus into the StatusLine ctx carries. Panics if ctx doesn't contain a StatusLine.
-func LogfStatus(ctx context.Context, s Status, format string, args ...interface{}) {
+func LogfStatus(ctx context.Context, s Status, format string, args ...any) {
 	if releaseFallback(ctx, format, args...) {
 		return
 	}

@@ -76,7 +76,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	return ac, nil
 }
 
-func (ac *AppChecker) lprint(color func(string) string, fmtstr string, args ...interface{}) {
+func (ac *AppChecker) lprint(color func(string) string, fmtstr string, args ...any) {
 	if ac.jsonOutput {
 		return
 	}

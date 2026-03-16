@@ -245,7 +245,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 			return
 		}
 
-		port = fly.IntPointer(external_port)
+		port = new(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
@@ -264,7 +264,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 				return
 			}
 
-			port = fly.IntPointer(external_port)
+			port = new(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
@@ -274,7 +274,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 				return
 			}
 
-			start_port = fly.IntPointer(start)
+			start_port = new(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
@@ -284,7 +284,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 				return
 			}
 
-			end_port = fly.IntPointer(end)
+			end_port = new(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -54,9 +55,7 @@ func (a ImgInfo) Compare(b ImgInfo) int {
 
 // AugmentMap includes all of src into targ.
 func AugmentMap[K comparable, V any](targ, src map[K]V) {
-	for k, v := range src {
-		targ[k] = v
-	}
+	maps.Copy(targ, src)
 }
 
 // SortedKeys returns the keys in a map in sorted order.
@@ -204,7 +203,6 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 	mu := sync.Mutex{}
 	allImgs := make(map[ImgInfo]Unit)
 	for n := range apps {
-		n := n
 		eg.Go(func() error {
 			app := &apps[n]
 			imgs, err := argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)

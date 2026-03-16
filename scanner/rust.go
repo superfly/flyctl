@@ -13,7 +13,7 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 
 	// Cargo.toml may not contain a "dependencies" section, so we don't return an error if it's missing.
-	deps, _ := cargoData["dependencies"].(map[string]interface{})
+	deps, _ := cargoData["dependencies"].(map[string]any)
 	family := "Rust"
 	env := map[string]string{
 		"PORT": "8080",
@@ -33,12 +33,12 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		family = "Poem"
 	}
 
-	pkg, ok := cargoData["package"].(map[string]interface{})
+	pkg, ok := cargoData["package"].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("file Cargo.toml does not contain a valid package section")
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["appName"], ok = pkg["name"].(string)
 	if !ok {
 		return nil, fmt.Errorf("file Cargo.toml does not contain a valid package name")

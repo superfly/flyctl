@@ -9,7 +9,6 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -402,10 +401,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		if isFirstLaunch {
 			// First launch: Show celebratory ASCII art and borders
 			// Get terminal width for responsive borders
-			termWidth := io.TerminalWidth()
-			if termWidth > 120 {
-				termWidth = 120 // Cap at 120 for readability
-			}
+			termWidth := min(io.TerminalWidth(),
+				// Cap at 120 for readability
+				120)
 			border := strings.Repeat("═", termWidth)
 
 			// Print success box with ASCII art
@@ -588,7 +586,7 @@ func deployToMachines(
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
 	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = fly.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		maxUnavailable = new(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")

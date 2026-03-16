@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
@@ -122,7 +123,7 @@ func loadConfig() error {
 var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigAppSecretsMinvers, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
 func saveConfig() error {
-	out := map[string]interface{}{}
+	out := map[string]any{}
 
 	for key, val := range viper.AllSettings() {
 		if persistConfigKey(key) {
@@ -143,13 +144,7 @@ func persistConfigKey(key string) bool {
 		return true
 	}
 
-	for _, k := range writeableConfigKeys {
-		if k == key {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(writeableConfigKeys, key)
 }
 
 func migrateLegacyConfig() bool {

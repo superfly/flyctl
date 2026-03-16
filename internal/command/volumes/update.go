@@ -75,7 +75,7 @@ func runUpdate(ctx context.Context) error {
 
 	var snapshotRetention *int
 	if flag.GetInt(ctx, "snapshot-retention") != 0 {
-		snapshotRetention = fly.Pointer(flag.GetInt(ctx, "snapshot-retention"))
+		snapshotRetention = new(flag.GetInt(ctx, "snapshot-retention"))
 	}
 
 	out := iostreams.FromContext(ctx).Out
@@ -84,7 +84,7 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	if flag.IsSpecified(ctx, "scheduled-snapshots") {
-		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
+		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
 	updatedVolume, err := flapsClient.UpdateVolume(ctx, appName, volumeID, input)
