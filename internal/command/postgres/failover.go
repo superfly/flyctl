@@ -12,6 +12,7 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -252,7 +253,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	fmt.Println("Waiting 30 seconds for the old leader to stop...")
-	err = flapsClient.Wait(ctx, app.Name, oldLeader, "stopped", time.Second*30)
+	err = flapsClient.Wait(ctx, app.Name, oldLeader.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitTimeout(time.Second*30))
 	if err != nil {
 		return err
 	}
