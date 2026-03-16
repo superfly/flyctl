@@ -31,7 +31,7 @@ func configureStatic(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	}
 
 	// Prepare template variables
-	vars := map[string]interface{}{}
+	vars := map[string]any{}
 
 	// If content is in a subdirectory, we need to adjust what we copy
 	if contentRoot != sourceDir {
@@ -56,12 +56,12 @@ func findServeDirectory(sourceDir string) string {
 		return ""
 	}
 
-	var pkg map[string]interface{}
+	var pkg map[string]any
 	if err := json.Unmarshal(data, &pkg); err != nil {
 		return ""
 	}
 
-	scripts, ok := pkg["scripts"].(map[string]interface{})
+	scripts, ok := pkg["scripts"].(map[string]any)
 	if !ok {
 		return ""
 	}

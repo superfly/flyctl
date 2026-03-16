@@ -19,7 +19,9 @@ func FindGitignores(root string) []string {
 		} else if m {
 			gitignores = append(gitignores, path)
 		}
+
 		return nil
 	})
+
 	return gitignores
 }

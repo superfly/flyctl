@@ -57,10 +57,10 @@ type launchState struct {
 	LaunchManifest
 	env map[string]string
 	planBuildCache
-	cache map[string]interface{}
+	cache map[string]any
 }
 
-func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
+func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T, error) {
 	if val, ok := cache[key]; ok {
 		return val.(T), nil
 	}
@@ -69,6 +69,7 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 		return val, err
 	}
 	cache[key] = val
+
 	return val, nil
 }
 
@@ -78,11 +79,13 @@ func (state *launchState) orgCompact(ctx context.Context) (*gql.GetOrganizationO
 	if err != nil {
 		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
 	}
+
 	return &res.Organization, nil
 }
 
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
+
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
 		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
 	})
@@ -99,6 +102,7 @@ func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
 		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
 		})
+
 		return regions, nil
 	})
 	if err != nil {
@@ -111,6 +115,7 @@ func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
 	if !ok {
 		return region, fmt.Errorf("region %s not found. Is this a valid region according to `fly platform regions`?", state.Plan.RegionCode)
 	}
+
 	return region, nil
 }
 
@@ -192,7 +197,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	ret := ""
+	var ret strings.Builder
 	for _, row := range rows {
 
 		label := row[0]
@@ -202,9 +207,10 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		labelSpaces := strings.Repeat(" ", colLengths[0]-len(label))
 		valueSpaces := strings.Repeat(" ", colLengths[1]-len(value))
 
-		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
+		fmt.Fprintf(&ret, "%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
 	}
-	return ret, nil
+
+	return ret.String(), nil
 }
 
 func (state *launchState) validateExtensions(ctx context.Context) error {

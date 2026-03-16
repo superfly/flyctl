@@ -108,7 +108,7 @@ func resolveComputeSettings(compute *appconfig.Compute) (sizeName string, memory
 	switch {
 	case compute.Size != "":
 		size = compute.Size
-	case compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "":
+	case compute.MachineGuest != nil && compute.GPUKind != "":
 		size = fly.DefaultGPUVMSize
 	}
 
@@ -128,8 +128,8 @@ func resolveComputeSettings(compute *appconfig.Compute) (sizeName string, memory
 	}
 
 	// Inline MachineGuest.MemoryMB override
-	if compute.MachineGuest != nil && compute.MachineGuest.MemoryMB > 0 {
-		memoryMB = compute.MachineGuest.MemoryMB
+	if compute.MachineGuest != nil && compute.MemoryMB > 0 {
+		memoryMB = compute.MemoryMB
 	}
 
 	return sizeName, memoryMB

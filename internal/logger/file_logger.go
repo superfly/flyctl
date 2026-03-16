@@ -16,8 +16,8 @@ type logFile struct {
 }
 
 var (
-	logfileAlreadyClosedError      = errors.New("logfile already closed")
-	logfileAlreadyInitializedError = errors.New("logfile already initialized")
+	errLogfileAlreadyClosed      = errors.New("logfile already closed")
+	errLogfileAlreadyInitialized = errors.New("logfile already initialized")
 )
 
 func (l *logFile) WriteLog(_ Level, line string) {
@@ -32,8 +32,9 @@ func (l *logFile) Write(p []byte) (n int, err error) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	if l.destroyed {
-		return 0, logfileAlreadyClosedError
+		return 0, errLogfileAlreadyClosed
 	}
+
 	return l.writer.Write(p)
 }
 
@@ -41,12 +42,13 @@ func (l *logFile) Close() error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	if l.destroyed {
-		return logfileAlreadyClosedError
+		return errLogfileAlreadyClosed
 	}
 	l.destroyed = true
 	if err := l.writer.Flush(); err != nil {
 		return err
 	}
+
 	return l.file.Close()
 }
 

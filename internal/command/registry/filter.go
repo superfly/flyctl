@@ -42,6 +42,7 @@ func argsGetVulnFilter(ctx context.Context) (*VulnFilter, error) {
 			f.VulnIds[vulnId] = true
 		}
 	}
+
 	return f, nil
 }
 
@@ -63,6 +64,7 @@ func filterVuln(vuln *ScanVuln, filter *VulnFilter) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -93,6 +95,7 @@ func cmpVulnId(a, b string) int {
 	if len(as) < len(bs) {
 		return 1
 	}
+
 	return slices.Compare(as, bs)
 }
 
@@ -111,6 +114,7 @@ func revCmpVuln(a, b ScanVuln) int {
 	if a.InstalledVersion != b.InstalledVersion {
 		return strings.Compare(a.InstalledVersion, b.InstalledVersion)
 	}
+
 	return 0
 }
 
@@ -132,5 +136,6 @@ func filterScan(scan *Scan, filter *VulnFilter) *Scan {
 		}
 	}
 	scan.Results = newRes
+
 	return scan
 }

@@ -37,6 +37,7 @@ var legacyPlans = []string{
 
 func isLegacyPlan(planName string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(planName, " ", "_"))
+
 	return slices.Contains(legacyPlans, normalized)
 }
 
@@ -186,6 +187,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	_, err = Create(ctx, org, name, primaryRegion, plan, flag.GetBool(ctx, "no-replicas"), enableEviction, enableAutoUpgrade, enableProdpack, nil)
+
 	return err
 }
 
@@ -319,6 +321,7 @@ func DeterminePlan(ctx context.Context, planName string) (*gql.ListAddOnPlansAdd
 				return &plan, nil
 			}
 		}
+
 		return nil, fmt.Errorf("plan %q not found", planName)
 	}
 
@@ -328,5 +331,6 @@ func DeterminePlan(ctx context.Context, planName string) (*gql.ListAddOnPlansAdd
 			return &plan, nil
 		}
 	}
+
 	return nil, errors.New("default plan not found")
 }

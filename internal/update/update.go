@@ -112,6 +112,7 @@ func ValidateRelease(ctx context.Context, version string) (err error) {
 		if err != nil {
 			return err
 		}
+
 		return &InvalidReleaseError{
 			status: resp.StatusCode,
 			msg:    string(body),
@@ -239,6 +240,7 @@ func IsUnderHomebrew() bool {
 	if err != nil {
 		return false
 	}
+
 	return val
 }
 
@@ -252,12 +254,14 @@ func upgradeCommand(prerelease bool) string {
 		if prerelease {
 			cmd = "$v=\"pre\"; " + cmd
 		}
+
 		return cmd
 	} else {
 		cmd := "curl -L \"https://fly.io/install.sh\" | sh"
 		if prerelease {
 			cmd = cmd + " -s pre"
 		}
+
 		return cmd
 	}
 }
@@ -326,6 +330,7 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
 		fmt.Fprint(io.ErrOut, str.String())
 	}
+
 	return nil
 }
 
@@ -352,6 +357,7 @@ func GetCurrentBinaryPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return binPath, nil
 }
 
@@ -375,6 +381,7 @@ func CanUpdateThisInstallation() bool {
 	if err == nil {
 		installDir = installDirRealpath
 	}
+
 	return strings.HasPrefix(binaryPath, installDir+string(filepath.Separator))
 }
 
@@ -413,10 +420,12 @@ func Relaunch(ctx context.Context, silent bool) error {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
+
 		return err
 	}
 
 	os.Exit(0)
+
 	return nil
 }
 
@@ -480,6 +489,7 @@ func BackgroundUpdate() error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+
 	return nil
 }
 

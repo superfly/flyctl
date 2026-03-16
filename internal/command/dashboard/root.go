@@ -30,6 +30,7 @@ func New() *cobra.Command {
 		flag.AppConfig(),
 	)
 	cmd.Aliases = []string{"dash"}
+
 	return cmd
 }
 
@@ -52,11 +53,13 @@ func newDashboardMetrics() *cobra.Command {
 			Default:     false,
 		},
 	)
+
 	return cmd
 }
 
 func runDashboard(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
+
 	return runDashboardOpen(ctx, "https://fly.io/apps/"+appName)
 }
 
@@ -71,6 +74,7 @@ func runDashboardMetrics(ctx context.Context) error {
 		}
 
 		url := fmt.Sprintf("https://fly-metrics.net/d/fly-app/fly-app?orgId=%s&var-app=%s", app.Organization.InternalNumericID, appName)
+
 		return runDashboardOpen(ctx, url)
 	}
 
@@ -80,5 +84,6 @@ func runDashboardMetrics(ctx context.Context) error {
 func runDashboardOpen(ctx context.Context, url string) error {
 	io := iostreams.FromContext(ctx)
 	fmt.Fprintln(io.Out, "Opening", url)
+
 	return open.Run(url)
 }

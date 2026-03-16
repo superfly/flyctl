@@ -99,6 +99,7 @@ func spin(in, out string) context.CancelFunc {
 
 	if !helpers.IsTerminal() {
 		fmt.Fprintln(os.Stderr, in)
+
 		return cancel
 	}
 

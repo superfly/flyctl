@@ -37,7 +37,7 @@ var SharedFlags = flag.Set{
 	},
 }
 
-func optionsFromFlags(ctx context.Context, options map[string]interface{}) map[string]interface{} {
+func optionsFromFlags(ctx context.Context, options map[string]any) map[string]any {
 
 	if options == nil {
 		options = gql.AddOnOptions{}

@@ -208,9 +208,9 @@ func TestURL(t *testing.T) {
 	cfg.Services = []Service{{
 		Protocol: "tcp",
 		Ports: []fly.MachinePort{{
-			Port: fly.Pointer(80), Handlers: []string{"http"},
+			Port: new(80), Handlers: []string{"http"},
 		}, {
-			Port: fly.Pointer(443), Handlers: []string{"http", "tls"},
+			Port: new(443), Handlers: []string{"http", "tls"},
 		}},
 	}}
 	assert.Equal(t, "https://test.fly.dev/", cfg.URL().String())
@@ -221,9 +221,9 @@ func TestURL(t *testing.T) {
 	cfg.Services = []Service{{
 		Protocol: "tcp",
 		Ports: []fly.MachinePort{{
-			Port: fly.Pointer(80), Handlers: []string{"http"},
+			Port: new(80), Handlers: []string{"http"},
 		}, {
-			Port: fly.Pointer(443), Handlers: []string{"tls"},
+			Port: new(443), Handlers: []string{"tls"},
 		}},
 	}}
 	assert.Equal(t, "http://test.fly.dev/", cfg.URL().String())
@@ -234,9 +234,9 @@ func TestURL(t *testing.T) {
 	cfg.Services = []Service{{
 		Protocol: "tcp",
 		Ports: []fly.MachinePort{{
-			Port: fly.Pointer(80), Handlers: []string{"http"},
+			Port: new(80), Handlers: []string{"http"},
 		}, {
-			Port: fly.Pointer(3443), Handlers: []string{"tls", "http"},
+			Port: new(3443), Handlers: []string{"tls", "http"},
 		}},
 	}}
 	assert.Equal(t, "http://test.fly.dev/", cfg.URL().String())
@@ -247,9 +247,9 @@ func TestURL(t *testing.T) {
 	cfg.Services = []Service{{
 		Protocol: "tcp",
 		Ports: []fly.MachinePort{{
-			Port: fly.Pointer(8080), Handlers: []string{"http"},
+			Port: new(8080), Handlers: []string{"http"},
 		}, {
-			Port: fly.Pointer(3443), Handlers: []string{"tls", "http"},
+			Port: new(3443), Handlers: []string{"tls", "http"},
 		}},
 	}}
 	assert.Equal(t, "https://test.fly.dev:3443/", cfg.URL().String())
@@ -260,7 +260,7 @@ func TestURL(t *testing.T) {
 	cfg.Services = []Service{{
 		Protocol: "tcp",
 		Ports: []fly.MachinePort{{
-			Port: fly.Pointer(8080), Handlers: []string{"http"},
+			Port: new(8080), Handlers: []string{"http"},
 		}},
 	}}
 	assert.Equal(t, "http://test.fly.dev:8080/", cfg.URL().String())
@@ -271,9 +271,9 @@ func TestURL(t *testing.T) {
 	cfg.Services = []Service{{
 		Protocol: "tcp",
 		Ports: []fly.MachinePort{{
-			Port: fly.Pointer(80), Handlers: []string{"fancy"},
+			Port: new(80), Handlers: []string{"fancy"},
 		}, {
-			Port: fly.Pointer(443), Handlers: []string{"foo"},
+			Port: new(443), Handlers: []string{"foo"},
 		}},
 	}}
 	assert.Nil(t, cfg.URL())

@@ -85,6 +85,7 @@ func runBackupList(ctx context.Context) error {
 
 	if len(backups.Data) == 0 {
 		fmt.Fprintf(out, "No backups found for cluster %s\n", clusterID)
+
 		return nil
 	}
 
@@ -102,6 +103,7 @@ func runBackupList(ctx context.Context) error {
 			if err != nil {
 				// If we can't parse the time, include the backup
 				filteredBackups = append(filteredBackups, backup)
+
 				continue
 			}
 			if startTime.After(cutoff) {
@@ -112,6 +114,7 @@ func runBackupList(ctx context.Context) error {
 
 	if len(filteredBackups) == 0 {
 		fmt.Fprintf(out, "No backups found for cluster %s in the last 24 hours (use --all to see all backups)\n", clusterID)
+
 		return nil
 	}
 

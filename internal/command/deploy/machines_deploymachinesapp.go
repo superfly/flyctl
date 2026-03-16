@@ -68,6 +68,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
 		tracing.RecordError(span, err, "failed to update release")
+
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
 
@@ -133,6 +134,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	if err != nil {
 		tracing.RecordError(span, err, "failed to deploy machines")
 	}
+
 	return err
 }
 
@@ -151,6 +153,7 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 			return err
 		}
 		sl.Logf("Created machine %s", fmtID)
+
 		return nil
 	}
 
@@ -175,9 +178,11 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 			return err
 		default:
 			span.RecordError(err)
+
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -191,6 +196,7 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	if !md.skipHealthChecks {
 		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 			return err
 		}
 
@@ -208,11 +214,13 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout); err != nil {
 			md.warnAboutIncorrectListenAddress(ctx, lm)
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 			return err
 		}
 	}
 
 	md.warnAboutIncorrectListenAddress(ctx, lm)
+
 	return nil
 }
 
@@ -226,8 +234,10 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 		launchInput, err := md.launchInputForRestart(lm.Machine())
 		if err != nil {
 			jerr = errors.Join(jerr, err)
+
 			return nil
 		}
+
 		return &machineUpdateEntry{leasableMachine: lm, launchInput: launchInput}
 	})
 	if jerr != nil {
@@ -292,6 +302,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				tracing.RecordError(span, err, "failed to provision canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
+
 				return err
 			}
 
@@ -307,6 +318,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				tracing.RecordError(span, err, "failed to run test machine for canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
+
 				return err
 			}
 
@@ -339,12 +351,14 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		leasableMachine, err := md.spawnMachineInGroup(ctx, name, nil)
 		if err != nil {
 			statuslogger.Failed(ctx, err)
+
 			return err
 		}
 
 		groupConfig, err := md.appConfig.Flatten(name)
 		if err != nil {
 			statuslogger.Failed(ctx, err)
+
 			return err
 		}
 
@@ -387,6 +401,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			fmt.Fprintf(md.io.Out, "To disable this, set %s in your fly.toml.\n", md.colorize.Purple("\"min_machines_running = 0\""))
 			if _, err := md.spawnMachineInGroup(ctx, name, nil); err != nil {
 				statuslogger.Failed(ctx, err)
+
 				return err
 			}
 		default:
@@ -394,6 +409,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			standbyFor := []string{leasableMachine.Machine().ID}
 			if _, err := md.spawnMachineInGroup(ctx, name, standbyFor); err != nil {
 				statuslogger.Failed(ctx, err)
+
 				return err
 			}
 		}
@@ -419,6 +435,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			md.colorize.Yellow(fmt.Sprintf("NOTE: The machines for [%s] have services with 'auto_stop_machines = \"suspend\"' that will be suspended when idling", strings.Join(groupNames, ","))),
 		)
 	}
+
 	return nil
 }
 
@@ -546,6 +563,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 			Suggest:  suggest,
 		}
 	}
+
 	return err
 }
 
@@ -566,6 +584,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		if err != nil {
 			span.RecordError(err)
 		}
+
 		return err
 	}
 
@@ -575,6 +594,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
 		tracing.RecordError(span, err, "failed to acquire lease")
+
 		return err
 	}
 	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
@@ -636,6 +656,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			newMach.State = "replacing"
 		}
 		newMach.Config = e.launchInput.Config
+
 		return newMach
 	})
 
@@ -643,6 +664,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 	case "bluegreen":
 		if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
 			tracing.RecordError(span, err, "failed to acquire lease")
+
 			return err
 		}
 		defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
@@ -703,11 +725,13 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
 			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
+
 			return rollbackErr
 		}
 
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
+
 	return nil
 }
 
@@ -724,7 +748,6 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 	}
 
 	for i, e := range updateEntries {
-		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
 		fmtID := e.leasableMachine.FormattedMachineId()
 		statusRunning := func() {
@@ -766,9 +789,11 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 			if err := md.updateMachine(eCtx, e, sl.Line(i)); err != nil {
 				tracing.RecordError(span, err, "failed to update machine")
 				statusFailure(err)
+
 				return err
 			}
 			statusSuccess()
+
 			return nil
 		})
 	}
@@ -777,6 +802,7 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 	if err != nil {
 		span.RecordError(err)
 	}
+
 	return err
 }
 
@@ -805,7 +831,6 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		WithCancelOnError()
 
 	for group, entries := range entriesByGroup {
-		entries := entries
 
 		warmMachines := lo.Filter(entries, func(e *machineUpdateEntry, i int) bool {
 			return e.leasableMachine.Machine().State == "started"
@@ -821,10 +846,8 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 			if len(coldMachines) > 0 {
 				eg.Go(func() error {
 					// Capping the size just in case, it may be okay to stop all of them at once.
-					chunk := len(coldMachines)
-					if chunk >= STOPPED_MACHINES_POOL_SIZE {
-						chunk = STOPPED_MACHINES_POOL_SIZE
-					}
+					chunk := min(len(coldMachines), STOPPED_MACHINES_POOL_SIZE)
+
 					return md.updateEntriesGroup(ctx, group, coldMachines, sl, coldIdx, chunk)
 				})
 			}
@@ -836,6 +859,7 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 					// Since these machines are still receiving traffic, the chunk size here is more conservative (lower)
 					// then the one above.
 					chunk := md.getPoolSize(len(warmMachines))
+
 					return md.updateEntriesGroup(ctx, group, warmMachines, sl, warmIdx, chunk)
 				})
 			}
@@ -878,7 +902,6 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 		WithCancelOnError()
 
 	for idx, e := range entries {
-		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+idx))
 		fmtID := e.leasableMachine.FormattedMachineId()
 		span.SetAttributes(attribute.String("state", e.leasableMachine.Machine().State))
@@ -934,6 +957,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 			select {
 			case <-poolCtx.Done():
 				statusSkipped()
+
 				return poolCtx.Err()
 			default:
 				statusRunning()
@@ -942,15 +966,18 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 			if err := md.updateMachine(ctx, e, sl.Line(startIdx+idx)); err != nil {
 				statusFailure(err)
 				tracing.RecordError(span, err, "failed to update machine")
+
 				return err
 			}
 			if err := md.waitForMachine(ctx, e, sl.Line(startIdx+idx)); err != nil {
 				tracing.RecordError(span, err, "failed to wait for machine")
 				statusFailure(err)
+
 				return err
 			}
 
 			statusSuccess()
+
 			return nil
 		}
 
@@ -999,11 +1026,13 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, newMachineRaw, false)
 	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
+
 	return nil
 }
 
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
+
 	return lm.Update(ctx, *e.launchInput)
 }
 
@@ -1070,6 +1099,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {
 			relCmdWarning = "\nPlease note that release commands run in their own ephemeral machine, and therefore count towards the machine limit."
 		}
+
 		return nil, fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
@@ -1097,12 +1127,14 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		// Don't wait for state if the --detach flag isn't specified
 		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 			return nil, err
 		}
 
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout); err != nil {
 			md.warnAboutIncorrectListenAddress(ctx, lm)
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 			return nil, err
 		}
 
@@ -1305,6 +1337,7 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 
 	if md.skipSmokeChecks {
 		span.AddEvent("skipped")
+
 		return nil
 	}
 
@@ -1343,6 +1376,7 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 	}
 
 	span.RecordError(smokeErr)
+
 	return smokeErr
 }
 
@@ -1356,6 +1390,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ipRes, err := flapsClient.GetIPAssignments(ctx, md.appConfig.AppName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
+
 		return err
 	}
 	ipAddrs := ipRes.IPs
@@ -1402,10 +1437,12 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
+
 				return nil, err
 			} else if len(answerv4.Answer) != numIPv4 {
 				span.SetAttributes(attribute.String("v4_answer", answerv4.String()))
 				tracing.RecordError(span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
+
 				return nil, fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
 			}
 
@@ -1414,10 +1451,12 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
+
 				return nil, err
 			} else if len(answerv6.Answer) != numIPv6 {
 				span.SetAttributes(attribute.String("v6_answer", answerv6.String()))
 				tracing.RecordError(span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
+
 				return nil, fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
 			}
 
@@ -1438,11 +1477,5 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 }
 
 func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
-	for _, static := range md.appConfig.Statics {
-		if statics.StaticIsCandidateForTigrisPush(static) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(md.appConfig.Statics, statics.StaticIsCandidateForTigrisPush)
 }

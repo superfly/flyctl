@@ -18,5 +18,6 @@ func TagV1Command(cmd *cobra.Command) {
 
 func IsAppsV1Command(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["apps_v1"]
+
 	return ok
 }

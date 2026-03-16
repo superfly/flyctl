@@ -70,6 +70,7 @@ func CreateArchive(dockerfile, workingDir, ignoreFile string, compressed bool) (
 		SizeInBytes: len(content),
 		Content:     content,
 	}
+
 	return archiveInfo, err
 }
 
@@ -166,5 +167,6 @@ func isPathInRoot(target, rootDir string) bool {
 	if err != nil {
 		return false
 	}
+
 	return !strings.HasPrefix(filepath.ToSlash(rel), "../")
 }

@@ -127,6 +127,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	if showHostStatus && unreachableVolumes {
 		fmt.Fprintln(out, "* These volumes' hosts could not be reached.")
 	}
+
 	return nil
 }
 
@@ -156,6 +157,7 @@ func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *f
 		}
 		if title == "" {
 			title = text
+
 			continue
 		}
 		volumeLines = append(volumeLines, text)
@@ -165,5 +167,6 @@ func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *f
 	if err != nil {
 		return nil, fmt.Errorf("selecting volume: %w", err)
 	}
+
 	return &volumes[selected], nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 
 	packclient "github.com/buildpacks/pack/pkg/client"
@@ -38,6 +39,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		span.AddEvent(note)
 		terminal.Debug(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -46,6 +48,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		terminal.Debug(note)
 		span.AddEvent(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -60,6 +63,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 
@@ -71,6 +75,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.BuilderInitFinish()
 		build.BuildFinish()
 		tracing.RecordError(span, err, "failed to create packet client")
+
 		return nil, "", err
 	}
 	build.BuilderInitFinish()
@@ -96,6 +101,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		tracing.RecordError(span, err, "error reading .dockerignore")
 		build.ContextBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	build.ContextBuildFinish()
@@ -147,6 +153,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		buildSpan.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
 		tracing.RecordError(buildSpan, err, "failed to build image")
 		buildSpan.End()
+
 		return nil, "", err
 	}
 
@@ -160,6 +167,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
+
 			return nil, "", err
 		}
 		build.PushFinish()
@@ -173,6 +181,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 	if img == nil {
 		tracing.RecordError(span, err, "no image found")
+
 		return nil, "", fmt.Errorf("no image found")
 	}
 
@@ -190,9 +199,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 func normalizeBuildArgs(buildArgs map[string]string) map[string]string {
 	out := map[string]string{}
 
-	for k, v := range buildArgs {
-		out[k] = v
-	}
+	maps.Copy(out, buildArgs)
 
 	return out
 }
@@ -229,7 +236,7 @@ func (l *packLogger) Debug(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Debugf(format string, v ...interface{}) {
+func (l *packLogger) Debugf(format string, v ...any) {
 	if !l.debug {
 		return
 	}
@@ -240,7 +247,7 @@ func (l *packLogger) Info(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Infof(format string, v ...interface{}) {
+func (l *packLogger) Infof(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -248,7 +255,7 @@ func (l *packLogger) Warn(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Warnf(format string, v ...interface{}) {
+func (l *packLogger) Warnf(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -256,7 +263,7 @@ func (l *packLogger) Error(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Errorf(format string, v ...interface{}) {
+func (l *packLogger) Errorf(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -285,5 +292,6 @@ func (w *fdWrapper) Fd() uintptr {
 	if fd, ok := w.src.(fdWriter); ok {
 		return fd.Fd()
 	}
+
 	return ^(uintptr(0))
 }

@@ -36,6 +36,7 @@ func runWireguardList(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, peers)
+
 		return nil
 	}
 
@@ -117,6 +118,7 @@ func runWireguardReset(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "New WireGuard peer for organization '%s': '%s'\n", org.Slug, conf.WireGuardState.Name)
+
 	return nil
 }
 
