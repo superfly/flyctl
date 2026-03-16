@@ -36,7 +36,6 @@ linters:
         - -ST1003 # struct field ... should be ... (mostly acronyms such as Http -> HTTP)
         - -ST1005 # error strings should not be capitalized
         - -ST1008 # error should be returned as the last argument
-        - -ST1012 # error var ... should have name of the form Err...
   exclusions:
     generated: lax
     presets:
