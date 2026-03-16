@@ -57,7 +57,7 @@ func LaunchEphemeral(ctx context.Context, appName string, input *EphemeralInput)
 	defer t.Stop()
 
 	for {
-		err = flapsClient.Wait(ctx, appName, machine, fly.MachineStateStarted, waitTimeout)
+		err = flapsClient.Wait(ctx, appName, machine.ID, flaps.WithWaitStates(fly.MachineStateStarted), flaps.WithWaitTimeout(waitTimeout))
 		if err == nil {
 			return machine, makeCleanupFunc(ctx, appName, machine), nil
 		}
@@ -150,7 +150,7 @@ func makeCleanupFunc(ctx context.Context, appName string, machine *fly.Machine) 
 
 		if cmdutil.IsTerminal(os.Stdout) {
 			fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
-			if err := flapsClient.Wait(stopCtx, appName, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
+			if err := flapsClient.Wait(stopCtx, appName, machine.ID, flaps.WithWaitStates(fly.MachineStateDestroyed), flaps.WithWaitTimeout(stopTimeout)); err != nil {
 				fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
 				terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
 				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
@@ -158,7 +158,7 @@ func makeCleanupFunc(ctx context.Context, appName string, machine *fly.Machine) 
 				fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
 			}
 		} else {
-			if err := flapsClient.Wait(stopCtx, appName, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
+			if err := flapsClient.Wait(stopCtx, appName, machine.ID, flaps.WithWaitStates(fly.MachineStateDestroyed), flaps.WithWaitTimeout(stopTimeout)); err != nil {
 				fmt.Fprintf(io.ErrOut, "Attempt to destroy ephemeral machine %s failed: %v", machine.ID, err)
 				fmt.Fprint(io.ErrOut, "You may need to destroy it manually (`fly machine destroy`).")
 			}

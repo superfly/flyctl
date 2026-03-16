@@ -13,7 +13,6 @@ import (
 	context "context"
 	http "net/http"
 	reflect "reflect"
-	time "time"
 
 	fly "github.com/superfly/fly-go"
 	flaps "github.com/superfly/fly-go/flaps"
@@ -915,17 +914,22 @@ func (mr *MockFlapsClientMockRecorder) UpdateVolume(ctx, appName, volumeId, req 
 }
 
 // Wait mocks base method.
-func (m *MockFlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) error {
+func (m *MockFlapsClient) Wait(ctx context.Context, appName, machineID string, waitOpts ...flaps.WaitOption) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Wait", ctx, appName, machine, state, timeout)
+	varargs := []any{ctx, appName, machineID}
+	for _, a := range waitOpts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Wait", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Wait indicates an expected call of Wait.
-func (mr *MockFlapsClientMockRecorder) Wait(ctx, appName, machine, state, timeout any) *gomock.Call {
+func (mr *MockFlapsClientMockRecorder) Wait(ctx, appName, machineID any, waitOpts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wait", reflect.TypeOf((*MockFlapsClient)(nil).Wait), ctx, appName, machine, state, timeout)
+	varargs := append([]any{ctx, appName, machineID}, waitOpts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Wait", reflect.TypeOf((*MockFlapsClient)(nil).Wait), varargs...)
 }
 
 // WaitForApp mocks base method.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -324,9 +323,9 @@ func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId st
 	return nil, fmt.Errorf("failed to update volume %s", volumeId)
 }
 
-func (m *mockFlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+func (m *mockFlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 	if m.breakWait {
-		return fmt.Errorf("failed to wait for %s", machine.ID)
+		return fmt.Errorf("failed to wait for %s", machineID)
 	}
 
 	return nil

@@ -58,7 +58,7 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine, waitOnAction, 60*time.Second)
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
 		if err == nil {
 			return nil
 		}

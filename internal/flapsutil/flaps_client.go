@@ -3,7 +3,6 @@ package flapsutil
 import (
 	"context"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -71,7 +70,7 @@ type FlapsClient interface {
 	Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
-	Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error)
+	Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForApp(ctx context.Context, name string) error
 }
 

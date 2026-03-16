@@ -265,7 +265,7 @@ func TestCreateBuilder(t *testing.T) {
 				State: "started",
 			}, nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			time.Sleep(1 * time.Second)
 
 			return nil
@@ -324,7 +324,7 @@ func TestRestartBuilderMachine(t *testing.T) {
 
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			return nil
 		},
 	}
