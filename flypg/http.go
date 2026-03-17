@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+const flypgPort = 5500
+
 type Client struct {
 	httpClient *http.Client
 	BaseURL    string
@@ -23,13 +25,20 @@ type Client struct {
 
 // NewFromInstance creates a new Client that targets a specific instance(address)
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
-	url := fmt.Sprintf("http://%s:5500", address)
+	url := formatPGBaseURL(address)
 	terminal.Debugf("flypg will connect to: %s\n", url)
 
 	return &Client{
 		httpClient: newHttpClient(dialer),
 		BaseURL:    url,
 	}
+}
+
+func formatPGBaseURL(address string) string {
+	if ip := net.ParseIP(address); ip != nil && ip.To4() == nil {
+		return fmt.Sprintf("http://[%s]:%d", address, flypgPort)
+	}
+	return fmt.Sprintf("http://%s:%d", address, flypgPort)
 }
 
 func newHttpClient(dialer agent.Dialer) *http.Client {
