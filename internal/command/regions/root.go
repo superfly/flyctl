@@ -24,6 +24,7 @@ func New() *cobra.Command {
 		newRegionsList(),
 	)
 	cmd.Hidden = true
+
 	return cmd
 }
 
@@ -45,6 +46,7 @@ func newRegionsAdd() *cobra.Command {
 		flag.String{Name: "group", Description: "The process group to add the region to"},
 	)
 	cmd.Hidden = true
+
 	return cmd
 }
 
@@ -66,6 +68,7 @@ func newRegionsRemove() *cobra.Command {
 		flag.String{Name: "group", Description: "The process group to add the region to"},
 	)
 	cmd.Hidden = true
+
 	return cmd
 }
 
@@ -87,6 +90,7 @@ func newRegionsSet() *cobra.Command {
 		flag.String{Name: "group", Description: "The process group to add the region to"},
 	)
 	cmd.Hidden = true
+
 	return cmd
 }
 
@@ -107,6 +111,7 @@ func newRegionsBackup() *cobra.Command {
 		flag.JSONOutput(),
 	)
 	cmd.Hidden = true
+
 	return cmd
 }
 
@@ -125,6 +130,7 @@ func newRegionsList() *cobra.Command {
 		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
+
 	return cmd
 }
 

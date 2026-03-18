@@ -66,6 +66,7 @@ func runList(ctx context.Context) error {
 	var fullOrg *gql.GetOrganizationResponse
 	if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
 		err = fmt.Errorf("failed fetching org: %w", err)
+
 		return err
 	}
 
@@ -81,6 +82,7 @@ func runList(ctx context.Context) error {
 		} else {
 			fmt.Fprintf(out, "No managed postgres clusters found in organization %s\n", org.Slug)
 		}
+
 		return nil
 	}
 
@@ -114,5 +116,6 @@ func formatAttachedApps(apps []uiex.AttachedApp) string {
 	for i, app := range apps {
 		names[i] = app.Name
 	}
+
 	return strings.Join(names, ", ")
 }

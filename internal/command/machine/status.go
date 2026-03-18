@@ -45,9 +45,13 @@ func newStatus() *cobra.Command {
 	return cmd
 }
 
-func optJsonStrings(v []string) string {
+func optJSONStrings(v []string) string {
 	if len(v) > 0 {
-		bytes, _ := json.Marshal(v)
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("error: %v", err)
+		}
+
 		return string(bytes)
 	} else {
 		return ""
@@ -102,6 +106,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to marshal machine config: %w", err)
 		}
 		_, _ = fmt.Fprintln(io.Out, string(prettyConfig))
+
 		return nil
 	}
 
@@ -126,12 +131,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 			fmt.Sprint(mConfig.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			optJsonStrings(mConfig.Init.Entrypoint),
-			optJsonStrings(mConfig.Init.Cmd),
+			optJSONStrings(mConfig.Init.Entrypoint),
+			optJSONStrings(mConfig.Init.Cmd),
 		},
 	}
 
-	var cols = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
+	cols := []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
 
 	if len(mConfig.Mounts) > 0 {
 		cols = append(cols, "Volume")
@@ -186,7 +191,6 @@ func runMachineStatus(ctx context.Context) (err error) {
 	if flag.GetBool(ctx, "display-config") {
 		var prettyConfig []byte
 		prettyConfig, err = json.MarshalIndent(mConfig, "", "  ")
-
 		if err != nil {
 			return err
 		}

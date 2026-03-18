@@ -55,7 +55,7 @@ jobs:
           cat release.json | jq
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: |
@@ -83,22 +83,22 @@ jobs:
           path: dist/${{ matrix.GOOS }}
           key: ${{ matrix.GOOS }}-${{ needs.meta.outputs.sha_short }}
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.FLYIOBUILDS_DOCKERHUB_USERNAME }}
           password: ${{ secrets.FLYIOBUILDS_DOCKERHUB_TOKEN }}
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run GoReleaser
         if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: latest
+          version: "~> v2"
           args: release --clean -f .goreleaser.2.yml --fail-fast --split
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
@@ -132,7 +132,7 @@ jobs:
         env:
           RELEASE_JSON: ${{ needs.meta.outputs.json }}
         run: echo "$RELEASE_JSON" > ./dist/release.json
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: |
@@ -143,10 +143,10 @@ jobs:
           overwrite: true
       - name: Github release
         if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/master'
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser-pro
-          version: latest
+          version: "~> v2"
           args: continue --merge
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}

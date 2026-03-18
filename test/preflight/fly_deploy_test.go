@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	//fly "github.com/superfly/fly-go"
+	// fly "github.com/superfly/fly-go"
 
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
@@ -84,35 +84,10 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	// Create the app without deploying to avoid the Corrosion replication race
 	f.Fly(
-		"launch --org %s --name %s --region %s --image nginx --internal-port 80 --no-deploy",
+		"launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
-
-	// Retry the deploy command to handle Corrosion replication lag race conditions
-	// The backend may not have replicated the app record to all hosts yet when
-	// creating the second machine for HA, resulting in "sql: no rows in result set" errors
-	var lastError string
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
-		if result.ExitCode() != 0 {
-			stderr := result.StdErrString()
-			lastError = stderr
-			// Only retry if it's the known Corrosion replication lag error
-			if strings.Contains(stderr, "failed to get app: sql: no rows in result set") {
-				t.Logf("Corrosion replication lag detected, retrying... (error: %s)", stderr)
-				assert.Fail(c, "Corrosion replication lag, retrying...")
-			} else {
-				// Log the unexpected error and fail without retrying
-				t.Logf("Deploy failed with unexpected error (will not retry): %s", stderr)
-				assert.Fail(c, fmt.Sprintf("deploy failed with unexpected error: %s", stderr))
-			}
-		} else {
-			// Explicitly assert success so EventuallyWithT knows we passed
-			assert.True(c, true, "deploy succeeded")
-		}
-	}, 30*time.Second, 5*time.Second, "deploy should succeed after Corrosion replication, last error: %s", lastError)
 
 	assertHostDistribution(t, f, appName, 2)
 }
@@ -241,35 +216,10 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s", appName)
-	// Retry deploy to handle transient network errors (DNS, WireGuard, buildkit connection issues)
-	// BuildKit deployments can fail with various transient errors during the initial connection
-	var lastError string
-	require.EventuallyWithT(tt, func(c *assert.CollectT) {
-		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --ha=false")
-		if result.ExitCode() != 0 {
-			stderr := result.StdErrString()
-			lastError = stderr
-			t.Logf("Deploy failed (will retry), error: %s", stderr)
-			assert.Fail(c, "deploy failed, retrying...")
-		} else {
-			assert.True(c, true, "deploy succeeded")
-		}
-	}, 120*time.Second, 10*time.Second, "deploy should succeed after retries, last error: %s", lastError)
+	f.Fly("deploy --remote-only --ha=false")
 
 	t.Logf("deploy %s again", appName)
-	// Retry second deploy as well
-	lastError = ""
-	require.EventuallyWithT(tt, func(c *assert.CollectT) {
-		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --strategy immediate --ha=false")
-		if result.ExitCode() != 0 {
-			stderr := result.StdErrString()
-			lastError = stderr
-			t.Logf("Deploy failed (will retry), error: %s", stderr)
-			assert.Fail(c, "deploy failed, retrying...")
-		} else {
-			assert.True(c, true, "deploy succeeded")
-		}
-	}, 120*time.Second, 10*time.Second, "deploy should succeed after retries, last error: %s", lastError)
+	f.Fly("deploy --remote-only --strategy immediate")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -298,35 +248,10 @@ func testDeployNodeAppWithBuildKitRemoteBuilder(tt *testing.T) {
 	require.NoError(t, err)
 
 	t.Logf("deploy %s with BuildKit", appName)
-	// Retry deploy to handle transient network errors (DNS, WireGuard, buildkit connection issues)
-	// BuildKit deployments can fail with various transient errors during the initial connection
-	var lastError string
-	require.EventuallyWithT(tt, func(c *assert.CollectT) {
-		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --ha=false")
-		if result.ExitCode() != 0 {
-			stderr := result.StdErrString()
-			lastError = stderr
-			t.Logf("Deploy failed (will retry), error: %s", stderr)
-			assert.Fail(c, "deploy failed, retrying...")
-		} else {
-			assert.True(c, true, "deploy succeeded")
-		}
-	}, 120*time.Second, 10*time.Second, "deploy should succeed after retries, last error: %s", lastError)
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 
 	t.Logf("deploy %s again with BuildKit", appName)
-	// Retry second deploy as well
-	lastError = ""
-	require.EventuallyWithT(tt, func(c *assert.CollectT) {
-		result := f.FlyAllowExitFailure("deploy --buildkit --remote-only --strategy immediate --ha=false")
-		if result.ExitCode() != 0 {
-			stderr := result.StdErrString()
-			lastError = stderr
-			t.Logf("Deploy failed (will retry), error: %s", stderr)
-			assert.Fail(c, "deploy failed, retrying...")
-		} else {
-			assert.True(c, true, "deploy succeeded")
-		}
-	}, 120*time.Second, 10*time.Second, "deploy should succeed after retries, last error: %s", lastError)
+	f.Fly("deploy --buildkit --remote-only --strategy immediate")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -461,7 +386,7 @@ func TestDeployManifest(t *testing.T) {
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx:latest --internal-port 80 --ha=false --strategy rolling", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	var manifestPath = filepath.Join(f.WorkDir(), "manifest.json")
+	manifestPath := filepath.Join(f.WorkDir(), "manifest.json")
 
 	f.Fly("deploy --buildkit --remote-only --export-manifest %s", manifestPath)
 

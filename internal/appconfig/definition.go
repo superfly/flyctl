@@ -16,6 +16,7 @@ func (c *Config) ToDefinition() (*fly.Definition, error) {
 	if err := toml.Unmarshal(buf, definition); err != nil {
 		return nil, err
 	}
+
 	return definition, nil
 }
 
@@ -24,5 +25,6 @@ func FromDefinition(definition *fly.Definition) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return unmarshalTOML(buf)
 }

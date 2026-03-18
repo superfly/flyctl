@@ -108,6 +108,7 @@ func (lm *leasableMachine) Update(ctx context.Context, input fly.LaunchMachineIn
 		return err
 	}
 	lm.machine = updateMachine
+
 	return nil
 }
 
@@ -137,12 +138,13 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 		return err
 	}
 	lm.destroyed = true
+
 	return nil
 }
 
 func (lm *leasableMachine) Cordon(ctx context.Context) error {
 	if lm.IsDestroyed() {
-		return fmt.Errorf("cannon cordon machine %s that was already destroyed", lm.machine.ID)
+		return fmt.Errorf("cannot cordon machine %s that was already destroyed", lm.machine.ID)
 	}
 
 	return lm.flapsClient.Cordon(ctx, lm.appName, lm.machine.ID, lm.leaseNonce)
@@ -154,6 +156,7 @@ func (lm *leasableMachine) FormattedMachineId() string {
 	if processGroup == "" || m.IsFlyAppsReleaseCommand() || m.IsFlyAppsConsole() {
 		return m.ID
 	}
+
 	return fmt.Sprintf("%s [%s]", m.ID, processGroup)
 }
 
@@ -194,6 +197,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -208,6 +212,7 @@ func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfi
 	if timeout != 0 {
 		// If we have a timeout, put it on the context.
 		waitCtx, cancel := context.WithTimeout(ctx, timeout)
+
 		return waitCtx, cancel, timeout
 	} else {
 		// We'll set a timeout of 2 minutes for flaps, knowing that it will keep
@@ -236,7 +241,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		lm.logStatusWaiting(ctx, desiredState)
 	}
 	for {
-		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine(), desiredState, timeout)
+		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
 		notFoundResponse := false
 		if err != nil {
 			var flapsErr *flaps.FlapsError
@@ -261,6 +266,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			case <-time.After(b.Duration()):
 			case <-waitCtx.Done():
 			}
+
 			continue
 		case notFoundResponse:
 			// Machine not found and we didn't just create it - return error immediately
@@ -271,6 +277,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			case <-time.After(b.Duration()):
 			case <-waitCtx.Done():
 			}
+
 			continue
 		default:
 			// Success
@@ -278,6 +285,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		if lm.showLogs {
 			lm.logStatusFinished(ctx, desiredState)
 		}
+
 		return nil
 	}
 }
@@ -288,6 +296,7 @@ func (lm *leasableMachine) isConstantlyRestarting(machine *fly.Machine) bool {
 	for _, mev := range machine.Events {
 		if mev.Type == "exit" {
 			ev = mev
+
 			break
 		}
 	}
@@ -336,6 +345,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 			return nil
 		case err != nil:
 			span.RecordError(err)
+
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
 
@@ -343,6 +353,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		case lm.isConstantlyRestarting(machine):
 			err := fmt.Errorf("the app appears to be crashing")
 			span.RecordError(err)
+
 			return err
 		default:
 			select {
@@ -374,12 +385,15 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			span.RecordError(err)
+
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			span.RecordError(err)
+
 			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
 		case err != nil:
 			span.RecordError(err)
+
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
 			if lm.showLogs && (!printedFirst || lm.io.IsInteractive()) {
@@ -390,11 +404,13 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			case <-time.After(b.Duration()):
 			case <-waitCtx.Done():
 			}
+
 			continue
 		}
 		if lm.showLogs {
 			lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
 		}
+
 		return nil
 	}
 }
@@ -498,6 +514,7 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 	}
 	terminal.Debugf("got lease on machine %s: %v\n", lm.machine.ID, lease)
 	lm.leaseNonce = lease.Data.Nonce
+
 	return nil
 }
 
@@ -518,6 +535,7 @@ func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Durat
 		return fmt.Errorf("unexpectedly received a new nonce when trying to refresh lease on machine %s", lm.machine.ID)
 	}
 	terminal.Debugf("got lease on machine %s: %v\n", lm.machine.ID, refreshedLease)
+
 	return nil
 }
 
@@ -535,6 +553,10 @@ func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, durati
 
 	for {
 		time.Sleep(b.Duration())
+		if lm.IsDestroyed() {
+			return
+		}
+
 		switch err := lm.RefreshLease(ctx, duration); {
 		case err == nil:
 			// good times
@@ -556,7 +578,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 
 	nonce := lm.leaseNonce
 	lm.resetLease()
-	if nonce == "" {
+	if nonce == "" || lm.IsDestroyed() {
 		return nil
 	}
 

@@ -38,6 +38,7 @@ func newDestroy() *cobra.Command {
 	destroy.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	destroy.Aliases = []string{"delete", "remove", "rm"}
+
 	return destroy
 }
 

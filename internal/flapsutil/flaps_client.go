@@ -3,7 +3,6 @@ package flapsutil
 import (
 	"context"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -57,7 +56,7 @@ type FlapsClient interface {
 	ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error)
 	ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
-	NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
+	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLease(ctx context.Context, appName, machineID, nonce string) error
 	Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error)
@@ -71,7 +70,7 @@ type FlapsClient interface {
 	Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
-	Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error)
+	Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForApp(ctx context.Context, name string) error
 }
 
@@ -87,5 +86,6 @@ func NewContextWithClient(ctx context.Context, c FlapsClient) context.Context {
 // ClientFromContext returns the client ctx carries.
 func ClientFromContext(ctx context.Context) FlapsClient {
 	c, _ := ctx.Value(clientContextKey).(FlapsClient)
+
 	return c
 }

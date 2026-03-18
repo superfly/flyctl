@@ -12,14 +12,15 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func JSON(w io.Writer, v interface{}) error {
+func JSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "    ")
+
 	return enc.Encode(v)
 }
 
-func TitledJSON(w io.Writer, title string, v interface{}) error {
-	return JSON(w, map[string]interface{}{
+func TitledJSON(w io.Writer, title string, v any) error {
+	return JSON(w, map[string]any{
 		title: v,
 	})
 }
@@ -120,7 +121,7 @@ func ReusableTable(w io.Writer, title string, rows [][]string, cols ...string) (
 	return
 }
 
-func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
+func NewTextBlock(ctx context.Context, v ...any) (tb *TextBlock) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -141,25 +142,25 @@ type TextBlock struct {
 	colorize *iostreams.ColorScheme
 }
 
-func (tb *TextBlock) Print(v ...interface{}) {
+func (tb *TextBlock) Print(v ...any) {
 	fmt.Fprint(tb.out, v...)
 }
 
-func (tb *TextBlock) Println(v ...interface{}) {
+func (tb *TextBlock) Println(v ...any) {
 	fmt.Fprintln(tb.out, v...)
 }
 
-func (tb *TextBlock) Printf(format string, v ...interface{}) {
+func (tb *TextBlock) Printf(format string, v ...any) {
 	fmt.Fprintf(tb.out, format, v...)
 }
 
 // Detail prints to the output ctx carries. It behaves similarly to log.Print.
-func (tb *TextBlock) Detail(v ...interface{}) {
+func (tb *TextBlock) Detail(v ...any) {
 	tb.Println("> ", fmt.Sprint(v...))
 }
 
 // Detailf prints to the output ctx carries. It behaves similarly to log.Printf.
-func (tb *TextBlock) Detailf(format string, v ...interface{}) {
+func (tb *TextBlock) Detailf(format string, v ...any) {
 	tb.Detail(fmt.Sprintf(format, v...))
 }
 
@@ -167,10 +168,10 @@ func (tb *TextBlock) Overwrite() {
 	tb.Print(aec.Up(1), aec.EraseLine(aec.EraseModes.All))
 }
 
-func (tb *TextBlock) Done(v ...interface{}) {
+func (tb *TextBlock) Done(v ...any) {
 	tb.Println(tb.colorize.Green("--> " + fmt.Sprint(v...)))
 }
 
-func (tb *TextBlock) Donef(format string, v ...interface{}) {
+func (tb *TextBlock) Donef(format string, v ...any) {
 	tb.Done(fmt.Sprintf(format, v...))
 }

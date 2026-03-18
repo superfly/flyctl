@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -254,6 +255,7 @@ func hasContainerFiles(mConfig *fly.MachineConfig) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -297,26 +299,33 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	}
 
 	switch {
-	case state == fly.MachineStateStarted:
+	case slices.Contains([]string{fly.MachineStateStarted, "starting", "failed"}, state):
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case state == fly.MachineStateStopped, state == fly.MachineStateSuspended:
-		for _, s := range mConfig.Services {
-			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
-				return true
-			}
-		}
+	case origMachineRaw == nil:
+		return false
 	}
-	return false
+
+	return true
 }
 
 // updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
+// It also substitutes image_config references of "." in files with the build image.
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
-	if len(mConfig.Containers) != 0 {
-		for i := range mConfig.Containers {
-			if mConfig.Containers[i].Image == "." {
-				mConfig.Containers[i].Image = mConfig.Image
+	for j := range mConfig.Files {
+		if mConfig.Files[j].ImageConfig != nil && *mConfig.Files[j].ImageConfig == "." {
+			mConfig.Files[j].ImageConfig = &mConfig.Image
+		}
+	}
+
+	for i := range mConfig.Containers {
+		if mConfig.Containers[i].Image == "." {
+			mConfig.Containers[i].Image = mConfig.Image
+		}
+		for j := range mConfig.Containers[i].Files {
+			if mConfig.Containers[i].Files[j].ImageConfig != nil && *mConfig.Containers[i].Files[j].ImageConfig == "." {
+				mConfig.Containers[i].Files[j].ImageConfig = &mConfig.Image
 			}
 		}
 	}

@@ -20,6 +20,7 @@ func MachinesChecks(ctx context.Context, appName string, machines []*fly.Machine
 	checksTotal := lo.SumBy(machines, func(m *fly.Machine) int { return len(m.Checks) })
 	if checksTotal == 0 {
 		fmt.Fprintln(io.Out, "No health checks found")
+
 		return nil
 	}
 
@@ -60,6 +61,7 @@ func MachinesChecks(ctx context.Context, appName string, machines []*fly.Machine
 		if checksPassed != checksTotal {
 			return fmt.Errorf("Waiting for %d non-passing checks", checksTotal-checksPassed)
 		}
+
 		return nil
 	}
 
@@ -72,9 +74,11 @@ func retryGetMachines(ctx context.Context, appName string, machineIDs ...string)
 	err = retry.Do(
 		func() (err2 error) {
 			result, err2 = flapsClient.GetMany(ctx, appName, machineIDs)
+
 			return err2
 		},
 		retry.Attempts(6), retry.MaxDelay(10*time.Second), retry.Context(ctx),
 	)
+
 	return
 }

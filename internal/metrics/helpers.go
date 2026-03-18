@@ -17,6 +17,7 @@ var (
 func withUnmatchedStatuses[T any](cb func(map[string]struct{}) T) T {
 	unmatchedStatusesMtx.Lock()
 	defer unmatchedStatusesMtx.Unlock()
+
 	return cb(unmatchedStatuses)
 }
 
@@ -26,10 +27,12 @@ func Started(ctx context.Context, metricSlug string) {
 			return false
 		}
 		unmatchedStatuses[metricSlug] = struct{}{}
+
 		return true
 	})
 	if !ok {
 		terminal.Debugf("Metrics: Attempted to send start event for %s, but it was already started", metricSlug)
+
 		return
 	}
 
@@ -40,12 +43,15 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
 			delete(unmatchedStatuses, metricSlug)
+
 			return true
 		}
+
 		return false
 	})
 	if !ok {
 		terminal.Debugf("Metrics: Attempted to send status for %s, but no start event was sent", metricSlug)
+
 		return
 	}
 
@@ -80,8 +86,10 @@ func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses["launch"]; ok {
 			delete(unmatchedStatuses, "launch")
+
 			return true
 		}
+
 		return false
 	})
 	if !ok {
@@ -111,13 +119,16 @@ func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses["deploy"]; ok {
 			delete(unmatchedStatuses, "deploy")
+
 			return true
 		}
+
 		return false
 	})
 
 	if !ok {
 		terminal.Debug("Metrics: Attempted to send deploy status for deploy, but no start event was sent")
+
 		return
 	}
 
@@ -142,6 +153,7 @@ func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
 
 func StartTiming(ctx context.Context, metricSlug string) func() {
 	start := time.Now()
+
 	return func() {
 		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}

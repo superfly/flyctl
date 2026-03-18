@@ -80,7 +80,7 @@ func TestFromDefinition(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, &Config{
-		KillSignal:  fly.Pointer("SIGINT"),
+		KillSignal:  new("SIGINT"),
 		KillTimeout: fly.MustParseDuration("5s"),
 		Restart: []Restart{
 			{
@@ -104,12 +104,12 @@ func TestFromDefinition(t *testing.T) {
 				},
 				Ports: []fly.MachinePort{
 					{
-						Port:       fly.Pointer(80),
+						Port:       new(80),
 						Handlers:   []string{"http"},
 						ForceHTTPS: true,
 					},
 					{
-						Port:     fly.Pointer(443),
+						Port:     new(443),
 						Handlers: []string{"tls", "http"},
 					},
 				},
@@ -416,7 +416,7 @@ func TestFromDefinitionChecksAsList(t *testing.T) {
 	require.NoError(t, err)
 
 	want := map[string]*ToplevelCheck{
-		"pg": {Port: fly.Pointer(80)},
+		"pg": {Port: new(80)},
 	}
 	assert.Equal(t, want, cfg.Checks)
 }
@@ -448,6 +448,7 @@ func TestFromDefinitionKillTimeoutString(t *testing.T) {
 func dFromJSON(jsonBody string) (*fly.Definition, error) {
 	ret := &fly.Definition{}
 	err := json.Unmarshal([]byte(jsonBody), ret)
+
 	return ret, err
 }
 
@@ -456,5 +457,6 @@ func cfgFromJSON(jsonBody string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return FromDefinition(def)
 }

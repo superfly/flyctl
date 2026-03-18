@@ -108,7 +108,7 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	s1 = findMachineByID(ml, s1.ID)
 	require.Equal(f, 2, len(ml))
 	// Updating a stopped machine doesn't start it
-	require.Equal(f, "started", s1.State)
+	require.Equal(f, "stopped", s1.State)
 	require.Empty(f, s1.Config.Standbys)
 
 	// Clone and set its standby to the source
@@ -153,19 +153,24 @@ func TestFlyMachineRun_rootfsSize(t *testing.T) {
 	m = f.MachinesList(appName)[0]
 	require.NotNil(f, m.Config.Rootfs)
 	require.Equal(f, uint64(10), m.Config.Rootfs.SizeGB)
+}
+
+func TestFlyMachineRun_rootfsSize2(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
 
 	// Run with --rootfs-fs-size only, should default rootfs-size to match
 	f.Fly("machine run -a %s nginx --rootfs-fs-size 4 --region %s", appName, f.PrimaryRegion())
-	ml = f.MachinesList(appName)
-	require.Equal(f, 2, len(ml))
-	m = ml[1]
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	m := ml[0]
 	require.NotNil(f, m.Config.Rootfs)
 	require.Equal(f, uint64(4), m.Config.Rootfs.SizeGB)
 	require.Equal(f, uint64(4), m.Config.Rootfs.FsSizeGB)
 
 	// Unset rootfs-fs-size by passing 0
 	f.Fly("machine update -a %s %s --rootfs-fs-size 0 -y", appName, m.ID)
-	m = f.MachinesList(appName)[1]
+	m = f.MachinesList(appName)[0]
 	require.NotNil(f, m.Config.Rootfs)
 	require.Equal(f, uint64(0), m.Config.Rootfs.FsSizeGB)
 

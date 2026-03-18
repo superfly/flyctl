@@ -194,6 +194,7 @@ func runConsole(ctx context.Context) error {
 
 	if err, extraInfo := appConfig.Validate(ctx); err != nil {
 		fmt.Fprintln(io.ErrOut, extraInfo)
+
 		return err
 	}
 
@@ -248,6 +249,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfi
 		if err != nil {
 			return nil, nil, err
 		}
+
 		return makeEphemeralConsoleMachine(ctx, app, appConfig, guest)
 	}
 }
@@ -403,6 +405,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 		},
 		What: "to run the console",
 	}
+
 	return machine.LaunchEphemeral(ctx, app.Name, input)
 }
 

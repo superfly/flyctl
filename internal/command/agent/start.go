@@ -29,5 +29,6 @@ func runStart(ctx context.Context) error {
 	}
 
 	_, err := establish(ctx)
+
 	return err
 }

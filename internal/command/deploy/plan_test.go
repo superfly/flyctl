@@ -128,6 +128,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	flapsClient := &mock.FlapsClient{
 		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			destroyedMachine = true
+
 			return nil
 		},
 		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
@@ -169,6 +170,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 
 func withQuietIOStreams(ctx context.Context) context.Context {
 	ios, _, _, _ := iostreams.Test()
+
 	return iostreams.NewContext(ctx, ios)
 }
 
@@ -222,6 +224,7 @@ func TestUpdateMachines(t *testing.T) {
 				return nil, assert.AnError
 			}
 			acquiredLeases.Store(machineID, true)
+
 			return &fly.MachineLease{
 				Data: &fly.MachineLeaseData{
 					Nonce: machineID + "nonce",
@@ -232,6 +235,7 @@ func TestUpdateMachines(t *testing.T) {
 			if _, loaded := acquiredLeases.LoadAndDelete(machineID); !loaded {
 				t.Error("Release lease not found for machine:", machineID)
 			}
+
 			return nil
 		},
 		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
@@ -253,13 +257,8 @@ func TestUpdateMachines(t *testing.T) {
 		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-			if state == "started" {
-				machine.State = "started"
-				return nil
-			} else {
-				return assert.AnError
-			}
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
+			return nil
 		},
 		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
 			return oldMachines, nil
@@ -271,6 +270,7 @@ func TestUpdateMachines(t *testing.T) {
 			newMachine, _ := lo.Find(newMachines, func(m *fly.Machine) bool {
 				return m.ID == machineID
 			})
+
 			return newMachine, nil
 		},
 		GetProcessesFunc: func(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error) {
@@ -351,6 +351,7 @@ func TestUpdateMachines(t *testing.T) {
 	flapsClient.UpdateFunc = func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 		if !sentUnrecoverable.Load() {
 			sentUnrecoverable.Store(true)
+
 			return nil, &unrecoverableError{err: assert.AnError}
 		} else {
 			return &fly.Machine{
@@ -366,6 +367,157 @@ func TestUpdateMachines(t *testing.T) {
 	assert.Error(t, err)
 	var unrecoverableErr *unrecoverableError
 	assert.ErrorAs(t, err, &unrecoverableErr)
+}
+
+// TestUpdateMachinesWithNewMachine verifies that deploying with a new machine
+// (oldMachine=nil) doesn't panic when health checks need to run. This
+// reproduces the nil pointer dereference that occurred when oldMachine.ID was
+// accessed in updateMachineWChecks for a newly created machine.
+func TestUpdateMachinesWithNewMachine(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+
+	// Old state has one machine; new state adds a second machine that doesn't
+	// exist in the old state, producing a pairing with oldMachine=nil.
+	oldMachines := []*fly.Machine{
+		{
+			ID:         "machine1",
+			State:      "started",
+			HostStatus: fly.HostStatusOk,
+			Config: &fly.MachineConfig{
+				Image: "image1",
+			},
+		},
+	}
+
+	newMachines := []*fly.Machine{
+		{
+			ID:         "machine1",
+			State:      "started",
+			HostStatus: fly.HostStatusOk,
+			Config: &fly.MachineConfig{
+				Image: "image2",
+			},
+		},
+		{
+			ID:         "new-machine",
+			State:      "started",
+			Region:     "iad",
+			HostStatus: fly.HostStatusOk,
+			Config: &fly.MachineConfig{
+				Image: "image2",
+			},
+		},
+	}
+
+	acquiredLeases := sync.Map{}
+
+	flapsClient := &mock.FlapsClient{
+		AcquireLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
+			if _, ok := acquiredLeases.Load(machineID); ok {
+				return nil, assert.AnError
+			}
+			acquiredLeases.Store(machineID, true)
+
+			return &fly.MachineLease{
+				Data: &fly.MachineLeaseData{
+					Nonce: machineID + "nonce",
+				},
+			}, nil
+		},
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
+			acquiredLeases.Delete(machineID)
+
+			return nil
+		},
+		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+			return &fly.Machine{
+				ID:         builder.ID,
+				Config:     builder.Config,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
+			}, nil
+		},
+		LaunchFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+			return &fly.Machine{
+				ID:         "created-machine",
+				Config:     builder.Config,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
+			}, nil
+		},
+		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
+			return nil
+		},
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
+			return nil
+		},
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
+			return oldMachines, nil
+		},
+		StartFunc: func(ctx context.Context, appName, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
+			return &fly.MachineStartResponse{}, nil
+		},
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			for _, m := range newMachines {
+				if m.ID == machineID {
+					return m, nil
+				}
+			}
+			// Return the created machine for the newly launched machine
+			return &fly.Machine{
+				ID:         machineID,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
+				Config:     &fly.MachineConfig{Image: "image2"},
+			}, nil
+		},
+		GetProcessesFunc: func(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error) {
+			return fly.MachinePsResponse{}, nil
+		},
+		RefreshLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
+			return &fly.MachineLease{
+				Status: "success",
+				Data: &fly.MachineLeaseData{
+					Nonce: nonce,
+				},
+			}, nil
+		},
+	}
+
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	md := &machineDeployment{
+		flapsClient: flapsClient,
+		io:          iostreams.FromContext(ctx),
+		app: &flaps.App{
+			Name: "myapp",
+		},
+		appConfig:       &appconfig.Config{AppName: "myapp"},
+		waitTimeout:     10 * time.Second,
+		deployRetries:   5,
+		maxUnavailable:  3,
+		skipSmokeChecks: true,
+	}
+
+	oldAppState := &AppState{
+		Machines: oldMachines,
+	}
+	newAppState := &AppState{
+		Machines: newMachines,
+	}
+
+	// skipSmokeChecks=false ensures we enter the code path that previously
+	// dereferenced oldMachine.ID (which is nil for new machines).
+	settings := updateMachineSettings{
+		pushForward:          true,
+		skipHealthChecks:     false,
+		skipSmokeChecks:      false,
+		skipLeaseAcquisition: false,
+	}
+
+	err := md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	assert.NoError(t, err)
 }
 
 func TestUpdateOrCreateMachine(t *testing.T) {
@@ -394,10 +546,12 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 		},
 		DestroyFunc: func(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 			destroyedMachine = true
+
 			return nil
 		},
 		UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			updatedMachine = true
+
 			return &fly.Machine{
 				ID:         builder.ID,
 				Config:     builder.Config,
@@ -408,6 +562,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 		},
 		LaunchFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 			createMachine = true
+
 			return &fly.Machine{
 				ID:         builder.ID,
 				Config:     builder.Config,

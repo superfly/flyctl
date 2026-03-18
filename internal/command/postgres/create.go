@@ -275,7 +275,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	input := &flypg.CreateClusterInput{
 		AppName:        params.Name,
 		Organization:   org,
-		ImageRef:       params.PostgresConfiguration.ImageRef,
+		ImageRef:       params.ImageRef,
 		Region:         region.Code,
 		Manager:        params.Manager,
 		Autostart:      params.Autostart,
@@ -298,6 +298,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 
 			if flag.IsSpecified(ctx, name) {
 				isCustomMachine = true
+
 				break
 			}
 		}
@@ -343,7 +344,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 
 	if customConfig {
 		// Resolve cluster size
-		if params.PostgresConfiguration.InitialClusterSize == 0 {
+		if params.InitialClusterSize == 0 {
 			clusterSizePrompt := "Initial cluster size"
 			defaultClusterSize := 2
 
@@ -357,7 +358,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 				return err
 			}
 		}
-		input.InitialClusterSize = params.PostgresConfiguration.InitialClusterSize
+		input.InitialClusterSize = params.InitialClusterSize
 
 		if isCustomMachine {
 			guest, err := flag.GetMachineGuest(ctx, nil)
@@ -389,7 +390,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 				return err
 			}
 		}
-		input.VolumeSize = fly.IntPointer(params.DiskGb)
+		input.VolumeSize = new(params.DiskGb)
 		input.Autostart = params.Autostart
 	} else if input.BarmanRemoteRestoreConfig == "" {
 		// Resolve configuration from pre-defined configuration.
@@ -399,7 +400,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 
 		input.VMSize = vmSize
-		input.VolumeSize = fly.IntPointer(config.DiskGb)
+		input.VolumeSize = new(config.DiskGb)
 		input.InitialClusterSize = config.InitialClusterSize
 		input.ImageRef = params.ImageRef
 		input.Autostart = params.Autostart
@@ -460,6 +461,7 @@ func postgresConfigurations(manager string) []PostgresConfiguration {
 	if manager == flypg.StolonManager {
 		return stolonConfigurations()
 	}
+
 	return flexConfigurations()
 }
 

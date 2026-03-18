@@ -24,6 +24,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		appConfig:  appConfig,
 		machineSet: machine.NewMachineSet(nil, nil, "", nil, true),
 	}
+
 	return md, nil
 }
 
@@ -85,8 +86,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 		Checks: map[string]*appconfig.ToplevelCheck{
 			"alive": {
-				Port: fly.Pointer(8080),
-				Type: fly.Pointer("tcp"),
+				Port: new(8080),
+				Type: new("tcp"),
 			},
 		},
 		Statics: []appconfig.Static{{
@@ -142,8 +143,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			}},
 			Checks: map[string]fly.MachineCheck{
 				"alive": {
-					Port: fly.Pointer(8080),
-					Type: fly.Pointer("tcp"),
+					Port: new(8080),
+					Type: new("tcp"),
 				},
 			},
 		},
@@ -279,6 +280,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}, li)
 
 	origMachine := &fly.Machine{
+		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
@@ -329,6 +331,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &fly.Machine{
+		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		ID:         "OrigID",
 		Config: &fly.MachineConfig{
@@ -371,6 +374,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &fly.Machine{
+		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		ID:         "OrigID",
 		Config: &fly.MachineConfig{

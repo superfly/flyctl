@@ -33,6 +33,7 @@ associated member. Details full list of members and roles.
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 

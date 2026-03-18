@@ -33,34 +33,34 @@ func GetLogLevel() logger.Level {
 	return DefaultLogger.Level()
 }
 
-func Debug(v ...interface{}) {
+func Debug(v ...any) {
 	DefaultLogger.Debug(v...)
 }
 
-func Debugf(format string, v ...interface{}) {
+func Debugf(format string, v ...any) {
 	DefaultLogger.Debugf(format, v...)
 }
 
-func Info(v ...interface{}) {
+func Info(v ...any) {
 	DefaultLogger.Info(v...)
 }
 
-func Infof(format string, v ...interface{}) {
+func Infof(format string, v ...any) {
 	DefaultLogger.Infof(format, v...)
 }
 
-func Warn(v ...interface{}) {
+func Warn(v ...any) {
 	DefaultLogger.Warn(v...)
 }
 
-func Warnf(format string, v ...interface{}) {
+func Warnf(format string, v ...any) {
 	DefaultLogger.Warnf(format, v...)
 }
 
-func Error(v ...interface{}) {
+func Error(v ...any) {
 	DefaultLogger.Error(v...)
 }
 
-func Errorf(format string, v ...interface{}) {
+func Errorf(format string, v ...any) {
 	DefaultLogger.Errorf(format, v...)
 }

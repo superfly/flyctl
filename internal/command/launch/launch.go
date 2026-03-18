@@ -216,8 +216,8 @@ func ParseMountOptions(mount *appconfig.Mount, options string) error {
 		return nil
 	}
 
-	pairs := strings.Split(options, ",")
-	for _, pair := range pairs {
+	pairs := strings.SplitSeq(options, ",")
+	for pair := range pairs {
 		kv := strings.SplitN(pair, "=", 2)
 		if len(kv) != 2 {
 			return fmt.Errorf("invalid mount option: %s", pair)
@@ -320,8 +320,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				if !isComputeValid(compute) {
 					continue
 				}
-				if compute.MachineGuest.GPUKind != "" {
+				if compute.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
+
 					break
 				}
 
@@ -329,6 +330,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
 					if err != nil || mb >= 2048 {
 						autostop = fly.MachineAutostopStop
+
 						break
 					}
 				}
@@ -338,9 +340,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		if appConfig.HTTPService == nil {
 			appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
-				AutoStartMachines:  fly.Pointer(true),
-				AutoStopMachines:   fly.Pointer(autostop),
-				MinMachinesRunning: fly.Pointer(0),
+				AutoStartMachines:  new(true),
+				AutoStopMachines:   new(autostop),
+				MinMachinesRunning: new(0),
 				Processes:          []string{"app"},
 			}
 		}

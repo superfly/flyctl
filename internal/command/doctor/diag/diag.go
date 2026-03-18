@@ -73,6 +73,7 @@ func Run(ctx context.Context) (err error) {
 
 Run this command from your app's local directory, or
 add the --force flag to send us best-effort diagnostics.`)
+
 		return err
 	}
 
@@ -126,10 +127,11 @@ add the --force flag to send us best-effort diagnostics.`)
 
 	req.Header.Set("Content-Type", "application/zip")
 
-	_, err = http.DefaultClient.Do(req)
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("put archive to doctor URL: %w", err)
 	}
+	defer res.Body.Close()
 
 	fmt.Printf("\nYour Diagnostic Code (safe to share): %s\n", m[1])
 
@@ -143,6 +145,7 @@ func cp(z *zip.Writer, name string, f io.Reader) error {
 	}
 
 	_, err = io.Copy(zf, f)
+
 	return err
 }
 
@@ -170,6 +173,7 @@ func grepv(r io.Reader, excludes []string) *bytes.Buffer {
 		for _, xcl := range excludes {
 			if strings.Contains(line, xcl) {
 				exclude = true
+
 				break
 			}
 		}
@@ -224,7 +228,7 @@ func fetchDockerfile(ctx context.Context, z *zip.Writer) error {
 }
 
 func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
-	diags := map[string]interface{}{}
+	diags := map[string]any{}
 
 	diags["version"] = buildinfo.Info()
 
@@ -247,6 +251,7 @@ func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
 			if !info.IsDir() {
 				size += info.Size()
 			}
+
 			return err
 		})
 
@@ -257,6 +262,9 @@ func fetchLocalDiag(ctx context.Context, z *zip.Writer) error {
 	}
 
 	buf := &bytes.Buffer{}
-	json.NewEncoder(buf).Encode(diags)
+	if err := json.NewEncoder(buf).Encode(diags); err != nil {
+		return err
+	}
+
 	return cp(z, "diag.json", buf)
 }

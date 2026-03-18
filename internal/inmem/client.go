@@ -93,6 +93,7 @@ func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*
 	var resp fly.CreateBuildResponse
 	resp.CreateBuild.Id = build.ID
 	resp.CreateBuild.Status = build.Status
+
 	return &resp, nil
 }
 
@@ -121,6 +122,7 @@ func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput
 	var resp fly.CreateReleaseResponse
 	resp.CreateRelease.Release.Id = release.ID
 	resp.CreateRelease.Release.Version = release.Version
+
 	return &resp, nil
 }
 
@@ -173,6 +175,7 @@ func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*
 	var resp fly.FinishBuildResponse
 	resp.FinishBuild.Id = build.ID
 	resp.FinishBuild.Status = build.Status
+
 	return &resp, nil
 }
 
@@ -305,6 +308,7 @@ func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly
 	if err != nil {
 		return nil, err
 	}
+
 	return &fly.Organization{ID: app.Organization.ID}, nil
 }
 
@@ -400,6 +404,7 @@ func (m *Client) ResolveImageForApp(ctx context.Context, appName, imageRef strin
 	if image == nil {
 		return nil, fmt.Errorf("image not found for app %q: %s", appName, imageRef)
 	}
+
 	return image, nil
 }
 
@@ -430,6 +435,7 @@ func (m *Client) UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput
 
 	var resp fly.UpdateReleaseResponse
 	resp.UpdateRelease.Release.Id = input.ReleaseId
+
 	return &resp, nil
 }
 

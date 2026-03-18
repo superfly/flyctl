@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -204,6 +203,7 @@ func (m *FlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Ma
 			a = append(a, machine)
 		}
 	}
+
 	return a, nil
 }
 
@@ -231,6 +231,7 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 			releaseCmdMachine = machine
 		}
 	}
+
 	return machines, releaseCmdMachine, nil
 }
 
@@ -238,7 +239,7 @@ func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, versio
 	panic("TODO")
 }
 
-func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	panic("TODO")
 }
 
@@ -294,17 +295,7 @@ func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string
 	panic("TODO")
 }
 
-func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-	if state == "" {
-		state = "started"
-	}
-	mach, err := m.server.GetMachine(ctx, appName, machine.ID)
-	if err != nil {
-		return err
-	}
-	if mach.State != state {
-		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
-	}
+func (m *FlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 	return nil
 }
 

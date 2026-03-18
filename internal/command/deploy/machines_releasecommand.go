@@ -55,6 +55,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
 		span.AddEvent("no " + commandType + " command")
+
 		return nil
 	}
 
@@ -83,8 +84,10 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to create "+commandType+" cmd machine")
+
 			return fmt.Errorf("error running %s_command machine: %w", commandType, err)
 		}
+
 		return nil
 	})
 	eg.Go(func() error {
@@ -93,6 +96,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 			// Silently fallback to app logs polling if NATS streaming client is unavailable.
 			stream = logs.NewPollingStream(md.apiClient)
 		}
+
 		return nil
 	})
 	if err = eg.Wait(); err != nil {
@@ -117,6 +121,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 			var ts time.Time
 			if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
 				err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
+
 				return
 			}
 			msg := fmt.Sprintf("%s %s", aurora.Faint(format.Time(ts)), entry.Message)
@@ -136,6 +141,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	if err = releaseCmdMachine.Start(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
+
 		return
 	}
 
@@ -177,6 +183,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 				}
 			})
 		}
+
 		return fmt.Errorf("machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
 	statuslogger.LogfStatus(ctx,
@@ -185,6 +192,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		commandType,
 		md.colorize.Bold(releaseCmdMachine.Machine().ID),
 	)
+
 	return nil
 }
 
@@ -241,6 +249,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
+
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
 
@@ -250,6 +259,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	lm := md.releaseCommandMachine.GetMachines()[0]
 	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, machine.WithJustCreated()); err != nil {
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 		return err
 	}
 
@@ -279,6 +289,7 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	if err != nil {
 		return nil, err
 	}
+
 	return &fly.LaunchMachineInput{
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
@@ -299,6 +310,7 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 			if m != nil && m.Config != nil && m.Config.Guest != nil {
 				return m.Config.Guest.MemoryMB
 			}
+
 			return 0
 		}
 
@@ -307,12 +319,14 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 			if mach.ProcessGroup() != group {
 				return prevBest
 			}
+
 			return lo.Ternary(ram(mach) > ram(prevBest), mach, prevBest)
 		}, nil)
 		if maxRamMach != nil {
 			desiredGuest = maxRamMach.Config.Guest
 		}
 	}
+
 	return helpers.Clone(desiredGuest)
 }
 
@@ -325,13 +339,16 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 			return nil
 		}
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	err = releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, machine.WithAllowInfinite(true))
 	if err != nil {
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
+
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	md.releaseCommandMachine.RemoveMachines(ctx, []machine.LeasableMachine{releaseCmdMachine})
+
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -110,6 +111,7 @@ func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer ag
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
@@ -143,10 +145,10 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": app.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": app.Organization.Slug,
 			},
 		}),
@@ -204,11 +206,13 @@ func runConsole(ctx context.Context) error {
 	sshc, err := Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
 	if err := Console(ctx, sshc, cmd, allocPTY, params.Container); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
@@ -221,6 +225,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
 			return err
 		}
+
 		return nil
 	}()
 
@@ -341,7 +346,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 				return nil, err
 			}
 
-			err = flapsClient.Wait(ctx, app.Name, selectedMachine, "started", 60*time.Second)
+			err = flapsClient.Wait(ctx, app.Name, selectedMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(60*time.Second))
 
 			if err != nil {
 				return nil, err
@@ -397,6 +402,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 					fmt.Printf("No container specified, using %s\n", availableContainers[0])
 				}
 			}
+
 			return availableContainers[selected], nil
 		} else {
 			if slices.Contains(availableContainers, container) {

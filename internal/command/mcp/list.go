@@ -74,6 +74,7 @@ func runList(ctx context.Context) error {
 			if os.IsNotExist(err) {
 				continue
 			}
+
 			return err
 		}
 
@@ -130,12 +131,14 @@ func runList(ctx context.Context) error {
 			return fmt.Errorf("failed to marshal server map: %w", err)
 		}
 		fmt.Println(string(output))
+
 		return nil
 	}
 
 	// if no MCP servers were found, print a message and return
 	if len(serverMap) == 0 {
 		fmt.Println("No MCP servers found.")
+
 		return nil
 	}
 

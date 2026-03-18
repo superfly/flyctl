@@ -252,5 +252,6 @@ func run(ctx context.Context) error {
 
 func group(cmd *cobra.Command, id string) *cobra.Command {
 	cmd.GroupID = id
+
 	return cmd
 }

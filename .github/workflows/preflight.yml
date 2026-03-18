@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         id: download-flyctl
         with:
           name: flyctl

@@ -23,6 +23,7 @@ import (
 func testingContext(t *testing.T) context.Context {
 	ctx := context.Background()
 	ctx = state.WithConfigDirectory(ctx, t.TempDir())
+
 	return ctx
 }
 
@@ -96,6 +97,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 					}
 				}
 			}
+
 			return []fly.Volume{{
 				ID: "bigvolume",
 			}}, nil
@@ -112,6 +114,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 					}
 				}
 			}
+
 			return []*fly.Machine{{
 				ID:    "bigmachine",
 				State: "started",
@@ -192,6 +195,7 @@ func TestCreateBuilder(t *testing.T) {
 			if createAppShouldFail {
 				return nil, errors.New("create app failed")
 			}
+
 			return &fly.App{
 				Name: input.Name,
 			}, nil
@@ -203,6 +207,7 @@ func TestCreateBuilder(t *testing.T) {
 			if allocateIPAddressShouldFail {
 				return nil, errors.New("allocate ip address failed")
 			}
+
 			return &fly.IPAddress{}, nil
 		},
 	}
@@ -219,6 +224,7 @@ func TestCreateBuilder(t *testing.T) {
 			if createAppShouldFail {
 				return nil, errors.New("create app failed")
 			}
+
 			return &flaps.App{
 				Name: req.Name,
 			}, nil
@@ -227,6 +233,7 @@ func TestCreateBuilder(t *testing.T) {
 			if waitForAppShouldFail {
 				return errors.New("wait for app failed")
 			}
+
 			return nil
 		},
 		CreateVolumeFunc: func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -240,6 +247,7 @@ func TestCreateBuilder(t *testing.T) {
 					}
 				}
 			}
+
 			return &fly.Volume{
 				ID: "bigvolume",
 			}, nil
@@ -251,13 +259,15 @@ func TestCreateBuilder(t *testing.T) {
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")
 			}
+
 			return &fly.Machine{
 				ID:    "bigmachine",
 				State: "started",
 			}, nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			time.Sleep(1 * time.Second)
+
 			return nil
 		},
 	}
@@ -311,9 +321,10 @@ func TestRestartBuilderMachine(t *testing.T) {
 					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
 				}
 			}
+
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			return nil
 		},
 	}

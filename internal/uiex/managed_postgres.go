@@ -129,6 +129,7 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("organization %s not found", orgSlug)
@@ -167,6 +168,7 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found in organization %s", id, orgSlug)
@@ -328,6 +330,7 @@ func (c *Client) CreateUserWithRole(ctx context.Context, id string, input Create
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", id)
@@ -380,6 +383,7 @@ func (c *Client) UpdateUserRole(ctx context.Context, id string, username string,
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s or user %s not found", id, username)
@@ -454,6 +458,7 @@ func (c *Client) GetUserCredentials(ctx context.Context, id string, username str
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s or user %s not found", id, username)
@@ -493,6 +498,7 @@ func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, e
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", id)
@@ -548,6 +554,7 @@ func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesRes
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", id)
@@ -592,6 +599,7 @@ func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateData
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", id)
@@ -665,6 +673,7 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("organization %s not found", input.OrgSlug)
@@ -714,6 +723,7 @@ func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGReg
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return response, nil
 	default:
 		return response, fmt.Errorf("failed to list MPG regions (status %d): %s", res.StatusCode, string(body))
@@ -751,6 +761,7 @@ func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", clusterID)
@@ -796,6 +807,7 @@ func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID strin
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", clusterID)
@@ -841,6 +853,7 @@ func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID stri
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", clusterID)
@@ -935,6 +948,7 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("cluster %s not found", clusterId)
@@ -980,6 +994,7 @@ func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName
 		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("attachment not found for app '%s' on cluster %s", appName, clusterId)

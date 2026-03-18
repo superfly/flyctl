@@ -65,5 +65,6 @@ func runUpdate(ctx context.Context) error {
 	if app.IsPostgresApp() {
 		return updatePostgresOnMachines(ctx, app)
 	}
+
 	return updateImageForMachines(ctx, app)
 }

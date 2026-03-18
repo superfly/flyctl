@@ -29,6 +29,7 @@ func newSetup() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 	)
+
 	return cmd
 }
 
@@ -218,6 +219,7 @@ func runSetup(ctx context.Context) error {
 		io.Out,
 		"\nLSVD is configured! New machines will now be deployed with LSVD enabled.",
 	)
+
 	return nil
 }
 
@@ -226,5 +228,6 @@ func createTigrisBucket(ctx context.Context, appName string) error {
 		Provider: "tigris",
 		AppName:  appName,
 	})
+
 	return err
 }

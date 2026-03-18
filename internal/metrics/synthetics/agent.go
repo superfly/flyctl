@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/superfly/flyctl/internal/logger"
 )
@@ -25,6 +25,7 @@ func RunAgent(ctx context.Context) error {
 
 	if err = ws.Connect(ctx); err != nil {
 		logger.Errorf("error connecting to flynthetics: %v", err)
+
 		return err
 	}
 
@@ -84,6 +85,7 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 	err := json.Unmarshal(probeMessageJSON, &probeMessage)
 	if err != nil {
 		logger.Error("JSON parse error:", err)
+
 		return err
 	}
 
@@ -93,7 +95,7 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 		logBuf bytes.Buffer
 	)
 
-	sl := log.NewLogfmtLogger(log.NewSyncWriter(&logBuf))
+	sl := slog.New(slog.NewTextHandler(&logBuf, nil))
 
 	if !isFlyInfraTarget(probeMessage.Target) {
 		logger.Warnf("skipping probe message for non-fly infra endpoint %s", probeMessage.Target)
@@ -101,6 +103,7 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 		mfs, err = probeHTTP(ctx, probeMessage, sl)
 		if err != nil {
 			logger.Errorf("error processing probe for endpoint %s. error: %v", probeMessage.Target, err)
+
 			return err
 		}
 	}

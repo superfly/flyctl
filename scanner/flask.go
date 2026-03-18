@@ -17,7 +17,7 @@ func configureFlask(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 
 	// Extract Python version
 	// TODO: support pinned versions

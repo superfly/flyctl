@@ -17,5 +17,6 @@ func formatLogName(fileTime time.Time) string {
 }
 func parseLogName(fileName string) (time.Time, error) {
 	date := strings.TrimSuffix(strings.TrimPrefix(fileName, "flyctl-"), filepath.Ext(fileName))
+
 	return time.Parse(timeSpec, date)
 }
