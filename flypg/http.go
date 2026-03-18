@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -16,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-const flypgPort = 5500
+const flypgPort = "5500"
 
 type Client struct {
 	httpClient *http.Client
@@ -35,10 +35,11 @@ func NewFromInstance(address string, dialer agent.Dialer) *Client {
 }
 
 func formatPGBaseURL(address string) string {
-	if ip := net.ParseIP(address); ip != nil && ip.To4() == nil {
-		return fmt.Sprintf("http://[%s]:%d", address, flypgPort)
-	}
-	return fmt.Sprintf("http://%s:%d", address, flypgPort)
+	hostport := net.JoinHostPort(address, flypgPort)
+	return (&url.URL{
+		Scheme: "http",
+		Host:   hostport,
+	}).String()
 }
 
 func newHttpClient(dialer agent.Dialer) *http.Client {
