@@ -95,7 +95,7 @@ require (
 	golang.org/x/text v0.35.0
 	golang.org/x/time v0.15.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/grpc v1.79.2
+	google.golang.org/grpc v1.79.3
 	gopkg.in/yaml.v3 v3.0.1
 )
 
