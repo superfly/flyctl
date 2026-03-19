@@ -36,6 +36,7 @@ func NewFromInstance(address string, dialer agent.Dialer) *Client {
 
 func formatPGBaseURL(address string) string {
 	hostport := net.JoinHostPort(address, flypgPort)
+
 	return (&url.URL{
 		Scheme: "http",
 		Host:   hostport,
