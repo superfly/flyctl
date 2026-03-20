@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -328,17 +327,10 @@ func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclie
 
 	terminal.Info("Building lazy-loading image, please wait...")
 
-	daemonHost := docker.DaemonHost()
-	parsed, err := url.Parse(daemonHost)
+	rchabUrl, err := builderAPIURL(docker.DaemonHost(), "/flyio/v1/buildOverlaybdImage")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse daemon host: %w", err)
 	}
-	hostPort := parsed.Host
-	host, _, _ := net.SplitHostPort(hostPort)
-	parsed.Host = host + ":8080"
-	parsed.Scheme = "http"
-	parsed.Path = "/flyio/v1/buildOverlaybdImage"
-	rchabUrl := parsed.String()
 
 	terminal.Debugf("rchab url: %s", rchabUrl)
 
