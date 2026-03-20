@@ -137,7 +137,7 @@ var VMSizeFlags = Set{
 	String{
 		Name:        "vm-max-memory",
 		Description: "Maximum memory (in megabytes) to allow for the VM",
-		Aliases:     []string{"max-memory"},
+		Hidden:      true,
 	},
 	Int{
 		Name:        "vm-gpus",
