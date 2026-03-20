@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -160,7 +161,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 
 		return
 	}
-	nsAddr := fmt.Sprintf("%s:53", strings.TrimSuffix(ns, "."))
+	nsAddr := net.JoinHostPort(strings.TrimSuffix(ns, "."), "53")
 
 	if len(v4s) > 0 {
 		ac.lprint(nil, "Checking A record for %s... ", appHostname)

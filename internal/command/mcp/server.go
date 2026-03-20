@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -470,7 +471,7 @@ func runServer(ctx context.Context) error {
 			start = sseServer.Start
 		}
 
-		if err = start(fmt.Sprintf("%s:%d", flag.GetString(ctx, flagnames.BindAddr), port)); err != nil {
+		if err = start(net.JoinHostPort(flag.GetString(ctx, flagnames.BindAddr), fmt.Sprintf("%d", port))); err != nil {
 			return fmt.Errorf("Server error: %v", err)
 		}
 	} else {
