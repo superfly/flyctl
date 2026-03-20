@@ -576,7 +576,7 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
 		}),
 		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return tls.Dial("tcp", parsedHostUrl.Host+":443", &tls.Config{})
+			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
 		}),
 	}
 
