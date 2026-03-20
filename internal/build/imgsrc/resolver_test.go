@@ -26,7 +26,7 @@ func TestDeploymentImage(t *testing.T) {
 }
 
 func TestHeartbeat(t *testing.T) {
-	dc, err := client.NewClientWithOpts()
+	dc, err := client.NewClientWithOpts(client.WithHost("tcp://127.0.0.1:2375"))
 	assert.NoError(t, err)
 
 	ctx := context.Background()
@@ -43,7 +43,7 @@ func TestStartHeartbeat(t *testing.T) {
 		Tokens: &tokens.Tokens{},
 	})
 
-	dc, err := client.NewClientWithOpts()
+	dc, err := client.NewClientWithOpts(client.WithHost("tcp://127.0.0.1:2375"))
 	assert.NoError(t, err)
 
 	resolver := Resolver{
@@ -72,7 +72,7 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 		Tokens: &tokens.Tokens{},
 	})
 
-	dc, err := client.NewClientWithOpts()
+	dc, err := client.NewClientWithOpts(client.WithHost("tcp://127.0.0.1:2375"))
 	assert.NoError(t, err)
 
 	numCalls := 0
@@ -109,7 +109,7 @@ func TestStartHeartbeatNoEndpoint(t *testing.T) {
 		Tokens: &tokens.Tokens{},
 	})
 
-	dc, err := client.NewClientWithOpts()
+	dc, err := client.NewClientWithOpts(client.WithHost("tcp://127.0.0.1:2375"))
 	assert.NoError(t, err)
 
 	resolver := Resolver{
