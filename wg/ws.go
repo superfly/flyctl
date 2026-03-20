@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -124,7 +125,11 @@ func (wswg *WsWgProxy) Port() (int, error) {
 }
 
 func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
-	rurl := fmt.Sprintf("wss://%s:443/", endpoint)
+	rurl := (&url.URL{
+		Scheme: "wss",
+		Host:   net.JoinHostPort(endpoint, "443"),
+		Path:   "/",
+	}).String()
 
 	log.Printf("(re-)connecting to %s", rurl)
 

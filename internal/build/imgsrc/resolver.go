@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -791,18 +789,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 }
 
 func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
-	daemonHost := dockerClient.DaemonHost()
-	parsed, err := url.Parse(daemonHost)
-	if err != nil {
-		return "", err
-	}
-	hostPort := parsed.Host
-	host, _, _ := net.SplitHostPort(hostPort)
-	parsed.Host = host + ":8080"
-	parsed.Scheme = "http"
-	parsed.Path = "/flyio/v1/extendDeadline"
-
-	return parsed.String(), nil
+	return builderAPIURL(dockerClient.DaemonHost(), "/flyio/v1/extendDeadline")
 }
 
 func (s *StopSignal) Stop() {

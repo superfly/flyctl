@@ -354,7 +354,7 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 
 	bindAddr := flag.GetBindAddr(ctx)
 
-	parsedURL.Host = fmt.Sprintf("%s:%d", bindAddr, localPort)
+	parsedURL.Host = net.JoinHostPort(bindAddr, fmt.Sprintf("%d", localPort))
 
 	return parsedURL.String(), cmd, nil
 }
