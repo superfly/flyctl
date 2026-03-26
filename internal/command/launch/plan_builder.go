@@ -671,6 +671,10 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
+	byRawSlug := make(map[string]fly.Organization, len(orgs))
+	for _, o := range orgs {
+		byRawSlug[o.RawSlug] = o
+	}
 	byName := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		byName[o.Name] = o
@@ -696,6 +700,13 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	org, foundSlug := bySlug[orgRequested]
 	if !foundSlug {
 		if org, foundName := byName[orgRequested]; foundName {
+			return &org, "specified on the command line", nil
+		}
+
+		// The personal org's canonical Slug is always "personal", but callers
+		// (e.g. the deployer) may supply the real/raw slug (e.g. "lubien-339").
+		// Fall back to a RawSlug lookup before giving up.
+		if org, foundRawSlug := byRawSlug[orgRequested]; foundRawSlug {
 			return &org, "specified on the command line", nil
 		}
 

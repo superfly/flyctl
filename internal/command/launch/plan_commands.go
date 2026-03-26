@@ -38,6 +38,7 @@ func newPropose() *cobra.Command {
 	flag.Add(cmd,
 		flag.Region(),
 		flag.Org(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "from",
 			Description: "A github repo URL to use as a template for the new app",
@@ -222,7 +223,18 @@ func runPropose(ctx context.Context) error {
 		ctx = logger.NewContext(ctx, logger.New(os.Stderr, logger.FromContext(ctx).Level(), iostreams.IsTerminalWriter(os.Stdout)))
 	}
 
-	err := RunPlan(ctx, "propose")
+	// LoadAppConfigIfPresent is registered on the parent "plan" command, but
+	// because that command has no Run func cobra never executes its RunE and the
+	// preparer is never called. Load the config here explicitly so that a custom
+	// path supplied via --config (e.g. fly.api-server.toml) is in context before
+	// buildManifest → determineBaseAppConfig reads it.
+	var err error
+	ctx, err = command.LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = RunPlan(ctx, "propose")
 	if err != nil {
 		return err
 	}
