@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
-      - uses: j178/prek-action@v1
+      - uses: j178/prek-action@v2
         with:
           extra-args: --all-files --stage=manual
 
