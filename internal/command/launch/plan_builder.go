@@ -465,9 +465,13 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 
 		// if --attach is specified, we should return the config as the base config
 		attach := flag.GetBool(ctx, "attach")
-		copyConfig := flag.GetBool(ctx, "copy-config") || attach
+		// An explicit --config flag means the caller deliberately chose the file
+		// (e.g. the deployer passing --config fly.api-server.toml). Treat it as
+		// copy-config so we never prompt and never fall back to source scanning.
+		explicitConfig := flag.IsSpecified(ctx, "config")
+		copyConfig := flag.GetBool(ctx, "copy-config") || attach || explicitConfig
 
-		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
+		if !flag.IsSpecified(ctx, "copy-config") && !attach && !explicitConfig && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)
@@ -671,6 +675,10 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
+	byRawSlug := make(map[string]fly.Organization, len(orgs))
+	for _, o := range orgs {
+		byRawSlug[o.RawSlug] = o
+	}
 	byName := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		byName[o.Name] = o
@@ -696,6 +704,13 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	org, foundSlug := bySlug[orgRequested]
 	if !foundSlug {
 		if org, foundName := byName[orgRequested]; foundName {
+			return &org, "specified on the command line", nil
+		}
+
+		// The personal org's canonical Slug is always "personal", but callers
+		// (e.g. the deployer) may supply the real/raw slug (e.g. "lubien-339").
+		// Fall back to a RawSlug lookup before giving up.
+		if org, foundRawSlug := byRawSlug[orgRequested]; foundRawSlug {
 			return &org, "specified on the command line", nil
 		}
 
