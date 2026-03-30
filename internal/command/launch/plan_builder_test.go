@@ -35,8 +35,8 @@ func TestDetermineOrg(t *testing.T) {
 	personalOrg := fly.Organization{
 		ID:      "org-id-personal",
 		Slug:    "personal",
-		RawSlug: "logan-griswold-339",
-		Name:    "Logan Griswold",
+		RawSlug: "lubien-org-339",
+		Name:    "Lubien Org",
 		Type:    "PERSONAL",
 	}
 	teamOrg := fly.Organization{
@@ -63,7 +63,7 @@ func TestDetermineOrg(t *testing.T) {
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "personal", org.Slug)
-		assert.Equal(t, "logan-griswold-339", org.RawSlug)
+		assert.Equal(t, "lubien-org-339", org.RawSlug)
 	})
 
 	t.Run("canonical personal slug", func(t *testing.T) {
@@ -73,17 +73,17 @@ func TestDetermineOrg(t *testing.T) {
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "personal", org.Slug)
-		assert.Equal(t, "logan-griswold-339", org.RawSlug)
+		assert.Equal(t, "lubien-org-339", org.RawSlug)
 	})
 
 	t.Run("real raw slug of personal org", func(t *testing.T) {
-		ctx := newDetermineOrgCtx(t, "logan-griswold-339")
+		ctx := newDetermineOrgCtx(t, "lubien-org-339")
 		ctx = flyutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "personal", org.Slug)
-		assert.Equal(t, "logan-griswold-339", org.RawSlug)
+		assert.Equal(t, "lubien-org-339", org.RawSlug)
 	})
 
 	t.Run("team org by slug", func(t *testing.T) {
