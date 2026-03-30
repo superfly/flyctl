@@ -465,9 +465,13 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 
 		// if --attach is specified, we should return the config as the base config
 		attach := flag.GetBool(ctx, "attach")
-		copyConfig := flag.GetBool(ctx, "copy-config") || attach
+		// An explicit --config flag means the caller deliberately chose the file
+		// (e.g. the deployer passing --config fly.api-server.toml). Treat it as
+		// copy-config so we never prompt and never fall back to source scanning.
+		explicitConfig := flag.IsSpecified(ctx, "config")
+		copyConfig := flag.GetBool(ctx, "copy-config") || attach || explicitConfig
 
-		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
+		if !flag.IsSpecified(ctx, "copy-config") && !attach && !explicitConfig && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)
