@@ -1008,18 +1008,18 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	defer span.End()
 
 	lm := e.leasableMachine
-	// If machine requires replacement, destroy old machine and launch a new one
-	// This can be the case for machines that changes its volumes.
-	if err := lm.Destroy(ctx, true); err != nil {
-		return err
-	}
 
 	// Acquire a lease on the new machine to ensure external factors can't stop or update it
 	// while we wait for its state and/or health checks
 	e.launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
+	// Launch the replacement first so the old machine is preserved if the launch fails.
 	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *e.launchInput)
 	if err != nil {
+		return err
+	}
+
+	if err := lm.Destroy(ctx, true); err != nil {
 		return err
 	}
 
