@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/kr/text"
-	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flyctl"
@@ -232,7 +232,7 @@ func run(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		cmd.Printf("  %s %s\n", tablewriter.PadRight(c.CommandPath(), " ", 16), c.Short)
+		cmd.Printf("  %s %s\n", tw.PadRight(c.CommandPath(), " ", 16), c.Short)
 	}
 
 	cmd.Println()
