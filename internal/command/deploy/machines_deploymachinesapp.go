@@ -1301,10 +1301,10 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 			}
 		}
 		if len(addresses) > 0 {
-			table.Append([]string{proc.Command, strings.Join(addresses, ", ")})
+			table.Append(proc.Command, strings.Join(addresses, ", ")) //nolint:errcheck
 		}
 	}
-	table.Render()
+	table.Render() //nolint:errcheck
 	fmt.Fprintf(md.io.ErrOut, "\n")
 }
 
