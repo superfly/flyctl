@@ -9,6 +9,7 @@ import (
 
 	packclient "github.com/buildpacks/pack/pkg/client"
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
+	mobyclient "github.com/moby/moby/client"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -70,7 +71,22 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	defer docker.Close() // skipcq: GO-S2307
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := packclient.NewClient(packclient.WithDockerClient(docker), packclient.WithLogger(newPackLogger(streams.Out)))
+	// pack v0.40+ uses github.com/moby/moby/client types; create a moby client
+	// from the existing docker connection (same HTTP client + host) to satisfy the interface.
+	mobyClient, err := mobyclient.New(
+		mobyclient.WithHTTPClient(docker.HTTPClient()),
+		mobyclient.WithHost(docker.DaemonHost()),
+		mobyclient.WithAPIVersionNegotiation(),
+	)
+	if err != nil {
+		build.BuilderInitFinish()
+		build.BuildFinish()
+		tracing.RecordError(span, err, "failed to create moby client for pack")
+
+		return nil, "", err
+	}
+
+	packClient, err := packclient.NewClient(packclient.WithDockerClient(mobyClient), packclient.WithLogger(newPackLogger(streams.Out)))
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
