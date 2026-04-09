@@ -39,12 +39,13 @@ func runWireguardTokenList(ctx context.Context) error {
 		return nil
 	}
 
-	table := tablewriter.NewWriter(io.Out)
-	table.SetHeader([]string{"Name"})
+	table := tablewriter.NewTable(io.Out,
+		tablewriter.WithHeader([]string{"Name"}),
+	)
 	for _, peer := range tokens {
-		table.Append([]string{peer.Name})
+		table.Append(peer.Name) //nolint:errcheck
 	}
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	return nil
 }

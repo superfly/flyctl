@@ -73,13 +73,14 @@ func runShow(ctx context.Context) (err error) {
 
 	fmt.Fprintln(&buf, colorize.Bold("Organization Members"))
 
-	membertable := tablewriter.NewWriter(&buf)
-	membertable.SetHeader([]string{"Name", "Email", "Role"})
+	membertable := tablewriter.NewTable(&buf,
+		tablewriter.WithHeader([]string{"Name", "Email", "Role"}),
+	)
 
 	for _, m := range org.Members.Edges {
-		membertable.Append([]string{m.Node.Name, m.Node.Email, m.Role})
+		membertable.Append(m.Node.Name, m.Node.Email, m.Role) //nolint:errcheck
 	}
-	membertable.Render()
+	membertable.Render() //nolint:errcheck
 
 	buf.WriteTo(io.Out)
 

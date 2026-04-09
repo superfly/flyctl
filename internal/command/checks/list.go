@@ -45,7 +45,6 @@ func runAppCheckList(ctx context.Context) error {
 
 	fmt.Fprintf(out, "Health Checks for %s\n", appName)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
-	table.SetRowLine(true)
 	for _, machine := range machines {
 		sort.Slice(machine.Checks, func(i, j int) bool {
 			return machine.Checks[i].Name < machine.Checks[j].Name
@@ -55,10 +54,10 @@ func runAppCheckList(ctx context.Context) error {
 			if nameFilter != "" && nameFilter != check.Name {
 				continue
 			}
-			table.Append([]string{check.Name, string(check.Status), machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output})
+			table.Append(check.Name, string(check.Status), machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output) //nolint:errcheck
 		}
 	}
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	return nil
 }
