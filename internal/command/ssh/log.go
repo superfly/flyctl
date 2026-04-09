@@ -54,12 +54,9 @@ func runLog(ctx context.Context) (err error) {
 		return nil
 	}
 
-	table := tablewriter.NewWriter(out)
-
-	table.SetHeader([]string{
-		"Root",
-		"Certificate",
-	})
+	table := tablewriter.NewTable(out,
+		tablewriter.WithHeader([]string{"Root", "Certificate"}),
+	)
 
 	for _, cert := range certs {
 		root := "no"
@@ -72,7 +69,7 @@ func runLog(ctx context.Context) (err error) {
 		for i, ch := range cert.Cert {
 			buf.WriteRune(ch)
 			if i%60 == 0 && i != 0 {
-				table.Append([]string{root, buf.String()})
+				table.Append(root, buf.String()) //nolint:errcheck
 				if first {
 					root = ""
 					first = false
@@ -82,11 +79,11 @@ func runLog(ctx context.Context) (err error) {
 		}
 
 		if buf.Len() != 0 {
-			table.Append([]string{root, buf.String()})
+			table.Append(root, buf.String()) //nolint:errcheck
 		}
 	}
 
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	return nil
 }

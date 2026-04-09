@@ -61,11 +61,10 @@ func runList(ctx context.Context) (err error) {
 	if appHostIssuesCount > 0 {
 		fmt.Fprintf(out, "Host Issues count: %d\n\n", appHostIssuesCount)
 		table := helpers.MakeSimpleTable(out, []string{"Id", "Message", "Started At", "Last Updated"})
-		table.SetRowLine(true)
 		for _, appHostIssue := range appHostIssues {
-			table.Append([]string{appHostIssue.InternalId, appHostIssue.Message, appHostIssue.CreatedAt.String(), appHostIssue.UpdatedAt.String()})
+			table.Append(appHostIssue.InternalId, appHostIssue.Message, appHostIssue.CreatedAt.String(), appHostIssue.UpdatedAt.String()) //nolint:errcheck
 		}
-		table.Render()
+		table.Render() //nolint:errcheck
 	} else {
 		fmt.Fprintf(out, "There are no active host issues\n")
 	}
