@@ -9,6 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -118,15 +119,17 @@ func runList(ctx context.Context) error {
 	}
 
 	table := render.NewTable(io.Out, "Snapshots", rows, "ID", "Status", "Stored Size", "Vol Size", "Created At", "Retention Days")
-	table.SetColumnAlignment([]int{
-		tablewriter.ALIGN_DEFAULT, // ID
-		tablewriter.ALIGN_DEFAULT, // Status
-		tablewriter.ALIGN_RIGHT,   // Stored Size
-		tablewriter.ALIGN_RIGHT,   // Vol Size
-		tablewriter.ALIGN_DEFAULT, // Created At
-		tablewriter.ALIGN_RIGHT,   // Retention Days
-	})
-	table.Render()
+	table.Options(tablewriter.WithRowAlignmentConfig(tw.CellAlignment{
+		PerColumn: []tw.Align{
+			tw.AlignDefault, // ID
+			tw.AlignDefault, // Status
+			tw.AlignRight,   // Stored Size
+			tw.AlignRight,   // Vol Size
+			tw.AlignDefault, // Created At
+			tw.AlignRight,   // Retention Days
+		},
+	}))
+	table.Render() //nolint:errcheck
 
 	fmt.Fprintf(io.Out, "\nTotal stored size: %s\n", humanize.IBytes(totalStoredSize))
 

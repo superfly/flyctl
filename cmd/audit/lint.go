@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/command/root"
@@ -22,21 +23,22 @@ func newLintCmd() *cobra.Command {
 			root := root.New()
 			run := NewCheckRun(root)
 
-			table := tablewriter.NewWriter(os.Stdout)
-			table.SetBorder(false)
-			table.SetAutoWrapText(false)
-			table.SetHeader([]string{"Path", "Check", "Failure Reason"})
+			table := tablewriter.NewTable(os.Stdout,
+				tablewriter.WithHeader([]string{"Path", "Check", "Failure Reason"}),
+				tablewriter.WithRendition(tw.Rendition{
+					Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off},
+				}),
+			)
+			table.Configure(func(cfg *tablewriter.Config) {
+				cfg.Row.Formatting.AutoWrap = tw.WrapNone
+			})
 
 			errors := run.Run()
 			for _, err := range errors {
-				table.Append([]string{
-					err.command,
-					err.check,
-					err.Error(),
-				})
+				table.Append(err.command, err.check, err.Error()) //nolint:errcheck
 			}
 
-			table.Render()
+			table.Render() //nolint:errcheck
 
 			fmt.Println()
 			fmt.Printf("%d checks failed\n", len(errors))

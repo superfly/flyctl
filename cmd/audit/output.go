@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 )
 
 func newOutput(w io.Writer, format string) output {
@@ -25,23 +26,38 @@ type output interface {
 }
 
 func NewTableOutput(w io.Writer) *tableOutput {
-	t := tablewriter.NewWriter(w)
-	t.SetBorder(false)
-	t.SetAutoWrapText(false)
+	t := tablewriter.NewTable(w,
+		tablewriter.WithRendition(tw.Rendition{
+			Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off},
+		}),
+	)
+	t.Configure(func(cfg *tablewriter.Config) {
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
 	return &tableOutput{
-		Table: t,
+		table: t,
 	}
 }
 
 type tableOutput struct {
-	*tablewriter.Table
+	table *tablewriter.Table
+}
+
+func (t *tableOutput) SetHeader(header []string) {
+	t.table.Options(tablewriter.WithHeader(header))
+}
+
+func (t *tableOutput) Append(row []string) {
+	args := make([]interface{}, len(row))
+	for i, v := range row {
+		args[i] = v
+	}
+	t.table.Append(args...) //nolint:errcheck
 }
 
 func (t *tableOutput) Flush() error {
-	t.Render()
-
-	return nil
+	return t.table.Render()
 }
 
 func NewCSVOutput(w io.Writer) *csvOutput {
