@@ -629,7 +629,7 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			promptMessage = "Would you like to sign in?"
 		}
 
-		confirmed, err := prompt.Confirm(ctx, promptMessage)
+		confirmed, err := prompt.ConfirmYes(ctx, promptMessage)
 		if err != nil {
 			return nil, err
 		}
