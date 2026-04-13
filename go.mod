@@ -24,7 +24,7 @@ require (
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/websocket v1.8.13
 	github.com/containerd/continuity v0.4.5
-	github.com/depot/depot-go v0.5.1
+	github.com/depot/depot-go v0.5.2
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/docker/go-units v0.5.0
