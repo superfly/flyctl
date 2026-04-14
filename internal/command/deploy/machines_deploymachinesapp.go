@@ -680,16 +680,26 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			skipLeaseAcquisition: false,
 		})
 	case "canary":
-		// create a new app state with just a single machine being updated, then the rest of the machines
+		// Prefer a started machine as the canary, otherwise take the first machine.
+		canaryIdx := 0
+		for i, m := range oldAppState.Machines {
+			if m.State == "started" {
+				canaryIdx = i
+
+				break
+			}
+		}
+		canaryOld := oldAppState.Machines[canaryIdx]
+
 		canaryAppState := *oldAppState
-		canaryAppState.Machines = []*fly.Machine{oldAppState.Machines[0]}
+		canaryAppState.Machines = []*fly.Machine{canaryOld}
 
 		newCanaryAppState := newAppState
 		canaryMach, exists := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
-			return m.ID == oldAppState.Machines[0].ID
+			return m.ID == canaryOld.ID
 		})
 		if !exists {
-			return fmt.Errorf("failed to find machine %s under app %s", oldAppState.Machines[0].ID, md.app.Name)
+			return fmt.Errorf("failed to find machine %s under app %s", canaryOld.ID, md.app.Name)
 		}
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
@@ -702,7 +712,14 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			return err
 		}
 
-		return md.updateMachinesWRecovery(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+		// Refresh app state so phase 2 sees the canary's updated config and
+		// won't re-update it.
+		refreshedState, err := md.appState(ctx, oldAppState)
+		if err != nil {
+			return fmt.Errorf("failed to refresh app state after canary: %w", err)
+		}
+
+		return md.updateMachinesWRecovery(ctx, refreshedState, &newAppState, nil, updateMachineSettings{
 			pushForward:          true,
 			skipHealthChecks:     md.skipHealthChecks,
 			skipSmokeChecks:      md.skipSmokeChecks,
