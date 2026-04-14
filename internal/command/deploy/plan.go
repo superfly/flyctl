@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -531,21 +532,36 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 	_, span := tracing.GetTracer().Start(ctx, "compare_configs")
 	defer span.End()
 
-	opt := cmp.FilterPath(func(p cmp.Path) bool {
-		vx := p.Last().String()
+	opt := cmp.Options{
+		cmp.FilterPath(func(p cmp.Path) bool {
+			vx := p.Last().String()
 
-		// ignore the flyctl version used for the deployment. this is mostly useful for testing
-		if vx == `["fly_flyctl_version"]` {
-			return true
-		}
+			// ignore the flyctl version used for the deployment. this is mostly useful for testing
+			if vx == `["fly_flyctl_version"]` {
+				return true
+			}
 
-		return false
-	}, cmp.Ignore())
+			return false
+		}, cmp.Ignore()),
+		// Treat nil slices and empty slices as equal to avoid spurious diffs
+		// from JSON roundtripping (e.g. API returns [] where flyctl sent nil).
+		cmp.FilterValues(func(x, y interface{}) bool {
+			return isEmptyOrNilSlice(x) && isEmptyOrNilSlice(y)
+		}, cmp.Ignore()),
+	}
 
 	isEqual := cmp.Equal(oldConfig, newConfig, opt)
 	span.SetAttributes(attribute.Bool("configs_equal", isEqual))
 
 	return isEqual
+}
+
+func isEmptyOrNilSlice(v interface{}) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Slice && rv.Len() == 0
 }
 
 func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
@@ -574,12 +590,6 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
 	span.SetAttributes(attribute.Bool("should_start", shouldStart))
 
-	if !shouldStart {
-		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
-
-		return nil
-	}
-
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
 		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
@@ -588,6 +598,12 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 			return err
 		}
+	}
+
+	if !shouldStart {
+		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
+
+		return nil
 	}
 
 	md.warnAboutIncorrectListenAddress(ctx, lm)
