@@ -702,7 +702,14 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			return err
 		}
 
-		return md.updateMachinesWRecovery(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+		// Refresh app state so phase 2 sees the canary's updated config and
+		// won't re-update it.
+		refreshedState, err := md.appState(ctx, oldAppState)
+		if err != nil {
+			return fmt.Errorf("failed to refresh app state after canary: %w", err)
+		}
+
+		return md.updateMachinesWRecovery(ctx, refreshedState, &newAppState, nil, updateMachineSettings{
 			pushForward:          true,
 			skipHealthChecks:     md.skipHealthChecks,
 			skipSmokeChecks:      md.skipSmokeChecks,
