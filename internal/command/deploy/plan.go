@@ -574,12 +574,6 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
 	span.SetAttributes(attribute.Bool("should_start", shouldStart))
 
-	if !shouldStart {
-		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
-
-		return nil
-	}
-
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
 		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
@@ -588,6 +582,12 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 			return err
 		}
+	}
+
+	if !shouldStart {
+		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
+
+		return nil
 	}
 
 	md.warnAboutIncorrectListenAddress(ctx, lm)
