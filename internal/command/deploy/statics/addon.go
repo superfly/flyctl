@@ -19,30 +19,73 @@ import (
 	"github.com/superfly/tokenizer"
 )
 
+// Bucket is the subset of a tigris statics add-on that FindBucket's callers
+// (destroy.go, move.go, ensureBucketCreated) need. It deliberately hides
+// which GraphQL query produced the record so FindBucket can pick the most
+// targeted path at runtime.
+type Bucket struct {
+	Name     string
+	Metadata map[string]any
+}
+
+// bucketFromMetadata returns a Bucket if the given generated add-on node has
+// the staticsMetaKeyAppId pointer matching app, else nil.
+func bucketFromMetadata(name string, metadata interface{}, internalAppIdStr string) *Bucket {
+	if metadata == nil {
+		return nil
+	}
+	meta, ok := metadata.(map[string]any)
+	if !ok {
+		return nil
+	}
+	if meta[staticsMetaKeyAppId] != internalAppIdStr {
+		return nil
+	}
+	return &Bucket{Name: name, Metadata: meta}
+}
+
 // FindBucket finds the tigris statics bucket for the given app and org.
 // Returns nil, nil if no bucket is found.
-func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn, error) {
+//
+// Lookup is tiered so common cases stay fast:
+//  1. App-scoped: GetAppWithAddons resolves add-ons linked to the app via
+//     add_ons.app_id. New buckets created by ensureBucketCreated are linked
+//     this way and this is the only path they need.
+//  2. Org-scoped fallback: ListOrganizationAddOns scans the org's tigris
+//     add-ons and matches on the staticsMetaKeyAppId metadata pointer. This
+//     catches legacy buckets created before app_id linking, which are not
+//     being backfilled.
+//
+// Both paths verify the staticsMetaKeyAppId pointer — a user-provisioned
+// tigris add-on that happens to be attached to the same app won't match.
+func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*Bucket, error) {
 
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()
 
-	response, err := gql.ListAddOns(ctx, gqlClient, "tigris")
-	if err != nil {
-		return nil, err
-	}
-
 	// Using string comparison here because we might want to use BigInt app IDs in the future.
 	internalAppIdStr := strconv.FormatUint(uint64(app.InternalNumericID), 10)
 
-	for _, extension := range response.AddOns.Nodes {
-		if extension.Metadata == nil {
-			continue
+	appResp, err := gql.GetAppWithAddons(ctx, gqlClient, app.Name, gql.AddOnTypeTigris)
+	if err != nil {
+		return nil, err
+	}
+	for _, extension := range appResp.App.AddOns.Nodes {
+		if bucket := bucketFromMetadata(extension.Name, extension.Metadata, internalAppIdStr); bucket != nil {
+			return bucket, nil
 		}
-		if extension.Organization.Slug != org.Slug {
-			continue
-		}
-		if extension.Metadata.(map[string]any)[staticsMetaKeyAppId] == internalAppIdStr {
-			return &extension, nil
+	}
+
+	// Legacy fallback: old statics buckets weren't linked via add_ons.app_id,
+	// so they only surface via the org-scoped query. Safe to drop once all
+	// surviving buckets are known to be linked (or backfilled) by app_id.
+	orgResp, err := gql.ListOrganizationAddOns(ctx, gqlClient, org.Slug, "tigris")
+	if err != nil {
+		return nil, err
+	}
+	for _, extension := range orgResp.Organization.AddOns.Nodes {
+		if bucket := bucketFromMetadata(extension.Name, extension.Metadata, internalAppIdStr); bucket != nil {
+			return bucket, nil
 		}
 	}
 
@@ -58,10 +101,9 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		return "", err
 	}
 	if bucket != nil {
-		meta := bucket.Metadata.(map[string]any)
-		deployer.bucket = meta[staticsMetaBucketName].(string)
+		deployer.bucket = bucket.Metadata[staticsMetaBucketName].(string)
 
-		return meta[staticsMetaTokenizedAuth].(string), nil
+		return bucket.Metadata[staticsMetaTokenizedAuth].(string), nil
 	}
 
 	// Using string comparison here because we might want to use BigInt app IDs in the future.
@@ -76,6 +118,12 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		ErrorCaptureCallback: nil,
 		OverrideRegion:       deployer.appConfig.PrimaryRegion,
 		OverrideName:         &extName,
+		// AppName links the new add-on to the app via add_ons.app_id on the
+		// server side. Without this, FindBucket has to fall back to matching
+		// the staticsMetaKeyAppId metadata pointer, which forces a broader
+		// (and slower) org-scoped search on every `fly apps destroy` and
+		// `fly apps move`.
+		AppName: deployer.appConfig.AppName,
 	}
 	params.Options["website"] = map[string]any{
 		"domain_name": "",
