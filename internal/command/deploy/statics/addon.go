@@ -41,6 +41,7 @@ func bucketFromMetadata(name string, metadata interface{}, internalAppIdStr stri
 	if meta[staticsMetaKeyAppId] != internalAppIdStr {
 		return nil
 	}
+
 	return &Bucket{Name: name, Metadata: meta}
 }
 
