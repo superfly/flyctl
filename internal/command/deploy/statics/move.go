@@ -19,7 +19,7 @@ import (
 // all the files from the old bucket to the new bucket - then deletes the old bucket.
 func MoveBucket(
 	ctx context.Context,
-	prevBucket *gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn,
+	prevBucket *Bucket,
 	prevOrg *fly.Organization,
 	app *fly.App,
 	targetOrg *fly.Organization,
