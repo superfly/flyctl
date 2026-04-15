@@ -36,14 +36,13 @@ func MoveBucket(
 		return err
 	}
 
-	prevBucketMeta := prevBucket.Metadata.(map[string]any)
-	prevBucketAuth := prevBucketMeta[staticsMetaTokenizedAuth].(string)
+	prevBucketAuth := prevBucket.Metadata[staticsMetaTokenizedAuth].(string)
 	oldBucketS3Client, err := s3ClientWithAuth(ctx, prevBucketAuth, prevOrg)
 	if err != nil {
 		return err
 	}
 
-	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
+	prevBucketName := prevBucket.Metadata[staticsMetaBucketName].(string)
 
 	deployer := Deployer(appConfig, app, targetOrg, app.CurrentRelease.Version)
 	err = deployer.Configure(ctx)
