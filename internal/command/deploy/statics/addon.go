@@ -76,6 +76,12 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		ErrorCaptureCallback: nil,
 		OverrideRegion:       deployer.appConfig.PrimaryRegion,
 		OverrideName:         &extName,
+		// AppName links the new add-on to the app via add_ons.app_id on the
+		// server side. Without this, FindBucket has to fall back to matching
+		// the staticsMetaKeyAppId metadata pointer, which forces a broader
+		// (and slower) org-scoped search on every `fly apps destroy` and
+		// `fly apps move`.
+		AppName: deployer.appConfig.AppName,
 	}
 	params.Options["website"] = map[string]any{
 		"domain_name": "",
