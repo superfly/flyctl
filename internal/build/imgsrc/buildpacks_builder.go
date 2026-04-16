@@ -9,7 +9,6 @@ import (
 
 	packclient "github.com/buildpacks/pack/pkg/client"
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
-	mobyclient "github.com/moby/moby/client"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -71,13 +70,22 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	defer docker.Close() // skipcq: GO-S2307
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	// pack v0.40+ uses github.com/moby/moby/client types; create a moby client
-	// from the existing docker connection (same HTTP client + host) to satisfy the interface.
-	mobyClient, err := mobyclient.New(
-		mobyclient.WithHTTPClient(docker.HTTPClient()),
-		mobyclient.WithHost(docker.DaemonHost()),
-		mobyclient.WithAPIVersionNegotiation(),
-	)
+	// pack v0.40+ uses github.com/moby/moby/client types. Build a moby client
+	// with the same connection config as the docker client (same host, dialer,
+	// auth headers). We can't just forward docker.HTTPClient() to moby because
+	// docker client v27+ wraps its transport in *otelhttp.Transport, and
+	// moby's WithHost only accepts *http.Transport — it fails with "cannot
+	// apply host to transport: *otelhttp.Transport". dockerFactory.mobyBuildFn
+	// is wired up alongside buildFn to produce an equivalent moby client that
+	// gets its own otelhttp wrap inside moby's New().
+	if dockerFactory.mobyBuildFn == nil {
+		err := errors.New("internal: mobyBuildFn not populated for this docker factory mode")
+		build.BuilderInitFinish()
+		build.BuildFinish()
+		tracing.RecordError(span, err, "missing moby client builder")
+		return nil, "", err
+	}
+	mobyClient, err := dockerFactory.mobyBuildFn(ctx)
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
