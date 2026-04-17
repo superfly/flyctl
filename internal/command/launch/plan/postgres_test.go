@@ -29,6 +29,10 @@ func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*
 	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
+func (m *mockUIEXClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
+	return nil
+}
+
 func (m *mockUIEXClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
 	return uiex.ListMPGRegionsResponse{Data: m.mpgRegions}, nil
 }
