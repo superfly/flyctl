@@ -12,6 +12,9 @@ type Client interface {
 	ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error)
 
+	// Egress IPs
+	PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error
+
 	// MPGs
 	ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
