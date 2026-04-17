@@ -14,6 +14,7 @@ var _ uiexutil.Client = (*UiexClient)(nil)
 type UiexClient struct {
 	ListOrganizationsFunc                  func(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	GetOrganizationFunc                    func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+	PromoteMachineEgressIPFunc             func(ctx context.Context, appName string, egressIP string) error
 	ListMPGRegionsFunc                     func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
 	ListManagedClustersFunc                func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
 	GetManagedClusterFunc                  func(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
@@ -58,6 +59,14 @@ func (m *UiexClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex
 	}
 
 	return &uiex.Organization{Slug: orgSlug}, nil
+}
+
+func (m *UiexClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
+	if m.PromoteMachineEgressIPFunc != nil {
+		return m.PromoteMachineEgressIPFunc(ctx, appName, egressIP)
+	}
+
+	return nil
 }
 
 func (m *UiexClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
