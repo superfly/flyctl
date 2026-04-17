@@ -11,8 +11,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
@@ -125,13 +126,6 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		}
 	}
 
-	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
-	if err != nil {
-		if err := recoverableErrors.tryRecover(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	httpServicePort := 8080
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
@@ -181,12 +175,20 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	}
 	guest := fakeDefaultMachine.Guest
 
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	regionCode, regionExplanation, err := determineRegion(ctx, appConfig, org.Slug, guest, flapsClient)
+	if err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	lp := &plan.LaunchPlan{
 		AppName:          appName,
 		OrgSlug:          org.Slug,
-		RegionCode:       region.Code,
+		RegionCode:       regionCode,
 		HighAvailability: flag.GetBool(ctx, "ha"),
 		Compute:          compute,
 		CPUKind:          guest.CPUKind,
@@ -242,7 +244,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 
 				// We offer switching to MPG if interactive session and the region is not the same as the MPG region
 				// App should launch in the MPG region
-				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
 					lp.RegionCode = lp.Postgres.ManagedPostgres.Region
 				}
 			case scanner.DatabaseKindMySQL:
@@ -262,7 +264,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 
 			// We offer switching to MPG if interactive session and the region is not the same as the MPG region
 			// App should launch in the MPG region
-			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
 				lp.RegionCode = lp.Postgres.ManagedPostgres.Region
 			}
 		}
@@ -745,33 +747,13 @@ var deprecatedRegionReplacements = map[string]string{
 	"hkg": "sin",
 }
 
-// Check if a region is deprecated and return the replacement region
-func remapDeprecatedRegion(ctx context.Context, region *fly.Region) (*fly.Region, error) {
-	if region == nil || !region.Deprecated {
-		return region, nil
-	}
-
-	replacementCode, ok := deprecatedRegionReplacements[region.Code]
-	if !ok {
-		// If there's no definied replacement, return and error
-		return nil, fmt.Errorf("region %s is deprecated. Please use a supported region.", region.Code)
-	}
-
-	// Get the replacement region
-	replacementRegion, err := getRegionByCode(ctx, replacementCode)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get replacement region %s for deprecated region %s: %w", replacementCode, region.Code, err)
-	}
-
-	return replacementRegion, nil
-}
-
-// determineRegion returns the region to use for a new app. In order, it tries:
-//  1. the primary_region field of the config, if one exists
-//  2. the region specified on the command line, if specified
-//  3. the nearest region to the user
-func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
-	client := flyutil.ClientFromContext(ctx)
+// determineRegion returns the region to use for a new app. It uses the
+// placements API to find the best region with capacity for the requested
+// compute. In order, it tries:
+//  1. the region specified on the command line, if specified
+//  2. the primary_region field of the config, if one exists
+//  3. the best available region (by passing "any" to placements)
+func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug string, guest *fly.MachineGuest, flapsClient flapsutil.FlapsClient) (string, string, error) {
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -780,55 +762,39 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
-	// Get the closest region
-	// TODO(allison): does this return paid regions for free orgs?
-	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
-
-	// Remap the closest region if it's deprecated
-	if closestRegionErr == nil && closestRegion != nil {
-		remappedRegion, remapErr := remapDeprecatedRegion(ctx, closestRegion)
-		if remapErr == nil {
-			closestRegion = remappedRegion
-		}
-		// If remapping fails, it'll use the original region and hit the "unknown region" error
+	if replacement, ok := deprecatedRegionReplacements[regionCode]; ok {
+		regionCode = replacement
 	}
 
-	if regionCode != "" {
-		region, err := getRegionByCode(ctx, regionCode)
-		if err != nil {
-			// Check and see if this is recoverable
-			if closestRegionErr == nil {
-				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
-			}
-		}
-
-		return region, explanation, err
+	if regionCode == "" {
+		regionCode = "any"
+		explanation = "this is the fastest region for you"
 	}
 
-	return closestRegion, "this is the fastest region for you", closestRegionErr
-}
-
-// getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
-func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-
-	allRegions, _, err := apiClient.PlatformRegions(ctx)
-	if err != nil {
-		return nil, err
+	count := uint64(1)
+	if flag.GetBool(ctx, "ha") {
+		count = 2
 	}
 
-	// Filter out deprecated regions
-	allRegions = lo.Filter(allRegions, func(r fly.Region, _ int) bool {
-		return !r.Deprecated
+	placements, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
+		ComputeRequirements: guest,
+		Region:              regionCode,
+		Count:               count,
+		Org:                 orgSlug,
 	})
-
-	for _, r := range allRegions {
-		if r.Code == regionCode {
-			return &r, nil
+	if err != nil {
+		return "", recoverableSpecifyInUi, recoverableInUiError{
+			fmt.Errorf("failed to determine region: %w", err),
 		}
 	}
 
-	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
+	if len(placements) == 0 {
+		return "", recoverableSpecifyInUi, recoverableInUiError{
+			fmt.Errorf("no regions with capacity for the requested configuration"),
+		}
+	}
+
+	return placements[0].Region, explanation, nil
 }
 
 // Applies the fields of the guest to the provided compute.
