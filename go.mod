@@ -22,7 +22,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
-	github.com/coder/websocket v1.8.13
+	github.com/coder/websocket v1.8.14
 	github.com/containerd/continuity v0.4.5
 	github.com/depot/depot-go v0.5.2
 	github.com/docker/docker v28.5.2+incompatible
