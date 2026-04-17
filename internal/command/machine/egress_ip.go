@@ -25,6 +25,7 @@ func newEgressIp() *cobra.Command {
 	cmd := command.New(usage, short, long, nil)
 
 	cmd.Args = cobra.NoArgs
+	cmd.Deprecated = "consider using app-scoped egress IPs (fly ip allocate-egress) instead."
 
 	cmd.AddCommand(
 		newAllocateEgressIp(),
@@ -55,6 +56,7 @@ func newAllocateEgressIp() *cobra.Command {
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
+	cmd.Hidden = true
 
 	return cmd
 }
