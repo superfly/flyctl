@@ -108,8 +108,8 @@ func newReleaseEgressIP() *cobra.Command {
 
 func newPromoteEgressIP() *cobra.Command {
 	const (
-		long  = `Promote all machine-scoped egress IP addresses for a machine to app-scoped`
-		short = `Promote machine egress IPs`
+		long  = `Promote all machine-scoped egress IP addresses of a machine to app-scoped in the same region`
+		short = `Promote machine egress IPs to app-scoped`
 		usage = "promote <machine-id>"
 	)
 
@@ -275,6 +275,7 @@ func runPromoteEgressIP(ctx context.Context) (err error) {
 	}
 
 	fmt.Printf("Promoted %d egress IP(s) for machine %s to app-scoped egress IPs\n", len(ips), machineID)
+	fmt.Printf("Note that app-scoped egress IPs are regional; if you run machines in multiple regions, promote at least 1 for every region.\n")
 
 	return nil
 }
