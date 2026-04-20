@@ -189,8 +189,8 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
 	}
 
-	if appConfig.Experimental != nil {
-		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+	if appConfig.Experimental != nil && appConfig.Experimental.LazyLoadImages {
+		terminal.Warnf("[experimental] lazy_load_images is no longer supported (the overlaybd platform feature was removed May 2025). Remove it from fly.toml.\n")
 	}
 
 	// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
