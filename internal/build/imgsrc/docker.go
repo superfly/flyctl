@@ -142,11 +142,13 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 				if optsErr != nil {
 					return nil, optsErr
 				}
+
 				return mobyclient.New(opts...)
 			}
 
 			return dc, nil
 		}
+
 		return f
 	}
 
@@ -632,6 +634,7 @@ func buildWireguardlessMobyOpts(ctx context.Context, host, appName string) ([]mo
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse host: %w", err)
 	}
+
 	return []mobyclient.Opt{
 		mobyclient.WithHost(host),
 		mobyclient.WithHTTPHeaders(map[string]string{
@@ -667,6 +670,7 @@ func buildRemoteMobyOpts(ctx context.Context, apiClient flyutil.Client, appName,
 	}
 
 	opts = append(opts, mobyclient.WithDialContext(dialer.DialContext))
+
 	return opts, nil
 }
 

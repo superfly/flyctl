@@ -83,6 +83,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.BuilderInitFinish()
 		build.BuildFinish()
 		tracing.RecordError(span, err, "missing moby client builder")
+
 		return nil, "", err
 	}
 	mobyClient, err := dockerFactory.mobyBuildFn(ctx)
