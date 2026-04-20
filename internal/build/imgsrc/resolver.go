@@ -54,8 +54,7 @@ type ImageOptions struct {
 	Label                map[string]string
 	BuildpacksDockerHost string
 	BuildpacksVolumes    []string
-	UseOverlaybd         bool
-	Compression          string
+	Compression string
 	CompressionLevel     int
 }
 
