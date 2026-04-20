@@ -21,6 +21,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/jpillora/backoff"
+	mobyclient "github.com/moby/moby/client"
 	"github.com/morikuni/aec"
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
@@ -58,58 +59,97 @@ type dockerClientFactory struct {
 	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
 	apiClient flyutil.Client
 	appName   string
+	// mobyBuildFn creates a moby client matching the connection config of the
+	// docker client produced by buildFn (same host, dialer, and auth headers).
+	// Callers that need a moby-typed client (e.g. the buildpacks/pack library)
+	// must use this rather than reusing docker.HTTPClient(), because docker
+	// client v27+ wraps its transport with *otelhttp.Transport, and moby
+	// client's WithHost rejects any non-*http.Transport.
+	mobyBuildFn func(ctx context.Context) (*mobyclient.Client, error)
 }
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 
-		return &dockerClientFactory{
-			mode:   daemonType,
-			remote: true,
-			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				cfg := config.FromContext(ctx)
-				var (
-					builderMachine *fly.Machine
-					builderApp     *flaps.App
-					err            error
-				)
+		f := &dockerClientFactory{
+			mode:      daemonType,
+			remote:    true,
+			apiClient: apiClient,
+			appName:   appName,
+		}
+		f.buildFn = func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+			cfg := config.FromContext(ctx)
+			var (
+				builderMachine *fly.Machine
+				builderApp     *flaps.App
+				err            error
+			)
 
-				flapsClient := flapsutil.ClientFromContext(ctx)
-				app, err := flapsClient.GetApp(ctx, appName)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			app, err := flapsClient.GetApp(ctx, appName)
+			if err != nil {
+				return nil, err
+			}
+
+			managed := daemonType.UseManagedBuilder()
+			if cfg.DisableManagedBuilders {
+				managed = false
+			}
+			if managed {
+				connectOverWireguard = false
+				builderMachine, builderApp, err = remoteManagedBuilderMachine(ctx, app.Organization.Slug)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				uiexClient := uiexutil.ClientFromContext(ctx)
+				org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 				if err != nil {
 					return nil, err
 				}
 
-				managed := daemonType.UseManagedBuilder()
-				if cfg.DisableManagedBuilders {
-					managed = false
+				provisioner := NewProvisionerUiexOrg(org)
+				builderMachine, builderApp, err = provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
+				if err != nil {
+					return nil, err
 				}
-				if managed {
-					connectOverWireguard = false
-					builderMachine, builderApp, err = remoteManagedBuilderMachine(ctx, app.Organization.Slug)
-					if err != nil {
-						return nil, err
-					}
+			}
+
+			dc, err := newRemoteDockerClient(ctx, apiClient, flapsClient, appName, streams, build, cachedDocker, connectOverWireguard, builderApp, builderMachine)
+			if err != nil {
+				return nil, err
+			}
+
+			// Capture the path taken (WG vs wgless) and the final host
+			// (post-FLY_RCHAB_OVERRIDE_HOST) so we can build a parallel moby
+			// client for buildpacks using the same connection config. We
+			// can't reuse docker's HTTPClient() because v27+ wraps its
+			// transport in *otelhttp.Transport, which moby's WithHost
+			// rejects (only *http.Transport is accepted).
+			finalHost := dc.DaemonHost()
+			wg := connectOverWireguard
+			f.mobyBuildFn = func(ctx context.Context) (*mobyclient.Client, error) {
+				var (
+					opts    []mobyclient.Opt
+					optsErr error
+				)
+				if wg {
+					opts, optsErr = buildRemoteMobyOpts(ctx, apiClient, appName, finalHost)
 				} else {
-					uiexClient := uiexutil.ClientFromContext(ctx)
-					org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
-					if err != nil {
-						return nil, err
-					}
-
-					provisioner := NewProvisionerUiexOrg(org)
-					builderMachine, builderApp, err = provisioner.EnsureBuilder(ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder)
-					if err != nil {
-						return nil, err
-					}
+					opts, optsErr = buildWireguardlessMobyOpts(ctx, finalHost, appName)
+				}
+				if optsErr != nil {
+					return nil, optsErr
 				}
 
-				return newRemoteDockerClient(ctx, apiClient, flapsClient, appName, streams, build, cachedDocker, connectOverWireguard, builderApp, builderMachine)
-			},
-			apiClient: apiClient,
-			appName:   appName,
+				return mobyclient.New(opts...)
+			}
+
+			return dc, nil
 		}
+
+		return f
 	}
 
 	localFactory := func() *dockerClientFactory {
@@ -122,6 +162,9 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					build.SetBuilderMetaPart1(localBuilderType, "", "")
 
 					return c, nil
+				},
+				mobyBuildFn: func(ctx context.Context) (*mobyclient.Client, error) {
+					return mobyclient.New(mobyclient.FromEnv)
 				},
 				appName: appName,
 			}
@@ -579,6 +622,54 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
 		}),
 	}
+
+	return opts, nil
+}
+
+// buildWireguardlessMobyOpts mirrors buildWireguardlessClientOpts for the
+// moby client type. Keep the two in sync: same host, same TLS dialer to :443,
+// same Basic auth header.
+func buildWireguardlessMobyOpts(ctx context.Context, host, appName string) ([]mobyclient.Opt, error) {
+	parsedHostUrl, err := dockerclient.ParseHostURL(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse host: %w", err)
+	}
+
+	return []mobyclient.Opt{
+		mobyclient.WithHost(host),
+		mobyclient.WithHTTPHeaders(map[string]string{
+			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
+		}),
+		mobyclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
+		}),
+	}, nil
+}
+
+// buildRemoteMobyOpts mirrors buildRemoteClientOpts for the moby client type.
+// Keep the two in sync: same host, same WireGuard agent dialer (when
+// FLY_REMOTE_BUILDER_HOST_WG is unset).
+func buildRemoteMobyOpts(ctx context.Context, apiClient flyutil.Client, appName, host string) ([]mobyclient.Opt, error) {
+	opts := []mobyclient.Opt{
+		mobyclient.WithHost(host),
+	}
+
+	if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") != "" {
+		return opts, nil
+	}
+
+	flapClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapClient.GetApp(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app: %w", err)
+	}
+
+	_, dialer, err := agent.BringUpAgentOrgSlug(ctx, apiClient, app.Organization.Slug, app.Network, true)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, mobyclient.WithDialContext(dialer.DialContext))
 
 	return opts, nil
 }
