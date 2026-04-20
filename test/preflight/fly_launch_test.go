@@ -60,6 +60,24 @@ func TestFlyLaunchV2(t *testing.T) {
 	require.EqualValues(f, want, toml)
 }
 
+// Launch a new app without passing --region, exercising default region selection.
+func TestFlyLaunchDefaultRegion(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --no-deploy --org %s --name %s --image nginx", f.OrgSlug(), appName)
+	toml := f.UnmarshalFlyToml()
+
+	region, ok := toml["primary_region"].(string)
+	require.True(f, ok, "primary_region should be a string, got %T", toml["primary_region"])
+	require.NotEmpty(f, region, "primary_region should not be empty")
+	require.NotEqual(f, "any", region, "primary_region should be resolved to a real region")
+}
+
 // Run fly launch from a template Fly App directory (fly.toml without app name)
 func TestFlyLaunchWithTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
