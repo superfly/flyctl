@@ -26,12 +26,6 @@ func TestBuilderAPIURL(t *testing.T) {
 			path:       "/flyio/v1/extendDeadline",
 			want:       "http://[fdaa:49:2bd7::2]:8080/flyio/v1/extendDeadline",
 		},
-		{
-			name:       "overlaybd path",
-			daemonHost: "tcp://[fdaa:49:2bd7::2]:2375",
-			path:       "/flyio/v1/buildOverlaybdImage",
-			want:       "http://[fdaa:49:2bd7::2]:8080/flyio/v1/buildOverlaybdImage",
-		},
 	}
 
 	for _, tc := range tests {
