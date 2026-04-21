@@ -56,7 +56,7 @@ require (
 	github.com/moby/patternmatcher v0.6.1
 	github.com/morikuni/aec v1.1.0
 	github.com/muesli/termenv v0.16.0
-	github.com/nats-io/nats.go v1.43.0
+	github.com/nats-io/nats.go v1.50.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/olekukonko/tablewriter v1.1.4
@@ -246,7 +246,7 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/nats-io/nkeys v0.4.11 // indirect
+	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
