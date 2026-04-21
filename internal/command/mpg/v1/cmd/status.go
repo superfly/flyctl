@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -9,13 +9,14 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
-func newStatus() *cobra.Command {
+func NewStatus() *cobra.Command {
 	const (
 		long  = `Show status and details of a specific Managed Postgres cluster using its ID.`
 		short = "Show MPG cluster status."
@@ -34,18 +35,13 @@ func newStatus() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -54,7 +50,7 @@ func runStatus(ctx context.Context) error {
 	}
 
 	// Fetch detailed cluster information by ID
-	clusterDetails, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+	clusterDetails, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving details for cluster %s: %w", clusterID, err)
 	}

@@ -1,4 +1,5 @@
-package mpg
+// Created purely to get around cyclic imports
+package plans
 
 // PlanDetails holds the details for each managed postgres plan.
 type PlanDetails struct {

@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -12,15 +12,15 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 )
 
-func newConnect() (cmd *cobra.Command) {
+func NewConnect() (cmd *cobra.Command) {
 	const (
 		long = `Connect to a MPG database using psql`
 
@@ -48,24 +48,20 @@ func newConnect() (cmd *cobra.Command) {
 }
 
 func runConnect(ctx context.Context) (err error) {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	io := iostreams.FromContext(ctx)
 
 	localProxyPort := "16380"
 
 	// Get cluster once (will prompt if needed)
 	clusterID := flag.FirstArg(ctx)
-	var cluster *uiex.ManagedCluster
+	var cluster *mpgv1.ManagedCluster
 	var orgSlug string
+	// var err error
 
 	if clusterID != "" {
 		// If cluster ID is provided, fetch directly without prompting for org
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 		}
@@ -73,8 +69,23 @@ func runConnect(ctx context.Context) (err error) {
 		orgSlug = cluster.Organization.Slug
 	} else {
 		// Otherwise, prompt for org/cluster selection
-		var err error
-		cluster, orgSlug, err = ClusterFromArgOrSelect(ctx, clusterID, "")
+		c, o, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
+
+		cluster = &mpgv1.ManagedCluster{
+			Id:           c.Id,
+			Name:         c.Name,
+			Region:       c.Region,
+			Status:       c.Status,
+			Plan:         c.Plan,
+			Disk:         c.Disk,
+			Replicas:     c.Replicas,
+			Organization: c.Organization,
+			// TODO: FIX
+			IpAssignments: mpgv1.ManagedClusterIpAssignments{},
+			AttachedApps:  []mpgv1.AttachedApp{},
+		}
+
+		orgSlug = o
 		if err != nil {
 			return err
 		}
@@ -84,8 +95,8 @@ func runConnect(ctx context.Context) (err error) {
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		usersResponse, err := uiexClient.ListUsers(ctx, cluster.Id)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		usersResponse, err := mpgClient.ListUsers(ctx, cluster.Id)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -114,8 +125,8 @@ func runConnect(ctx context.Context) (err error) {
 		db = database
 	} else if io.IsInteractive() {
 		// Prompt for database selection
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		databasesResponse, err := uiexClient.ListDatabases(ctx, cluster.Id)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		databasesResponse, err := mpgClient.ListDatabases(ctx, cluster.Id)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}

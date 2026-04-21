@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -17,10 +16,10 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
-func newList() *cobra.Command {
+func NewList() *cobra.Command {
 	const (
 		long = `List MPG clusters owned by the specified organization.
 If no organization is specified, the user's personal organization is used.`
@@ -46,11 +45,6 @@ If no organization is specified, the user's personal organization is used.`
 }
 
 func runList(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
@@ -59,7 +53,7 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
 
 	// For ui-ex request we need the real org slug
@@ -71,7 +65,7 @@ func runList(ctx context.Context) error {
 	}
 
 	deleted := flag.GetBool(ctx, "deleted")
-	clusters, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
+	clusters, err := mpgClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
 	if err != nil {
 		return fmt.Errorf("failed to list managed clusters for organization %s: %w", org.Slug, err)
 	}
@@ -99,7 +93,7 @@ func runList(ctx context.Context) error {
 			cluster.Region,
 			cluster.Status,
 			cluster.Plan,
-			formatAttachedApps(cluster.AttachedApps),
+			FormatAttachedApps(cluster.AttachedApps),
 		})
 	}
 
@@ -107,7 +101,7 @@ func runList(ctx context.Context) error {
 }
 
 // formatAttachedApps formats the list of attached apps for display
-func formatAttachedApps(apps []uiex.AttachedApp) string {
+func FormatAttachedApps(apps []mpgv1.AttachedApp) string {
 	if len(apps) == 0 {
 		return "<no attached apps>"
 	}

@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -9,16 +9,16 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newAttach() *cobra.Command {
+func NewAttach() *cobra.Command {
 	const (
 		short = "Attach a managed Postgres cluster to an app"
 		long  = short + ". " +
@@ -31,7 +31,6 @@ func newAttach() *cobra.Command {
 		command.RequireSession,
 		command.RequireAppName,
 	)
-	// cmd.Args = cobra.ExactArgs(1)
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
@@ -58,11 +57,6 @@ func newAttach() *cobra.Command {
 }
 
 func runAttach(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	var (
 		clusterId = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
@@ -82,7 +76,7 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Get cluster details to determine which org it belongs to
-	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
+	cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
@@ -95,13 +89,13 @@ func runAttach(ctx context.Context) error {
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
-		usersResponse, err := uiexClient.ListUsers(ctx, cluster.Id)
+		usersResponse, err := mpgClient.ListUsers(ctx, cluster.Id)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -141,12 +135,12 @@ func runAttach(ctx context.Context) error {
 
 			fmt.Fprintf(io.Out, "Creating user %s with role %s...\n", userName, userRole)
 
-			input := uiex.CreateUserWithRoleInput{
+			input := mpgv1.CreateUserWithRoleInput{
 				UserName: userName,
 				Role:     userRole,
 			}
 
-			createResponse, err := uiexClient.CreateUserWithRole(ctx, cluster.Id, input)
+			createResponse, err := mpgClient.CreateUserWithRole(ctx, cluster.Id, input)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
@@ -166,7 +160,7 @@ func runAttach(ctx context.Context) error {
 		db = database
 	} else if io.IsInteractive() {
 		// Prompt for database selection
-		databasesResponse, err := uiexClient.ListDatabases(ctx, cluster.Id)
+		databasesResponse, err := mpgClient.ListDatabases(ctx, cluster.Id)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
@@ -197,11 +191,11 @@ func runAttach(ctx context.Context) error {
 
 			fmt.Fprintf(io.Out, "Creating database %s...\n", dbName)
 
-			input := uiex.CreateDatabaseInput{
+			input := mpgv1.CreateDatabaseInput{
 				Name: dbName,
 			}
 
-			createResponse, err := uiexClient.CreateDatabase(ctx, cluster.Id, input)
+			createResponse, err := mpgClient.CreateDatabase(ctx, cluster.Id, input)
 			if err != nil {
 				return fmt.Errorf("failed to create database: %w", err)
 			}
@@ -214,20 +208,20 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Get cluster details with credentials
-	response, err := uiexClient.GetManagedClusterById(ctx, cluster.Id)
+	response, err := mpgClient.GetManagedClusterById(ctx, cluster.Id)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
 
 	// Get credentials - use user-specific endpoint if username provided, otherwise use default
-	var credentials uiex.GetManagedClusterCredentialsResponse
+	var credentials mpgv1.GetManagedClusterCredentialsResponse
 	if username != "" {
-		userCreds, err := uiexClient.GetUserCredentials(ctx, cluster.Id, username)
+		userCreds, err := mpgClient.GetUserCredentials(ctx, cluster.Id, username)
 		if err != nil {
 			return fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
 		// Convert user credentials to the standard format
-		credentials = uiex.GetManagedClusterCredentialsResponse{
+		credentials = mpgv1.GetManagedClusterCredentialsResponse{
 			User:     userCreds.Data.User,
 			Password: userCreds.Data.Password,
 			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials
@@ -282,10 +276,10 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Create attachment record to track the cluster-app relationship
-	attachInput := uiex.CreateAttachmentInput{
+	attachInput := mpgv1.CreateAttachmentInput{
 		AppName: appName,
 	}
-	if _, err := uiexClient.CreateAttachment(ctx, cluster.Id, attachInput); err != nil {
+	if _, err := mpgClient.CreateAttachment(ctx, cluster.Id, attachInput); err != nil {
 		// Log warning but don't fail - the secret was set successfully
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
 	}

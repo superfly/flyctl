@@ -44,7 +44,7 @@ func (c *Client) ListOrganizations(ctx context.Context, admin bool) ([]Organizat
 	}
 
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations?admin=%t", c.baseUrl, admin)
+	url := fmt.Sprintf("%s/api/v1/organizations?admin=%t", c.BaseUrl, admin)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -54,7 +54,7 @@ func (c *Client) ListOrganizations(ctx context.Context, admin bool) ([]Organizat
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return []Organization{}, err
 	}
@@ -85,7 +85,7 @@ func (c *Client) GetOrganization(ctx context.Context, orgSlug string) (*Organiza
 	}
 
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s", c.baseUrl, orgSlug)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s", c.BaseUrl, orgSlug)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -95,7 +95,7 @@ func (c *Client) GetOrganization(ctx context.Context, orgSlug string) (*Organiza
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

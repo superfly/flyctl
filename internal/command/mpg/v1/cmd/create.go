@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -13,11 +13,12 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/plans"
+	mpgv1cmd "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -31,7 +32,7 @@ type CreateClusterParams struct {
 	PGMajorVersion int
 }
 
-func newCreate() *cobra.Command {
+func NewCreate() *cobra.Command {
 	const (
 		short = "Create a new Managed Postgres cluster"
 		long  = short + "\n"
@@ -75,11 +76,6 @@ func newCreate() *cobra.Command {
 }
 
 func runCreate(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	var (
 		io      = iostreams.FromContext(ctx)
 		appName = flag.GetString(ctx, "name")
@@ -106,7 +102,7 @@ func runCreate(ctx context.Context) error {
 	}
 
 	// Get available MPG regions from API
-	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
+	mpgRegions, err := mpgv1cmd.GetAvailableMPGRegions(ctx, org.RawSlug)
 
 	if err != nil {
 		return err
@@ -135,7 +131,7 @@ func runCreate(ctx context.Context) error {
 			}
 		}
 		if selectedRegion == nil {
-			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
+			availableCodes, _ := mpgv1cmd.GetAvailableMPGRegionCodes(ctx, org.Slug)
 
 			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
@@ -157,15 +153,15 @@ func runCreate(ctx context.Context) error {
 	// Plan selection and validation
 	plan := flag.GetString(ctx, "plan")
 	plan = normalizePlan(plan)
-	if _, ok := MPGPlans[plan]; !ok {
+	if _, ok := plans.MPGPlans[plan]; !ok {
 		if iostreams.FromContext(ctx).IsInteractive() {
 			// Prepare a sortable slice of plans
 			type planEntry struct {
 				Key   string
-				Value PlanDetails
+				Value plans.PlanDetails
 			}
 			var planEntries []planEntry
-			for k, v := range MPGPlans {
+			for k, v := range plans.MPGPlans {
 				planEntries = append(planEntries, planEntry{Key: k, Value: v})
 			}
 			// Sort by price (convert string like "$38.00" to float)
@@ -214,9 +210,9 @@ func runCreate(ctx context.Context) error {
 		PGMajorVersion: pgMajorVersion,
 	}
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
-	input := uiex.CreateClusterInput{
+	input := mpgv1.CreateClusterInput{
 		Name:           params.Name,
 		Region:         params.Region,
 		Plan:           params.Plan,
@@ -226,7 +222,7 @@ func runCreate(ctx context.Context) error {
 		PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
 	}
 
-	response, err := uiexClient.CreateCluster(ctx, input)
+	response, err := mpgClient.CreateCluster(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
@@ -236,7 +232,7 @@ func runCreate(ctx context.Context) error {
 	var connectionURI string
 
 	// Output plan details after creation
-	planDetails := MPGPlans[plan]
+	planDetails := plans.MPGPlans[plan]
 	fmt.Fprintf(io.Out, "Selected Plan: %s\n", planDetails.Name)
 	fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
 	fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
@@ -248,7 +244,7 @@ func runCreate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
 	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
 	for {
-		res, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		res, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed checking cluster status: %w", err)
 		}

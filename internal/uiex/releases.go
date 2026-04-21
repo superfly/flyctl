@@ -51,7 +51,7 @@ type CreateReleaseRequest struct {
 
 func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *map[string]time.Time, err error) {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/releases/all_current", c.baseUrl)
+	url := fmt.Sprintf("%s/api/v1/releases/all_current", c.BaseUrl)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -61,7 +61,7 @@ func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *m
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 	}
 
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/apps/%s/releases", c.baseUrl, appName)
+	url := fmt.Sprintf("%s/api/v1/apps/%s/releases", c.BaseUrl, appName)
 
 	if limit > 0 {
 		url = fmt.Sprintf("%s?limit=%d", url, limit)
@@ -106,7 +106,7 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return []Release{}, err
 	}
@@ -133,7 +133,7 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 // Returns nil release (without error) if the app has no current release (404).
 func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release *Release, err error) {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/apps/%s/releases/current", c.baseUrl, appName)
+	url := fmt.Sprintf("%s/api/v1/apps/%s/releases/current", c.BaseUrl, appName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -143,7 +143,7 @@ func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return
 	}
@@ -170,7 +170,7 @@ func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release
 
 func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest) (release *Release, err error) {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/releases", c.baseUrl)
+	url := fmt.Sprintf("%s/api/v1/releases", c.BaseUrl)
 
 	var response struct {
 		Release Release `json:"release"`
@@ -189,7 +189,7 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 
 func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, metadata any) (response *Release, err error) {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/releases/%s", c.baseUrl, releaseID)
+	url := fmt.Sprintf("%s/api/v1/releases/%s", c.BaseUrl, releaseID)
 
 	request := map[string]any{
 		"status":   status,
@@ -234,7 +234,7 @@ func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, me
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

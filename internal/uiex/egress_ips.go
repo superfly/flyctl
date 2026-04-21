@@ -11,7 +11,7 @@ import (
 
 func (c *Client) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/apps/%s/egress_ips/%s/promote", c.baseUrl, appName, egressIP)
+	url := fmt.Sprintf("%s/api/v1/apps/%s/egress_ips/%s/promote", c.BaseUrl, appName, egressIP)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
@@ -21,7 +21,7 @@ func (c *Client) PromoteMachineEgressIP(ctx context.Context, appName string, egr
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return err
 	}

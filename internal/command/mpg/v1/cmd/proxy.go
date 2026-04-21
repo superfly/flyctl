@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -7,15 +7,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/proxy"
 )
 
-func newProxy() (cmd *cobra.Command) {
+func NewProxy() (cmd *cobra.Command) {
 	const (
 		long = `Proxy to a MPG database`
 
@@ -46,11 +46,6 @@ func newProxy() (cmd *cobra.Command) {
 }
 
 func runProxy(ctx context.Context) (err error) {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	localProxyPort := flag.GetString(ctx, flagnames.LocalPort)
 	_, params, _, err := getMpgProxyParams(ctx, localProxyPort, "")
 	if err != nil {
@@ -60,16 +55,16 @@ func runProxy(ctx context.Context) (err error) {
 	return proxy.Connect(ctx, params)
 }
 
-func getMpgProxyParams(ctx context.Context, localProxyPort string, username string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
+func getMpgProxyParams(ctx context.Context, localProxyPort string, username string) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
 	clusterID := flag.FirstArg(ctx)
-	var cluster *uiex.ManagedCluster
+
+	var cluster *mpgv1.ManagedCluster
 	var orgSlug string
-	var err error
 
 	if clusterID != "" {
 		// If cluster ID is provided, fetch directly without prompting for org
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 		}
@@ -77,7 +72,23 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string, username stri
 		orgSlug = cluster.Organization.Slug
 	} else {
 		// Otherwise, prompt for org/cluster selection
-		cluster, orgSlug, err = ClusterFromArgOrSelect(ctx, clusterID, "")
+		c, o, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
+
+		cluster = &mpgv1.ManagedCluster{
+			Id:           c.Id,
+			Name:         c.Name,
+			Region:       c.Region,
+			Status:       c.Status,
+			Plan:         c.Plan,
+			Disk:         c.Disk,
+			Replicas:     c.Replicas,
+			Organization: c.Organization,
+			// TODO: FIX
+			IpAssignments: mpgv1.ManagedClusterIpAssignments{},
+			AttachedApps:  []mpgv1.AttachedApp{},
+		}
+
+		orgSlug = o
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -86,12 +97,12 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string, username stri
 	return getMpgProxyParamsWithCluster(ctx, localProxyPort, username, cluster.Id, orgSlug)
 }
 
-func getMpgProxyParamsWithCluster(ctx context.Context, localProxyPort string, username string, clusterID string, orgSlug string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
+func getMpgProxyParamsWithCluster(ctx context.Context, localProxyPort string, username string, clusterID string, orgSlug string) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
 	client := flyutil.ClientFromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	// Get cluster details
-	response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+	response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
@@ -99,14 +110,14 @@ func getMpgProxyParamsWithCluster(ctx context.Context, localProxyPort string, us
 	cluster := &response.Data
 
 	// Get credentials - use user-specific endpoint if username provided, otherwise use default
-	var credentials uiex.GetManagedClusterCredentialsResponse
+	var credentials mpgv1.GetManagedClusterCredentialsResponse
 	if username != "" {
-		userCreds, err := uiexClient.GetUserCredentials(ctx, cluster.Id, username)
+		userCreds, err := mpgClient.GetUserCredentials(ctx, cluster.Id, username)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
 		// Convert user credentials to the standard format
-		credentials = uiex.GetManagedClusterCredentialsResponse{
+		credentials = mpgv1.GetManagedClusterCredentialsResponse{
 			User:     userCreds.Data.User,
 			Password: userCreds.Data.Password,
 			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials
@@ -133,7 +144,7 @@ func getMpgProxyParamsWithCluster(ctx context.Context, localProxyPort string, us
 	}
 
 	// Resolve organization slug to handle aliases
-	resolvedOrgSlug, err := AliasedOrganizationSlug(ctx, orgSlug)
+	resolvedOrgSlug, err := utils.AliasedOrganizationSlug(ctx, orgSlug)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to resolve organization slug: %w", err)
 	}

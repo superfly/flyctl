@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -7,13 +7,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newDetach() *cobra.Command {
+func NewDetach() *cobra.Command {
 	const (
 		short = "Detach a managed Postgres cluster from an app"
 		long  = short + ". " +
@@ -37,11 +38,6 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 }
 
 func runDetach(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	var (
 		clusterId = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
@@ -61,7 +57,7 @@ func runDetach(ctx context.Context) error {
 	}
 
 	// Get cluster details
-	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
+	cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
@@ -74,10 +70,10 @@ func runDetach(ctx context.Context) error {
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	// Delete the attachment record
-	_, err = uiexClient.DeleteAttachment(ctx, cluster.Id, appName)
+	_, err = mpgClient.DeleteAttachment(ctx, cluster.Id, appName)
 	if err != nil {
 		return fmt.Errorf("failed to detach: %w", err)
 	}

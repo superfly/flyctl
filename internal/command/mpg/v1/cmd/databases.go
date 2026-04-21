@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newDatabases() *cobra.Command {
+func NewDatabases() *cobra.Command {
 	const (
 		short = "Manage databases in a managed postgres cluster"
 		long  = short + "\n"
@@ -52,18 +52,13 @@ func newDatabasesList() *cobra.Command {
 }
 
 func runDatabasesList(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -71,7 +66,7 @@ func runDatabasesList(ctx context.Context) error {
 		clusterID = cluster.Id
 	}
 
-	databases, err := uiexClient.ListDatabases(ctx, clusterID)
+	databases, err := mpgClient.ListDatabases(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to list databases for cluster %s: %w", clusterID, err)
 	}
@@ -121,17 +116,12 @@ func newDatabasesCreate() *cobra.Command {
 }
 
 func runDatabasesCreate(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -156,11 +146,11 @@ func runDatabasesCreate(ctx context.Context) error {
 
 	fmt.Fprintf(out, "Creating database %s in cluster %s...\n", dbName, clusterID)
 
-	input := uiex.CreateDatabaseInput{
+	input := mpgv1.CreateDatabaseInput{
 		Name: dbName,
 	}
 
-	response, err := uiexClient.CreateDatabase(ctx, clusterID, input)
+	response, err := mpgClient.CreateDatabase(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create database: %w", err)
 	}

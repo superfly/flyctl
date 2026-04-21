@@ -1,4 +1,4 @@
-package mpg
+package cmdv1
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newUsers() *cobra.Command {
+func NewUsers() *cobra.Command {
 	const (
 		short = "Manage users in a managed postgres cluster"
 		long  = short + "\n"
@@ -54,18 +54,13 @@ func newUsersList() *cobra.Command {
 }
 
 func runUsersList(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -73,7 +68,7 @@ func runUsersList(ctx context.Context) error {
 		clusterID = cluster.Id
 	}
 
-	users, err := uiexClient.ListUsers(ctx, clusterID)
+	users, err := mpgClient.ListUsers(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to list users for cluster %s: %w", clusterID, err)
 	}
@@ -129,17 +124,12 @@ func newUsersCreate() *cobra.Command {
 }
 
 func runUsersCreate(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -188,12 +178,12 @@ func runUsersCreate(ctx context.Context) error {
 
 	fmt.Fprintf(out, "Creating user %s with role %s in cluster %s...\n", userName, userRole, clusterID)
 
-	input := uiex.CreateUserWithRoleInput{
+	input := mpgv1.CreateUserWithRoleInput{
 		UserName: userName,
 		Role:     userRole,
 	}
 
-	response, err := uiexClient.CreateUserWithRole(ctx, clusterID, input)
+	response, err := mpgClient.CreateUserWithRole(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -236,17 +226,12 @@ func newUsersSetRole() *cobra.Command {
 }
 
 func runUsersSetRole(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -262,7 +247,7 @@ func runUsersSetRole(ctx context.Context) error {
 		}
 
 		// Get list of users to prompt from
-		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -312,11 +297,11 @@ func runUsersSetRole(ctx context.Context) error {
 
 	fmt.Fprintf(out, "Updating user %s role to %s in cluster %s...\n", username, userRole, clusterID)
 
-	input := uiex.UpdateUserRoleInput{
+	input := mpgv1.UpdateUserRoleInput{
 		Role: userRole,
 	}
 
-	response, err := uiexClient.UpdateUserRole(ctx, clusterID, username, input)
+	response, err := mpgClient.UpdateUserRole(ctx, clusterID, username, input)
 	if err != nil {
 		return fmt.Errorf("failed to update user role: %w", err)
 	}
@@ -355,19 +340,14 @@ func newUsersDelete() *cobra.Command {
 }
 
 func runUsersDelete(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	out := iostreams.FromContext(ctx).Out
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
@@ -382,7 +362,7 @@ func runUsersDelete(ctx context.Context) error {
 		}
 
 		// Get list of users to prompt from
-		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -424,7 +404,7 @@ func runUsersDelete(ctx context.Context) error {
 
 	fmt.Fprintf(out, "Deleting user %s from cluster %s...\n", username, clusterID)
 
-	err := uiexClient.DeleteUser(ctx, clusterID, username)
+	err := mpgClient.DeleteUser(ctx, clusterID, username)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
