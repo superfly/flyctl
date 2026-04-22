@@ -113,6 +113,7 @@ func TestMarkGreenMachinesAsReadyForTrafficRetries(t *testing.T) {
 				launchInput:     &fly.LaunchMachineInput{},
 			})
 		}
+
 		return bg
 	}
 

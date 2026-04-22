@@ -317,6 +317,7 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 
 	if m.uncordonTransientFailures > 0 {
 		m.uncordonTransientFailures--
+
 		return fmt.Errorf("transient error uncordoning %s", machineID)
 	}
 
