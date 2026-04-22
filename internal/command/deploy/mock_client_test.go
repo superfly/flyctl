@@ -26,6 +26,10 @@ type mockFlapsClient struct {
 	breakDestroy     bool
 	breakLease       bool
 
+	// uncordonTransientFailures causes Uncordon to fail this many times before
+	// succeeding, simulating transient API errors for retry tests.
+	uncordonTransientFailures int
+
 	// mu to protect the members below.
 	mu            sync.Mutex
 	machines      []*fly.Machine
@@ -306,6 +310,14 @@ func (m *mockFlapsClient) Suspend(ctx context.Context, appName, machineID, nonce
 func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
 	if m.breakUncordon {
 		return fmt.Errorf("failed to uncordon %s", machineID)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.uncordonTransientFailures > 0 {
+		m.uncordonTransientFailures--
+		return fmt.Errorf("transient error uncordoning %s", machineID)
 	}
 
 	return nil
