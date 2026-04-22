@@ -2,11 +2,12 @@ package deploy
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/superfly/fly-go"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -53,6 +54,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	// Don't have to wait during tests.
 	strategy.waitBeforeStop = 0
 	strategy.waitBeforeCordon = 0
+	strategy.uncordonRetryDelay = 0
 
 	return strategy
 }
@@ -94,6 +96,56 @@ func TestDeploy(t *testing.T) {
 
 		err := strategy.Deploy(ctx)
 		assert.ErrorContains(t, err, "failed to create green machines")
+	})
+}
+
+func TestMarkGreenMachinesAsReadyForTrafficRetries(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+
+	// makeStrategyWithGreenMachines builds a blueGreen with pre-populated green
+	// machines, letting us test MarkGreenMachinesAsReadyForTraffic in isolation
+	// without running the full deploy pipeline.
+	makeStrategyWithGreenMachines := func(client *mockFlapsClient, greenCount int) *blueGreen {
+		bg := newBlueGreenStrategy(client, 0)
+		for i := range greenCount {
+			bg.greenMachines = append(bg.greenMachines, &machineUpdateEntry{
+				leasableMachine: machine.NewLeasableMachine(client, ios, "test-app", &fly.Machine{ID: fmt.Sprintf("green-%d", i+1)}, false),
+				launchInput:     &fly.LaunchMachineInput{},
+			})
+		}
+		return bg
+	}
+
+	ctx := context.Background()
+
+	t.Run("succeeds immediately when no errors occur", func(t *testing.T) {
+		client := &mockFlapsClient{}
+		bg := makeStrategyWithGreenMachines(client, 3)
+
+		err := bg.MarkGreenMachinesAsReadyForTraffic(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("succeeds after transient uncordon failures are retried", func(t *testing.T) {
+		client := &mockFlapsClient{uncordonTransientFailures: 2}
+		bg := makeStrategyWithGreenMachines(client, 1)
+
+		err := bg.MarkGreenMachinesAsReadyForTraffic(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.uncordonTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should have been consumed by retries")
+	})
+
+	t.Run("fails after all retry attempts are exhausted", func(t *testing.T) {
+		client := &mockFlapsClient{breakUncordon: true}
+		bg := makeStrategyWithGreenMachines(client, 1)
+		bg.uncordonRetryAttempts = 3
+
+		err := bg.MarkGreenMachinesAsReadyForTraffic(ctx)
+		assert.ErrorContains(t, err, "failed to uncordon")
 	})
 }
 
