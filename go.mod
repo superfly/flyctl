@@ -56,7 +56,7 @@ require (
 	github.com/moby/patternmatcher v0.6.1
 	github.com/morikuni/aec v1.1.0
 	github.com/muesli/termenv v0.16.0
-	github.com/nats-io/nats.go v1.50.0
+	github.com/nats-io/nats.go v1.51.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/olekukonko/tablewriter v1.1.4
