@@ -5,49 +5,17 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
-func NewStatus() *cobra.Command {
-	const (
-		long  = `Show status and details of a specific Managed Postgres cluster using its ID.`
-		short = "Show MPG cluster status."
-		usage = "status [CLUSTER_ID]"
-	)
-
-	cmd := command.New(usage, short, long, runStatus,
-		command.RequireSession,
-	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	flag.Add(cmd, flag.JSONOutput())
-
-	return cmd
-}
-
-func runStatus(ctx context.Context) error {
+func RunStatus(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
-	}
 
 	// Fetch detailed cluster information by ID
 	clusterDetails, err := mpgClient.GetManagedClusterById(ctx, clusterID)

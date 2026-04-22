@@ -10,9 +10,6 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -20,83 +17,15 @@ import (
 	"github.com/superfly/flyctl/proxy"
 )
 
-func NewConnect() (cmd *cobra.Command) {
-	const (
-		long = `Connect to a MPG database using psql`
-
-		short = long
-		usage = "connect <CLUSTER ID>"
-	)
-
-	cmd = command.New(usage, short, long, runConnect, command.RequireSession)
-
-	flag.Add(cmd,
-		flag.String{
-			Name:        "database",
-			Shorthand:   "d",
-			Description: "The database to connect to",
-		},
-		flag.String{
-			Name:        "username",
-			Shorthand:   "u",
-			Description: "The username to connect as",
-		},
-	)
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	return cmd
-}
-
-func runConnect(ctx context.Context) (err error) {
+func RunConnect(ctx context.Context, clusterID string, orgSlug string, proxyPort string) (err error) {
 	io := iostreams.FromContext(ctx)
-
-	localProxyPort := "16380"
-
-	// Get cluster once (will prompt if needed)
-	clusterID := flag.FirstArg(ctx)
-	var cluster *mpgv1.ManagedCluster
-	var orgSlug string
-	// var err error
-
-	if clusterID != "" {
-		// If cluster ID is provided, fetch directly without prompting for org
-		mpgClient := mpgv1.ClientFromContext(ctx)
-		response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
-		if err != nil {
-			return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
-		}
-		cluster = &response.Data
-		orgSlug = cluster.Organization.Slug
-	} else {
-		// Otherwise, prompt for org/cluster selection
-		c, o, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-
-		cluster = &mpgv1.ManagedCluster{
-			Id:           c.Id,
-			Name:         c.Name,
-			Region:       c.Region,
-			Status:       c.Status,
-			Plan:         c.Plan,
-			Disk:         c.Disk,
-			Replicas:     c.Replicas,
-			Organization: c.Organization,
-			// TODO: FIX
-			IpAssignments: mpgv1.ManagedClusterIpAssignments{},
-			AttachedApps:  []mpgv1.AttachedApp{},
-		}
-
-		orgSlug = o
-		if err != nil {
-			return err
-		}
-	}
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
 		mpgClient := mpgv1.ClientFromContext(ctx)
-		usersResponse, err := mpgClient.ListUsers(ctx, cluster.Id)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -126,7 +55,7 @@ func runConnect(ctx context.Context) (err error) {
 	} else if io.IsInteractive() {
 		// Prompt for database selection
 		mpgClient := mpgv1.ClientFromContext(ctx)
-		databasesResponse, err := mpgClient.ListDatabases(ctx, cluster.Id)
+		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
@@ -147,7 +76,7 @@ func runConnect(ctx context.Context) (err error) {
 		}
 	}
 
-	cluster, params, credentials, err := getMpgProxyParamsWithCluster(ctx, localProxyPort, username, cluster.Id, orgSlug)
+	cluster, params, credentials, err := getMpgProxyParams(ctx, clusterID, proxyPort, username, orgSlug)
 	if err != nil {
 		return err
 	}
@@ -181,7 +110,7 @@ func runConnect(ctx context.Context) (err error) {
 		db = credentials.DBName
 	}
 
-	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
+	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, proxyPort, db)
 
 	// Allow Ctrl+C signals to hit psql
 	psqlCtx, psqlCancel := context.WithCancel(context.WithoutCancel(ctx))

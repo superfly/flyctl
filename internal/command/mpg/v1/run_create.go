@@ -8,13 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/mpg/plans"
-	mpgv1cmd "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -32,77 +28,11 @@ type CreateClusterParams struct {
 	PGMajorVersion int
 }
 
-func NewCreate() *cobra.Command {
-	const (
-		short = "Create a new Managed Postgres cluster"
-		long  = short + "\n"
-	)
-
-	cmd := command.New("create", short, long, runCreate,
-		command.RequireSession,
-	)
-
-	flag.Add(
-		cmd,
-		flag.Region(),
-		flag.Org(),
-		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "The name of your Postgres cluster",
-		},
-		flag.String{
-			Name:        "plan",
-			Description: "The plan to use for the Postgres cluster (development, production, etc)",
-		},
-		flag.Int{
-			Name:        "volume-size",
-			Description: "The volume size in GB",
-			Default:     10,
-		},
-		flag.Bool{
-			Name:        "enable-postgis-support",
-			Description: "Enable PostGIS for the Postgres cluster",
-			Default:     false,
-		},
-		flag.Int{
-			Name:        "pg-major-version",
-			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16 and 17.",
-			Default:     16,
-		},
-	)
-
-	return cmd
-}
-
-func runCreate(ctx context.Context) error {
-	var (
-		io      = iostreams.FromContext(ctx)
-		appName = flag.GetString(ctx, "name")
-		err     error
-	)
-
-	if appName == "" {
-		// If no name is provided, try to get the app name from context
-		if appName = appconfig.NameFromContext(ctx); appName != "" {
-			// If we have an app name, use it to create a default database name
-			appName = appName + "-db"
-		} else {
-			// If no app name is available, prompt for a name
-			appName, err = prompt.SelectAppNameWithMsg(ctx, "Choose a database name:")
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	org, err := prompt.Org(ctx)
-	if err != nil {
-		return err
-	}
+func RunCreate(ctx context.Context, org *fly.Organization, appName string) error {
+	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions from API
-	mpgRegions, err := mpgv1cmd.GetAvailableMPGRegions(ctx, org.RawSlug)
+	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
 
 	if err != nil {
 		return err
@@ -131,7 +61,7 @@ func runCreate(ctx context.Context) error {
 			}
 		}
 		if selectedRegion == nil {
-			availableCodes, _ := mpgv1cmd.GetAvailableMPGRegionCodes(ctx, org.Slug)
+			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
 
 			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}

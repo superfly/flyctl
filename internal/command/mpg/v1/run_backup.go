@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -15,63 +12,10 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func NewBackup() *cobra.Command {
-	const (
-		short = "Backup commands"
-		long  = short + "\n"
-	)
-
-	cmd := command.New("backup", short, long, nil)
-	cmd.Aliases = []string{"backups"}
-
-	cmd.AddCommand(
-		newBackupList(),
-		newBackupCreate(),
-	)
-
-	return cmd
-}
-
-func newBackupList() *cobra.Command {
-	const (
-		long  = `List backups for a Managed Postgres cluster.`
-		short = "List MPG cluster backups."
-		usage = "list <CLUSTER_ID>"
-	)
-
-	cmd := command.New(usage, short, long, RunBackupList,
-		command.RequireSession,
-	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-	cmd.Aliases = []string{"ls"}
-
-	flag.Add(cmd,
-		flag.JSONOutput(),
-		flag.Bool{
-			Name:        "all",
-			Description: "Show all backups (default: last 24 hours)",
-			Default:     false,
-		},
-	)
-
-	return cmd
-}
-
-func RunBackupList(ctx context.Context) error {
+func RunBackupList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
-	}
 
 	backups, err := mpgClient.ListManagedClusterBackups(ctx, clusterID)
 	if err != nil {
@@ -130,43 +74,9 @@ func RunBackupList(ctx context.Context) error {
 	return render.Table(out, "", rows, "ID", "Start", "Status", "Type")
 }
 
-func newBackupCreate() *cobra.Command {
-	const (
-		long  = `Create a backup for a Managed Postgres cluster.`
-		short = "Create MPG cluster backup."
-		usage = "create <CLUSTER_ID>"
-	)
-
-	cmd := command.New(usage, short, long, runBackupCreate,
-		command.RequireSession,
-	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	flag.Add(cmd,
-		flag.String{
-			Name:        "type",
-			Description: "Backup type: full or incr",
-			Default:     "full",
-		},
-	)
-
-	return cmd
-}
-
-func runBackupCreate(ctx context.Context) error {
+func RunBackupCreate(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
-	}
 
 	backupType := flag.GetString(ctx, "type")
 	if backupType != "full" && backupType != "incr" {

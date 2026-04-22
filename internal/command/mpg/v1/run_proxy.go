@@ -4,50 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/proxy"
 )
 
-func NewProxy() (cmd *cobra.Command) {
-	const (
-		long = `Proxy to a MPG database`
-
-		short = long
-		usage = "proxy <CLUSTER ID>"
-	)
-
-	cmd = command.New(usage, short, long, runProxy, command.RequireSession)
-
-	flag.Add(cmd,
-		flag.String{
-			Name:        flagnames.BindAddr,
-			Shorthand:   "b",
-			Default:     "127.0.0.1",
-			Description: "Local address to bind to",
-		},
-		flag.String{
-			Name:        flagnames.LocalPort,
-			Shorthand:   "p",
-			Default:     "16380",
-			Description: "Local port to proxy on",
-		},
-	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	return cmd
-}
-
-func runProxy(ctx context.Context) (err error) {
-	localProxyPort := flag.GetString(ctx, flagnames.LocalPort)
-	_, params, _, err := getMpgProxyParams(ctx, localProxyPort, "")
+func RunProxy(ctx context.Context, clusterID string, proxyPort string, orgSlug string) (err error) {
+	_, params, _, err := getMpgProxyParams(ctx, clusterID, proxyPort, "", orgSlug)
 	if err != nil {
 		return err
 	}
@@ -55,49 +21,13 @@ func runProxy(ctx context.Context) (err error) {
 	return proxy.Connect(ctx, params)
 }
 
-func getMpgProxyParams(ctx context.Context, localProxyPort string, username string) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
-	clusterID := flag.FirstArg(ctx)
-
-	var cluster *mpgv1.ManagedCluster
-	var orgSlug string
-
-	if clusterID != "" {
-		// If cluster ID is provided, fetch directly without prompting for org
-		mpgClient := mpgv1.ClientFromContext(ctx)
-		response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
-		}
-		cluster = &response.Data
-		orgSlug = cluster.Organization.Slug
-	} else {
-		// Otherwise, prompt for org/cluster selection
-		c, o, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-
-		cluster = &mpgv1.ManagedCluster{
-			Id:           c.Id,
-			Name:         c.Name,
-			Region:       c.Region,
-			Status:       c.Status,
-			Plan:         c.Plan,
-			Disk:         c.Disk,
-			Replicas:     c.Replicas,
-			Organization: c.Organization,
-			// TODO: FIX
-			IpAssignments: mpgv1.ManagedClusterIpAssignments{},
-			AttachedApps:  []mpgv1.AttachedApp{},
-		}
-
-		orgSlug = o
-		if err != nil {
-			return nil, nil, nil, err
-		}
-	}
-
-	return getMpgProxyParamsWithCluster(ctx, localProxyPort, username, cluster.Id, orgSlug)
-}
-
-func getMpgProxyParamsWithCluster(ctx context.Context, localProxyPort string, username string, clusterID string, orgSlug string) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
+func getMpgProxyParams(
+	ctx context.Context,
+	clusterID string,
+	localProxyPort string,
+	username string,
+	orgSlug string,
+) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
 	client := flyutil.ClientFromContext(ctx)
 	mpgClient := mpgv1.ClientFromContext(ctx)
 

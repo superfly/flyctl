@@ -9,6 +9,13 @@ import (
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
+type Version int
+
+const (
+	V1 Version = iota
+	V2
+)
+
 type ManagedCluster struct {
 	Id           string           `json:"id"`
 	Name         string           `json:"name"`
@@ -18,6 +25,7 @@ type ManagedCluster struct {
 	Disk         int              `json:"disk"`
 	Replicas     int              `json:"replicas"`
 	Organization fly.Organization `json:"organization"`
+	Version      Version
 	// IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
 	// AttachedApps  []AttachedApp               `json:"attached_apps"`
 }
@@ -72,6 +80,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*Ma
 			Disk:         cluster.Disk,
 			Replicas:     cluster.Replicas,
 			Organization: cluster.Organization,
+			Version:      V1,
 		})
 	}
 

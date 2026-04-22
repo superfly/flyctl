@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -15,56 +12,10 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func NewDatabases() *cobra.Command {
-	const (
-		short = "Manage databases in a managed postgres cluster"
-		long  = short + "\n"
-	)
-
-	cmd := command.New("databases", short, long, nil)
-	cmd.Aliases = []string{"database", "db", "dbs"}
-
-	cmd.AddCommand(
-		newDatabasesList(),
-		newDatabasesCreate(),
-	)
-
-	return cmd
-}
-
-func newDatabasesList() *cobra.Command {
-	const (
-		long  = `List databases in a Managed Postgres cluster.`
-		short = "List databases in an MPG cluster."
-		usage = "list <CLUSTER_ID>"
-	)
-
-	cmd := command.New(usage, short, long, runDatabasesList,
-		command.RequireSession,
-	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-	cmd.Aliases = []string{"ls"}
-
-	flag.Add(cmd, flag.JSONOutput())
-
-	return cmd
-}
-
-func runDatabasesList(ctx context.Context) error {
+func RunDatabasesList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
-	}
 
 	databases, err := mpgClient.ListDatabases(ctx, clusterID)
 	if err != nil {
@@ -91,43 +42,9 @@ func runDatabasesList(ctx context.Context) error {
 	return render.Table(out, "", rows, "Name")
 }
 
-func newDatabasesCreate() *cobra.Command {
-	const (
-		long  = `Create a new database in a Managed Postgres cluster.`
-		short = "Create a database in an MPG cluster."
-		usage = "create <CLUSTER_ID>"
-	)
-
-	cmd := command.New(usage, short, long, runDatabasesCreate,
-		command.RequireSession,
-	)
-
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	flag.Add(cmd,
-		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "The name of the database",
-		},
-	)
-
-	return cmd
-}
-
-func runDatabasesCreate(ctx context.Context) error {
+func RunDatabasesCreate(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
-	}
 
 	dbName := flag.GetString(ctx, "name")
 	if dbName == "" {

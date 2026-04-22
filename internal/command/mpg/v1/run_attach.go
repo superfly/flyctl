@@ -5,89 +5,21 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/mpg/utils"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func NewAttach() *cobra.Command {
-	const (
-		short = "Attach a managed Postgres cluster to an app"
-		long  = short + ". " +
-			`This command will add a secret to the specified app
- containing the connection string for the database.`
-		usage = "attach <CLUSTER ID>"
-	)
-
-	cmd := command.New(usage, short, long, runAttach,
-		command.RequireSession,
-		command.RequireAppName,
-	)
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	flag.Add(cmd,
-		flag.App(),
-		flag.AppConfig(),
-		flag.String{
-			Name:        "variable-name",
-			Default:     "DATABASE_URL",
-			Description: "The name of the environment variable that will be added to the attached app",
-		},
-		flag.String{
-			Name:        "database",
-			Shorthand:   "d",
-			Description: "The database to connect to",
-		},
-		flag.String{
-			Name:        "username",
-			Shorthand:   "u",
-			Description: "The username to connect as",
-		},
-	)
-
-	return cmd
-}
-
-func runAttach(ctx context.Context) error {
+func RunAttach(ctx context.Context, clusterID string, app *fly.AppBasic) error {
 	var (
-		clusterId = flag.FirstArg(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
 	)
-
-	// Get app details to determine which org it belongs to
-	app, err := client.GetAppBasic(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
-	}
-
-	appOrgSlug := app.Organization.RawSlug
-	if appOrgSlug != "" && clusterId == "" {
-		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
-	}
-
-	// Get cluster details to determine which org it belongs to
-	cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
-	if err != nil {
-		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
-	}
-
-	clusterOrgSlug := cluster.Organization.Slug
-
-	// Verify that the app and cluster are in the same organization
-	if appOrgSlug != clusterOrgSlug {
-		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
-			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
-	}
 
 	mpgClient := mpgv1.ClientFromContext(ctx)
 
@@ -95,7 +27,7 @@ func runAttach(ctx context.Context) error {
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
-		usersResponse, err := mpgClient.ListUsers(ctx, cluster.Id)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -140,7 +72,7 @@ func runAttach(ctx context.Context) error {
 				Role:     userRole,
 			}
 
-			createResponse, err := mpgClient.CreateUserWithRole(ctx, cluster.Id, input)
+			createResponse, err := mpgClient.CreateUserWithRole(ctx, clusterID, input)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
@@ -160,7 +92,7 @@ func runAttach(ctx context.Context) error {
 		db = database
 	} else if io.IsInteractive() {
 		// Prompt for database selection
-		databasesResponse, err := mpgClient.ListDatabases(ctx, cluster.Id)
+		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
@@ -195,7 +127,7 @@ func runAttach(ctx context.Context) error {
 				Name: dbName,
 			}
 
-			createResponse, err := mpgClient.CreateDatabase(ctx, cluster.Id, input)
+			createResponse, err := mpgClient.CreateDatabase(ctx, clusterID, input)
 			if err != nil {
 				return fmt.Errorf("failed to create database: %w", err)
 			}
@@ -208,15 +140,15 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Get cluster details with credentials
-	response, err := mpgClient.GetManagedClusterById(ctx, cluster.Id)
+	response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 	if err != nil {
-		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
+		return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
 
 	// Get credentials - use user-specific endpoint if username provided, otherwise use default
 	var credentials mpgv1.GetManagedClusterCredentialsResponse
 	if username != "" {
-		userCreds, err := mpgClient.GetUserCredentials(ctx, cluster.Id, username)
+		userCreds, err := mpgClient.GetUserCredentials(ctx, clusterID, username)
 		if err != nil {
 			return fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
@@ -279,12 +211,12 @@ func runAttach(ctx context.Context) error {
 	attachInput := mpgv1.CreateAttachmentInput{
 		AppName: appName,
 	}
-	if _, err := mpgClient.CreateAttachment(ctx, cluster.Id, attachInput); err != nil {
+	if _, err := mpgClient.CreateAttachment(ctx, clusterID, attachInput); err != nil {
 		// Log warning but don't fail - the secret was set successfully
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
 	}
 
-	fmt.Fprintf(io.Out, "\nPostgres cluster %s is being attached to %s\n", cluster.Id, appName)
+	fmt.Fprintf(io.Out, "\nPostgres cluster %s is being attached to %s\n", clusterID, appName)
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
 
 	return nil

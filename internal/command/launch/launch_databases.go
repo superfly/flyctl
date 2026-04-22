@@ -14,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	mpgv1cmd "github.com/superfly/flyctl/internal/command/mpg/v1/cmd"
+	mpgv1cmd "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flapsutil"

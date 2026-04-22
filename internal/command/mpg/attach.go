@@ -1,4 +1,4 @@
-package cmdv1
+package mpg
 
 import (
 	"context"
@@ -8,22 +8,23 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/mpg/utils"
+	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func NewDetach() *cobra.Command {
+func newAttach() *cobra.Command {
 	const (
-		short = "Detach a managed Postgres cluster from an app"
+		short = "Attach a managed Postgres cluster to an app"
 		long  = short + ". " +
-			`This command will remove the attachment record linking the app to the cluster.
-Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to remove secrets.`
-		usage = "detach <CLUSTER ID>"
+			`This command will add a secret to the specified app
+ containing the connection string for the database.`
+		usage = "attach <CLUSTER ID>"
 	)
 
-	cmd := command.New(usage, short, long, runDetach,
+	cmd := command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -32,12 +33,27 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "variable-name",
+			Default:     "DATABASE_URL",
+			Description: "The name of the environment variable that will be added to the attached app",
+		},
+		flag.String{
+			Name:        "database",
+			Shorthand:   "d",
+			Description: "The database to connect to",
+		},
+		flag.String{
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "The username to connect as",
+		},
 	)
 
 	return cmd
 }
 
-func runDetach(ctx context.Context) error {
+func runAttach(ctx context.Context) error {
 	var (
 		clusterId = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
@@ -56,7 +72,7 @@ func runDetach(ctx context.Context) error {
 		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
 	}
 
-	// Get cluster details
+	// Get cluster details to determine which org it belongs to
 	cluster, _, err := utils.ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
@@ -66,21 +82,12 @@ func runDetach(ctx context.Context) error {
 
 	// Verify that the app and cluster are in the same organization
 	if appOrgSlug != clusterOrgSlug {
-		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization",
+		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
 
-	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	// Delete the attachment record
-	_, err = mpgClient.DeleteAttachment(ctx, cluster.Id, appName)
-	if err != nil {
-		return fmt.Errorf("failed to detach: %w", err)
+	if cluster.Version == utils.V1 {
+		return cmdv1.RunAttach(ctx, cluster.Id, app)
 	}
-
-	fmt.Fprintf(io.Out, "\nPostgres cluster %s has been detached from %s\n", cluster.Id, appName)
-	fmt.Fprintf(io.Out, "Note: This only removes the attachment record. Any secrets (like DATABASE_URL) are still set on the app.\n")
-	fmt.Fprintf(io.Out, "Use 'fly secrets unset DATABASE_URL -a %s' to remove the connection string.\n", appName)
-
-	return nil
+	return cmdv2.RunAttach(ctx)
 }

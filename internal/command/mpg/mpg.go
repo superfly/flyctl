@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
-	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1/cmd"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -33,18 +32,18 @@ func New() *cobra.Command {
 	)
 
 	cmd.AddCommand(
-		cmdv1.NewProxy(),
-		cmdv1.NewConnect(),
-		cmdv1.NewAttach(),
-		cmdv1.NewDetach(),
-		cmdv1.NewStatus(),
-		cmdv1.NewList(),
-		cmdv1.NewCreate(),
-		cmdv1.NewDestroy(),
-		cmdv1.NewBackup(),
-		cmdv1.NewRestore(),
-		cmdv1.NewDatabases(),
-		cmdv1.NewUsers(),
+		newProxy(),
+		newConnect(),
+		newAttach(),
+		newDetach(),
+		newStatus(),
+		newList(),
+		newCreate(),
+		newDestroy(),
+		newBackup(),
+		newRestore(),
+		newDatabases(),
+		newUsers(),
 	)
 
 	return cmd
