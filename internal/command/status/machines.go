@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	fly "github.com/superfly/fly-go"
+	imagecmd "github.com/superfly/flyctl/internal/command/image"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -125,8 +126,10 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 			latest = latestImage
 		}
 
-		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Digest == latest.Digest {
+		// Exclude machines that are already running the latest version, and
+		// skip cases where the resolver returned an older or non-newer build
+		// to avoid suggesting downgrades.
+		if !imagecmd.IsUpdateCandidate(machine, latest) {
 			continue
 		}
 		updatable = append(updatable, machine)
@@ -319,8 +322,10 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 			return fmt.Errorf("major version mismatch detected")
 		}
 
-		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Digest == latest.Digest {
+		// Exclude machines that are already running the latest version, and
+		// skip cases where the resolver returned an older or non-newer build
+		// to avoid suggesting downgrades.
+		if !imagecmd.IsUpdateCandidate(machine, latest) {
 			continue
 		}
 		updatable = append(updatable, machine)

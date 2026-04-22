@@ -288,7 +288,7 @@ func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 			return "", err
 		}
 
-		if latestImage != nil {
+		if latestImage != nil && IsUpdateCandidate(&machine, latestImage) {
 			image = latestImage.FullImageRef()
 		}
 
