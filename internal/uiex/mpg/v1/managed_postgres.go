@@ -1,4 +1,4 @@
-package uiex
+package v1
 
 import (
 	"bytes"
@@ -9,100 +9,21 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/uiex"
 )
 
-type ManagedClusterIpAssignments struct {
-	Direct string `json:"direct"`
-}
-
-type MPGRegion struct {
-	Code      string `json:"code"`      // e.g., "fra"
-	Available bool   `json:"available"` // Whether this region supports MPG
-}
-
-type ListMPGRegionsResponse struct {
-	Data []MPGRegion `json:"data"`
-}
-
-type ManagedClusterBackup struct {
-	Id     string `json:"id"`
-	Status string `json:"status"`
-	Type   string `json:"type"`
-	Start  string `json:"start"`
-	Stop   string `json:"stop"`
-}
-
-type ListManagedClusterBackupsResponse struct {
-	Data []ManagedClusterBackup `json:"data"`
-}
-
-type CreateManagedClusterBackupInput struct {
-	Type string `json:"type"`
-}
-
-type CreateManagedClusterBackupResponse struct {
-	Data ManagedClusterBackup `json:"data"`
-}
-
-type RestoreManagedClusterBackupInput struct {
-	BackupId string `json:"backup_id"`
-}
-
-type RestoreManagedClusterBackupResponse struct {
-	Data ManagedCluster `json:"data"`
-}
-
-type AttachedApp struct {
-	Name string `json:"name"`
-	Id   int64  `json:"id"`
-}
-
-type ManagedCluster struct {
-	Id            string                      `json:"id"`
-	Name          string                      `json:"name"`
-	Region        string                      `json:"region"`
-	Status        string                      `json:"status"`
-	Plan          string                      `json:"plan"`
-	Disk          int                         `json:"disk"`
-	Replicas      int                         `json:"replicas"`
-	Organization  fly.Organization            `json:"organization"`
-	IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
-	AttachedApps  []AttachedApp               `json:"attached_apps"`
-}
-
-type ListManagedClustersResponse struct {
-	Data []ManagedCluster `json:"data"`
-}
-
-type GetManagedClusterCredentialsResponse struct {
-	Status        string `json:"status"`
-	User          string `json:"user"`
-	Password      string `json:"password"`
-	DBName        string `json:"dbname"`
-	ConnectionUri string `json:"pgbouncer_uri"`
-}
-
-type GetUserCredentialsResponse struct {
-	Data struct {
-		User     string `json:"user"`
-		Password string `json:"password"`
-	} `json:"data"`
-}
-
-type GetManagedClusterResponse struct {
-	Data        ManagedCluster                       `json:"data"`
-	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
+type Client struct {
+	uiex.Client
 }
 
 func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (ListManagedClustersResponse, error) {
 	var response ListManagedClustersResponse
 
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.baseUrl, orgSlug)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.BaseUrl, orgSlug)
 	if deleted {
-		url = fmt.Sprintf("%s/api/v1/organizations/%s/postgres/deleted", c.baseUrl, orgSlug)
+		url = fmt.Sprintf("%s/api/v1/organizations/%s/postgres/deleted", c.BaseUrl, orgSlug)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -113,7 +34,7 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -142,7 +63,7 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error) {
 	var response GetManagedClusterResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.baseUrl, orgSlug, id)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.BaseUrl, orgSlug, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -152,7 +73,7 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -180,7 +101,7 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManagedClusterResponse, error) {
 	var response GetManagedClusterResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s", c.BaseUrl, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -190,7 +111,7 @@ func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManag
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -210,25 +131,10 @@ func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManag
 	}
 }
 
-type CreateUserInput struct {
-	DbName   string `json:"db_name"`
-	UserName string `json:"user_name"`
-}
-
-type DetailedErrors struct {
-	Detail string `json:"detail"`
-}
-
-type CreateUserResponse struct {
-	ConnectionUri string         `json:"connection_uri"`
-	Ok            bool           `json:"ok"`
-	Errors        DetailedErrors `json:"errors"`
-}
-
 func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInput) (CreateUserResponse, error) {
 	var response CreateUserResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.BaseUrl, id)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -243,7 +149,7 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -278,28 +184,10 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 	}
 }
 
-type User struct {
-	Name string `json:"name"`
-	Role string `json:"role"`
-}
-
-type ListUsersResponse struct {
-	Data []User `json:"data"`
-}
-
-type CreateUserWithRoleInput struct {
-	UserName string `json:"user_name"`
-	Role     string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
-}
-
-type CreateUserWithRoleResponse struct {
-	Data User `json:"data"`
-}
-
 func (c *Client) CreateUserWithRole(ctx context.Context, id string, input CreateUserWithRoleInput) (CreateUserWithRoleResponse, error) {
 	var response CreateUserWithRoleResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.BaseUrl, id)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -314,7 +202,7 @@ func (c *Client) CreateUserWithRole(ctx context.Context, id string, input Create
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -341,18 +229,10 @@ func (c *Client) CreateUserWithRole(ctx context.Context, id string, input Create
 	}
 }
 
-type UpdateUserRoleInput struct {
-	Role string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
-}
-
-type UpdateUserRoleResponse struct {
-	Data User `json:"data"`
-}
-
 func (c *Client) UpdateUserRole(ctx context.Context, id string, username string, input UpdateUserRoleInput) (UpdateUserRoleResponse, error) {
 	var response UpdateUserRoleResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.baseUrl, id, username)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.BaseUrl, id, username)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -367,7 +247,7 @@ func (c *Client) UpdateUserRole(ctx context.Context, id string, username string,
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -396,7 +276,7 @@ func (c *Client) UpdateUserRole(ctx context.Context, id string, username string,
 
 func (c *Client) DeleteUser(ctx context.Context, id string, username string) error {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.baseUrl, id, username)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.BaseUrl, id, username)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -406,7 +286,7 @@ func (c *Client) DeleteUser(ctx context.Context, id string, username string) err
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -432,7 +312,7 @@ func (c *Client) DeleteUser(ctx context.Context, id string, username string) err
 func (c *Client) GetUserCredentials(ctx context.Context, id string, username string) (GetUserCredentialsResponse, error) {
 	var response GetUserCredentialsResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s/credentials", c.baseUrl, id, username)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s/credentials", c.BaseUrl, id, username)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -442,7 +322,7 @@ func (c *Client) GetUserCredentials(ctx context.Context, id string, username str
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -472,7 +352,7 @@ func (c *Client) GetUserCredentials(ctx context.Context, id string, username str
 func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, error) {
 	var response ListUsersResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.BaseUrl, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -482,7 +362,7 @@ func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, e
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -509,26 +389,10 @@ func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, e
 	}
 }
 
-type Database struct {
-	Name string `json:"name"`
-}
-
-type ListDatabasesResponse struct {
-	Data []Database `json:"data"`
-}
-
-type CreateDatabaseInput struct {
-	Name string `json:"name"`
-}
-
-type CreateDatabaseResponse struct {
-	Data Database `json:"data"`
-}
-
 func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesResponse, error) {
 	var response ListDatabasesResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases", c.BaseUrl, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -538,7 +402,7 @@ func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesRes
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -568,7 +432,7 @@ func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesRes
 func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateDatabaseInput) (CreateDatabaseResponse, error) {
 	var response CreateDatabaseResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases", c.baseUrl, id)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases", c.BaseUrl, id)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -583,7 +447,7 @@ func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateData
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -610,38 +474,10 @@ func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateData
 	}
 }
 
-type CreateClusterInput struct {
-	Name           string `json:"name"`
-	Region         string `json:"region"`
-	Plan           string `json:"plan"`
-	OrgSlug        string `json:"org_slug"`
-	Disk           int    `json:"disk"`
-	PostGISEnabled bool   `json:"postgis_enabled"`
-	PGMajorVersion string `json:"pg_major_version"`
-}
-
-type CreateClusterResponse struct {
-	Ok     bool           `json:"ok"`
-	Errors DetailedErrors `json:"errors"`
-	Data   struct {
-		Id             string                      `json:"id"`
-		Name           string                      `json:"name"`
-		Status         *string                     `json:"status"`
-		Plan           string                      `json:"plan"`
-		Environment    *string                     `json:"environment"`
-		Region         string                      `json:"region"`
-		Organization   fly.Organization            `json:"organization"`
-		Replicas       int                         `json:"replicas"`
-		Disk           int                         `json:"disk"`
-		IpAssignments  ManagedClusterIpAssignments `json:"ip_assignments"`
-		PostGISEnabled bool                        `json:"postgis_enabled"`
-	} `json:"data"`
-}
-
 func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (CreateClusterResponse, error) {
 	var response CreateClusterResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.baseUrl, input.OrgSlug)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.BaseUrl, input.OrgSlug)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -656,7 +492,7 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -697,7 +533,7 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error) {
 	var response ListMPGRegionsResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/regions", c.baseUrl, orgSlug)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/regions", c.BaseUrl, orgSlug)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -707,7 +543,7 @@ func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGReg
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -735,7 +571,7 @@ func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGReg
 func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string) (ListManagedClusterBackupsResponse, error) {
 	var response ListManagedClusterBackupsResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.baseUrl, clusterID)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.BaseUrl, clusterID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -745,7 +581,7 @@ func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -776,7 +612,7 @@ func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string
 func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID string, input CreateManagedClusterBackupInput) (CreateManagedClusterBackupResponse, error) {
 	var response CreateManagedClusterBackupResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.baseUrl, clusterID)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.BaseUrl, clusterID)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -791,7 +627,7 @@ func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID strin
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -822,7 +658,7 @@ func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID strin
 func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID string, input RestoreManagedClusterBackupInput) (RestoreManagedClusterBackupResponse, error) {
 	var response RestoreManagedClusterBackupResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/restore", c.baseUrl, clusterID)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/restore", c.BaseUrl, clusterID)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -837,7 +673,7 @@ func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID stri
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -867,7 +703,7 @@ func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID stri
 // DestroyCluster permanently destroys a managed Postgres cluster
 func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) error {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.baseUrl, orgSlug, id)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.BaseUrl, orgSlug, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -877,7 +713,7 @@ func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) 
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -900,24 +736,11 @@ func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) 
 	}
 }
 
-type CreateAttachmentInput struct {
-	AppName string `json:"app_name"`
-}
-
-type CreateAttachmentResponse struct {
-	Data struct {
-		Id               int64  `json:"id"`
-		AppId            int64  `json:"app_id"`
-		ManagedServiceId int64  `json:"managed_service_id"`
-		AttachedAt       string `json:"attached_at"`
-	} `json:"data"`
-}
-
 // CreateAttachment creates a ManagedServiceAttachment record linking an app to a managed Postgres cluster
 func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input CreateAttachmentInput) (CreateAttachmentResponse, error) {
 	var response CreateAttachmentResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments", c.baseUrl, clusterId)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments", c.BaseUrl, clusterId)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
@@ -932,7 +755,7 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -959,17 +782,11 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 	}
 }
 
-type DeleteAttachmentResponse struct {
-	Data struct {
-		Message string `json:"message"`
-	} `json:"data"`
-}
-
 // DeleteAttachment removes a ManagedServiceAttachment record linking an app to a managed Postgres cluster
 func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName string) (DeleteAttachmentResponse, error) {
 	var response DeleteAttachmentResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments/%s", c.baseUrl, clusterId, appName)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments/%s", c.BaseUrl, clusterId, appName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -978,7 +795,7 @@ func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName
 
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}

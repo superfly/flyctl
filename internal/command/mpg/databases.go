@@ -2,17 +2,13 @@ package mpg
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/command/mpg/utils"
+	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newDatabases() *cobra.Command {
@@ -51,51 +47,6 @@ func newDatabasesList() *cobra.Command {
 	return cmd
 }
 
-func runDatabasesList(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
-	cfg := config.FromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
-	}
-
-	databases, err := uiexClient.ListDatabases(ctx, clusterID)
-	if err != nil {
-		return fmt.Errorf("failed to list databases for cluster %s: %w", clusterID, err)
-	}
-
-	if len(databases.Data) == 0 {
-		fmt.Fprintf(out, "No databases found for cluster %s\n", clusterID)
-
-		return nil
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(out, databases.Data)
-	}
-
-	rows := make([][]string, 0, len(databases.Data))
-	for _, db := range databases.Data {
-		rows = append(rows, []string{
-			db.Name,
-		})
-	}
-
-	return render.Table(out, "", rows, "Name")
-}
-
 func newDatabasesCreate() *cobra.Command {
 	const (
 		long  = `Create a new database in a Managed Postgres cluster.`
@@ -120,53 +71,37 @@ func newDatabasesCreate() *cobra.Command {
 	return cmd
 }
 
-func runDatabasesCreate(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
-	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+func runDatabasesList(ctx context.Context) error {
+	var cluster *utils.ManagedCluster
+	var err error
 
 	clusterID := flag.FirstArg(ctx)
 	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+		cluster, _, err = utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
-
-		clusterID = cluster.Id
 	}
+	if cluster.Version == utils.V1 {
+		return cmdv1.RunDatabasesList(ctx, clusterID)
+	}
+	return cmdv2.RunDatabasesList(ctx, clusterID)
+}
 
-	dbName := flag.GetString(ctx, "name")
-	if dbName == "" {
-		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
-			return prompt.NonInteractiveError("database name must be specified with --name flag when not running interactively")
-		}
-		err := prompt.String(ctx, &dbName, "Enter database name:", "", true)
+func runDatabasesCreate(ctx context.Context) error {
+	var cluster *utils.ManagedCluster
+	var err error
+
+	clusterID := flag.FirstArg(ctx)
+	if clusterID == "" {
+		cluster, _, err = utils.ClusterFromArgOrSelect(ctx, clusterID, "")
 		if err != nil {
 			return err
 		}
-		if dbName == "" {
-			return fmt.Errorf("database name cannot be empty")
-		}
 	}
-
-	fmt.Fprintf(out, "Creating database %s in cluster %s...\n", dbName, clusterID)
-
-	input := uiex.CreateDatabaseInput{
-		Name: dbName,
+	if cluster.Version == utils.V1 {
+		return cmdv1.RunDatabasesCreate(ctx, clusterID)
 	}
+	return cmdv2.RunDatabasesCreate(ctx, clusterID)
 
-	response, err := uiexClient.CreateDatabase(ctx, clusterID, input)
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
-	}
-
-	fmt.Fprintf(out, "Database created successfully!\n")
-	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
-
-	return nil
 }
