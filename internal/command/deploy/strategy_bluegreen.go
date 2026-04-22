@@ -85,6 +85,9 @@ type blueGreen struct {
 
 	waitBeforeStop   time.Duration
 	waitBeforeCordon time.Duration
+
+	uncordonRetryAttempts uint
+	uncordonRetryDelay    time.Duration
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -123,6 +126,9 @@ func (bg *blueGreen) initialize() {
 
 	bg.waitBeforeStop = 10 * time.Second
 	bg.waitBeforeCordon = 10 * time.Second
+
+	bg.uncordonRetryAttempts = 5
+	bg.uncordonRetryDelay = 500 * time.Millisecond
 }
 
 func (bg *blueGreen) isAborted() bool {
@@ -478,7 +484,20 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := bg.flaps.Uncordon(ctx, bg.app.Name, gm.Machine().ID, "")
+			err := retry.Do(
+				func() error {
+					return bg.flaps.Uncordon(ctx, bg.app.Name, gm.Machine().ID, "")
+				},
+				retry.Context(ctx),
+				retry.Attempts(bg.uncordonRetryAttempts),
+				retry.Delay(bg.uncordonRetryDelay),
+				retry.MaxDelay(30*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying uncordon for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.FormattedMachineId()), n+2, bg.uncordonRetryAttempts, err)
+				}),
+			)
 			if err != nil {
 				return err
 			}
