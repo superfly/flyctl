@@ -14,10 +14,10 @@ import (
 )
 
 type Client struct {
-	baseUrl    *url.URL
-	tokens     *tokens.Tokens
-	httpClient *http.Client
-	userAgent  string
+	BaseUrl    *url.URL
+	Tokens     *tokens.Tokens
+	HttpClient *http.Client
+	UserAgent  string
 }
 
 type NewClientOpts struct {
@@ -59,9 +59,9 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	}
 
 	return &Client{
-		baseUrl:    uiexUrl,
-		tokens:     opts.Tokens,
-		httpClient: httpClient,
-		userAgent:  userAgent,
+		BaseUrl:    uiexUrl,
+		Tokens:     opts.Tokens,
+		HttpClient: httpClient,
+		UserAgent:  userAgent,
 	}, nil
 }

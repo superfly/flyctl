@@ -1,4 +1,4 @@
-package uiex
+package v1
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -30,8 +31,10 @@ func setupTestClient(server *httptest.Server) (*Client, context.Context, error) 
 	})
 
 	client := &Client{
-		baseUrl:    baseURL,
-		httpClient: http.DefaultClient,
+		Client: uiex.Client{
+			BaseUrl:    baseURL,
+			HttpClient: http.DefaultClient,
+		},
 	}
 
 	return client, ctx, nil

@@ -7,7 +7,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/mpg"
+	mpgplans "github.com/superfly/flyctl/internal/command/mpg/plans"
 	"github.com/superfly/flyctl/internal/command/redis"
 )
 
@@ -86,7 +86,7 @@ func describeObjectStoragePlan(p plan.ObjectStoragePlan) (string, error) {
 func describeManagedPostgresPlan(p *plan.ManagedPostgresPlan, launchPlan *plan.LaunchPlan) (string, error) {
 	info := []string{}
 
-	planDetails, ok := mpg.MPGPlans[p.Plan]
+	planDetails, ok := mpgplans.MPGPlans[p.Plan]
 
 	if p.DbName != "" {
 		info = append(info, fmt.Sprintf("\"%s\"", p.GetDbName(launchPlan)))

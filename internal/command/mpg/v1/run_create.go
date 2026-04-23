@@ -1,0 +1,218 @@
+package cmdv1
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/command/mpg/plans"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/prompt"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/iostreams"
+)
+
+type CreateClusterParams struct {
+	Name           string
+	OrgSlug        string
+	Region         string
+	Plan           string
+	VolumeSizeGB   int
+	PostGISEnabled bool
+	PGMajorVersion int
+}
+
+func RunCreate(ctx context.Context, org *fly.Organization, appName string) error {
+	io := iostreams.FromContext(ctx)
+
+	// Get available MPG regions from API
+	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
+
+	if err != nil {
+		return err
+	}
+
+	if len(mpgRegions) == 0 {
+		return fmt.Errorf("no valid regions found for Managed Postgres")
+	}
+
+	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
+	if pgMajorVersion != 16 && pgMajorVersion != 17 {
+		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
+	}
+
+	// Check if region was specified via flag
+	regionCode := flag.GetString(ctx, "region")
+	var selectedRegion *fly.Region
+
+	if regionCode != "" {
+		// Find the specified region in the allowed regions
+		for _, region := range mpgRegions {
+			if region.Code == regionCode {
+				selectedRegion = &region
+
+				break
+			}
+		}
+		if selectedRegion == nil {
+			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
+
+			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
+		}
+	} else {
+		// Create region options for prompt
+		var regionOptions []string
+		for _, region := range mpgRegions {
+			regionOptions = append(regionOptions, fmt.Sprintf("%s (%s)", region.Name, region.Code))
+		}
+
+		var selectedIndex int
+		if err := prompt.Select(ctx, &selectedIndex, "Select a region for your Managed Postgres cluster", "", regionOptions...); err != nil {
+			return err
+		}
+
+		selectedRegion = &mpgRegions[selectedIndex]
+	}
+
+	// Plan selection and validation
+	plan := flag.GetString(ctx, "plan")
+	plan = normalizePlan(plan)
+	if _, ok := plans.MPGPlans[plan]; !ok {
+		if iostreams.FromContext(ctx).IsInteractive() {
+			// Prepare a sortable slice of plans
+			type planEntry struct {
+				Key   string
+				Value plans.PlanDetails
+			}
+			var planEntries []planEntry
+			for k, v := range plans.MPGPlans {
+				planEntries = append(planEntries, planEntry{Key: k, Value: v})
+			}
+			// Sort by price (convert string like "$38.00" to float)
+			sort.Slice(planEntries, func(i, j int) bool {
+				return planEntries[i].Value.PricePerMo < planEntries[j].Value.PricePerMo
+			})
+			// Build options and keys in sorted order
+			var planOptions []string
+			var planKeys []string
+			for _, entry := range planEntries {
+				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
+				planKeys = append(planKeys, entry.Key)
+			}
+			var selectedIndex int
+			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", planOptions[0], planOptions...); err != nil {
+				return err
+			}
+			plan = planKeys[selectedIndex]
+		} else {
+			plan = "basic" // Default to basic if not interactive
+		}
+	}
+
+	var slug string
+	if org.Slug == "personal" {
+		genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+
+		// For ui-ex request we need the real org slug
+		var fullOrg *gql.GetOrganizationResponse
+		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
+			return fmt.Errorf("failed fetching org: %w", err)
+		}
+
+		slug = fullOrg.Organization.RawSlug
+	} else {
+		slug = org.Slug
+	}
+
+	params := &CreateClusterParams{
+		Name:           appName,
+		OrgSlug:        slug,
+		Region:         selectedRegion.Code,
+		Plan:           plan,
+		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
+		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+		PGMajorVersion: pgMajorVersion,
+	}
+
+	mpgClient := mpgv1.ClientFromContext(ctx)
+
+	input := mpgv1.CreateClusterInput{
+		Name:           params.Name,
+		Region:         params.Region,
+		Plan:           params.Plan,
+		OrgSlug:        params.OrgSlug,
+		Disk:           params.VolumeSizeGB,
+		PostGISEnabled: params.PostGISEnabled,
+		PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
+	}
+
+	response, err := mpgClient.CreateCluster(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
+	}
+
+	clusterID := response.Data.Id
+
+	var connectionURI string
+
+	// Output plan details after creation
+	planDetails := plans.MPGPlans[plan]
+	fmt.Fprintf(io.Out, "Selected Plan: %s\n", planDetails.Name)
+	fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
+	fmt.Fprintf(io.Out, "  Memory: %s\n", planDetails.Memory)
+	fmt.Fprintf(io.Out, "  Price: $%d per month\n\n", planDetails.PricePerMo)
+
+	// Wait for cluster to be ready
+	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
+	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
+	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
+	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
+	for {
+		res, err := mpgClient.GetManagedClusterById(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed checking cluster status: %w", err)
+		}
+
+		cluster := res.Data
+		credentials := res.Credentials
+
+		if cluster.Id == "" {
+			return fmt.Errorf("invalid cluster response: no cluster ID")
+		}
+
+		if cluster.Status == "ready" {
+			connectionURI = credentials.ConnectionUri
+
+			break
+		}
+
+		if cluster.Status == "error" {
+			return fmt.Errorf("cluster creation failed")
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	fmt.Fprintf(io.Out, "\nManaged Postgres cluster created successfully!\n")
+	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
+	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
+	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
+	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
+	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
+	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
+	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)
+	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
+
+	return nil
+}
+
+// normalizePlan lowercases and trims whitespace from the plan name for lookup
+func normalizePlan(plan string) string {
+	return strings.ToLower(strings.TrimSpace(plan))
+}
