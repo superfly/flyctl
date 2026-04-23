@@ -38,5 +38,6 @@ func IsUpdateCandidate(machine *fly.Machine, latest *fly.ImageVersion) bool {
 	if err != nil {
 		return true
 	}
+
 	return latV.GreaterThan(curV)
 }
