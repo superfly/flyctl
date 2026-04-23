@@ -5,14 +5,13 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunRestore(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	backupID := flag.GetString(ctx, "backup-id")
 	if backupID == "" {
@@ -21,11 +20,11 @@ func RunRestore(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Restoring cluster %s from backup %s...\n", clusterID, backupID)
 
-	input := uiex.RestoreManagedClusterBackupInput{
+	input := mpgv1.RestoreManagedClusterBackupInput{
 		BackupId: backupID,
 	}
 
-	response, err := uiexClient.RestoreManagedClusterBackup(ctx, clusterID, input)
+	response, err := mpgClient.RestoreManagedClusterBackup(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to restore backup: %w", err)
 	}
