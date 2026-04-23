@@ -6,8 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -30,9 +29,9 @@ type CreatePlanDisplay struct {
 
 func RunCreate(ctx context.Context, params *CreateClusterParams, planDisplay *CreatePlanDisplay) error {
 	io := iostreams.FromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
-	input := uiex.CreateClusterInput{
+	input := mpgv1.CreateClusterInput{
 		Name:           params.Name,
 		Region:         params.Region,
 		Plan:           params.Plan,
@@ -42,7 +41,7 @@ func RunCreate(ctx context.Context, params *CreateClusterParams, planDisplay *Cr
 		PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
 	}
 
-	response, err := uiexClient.CreateCluster(ctx, input)
+	response, err := mpgClient.CreateCluster(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
@@ -63,7 +62,7 @@ func RunCreate(ctx context.Context, params *CreateClusterParams, planDisplay *Cr
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
 	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
 	for {
-		res, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		res, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed checking cluster status: %w", err)
 		}
