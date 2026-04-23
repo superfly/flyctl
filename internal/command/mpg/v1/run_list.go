@@ -6,21 +6,20 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
 func RunList(ctx context.Context, orgSlug string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
 
 	// For ui-ex request we need the real org slug
@@ -31,7 +30,7 @@ func RunList(ctx context.Context, orgSlug string) error {
 	}
 
 	deleted := flag.GetBool(ctx, "deleted")
-	clusters, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
+	clusters, err := mpgClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
 	if err != nil {
 		return fmt.Errorf("failed to list managed clusters for organization %s: %w", orgSlug, err)
 	}
@@ -67,7 +66,7 @@ func RunList(ctx context.Context, orgSlug string) error {
 }
 
 // FormatAttachedApps formats the list of attached apps for display
-func FormatAttachedApps(apps []uiex.AttachedApp) string {
+func FormatAttachedApps(apps []mpgv1.AttachedApp) string {
 	if len(apps) == 0 {
 		return "<no attached apps>"
 	}
