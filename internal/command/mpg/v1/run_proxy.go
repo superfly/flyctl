@@ -8,8 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/proxy"
 )
 
@@ -25,12 +24,12 @@ func RunProxy(ctx context.Context, clusterID string, resolvedOrgSlug string) err
 
 // GetMpgProxyParams builds proxy connection parameters for a given cluster.
 // resolvedOrgSlug should already be the aliased slug suitable for wireguard tunnels.
-func GetMpgProxyParams(ctx context.Context, localProxyPort string, username string, clusterID string, resolvedOrgSlug string) (*uiex.ManagedCluster, *proxy.ConnectParams, *uiex.GetManagedClusterCredentialsResponse, error) {
+func GetMpgProxyParams(ctx context.Context, localProxyPort string, username string, clusterID string, resolvedOrgSlug string) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
 	client := flyutil.ClientFromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	// Get cluster details
-	response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+	response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
@@ -38,14 +37,14 @@ func GetMpgProxyParams(ctx context.Context, localProxyPort string, username stri
 	cluster := &response.Data
 
 	// Get credentials - use user-specific endpoint if username provided, otherwise use default
-	var credentials uiex.GetManagedClusterCredentialsResponse
+	var credentials mpgv1.GetManagedClusterCredentialsResponse
 	if username != "" {
-		userCreds, err := uiexClient.GetUserCredentials(ctx, cluster.Id, username)
+		userCreds, err := mpgClient.GetUserCredentials(ctx, cluster.Id, username)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
 		// Convert user credentials to the standard format
-		credentials = uiex.GetManagedClusterCredentialsResponse{
+		credentials = mpgv1.GetManagedClusterCredentialsResponse{
 			User:     userCreds.Data.User,
 			Password: userCreds.Data.Password,
 			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials

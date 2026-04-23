@@ -12,7 +12,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 )
@@ -26,8 +26,8 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -55,8 +55,8 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 		db = database
 	} else if io.IsInteractive() {
 		// Prompt for database selection
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		databasesResponse, err := uiexClient.ListDatabases(ctx, clusterID)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
