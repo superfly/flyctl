@@ -2,39 +2,24 @@ package uiexutil
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/superfly/flyctl/internal/uiex"
 )
 
 type Client interface {
+	// Transport
+	URL() *url.URL
+	HTTPClient() *http.Client
+
 	// Basic
 	ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error)
 
 	// Egress IPs
 	PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error
-
-	// MPGs
-	ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error)
-	ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error)
-	GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
-	GetManagedClusterById(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
-	CreateUser(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
-	CreateUserWithRole(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error)
-	UpdateUserRole(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error)
-	DeleteUser(ctx context.Context, id string, username string) error
-	GetUserCredentials(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error)
-	ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error)
-	ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error)
-	CreateDatabase(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error)
-	CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
-	DestroyCluster(ctx context.Context, orgSlug string, id string) error
-	ListManagedClusterBackups(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error)
-	CreateManagedClusterBackup(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error)
-	RestoreManagedClusterBackup(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error)
-	CreateAttachment(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error)
-	DeleteAttachment(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error)
 
 	// Builders
 	CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error)

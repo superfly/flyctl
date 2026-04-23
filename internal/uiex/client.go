@@ -65,3 +65,11 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		userAgent:  userAgent,
 	}, nil
 }
+
+func (c *Client) URL() *url.URL {
+	return c.baseUrl
+}
+
+func (c *Client) HTTPClient() *http.Client {
+	return c.httpClient
+}
