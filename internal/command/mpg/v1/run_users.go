@@ -1,0 +1,250 @@
+package cmdv1
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/iostreams"
+)
+
+func RunUsersList(ctx context.Context, clusterID string) error {
+	cfg := config.FromContext(ctx)
+	out := iostreams.FromContext(ctx).Out
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	users, err := uiexClient.ListUsers(ctx, clusterID)
+	if err != nil {
+		return fmt.Errorf("failed to list users for cluster %s: %w", clusterID, err)
+	}
+
+	if len(users.Data) == 0 {
+		fmt.Fprintf(out, "No users found for cluster %s\n", clusterID)
+
+		return nil
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(out, users.Data)
+	}
+
+	rows := make([][]string, 0, len(users.Data))
+	for _, user := range users.Data {
+		rows = append(rows, []string{
+			user.Name,
+			user.Role,
+		})
+	}
+
+	return render.Table(out, "", rows, "Name", "Role")
+}
+
+func RunUsersCreate(ctx context.Context, clusterID string) error {
+	out := iostreams.FromContext(ctx).Out
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	userName := flag.GetString(ctx, "username")
+	if userName == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+		err := prompt.String(ctx, &userName, "Enter username:", "", true)
+		if err != nil {
+			return err
+		}
+		if userName == "" {
+			return fmt.Errorf("username cannot be empty")
+		}
+	}
+
+	userRole := flag.GetString(ctx, "role")
+	validRoles := map[string]bool{
+		"schema_admin": true,
+		"writer":       true,
+		"reader":       true,
+	}
+
+	if userRole == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
+		}
+		// Prompt for role selection
+		var roleIndex int
+		roleOptions := []string{"schema_admin", "writer", "reader"}
+		err := prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptions...)
+		if err != nil {
+			return err
+		}
+		userRole = roleOptions[roleIndex]
+	} else if !validRoles[userRole] {
+		return fmt.Errorf("invalid role %q. Must be one of: schema_admin, writer, reader", userRole)
+	}
+
+	fmt.Fprintf(out, "Creating user %s with role %s in cluster %s...\n", userName, userRole, clusterID)
+
+	input := uiex.CreateUserWithRoleInput{
+		UserName: userName,
+		Role:     userRole,
+	}
+
+	response, err := uiexClient.CreateUserWithRole(ctx, clusterID, input)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	fmt.Fprintf(out, "User created successfully!\n")
+	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
+	fmt.Fprintf(out, "  Role: %s\n", response.Data.Role)
+
+	return nil
+}
+
+func RunUsersSetRole(ctx context.Context, clusterID string) error {
+	out := iostreams.FromContext(ctx).Out
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	username := flag.GetString(ctx, "username")
+	if username == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+
+		// Get list of users to prompt from
+		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed to list users: %w", err)
+		}
+
+		if len(usersResponse.Data) == 0 {
+			return fmt.Errorf("no users found in cluster %s", clusterID)
+		}
+
+		// Format users as options: "username [role]"
+		var userOptions []string
+		for _, user := range usersResponse.Data {
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+		}
+
+		var userIndex int
+		err = prompt.Select(ctx, &userIndex, "Select user:", "", userOptions...)
+		if err != nil {
+			return err
+		}
+
+		username = usersResponse.Data[userIndex].Name
+	}
+
+	userRole := flag.GetString(ctx, "role")
+	validRoles := map[string]bool{
+		"schema_admin": true,
+		"writer":       true,
+		"reader":       true,
+	}
+
+	if userRole == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
+		}
+		// Prompt for role selection
+		var roleIndex int
+		roleOptions := []string{"schema_admin", "writer", "reader"}
+		err := prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptions...)
+		if err != nil {
+			return err
+		}
+		userRole = roleOptions[roleIndex]
+	} else if !validRoles[userRole] {
+		return fmt.Errorf("invalid role %q. Must be one of: schema_admin, writer, reader", userRole)
+	}
+
+	fmt.Fprintf(out, "Updating user %s role to %s in cluster %s...\n", username, userRole, clusterID)
+
+	input := uiex.UpdateUserRoleInput{
+		Role: userRole,
+	}
+
+	response, err := uiexClient.UpdateUserRole(ctx, clusterID, username, input)
+	if err != nil {
+		return fmt.Errorf("failed to update user role: %w", err)
+	}
+
+	fmt.Fprintf(out, "User role updated successfully!\n")
+	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
+	fmt.Fprintf(out, "  Role: %s\n", response.Data.Role)
+
+	return nil
+}
+
+func RunUsersDelete(ctx context.Context, clusterID string) error {
+	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	uiexClient := uiexutil.ClientFromContext(ctx)
+
+	username := flag.GetString(ctx, "username")
+	if username == "" {
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+
+		// Get list of users to prompt from
+		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed to list users: %w", err)
+		}
+
+		if len(usersResponse.Data) == 0 {
+			return fmt.Errorf("no users found in cluster %s", clusterID)
+		}
+
+		// Format users as options: "username [role]"
+		var userOptions []string
+		for _, user := range usersResponse.Data {
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+		}
+
+		var userIndex int
+		err = prompt.Select(ctx, &userIndex, "Select user to delete:", "", userOptions...)
+		if err != nil {
+			return err
+		}
+
+		username = usersResponse.Data[userIndex].Name
+	}
+
+	if !flag.GetYes(ctx) {
+		const msg = "Deleting a user is not reversible."
+		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+		switch confirmed, err := prompt.Confirmf(ctx, "Delete user %s from cluster %s?", username, clusterID); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	fmt.Fprintf(out, "Deleting user %s from cluster %s...\n", username, clusterID)
+
+	err := uiexClient.DeleteUser(ctx, clusterID, username)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	fmt.Fprintf(out, "User %s deleted successfully from cluster %s\n", username, clusterID)
+
+	return nil
+}

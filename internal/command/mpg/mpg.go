@@ -68,7 +68,16 @@ func New() *cobra.Command {
 		long = short + "\n"
 	)
 
-	cmd := command.New("mpg", short, long, nil)
+	cmd := command.New("mpg", short, long,
+		func(ctx context.Context) error {
+			// Check token compatibility early
+			if err := validateMPGTokenCompatibility(ctx); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	)
 
 	flag.Add(cmd,
 		flag.Org(),
