@@ -8,17 +8,16 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunDatabasesList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
-	databases, err := uiexClient.ListDatabases(ctx, clusterID)
+	databases, err := mpgClient.ListDatabases(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to list databases for cluster %s: %w", clusterID, err)
 	}
@@ -45,7 +44,7 @@ func RunDatabasesList(ctx context.Context, clusterID string) error {
 
 func RunDatabasesCreate(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	dbName := flag.GetString(ctx, "name")
 	if dbName == "" {
@@ -64,11 +63,11 @@ func RunDatabasesCreate(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Creating database %s in cluster %s...\n", dbName, clusterID)
 
-	input := uiex.CreateDatabaseInput{
+	input := mpgv1.CreateDatabaseInput{
 		Name: dbName,
 	}
 
-	response, err := uiexClient.CreateDatabase(ctx, clusterID, input)
+	response, err := mpgClient.CreateDatabase(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create database: %w", err)
 	}

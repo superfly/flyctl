@@ -8,7 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
 func newConnect() (cmd *cobra.Command) {
@@ -44,8 +44,8 @@ func runConnect(ctx context.Context) (err error) {
 
 	if clusterID != "" {
 		// If cluster ID is provided, fetch directly without prompting for org
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+		mpgClient := mpgv1.ClientFromContext(ctx)
+		response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 		}
