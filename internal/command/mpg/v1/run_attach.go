@@ -10,8 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -21,13 +20,13 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		io      = iostreams.FromContext(ctx)
 	)
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
-		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -67,12 +66,12 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			fmt.Fprintf(io.Out, "Creating user %s with role %s...\n", userName, userRole)
 
-			input := uiex.CreateUserWithRoleInput{
+			input := mpgv1.CreateUserWithRoleInput{
 				UserName: userName,
 				Role:     userRole,
 			}
 
-			createResponse, err := uiexClient.CreateUserWithRole(ctx, clusterID, input)
+			createResponse, err := mpgClient.CreateUserWithRole(ctx, clusterID, input)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
@@ -92,7 +91,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		db = database
 	} else if io.IsInteractive() {
 		// Prompt for database selection
-		databasesResponse, err := uiexClient.ListDatabases(ctx, clusterID)
+		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
@@ -123,11 +122,11 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			fmt.Fprintf(io.Out, "Creating database %s...\n", dbName)
 
-			input := uiex.CreateDatabaseInput{
+			input := mpgv1.CreateDatabaseInput{
 				Name: dbName,
 			}
 
-			createResponse, err := uiexClient.CreateDatabase(ctx, clusterID, input)
+			createResponse, err := mpgClient.CreateDatabase(ctx, clusterID, input)
 			if err != nil {
 				return fmt.Errorf("failed to create database: %w", err)
 			}
@@ -140,20 +139,20 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	}
 
 	// Get cluster details with credentials
-	response, err := uiexClient.GetManagedClusterById(ctx, clusterID)
+	response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
 
 	// Get credentials - use user-specific endpoint if username provided, otherwise use default
-	var credentials uiex.GetManagedClusterCredentialsResponse
+	var credentials mpgv1.GetManagedClusterCredentialsResponse
 	if username != "" {
-		userCreds, err := uiexClient.GetUserCredentials(ctx, clusterID, username)
+		userCreds, err := mpgClient.GetUserCredentials(ctx, clusterID, username)
 		if err != nil {
 			return fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
 		// Convert user credentials to the standard format
-		credentials = uiex.GetManagedClusterCredentialsResponse{
+		credentials = mpgv1.GetManagedClusterCredentialsResponse{
 			User:     userCreds.Data.User,
 			Password: userCreds.Data.Password,
 			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials
@@ -208,10 +207,10 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	}
 
 	// Create attachment record to track the cluster-app relationship
-	attachInput := uiex.CreateAttachmentInput{
+	attachInput := mpgv1.CreateAttachmentInput{
 		AppName: appName,
 	}
-	if _, err := uiexClient.CreateAttachment(ctx, clusterID, attachInput); err != nil {
+	if _, err := mpgClient.CreateAttachment(ctx, clusterID, attachInput); err != nil {
 		// Log warning but don't fail - the secret was set successfully
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
 	}

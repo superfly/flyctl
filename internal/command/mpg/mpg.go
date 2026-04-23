@@ -12,8 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
 // RegionProvider interface for getting platform regions
@@ -36,27 +35,27 @@ func (p *DefaultRegionProvider) GetPlatformRegions(ctx context.Context) ([]fly.R
 
 // MPGService provides MPG-related functionality with injectable dependencies
 type MPGService struct {
-	uiexClient     uiexutil.Client
+	mpgClient      mpgv1.ClientV1
 	regionProvider RegionProvider
 }
 
 // NewMPGService creates a new MPGService with default dependencies
 func NewMPGService(ctx context.Context) (*MPGService, error) {
-	uiexClient := uiexutil.ClientFromContext(ctx)
-	if uiexClient == nil {
-		return nil, fmt.Errorf("uiex client not found in context")
+	mpgClient := mpgv1.ClientFromContext(ctx)
+	if mpgClient == nil {
+		return nil, fmt.Errorf("mpg client not found in context")
 	}
 
 	return &MPGService{
-		uiexClient:     uiexClient,
+		mpgClient:      mpgClient,
 		regionProvider: &DefaultRegionProvider{},
 	}, nil
 }
 
 // NewMPGServiceWithDependencies creates a new MPGService with custom dependencies
-func NewMPGServiceWithDependencies(uiexClient uiexutil.Client, regionProvider RegionProvider) *MPGService {
+func NewMPGServiceWithDependencies(mpgClient mpgv1.ClientV1, regionProvider RegionProvider) *MPGService {
 	return &MPGService{
-		uiexClient:     uiexClient,
+		mpgClient:      mpgClient,
 		regionProvider: regionProvider,
 	}
 }
@@ -105,8 +104,8 @@ func New() *cobra.Command {
 // otherwise it prompts the user to select a cluster from the available ones for
 // the given organization.
 // It prompts for the org if the org slug is not provided.
-func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*uiex.ManagedCluster, string, error) {
-	uiexClient := uiexutil.ClientFromContext(ctx)
+func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mpgv1.ManagedCluster, string, error) {
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	if orgSlug == "" {
 		org, err := prompt.Org(ctx)
@@ -117,7 +116,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*ui
 		orgSlug = org.RawSlug
 	}
 
-	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug, false)
+	clustersResponse, err := mpgClient.ListManagedClusters(ctx, orgSlug, false)
 	if err != nil {
 		return nil, orgSlug, fmt.Errorf("failed retrieving postgres clusters: %w", err)
 	}
@@ -154,7 +153,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*ui
 
 // ClusterFromFlagOrSelect retrieves the cluster ID from the --cluster flag.
 // If the flag is not set, it prompts the user to select a cluster from the available ones for the given organization.
-func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*uiex.ManagedCluster, error) {
+func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*mpgv1.ManagedCluster, error) {
 	clusterID := flag.GetMPGClusterID(ctx)
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, orgSlug)
 
@@ -179,13 +178,8 @@ func (s *MPGService) GetAvailableMPGRegions(ctx context.Context, orgSlug string)
 		return nil, err
 	}
 
-	// Check if uiexClient is initialized
-	if s.uiexClient == nil {
-		return nil, fmt.Errorf("uiex client is not initialized")
-	}
-
 	// Try to get available MPG regions from API
-	mpgRegionsResponse, err := s.uiexClient.ListMPGRegions(ctx, orgSlug)
+	mpgRegionsResponse, err := s.mpgClient.ListMPGRegions(ctx, orgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +239,7 @@ func (s *MPGService) GetAvailableMPGRegionCodes(ctx context.Context, orgSlug str
 }
 
 // filterMPGRegions filters platform regions based on MPG availability
-func filterMPGRegions(platformRegions []fly.Region, mpgRegions []uiex.MPGRegion) []fly.Region {
+func filterMPGRegions(platformRegions []fly.Region, mpgRegions []mpgv1.MPGRegion) []fly.Region {
 	var filteredRegions []fly.Region
 
 	for _, region := range platformRegions {
