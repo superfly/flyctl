@@ -93,6 +93,7 @@ func runBackupList(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunBackupList(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunBackupList(ctx, cluster.Id)
 }
 
@@ -111,5 +112,6 @@ func runBackupCreate(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunBackupCreate(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunBackupCreate(ctx, cluster.Id)
 }

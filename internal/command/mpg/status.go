@@ -44,5 +44,6 @@ func runStatus(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunStatus(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunStatus(ctx, cluster.Id)
 }

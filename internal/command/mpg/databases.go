@@ -85,6 +85,7 @@ func runDatabasesList(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunDatabasesList(ctx, clusterID)
 	}
+
 	return cmdv2.RunDatabasesList(ctx, clusterID)
 }
 
@@ -102,6 +103,7 @@ func runDatabasesCreate(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunDatabasesCreate(ctx, clusterID)
 	}
+
 	return cmdv2.RunDatabasesCreate(ctx, clusterID)
 
 }

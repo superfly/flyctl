@@ -89,5 +89,6 @@ func runAttach(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunAttach(ctx, cluster.Id, app)
 	}
+
 	return cmdv2.RunAttach(ctx)
 }

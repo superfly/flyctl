@@ -32,6 +32,7 @@ If no organization is specified, the user's personal organization is used.`
 
 	return cmd
 }
+
 func runList(ctx context.Context) error {
 	return nil
 }

@@ -23,6 +23,7 @@ func New() *cobra.Command {
 			if err := validateMPGTokenCompatibility(ctx); err != nil {
 				return err
 			}
+
 			return nil
 		},
 	)

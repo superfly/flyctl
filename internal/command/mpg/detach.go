@@ -74,5 +74,6 @@ func runDetach(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunDetach(ctx, cluster.Id, appName)
 	}
+
 	return cmdv2.RunDetach(ctx, cluster.Id, appName)
 }

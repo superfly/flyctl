@@ -43,5 +43,6 @@ func runDestroy(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunDestroy(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunDestroy(ctx, cluster.Id)
 }
