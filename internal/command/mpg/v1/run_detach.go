@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunDetach(ctx context.Context, clusterID string, appName string) error {
 	io := iostreams.FromContext(ctx)
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	// Delete the attachment record
-	_, err := uiexClient.DeleteAttachment(ctx, clusterID, appName)
+	_, err := mpgClient.DeleteAttachment(ctx, clusterID, appName)
 	if err != nil {
 		return fmt.Errorf("failed to detach: %w", err)
 	}
