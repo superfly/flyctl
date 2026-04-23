@@ -344,6 +344,11 @@ web = "nginx -g 'daemon off;'"
 		"web": 1,
 	})
 
+	// The deploy above ran with --detach, so the web machine may still be
+	// replacing. Wait for it to settle before issuing another update, otherwise
+	// flaps rejects it with "machine is replacing: concurrent update in progress".
+	f.Fly("machine wait %s --state settled", webMachId).AssertSuccessfulExit()
+
 	// Step 5: Set secrets, to ensure that machine data is kept during a 'restartOnly' deploy.
 	f.Fly("machine update %s -m CUSTOM=META -y", webMachId).AssertSuccessfulExit()
 	f.Fly("secrets set 'SOME=MY_SECRET_TEST_STRING' -a %s", appName).AssertSuccessfulExit()
