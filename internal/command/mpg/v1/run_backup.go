@@ -8,17 +8,16 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunBackupList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
-	backups, err := uiexClient.ListManagedClusterBackups(ctx, clusterID)
+	backups, err := mpgClient.ListManagedClusterBackups(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to list backups for cluster %s: %w", clusterID, err)
 	}
@@ -30,7 +29,7 @@ func RunBackupList(ctx context.Context, clusterID string) error {
 	}
 
 	// Filter backups by time (default: last 24 hours)
-	var filteredBackups []uiex.ManagedClusterBackup
+	var filteredBackups []mpgv1.ManagedClusterBackup
 	showAll := flag.GetBool(ctx, "all")
 
 	if showAll {
@@ -77,7 +76,7 @@ func RunBackupList(ctx context.Context, clusterID string) error {
 
 func RunBackupCreate(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	backupType := flag.GetString(ctx, "type")
 	if backupType != "full" && backupType != "incr" {
@@ -86,11 +85,11 @@ func RunBackupCreate(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Creating %s backup for cluster %s...\n", backupType, clusterID)
 
-	input := uiex.CreateManagedClusterBackupInput{
+	input := mpgv1.CreateManagedClusterBackupInput{
 		Type: backupType,
 	}
 
-	response, err := uiexClient.CreateManagedClusterBackup(ctx, clusterID, input)
+	response, err := mpgClient.CreateManagedClusterBackup(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
