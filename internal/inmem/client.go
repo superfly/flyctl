@@ -316,6 +316,10 @@ func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.O
 	panic("TODO")
 }
 
+func (m *Client) GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
 	panic("TODO")
 }

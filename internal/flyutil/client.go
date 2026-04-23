@@ -71,6 +71,7 @@ type Client interface {
 	GetMachine(ctx context.Context, machineId string) (*fly.GqlMachine, error)
 	GetNearestRegion(ctx context.Context) (*fly.Region, error)
 	GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error)
 	GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error)
 	GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error)
 	GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)

@@ -73,6 +73,7 @@ type Client struct {
 	GetMachineFunc                         func(ctx context.Context, machineId string) (*fly.GqlMachine, error)
 	GetNearestRegionFunc                   func(ctx context.Context) (*fly.Region, error)
 	GetOrganizationBySlugFunc              func(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrgLimitedAccessTokensFunc          func(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error)
 	GetOrganizationRemoteBuilderBySlugFunc func(ctx context.Context, slug string) (*fly.Organization, error)
 	GetOrganizationByAppFunc               func(ctx context.Context, appName string) (*fly.Organization, error)
 	GetOrganizationsFunc                   func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
@@ -340,6 +341,10 @@ func (m *Client) GetNearestRegion(ctx context.Context) (*fly.Region, error) {
 
 func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
 	return m.GetOrganizationBySlugFunc(ctx, slug)
+}
+
+func (m *Client) GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error) {
+	return m.GetOrgLimitedAccessTokensFunc(ctx, orgSlug)
 }
 
 func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
