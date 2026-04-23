@@ -60,5 +60,6 @@ func runRestore(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunRestore(ctx, clusterID, backupID)
 	}
+
 	return cmdv2.RunRestore(ctx, clusterID, backupID)
 }

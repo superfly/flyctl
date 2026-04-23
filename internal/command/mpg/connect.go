@@ -56,5 +56,6 @@ func runConnect(ctx context.Context) (err error) {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunConnect(ctx, cluster.Id, cluster.Organization.ID, localProxyPort)
 	}
+
 	return cmdv2.RunConnect(ctx, clusterID, cluster.Organization.ID, localProxyPort)
 }

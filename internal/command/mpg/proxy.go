@@ -60,5 +60,6 @@ func runProxy(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunProxy(ctx, clusterID, localProxyPort, orgSlug)
 	}
+
 	return cmdv2.RunProxy(ctx, clusterID, localProxyPort, orgSlug)
 }

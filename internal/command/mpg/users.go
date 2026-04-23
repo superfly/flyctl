@@ -149,6 +149,7 @@ func runUsersList(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunUsersList(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunUsersList(ctx, cluster.Id)
 }
 
@@ -167,6 +168,7 @@ func runUsersCreate(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunUsersCreate(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunUsersList(ctx, cluster.Id)
 }
 
@@ -185,6 +187,7 @@ func runUsersSetRole(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunUsersSetRole(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunUsersSetRole(ctx, cluster.Id)
 }
 
@@ -203,5 +206,6 @@ func runUsersDelete(ctx context.Context) error {
 	if cluster.Version == utils.V1 {
 		return cmdv1.RunUsersDelete(ctx, cluster.Id)
 	}
+
 	return cmdv2.RunUsersDelete(ctx, cluster.Id)
 }

@@ -88,6 +88,7 @@ func runCreate(ctx context.Context) error {
 	if flag.GetBool(ctx, "v2") {
 		return cmdv2.RunCreate(ctx, org, appName)
 	}
+
 	return cmdv1.RunCreate(ctx, org, appName)
 
 }
