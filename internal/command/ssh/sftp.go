@@ -189,6 +189,9 @@ func runLs(ctx context.Context) error {
 
 	walker := ftp.Walk(root)
 	for walker.Step() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err = walker.Err(); err != nil {
 			return err
 		}
@@ -285,6 +288,9 @@ func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) erro
 
 	// Download all files into ZIP
 	for walker.Step() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err = walker.Err(); err != nil {
 			return fmt.Errorf("walk remote directory: %w", err)
 		}
