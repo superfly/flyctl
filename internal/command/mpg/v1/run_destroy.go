@@ -6,19 +6,19 @@ import (
 
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunDestroy(ctx context.Context, clusterId string) error {
 	var (
-		uiexClient = uiexutil.ClientFromContext(ctx)
-		io         = iostreams.FromContext(ctx)
-		colorize   = io.ColorScheme()
+		mpgClient = mpgv1.ClientFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		colorize  = io.ColorScheme()
 	)
 
 	// Get cluster details to verify ownership and show info
-	response, err := uiexClient.GetManagedClusterById(ctx, clusterId)
+	response, err := mpgClient.GetManagedClusterById(ctx, clusterId)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
 	}
@@ -40,7 +40,7 @@ func RunDestroy(ctx context.Context, clusterId string) error {
 	}
 
 	// Destroy the cluster
-	err = uiexClient.DestroyCluster(ctx, response.Data.Organization.Slug, clusterId)
+	err = mpgClient.DestroyCluster(ctx, response.Data.Organization.Slug, clusterId)
 	if err != nil {
 		return fmt.Errorf("failed to destroy cluster %s: %w", clusterId, err)
 	}
