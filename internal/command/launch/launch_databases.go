@@ -14,14 +14,13 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/mpg"
+	mpgv1cmd "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/spinner"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -171,9 +170,9 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var (
-		io         = iostreams.FromContext(ctx)
-		pgPlan     = state.Plan.Postgres.ManagedPostgres
-		uiexClient = uiexutil.ClientFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		pgPlan    = state.Plan.Postgres.ManagedPostgres
+		mpgClient = mpgv1.ClientFromContext(ctx)
 	)
 
 	// Check if we should attach to an existing cluster instead of creating a new one
@@ -203,7 +202,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Create cluster using the same parameters as mpg create
-	params := &mpg.CreateClusterParams{
+	params := &mpgv1cmd.CreateClusterParams{
 		Name:         pgPlan.DbName,
 		OrgSlug:      slug,
 		Region:       pgPlan.Region,
@@ -212,7 +211,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Create cluster using the UI-EX client with retry logic for network errors
-	input := uiex.CreateClusterInput{
+	input := mpgv1.CreateClusterInput{
 		Name:    params.Name,
 		Region:  params.Region,
 		Plan:    params.Plan,
@@ -222,11 +221,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
-	var response uiex.CreateClusterResponse
+	var response mpgv1.CreateClusterResponse
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			response, retryErr = uiexClient.CreateCluster(ctx, input)
+			response, retryErr = mpgClient.CreateCluster(ctx, input)
 
 			return retryErr
 		},
@@ -262,7 +261,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	// Use retry.Do with a 15-minute timeout and exponential backoff
 	err = retry.Do(
 		func() error {
-			cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+			cluster, err := mpgClient.GetManagedClusterById(ctx, response.Data.Id)
 			if err != nil {
 				// For network errors, return the error to trigger retry
 				if containsNetworkError(err.Error()) {
@@ -325,11 +324,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Get the cluster credentials with retry logic
-	var cluster uiex.GetManagedClusterResponse
+	var cluster mpgv1.GetManagedClusterResponse
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, response.Data.Id)
 
 			return retryErr
 		},
@@ -364,19 +363,19 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 // attachToManagedPostgres attaches an existing Managed Postgres cluster to the app
 func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID string) error {
 	var (
-		io         = iostreams.FromContext(ctx)
-		uiexClient = uiexutil.ClientFromContext(ctx)
-		client     = flyutil.ClientFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		mpgClient = mpgv1.ClientFromContext(ctx)
+		client    = flyutil.ClientFromContext(ctx)
 	)
 
 	// Get cluster details to verify it exists and get credentials
 	fmt.Fprintf(io.Out, "Attaching to existing Managed Postgres cluster %s...\n", clusterID)
 
-	var cluster uiex.GetManagedClusterResponse
+	var cluster mpgv1.GetManagedClusterResponse
 	err := retry.Do(
 		func() error {
 			var retryErr error
-			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, clusterID)
+			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, clusterID)
 
 			return retryErr
 		},
