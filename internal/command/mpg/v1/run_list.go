@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 )
 
@@ -66,7 +67,7 @@ func RunList(ctx context.Context, orgSlug string) error {
 }
 
 // FormatAttachedApps formats the list of attached apps for display
-func FormatAttachedApps(apps []mpgv1.AttachedApp) string {
+func FormatAttachedApps(apps []mpg.AttachedApp) string {
 	if len(apps) == 0 {
 		return "<no attached apps>"
 	}

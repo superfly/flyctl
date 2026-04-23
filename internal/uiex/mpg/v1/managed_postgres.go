@@ -52,7 +52,6 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 	default:
 		return response, fmt.Errorf("failed to list clusters (status %d): %s", res.StatusCode, string(body))
 	}
-
 }
 
 func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error) {
