@@ -38,19 +38,25 @@ type NewClientOpts struct {
 
 func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	var err error
-	uiexBaseURL := os.Getenv("FLY_UIEX_BASE_URL")
 
-	if uiexBaseURL == "" {
-		uiexBaseURL = "https://api.fly.io"
-	}
-	uiexUrl, err := url.Parse(uiexBaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid FLY_UIEX_BASE_URL '%s' with error: %w", uiexBaseURL, err)
+	baseUrl := opts.BaseURL
+	if baseUrl == nil {
+		uiexBaseURL := os.Getenv("FLY_UIEX_BASE_URL")
+
+		if uiexBaseURL == "" {
+			uiexBaseURL = "https://api.fly.io"
+		}
+		uiexUrl, err := url.Parse(uiexBaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid FLY_UIEX_BASE_URL '%s' with error: %w", uiexBaseURL, err)
+		}
+
+		baseUrl = uiexUrl
 	}
 
 	httpClient, err := fly.NewHTTPClient(logger.MaybeFromContext(ctx), httptracing.NewTransport(http.DefaultTransport))
 	if err != nil {
-		return nil, fmt.Errorf("uiex: can't setup HTTP client to %s: %w", uiexUrl.String(), err)
+		return nil, fmt.Errorf("uiex: can't setup HTTP client to %s: %w", baseUrl.String(), err)
 	}
 
 	userAgent := "flyctl"
@@ -59,9 +65,17 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	}
 
 	return &Client{
-		baseUrl:    uiexUrl,
+		baseUrl:    baseUrl,
 		tokens:     opts.Tokens,
 		httpClient: httpClient,
 		userAgent:  userAgent,
 	}, nil
+}
+
+func (c *Client) BaseURL() *url.URL {
+	return c.baseUrl
+}
+
+func (c *Client) HTTPClient() *http.Client {
+	return c.httpClient
 }

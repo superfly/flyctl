@@ -8,17 +8,16 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunUsersList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
-	users, err := uiexClient.ListUsers(ctx, clusterID)
+	users, err := mpgClient.ListUsers(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to list users for cluster %s: %w", clusterID, err)
 	}
@@ -46,7 +45,7 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 
 func RunUsersCreate(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	userName := flag.GetString(ctx, "username")
 	if userName == "" {
@@ -89,12 +88,12 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Creating user %s with role %s in cluster %s...\n", userName, userRole, clusterID)
 
-	input := uiex.CreateUserWithRoleInput{
+	input := mpgv1.CreateUserWithRoleInput{
 		UserName: userName,
 		Role:     userRole,
 	}
 
-	response, err := uiexClient.CreateUserWithRole(ctx, clusterID, input)
+	response, err := mpgClient.CreateUserWithRole(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -108,7 +107,7 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 
 func RunUsersSetRole(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	username := flag.GetString(ctx, "username")
 	if username == "" {
@@ -118,7 +117,7 @@ func RunUsersSetRole(ctx context.Context, clusterID string) error {
 		}
 
 		// Get list of users to prompt from
-		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -168,11 +167,11 @@ func RunUsersSetRole(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Updating user %s role to %s in cluster %s...\n", username, userRole, clusterID)
 
-	input := uiex.UpdateUserRoleInput{
+	input := mpgv1.UpdateUserRoleInput{
 		Role: userRole,
 	}
 
-	response, err := uiexClient.UpdateUserRole(ctx, clusterID, username, input)
+	response, err := mpgClient.UpdateUserRole(ctx, clusterID, username, input)
 	if err != nil {
 		return fmt.Errorf("failed to update user role: %w", err)
 	}
@@ -188,7 +187,7 @@ func RunUsersDelete(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	username := flag.GetString(ctx, "username")
 	if username == "" {
@@ -197,7 +196,7 @@ func RunUsersDelete(ctx context.Context, clusterID string) error {
 		}
 
 		// Get list of users to prompt from
-		usersResponse, err := uiexClient.ListUsers(ctx, clusterID)
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
@@ -239,7 +238,7 @@ func RunUsersDelete(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Deleting user %s from cluster %s...\n", username, clusterID)
 
-	err := uiexClient.DeleteUser(ctx, clusterID, username)
+	err := mpgClient.DeleteUser(ctx, clusterID, username)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
