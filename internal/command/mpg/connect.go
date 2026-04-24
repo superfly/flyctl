@@ -7,8 +7,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
+)
+
+const (
+	localProxyPort = "16380"
 )
 
 func newConnect() (cmd *cobra.Command) {
@@ -40,24 +45,12 @@ func newConnect() (cmd *cobra.Command) {
 
 func runConnect(ctx context.Context) (err error) {
 	clusterID := flag.FirstArg(ctx)
+
 	var orgSlug string
 
-	if clusterID != "" {
-		// If cluster ID is provided, fetch directly without prompting for org
-		mpgClient := mpgv1.ClientFromContext(ctx)
-		response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
-		if err != nil {
-			return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
-		}
-		orgSlug = response.Data.Organization.Slug
-	} else {
-		// Otherwise, prompt for org/cluster selection
-		cluster, resolvedOrgSlug, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-		clusterID = cluster.Id
-		orgSlug = resolvedOrgSlug
+	cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
 	// Resolve org slug alias for wireguard tunnel
@@ -66,5 +59,9 @@ func runConnect(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to resolve organization slug: %w", err)
 	}
 
-	return cmdv1.RunConnect(ctx, clusterID, resolvedOrgSlug)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunConnect(ctx, cluster.Id, resolvedOrgSlug)
+	}
+
+	return cmdv2.RunConnect(ctx, cluster.Id, resolvedOrgSlug, localProxyPort)
 }
