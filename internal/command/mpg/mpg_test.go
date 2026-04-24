@@ -17,8 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/mock"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -58,28 +57,28 @@ func setupTestContext() context.Context {
 	return ctx
 }
 
-// Test NewMPGService returns error when uiex client is nil
+// Test NewMPGService returns error when mpg client is nil
 func TestNewMPGService_NilClient(t *testing.T) {
 	ctx := context.Background()
 
-	// Test with nil uiex client in context
+	// Test with nil mpg client in context
 	service, err := NewMPGService(ctx)
 	assert.Error(t, err)
 	assert.Nil(t, service)
-	assert.Contains(t, err.Error(), "uiex client not found in context")
+	assert.Contains(t, err.Error(), "mpg client not found in context")
 }
 
 // Test NewMPGService succeeds with valid client
 func TestNewMPGService_ValidClient(t *testing.T) {
 	ctx := setupTestContext()
 
-	mockUiex := &mock.UiexClient{}
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	mockUiex := &mock.MpgV1Client{}
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	service, err := NewMPGService(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
-	assert.NotNil(t, service.uiexClient)
+	assert.NotNil(t, service.mpgClient)
 	assert.NotNil(t, service.regionProvider)
 }
 
@@ -92,7 +91,7 @@ func TestFilterMPGRegions_RealFunctionality(t *testing.T) {
 		{Code: "nrt", Name: "Tokyo, Japan (AS)"},
 	}
 
-	mpgRegions := []uiex.MPGRegion{
+	mpgRegions := []mpgv1.MPGRegion{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 		{Code: "ams", Available: false}, // Not available
@@ -124,7 +123,7 @@ func TestFilterMPGRegions_RealFunctionality(t *testing.T) {
 func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 	ctx := setupTestContext()
 
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:     "test-cluster-123",
 		Name:   "test-cluster",
 		Region: "ord",
@@ -134,25 +133,25 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 		},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 
-			return uiex.ListManagedClustersResponse{
-				Data: []uiex.ManagedCluster{expectedCluster},
+			return mpgv1.ListManagedClustersResponse{
+				Data: []mpgv1.ManagedCluster{expectedCluster},
 			}, nil
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	t.Run("no clusters found", func(t *testing.T) {
-		mockEmpty := &mock.UiexClient{
-			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
-				return uiex.ListManagedClustersResponse{Data: []uiex.ManagedCluster{}}, nil
+		mockEmpty := &mock.MpgV1Client{
+			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
+				return mpgv1.ListManagedClustersResponse{Data: []mpgv1.ManagedCluster{}}, nil
 			},
 		}
-		ctx := uiexutil.NewContextWithClient(ctx, mockEmpty)
+		ctx := mpgv1.NewContext(ctx, mockEmpty)
 
 		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
 		assert.Error(t, err)
@@ -183,17 +182,17 @@ func TestGetAvailableMPGRegions_RealFunction(t *testing.T) {
 		{Code: "ams", Name: "Amsterdam, Netherlands (EU)"},
 	}
 
-	mpgRegions := []uiex.MPGRegion{
+	mpgRegions := []mpgv1.MPGRegion{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 		{Code: "ams", Available: false}, // Not available
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 
-			return uiex.ListMPGRegionsResponse{
+			return mpgv1.ListMPGRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -227,14 +226,14 @@ func TestIsValidMPGRegion_RealFunction(t *testing.T) {
 		{Code: "lax", Name: "Los Angeles, California (US)"},
 	}
 
-	mpgRegions := []uiex.MPGRegion{
+	mpgRegions := []mpgv1.MPGRegion{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
-			return uiex.ListMPGRegionsResponse{
+	mockUiex := &mock.MpgV1Client{
+		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+			return mpgv1.ListMPGRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -269,14 +268,14 @@ func TestGetAvailableMPGRegionCodes_RealFunction(t *testing.T) {
 		{Code: "lax", Name: "Los Angeles, California (US)"},
 	}
 
-	mpgRegions := []uiex.MPGRegion{
+	mpgRegions := []mpgv1.MPGRegion{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
-			return uiex.ListMPGRegionsResponse{
+	mockUiex := &mock.MpgV1Client{
+		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+			return mpgv1.ListMPGRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -305,7 +304,7 @@ func TestDestroyCommand_Logic(t *testing.T) {
 	ctx := setupTestContext()
 
 	clusterID := "test-cluster-123"
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:     clusterID,
 		Name:   "test-cluster",
 		Region: "ord",
@@ -315,11 +314,11 @@ func TestDestroyCommand_Logic(t *testing.T) {
 		},
 	}
 
-	mockUiex := &mock.UiexClient{
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
 			assert.Equal(t, clusterID, id)
 
-			return uiex.GetManagedClusterResponse{
+			return mpgv1.GetManagedClusterResponse{
 				Data: expectedCluster,
 			}, nil
 		},
@@ -331,7 +330,7 @@ func TestDestroyCommand_Logic(t *testing.T) {
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Test successful cluster retrieval
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -354,7 +353,7 @@ func TestStatusCommand_Logic(t *testing.T) {
 	ctx := setupTestContext()
 
 	clusterID := "test-cluster-123"
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:       clusterID,
 		Name:     "test-cluster",
 		Region:   "ord",
@@ -365,22 +364,22 @@ func TestStatusCommand_Logic(t *testing.T) {
 		Organization: fly.Organization{
 			Slug: "test-org",
 		},
-		IpAssignments: uiex.ManagedClusterIpAssignments{
+		IpAssignments: mpgv1.ManagedClusterIpAssignments{
 			Direct: "10.0.0.1",
 		},
 	}
 
-	mockUiex := &mock.UiexClient{
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
 			assert.Equal(t, clusterID, id)
 
-			return uiex.GetManagedClusterResponse{
+			return mpgv1.GetManagedClusterResponse{
 				Data: expectedCluster,
 			}, nil
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Test successful cluster details retrieval
 	clusterDetails, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -398,7 +397,7 @@ func TestStatusCommand_Logic(t *testing.T) {
 func TestListCommand_Logic(t *testing.T) {
 	ctx := setupTestContext()
 
-	expectedClusters := []uiex.ManagedCluster{
+	expectedClusters := []mpgv1.ManagedCluster{
 		{
 			Id:     "cluster-1",
 			Name:   "test-cluster-1",
@@ -421,17 +420,17 @@ func TestListCommand_Logic(t *testing.T) {
 		},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 
-			return uiex.ListManagedClustersResponse{
+			return mpgv1.ListManagedClustersResponse{
 				Data: expectedClusters,
 			}, nil
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Test successful cluster listing
 	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org", false)
@@ -457,12 +456,12 @@ func TestErrorHandling(t *testing.T) {
 	ctx := setupTestContext()
 
 	t.Run("ListManagedClusters error", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
-				return uiex.ListManagedClustersResponse{}, fmt.Errorf("API error")
+		mockUiex := &mock.MpgV1Client{
+			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
+				return mpgv1.ListManagedClustersResponse{}, fmt.Errorf("API error")
 			},
 		}
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
 		assert.Error(t, err)
@@ -470,12 +469,12 @@ func TestErrorHandling(t *testing.T) {
 	})
 
 	t.Run("GetManagedClusterById error", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
-				return uiex.GetManagedClusterResponse{}, fmt.Errorf("API error")
+		mockUiex := &mock.MpgV1Client{
+			GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+				return mpgv1.GetManagedClusterResponse{}, fmt.Errorf("API error")
 			},
 		}
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		_, err := mockUiex.GetManagedClusterById(ctx, "test-cluster")
 		assert.Error(t, err)
@@ -483,12 +482,12 @@ func TestErrorHandling(t *testing.T) {
 	})
 
 	t.Run("DestroyCluster error", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
+		mockUiex := &mock.MpgV1Client{
 			DestroyClusterFunc: func(ctx context.Context, orgSlug string, id string) error {
 				return fmt.Errorf("destroy failed")
 			},
 		}
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		err := mockUiex.DestroyCluster(ctx, "test-org", "test-cluster")
 		assert.Error(t, err)
@@ -500,7 +499,7 @@ func TestErrorHandling(t *testing.T) {
 func TestCreateCommand_Logic(t *testing.T) {
 	ctx := setupTestContext()
 
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:     "new-cluster-123",
 		Name:   "test-db",
 		Region: "ord",
@@ -515,37 +514,37 @@ func TestCreateCommand_Logic(t *testing.T) {
 		{Code: "lax", Name: "Los Angeles, California (US)"},
 	}
 
-	mpgRegions := []uiex.MPGRegion{
+	mpgRegions := []mpgv1.MPGRegion{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
-			return uiex.ListMPGRegionsResponse{
+	mockUiex := &mock.MpgV1Client{
+		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+			return mpgv1.ListMPGRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
-		CreateClusterFunc: func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {
+		CreateClusterFunc: func(ctx context.Context, input mpgv1.CreateClusterInput) (mpgv1.CreateClusterResponse, error) {
 			// Verify the input parameters
 			assert.Equal(t, "test-db", input.Name)
 			assert.Equal(t, "ord", input.Region)
 			assert.Equal(t, "basic", input.Plan)
 			assert.Equal(t, "test-org", input.OrgSlug)
 
-			return uiex.CreateClusterResponse{
+			return mpgv1.CreateClusterResponse{
 				Data: struct {
-					Id             string                           `json:"id"`
-					Name           string                           `json:"name"`
-					Status         *string                          `json:"status"`
-					Plan           string                           `json:"plan"`
-					Environment    *string                          `json:"environment"`
-					Region         string                           `json:"region"`
-					Organization   fly.Organization                 `json:"organization"`
-					Replicas       int                              `json:"replicas"`
-					Disk           int                              `json:"disk"`
-					IpAssignments  uiex.ManagedClusterIpAssignments `json:"ip_assignments"`
-					PostGISEnabled bool                             `json:"postgis_enabled"`
+					Id             string                            `json:"id"`
+					Name           string                            `json:"name"`
+					Status         *string                           `json:"status"`
+					Plan           string                            `json:"plan"`
+					Environment    *string                           `json:"environment"`
+					Region         string                            `json:"region"`
+					Organization   fly.Organization                  `json:"organization"`
+					Replicas       int                               `json:"replicas"`
+					Disk           int                               `json:"disk"`
+					IpAssignments  mpgv1.ManagedClusterIpAssignments `json:"ip_assignments"`
+					PostGISEnabled bool                              `json:"postgis_enabled"`
 				}{
 					Id:             expectedCluster.Id,
 					Name:           expectedCluster.Name,
@@ -556,10 +555,10 @@ func TestCreateCommand_Logic(t *testing.T) {
 				},
 			}, nil
 		},
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
 			assert.Equal(t, "new-cluster-123", id)
 
-			return uiex.GetManagedClusterResponse{
+			return mpgv1.GetManagedClusterResponse{
 				Data: expectedCluster,
 			}, nil
 		},
@@ -593,7 +592,7 @@ func TestCreateCommand_Logic(t *testing.T) {
 	assert.Equal(t, "ord", selectedRegion.Code)
 
 	// Test cluster creation
-	input := uiex.CreateClusterInput{
+	input := mpgv1.CreateClusterInput{
 		Name:    "test-db",
 		Region:  selectedRegion.Code,
 		Plan:    "basic",
@@ -617,7 +616,7 @@ func TestAttachCommand_Logic(t *testing.T) {
 
 	clusterID := "test-cluster-123"
 
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:     clusterID,
 		Name:   "test-cluster",
 		Region: "ord",
@@ -635,20 +634,20 @@ func TestAttachCommand_Logic(t *testing.T) {
 
 	connectionURI := "postgresql://user:pass@host:5432/db"
 
-	mockUiex := &mock.UiexClient{
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
 			assert.Equal(t, clusterID, id)
 
-			return uiex.GetManagedClusterResponse{
+			return mpgv1.GetManagedClusterResponse{
 				Data: expectedCluster,
-				Credentials: uiex.GetManagedClusterCredentialsResponse{
+				Credentials: mpgv1.GetManagedClusterCredentialsResponse{
 					ConnectionUri: connectionURI,
 				},
 			}, nil
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Test cluster retrieval
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -718,14 +717,14 @@ func TestCreateCommand_RegionValidation(t *testing.T) {
 		{Code: "lax", Name: "Los Angeles, California (US)"},
 	}
 
-	mpgRegions := []uiex.MPGRegion{
+	mpgRegions := []mpgv1.MPGRegion{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
-			return uiex.ListMPGRegionsResponse{
+	mockUiex := &mock.MpgV1Client{
+		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+			return mpgv1.ListMPGRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -922,12 +921,12 @@ func TestBackupList(t *testing.T) {
 	ctx = flagctx.NewContext(ctx, flagSet)
 
 	// Mock uiex client that returns some backups
-	mockUiex := &mock.UiexClient{
-		ListManagedClusterBackupsFunc: func(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		ListManagedClusterBackupsFunc: func(ctx context.Context, clusterID string) (mpgv1.ListManagedClusterBackupsResponse, error) {
 			require.Equal(t, "test-cluster-123", clusterID)
 
-			return uiex.ListManagedClusterBackupsResponse{
-				Data: []uiex.ManagedClusterBackup{
+			return mpgv1.ListManagedClusterBackupsResponse{
+				Data: []mpgv1.ManagedClusterBackup{
 					{
 						Id:     "backup-1",
 						Status: "completed",
@@ -947,14 +946,14 @@ func TestBackupList(t *testing.T) {
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Run the backup list command
 	err := runBackupList(ctx)
 	require.NoError(t, err)
 
 	// Parse the JSON output and verify we got 2 backups
-	var backups []uiex.ManagedClusterBackup
+	var backups []mpgv1.ManagedClusterBackup
 	err = json.Unmarshal(outBuf.Bytes(), &backups)
 	require.NoError(t, err, "Should be able to parse JSON output")
 	require.Len(t, backups, 2, "Should return 2 backups")
@@ -1090,7 +1089,7 @@ func TestCreateClusterInput_PGMajorVersion(t *testing.T) {
 			}
 
 			// Simulate the conversion that happens in create.go line 224
-			input := uiex.CreateClusterInput{
+			input := mpgv1.CreateClusterInput{
 				PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
 			}
 
@@ -1148,33 +1147,33 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 			}
 			ctx = config.NewContext(ctx, configWithMacaroonTokens)
 
-			mpgRegions := []uiex.MPGRegion{
+			mpgRegions := []mpgv1.MPGRegion{
 				{Code: "ord", Available: true},
 			}
 
-			var capturedInput uiex.CreateClusterInput
-			mockUiex := &mock.UiexClient{
-				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
-					return uiex.ListMPGRegionsResponse{
+			var capturedInput mpgv1.CreateClusterInput
+			mockUiex := &mock.MpgV1Client{
+				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+					return mpgv1.ListMPGRegionsResponse{
 						Data: mpgRegions,
 					}, nil
 				},
-				CreateClusterFunc: func(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {
+				CreateClusterFunc: func(ctx context.Context, input mpgv1.CreateClusterInput) (mpgv1.CreateClusterResponse, error) {
 					capturedInput = input
 
-					return uiex.CreateClusterResponse{
+					return mpgv1.CreateClusterResponse{
 						Data: struct {
-							Id             string                           `json:"id"`
-							Name           string                           `json:"name"`
-							Status         *string                          `json:"status"`
-							Plan           string                           `json:"plan"`
-							Environment    *string                          `json:"environment"`
-							Region         string                           `json:"region"`
-							Organization   fly.Organization                 `json:"organization"`
-							Replicas       int                              `json:"replicas"`
-							Disk           int                              `json:"disk"`
-							IpAssignments  uiex.ManagedClusterIpAssignments `json:"ip_assignments"`
-							PostGISEnabled bool                             `json:"postgis_enabled"`
+							Id             string                            `json:"id"`
+							Name           string                            `json:"name"`
+							Status         *string                           `json:"status"`
+							Plan           string                            `json:"plan"`
+							Environment    *string                           `json:"environment"`
+							Region         string                            `json:"region"`
+							Organization   fly.Organization                  `json:"organization"`
+							Replicas       int                               `json:"replicas"`
+							Disk           int                               `json:"disk"`
+							IpAssignments  mpgv1.ManagedClusterIpAssignments `json:"ip_assignments"`
+							PostGISEnabled bool                              `json:"postgis_enabled"`
 						}{
 							Id:             "test-cluster-123",
 							Name:           "test-db",
@@ -1184,22 +1183,22 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 						},
 					}, nil
 				},
-				GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+				GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
 					status := "ready"
 
-					return uiex.GetManagedClusterResponse{
-						Data: uiex.ManagedCluster{
+					return mpgv1.GetManagedClusterResponse{
+						Data: mpgv1.ManagedCluster{
 							Id:     id,
 							Status: status,
 						},
-						Credentials: uiex.GetManagedClusterCredentialsResponse{
+						Credentials: mpgv1.GetManagedClusterCredentialsResponse{
 							ConnectionUri: "postgresql://test",
 						},
 					}, nil
 				},
 			}
 
-			ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+			ctx = mpgv1.NewContext(ctx, mockUiex)
 
 			// Test the validation logic
 			pgMajorVersion := tt.pgMajorVersion
@@ -1216,7 +1215,7 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 				PGMajorVersion: pgMajorVersion,
 			}
 
-			input := uiex.CreateClusterInput{
+			input := mpgv1.CreateClusterInput{
 				PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
 			}
 
@@ -1241,12 +1240,12 @@ func TestCreateAttachment(t *testing.T) {
 	clusterID := "test-cluster-123"
 
 	t.Run("successful attachment creation", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+		mockUiex := &mock.MpgV1Client{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
 				assert.Equal(t, clusterID, clusterId)
 				assert.Equal(t, "test-app", input.AppName)
 
-				return uiex.CreateAttachmentResponse{
+				return mpgv1.CreateAttachmentResponse{
 					Data: struct {
 						Id               int64  `json:"id"`
 						AppId            int64  `json:"app_id"`
@@ -1262,9 +1261,9 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
-		response, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+		response, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "test-app",
 		})
 
@@ -1276,10 +1275,10 @@ func TestCreateAttachment(t *testing.T) {
 	})
 
 	t.Run("idempotent - returns existing attachment", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+		mockUiex := &mock.MpgV1Client{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
 				// Simulating the idempotent case where attachment already exists
-				return uiex.CreateAttachmentResponse{
+				return mpgv1.CreateAttachmentResponse{
 					Data: struct {
 						Id               int64  `json:"id"`
 						AppId            int64  `json:"app_id"`
@@ -1295,9 +1294,9 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
-		response, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+		response, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "already-attached-app",
 		})
 
@@ -1306,15 +1305,15 @@ func TestCreateAttachment(t *testing.T) {
 	})
 
 	t.Run("error - cluster not found", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
-				return uiex.CreateAttachmentResponse{}, fmt.Errorf("cluster %s not found", clusterId)
+		mockUiex := &mock.MpgV1Client{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
+				return mpgv1.CreateAttachmentResponse{}, fmt.Errorf("cluster %s not found", clusterId)
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
-		_, err := mockUiex.CreateAttachment(ctx, "nonexistent-cluster", uiex.CreateAttachmentInput{
+		_, err := mockUiex.CreateAttachment(ctx, "nonexistent-cluster", mpgv1.CreateAttachmentInput{
 			AppName: "test-app",
 		})
 
@@ -1323,15 +1322,15 @@ func TestCreateAttachment(t *testing.T) {
 	})
 
 	t.Run("error - access denied", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
-				return uiex.CreateAttachmentResponse{}, fmt.Errorf("access denied: you don't have permission to attach cluster %s", clusterId)
+		mockUiex := &mock.MpgV1Client{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
+				return mpgv1.CreateAttachmentResponse{}, fmt.Errorf("access denied: you don't have permission to attach cluster %s", clusterId)
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
-		_, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+		_, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "test-app",
 		})
 
@@ -1340,15 +1339,15 @@ func TestCreateAttachment(t *testing.T) {
 	})
 
 	t.Run("error - app not found", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
-				return uiex.CreateAttachmentResponse{}, fmt.Errorf("app not found")
+		mockUiex := &mock.MpgV1Client{
+			CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
+				return mpgv1.CreateAttachmentResponse{}, fmt.Errorf("app not found")
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
-		_, err := mockUiex.CreateAttachment(ctx, clusterID, uiex.CreateAttachmentInput{
+		_, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "nonexistent-app",
 		})
 
@@ -1364,7 +1363,7 @@ func TestAttachCommand_CreatesAttachment(t *testing.T) {
 	clusterID := "test-cluster-123"
 	appName := "test-app"
 
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:     clusterID,
 		Name:   "test-cluster",
 		Region: "ord",
@@ -1380,13 +1379,13 @@ func TestAttachCommand_CreatesAttachment(t *testing.T) {
 	createAttachmentCalled := false
 	var capturedAppName string
 
-	mockUiex := &mock.UiexClient{
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
 			assert.Equal(t, clusterID, id)
 
-			return uiex.GetManagedClusterResponse{
+			return mpgv1.GetManagedClusterResponse{
 				Data: expectedCluster,
-				Credentials: uiex.GetManagedClusterCredentialsResponse{
+				Credentials: mpgv1.GetManagedClusterCredentialsResponse{
 					ConnectionUri: connectionURI,
 					User:          "fly-user",
 					Password:      "test-password",
@@ -1394,12 +1393,12 @@ func TestAttachCommand_CreatesAttachment(t *testing.T) {
 				},
 			}, nil
 		},
-		CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+		CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
 			createAttachmentCalled = true
 			capturedAppName = input.AppName
 			assert.Equal(t, clusterID, clusterId)
 
-			return uiex.CreateAttachmentResponse{
+			return mpgv1.CreateAttachmentResponse{
 				Data: struct {
 					Id               int64  `json:"id"`
 					AppId            int64  `json:"app_id"`
@@ -1415,7 +1414,7 @@ func TestAttachCommand_CreatesAttachment(t *testing.T) {
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Simulate the attach command flow: get cluster, then create attachment
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -1423,7 +1422,7 @@ func TestAttachCommand_CreatesAttachment(t *testing.T) {
 	assert.Equal(t, expectedCluster.Id, response.Data.Id)
 
 	// Create attachment (this simulates what runAttach does after setting secrets)
-	attachInput := uiex.CreateAttachmentInput{
+	attachInput := mpgv1.CreateAttachmentInput{
 		AppName: appName,
 	}
 	_, err = mockUiex.CreateAttachment(ctx, clusterID, attachInput)
@@ -1441,7 +1440,7 @@ func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
 	clusterID := "test-cluster-123"
 	appName := "test-app"
 
-	expectedCluster := uiex.ManagedCluster{
+	expectedCluster := mpgv1.ManagedCluster{
 		Id:     clusterID,
 		Name:   "test-cluster",
 		Region: "ord",
@@ -1453,11 +1452,11 @@ func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
 
 	connectionURI := "postgresql://user:pass@host:5432/db"
 
-	mockUiex := &mock.UiexClient{
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
-			return uiex.GetManagedClusterResponse{
+	mockUiex := &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+			return mpgv1.GetManagedClusterResponse{
 				Data: expectedCluster,
-				Credentials: uiex.GetManagedClusterCredentialsResponse{
+				Credentials: mpgv1.GetManagedClusterCredentialsResponse{
 					ConnectionUri: connectionURI,
 					User:          "fly-user",
 					Password:      "test-password",
@@ -1465,13 +1464,13 @@ func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
 				},
 			}, nil
 		},
-		CreateAttachmentFunc: func(ctx context.Context, clusterId string, input uiex.CreateAttachmentInput) (uiex.CreateAttachmentResponse, error) {
+		CreateAttachmentFunc: func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error) {
 			// Simulate a failure in creating attachment
-			return uiex.CreateAttachmentResponse{}, fmt.Errorf("failed to create attachment")
+			return mpgv1.CreateAttachmentResponse{}, fmt.Errorf("failed to create attachment")
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Get cluster - should succeed
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -1479,7 +1478,7 @@ func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
 	assert.Equal(t, expectedCluster.Id, response.Data.Id)
 
 	// Create attachment - should fail but we handle it gracefully
-	attachInput := uiex.CreateAttachmentInput{
+	attachInput := mpgv1.CreateAttachmentInput{
 		AppName: appName,
 	}
 	_, err = mockUiex.CreateAttachment(ctx, clusterID, attachInput)
@@ -1512,12 +1511,12 @@ func TestInvalidPGMajorVersion_Error(t *testing.T) {
 func TestFormatAttachedApps(t *testing.T) {
 	tests := []struct {
 		name     string
-		apps     []uiex.AttachedApp
+		apps     []mpgv1.AttachedApp
 		expected string
 	}{
 		{
 			name:     "no attached apps",
-			apps:     []uiex.AttachedApp{},
+			apps:     []mpgv1.AttachedApp{},
 			expected: "<no attached apps>",
 		},
 		{
@@ -1527,14 +1526,14 @@ func TestFormatAttachedApps(t *testing.T) {
 		},
 		{
 			name: "single app",
-			apps: []uiex.AttachedApp{
+			apps: []mpgv1.AttachedApp{
 				{Name: "my-web-app", Id: 1},
 			},
 			expected: "my-web-app",
 		},
 		{
 			name: "two apps",
-			apps: []uiex.AttachedApp{
+			apps: []mpgv1.AttachedApp{
 				{Name: "my-web-app", Id: 1},
 				{Name: "my-api", Id: 2},
 			},
@@ -1542,7 +1541,7 @@ func TestFormatAttachedApps(t *testing.T) {
 		},
 		{
 			name: "three apps",
-			apps: []uiex.AttachedApp{
+			apps: []mpgv1.AttachedApp{
 				{Name: "app-one", Id: 1},
 				{Name: "app-two", Id: 2},
 				{Name: "app-three", Id: 3},
@@ -1566,12 +1565,12 @@ func TestDeleteAttachment(t *testing.T) {
 	clusterID := "test-cluster-123"
 
 	t.Run("successful attachment deletion", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
+		mockUiex := &mock.MpgV1Client{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (mpgv1.DeleteAttachmentResponse, error) {
 				assert.Equal(t, clusterID, clusterId)
 				assert.Equal(t, "test-app", appName)
 
-				return uiex.DeleteAttachmentResponse{
+				return mpgv1.DeleteAttachmentResponse{
 					Data: struct {
 						Message string `json:"message"`
 					}{
@@ -1581,7 +1580,7 @@ func TestDeleteAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		response, err := mockUiex.DeleteAttachment(ctx, clusterID, "test-app")
 
@@ -1590,13 +1589,13 @@ func TestDeleteAttachment(t *testing.T) {
 	})
 
 	t.Run("error - attachment not found", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
-				return uiex.DeleteAttachmentResponse{}, fmt.Errorf("attachment not found for app '%s' on cluster %s", appName, clusterId)
+		mockUiex := &mock.MpgV1Client{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (mpgv1.DeleteAttachmentResponse, error) {
+				return mpgv1.DeleteAttachmentResponse{}, fmt.Errorf("attachment not found for app '%s' on cluster %s", appName, clusterId)
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		_, err := mockUiex.DeleteAttachment(ctx, clusterID, "nonexistent-app")
 
@@ -1605,13 +1604,13 @@ func TestDeleteAttachment(t *testing.T) {
 	})
 
 	t.Run("error - access denied", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
-				return uiex.DeleteAttachmentResponse{}, fmt.Errorf("access denied: you don't have permission to detach from cluster %s", clusterId)
+		mockUiex := &mock.MpgV1Client{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (mpgv1.DeleteAttachmentResponse, error) {
+				return mpgv1.DeleteAttachmentResponse{}, fmt.Errorf("access denied: you don't have permission to detach from cluster %s", clusterId)
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		_, err := mockUiex.DeleteAttachment(ctx, clusterID, "test-app")
 
@@ -1620,13 +1619,13 @@ func TestDeleteAttachment(t *testing.T) {
 	})
 
 	t.Run("error - cluster not found", func(t *testing.T) {
-		mockUiex := &mock.UiexClient{
-			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (uiex.DeleteAttachmentResponse, error) {
-				return uiex.DeleteAttachmentResponse{}, fmt.Errorf("cluster %s not found", clusterId)
+		mockUiex := &mock.MpgV1Client{
+			DeleteAttachmentFunc: func(ctx context.Context, clusterId string, appName string) (mpgv1.DeleteAttachmentResponse, error) {
+				return mpgv1.DeleteAttachmentResponse{}, fmt.Errorf("cluster %s not found", clusterId)
 			},
 		}
 
-		ctx := uiexutil.NewContextWithClient(ctx, mockUiex)
+		ctx := mpgv1.NewContext(ctx, mockUiex)
 
 		_, err := mockUiex.DeleteAttachment(ctx, "nonexistent-cluster", "test-app")
 
@@ -1639,7 +1638,7 @@ func TestDeleteAttachment(t *testing.T) {
 func TestListCommand_WithAttachedApps(t *testing.T) {
 	ctx := setupTestContext()
 
-	expectedClusters := []uiex.ManagedCluster{
+	expectedClusters := []mpgv1.ManagedCluster{
 		{
 			Id:     "cluster-1",
 			Name:   "test-cluster-1",
@@ -1649,7 +1648,7 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 			Organization: fly.Organization{
 				Slug: "test-org",
 			},
-			AttachedApps: []uiex.AttachedApp{
+			AttachedApps: []mpgv1.AttachedApp{
 				{Name: "web-app", Id: 100},
 				{Name: "api-app", Id: 101},
 			},
@@ -1663,21 +1662,21 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 			Organization: fly.Organization{
 				Slug: "test-org",
 			},
-			AttachedApps: []uiex.AttachedApp{}, // No attached apps
+			AttachedApps: []mpgv1.AttachedApp{}, // No attached apps
 		},
 	}
 
-	mockUiex := &mock.UiexClient{
-		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
+	mockUiex := &mock.MpgV1Client{
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 
-			return uiex.ListManagedClustersResponse{
+			return mpgv1.ListManagedClustersResponse{
 				Data: expectedClusters,
 			}, nil
 		},
 	}
 
-	ctx = uiexutil.NewContextWithClient(ctx, mockUiex)
+	ctx = mpgv1.NewContext(ctx, mockUiex)
 
 	// Test successful cluster listing with attached apps
 	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org", false)
