@@ -188,7 +188,7 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 				}
 			}
 
-			ctx = mpgv1.NewContext(ctx, &mock.MpgV1Client{
+			ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
 				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
 					return mpgv1.ListMPGRegionsResponse{Data: mpgRegions}, nil
 				},

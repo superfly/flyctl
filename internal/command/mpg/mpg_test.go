@@ -73,7 +73,7 @@ func TestNewMPGService_ValidClient(t *testing.T) {
 	ctx := setupTestContext()
 
 	mockUiex := &mock.MpgV1Client{}
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	service, err := NewMPGService(ctx)
 	assert.NoError(t, err)
@@ -143,7 +143,7 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	t.Run("no clusters found", func(t *testing.T) {
 		mockEmpty := &mock.MpgV1Client{
@@ -151,7 +151,7 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 				return mpgv1.ListManagedClustersResponse{Data: []mpgv1.ManagedCluster{}}, nil
 			},
 		}
-		ctx := mpgv1.NewContext(ctx, mockEmpty)
+		ctx := mpgv1.NewContextWithClient(ctx, mockEmpty)
 
 		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
 		assert.Error(t, err)
@@ -330,7 +330,7 @@ func TestDestroyCommand_Logic(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Test successful cluster retrieval
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -379,7 +379,7 @@ func TestStatusCommand_Logic(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Test successful cluster details retrieval
 	clusterDetails, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -430,7 +430,7 @@ func TestListCommand_Logic(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Test successful cluster listing
 	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org", false)
@@ -461,7 +461,7 @@ func TestErrorHandling(t *testing.T) {
 				return mpgv1.ListManagedClustersResponse{}, fmt.Errorf("API error")
 			},
 		}
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
 		assert.Error(t, err)
@@ -474,7 +474,7 @@ func TestErrorHandling(t *testing.T) {
 				return mpgv1.GetManagedClusterResponse{}, fmt.Errorf("API error")
 			},
 		}
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.GetManagedClusterById(ctx, "test-cluster")
 		assert.Error(t, err)
@@ -487,7 +487,7 @@ func TestErrorHandling(t *testing.T) {
 				return fmt.Errorf("destroy failed")
 			},
 		}
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		err := mockUiex.DestroyCluster(ctx, "test-org", "test-cluster")
 		assert.Error(t, err)
@@ -647,7 +647,7 @@ func TestAttachCommand_Logic(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Test cluster retrieval
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -946,7 +946,7 @@ func TestBackupList(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Run the backup list command
 	err := runBackupList(ctx)
@@ -1198,7 +1198,7 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 				},
 			}
 
-			ctx = mpgv1.NewContext(ctx, mockUiex)
+			ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 			// Test the validation logic
 			pgMajorVersion := tt.pgMajorVersion
@@ -1261,7 +1261,7 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		response, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "test-app",
@@ -1294,7 +1294,7 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		response, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "already-attached-app",
@@ -1311,7 +1311,7 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.CreateAttachment(ctx, "nonexistent-cluster", mpgv1.CreateAttachmentInput{
 			AppName: "test-app",
@@ -1328,7 +1328,7 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "test-app",
@@ -1345,7 +1345,7 @@ func TestCreateAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.CreateAttachment(ctx, clusterID, mpgv1.CreateAttachmentInput{
 			AppName: "nonexistent-app",
@@ -1414,7 +1414,7 @@ func TestAttachCommand_CreatesAttachment(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Simulate the attach command flow: get cluster, then create attachment
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -1470,7 +1470,7 @@ func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Get cluster - should succeed
 	response, err := mockUiex.GetManagedClusterById(ctx, clusterID)
@@ -1580,7 +1580,7 @@ func TestDeleteAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		response, err := mockUiex.DeleteAttachment(ctx, clusterID, "test-app")
 
@@ -1595,7 +1595,7 @@ func TestDeleteAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.DeleteAttachment(ctx, clusterID, "nonexistent-app")
 
@@ -1610,7 +1610,7 @@ func TestDeleteAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.DeleteAttachment(ctx, clusterID, "test-app")
 
@@ -1625,7 +1625,7 @@ func TestDeleteAttachment(t *testing.T) {
 			},
 		}
 
-		ctx := mpgv1.NewContext(ctx, mockUiex)
+		ctx := mpgv1.NewContextWithClient(ctx, mockUiex)
 
 		_, err := mockUiex.DeleteAttachment(ctx, "nonexistent-cluster", "test-app")
 
@@ -1676,7 +1676,7 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 		},
 	}
 
-	ctx = mpgv1.NewContext(ctx, mockUiex)
+	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
 	// Test successful cluster listing with attached apps
 	clusters, err := mockUiex.ListManagedClusters(ctx, "test-org", false)
