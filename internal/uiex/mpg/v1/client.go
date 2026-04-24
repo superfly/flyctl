@@ -39,7 +39,7 @@ type Client struct {
 	*uiex.Client
 }
 
-func NewClient(ctx context.Context, opts uiex.NewClientOpts) (*Client, error) {
+func NewClientWithOptions(ctx context.Context, opts uiex.NewClientOpts) (*Client, error) {
 	uiex, err := uiex.NewWithOptions(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (c *Client) HTTPClient() *http.Client {
 }
 
 // NewContext derives a Context that carries c from ctx.
-func NewContext(ctx context.Context, c ClientV1) context.Context {
+func NewContextWithClient(ctx context.Context, c ClientV1) context.Context {
 	return context.WithValue(ctx, clientContextKey, c)
 }
 
