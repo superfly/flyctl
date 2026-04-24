@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/command/mpg"
+	"github.com/superfly/flyctl/internal/command/mpg/plans"
+	mpgutils "github.com/superfly/flyctl/internal/command/mpg/utils"
+	mpgv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -66,10 +68,10 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	}
 
 	// Normal flow: prefer managed if enabled and available
-	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
+	orgSlug, err := mpgutils.ResolveOrganizationSlug(ctx, plan.OrgSlug)
 	if err == nil && mpgEnabled {
 		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
-		validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+		validRegion, err := mpgv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 		if isInteractive {
 			if err == nil && validRegion {
 				// Managed postgres is available in this region, use it
@@ -120,7 +122,7 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 
 	// Display plan details if we have an IO context
 	if io != nil && planType != "" {
-		if planDetails, exists := mpg.MPGPlans[planType]; exists {
+		if planDetails, exists := plans.MPGPlans[planType]; exists {
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.Out, "\nSelected Managed Postgres Plan: %s\n", colorize.Purple(planDetails.Name))
 			fmt.Fprintf(io.Out, "  CPU: %s\n", planDetails.CPU)
@@ -144,12 +146,12 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
 
-	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
+	orgSlug, err := mpgutils.ResolveOrganizationSlug(ctx, plan.OrgSlug)
 	if err != nil {
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+	validRegion, err := mpgv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -163,7 +165,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, orgSlug)
+		availableCodes, _ := mpgv1.GetAvailableMPGRegionCodes(ctx, orgSlug)
 
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
@@ -174,7 +176,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, orgSlug)
+	availableRegions, err := mpgv1.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			colorize := io.ColorScheme()

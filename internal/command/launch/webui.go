@@ -16,7 +16,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/mpg"
+	mpgv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/logger"
 	state2 "github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -103,13 +103,13 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 			}
 
 			// Check if region is supported for managed Postgres
-			validRegion, err := mpg.IsValidMPGRegion(ctx, org.RawSlug, region)
+			validRegion, err := mpgv1.IsValidMPGRegion(ctx, org.RawSlug, region)
 			if err != nil {
 				return fmt.Errorf("failed to validate MPG region: %w", err)
 			}
 
 			if !validRegion {
-				availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, org.Slug)
+				availableCodes, _ := mpgv1.GetAvailableMPGRegionCodes(ctx, org.Slug)
 
 				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, availableCodes)
 			}

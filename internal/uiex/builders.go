@@ -69,7 +69,7 @@ type BuildResponse struct {
 
 func (c *Client) CreateBuild(ctx context.Context, in CreateBuildRequest) (*BuildResponse, error) {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/builds", c.baseUrl)
+	url := fmt.Sprintf("%s/api/v1/builds", c.BaseUrl)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(in); err != nil {
@@ -84,7 +84,7 @@ func (c *Client) CreateBuild(ctx context.Context, in CreateBuildRequest) (*Build
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (c *Client) CreateBuild(ctx context.Context, in CreateBuildRequest) (*Build
 
 func (c *Client) FinishBuild(ctx context.Context, in FinishBuildRequest) (*BuildResponse, error) {
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/builds/finish", c.baseUrl)
+	url := fmt.Sprintf("%s/api/v1/builds/finish", c.BaseUrl)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(in); err != nil {
@@ -126,7 +126,7 @@ func (c *Client) FinishBuild(ctx context.Context, in FinishBuildRequest) (*Build
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ type EnsureDepotBuilderResponse struct {
 func (c *Client) EnsureDepotBuilder(ctx context.Context, in EnsureDepotBuilderRequest) (*EnsureDepotBuilderResponse, error) {
 	var response EnsureDepotBuilderResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/builds/depot_builder", c.baseUrl)
+	url := fmt.Sprintf("%s/api/v1/builds/depot_builder", c.BaseUrl)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(in); err != nil {
@@ -184,7 +184,7 @@ func (c *Client) EnsureDepotBuilder(ctx context.Context, in EnsureDepotBuilderRe
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ type CreateFlyManagedBuilderResponse struct {
 func (c *Client) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (CreateFlyManagedBuilderResponse, error) {
 	var response CreateFlyManagedBuilderResponse
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/builders", c.baseUrl, orgSlug)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/builders", c.BaseUrl, orgSlug)
 
 	input := &CreateFlyManagedBuilderInput{
 		Builder: CreateFlyManagedBuilderParams{
@@ -247,7 +247,7 @@ func (c *Client) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, re
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := c.httpClient.Do(req)
+	res, err := c.HttpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
