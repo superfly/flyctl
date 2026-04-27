@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -103,28 +103,32 @@ func RunCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	input := fly.CreateAppInput{
-		Name:           name,
-		OrganizationID: org.ID,
-		Machines:       true,
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	createReq := flaps.CreateAppRequest{
+		Name: name,
+		Org:  org.Slug,
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {
-		input.Network = new(v)
+		createReq.Network = v
 	}
 
-	app, err := apiClient.CreateApp(ctx, input)
+	app, err := flapsClient.CreateApp(ctx, createReq)
 	if err != nil {
 		return err
 	}
 
-	f := flapsutil.ClientFromContext(ctx)
-	if err := f.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
 		return err
 	}
 
 	if cfg.JSONOutput {
-		return render.JSON(io.Out, app)
+		fullApp, err := apiClient.GetApp(ctx, app.Name)
+		if err != nil {
+			return err
+		}
+
+		return render.JSON(io.Out, fullApp)
 	}
 
 	fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
