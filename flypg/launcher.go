@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/ssh"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -389,33 +390,27 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 
 func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*fly.AppCompact, error) {
 	fmt.Println("Creating app...")
-	appInput := fly.CreateAppInput{
-		OrganizationID:  config.Organization.ID,
-		Name:            config.AppName,
-		PreferredRegion: &config.Region,
-		AppRoleID:       "postgres_cluster",
-	}
-
-	app, err := l.client.CreateApp(ctx, appInput)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Org:       config.Organization.Slug,
+		Name:      config.AppName,
+		AppRoleID: "postgres_cluster",
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	f := flapsutil.ClientFromContext(ctx)
-	if err := f.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
 	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
 		Organization: &fly.OrganizationBasic{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
+			ID:   config.Organization.ID,
+			Slug: config.Organization.Slug,
 		},
 	}, nil
 }
