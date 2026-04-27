@@ -29,7 +29,7 @@ var nouns = strings.Fields(`
 	bush dew dust field fire flower firefly feather grass
 	haze mountain night pond darkness snowflake silence
 	sound sky shape surf thunder violet water wildflower
-	wave water resonance sun log dream cherry tree fog
+	wave stone resonance branch log dream cherry tree fog
 	frost voice paper frog smoke star
 `)
 
@@ -90,6 +90,22 @@ func (b *Builder) Build() string {
 
 func (b *Builder) String() string {
 	return b.Build()
+}
+
+func GeneratedAppName() string {
+	return GeneratedAppNameWithPrefix("")
+}
+
+func GeneratedAppNameWithPrefix(prefix string) string {
+	builder := Haikunator().TokenRange(0)
+	name := builder.Build()
+	token := strconv.FormatInt(int64(builder.RandN(1000)+1000), 10)[1:]
+
+	if prefix == "" {
+		return strings.Join([]string{name, token}, "-")
+	}
+
+	return strings.Join([]string{prefix, name, token}, "-")
 }
 
 // TrimSuffix removes a haiku name at the end of s, if it exists.
