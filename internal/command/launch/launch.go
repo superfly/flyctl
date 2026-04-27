@@ -10,6 +10,7 @@ import (
 
 	"github.com/docker/go-units"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -17,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -380,26 +380,30 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-
 	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return nil, err
 	}
-	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.Id,
-		Name:            state.Plan.AppName,
-		PreferredRegion: &state.Plan.RegionCode,
-		Machines:        true,
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Name: state.Plan.AppName,
+		Org:  org.Slug,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	f := flapsutil.ClientFromContext(ctx)
-	if err := f.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
-	return app, nil
+	return &fly.App{
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
+		Organization: fly.Organization{
+			Slug: app.Organization.Slug,
+		},
+	}, nil
 }
