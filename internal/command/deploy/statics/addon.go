@@ -34,10 +34,15 @@ func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.
 	internalAppIdStr := strconv.FormatUint(uint64(app.InternalNumericID), 10)
 
 	for _, extension := range response.Organization.AddOns.Nodes {
-		if extension.Metadata == nil {
+		meta, ok := extension.Metadata.(map[string]any)
+		if !ok {
 			continue
 		}
-		if extension.Metadata.(map[string]any)[staticsMetaKeyAppId] == internalAppIdStr {
+		appID, ok := meta[staticsMetaKeyAppId].(string)
+		if !ok {
+			continue
+		}
+		if appID == internalAppIdStr {
 			return &extension, nil
 		}
 	}
