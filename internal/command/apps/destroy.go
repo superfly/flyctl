@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -48,6 +49,7 @@ func RunDestroy(ctx context.Context) error {
 	colorize := io.ColorScheme()
 	apps := flag.Args(ctx)
 	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if len(apps) == 0 {
 		return fmt.Errorf("no app names provided")
@@ -93,7 +95,7 @@ func RunDestroy(ctx context.Context) error {
 			fmt.Fprintf(io.Out, "Destroyed statics bucket %s\n", bucket.Name)
 		}
 
-		if err := client.DeleteApp(ctx, appName); err != nil {
+		if err := flapsClient.DeleteApp(ctx, appName); err != nil {
 			return err
 		}
 

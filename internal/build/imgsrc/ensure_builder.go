@@ -135,8 +135,8 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 
 		if validateBuilderErr != NoBuilderApp {
 			span.AddEvent(fmt.Sprintf("deleting existing invalid builder due to %s", validateBuilderErr))
-			client := flyutil.ClientFromContext(ctx)
-			err := client.DeleteApp(ctx, builderApp.Name)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			err := flapsClient.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "error deleting invalid builder app")
 
@@ -148,8 +148,8 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	} else {
 		span.AddEvent("recreating builder")
 		if builderApp != nil {
-			client := flyutil.ClientFromContext(ctx)
-			err := client.DeleteApp(ctx, builderApp.Name)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			err := flapsClient.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "error deleting existing builder app")
 
@@ -385,7 +385,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	defer func() {
 		if retErr != nil {
 			span.AddEvent("cleaning up new builder app due to error")
-			client.DeleteApp(ctx, builderName)
+			flapsClient.DeleteApp(ctx, builderName)
 			_ = appsecrets.DeleteMinvers(ctx, builderName)
 		}
 	}()
