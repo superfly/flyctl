@@ -42,7 +42,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "plan",
-			Description: "The plan to use for the Postgres cluster (development, production, etc)",
+			Description: "The plan to use for the Postgres cluster: Basic, Starter, Launch, Scale, Performance",
 		},
 		flag.Int{
 			Name:        "volume-size",
