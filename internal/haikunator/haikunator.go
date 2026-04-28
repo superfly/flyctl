@@ -20,6 +20,15 @@ var adjectives = strings.Fields(`
 	sparkling thrumming shy wandering withered wild black
 	young holy solitary fragrant aged snowy proud floral
 	restless divine polished ancient purple lively nameless
+	amber gentle bright calm silver golden mellow radiant
+	soft tranquil velvet lucid rosy tender dusky sunlit
+	starlit moonlit windblown graceful mellowed vivid mellowing
+	verdant russet glowing drifting rolling humming gleaming
+	peaceful faithful agile noble tidy ambered airy cinder
+	marbled lustrous dappled kind coral lilac copper willow
+	brisk serene curious plucky jaunty earnest honeyed satin
+	ivory azure ambergris evergreen rippling glimmering unfurling
+	shimmering buoyant wistful
 `)
 
 var nouns = strings.Fields(`
@@ -29,8 +38,16 @@ var nouns = strings.Fields(`
 	bush dew dust field fire flower firefly feather grass
 	haze mountain night pond darkness snowflake silence
 	sound sky shape surf thunder violet water wildflower
-	wave water resonance sun log dream cherry tree fog
+	wave stone resonance branch log dream cherry tree fog
 	frost voice paper frog smoke star
+	ocean canyon pebble harbor valley blossom petal lantern
+	comet aurora meadowlark shell driftwood cove ridge ember
+	stream island harborlight seastar meadowland hillside raindrop starlight
+	sunbeam moonbeam tide current lagoon harborbird skylark pinecone
+	acorn grove orchard garden pathway meadowbrook songbird beacon
+	marsh hollow coastline summit inlet woodland headland echo
+	horizon overbrook snowfall moonrise sunrise tidepool sandbar fern
+	willow reed coral shoreline song meadowstone harborwave glow
 `)
 
 type Builder struct {
@@ -90,6 +107,22 @@ func (b *Builder) Build() string {
 
 func (b *Builder) String() string {
 	return b.Build()
+}
+
+func GeneratedAppName() string {
+	return GeneratedAppNameWithPrefix("")
+}
+
+func GeneratedAppNameWithPrefix(prefix string) string {
+	builder := Haikunator().TokenRange(0)
+	name := builder.Build()
+	token := strconv.FormatInt(int64(builder.RandN(1000)+1000), 10)[1:]
+
+	if prefix == "" {
+		return strings.Join([]string{name, token}, "-")
+	}
+
+	return strings.Join([]string{prefix, name, token}, "-")
 }
 
 // TrimSuffix removes a haiku name at the end of s, if it exists.
