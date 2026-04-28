@@ -32,19 +32,33 @@ func list() (cmd *cobra.Command) {
 }
 
 func runList(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx).GenqClient()
-	response, err := gql.ListAddOns(ctx, client, "upstash_vector")
-	if err != nil {
-		return err
-	}
+	apiClient := flyutil.ClientFromContext(ctx)
+	client := apiClient.GenqClient()
+	orgSlug := flag.GetOrg(ctx)
 
 	var rows [][]string
-	for _, extension := range response.AddOns.Nodes {
-		rows = append(rows, []string{
-			extension.Name,
-			extension.Organization.Slug,
-			extension.PrimaryRegion,
-		})
+	if orgSlug != "" {
+		if _, err := apiClient.GetOrganizationBySlug(ctx, orgSlug); err != nil {
+			return err
+		}
+
+		response, err := gql.ListOrganizationAddOns(ctx, client, orgSlug, "upstash_vector")
+		if err != nil {
+			return err
+		}
+
+		for _, extension := range response.Organization.AddOns.Nodes {
+			rows = append(rows, []string{extension.Name, orgSlug, extension.PrimaryRegion})
+		}
+	} else {
+		response, err := gql.ListAddOns(ctx, client, "upstash_vector")
+		if err != nil {
+			return err
+		}
+
+		for _, extension := range response.AddOns.Nodes {
+			rows = append(rows, []string{extension.Name, extension.Organization.Slug, extension.PrimaryRegion})
+		}
 	}
 
 	out := iostreams.FromContext(ctx).Out
