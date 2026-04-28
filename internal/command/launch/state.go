@@ -232,18 +232,18 @@ func (state *launchState) validateExtensions(ctx context.Context) error {
 			return nil
 		}
 
-		// We're using Supabase. Ensure that we're within plan limits.
+		// We're using Supabase. Ensure that we're within plan limits for the target org.
 		client := flyutil.ClientFromContext(ctx).GenqClient()
 
-		response, err := gql.ListAddOns(ctx, client, "supabase")
+		response, err := gql.ListOrganizationAddOns(ctx, client, org.Slug, "supabase")
 		if err != nil {
-			return fmt.Errorf("failed to list Supabase databases: %w", err)
+			return fmt.Errorf("failed to list Supabase databases for org %q: %w", org.Slug, err)
 		}
 
 		// TODO: We'd like to be able to query the user's plan to see if they're on a paid plan.
 		//       For now, we'll just nag when they create their second database, every time.
 
-		if len(response.AddOns.Nodes) != 1 {
+		if len(response.Organization.AddOns.Nodes) != 1 {
 			// If we're at zero databases, we're within the free plan.
 			// If we're at >=2 databases, we know we're on a paid plan.
 			// It's only 1 existing database where we need to validate the plan.
