@@ -35,34 +35,49 @@ func newList() (cmd *cobra.Command) {
 
 func runList(ctx context.Context) (err error) {
 	var (
-		out    = iostreams.FromContext(ctx).Out
-		client = flyutil.ClientFromContext(ctx).GenqClient()
+		out       = iostreams.FromContext(ctx).Out
+		apiClient = flyutil.ClientFromContext(ctx)
+		client    = apiClient.GenqClient()
+		orgSlug   = flag.GetOrg(ctx)
 	)
 
-	response, err := gql.ListAddOns(ctx, client, "upstash_redis")
-
 	var rows [][]string
-
-	for _, addon := range response.AddOns.Nodes {
-		options, _ := addon.Options.(map[string]any)
-
+	appendRow := func(name, org, plan, primaryRegion string, readRegions []string, options map[string]any) {
 		if options == nil {
 			options = make(map[string]any)
 		}
 		eviction := "Disabled"
-
 		if options["eviction"] != nil && options["eviction"].(bool) {
 			eviction = "Enabled"
 		}
 
-		rows = append(rows, []string{
-			addon.Name,
-			addon.Organization.Slug,
-			addon.AddOnPlan.DisplayName,
-			eviction,
-			addon.PrimaryRegion,
-			strings.Join(addon.ReadRegions, ","),
-		})
+		rows = append(rows, []string{name, org, plan, eviction, primaryRegion, strings.Join(readRegions, ",")})
+	}
+
+	if orgSlug != "" {
+		if _, err := apiClient.GetOrganizationBySlug(ctx, orgSlug); err != nil {
+			return err
+		}
+
+		response, err := gql.ListOrganizationAddOns(ctx, client, orgSlug, "upstash_redis")
+		if err != nil {
+			return err
+		}
+
+		for _, addon := range response.Organization.AddOns.Nodes {
+			options, _ := addon.Options.(map[string]any)
+			appendRow(addon.Name, orgSlug, addon.AddOnPlan.DisplayName, addon.PrimaryRegion, addon.ReadRegions, options)
+		}
+	} else {
+		response, err := gql.ListAddOns(ctx, client, "upstash_redis")
+		if err != nil {
+			return err
+		}
+
+		for _, addon := range response.AddOns.Nodes {
+			options, _ := addon.Options.(map[string]any)
+			appendRow(addon.Name, addon.Organization.Slug, addon.AddOnPlan.DisplayName, addon.PrimaryRegion, addon.ReadRegions, options)
+		}
 	}
 
 	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Eviction", "Primary Region", "Read Regions")

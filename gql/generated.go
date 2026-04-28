@@ -2698,104 +2698,77 @@ func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnection) GetNodes() []L
 
 // ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
 type ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn struct {
-	AddOnData `json:"-"`
+	Id string `json:"id"`
+	// The service name according to the provider
+	Name string `json:"name"`
+	// The add-on plan
+	AddOnPlan ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan `json:"addOnPlan"`
+	// Private flycast IP address of the add-on
+	PrivateIp string `json:"privateIp"`
+	// Region where the primary instance is deployed
+	PrimaryRegion string `json:"primaryRegion"`
+	// Regions where replica instances are deployed
+	ReadRegions []string `json:"readRegions"`
+	// Add-on options
+	Options interface{} `json:"options"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 }
 
 // GetId returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Id, and is useful for accessing the field via an interface.
 func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetId() string {
-	return v.AddOnData.Id
+	return v.Id
 }
 
 // GetName returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
 func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetName() string {
-	return v.AddOnData.Name
+	return v.Name
+}
+
+// GetAddOnPlan returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.AddOnPlan, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan {
+	return v.AddOnPlan
+}
+
+// GetPrivateIp returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.PrivateIp, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string {
+	return v.PrivateIp
 }
 
 // GetPrimaryRegion returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
 func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string {
-	return v.AddOnData.PrimaryRegion
+	return v.PrimaryRegion
 }
 
-// GetStatus returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Status, and is useful for accessing the field via an interface.
-func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetStatus() string {
-	return v.AddOnData.Status
-}
-
-// GetErrorMessage returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.ErrorMessage, and is useful for accessing the field via an interface.
-func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() string {
-	return v.AddOnData.ErrorMessage
-}
-
-// GetMetadata returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
-func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
-	return v.AddOnData.Metadata
+// GetReadRegions returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.ReadRegions, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string {
+	return v.ReadRegions
 }
 
 // GetOptions returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
 func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
-	return v.AddOnData.Options
+	return v.Options
 }
 
-func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
-
-	if string(b) == "null" {
-		return nil
-	}
-
-	var firstPass struct {
-		*ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn
-		graphql.NoUnmarshalJSON
-	}
-	firstPass.ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn = v
-
-	err := json.Unmarshal(b, &firstPass)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(
-		b, &v.AddOnData)
-	if err != nil {
-		return err
-	}
-	return nil
+// GetMetadata returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.Metadata
 }
 
-type __premarshalListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn struct {
-	Id string `json:"id"`
-
-	Name string `json:"name"`
-
-	PrimaryRegion string `json:"primaryRegion"`
-
-	Status string `json:"status"`
-
-	ErrorMessage string `json:"errorMessage"`
-
-	Metadata interface{} `json:"metadata"`
-
-	Options interface{} `json:"options"`
+// ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
+type ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
 }
 
-func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
-	premarshaled, err := v.__premarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(premarshaled)
+// GetDisplayName returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDisplayName() string {
+	return v.DisplayName
 }
 
-func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() (*__premarshalListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn, error) {
-	var retval __premarshalListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn
-
-	retval.Id = v.AddOnData.Id
-	retval.Name = v.AddOnData.Name
-	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
-	retval.Status = v.AddOnData.Status
-	retval.ErrorMessage = v.AddOnData.ErrorMessage
-	retval.Metadata = v.AddOnData.Metadata
-	retval.Options = v.AddOnData.Options
-	return &retval, nil
+// GetDescription returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDescription() string {
+	return v.Description
 }
 
 // ListOrganizationAddOnsResponse is returned by ListOrganizationAddOns on success.
@@ -4428,19 +4401,20 @@ query ListOrganizationAddOns ($orgSlug: String!, $addOnType: AddOnType) {
 	organization(slug: $orgSlug) {
 		addOns(type: $addOnType) {
 			nodes {
-				... AddOnData
+				id
+				name
+				addOnPlan {
+					displayName
+					description
+				}
+				privateIp
+				primaryRegion
+				readRegions
+				options
+				metadata
 			}
 		}
 	}
-}
-fragment AddOnData on AddOn {
-	id
-	name
-	primaryRegion
-	status
-	errorMessage
-	metadata
-	options
 }
 `
 

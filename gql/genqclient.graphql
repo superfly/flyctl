@@ -269,7 +269,17 @@ query ListOrganizationAddOns($orgSlug: String!, $addOnType: AddOnType) {
 	organization(slug: $orgSlug) {
 		addOns(type: $addOnType) {
 			nodes {
-				...AddOnData
+				id
+				name
+				addOnPlan {
+					displayName
+					description
+				}
+				privateIp
+				primaryRegion
+				readRegions
+				options
+				metadata
 			}
 		}
 	}
