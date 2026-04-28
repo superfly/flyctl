@@ -16,6 +16,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -564,8 +565,9 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	if appc == nil {
 		shellAppName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
 		shellAppName = strings.TrimRight(shellAppName[:min(len(shellAppName), 63)], "-")
-		appc, err = client.CreateApp(ctx, fly.CreateAppInput{
-			OrganizationID: org.ID,
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		createdApp, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+			Org: org.Slug,
 			// I'll never find love again like the kind you give like the kind you send
 			Name: shellAppName,
 		})
@@ -573,10 +575,10 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
 
-		f := flapsutil.ClientFromContext(ctx)
-		if err := f.WaitForApp(ctx, appc.Name); err != nil {
+		if err := flapsClient.WaitForApp(ctx, createdApp.Name); err != nil {
 			return nil, err
 		}
+		appc = &fly.App{Name: createdApp.Name}
 	}
 
 	// this app handle won't have all the metadata attached, so grab it
@@ -610,31 +612,26 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		}
 	}
 
-	input := fly.CreateAppInput{
-		Name:           name,
-		OrganizationID: org.ID,
-	}
-
-	app, err := client.CreateApp(ctx, input)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Name: name,
+		Org:  org.Slug,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	f := flapsutil.ClientFromContext(ctx)
-	if err := f.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
 	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
 		Organization: &fly.OrganizationBasic{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
+			ID:   org.ID,
+			Slug: org.Slug,
 		},
 	}, nil
 }
