@@ -20,6 +20,15 @@ var adjectives = strings.Fields(`
 	sparkling thrumming shy wandering withered wild black
 	young holy solitary fragrant aged snowy proud floral
 	restless divine polished ancient purple lively nameless
+	amber gentle bright calm silver golden mellow radiant
+	soft tranquil velvet lucid rosy tender dusky sunlit
+	starlit moonlit windblown graceful mellowed vivid mellowing
+	verdant russet glowing drifting rolling humming gleaming
+	peaceful faithful agile noble tidy ambered airy cinder
+	marbled lustrous dappled kind coral lilac copper willow
+	brisk serene curious plucky jaunty earnest honeyed satin
+	ivory azure ambergris evergreen rippling glimmering unfurling
+	shimmering buoyant wistful
 `)
 
 var nouns = strings.Fields(`
@@ -31,6 +40,14 @@ var nouns = strings.Fields(`
 	sound sky shape surf thunder violet water wildflower
 	wave stone resonance branch log dream cherry tree fog
 	frost voice paper frog smoke star
+	ocean canyon pebble harbor valley blossom petal lantern
+	comet aurora meadowlark shell driftwood cove ridge ember
+	stream island harborlight seastar meadowland hillside raindrop starlight
+	sunbeam moonbeam tide current lagoon harborbird skylark pinecone
+	acorn grove orchard garden pathway meadowbrook songbird beacon
+	marsh hollow coastline summit inlet woodland headland echo
+	horizon overbrook snowfall moonrise sunrise tidepool sandbar fern
+	willow reed coral shoreline song meadowstone harborwave glow
 `)
 
 type Builder struct {
