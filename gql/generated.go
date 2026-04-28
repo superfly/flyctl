@@ -2671,6 +2671,144 @@ type ListAddOnsResponse struct {
 // GetAddOns returns ListAddOnsResponse.AddOns, and is useful for accessing the field via an interface.
 func (v *ListAddOnsResponse) GetAddOns() ListAddOnsAddOnsAddOnConnection { return v.AddOns }
 
+// ListOrganizationAddOnsOrganization includes the requested fields of the GraphQL type Organization.
+type ListOrganizationAddOnsOrganization struct {
+	// List third party integrations associated with an organization
+	AddOns ListOrganizationAddOnsOrganizationAddOnsAddOnConnection `json:"addOns"`
+}
+
+// GetAddOns returns ListOrganizationAddOnsOrganization.AddOns, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganization) GetAddOns() ListOrganizationAddOnsOrganizationAddOnsAddOnConnection {
+	return v.AddOns
+}
+
+// ListOrganizationAddOnsOrganizationAddOnsAddOnConnection includes the requested fields of the GraphQL type AddOnConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for AddOn.
+type ListOrganizationAddOnsOrganizationAddOnsAddOnConnection struct {
+	// A list of nodes.
+	Nodes []ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn `json:"nodes"`
+}
+
+// GetNodes returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnection) GetNodes() []ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn {
+	return v.Nodes
+}
+
+// ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
+type ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn struct {
+	AddOnData `json:"-"`
+}
+
+// GetId returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Id, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetId() string {
+	return v.AddOnData.Id
+}
+
+// GetName returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetName() string {
+	return v.AddOnData.Name
+}
+
+// GetPrimaryRegion returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string {
+	return v.AddOnData.PrimaryRegion
+}
+
+// GetStatus returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Status, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetStatus() string {
+	return v.AddOnData.Status
+}
+
+// GetErrorMessage returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() string {
+	return v.AddOnData.ErrorMessage
+}
+
+// GetMetadata returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.AddOnData.Metadata
+}
+
+// GetOptions returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
+	return v.AddOnData.Options
+}
+
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.AddOnData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	PrimaryRegion string `json:"primaryRegion"`
+
+	Status string `json:"status"`
+
+	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
+
+	Options interface{} `json:"options"`
+}
+
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() (*__premarshalListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn, error) {
+	var retval __premarshalListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn
+
+	retval.Id = v.AddOnData.Id
+	retval.Name = v.AddOnData.Name
+	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
+	retval.Status = v.AddOnData.Status
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
+	retval.Options = v.AddOnData.Options
+	return &retval, nil
+}
+
+// ListOrganizationAddOnsResponse is returned by ListOrganizationAddOns on success.
+type ListOrganizationAddOnsResponse struct {
+	// Find an organization by ID
+	Organization ListOrganizationAddOnsOrganization `json:"organization"`
+}
+
+// GetOrganization returns ListOrganizationAddOnsResponse.Organization, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsResponse) GetOrganization() ListOrganizationAddOnsOrganization {
+	return v.Organization
+}
+
 // LogOutLogOutLogOutPayload includes the requested fields of the GraphQL type LogOutPayload.
 // The GraphQL type's documentation follows.
 //
@@ -3223,6 +3361,18 @@ type __ListAddOnsInput struct {
 
 // GetAddOnType returns __ListAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
+
+// __ListOrganizationAddOnsInput is used internally by genqlient
+type __ListOrganizationAddOnsInput struct {
+	OrgSlug   string    `json:"orgSlug"`
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetOrgSlug returns __ListOrganizationAddOnsInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__ListOrganizationAddOnsInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetAddOnType returns __ListOrganizationAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListOrganizationAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
 
 // __ResetAddOnPasswordInput is used internally by genqlient
 type __ResetAddOnPasswordInput struct {
@@ -4261,6 +4411,55 @@ func ListAddOns(
 	}
 
 	data_ = &ListAddOnsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ListOrganizationAddOns.
+const ListOrganizationAddOns_Operation = `
+query ListOrganizationAddOns ($orgSlug: String!, $addOnType: AddOnType) {
+	organization(slug: $orgSlug) {
+		addOns(type: $addOnType) {
+			nodes {
+				... AddOnData
+			}
+		}
+	}
+}
+fragment AddOnData on AddOn {
+	id
+	name
+	primaryRegion
+	status
+	errorMessage
+	metadata
+	options
+}
+`
+
+func ListOrganizationAddOns(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	orgSlug string,
+	addOnType AddOnType,
+) (data_ *ListOrganizationAddOnsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ListOrganizationAddOns",
+		Query:  ListOrganizationAddOns_Operation,
+		Variables: &__ListOrganizationAddOnsInput{
+			OrgSlug:   orgSlug,
+			AddOnType: addOnType,
+		},
+	}
+
+	data_ = &ListOrganizationAddOnsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

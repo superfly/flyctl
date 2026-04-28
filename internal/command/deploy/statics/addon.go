@@ -21,12 +21,11 @@ import (
 
 // FindBucket finds the tigris statics bucket for the given app and org.
 // Returns nil, nil if no bucket is found.
-func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn, error) {
-
+func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.StaticsAddOn, error) {
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()
 
-	response, err := gql.ListAddOns(ctx, gqlClient, "tigris")
+	response, err := gql.ListOrganizationAddOns(ctx, gqlClient, org.Slug, "tigris")
 	if err != nil {
 		return nil, err
 	}
@@ -34,11 +33,8 @@ func FindBucket(ctx context.Context, app *fly.App, org *fly.Organization) (*gql.
 	// Using string comparison here because we might want to use BigInt app IDs in the future.
 	internalAppIdStr := strconv.FormatUint(uint64(app.InternalNumericID), 10)
 
-	for _, extension := range response.AddOns.Nodes {
+	for _, extension := range response.Organization.AddOns.Nodes {
 		if extension.Metadata == nil {
-			continue
-		}
-		if extension.Organization.Slug != org.Slug {
 			continue
 		}
 		if extension.Metadata.(map[string]any)[staticsMetaKeyAppId] == internalAppIdStr {
