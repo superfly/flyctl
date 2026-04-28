@@ -108,6 +108,10 @@ func (m *FlapsClient) CreateVolumeSnapshot(ctx context.Context, appName, volumeI
 }
 
 func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
+	if m.DeleteAppFunc == nil {
+		return nil
+	}
+
 	return m.DeleteAppFunc(ctx, name)
 }
 
