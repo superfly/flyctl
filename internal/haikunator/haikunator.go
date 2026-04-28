@@ -92,6 +92,22 @@ func (b *Builder) String() string {
 	return b.Build()
 }
 
+func GeneratedAppName() string {
+	return GeneratedAppNameWithPrefix("")
+}
+
+func GeneratedAppNameWithPrefix(prefix string) string {
+	builder := Haikunator().TokenRange(0)
+	name := builder.Build()
+	token := strconv.FormatInt(int64(builder.RandN(1000)+1000), 10)[1:]
+
+	if prefix == "" {
+		return strings.Join([]string{name, token}, "-")
+	}
+
+	return strings.Join([]string{prefix, name, token}, "-")
+}
+
 // TrimSuffix removes a haiku name at the end of s, if it exists.
 // Otherwise returns the original string.
 func (b *Builder) TrimSuffix(s string) string {

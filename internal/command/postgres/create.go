@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/haikunator"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -44,6 +45,10 @@ func newCreate() *cobra.Command {
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "The name of your Postgres app",
+		},
+		flag.Bool{
+			Name:        "generate-name",
+			Description: "Generate an app name",
 		},
 		flag.String{
 			Name:        "password",
@@ -109,8 +114,12 @@ func run(ctx context.Context) (err error) {
 	prompt.PlatformRegions(ctx)
 
 	if appName == "" {
-		if appName, err = prompt.SelectAppName(ctx); err != nil {
+		if flag.GetBool(ctx, "generate-name") {
+			appName = haikunator.GeneratedAppNameWithPrefix("upg")
+		} else if appName, err = prompt.SelectAppName(ctx); err != nil {
 			return
+		} else if appName == "" {
+			appName = haikunator.GeneratedAppNameWithPrefix("upg")
 		}
 	}
 
