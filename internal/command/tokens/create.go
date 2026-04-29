@@ -137,6 +137,7 @@ func newOrgRead() *cobra.Command {
 			Description: "Token name",
 			Default:     "Read-only org token",
 		},
+		flag.Org(),
 	)
 
 	return cmd
