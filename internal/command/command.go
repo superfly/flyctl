@@ -30,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -573,11 +574,7 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		return handleReLogin(ctx, "not_authenticated")
 	}
 
-	// Skip timestamp validation if token is from environment variable (CI/CD use case)
-	// This allows automated pipelines to continue working without session timeout
-	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
-
-	if !tokenFromEnv {
+	if !hasExternallySuppliedToken(ctx) {
 		// Check if the token has expired due to age
 		// If LastLogin is zero, it means the user has an old config without the timestamp
 		if cfg.LastLogin.IsZero() {
@@ -597,6 +594,20 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
+}
+
+// hasExternallySuppliedToken reports whether the user supplied an auth token
+// via the FLY_ACCESS_TOKEN / FLY_API_TOKEN env vars or the --access-token
+// flag. These are non-interactive auth paths (CI/CD use cases) and must
+// bypass the interactive session-age re-login prompt — otherwise CI runs
+// without a LastLogin timestamp fail with ErrNoAuthToken even when the
+// caller explicitly provided a valid token.
+func hasExternallySuppliedToken(ctx context.Context) bool {
+	if env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != "" {
+		return true
+	}
+
+	return flag.GetString(ctx, flagnames.AccessToken) != ""
 }
 
 // handleReLogin prompts the user to log in and handles the re-login flow
