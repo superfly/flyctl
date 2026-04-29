@@ -95,7 +95,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run GoReleaser
         if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@v7.1.0
         with:
           distribution: goreleaser-pro
           version: "~> v2"
@@ -143,7 +143,7 @@ jobs:
           overwrite: true
       - name: Github release
         if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/master'
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@v7.1.0
         with:
           distribution: goreleaser-pro
           version: "~> v2"
