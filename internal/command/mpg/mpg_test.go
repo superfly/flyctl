@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -364,7 +365,7 @@ func TestStatusCommand_Logic(t *testing.T) {
 		Organization: fly.Organization{
 			Slug: "test-org",
 		},
-		IpAssignments: mpgv1.ManagedClusterIpAssignments{
+		IpAssignments: mpg.ManagedClusterIpAssignments{
 			Direct: "10.0.0.1",
 		},
 	}
@@ -534,17 +535,17 @@ func TestCreateCommand_Logic(t *testing.T) {
 
 			return mpgv1.CreateClusterResponse{
 				Data: struct {
-					Id             string                            `json:"id"`
-					Name           string                            `json:"name"`
-					Status         *string                           `json:"status"`
-					Plan           string                            `json:"plan"`
-					Environment    *string                           `json:"environment"`
-					Region         string                            `json:"region"`
-					Organization   fly.Organization                  `json:"organization"`
-					Replicas       int                               `json:"replicas"`
-					Disk           int                               `json:"disk"`
-					IpAssignments  mpgv1.ManagedClusterIpAssignments `json:"ip_assignments"`
-					PostGISEnabled bool                              `json:"postgis_enabled"`
+					Id             string                          `json:"id"`
+					Name           string                          `json:"name"`
+					Status         *string                         `json:"status"`
+					Plan           string                          `json:"plan"`
+					Environment    *string                         `json:"environment"`
+					Region         string                          `json:"region"`
+					Organization   fly.Organization                `json:"organization"`
+					Replicas       int                             `json:"replicas"`
+					Disk           int                             `json:"disk"`
+					IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+					PostGISEnabled bool                            `json:"postgis_enabled"`
 				}{
 					Id:             expectedCluster.Id,
 					Name:           expectedCluster.Name,
@@ -1163,17 +1164,17 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 
 					return mpgv1.CreateClusterResponse{
 						Data: struct {
-							Id             string                            `json:"id"`
-							Name           string                            `json:"name"`
-							Status         *string                           `json:"status"`
-							Plan           string                            `json:"plan"`
-							Environment    *string                           `json:"environment"`
-							Region         string                            `json:"region"`
-							Organization   fly.Organization                  `json:"organization"`
-							Replicas       int                               `json:"replicas"`
-							Disk           int                               `json:"disk"`
-							IpAssignments  mpgv1.ManagedClusterIpAssignments `json:"ip_assignments"`
-							PostGISEnabled bool                              `json:"postgis_enabled"`
+							Id             string                          `json:"id"`
+							Name           string                          `json:"name"`
+							Status         *string                         `json:"status"`
+							Plan           string                          `json:"plan"`
+							Environment    *string                         `json:"environment"`
+							Region         string                          `json:"region"`
+							Organization   fly.Organization                `json:"organization"`
+							Replicas       int                             `json:"replicas"`
+							Disk           int                             `json:"disk"`
+							IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+							PostGISEnabled bool                            `json:"postgis_enabled"`
 						}{
 							Id:             "test-cluster-123",
 							Name:           "test-db",
@@ -1511,12 +1512,12 @@ func TestInvalidPGMajorVersion_Error(t *testing.T) {
 func TestFormatAttachedApps(t *testing.T) {
 	tests := []struct {
 		name     string
-		apps     []mpgv1.AttachedApp
+		apps     []mpg.AttachedApp
 		expected string
 	}{
 		{
 			name:     "no attached apps",
-			apps:     []mpgv1.AttachedApp{},
+			apps:     []mpg.AttachedApp{},
 			expected: "<no attached apps>",
 		},
 		{
@@ -1526,14 +1527,14 @@ func TestFormatAttachedApps(t *testing.T) {
 		},
 		{
 			name: "single app",
-			apps: []mpgv1.AttachedApp{
+			apps: []mpg.AttachedApp{
 				{Name: "my-web-app", Id: 1},
 			},
 			expected: "my-web-app",
 		},
 		{
 			name: "two apps",
-			apps: []mpgv1.AttachedApp{
+			apps: []mpg.AttachedApp{
 				{Name: "my-web-app", Id: 1},
 				{Name: "my-api", Id: 2},
 			},
@@ -1541,7 +1542,7 @@ func TestFormatAttachedApps(t *testing.T) {
 		},
 		{
 			name: "three apps",
-			apps: []mpgv1.AttachedApp{
+			apps: []mpg.AttachedApp{
 				{Name: "app-one", Id: 1},
 				{Name: "app-two", Id: 2},
 				{Name: "app-three", Id: 3},
@@ -1648,7 +1649,7 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 			Organization: fly.Organization{
 				Slug: "test-org",
 			},
-			AttachedApps: []mpgv1.AttachedApp{
+			AttachedApps: []mpg.AttachedApp{
 				{Name: "web-app", Id: 100},
 				{Name: "api-app", Id: 101},
 			},
@@ -1662,7 +1663,7 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 			Organization: fly.Organization{
 				Slug: "test-org",
 			},
-			AttachedApps: []mpgv1.AttachedApp{}, // No attached apps
+			AttachedApps: []mpg.AttachedApp{}, // No attached apps
 		},
 	}
 

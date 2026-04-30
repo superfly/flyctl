@@ -8,7 +8,7 @@ import (
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpg "github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newList() *cobra.Command {
@@ -42,11 +42,12 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
+	// TODO: Move out of cmdv1 and list all across v1 and v2
 	return cmdv1.RunList(ctx, org.Slug)
 }
 
 // formatAttachedApps formats the list of attached apps for display.
 // Delegates to the v1 implementation.
-func formatAttachedApps(apps []mpgv1.AttachedApp) string {
+func formatAttachedApps(apps []mpg.AttachedApp) string {
 	return cmdv1.FormatAttachedApps(apps)
 }

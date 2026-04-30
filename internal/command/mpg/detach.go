@@ -8,8 +8,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -69,5 +71,9 @@ func runDetach(ctx context.Context) error {
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
 
-	return cmdv1.RunDetach(ctx, cluster.Id, appName)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDetach(ctx, cluster.Id, appName)
+	}
+
+	return cmdv2.RunDetach(ctx, cluster.Id, appName)
 }
