@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -89,12 +90,14 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 
 			continue
 		}
+		relDir = filepath.ToSlash(relDir)
 		relFile, err := filepath.Rel(root, gitIgnore)
 		if err != nil {
 			terminal.Debugf("error finding relative file of %s relative to root %s: %v\n", gitIgnore, root, err)
 
 			continue
 		}
+		relFile = filepath.ToSlash(relFile)
 
 		headerWritten := false
 		scanner := bufio.NewScanner(gitF)
@@ -118,13 +121,13 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 			} else if strings.HasPrefix(line, "#") {
 				dockerIgnoreLine = line
 			} else if strings.HasPrefix(line, "!/") {
-				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, line[2:]))
+				dockerIgnoreLine = fmt.Sprintf("!%s", path.Join(relDir, line[2:]))
 			} else if strings.HasPrefix(line, "!") {
-				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, "**", line[1:]))
+				dockerIgnoreLine = fmt.Sprintf("!%s", path.Join(relDir, "**", line[1:]))
 			} else if strings.HasPrefix(line, "/") {
-				dockerIgnoreLine = filepath.Join(relDir, line[1:])
+				dockerIgnoreLine = path.Join(relDir, line[1:])
 			} else {
-				dockerIgnoreLine = filepath.Join(relDir, "**", line)
+				dockerIgnoreLine = path.Join(relDir, "**", line)
 			}
 			if strings.Contains(dockerIgnoreLine, "fly.toml") {
 				foundFlyDotToml = true
