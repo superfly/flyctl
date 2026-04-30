@@ -39,6 +39,7 @@ Organization admins can also invite or remove users from Organizations.
 		newCreate(),
 		newDelete(),
 		newReplaySources(),
+		newCrossNetworkReplays(),
 	)
 
 	return orgs

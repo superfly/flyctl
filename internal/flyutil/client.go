@@ -78,6 +78,8 @@ type Client interface {
 	GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error)
 	AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error)
 	RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error)
+	GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error)
+	SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error)
 	GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
 	GetWireGuardPeer(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeers(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
