@@ -21,7 +21,7 @@ func newProxy() (cmd *cobra.Command) {
 		usage = "proxy <CLUSTER ID>"
 	)
 
-	cmd = command.New(usage, short, long, runProxy, command.RequireSession)
+	cmd = command.New(usage, short, long, runProxy, command.RequireSession, requireMacaroonToken)
 
 	flag.Add(cmd,
 		flag.String{
