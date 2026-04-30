@@ -25,6 +25,7 @@ import (
 type WaitOptions struct {
 	allowInfinite bool
 	justCreated   bool
+	version       string
 }
 
 type WaitOption func(*WaitOptions)
@@ -38,6 +39,16 @@ func WithAllowInfinite(allow bool) WaitOption {
 func WithJustCreated() WaitOption {
 	return func(opts *WaitOptions) {
 		opts.justCreated = true
+	}
+}
+
+// WithVersion filters the wait to a specific machine instance ID. When set,
+// Flaps signals success only when that exact version of the machine reaches
+// the desired state — not when a previous version is still running because
+// Flaps gave up on an update and reverted.
+func WithVersion(version string) WaitOption {
+	return func(opts *WaitOptions) {
+		opts.version = version
 	}
 }
 
@@ -240,8 +251,15 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	if lm.showLogs {
 		lm.logStatusWaiting(ctx, desiredState)
 	}
+	flapsOpts := []flaps.WaitOption{
+		flaps.WithWaitStates(desiredState),
+		flaps.WithWaitTimeout(timeout),
+	}
+	if options.version != "" {
+		flapsOpts = append(flapsOpts, flaps.WithWaitVersion(options.version))
+	}
 	for {
-		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
+		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flapsOpts...)
 		notFoundResponse := false
 		if err != nil {
 			var flapsErr *flaps.FlapsError

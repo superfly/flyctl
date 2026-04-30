@@ -194,7 +194,7 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	}
 
 	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
+		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated(), machine.WithVersion(lm.Machine().InstanceID)); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 
 			return err

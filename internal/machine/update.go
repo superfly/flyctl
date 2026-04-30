@@ -98,7 +98,7 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		waitTimeout = time.Duration(input.Timeout) * time.Second
 	}
 
-	state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout)
+	state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout, WithVersion(updatedMachine.InstanceID))
 	if err != nil {
 		return fmt.Errorf("error while waiting for machine to update: %w", err)
 	}
