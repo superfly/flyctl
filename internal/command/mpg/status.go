@@ -20,6 +20,7 @@ func newStatus() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runStatus,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)

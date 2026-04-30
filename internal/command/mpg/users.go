@@ -39,6 +39,7 @@ func newUsersList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersList,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -72,6 +73,7 @@ func newUsersCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersCreate,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -116,6 +118,7 @@ func newUsersSetRole() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersSetRole,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Aliases = []string{"update-role"}
@@ -160,6 +163,7 @@ func newUsersDelete() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersDelete,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Aliases = []string{"remove", "rm", "del"}
