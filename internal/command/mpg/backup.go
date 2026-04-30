@@ -37,6 +37,7 @@ func newBackupList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runBackupList,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -77,6 +78,7 @@ func newBackupCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runBackupCreate,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -104,5 +106,5 @@ func runBackupCreate(ctx context.Context) error {
 		return cmdv1.RunBackupCreate(ctx, cluster.Id)
 	}
 
-	return cmdv2.RunBackupCreate(ctx, clusterID)
+	return cmdv2.RunBackupCreate(ctx, cluster.Id)
 }

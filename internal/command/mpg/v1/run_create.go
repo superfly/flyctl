@@ -6,6 +6,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/superfly/fly-go"
+	regionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -27,13 +31,56 @@ type CreatePlanDisplay struct {
 	PricePerMo int
 }
 
-func RunCreate(ctx context.Context, params *CreateClusterParams, planDisplay *CreatePlanDisplay) error {
+func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterParams, planDisplay *CreatePlanDisplay) error {
 	io := iostreams.FromContext(ctx)
 	mpgClient := mpgv1.ClientFromContext(ctx)
 
+	// Get available MPG regions from API
+	mpgRegions, err := regionsv1.GetAvailableMPGRegions(ctx, orgRawSlug)
+	if err != nil {
+		return err
+	}
+
+	if len(mpgRegions) == 0 {
+		return fmt.Errorf("no valid regions found for Managed Postgres")
+	}
+
+	// Check if region was specified via flag
+	regionCode := flag.GetString(ctx, "region")
+	var selectedRegion *fly.Region
+
+	if regionCode != "" {
+		// Find the specified region in the allowed regions
+		for _, region := range mpgRegions {
+			if region.Code == regionCode {
+				selectedRegion = &region
+
+				break
+			}
+		}
+		if selectedRegion == nil {
+			availableCodes, _ := regionsv1.GetAvailableMPGRegionCodes(ctx, params.OrgSlug)
+
+			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
+		}
+	} else {
+		// Create region options for prompt
+		var regionOptions []string
+		for _, region := range mpgRegions {
+			regionOptions = append(regionOptions, fmt.Sprintf("%s (%s)", region.Name, region.Code))
+		}
+
+		var selectedIndex int
+		if err := prompt.Select(ctx, &selectedIndex, "Select a region for your Managed Postgres cluster", "", regionOptions...); err != nil {
+			return err
+		}
+
+		selectedRegion = &mpgRegions[selectedIndex]
+	}
+
 	input := mpgv1.CreateClusterInput{
 		Name:           params.Name,
-		Region:         params.Region,
+		Region:         selectedRegion.Code,
 		Plan:           params.Plan,
 		OrgSlug:        params.OrgSlug,
 		Disk:           params.VolumeSizeGB,
@@ -91,7 +138,7 @@ func RunCreate(ctx context.Context, params *CreateClusterParams, planDisplay *Cr
 	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
 	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
-	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
+	fmt.Fprintf(io.Out, "  Region: %s\n", selectedRegion.Code)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
 	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)

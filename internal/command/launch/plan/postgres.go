@@ -6,6 +6,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/mpg"
+	mpgregionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -69,7 +70,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
 	if err == nil && mpgEnabled {
 		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
-		validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+		validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 		if isInteractive {
 			if err == nil && validRegion {
 				// Managed postgres is available in this region, use it
@@ -149,7 +150,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+	validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -163,7 +164,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, orgSlug)
+		availableCodes, _ := mpgregionsv1.GetAvailableMPGRegionCodes(ctx, orgSlug)
 
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
@@ -174,7 +175,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, orgSlug)
+	availableRegions, err := mpgregionsv1.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			colorize := io.ColorScheme()
