@@ -5,11 +5,14 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/iostreams"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
+	"github.com/superfly/flyctl/iostreams"
 )
 
+// Copied from v1 RunDatabasesList and changed client to mpgv2
 func RunDatabasesList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
@@ -40,6 +43,39 @@ func RunDatabasesList(ctx context.Context, clusterID string) error {
 	return render.Table(out, "", rows, "Name")
 }
 
+// Copied from v1 RunDatabasesCreate and changed client to mpgv2
 func RunDatabasesCreate(ctx context.Context, clusterID string) error {
+	out := iostreams.FromContext(ctx).Out
+	mpgClient := mpgv2.ClientFromContext(ctx)
+
+	dbName := flag.GetString(ctx, "name")
+	if dbName == "" {
+		io := iostreams.FromContext(ctx)
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("database name must be specified with --name flag when not running interactively")
+		}
+		err := prompt.String(ctx, &dbName, "Enter database name:", "", true)
+		if err != nil {
+			return err
+		}
+		if dbName == "" {
+			return fmt.Errorf("database name cannot be empty")
+		}
+	}
+
+	fmt.Fprintf(out, "Creating database %s in cluster %s...\n", dbName, clusterID)
+
+	input := mpgv2.CreateDatabaseInput{
+		Name: dbName,
+	}
+
+	response, err := mpgClient.CreateDatabase(ctx, clusterID, input)
+	if err != nil {
+		return fmt.Errorf("failed to create database: %w", err)
+	}
+
+	fmt.Fprintf(out, "Database created successfully!\n")
+	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
+
 	return nil
 }
