@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -39,6 +40,11 @@ func newCreate() *cobra.Command {
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "The name of your Postgres cluster",
+		},
+		flag.Bool{
+			Name:        "v2",
+			Description: "Create a Postgres cluster deployed on the V2 platform",
+			Default:     false,
 		},
 		flag.String{
 			Name:        "plan",
@@ -90,6 +96,11 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
+	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
+	if pgMajorVersion != 16 && pgMajorVersion != 17 {
+		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
+	}
+
 	// Get available MPG regions from API
 	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
 	if err != nil {
@@ -98,11 +109,6 @@ func runCreate(ctx context.Context) error {
 
 	if len(mpgRegions) == 0 {
 		return fmt.Errorf("no valid regions found for Managed Postgres")
-	}
-
-	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
-	if pgMajorVersion != 16 && pgMajorVersion != 17 {
-		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
 	}
 
 	// Check if region was specified via flag
@@ -186,6 +192,27 @@ func runCreate(ctx context.Context) error {
 		slug = fullOrg.Organization.RawSlug
 	} else {
 		slug = org.Slug
+	}
+
+	if flag.GetBool(ctx, "v2") {
+		params := &cmdv2.CreateClusterParams{
+			Name:           appName,
+			OrgSlug:        slug,
+			Plan:           plan,
+			Region:         selectedRegion.Code,
+			PGMajorVersion: pgMajorVersion,
+			StorageInGb:    flag.GetInt(ctx, "volume-size"),
+			PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+		}
+
+		planDetails := MPGPlans[plan]
+
+		return cmdv2.RunCreate(ctx, params, &cmdv2.CreatePlanDisplay{
+			Name:       planDetails.Name,
+			CPU:        planDetails.CPU,
+			Memory:     planDetails.Memory,
+			PricePerMo: planDetails.PricePerMo,
+		})
 	}
 
 	params := &cmdv1.CreateClusterParams{
