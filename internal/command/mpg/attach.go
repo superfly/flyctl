@@ -27,6 +27,7 @@ func newAttach() *cobra.Command {
 	cmd := command.New(usage, short, long, runAttach,
 		command.RequireSession,
 		command.RequireAppName,
+		requireMacaroonToken,
 	)
 	// cmd.Args = cobra.ExactArgs(1)
 	cmd.Args = cobra.MaximumNArgs(1)
