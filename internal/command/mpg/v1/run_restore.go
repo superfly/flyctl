@@ -4,19 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/internal/flag"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func RunRestore(ctx context.Context, clusterID string) error {
+func RunRestore(ctx context.Context, clusterID string, backupID string) error {
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv1.ClientFromContext(ctx)
-
-	backupID := flag.GetString(ctx, "backup-id")
-	if backupID == "" {
-		return fmt.Errorf("--backup-id flag is required")
-	}
 
 	fmt.Fprintf(out, "Restoring cluster %s from backup %s...\n", clusterID, backupID)
 

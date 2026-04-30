@@ -6,15 +6,13 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/proxy"
 )
 
-func RunProxy(ctx context.Context, clusterID string, resolvedOrgSlug string) error {
-	localProxyPort := flag.GetString(ctx, flagnames.LocalPort)
-	_, params, _, err := GetMpgProxyParams(ctx, localProxyPort, "", clusterID, resolvedOrgSlug)
+func RunProxy(ctx context.Context, clusterID string, resolvedOrgSlug string, proxyPort string) error {
+	_, params, _, err := GetMpgProxyParams(ctx, proxyPort, "", clusterID, resolvedOrgSlug)
 	if err != nil {
 		return err
 	}
