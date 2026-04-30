@@ -6,7 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newBackup() *cobra.Command {
@@ -54,16 +56,16 @@ func newBackupList() *cobra.Command {
 
 func runBackupList(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunBackupList(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunBackupList(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunBackupList(ctx, cluster.Id)
 }
 
 func newBackupCreate() *cobra.Command {
@@ -92,14 +94,15 @@ func newBackupCreate() *cobra.Command {
 
 func runBackupCreate(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
 
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunBackupCreate(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunBackupCreate(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunBackupCreate(ctx, clusterID)
 }

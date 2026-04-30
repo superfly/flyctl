@@ -12,7 +12,9 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	// mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 )
 
 // RegionProvider interface for getting platform regions
@@ -104,8 +106,30 @@ func New() *cobra.Command {
 // otherwise it prompts the user to select a cluster from the available ones for
 // the given organization.
 // It prompts for the org if the org slug is not provided.
-func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mpgv1.ManagedCluster, string, error) {
-	mpgClient := mpgv1.ClientFromContext(ctx)
+func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mpg.Cluster, string, error) {
+	// TODO: If a cluster ID is provided, fetch the cluster directly
+	mpgv1Client := mpgv1.ClientFromContext(ctx)
+	// mpgv2Client := mpgv2.ClientFromContext(ctx)
+
+	if c, err := mpgv1Client.GetManagedClusterById(ctx, clusterID); err == nil {
+		cluster := &mpg.Cluster{
+			Id:            c.Data.Id,
+			Name:          c.Data.Name,
+			Region:        c.Data.Region,
+			Status:        c.Data.Status,
+			Plan:          c.Data.Plan,
+			Disk:          c.Data.Disk,
+			Replicas:      c.Data.Replicas,
+			Organization:  c.Data.Organization,
+			IpAssignments: c.Data.IpAssignments,
+			AttachedApps:  c.Data.AttachedApps,
+			Version:       mpg.VersionV1,
+		}
+		return cluster, cluster.Organization.Slug, nil
+
+	} else {
+		// TODO: Try get a v2 cluster
+	}
 
 	if orgSlug == "" {
 		org, err := prompt.Org(ctx)
@@ -116,44 +140,93 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 		orgSlug = org.RawSlug
 	}
 
-	clustersResponse, err := mpgClient.ListManagedClusters(ctx, orgSlug, false)
+	// Fetch V1 clusters
+	clustersV1, err := mpgv1Client.ListManagedClusters(ctx, orgSlug, false)
 	if err != nil {
 		return nil, orgSlug, fmt.Errorf("failed retrieving postgres clusters: %w", err)
 	}
 
-	if len(clustersResponse.Data) == 0 {
+	// Fetch V2 clusters
+	// clustersV2, err := mpgv2Client.ListManagedClusters(ctx, orgSlug, false)
+	// if err != nil {
+	// 	return nil, orgSlug, fmt.Errorf("failed retrieving postgres clusters: %w", err)
+	// }
+
+	// if len(clustersV1.Data) == 0 && len(clustersV2.Data) == 0 {
+	// 	return nil, orgSlug, fmt.Errorf("no managed postgres clusters found in organization %s", orgSlug)
+	// }
+
+	if len(clustersV1.Data) == 0 {
 		return nil, orgSlug, fmt.Errorf("no managed postgres clusters found in organization %s", orgSlug)
 	}
 
+	// clusters := slices.Concat(clustersV1.Data, clustersV2.Data)
+	clusters := make([]*mpg.Cluster, 0, len(clustersV1.Data))
+	for _, cluster := range clustersV1.Data {
+		version := mpg.VersionV1
+		if cluster.Version == 2 {
+			version = mpg.VersionV2
+		}
+		v2ClusterID := ""
+		if cluster.Version == 2 {
+			v2ClusterID = cluster.V2ClusterID
+		}
+		clusters = append(clusters, &mpg.Cluster{
+			Id:           cluster.Id,
+			Name:         cluster.Name,
+			Region:       cluster.Region,
+			Status:       cluster.Status,
+			Plan:         cluster.Plan,
+			Disk:         cluster.Disk,
+			Replicas:     cluster.Replicas,
+			Organization: cluster.Organization,
+			Version:      version,
+			V2ClusterID:  v2ClusterID,
+		})
+	}
+	// for _, cluster := range clustersV2.Data {
+	// 	clusters = append(clusters, &mpg.Cluster{
+	// 		Id:           cluster.Id,
+	// 		Name:         cluster.Name,
+	// 		Region:       cluster.Region,
+	// 		Status:       cluster.Status,
+	// 		Plan:         cluster.Plan,
+	// 		Disk:         cluster.Disk,
+	// 		Replicas:     cluster.Replicas,
+	// 		Organization: cluster.Organization,
+	// 		Version:      mpg.VersionV2,
+	// 	})
+	// }
+
+	// If a cluster ID is provided via flag, find it
 	if clusterID != "" {
-		// If a cluster ID is provided via flag, find it
-		for i := range clustersResponse.Data {
-			if clustersResponse.Data[i].Id == clusterID {
-				return &clustersResponse.Data[i], orgSlug, nil
+		for _, cluster := range clusters {
+			if cluster.Id == clusterID {
+				return cluster, orgSlug, nil
 			}
 		}
 
 		return nil, orgSlug, fmt.Errorf("managed postgres cluster %q not found in organization %s", clusterID, orgSlug)
-	} else {
-		// Otherwise, prompt the user to select a cluster
-		var options []string
-		for _, cluster := range clustersResponse.Data {
-			options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
-		}
-
-		var index int
-		selectErr := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...)
-		if selectErr != nil {
-			return nil, orgSlug, selectErr
-		}
-
-		return &clustersResponse.Data[index], orgSlug, nil
 	}
+
+	// Otherwise, prompt the user to select a cluster
+	var options []string
+	for _, cluster := range clusters {
+		options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
+	}
+
+	var index int
+	selectErr := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...)
+	if selectErr != nil {
+		return nil, orgSlug, selectErr
+	}
+
+	return clusters[index], orgSlug, nil
 }
 
 // ClusterFromFlagOrSelect retrieves the cluster ID from the --cluster flag.
 // If the flag is not set, it prompts the user to select a cluster from the available ones for the given organization.
-func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*mpgv1.ManagedCluster, error) {
+func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*mpg.Cluster, error) {
 	clusterID := flag.GetMPGClusterID(ctx)
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, orgSlug)
 

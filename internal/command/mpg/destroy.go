@@ -6,7 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newDestroy() *cobra.Command {
@@ -32,7 +34,15 @@ This action is not reversible.`
 }
 
 func runDestroy(ctx context.Context) error {
-	clusterId := flag.FirstArg(ctx)
+	clusterID := flag.FirstArg(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
+	}
 
-	return cmdv1.RunDestroy(ctx, clusterId)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDestroy(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunDestroy(ctx, cluster.Id)
 }
