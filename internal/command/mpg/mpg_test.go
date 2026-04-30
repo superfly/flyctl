@@ -1553,7 +1553,7 @@ func TestFormatAttachedApps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatAttachedApps(tt.apps)
+			result := FormatAttachedApps(tt.apps)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1690,13 +1690,13 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 	assert.Equal(t, "api-app", clusters.Data[0].AttachedApps[1].Name)
 
 	// Verify attached apps formatting for first cluster
-	formattedApps := formatAttachedApps(clusters.Data[0].AttachedApps)
+	formattedApps := FormatAttachedApps(clusters.Data[0].AttachedApps)
 	assert.Equal(t, "web-app, api-app", formattedApps)
 
 	// Verify second cluster has no attached apps
 	assert.Len(t, clusters.Data[1].AttachedApps, 0)
 
 	// Verify attached apps formatting for second cluster (empty)
-	formattedApps = formatAttachedApps(clusters.Data[1].AttachedApps)
+	formattedApps = FormatAttachedApps(clusters.Data[1].AttachedApps)
 	assert.Equal(t, "<no attached apps>", formattedApps)
 }

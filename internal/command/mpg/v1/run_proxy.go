@@ -22,7 +22,13 @@ func RunProxy(ctx context.Context, clusterID string, resolvedOrgSlug string, pro
 
 // GetMpgProxyParams builds proxy connection parameters for a given cluster.
 // resolvedOrgSlug should already be the aliased slug suitable for wireguard tunnels.
-func GetMpgProxyParams(ctx context.Context, localProxyPort string, username string, clusterID string, resolvedOrgSlug string) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
+func GetMpgProxyParams(
+	ctx context.Context,
+	localProxyPort string,
+	username string,
+	clusterID string,
+	resolvedOrgSlug string,
+) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
 	client := flyutil.ClientFromContext(ctx)
 	mpgClient := mpgv1.ClientFromContext(ctx)
 

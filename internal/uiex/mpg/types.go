@@ -1,6 +1,8 @@
 package mpg
 
-import "github.com/superfly/fly-go"
+import (
+	"github.com/superfly/fly-go"
+)
 
 type Version int
 
@@ -9,21 +11,20 @@ const (
 	VersionV2
 )
 
-// Unified cluster type that holds fields that are common
-// across V1 and V2
+// Unified type for v1 and v2 MPG clusters
 type Cluster struct {
-	Id            string                      `json:"id"`
-	Name          string                      `json:"name"`
-	Region        string                      `json:"region"`
-	Status        string                      `json:"status"`
-	Plan          string                      `json:"plan"`
-	Disk          int                         `json:"disk"`
-	Replicas      int                         `json:"replicas"`
-	Organization  fly.Organization            `json:"organization"`
-	IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
-	AttachedApps  []AttachedApp               `json:"attached_apps"`
-	Version       Version                     `json:"version"`
-	V2ClusterID   string                      `json:"v2_cluster_id"`
+	Id            string
+	ClusterId     string
+	Name          string
+	Region        string
+	Status        string
+	Plan          string
+	Disk          int
+	Replicas      int
+	Organization  fly.Organization
+	IpAssignments ManagedClusterIpAssignments
+	AttachedApps  []AttachedApp
+	Version       Version
 }
 
 type ManagedClusterIpAssignments struct {

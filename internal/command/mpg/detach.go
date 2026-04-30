@@ -27,6 +27,7 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 	cmd := command.New(usage, short, long, runDetach,
 		command.RequireSession,
 		command.RequireAppName,
+		requireMacaroonToken,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
