@@ -15,10 +15,12 @@ type contextKey struct{}
 var clientContextKey = &contextKey{}
 
 type ClientV1 interface {
-	ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error)
+	// List clusters. NOTE: Odd but the v1 client endpoint returns both v1 and v2 clusters,
+	// they are just identified with the `Version` field being 1 or 2.
 	ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (ListManagedClustersResponse, error)
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (GetManagedClusterResponse, error)
+	ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error)
 	CreateUser(ctx context.Context, id string, input CreateUserInput) (CreateUserResponse, error)
 	CreateUserWithRole(ctx context.Context, id string, input CreateUserWithRoleInput) (CreateUserWithRoleResponse, error)
 	UpdateUserRole(ctx context.Context, id string, username string, input UpdateUserRoleInput) (UpdateUserRoleResponse, error)
@@ -71,6 +73,38 @@ func ClientFromContext(ctx context.Context) ClientV1 {
 	return c
 }
 
+type ManagedCluster struct {
+	Id            string                          `json:"id"`
+	ClusterId     string                          `json:"mpgd_cluster_id"`
+	Version       int                             `json:"version"`
+	Name          string                          `json:"name"`
+	Region        string                          `json:"region"`
+	Status        string                          `json:"status"`
+	Plan          string                          `json:"plan"`
+	Disk          int                             `json:"disk"`
+	Replicas      int                             `json:"replicas"`
+	Organization  fly.Organization                `json:"organization"`
+	IpAssignments mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+	AttachedApps  []mpg.AttachedApp               `json:"attached_apps"`
+}
+
+type ListManagedClustersResponse struct {
+	Data []ManagedCluster `json:"data"`
+}
+
+type GetManagedClusterCredentialsResponse struct {
+	Status        string `json:"status"`
+	User          string `json:"user"`
+	Password      string `json:"password"`
+	DBName        string `json:"dbname"`
+	ConnectionUri string `json:"pgbouncer_uri"`
+}
+
+type GetManagedClusterResponse struct {
+	Data        ManagedCluster                       `json:"data"`
+	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
+}
+
 type MPGRegion struct {
 	Code      string `json:"code"`      // e.g., "fra"
 	Available bool   `json:"available"` // Whether this region supports MPG
@@ -108,43 +142,11 @@ type RestoreManagedClusterBackupResponse struct {
 	Data ManagedCluster `json:"data"`
 }
 
-type ManagedCluster struct {
-	Id            string                          `json:"id"`
-	Name          string                          `json:"name"`
-	Region        string                          `json:"region"`
-	Status        string                          `json:"status"`
-	Plan          string                          `json:"plan"`
-	Disk          int                             `json:"disk"`
-	Replicas      int                             `json:"replicas"`
-	Organization  fly.Organization                `json:"organization"`
-	IpAssignments mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
-	AttachedApps  []mpg.AttachedApp               `json:"attached_apps"`
-	Version       int                             `json:"version"`
-	V2ClusterID   string                          `json:"v2_cluster_id"`
-}
-
-type ListManagedClustersResponse struct {
-	Data []ManagedCluster `json:"data"`
-}
-
-type GetManagedClusterCredentialsResponse struct {
-	Status        string `json:"status"`
-	User          string `json:"user"`
-	Password      string `json:"password"`
-	DBName        string `json:"dbname"`
-	ConnectionUri string `json:"pgbouncer_uri"`
-}
-
 type GetUserCredentialsResponse struct {
 	Data struct {
 		User     string `json:"user"`
 		Password string `json:"password"`
 	} `json:"data"`
-}
-
-type GetManagedClusterResponse struct {
-	Data        ManagedCluster                       `json:"data"`
-	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
 }
 
 type CreateUserInput struct {
