@@ -340,6 +340,14 @@ func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug stri
 	panic("TODO")
 }
 
+func (m *Client) GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error) {
+	panic("TODO")
+}
+
+func (m *Client) SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error) {
 	panic("TODO")
 }
