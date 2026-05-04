@@ -30,6 +30,7 @@ var exitEventReadTimeout = 30 * time.Second
 type WaitOptions struct {
 	allowInfinite bool
 	justCreated   bool
+	version       string
 }
 
 type WaitOption func(*WaitOptions)
@@ -43,6 +44,12 @@ func WithAllowInfinite(allow bool) WaitOption {
 func WithJustCreated() WaitOption {
 	return func(opts *WaitOptions) {
 		opts.justCreated = true
+	}
+}
+
+func WithVersion(version string) WaitOption {
+	return func(opts *WaitOptions) {
+		opts.version = version
 	}
 }
 
@@ -206,12 +213,12 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	return nil
 }
 
-// resolveTimeoutContext returns a context that will timeout, with the possibility of an untimed context on time=0 if
+// ResolveWaitTimeoutContext returns a context that will timeout, with the possibility of an untimed context on time=0 if
 // the flag allowInfinite is set to true.
-func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfinite bool) (context.Context, context.CancelFunc, time.Duration) {
+func ResolveWaitTimeoutContext(ctx context.Context, timeout time.Duration, allowInfinite bool) (context.Context, context.CancelFunc, time.Duration) {
 	// This situation is a bug, so we'll just go with vaguely normal behavior.
 	if !allowInfinite && timeout == 0 {
-		terminal.Warnf("resolveTimeoutContext: allowInfinite is false and timeout is 0, setting timeout to 2 minutes\n")
+		terminal.Warnf("ResolveWaitTimeoutContext: allowInfinite is false and timeout is 0, setting timeout to 2 minutes\n")
 		timeout = 2 * time.Minute
 	}
 	if timeout != 0 {
@@ -233,7 +240,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		opt(options)
 	}
 
-	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, options.allowInfinite)
+	waitCtx, cancel, timeout := ResolveWaitTimeoutContext(ctx, timeout, options.allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
 	defer func() { tracing.RecordCancellation(waitCtx, trace.SpanFromContext(waitCtx)) }()
@@ -246,11 +253,15 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	if lm.showLogs {
 		lm.logStatusWaiting(ctx, desiredState)
 	}
+	waitOpts := []flaps.WaitOption{flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout)}
+	if options.version != "" {
+		waitOpts = append(waitOpts, flaps.WithWaitVersion(options.version))
+	}
 	for {
 		// The API long-polls for at most a minute. Allow time for the response,
 		// then retry a stalled read within the caller's original wait budget.
 		readCtx, cancelRead := context.WithTimeout(waitCtx, 70*time.Second)
-		err := lm.flapsClient.Wait(readCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
+		err := lm.flapsClient.Wait(readCtx, lm.appName, lm.Machine().ID, waitOpts...)
 		cancelRead()
 		notFoundResponse := isNotFoundErr(err)
 		switch {
@@ -264,6 +275,8 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			}
 		case notFoundResponse && desiredState == fly.MachineStateDestroyed:
 			// We're waiting for destroyed state and the machine no longer exists - success
+		case options.version != "" && isTerminalVersionWaitError(err):
+			return err
 		case notFoundResponse && options.justCreated:
 			// Machine not found but we just created it - retry with backoff (it may not be visible yet)
 			select {
@@ -485,7 +498,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 }
 
 func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType string, timeout time.Duration, allowInfinite bool) (*fly.MachineEvent, error) {
-	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel, _ := ResolveWaitTimeoutContext(ctx, timeout, allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
 	b := &backoff.Backoff{
@@ -531,7 +544,7 @@ func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType strin
 
 // waits for an eventType1 type event to show up after we see a eventType2 event, and returns it
 func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration, allowInfinite bool) (*fly.MachineEvent, error) {
-	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel, _ := ResolveWaitTimeoutContext(ctx, timeout, allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
 	b := &backoff.Backoff{

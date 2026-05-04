@@ -46,6 +46,8 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 	lm machine.LeasableMachine,
 	launchBasisState string,
 	timeout time.Duration,
+	previous *fly.Machine,
+	opts ...machine.WaitOption,
 ) (preserved bool, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_machine_state")
 	defer func() {
@@ -53,8 +55,9 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 		span.End()
 	}()
 
+	opts = append(opts, machine.WithJustCreated())
 	if !supportsPreservedStoppedUpdate(md.strategy, launchBasisState) {
-		return false, lm.WaitForState(ctx, fly.MachineStateStarted, timeout, machine.WithJustCreated())
+		return false, lm.WaitForState(ctx, fly.MachineStateStarted, timeout, opts...)
 	}
 
 	waitCtx, cancel := context.WithCancelCause(ctx)
@@ -62,12 +65,12 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 
 	startedResult := make(chan error, 1)
 	go func() {
-		startedResult <- lm.WaitForState(waitCtx, fly.MachineStateStarted, timeout, machine.WithJustCreated())
+		startedResult <- lm.WaitForState(waitCtx, fly.MachineStateStarted, timeout, opts...)
 	}()
 
 	stoppedResult := make(chan error, 1)
 	go func() {
-		stoppedResult <- lm.WaitForState(waitCtx, fly.MachineStateStopped, timeout, machine.WithJustCreated())
+		stoppedResult <- lm.WaitForState(waitCtx, fly.MachineStateStopped, timeout, opts...)
 	}()
 
 	updated := lm.Machine()
@@ -85,8 +88,20 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 			}
 		case err := <-stoppedResult:
 			stoppedResult = nil
-			if err == nil && md.readPreservedStoppedUpdate(waitCtx, updated.ID, updated.Version) {
-				return true, nil
+			if err == nil {
+				if previous == nil {
+					if md.readPreservedStoppedUpdate(waitCtx, updated.ID, updated.Version) {
+						return true, nil
+					}
+				} else {
+					current, err := machine.VerifyUpdateApplied(waitCtx, md.flapsClient, md.app.Name, previous, updated, nil)
+					if err != nil {
+						return false, err
+					}
+					if isPreservedStoppedUpdate(current, updated.Version) {
+						return true, nil
+					}
+				}
 			}
 			if startedResult == nil {
 				return false, startedErr
