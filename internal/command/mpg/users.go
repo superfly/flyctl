@@ -6,7 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newUsers() *cobra.Command {
@@ -37,6 +39,7 @@ func newUsersList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersList,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -49,16 +52,16 @@ func newUsersList() *cobra.Command {
 
 func runUsersList(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunUsersList(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunUsersList(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunUsersList(ctx, cluster.Id)
 }
 
 func newUsersCreate() *cobra.Command {
@@ -70,6 +73,7 @@ func newUsersCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersCreate,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -92,16 +96,17 @@ func newUsersCreate() *cobra.Command {
 
 func runUsersCreate(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunUsersCreate(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunUsersCreate(ctx, cluster.Id)
+
+	}
+
+	return cmdv2.RunUsersCreate(ctx, cluster.Id)
 }
 
 func newUsersSetRole() *cobra.Command {
@@ -113,6 +118,7 @@ func newUsersSetRole() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersSetRole,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Aliases = []string{"update-role"}
@@ -136,16 +142,16 @@ func newUsersSetRole() *cobra.Command {
 
 func runUsersSetRole(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunUsersSetRole(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunUsersSetRole(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunUsersSetRole(ctx, cluster.Id)
 }
 
 func newUsersDelete() *cobra.Command {
@@ -157,6 +163,7 @@ func newUsersDelete() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUsersDelete,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Aliases = []string{"remove", "rm", "del"}
@@ -176,14 +183,14 @@ func newUsersDelete() *cobra.Command {
 
 func runUsersDelete(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunUsersDelete(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunUsersDelete(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunUsersDelete(ctx, cluster.Id)
 }

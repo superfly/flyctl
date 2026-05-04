@@ -1,24 +1,24 @@
-package cmdv1
+package cmdv2
 
 import (
 	"context"
 	"fmt"
 
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func RunRestore(ctx context.Context, clusterID string, backupID string) error {
 	out := iostreams.FromContext(ctx).Out
-	mpgClient := mpgv1.ClientFromContext(ctx)
+	mpgClient := mpgv2.ClientFromContext(ctx)
 
 	fmt.Fprintf(out, "Restoring cluster %s from backup %s...\n", clusterID, backupID)
 
-	input := mpgv1.RestoreManagedClusterBackupInput{
+	input := mpgv2.RestoreClusterBackupInput{
 		BackupId: backupID,
 	}
 
-	response, err := mpgClient.RestoreManagedClusterBackup(ctx, clusterID, input)
+	response, err := mpgClient.RestoreClusterBackup(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to restore backup: %w", err)
 	}
