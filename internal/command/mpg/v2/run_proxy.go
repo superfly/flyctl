@@ -1,4 +1,4 @@
-package cmdv1
+package cmdv2
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/proxy"
 )
 
@@ -28,12 +28,12 @@ func GetMpgProxyParams(
 	username string,
 	clusterID string,
 	resolvedOrgSlug string,
-) (*mpgv1.ManagedCluster, *proxy.ConnectParams, *mpgv1.GetManagedClusterCredentialsResponse, error) {
+) (*mpgv2.ManagedCluster, *proxy.ConnectParams, *mpgv2.GetClusterCredentialsResponse, error) {
 	client := flyutil.ClientFromContext(ctx)
-	mpgClient := mpgv1.ClientFromContext(ctx)
+	mpgClient := mpgv2.ClientFromContext(ctx)
 
 	// Get cluster details
-	response, err := mpgClient.GetManagedClusterById(ctx, clusterID)
+	response, err := mpgClient.GetClusterById(ctx, clusterID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
@@ -41,14 +41,14 @@ func GetMpgProxyParams(
 	cluster := &response.Data
 
 	// Get credentials - use user-specific endpoint if username provided, otherwise use default
-	var credentials mpgv1.GetManagedClusterCredentialsResponse
+	var credentials mpgv2.GetClusterCredentialsResponse
 	if username != "" {
 		userCreds, err := mpgClient.GetUserCredentials(ctx, cluster.Id, username)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
 		// Convert user credentials to the standard format
-		credentials = mpgv1.GetManagedClusterCredentialsResponse{
+		credentials = mpgv2.GetClusterCredentialsResponse{
 			User:     userCreds.Data.User,
 			Password: userCreds.Data.Password,
 			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials
