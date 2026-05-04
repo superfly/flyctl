@@ -599,6 +599,14 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 			return err
 		}
+
+		var previousInstanceID string
+		if oldMachine != nil {
+			previousInstanceID = oldMachine.InstanceID
+		}
+		if _, err := mach.VerifyUpdateApplied(ctx, md.app.Name, machine.ID, machine.InstanceID, previousInstanceID); err != nil {
+			return err
+		}
 	}
 
 	if !shouldStart {
