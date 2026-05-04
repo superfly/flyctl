@@ -2,12 +2,15 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/watch"
@@ -101,24 +104,16 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		waitTimeout = time.Duration(input.Timeout) * time.Second
 	}
 
-	state, err := tracing.WorkflowStep(ctx, "wait_for_update", func(ctx context.Context) (string, error) {
-		state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout)
-		if err != nil {
-			return state, fmt.Errorf("error while waiting for machine to update: %w", err)
-		}
-		if state == "failed" {
-			return state, fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, state)
-		}
-
-		return state, nil
+	settledMachine, err := tracing.WorkflowStep(ctx, "wait_for_update", func(ctx context.Context) (*fly.Machine, error) {
+		return waitForUpdate(ctx, appName, m, updatedMachine, waitTimeout)
 	})
 	if err != nil {
 		return err
 	}
 
-	if state == "started" && !input.SkipHealthChecks {
+	if settledMachine.State == "started" && !input.SkipHealthChecks {
 		if err := tracing.WorkflowPhase(ctx, "wait_for_health_checks", func(ctx context.Context) error {
-			return watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine})
+			return watch.MachinesChecks(ctx, appName, []*fly.Machine{settledMachine})
 		}); err != nil {
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
@@ -127,6 +122,89 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 	fmt.Fprintf(io.Out, "Machine %s updated successfully!\n", colorize.Bold(m.ID))
 
 	return nil
+}
+
+// waitForUpdate waits for the accepted update's version to settle and verifies
+// that it is still the current version.
+func waitForUpdate(ctx context.Context, appName string, previous, target *fly.Machine, timeout time.Duration) (*fly.Machine, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	_, waitErr := waitForStartOrStop(ctx, appName, target, "settled", timeout, "", target.Version)
+	current, err := VerifyUpdateApplied(ctx, flapsutil.ClientFromContext(ctx), appName, previous, target, waitErr)
+	if err != nil {
+		return nil, fmt.Errorf("error while waiting for machine to update: %w", err)
+	}
+
+	return current, nil
+}
+
+// VerifyUpdateApplied checks the current version after a successful wait or
+// when the pinned version disappeared or entered a terminal state. The caller
+// supplies the same deadline used for the state wait.
+func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appName string, previous, target *fly.Machine, waitErr error) (*fly.Machine, error) {
+	if waitErr != nil && !isTerminalVersionWaitError(waitErr) {
+		return nil, waitErr
+	}
+
+	for {
+		if err := ctx.Err(); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) && waitErr == nil {
+				return nil, fmt.Errorf("could not confirm promotion of machine %s to version %s: %w", target.ID, target.Version, err)
+			}
+			if waitErr != nil {
+				return nil, waitErr
+			}
+
+			return nil, err
+		}
+		current, err := client.Get(ctx, appName, target.ID)
+		if err != nil {
+			if waitErr != nil {
+				return nil, waitErr
+			}
+			if ctx.Err() != nil {
+				continue
+			}
+
+			return nil, fmt.Errorf("failed to get machine %s after update: %w", target.ID, err)
+		}
+		switch current.Version {
+		case target.Version:
+			if current.State == "failed" {
+				return nil, fmt.Errorf("machine %s update failed: machine entered %q state", target.ID, current.State)
+			}
+			if waitErr != nil {
+				return nil, waitErr
+			}
+
+			return current, nil
+		case previous.Version:
+			// A candidate can reach stopped before flyd promotes it. Probe the
+			// candidate's failed state because a settled wait also accepts failed.
+			if waitErr != nil {
+				if !strings.Contains(waitErr.Error(), "machine reached terminal state failed") {
+					return nil, waitErr
+				}
+			} else {
+				probeErr := client.Wait(ctx, appName, target.ID,
+					flaps.WithWaitVersion(target.Version), flaps.WithWaitStates("failed"), flaps.WithWaitTimeout(time.Second))
+				if isTerminalVersionWaitError(probeErr) {
+					return nil, probeErr
+				}
+				if probeErr != nil {
+					select {
+					case <-ctx.Done():
+					case <-time.After(200 * time.Millisecond):
+					}
+					continue
+				}
+			}
+
+			return nil, fmt.Errorf("machine %s update failed: machine remains on previous version %s (state: %s)", target.ID, current.Version, current.State)
+		default:
+			return nil, fmt.Errorf("machine %s update was superseded: expected version %s, found %s (state: %s)", target.ID, target.Version, current.Version, current.State)
+		}
+	}
 }
 
 type invalidConfigReason string
