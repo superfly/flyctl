@@ -2,11 +2,14 @@ package mpg
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newRestore() *cobra.Command {
@@ -34,14 +37,20 @@ func newRestore() *cobra.Command {
 
 func runRestore(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunRestore(ctx, clusterID)
+	backupID := flag.GetString(ctx, "backup-id")
+	if backupID == "" {
+		return fmt.Errorf("--backup-id flag is required")
+	}
+
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunRestore(ctx, cluster.Id, backupID)
+
+	}
+
+	return cmdv2.RunRestore(ctx, cluster.Id, backupID)
 }

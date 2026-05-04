@@ -8,8 +8,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -85,5 +87,9 @@ func runAttach(ctx context.Context) error {
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
 
-	return cmdv1.RunAttach(ctx, cluster.Id)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunAttach(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunAttach(ctx, cluster.Id)
 }
