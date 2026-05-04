@@ -270,7 +270,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 		}
 
 		go func(lm machine.LeasableMachine) {
-			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "start", bg.timeout)
+			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "start", bg.timeout, "")
 			if err != nil {
 				errChan <- err
 
@@ -588,7 +588,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 		id := gm.leasableMachine.FormattedMachineId()
 
 		go func(lm machine.LeasableMachine) {
-			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "stop", bg.timeout)
+			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "stop", bg.timeout, "")
 			if err != nil {
 				errChan <- fmt.Errorf("failed to stop machine %s: %v", lm.FormattedMachineId(), err)
 			} else {
