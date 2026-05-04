@@ -189,7 +189,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 			lock.Lock()
 			defer lock.Unlock()
 
-			bg.greenMachines = append(bg.greenMachines, &machineUpdateEntry{greenMachine, launchInput})
+			bg.greenMachines = append(bg.greenMachines, &machineUpdateEntry{leasableMachine: greenMachine, launchInput: launchInput})
 
 			fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
 
