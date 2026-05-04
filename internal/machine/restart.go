@@ -24,7 +24,7 @@ func Restart(ctx context.Context, appName string, m *fly.Machine, input *fly.Res
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 
-	if err := WaitForStartOrStop(ctx, appName, &fly.Machine{ID: input.ID}, "start", time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, appName, &fly.Machine{ID: input.ID}, "start", time.Minute*5, ""); err != nil {
 		return err
 	}
 

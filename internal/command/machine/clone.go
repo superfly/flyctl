@@ -286,7 +286,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(out, "  Waiting for Machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
 		// wait for a machine to be started
-		err = mach.WaitForStartOrStop(ctx, appName, launchedMachine, "start", time.Minute*5)
+		err = mach.WaitForStartOrStop(ctx, appName, launchedMachine, "start", time.Minute*5, "")
 		if err != nil {
 			return err
 		}
