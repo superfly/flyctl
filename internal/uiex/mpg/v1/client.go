@@ -7,6 +7,7 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 type contextKey struct{}
@@ -14,10 +15,12 @@ type contextKey struct{}
 var clientContextKey = &contextKey{}
 
 type ClientV1 interface {
-	ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error)
+	// List clusters. NOTE: Odd but the v1 client endpoint returns both v1 and v2 clusters,
+	// they are just identified with the `Version` field being 1 or 2.
 	ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (ListManagedClustersResponse, error)
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (GetManagedClusterResponse, error)
+	ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error)
 	CreateUser(ctx context.Context, id string, input CreateUserInput) (CreateUserResponse, error)
 	CreateUserWithRole(ctx context.Context, id string, input CreateUserWithRoleInput) (CreateUserWithRoleResponse, error)
 	UpdateUserRole(ctx context.Context, id string, username string, input UpdateUserRoleInput) (UpdateUserRoleResponse, error)
@@ -70,8 +73,36 @@ func ClientFromContext(ctx context.Context) ClientV1 {
 	return c
 }
 
-type ManagedClusterIpAssignments struct {
-	Direct string `json:"direct"`
+type ManagedCluster struct {
+	Id            string                          `json:"id"`
+	ClusterId     string                          `json:"mpgd_cluster_id"`
+	Version       int                             `json:"version"`
+	Name          string                          `json:"name"`
+	Region        string                          `json:"region"`
+	Status        string                          `json:"status"`
+	Plan          string                          `json:"plan"`
+	Disk          int                             `json:"disk"`
+	Replicas      int                             `json:"replicas"`
+	Organization  fly.Organization                `json:"organization"`
+	IpAssignments mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+	AttachedApps  []mpg.AttachedApp               `json:"attached_apps"`
+}
+
+type ListManagedClustersResponse struct {
+	Data []ManagedCluster `json:"data"`
+}
+
+type GetManagedClusterCredentialsResponse struct {
+	Status        string `json:"status"`
+	User          string `json:"user"`
+	Password      string `json:"password"`
+	DBName        string `json:"dbname"`
+	ConnectionUri string `json:"pgbouncer_uri"`
+}
+
+type GetManagedClusterResponse struct {
+	Data        ManagedCluster                       `json:"data"`
+	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
 }
 
 type MPGRegion struct {
@@ -111,46 +142,11 @@ type RestoreManagedClusterBackupResponse struct {
 	Data ManagedCluster `json:"data"`
 }
 
-type AttachedApp struct {
-	Name string `json:"name"`
-	Id   int64  `json:"id"`
-}
-
-type ManagedCluster struct {
-	Id            string                      `json:"id"`
-	Name          string                      `json:"name"`
-	Region        string                      `json:"region"`
-	Status        string                      `json:"status"`
-	Plan          string                      `json:"plan"`
-	Disk          int                         `json:"disk"`
-	Replicas      int                         `json:"replicas"`
-	Organization  fly.Organization            `json:"organization"`
-	IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
-	AttachedApps  []AttachedApp               `json:"attached_apps"`
-}
-
-type ListManagedClustersResponse struct {
-	Data []ManagedCluster `json:"data"`
-}
-
-type GetManagedClusterCredentialsResponse struct {
-	Status        string `json:"status"`
-	User          string `json:"user"`
-	Password      string `json:"password"`
-	DBName        string `json:"dbname"`
-	ConnectionUri string `json:"pgbouncer_uri"`
-}
-
 type GetUserCredentialsResponse struct {
 	Data struct {
 		User     string `json:"user"`
 		Password string `json:"password"`
 	} `json:"data"`
-}
-
-type GetManagedClusterResponse struct {
-	Data        ManagedCluster                       `json:"data"`
-	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
 }
 
 type CreateUserInput struct {
@@ -220,17 +216,17 @@ type CreateClusterResponse struct {
 	Ok     bool                `json:"ok"`
 	Errors uiex.DetailedErrors `json:"errors"`
 	Data   struct {
-		Id             string                      `json:"id"`
-		Name           string                      `json:"name"`
-		Status         *string                     `json:"status"`
-		Plan           string                      `json:"plan"`
-		Environment    *string                     `json:"environment"`
-		Region         string                      `json:"region"`
-		Organization   fly.Organization            `json:"organization"`
-		Replicas       int                         `json:"replicas"`
-		Disk           int                         `json:"disk"`
-		IpAssignments  ManagedClusterIpAssignments `json:"ip_assignments"`
-		PostGISEnabled bool                        `json:"postgis_enabled"`
+		Id             string                          `json:"id"`
+		Name           string                          `json:"name"`
+		Status         *string                         `json:"status"`
+		Plan           string                          `json:"plan"`
+		Environment    *string                         `json:"environment"`
+		Region         string                          `json:"region"`
+		Organization   fly.Organization                `json:"organization"`
+		Replicas       int                             `json:"replicas"`
+		Disk           int                             `json:"disk"`
+		IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+		PostGISEnabled bool                            `json:"postgis_enabled"`
 	} `json:"data"`
 }
 
