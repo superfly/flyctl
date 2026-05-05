@@ -50,7 +50,9 @@ func orgByArg(ctx context.Context) (*fly.Organization, error) {
 
 func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {
 	io := iostreams.FromContext(ctx)
-	var f *os.File
+
+	args := flag.Args(ctx)
+	fromCLI := len(args) > idx
 	var filename string
 
 	for {
@@ -60,6 +62,10 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 		}
 
 		if filename == "" {
+			if fromCLI {
+				return nil, false, fmt.Errorf("output filename cannot be empty")
+			}
+
 			fmt.Fprintln(io.Out, "Provide a filename (or 'stdout')")
 
 			continue
@@ -69,12 +75,17 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 			return os.Stdout, false, nil
 		}
 
-		f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err == nil {
+		f, openErr := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if openErr == nil {
 			return f, true, nil
 		}
 
-		fmt.Fprintf(io.Out, "Can't create '%s': %s\n", filename, err)
+		if fromCLI {
+			return nil, false, openErr
+		}
+
+		fmt.Fprintf(io.Out, "Can't create '%s': %s\n", filename, openErr)
+		fromCLI = false
 	}
 }
 
