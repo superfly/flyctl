@@ -52,7 +52,7 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 	io := iostreams.FromContext(ctx)
 
 	args := flag.Args(ctx)
-	fromCLI := len(args) > idx && args[idx] != ""
+	fromCLI := len(args) > idx
 	var filename string
 
 	for {
@@ -62,6 +62,10 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 		}
 
 		if filename == "" {
+			if fromCLI {
+				return nil, false, fmt.Errorf("output filename cannot be empty")
+			}
+
 			fmt.Fprintln(io.Out, "Provide a filename (or 'stdout')")
 
 			continue
