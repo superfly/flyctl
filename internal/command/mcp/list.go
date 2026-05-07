@@ -79,16 +79,14 @@ func runList(ctx context.Context) error {
 		}
 
 		// read the configuration file
-		file, err := os.Open(configPath.Path)
+		fileData, err := os.ReadFile(configPath.Path)
 		if err != nil {
 			return err
 		}
-		defer file.Close()
 
-		// parse the configuration file as JSON
+		// parse the configuration file as JSON (tolerating comments and trailing commas)
 		var data map[string]any
-		decoder := json.NewDecoder(file)
-		if err := decoder.Decode(&data); err != nil {
+		if err := unmarshalJSONC(fileData, &data); err != nil {
 			return fmt.Errorf("failed to parse %s: %w", configPath.Path, err)
 		}
 

@@ -79,6 +79,7 @@ require (
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.3.0
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
+	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
 	github.com/vektah/gqlparser/v2 v2.5.33
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0
 	go.opentelemetry.io/otel v1.43.0

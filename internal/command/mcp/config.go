@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/tailscale/hujson"
 )
 
 var McpClients = map[string]string{
@@ -339,16 +340,14 @@ func ServerMap(configPaths []ConfigPath) (map[string]any, error) {
 		}
 
 		// read the configuration file
-		file, err := os.Open(configPath.Path)
+		fileData, err := os.ReadFile(configPath.Path)
 		if err != nil {
 			return nil, err
 		}
-		defer file.Close()
 
-		// parse the configuration file as JSON
+		// parse the configuration file as JSON (tolerating comments and trailing commas)
 		var data map[string]any
-		decoder := json.NewDecoder(file)
-		if err := decoder.Decode(&data); err != nil {
+		if err := unmarshalJSONC(fileData, &data); err != nil {
 			return nil, fmt.Errorf("failed to parse %s: %w", configPath.Path, err)
 		}
 
@@ -517,8 +516,8 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	fileData, err := os.ReadFile(path)
 	if err == nil {
 		fileExists = true
-		// File exists, parse it
-		err = json.Unmarshal(fileData, &configData)
+		// File exists, parse it (tolerating comments and trailing commas)
+		err = unmarshalJSONC(fileData, &configData)
 		if err != nil {
 			return fmt.Errorf("failed to parse existing configuration at %s: %w", path, err)
 		} else {
@@ -612,9 +611,9 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		return fmt.Errorf("failed to read configuration at %s: %w", path, err)
 	}
 
-	// Parse the existing configuration
+	// Parse the existing configuration (tolerating comments and trailing commas)
 	configData := make(map[string]any)
-	err = json.Unmarshal(fileData, &configData)
+	err = unmarshalJSONC(fileData, &configData)
 	if err != nil {
 		return fmt.Errorf("failed to parse existing configuration at %s: %w", path, err)
 	} else {
@@ -679,9 +678,9 @@ func configExtract(config ConfigPath, server string) (map[string]any, error) {
 		return nil, fmt.Errorf("Error reading file: %v", err)
 	}
 
-	// Parse the JSON data
+	// Parse the JSON data (tolerating comments and trailing commas)
 	jsonConfig := make(map[string]any)
-	if err := json.Unmarshal(data, &jsonConfig); err != nil {
+	if err := unmarshalJSONC(data, &jsonConfig); err != nil {
 		return nil, fmt.Errorf("Error parsing JSON: %v", err)
 	}
 
@@ -725,4 +724,17 @@ func configExtract(config ConfigPath, server string) (map[string]any, error) {
 	}
 
 	return serverConfig, nil
+}
+
+// unmarshalJSONC unmarshals JSONC (JSON with line/block comments and trailing
+// commas) into v. Editor settings files — Zed, VS Code, Cursor, Neovim,
+// Windsurf — commonly use JSONC, and flyctl needs to tolerate that on the
+// read side. Writes still emit strict JSON; see #4430 for context.
+func unmarshalJSONC(data []byte, v any) error {
+	standardized, err := hujson.Standardize(data)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(standardized, v)
 }
