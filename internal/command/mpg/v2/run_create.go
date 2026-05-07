@@ -1,4 +1,4 @@
-package cmdv1
+package cmdv2
 
 import (
 	"context"
@@ -7,21 +7,21 @@ import (
 	"time"
 
 	"github.com/superfly/fly-go"
-	regionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
+	regionsv2 "github.com/superfly/flyctl/internal/command/mpg/v2/regions"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type CreateClusterParams struct {
 	Name           string
 	OrgSlug        string
-	Region         string
 	Plan           string
-	VolumeSizeGB   int
-	PostGISEnabled bool
+	Region         string
+	StorageInGb    int
 	PGMajorVersion int
+	PostGISEnabled bool
 }
 
 type CreatePlanDisplay struct {
@@ -33,10 +33,10 @@ type CreatePlanDisplay struct {
 
 func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterParams, planDisplay *CreatePlanDisplay) error {
 	io := iostreams.FromContext(ctx)
-	mpgClient := mpgv1.ClientFromContext(ctx)
+	mpgClient := mpgv2.ClientFromContext(ctx)
 
 	// Get available MPG regions from API
-	mpgRegions, err := regionsv1.GetAvailableMPGRegions(ctx, orgRawSlug)
+	mpgRegions, err := regionsv2.GetAvailableMPGRegions(ctx, orgRawSlug)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 			}
 		}
 		if selectedRegion == nil {
-			availableCodes, _ := regionsv1.GetAvailableMPGRegionCodes(ctx, params.OrgSlug)
+			availableCodes, _ := regionsv2.GetAvailableMPGRegionCodes(ctx, params.OrgSlug)
 
 			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
@@ -78,12 +78,12 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 		selectedRegion = &mpgRegions[selectedIndex]
 	}
 
-	input := mpgv1.CreateClusterInput{
+	input := mpgv2.CreateClusterInput{
 		Name:           params.Name,
 		Region:         selectedRegion.Code,
 		Plan:           params.Plan,
 		OrgSlug:        params.OrgSlug,
-		Disk:           params.VolumeSizeGB,
+		StorageInGb:    params.StorageInGb,
 		PostGISEnabled: params.PostGISEnabled,
 		PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
 	}
@@ -109,7 +109,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
 	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
 	for {
-		res, err := mpgClient.GetManagedClusterById(ctx, clusterID)
+		res, err := mpgClient.GetClusterById(ctx, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed checking cluster status: %w", err)
 		}
@@ -138,7 +138,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
 	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
-	fmt.Fprintf(io.Out, "  Region: %s\n", selectedRegion.Code)
+	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
 	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)

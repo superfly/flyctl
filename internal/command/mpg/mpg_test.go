@@ -3,6 +3,7 @@ package mpg
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -13,11 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
+	regionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -62,7 +66,7 @@ func TestNewMPGService_NilClient(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with nil mpg client in context
-	service, err := NewMPGService(ctx)
+	service, err := regionsv1.NewMPGService(ctx)
 	assert.Error(t, err)
 	assert.Nil(t, service)
 	assert.Contains(t, err.Error(), "mpg client not found in context")
@@ -75,11 +79,11 @@ func TestNewMPGService_ValidClient(t *testing.T) {
 	mockUiex := &mock.MpgV1Client{}
 	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
 
-	service, err := NewMPGService(ctx)
+	service, err := regionsv1.NewMPGService(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
-	assert.NotNil(t, service.mpgClient)
-	assert.NotNil(t, service.regionProvider)
+	assert.NotNil(t, service.MpgClient)
+	assert.NotNil(t, service.RegionProvider)
 }
 
 // Test the actual filterMPGRegions function with real data
@@ -98,7 +102,7 @@ func TestFilterMPGRegions_RealFunctionality(t *testing.T) {
 		// nrt not in MPG regions at all
 	}
 
-	filtered := filterMPGRegions(platformRegions, mpgRegions)
+	filtered := regionsv1.FilterMPGRegions(platformRegions, mpgRegions)
 
 	// Should only return ord and lax (available in MPG)
 	assert.Len(t, filtered, 2)
@@ -131,9 +135,25 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 		Organization: fly.Organization{
 			Slug: "test-org",
 		},
+		Version: 1,
 	}
 
-	mockUiex := &mock.MpgV1Client{
+	mockv1 := &mock.MpgV1Client{
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
+			return mpgv1.ListManagedClustersResponse{Data: []mpgv1.ManagedCluster{}}, nil
+		},
+	}
+	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
+	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
+
+	t.Run("no clusters found", func(t *testing.T) {
+
+		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no managed postgres clusters found")
+	})
+
+	mockv1 = &mock.MpgV1Client{
 		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 
@@ -141,24 +161,20 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 				Data: []mpgv1.ManagedCluster{expectedCluster},
 			}, nil
 		},
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+			return mpgv1.GetManagedClusterResponse{}, errors.New("managed postgres cluster not found")
+		},
 	}
-
-	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
-
-	t.Run("no clusters found", func(t *testing.T) {
-		mockEmpty := &mock.MpgV1Client{
-			ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
-				return mpgv1.ListManagedClustersResponse{Data: []mpgv1.ManagedCluster{}}, nil
-			},
-		}
-		ctx := mpgv1.NewContextWithClient(ctx, mockEmpty)
-
-		_, _, err := ClusterFromArgOrSelect(ctx, "", "test-org")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no managed postgres clusters found")
-	})
+	mockv2 := &mock.MpgV2Client{
+		GetClusterByIdFunc: func(ctx context.Context, id string) (mpgv2.GetClusterResponse, error) {
+			return mpgv2.GetClusterResponse{}, errors.New("managed postgres cluster not found")
+		},
+	}
+	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
+	ctx = mpgv2.NewContextWithClient(ctx, mockv2)
 
 	t.Run("cluster not found by ID", func(t *testing.T) {
+
 		_, _, err := ClusterFromArgOrSelect(ctx, "wrong-cluster-id", "test-org")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "managed postgres cluster \"wrong-cluster-id\" not found")
@@ -205,7 +221,7 @@ func TestGetAvailableMPGRegions_RealFunction(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test the actual function
 	regions, err := service.GetAvailableMPGRegions(ctx, "test-org")
@@ -246,7 +262,7 @@ func TestIsValidMPGRegion_RealFunction(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test valid region
 	valid, err := service.IsValidMPGRegion(ctx, "test-org", "ord")
@@ -288,7 +304,7 @@ func TestGetAvailableMPGRegionCodes_RealFunction(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test the actual function
 	codes, err := service.GetAvailableMPGRegionCodes(ctx, "test-org")
@@ -364,7 +380,7 @@ func TestStatusCommand_Logic(t *testing.T) {
 		Organization: fly.Organization{
 			Slug: "test-org",
 		},
-		IpAssignments: mpgv1.ManagedClusterIpAssignments{
+		IpAssignments: mpg.ManagedClusterIpAssignments{
 			Direct: "10.0.0.1",
 		},
 	}
@@ -534,17 +550,17 @@ func TestCreateCommand_Logic(t *testing.T) {
 
 			return mpgv1.CreateClusterResponse{
 				Data: struct {
-					Id             string                            `json:"id"`
-					Name           string                            `json:"name"`
-					Status         *string                           `json:"status"`
-					Plan           string                            `json:"plan"`
-					Environment    *string                           `json:"environment"`
-					Region         string                            `json:"region"`
-					Organization   fly.Organization                  `json:"organization"`
-					Replicas       int                               `json:"replicas"`
-					Disk           int                               `json:"disk"`
-					IpAssignments  mpgv1.ManagedClusterIpAssignments `json:"ip_assignments"`
-					PostGISEnabled bool                              `json:"postgis_enabled"`
+					Id             string                          `json:"id"`
+					Name           string                          `json:"name"`
+					Status         *string                         `json:"status"`
+					Plan           string                          `json:"plan"`
+					Environment    *string                         `json:"environment"`
+					Region         string                          `json:"region"`
+					Organization   fly.Organization                `json:"organization"`
+					Replicas       int                             `json:"replicas"`
+					Disk           int                             `json:"disk"`
+					IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+					PostGISEnabled bool                            `json:"postgis_enabled"`
 				}{
 					Id:             expectedCluster.Id,
 					Name:           expectedCluster.Name,
@@ -571,7 +587,7 @@ func TestCreateCommand_Logic(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test region validation logic using the actual function
 	availableRegions, err := service.GetAvailableMPGRegions(ctx, "test-org")
@@ -737,7 +753,7 @@ func TestCreateCommand_RegionValidation(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test valid region using the actual function
 	valid, err := service.IsValidMPGRegion(ctx, "test-org", "ord")
@@ -920,8 +936,19 @@ func TestBackupList(t *testing.T) {
 	flagSet.Parse([]string{"test-cluster-123"})
 	ctx = flagctx.NewContext(ctx, flagSet)
 
+	expectedCluster := mpgv1.ManagedCluster{
+		Id:     "test-cluster-123",
+		Name:   "test-cluster",
+		Region: "ord",
+		Status: "ready",
+		Organization: fly.Organization{
+			Slug: "test-org",
+		},
+		Version: 1,
+	}
+
 	// Mock uiex client that returns some backups
-	mockUiex := &mock.MpgV1Client{
+	mockv1 := &mock.MpgV1Client{
 		ListManagedClusterBackupsFunc: func(ctx context.Context, clusterID string) (mpgv1.ListManagedClusterBackupsResponse, error) {
 			require.Equal(t, "test-cluster-123", clusterID)
 
@@ -944,9 +971,21 @@ func TestBackupList(t *testing.T) {
 				},
 			}, nil
 		},
+		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+			return mpgv1.GetManagedClusterResponse{
+				Data: expectedCluster,
+			}, nil
+		},
 	}
 
-	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
+	mockv2 := &mock.MpgV2Client{
+		GetClusterByIdFunc: func(ctx context.Context, id string) (mpgv2.GetClusterResponse, error) {
+			return mpgv2.GetClusterResponse{}, errors.New("managed postgres cluster not found")
+		},
+	}
+
+	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
+	ctx = mpgv2.NewContextWithClient(ctx, mockv2)
 
 	// Run the backup list command
 	err := runBackupList(ctx)
@@ -1163,17 +1202,17 @@ func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
 
 					return mpgv1.CreateClusterResponse{
 						Data: struct {
-							Id             string                            `json:"id"`
-							Name           string                            `json:"name"`
-							Status         *string                           `json:"status"`
-							Plan           string                            `json:"plan"`
-							Environment    *string                           `json:"environment"`
-							Region         string                            `json:"region"`
-							Organization   fly.Organization                  `json:"organization"`
-							Replicas       int                               `json:"replicas"`
-							Disk           int                               `json:"disk"`
-							IpAssignments  mpgv1.ManagedClusterIpAssignments `json:"ip_assignments"`
-							PostGISEnabled bool                              `json:"postgis_enabled"`
+							Id             string                          `json:"id"`
+							Name           string                          `json:"name"`
+							Status         *string                         `json:"status"`
+							Plan           string                          `json:"plan"`
+							Environment    *string                         `json:"environment"`
+							Region         string                          `json:"region"`
+							Organization   fly.Organization                `json:"organization"`
+							Replicas       int                             `json:"replicas"`
+							Disk           int                             `json:"disk"`
+							IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+							PostGISEnabled bool                            `json:"postgis_enabled"`
 						}{
 							Id:             "test-cluster-123",
 							Name:           "test-db",
@@ -1511,12 +1550,12 @@ func TestInvalidPGMajorVersion_Error(t *testing.T) {
 func TestFormatAttachedApps(t *testing.T) {
 	tests := []struct {
 		name     string
-		apps     []mpgv1.AttachedApp
+		apps     []mpg.AttachedApp
 		expected string
 	}{
 		{
 			name:     "no attached apps",
-			apps:     []mpgv1.AttachedApp{},
+			apps:     []mpg.AttachedApp{},
 			expected: "<no attached apps>",
 		},
 		{
@@ -1526,14 +1565,14 @@ func TestFormatAttachedApps(t *testing.T) {
 		},
 		{
 			name: "single app",
-			apps: []mpgv1.AttachedApp{
+			apps: []mpg.AttachedApp{
 				{Name: "my-web-app", Id: 1},
 			},
 			expected: "my-web-app",
 		},
 		{
 			name: "two apps",
-			apps: []mpgv1.AttachedApp{
+			apps: []mpg.AttachedApp{
 				{Name: "my-web-app", Id: 1},
 				{Name: "my-api", Id: 2},
 			},
@@ -1541,7 +1580,7 @@ func TestFormatAttachedApps(t *testing.T) {
 		},
 		{
 			name: "three apps",
-			apps: []mpgv1.AttachedApp{
+			apps: []mpg.AttachedApp{
 				{Name: "app-one", Id: 1},
 				{Name: "app-two", Id: 2},
 				{Name: "app-three", Id: 3},
@@ -1552,7 +1591,7 @@ func TestFormatAttachedApps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := formatAttachedApps(tt.apps)
+			result := FormatAttachedApps(tt.apps)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -1648,7 +1687,7 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 			Organization: fly.Organization{
 				Slug: "test-org",
 			},
-			AttachedApps: []mpgv1.AttachedApp{
+			AttachedApps: []mpg.AttachedApp{
 				{Name: "web-app", Id: 100},
 				{Name: "api-app", Id: 101},
 			},
@@ -1662,7 +1701,7 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 			Organization: fly.Organization{
 				Slug: "test-org",
 			},
-			AttachedApps: []mpgv1.AttachedApp{}, // No attached apps
+			AttachedApps: []mpg.AttachedApp{}, // No attached apps
 		},
 	}
 
@@ -1689,13 +1728,13 @@ func TestListCommand_WithAttachedApps(t *testing.T) {
 	assert.Equal(t, "api-app", clusters.Data[0].AttachedApps[1].Name)
 
 	// Verify attached apps formatting for first cluster
-	formattedApps := formatAttachedApps(clusters.Data[0].AttachedApps)
+	formattedApps := FormatAttachedApps(clusters.Data[0].AttachedApps)
 	assert.Equal(t, "web-app, api-app", formattedApps)
 
 	// Verify second cluster has no attached apps
 	assert.Len(t, clusters.Data[1].AttachedApps, 0)
 
 	// Verify attached apps formatting for second cluster (empty)
-	formattedApps = formatAttachedApps(clusters.Data[1].AttachedApps)
+	formattedApps = FormatAttachedApps(clusters.Data[1].AttachedApps)
 	assert.Equal(t, "<no attached apps>", formattedApps)
 }

@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -29,6 +29,7 @@ func newCreate() *cobra.Command {
 
 	cmd := command.New("create", short, long, runCreate,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	flag.Add(
@@ -39,6 +40,11 @@ func newCreate() *cobra.Command {
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "The name of your Postgres cluster",
+		},
+		flag.Bool{
+			Name:        "v2",
+			Description: "Create a Postgres cluster deployed on the V2 platform",
+			Default:     false,
 		},
 		flag.String{
 			Name:        "plan",
@@ -90,52 +96,9 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	// Get available MPG regions from API
-	mpgRegions, err := GetAvailableMPGRegions(ctx, org.RawSlug)
-	if err != nil {
-		return err
-	}
-
-	if len(mpgRegions) == 0 {
-		return fmt.Errorf("no valid regions found for Managed Postgres")
-	}
-
 	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
 	if pgMajorVersion != 16 && pgMajorVersion != 17 {
 		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
-	}
-
-	// Check if region was specified via flag
-	regionCode := flag.GetString(ctx, "region")
-	var selectedRegion *fly.Region
-
-	if regionCode != "" {
-		// Find the specified region in the allowed regions
-		for _, region := range mpgRegions {
-			if region.Code == regionCode {
-				selectedRegion = &region
-
-				break
-			}
-		}
-		if selectedRegion == nil {
-			availableCodes, _ := GetAvailableMPGRegionCodes(ctx, org.Slug)
-
-			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
-		}
-	} else {
-		// Create region options for prompt
-		var regionOptions []string
-		for _, region := range mpgRegions {
-			regionOptions = append(regionOptions, fmt.Sprintf("%s (%s)", region.Name, region.Code))
-		}
-
-		var selectedIndex int
-		if err := prompt.Select(ctx, &selectedIndex, "Select a region for your Managed Postgres cluster", "", regionOptions...); err != nil {
-			return err
-		}
-
-		selectedRegion = &mpgRegions[selectedIndex]
 	}
 
 	// Plan selection and validation
@@ -188,10 +151,29 @@ func runCreate(ctx context.Context) error {
 		slug = org.Slug
 	}
 
+	if flag.GetBool(ctx, "v2") {
+		params := &cmdv2.CreateClusterParams{
+			Name:           appName,
+			OrgSlug:        slug,
+			Plan:           plan,
+			PGMajorVersion: pgMajorVersion,
+			StorageInGb:    flag.GetInt(ctx, "volume-size"),
+			PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+		}
+
+		planDetails := MPGPlans[plan]
+
+		return cmdv2.RunCreate(ctx, org.RawSlug, params, &cmdv2.CreatePlanDisplay{
+			Name:       planDetails.Name,
+			CPU:        planDetails.CPU,
+			Memory:     planDetails.Memory,
+			PricePerMo: planDetails.PricePerMo,
+		})
+	}
+
 	params := &cmdv1.CreateClusterParams{
 		Name:           appName,
 		OrgSlug:        slug,
-		Region:         selectedRegion.Code,
 		Plan:           plan,
 		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
 		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
@@ -200,7 +182,7 @@ func runCreate(ctx context.Context) error {
 
 	planDetails := MPGPlans[plan]
 
-	return cmdv1.RunCreate(ctx, params, &cmdv1.CreatePlanDisplay{
+	return cmdv1.RunCreate(ctx, org.RawSlug, params, &cmdv1.CreatePlanDisplay{
 		Name:       planDetails.Name,
 		CPU:        planDetails.CPU,
 		Memory:     planDetails.Memory,

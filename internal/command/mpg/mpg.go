@@ -5,60 +5,16 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 )
-
-// RegionProvider interface for getting platform regions
-type RegionProvider interface {
-	GetPlatformRegions(ctx context.Context) ([]fly.Region, error)
-}
-
-// DefaultRegionProvider implements RegionProvider using the prompt package
-type DefaultRegionProvider struct{}
-
-func (p *DefaultRegionProvider) GetPlatformRegions(ctx context.Context) ([]fly.Region, error) {
-	regionsFuture := prompt.PlatformRegions(ctx)
-	regions, err := regionsFuture.Get()
-	if err != nil {
-		return nil, err
-	}
-
-	return regions.Regions, nil
-}
-
-// MPGService provides MPG-related functionality with injectable dependencies
-type MPGService struct {
-	mpgClient      mpgv1.ClientV1
-	regionProvider RegionProvider
-}
-
-// NewMPGService creates a new MPGService with default dependencies
-func NewMPGService(ctx context.Context) (*MPGService, error) {
-	mpgClient := mpgv1.ClientFromContext(ctx)
-	if mpgClient == nil {
-		return nil, fmt.Errorf("mpg client not found in context")
-	}
-
-	return &MPGService{
-		mpgClient:      mpgClient,
-		regionProvider: &DefaultRegionProvider{},
-	}, nil
-}
-
-// NewMPGServiceWithDependencies creates a new MPGService with custom dependencies
-func NewMPGServiceWithDependencies(mpgClient mpgv1.ClientV1, regionProvider RegionProvider) *MPGService {
-	return &MPGService{
-		mpgClient:      mpgClient,
-		regionProvider: regionProvider,
-	}
-}
 
 func New() *cobra.Command {
 	const (
@@ -67,16 +23,7 @@ func New() *cobra.Command {
 		long = short + "\n"
 	)
 
-	cmd := command.New("mpg", short, long,
-		func(ctx context.Context) error {
-			// Check token compatibility early
-			if err := validateMPGTokenCompatibility(ctx); err != nil {
-				return err
-			}
-
-			return nil
-		},
-	)
+	cmd := command.New("mpg", short, long, nil)
 
 	flag.Add(cmd,
 		flag.Org(),
@@ -104,8 +51,46 @@ func New() *cobra.Command {
 // otherwise it prompts the user to select a cluster from the available ones for
 // the given organization.
 // It prompts for the org if the org slug is not provided.
-func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mpgv1.ManagedCluster, string, error) {
-	mpgClient := mpgv1.ClientFromContext(ctx)
+func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mpg.Cluster, string, error) {
+	mpgv1Client := mpgv1.ClientFromContext(ctx)
+	mpgv2Client := mpgv2.ClientFromContext(ctx)
+
+	if clusterID != "" {
+		if c, err := mpgv1Client.GetManagedClusterById(ctx, clusterID); err == nil {
+			cluster := &mpg.Cluster{
+				Id:            c.Data.Id,
+				Name:          c.Data.Name,
+				Region:        c.Data.Region,
+				Status:        c.Data.Status,
+				Plan:          c.Data.Plan,
+				Disk:          c.Data.Disk,
+				Replicas:      c.Data.Replicas,
+				Organization:  c.Data.Organization,
+				IpAssignments: c.Data.IpAssignments,
+				AttachedApps:  c.Data.AttachedApps,
+				Version:       mpg.VersionV1,
+			}
+
+			return cluster, cluster.Organization.Slug, nil
+		}
+		if c, err := mpgv2Client.GetClusterById(ctx, clusterID); err == nil {
+			cluster := &mpg.Cluster{
+				Id:            c.Data.Id,
+				Name:          c.Data.Name,
+				Region:        c.Data.Region,
+				Status:        c.Data.Status,
+				Plan:          c.Data.Plan,
+				Disk:          c.Data.Disk,
+				Replicas:      c.Data.Replicas,
+				Organization:  c.Data.Organization,
+				IpAssignments: c.Data.IpAssignments,
+				AttachedApps:  c.Data.AttachedApps,
+				Version:       mpg.VersionV2,
+			}
+
+			return cluster, cluster.Organization.Slug, nil
+		}
+	}
 
 	if orgSlug == "" {
 		org, err := prompt.Org(ctx)
@@ -116,143 +101,74 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 		orgSlug = org.RawSlug
 	}
 
-	clustersResponse, err := mpgClient.ListManagedClusters(ctx, orgSlug, false)
+	// Fetch clusters. Odd but the v1 client endpoint returns both v1 and v2 clusters,
+	// they are just identified with the `Version` field being 1 or 2.
+	mc, err := mpgv1Client.ListManagedClusters(ctx, orgSlug, false)
 	if err != nil {
 		return nil, orgSlug, fmt.Errorf("failed retrieving postgres clusters: %w", err)
 	}
 
-	if len(clustersResponse.Data) == 0 {
+	if len(mc.Data) == 0 {
 		return nil, orgSlug, fmt.Errorf("no managed postgres clusters found in organization %s", orgSlug)
 	}
 
+	clusters := make([]*mpg.Cluster, 0, len(mc.Data))
+	for _, cluster := range mc.Data {
+		version := mpg.VersionV1
+		if cluster.Version == 2 {
+			version = mpg.VersionV2
+		}
+		clusterId := ""
+		if cluster.Version == 2 {
+			clusterId = cluster.ClusterId
+		}
+		clusters = append(clusters, &mpg.Cluster{
+			Id:           cluster.Id,
+			ClusterId:    clusterId,
+			Name:         cluster.Name,
+			Region:       cluster.Region,
+			Status:       cluster.Status,
+			Plan:         cluster.Plan,
+			Disk:         cluster.Disk,
+			Replicas:     cluster.Replicas,
+			Organization: cluster.Organization,
+			Version:      version,
+		})
+	}
+
+	// If a cluster ID is provided via flag, find it
 	if clusterID != "" {
-		// If a cluster ID is provided via flag, find it
-		for i := range clustersResponse.Data {
-			if clustersResponse.Data[i].Id == clusterID {
-				return &clustersResponse.Data[i], orgSlug, nil
+		for _, cluster := range clusters {
+			if cluster.Id == clusterID {
+				return cluster, orgSlug, nil
 			}
 		}
 
 		return nil, orgSlug, fmt.Errorf("managed postgres cluster %q not found in organization %s", clusterID, orgSlug)
-	} else {
-		// Otherwise, prompt the user to select a cluster
-		var options []string
-		for _, cluster := range clustersResponse.Data {
-			options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
-		}
-
-		var index int
-		selectErr := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...)
-		if selectErr != nil {
-			return nil, orgSlug, selectErr
-		}
-
-		return &clustersResponse.Data[index], orgSlug, nil
 	}
+
+	// Otherwise, prompt the user to select a cluster
+	var options []string
+	for _, cluster := range clusters {
+		options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
+	}
+
+	var index int
+	selectErr := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...)
+	if selectErr != nil {
+		return nil, orgSlug, selectErr
+	}
+
+	return clusters[index], orgSlug, nil
 }
 
 // ClusterFromFlagOrSelect retrieves the cluster ID from the --cluster flag.
 // If the flag is not set, it prompts the user to select a cluster from the available ones for the given organization.
-func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*mpgv1.ManagedCluster, error) {
+func ClusterFromFlagOrSelect(ctx context.Context, orgSlug string) (*mpg.Cluster, error) {
 	clusterID := flag.GetMPGClusterID(ctx)
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, orgSlug)
 
 	return cluster, err
-}
-
-// GetAvailableMPGRegions returns the list of regions available for Managed Postgres
-func GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, error) {
-	service, err := NewMPGService(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return service.GetAvailableMPGRegions(ctx, orgSlug)
-}
-
-// GetAvailableMPGRegions returns the list of regions available for Managed Postgres
-func (s *MPGService) GetAvailableMPGRegions(ctx context.Context, orgSlug string) ([]fly.Region, error) {
-	// Get platform regions
-	platformRegions, err := s.regionProvider.GetPlatformRegions(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Try to get available MPG regions from API
-	mpgRegionsResponse, err := s.mpgClient.ListMPGRegions(ctx, orgSlug)
-	if err != nil {
-		return nil, err
-	}
-
-	return filterMPGRegions(platformRegions, mpgRegionsResponse.Data), nil
-}
-
-// IsValidMPGRegion checks if a region code is valid for Managed Postgres
-func IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (bool, error) {
-	service, err := NewMPGService(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	return service.IsValidMPGRegion(ctx, orgSlug, regionCode)
-}
-
-// IsValidMPGRegion checks if a region code is valid for Managed Postgres
-func (s *MPGService) IsValidMPGRegion(ctx context.Context, orgSlug string, regionCode string) (bool, error) {
-	availableRegions, err := s.GetAvailableMPGRegions(ctx, orgSlug)
-	if err != nil {
-		return false, err
-	}
-
-	for _, region := range availableRegions {
-		if region.Code == regionCode {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-// GetAvailableMPGRegionCodes returns just the region codes for error messages
-func GetAvailableMPGRegionCodes(ctx context.Context, orgSlug string) ([]string, error) {
-	service, err := NewMPGService(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return service.GetAvailableMPGRegionCodes(ctx, orgSlug)
-}
-
-// GetAvailableMPGRegionCodes returns just the region codes for error messages
-func (s *MPGService) GetAvailableMPGRegionCodes(ctx context.Context, orgSlug string) ([]string, error) {
-	availableRegions, err := s.GetAvailableMPGRegions(ctx, orgSlug)
-	if err != nil {
-		return nil, err
-	}
-
-	var codes []string
-	for _, region := range availableRegions {
-		codes = append(codes, region.Code)
-	}
-
-	return codes, nil
-}
-
-// filterMPGRegions filters platform regions based on MPG availability
-func filterMPGRegions(platformRegions []fly.Region, mpgRegions []mpgv1.MPGRegion) []fly.Region {
-	var filteredRegions []fly.Region
-
-	for _, region := range platformRegions {
-		for _, allowed := range mpgRegions {
-			if region.Code == allowed.Code && allowed.Available {
-				filteredRegions = append(filteredRegions, region)
-
-				break
-			}
-		}
-	}
-
-	return filteredRegions
 }
 
 // AliasedOrganizationSlug resolves organization slug the aliased slug
@@ -332,6 +248,15 @@ func ResolveOrganizationSlug(ctx context.Context, inputSlug string) (string, err
 
 	// Return the canonical slug from the API response
 	return resp.Organization.RawSlug, nil
+}
+
+// requireMacaroonToken is a preparer that validates token compatibility for MPG commands.
+func requireMacaroonToken(ctx context.Context) (context.Context, error) {
+	if err := validateMPGTokenCompatibility(ctx); err != nil {
+		return ctx, err
+	}
+
+	return ctx, nil
 }
 
 // detectTokenHasMacaroon determines if the current context has macaroon-style tokens.
