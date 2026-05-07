@@ -6,7 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newDatabases() *cobra.Command {
@@ -35,6 +37,7 @@ func newDatabasesList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDatabasesList,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -47,16 +50,16 @@ func newDatabasesList() *cobra.Command {
 
 func runDatabasesList(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunDatabasesList(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDatabasesList(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunDatabasesList(ctx, cluster.Id)
 }
 
 func newDatabasesCreate() *cobra.Command {
@@ -68,6 +71,7 @@ func newDatabasesCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDatabasesCreate,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -85,14 +89,14 @@ func newDatabasesCreate() *cobra.Command {
 
 func runDatabasesCreate(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
-	return cmdv1.RunDatabasesCreate(ctx, clusterID)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDatabasesCreate(ctx, cluster.Id)
+	}
+
+	return cmdv2.RunDatabasesCreate(ctx, cluster.Id)
 }
