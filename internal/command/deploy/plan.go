@@ -593,11 +593,21 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
-		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
+		var waitOpts []mach.WaitOption
+		if oldMachine != nil {
+			waitOpts = append(waitOpts, mach.WithVersion(machine.InstanceID))
+		}
+		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl, waitOpts...)
 		if err != nil {
 			span.RecordError(err)
 
 			return err
+		}
+
+		if oldMachine != nil {
+			if _, err := mach.VerifyUpdateApplied(ctx, md.app.Name, machine.ID, machine.InstanceID, oldMachine.InstanceID); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -733,7 +743,7 @@ func (md *machineDeployment) clearMachineLease(ctx context.Context, machID, leas
 }
 
 // returns when the machine is in one of the possible states, or after passing the timeout threshold
-func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine) (string, error) {
+func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine, waitOpts ...mach.WaitOption) (string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_machine_state", trace.WithAttributes(
 		attribute.StringSlice("possible_states", possibleStates),
 	))
@@ -750,7 +760,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 	for _, state := range possibleStates {
 		go func() {
-			err := lm.WaitForState(ctx, state, timeout)
+			err := lm.WaitForState(ctx, state, timeout, waitOpts...)
 			mutex.Lock()
 			defer func() {
 				numCompleted += 1
