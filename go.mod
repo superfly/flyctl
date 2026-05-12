@@ -30,7 +30,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ejcx/sshcert v1.1.0
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/getsentry/sentry-go v0.45.1
 	github.com/go-logr/logr v1.4.3
 	github.com/gofrs/flock v0.13.0
