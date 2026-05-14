@@ -18,7 +18,6 @@ type CreateClusterParams struct {
 	Name           string
 	OrgSlug        string
 	Plan           string
-	Region         string
 	StorageInGb    int
 	PGMajorVersion int
 	PostGISEnabled bool
@@ -138,7 +137,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
 	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
-	fmt.Fprintf(io.Out, "  Region: %s\n", params.Region)
+	fmt.Fprintf(io.Out, "  Region: %s\n", response.Data.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
 	fmt.Fprintf(io.Out, "  Disk: %dGB\n", response.Data.Disk)
 	fmt.Fprintf(io.Out, "  PostGIS: %t\n", response.Data.PostGISEnabled)
