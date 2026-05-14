@@ -55,7 +55,27 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 	mpgv1Client := mpgv1.ClientFromContext(ctx)
 	mpgv2Client := mpgv2.ClientFromContext(ctx)
 
+	// If user told us which cluster they want
 	if clusterID != "" {
+		// Check if its a V2 cluster. Otherwise, fallback to V1.
+		if c, err := mpgv2Client.GetClusterById(ctx, clusterID); err == nil && c.Data.MpgdClusterId != "" {
+			cluster := &mpg.Cluster{
+				Id:            c.Data.Id,
+				Name:          c.Data.Name,
+				Region:        c.Data.Region,
+				Status:        c.Data.Status,
+				Plan:          c.Data.Plan,
+				Disk:          c.Data.Disk,
+				Replicas:      c.Data.Replicas,
+				Organization:  c.Data.Organization,
+				IpAssignments: c.Data.IpAssignments,
+				AttachedApps:  c.Data.AttachedApps,
+				Version:       mpg.VersionV2,
+			}
+
+			return cluster, cluster.Organization.Slug, nil
+		}
+
 		if c, err := mpgv1Client.GetManagedClusterById(ctx, clusterID); err == nil {
 			cluster := &mpg.Cluster{
 				Id:            c.Data.Id,
@@ -73,25 +93,13 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 
 			return cluster, cluster.Organization.Slug, nil
 		}
-		if c, err := mpgv2Client.GetClusterById(ctx, clusterID); err == nil {
-			cluster := &mpg.Cluster{
-				Id:            c.Data.Id,
-				Name:          c.Data.Name,
-				Region:        c.Data.Region,
-				Status:        c.Data.Status,
-				Plan:          c.Data.Plan,
-				Disk:          c.Data.Disk,
-				Replicas:      c.Data.Replicas,
-				Organization:  c.Data.Organization,
-				IpAssignments: c.Data.IpAssignments,
-				AttachedApps:  c.Data.AttachedApps,
-				Version:       mpg.VersionV2,
-			}
 
-			return cluster, cluster.Organization.Slug, nil
-		}
+		// There's nothing that List can tell us that Get won't, so if we didn't
+		// find the cluster, let's just exit early.
+		return nil, orgSlug, fmt.Errorf("no managed postgres cluster found with ID %s", clusterID)
 	}
 
+	// Prompt for org if empty
 	if orgSlug == "" {
 		org, err := prompt.Org(ctx)
 		if err != nil {
@@ -113,18 +121,16 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 	}
 
 	clusters := make([]*mpg.Cluster, 0, len(mc.Data))
+	options := make([]string, 0, len(mc.Data))
+
 	for _, cluster := range mc.Data {
 		version := mpg.VersionV1
 		if cluster.Version == 2 {
 			version = mpg.VersionV2
 		}
-		clusterId := ""
-		if cluster.Version == 2 {
-			clusterId = cluster.ClusterId
-		}
+
 		clusters = append(clusters, &mpg.Cluster{
 			Id:           cluster.Id,
-			ClusterId:    clusterId,
 			Name:         cluster.Name,
 			Region:       cluster.Region,
 			Status:       cluster.Status,
@@ -134,29 +140,13 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 			Organization: cluster.Organization,
 			Version:      version,
 		})
-	}
 
-	// If a cluster ID is provided via flag, find it
-	if clusterID != "" {
-		for _, cluster := range clusters {
-			if cluster.Id == clusterID {
-				return cluster, orgSlug, nil
-			}
-		}
-
-		return nil, orgSlug, fmt.Errorf("managed postgres cluster %q not found in organization %s", clusterID, orgSlug)
-	}
-
-	// Otherwise, prompt the user to select a cluster
-	var options []string
-	for _, cluster := range clusters {
 		options = append(options, fmt.Sprintf("%s [%s] (%s)", cluster.Name, cluster.Id, cluster.Region))
 	}
 
 	var index int
-	selectErr := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...)
-	if selectErr != nil {
-		return nil, orgSlug, selectErr
+	if err := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...); err != nil {
+		return nil, orgSlug, err
 	}
 
 	return clusters[index], orgSlug, nil

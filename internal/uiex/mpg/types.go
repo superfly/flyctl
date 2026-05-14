@@ -14,7 +14,6 @@ const (
 // Unified type for v1 and v2 MPG clusters
 type Cluster struct {
 	Id            string
-	ClusterId     string
 	Name          string
 	Region        string
 	Status        string
