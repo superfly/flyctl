@@ -96,7 +96,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 
 		// There's nothing that List can tell us that Get won't, so if we didn't
 		// find the cluster, let's just exit early.
-		return nil, orgSlug, fmt.Errorf("no managed postgres cluster found with ID %s", clusterID)
+		return nil, orgSlug, fmt.Errorf("managed postgres cluster %q not found", clusterID)
 	}
 
 	// Prompt for org if empty
