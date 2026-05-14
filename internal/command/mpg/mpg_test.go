@@ -158,6 +158,7 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 			if id == expectedCluster.Id {
 				return mpgv1.GetManagedClusterResponse{Data: expectedCluster}, nil
 			}
+
 			return mpgv1.GetManagedClusterResponse{}, errors.New("managed postgres cluster not found")
 		},
 	}
