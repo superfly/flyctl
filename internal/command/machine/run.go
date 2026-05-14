@@ -196,11 +196,6 @@ var runOrCreateFlags = flag.Set{
 		Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 	},
 	flag.Bool{
-		Name:        "lsvd",
-		Description: "Enable LSVD for this machine",
-		Hidden:      true,
-	},
-	flag.Bool{
 		Name:        "use-zstd",
 		Description: "Enable zstd compression for the image",
 	},
@@ -405,7 +400,6 @@ func runMachineRun(ctx context.Context) error {
 	input := fly.LaunchMachineInput{
 		Name:              flag.GetString(ctx, "name"),
 		Region:            flag.GetString(ctx, "region"),
-		LSVD:              flag.GetBool(ctx, "lsvd"),
 		MinSecretsVersion: minvers,
 	}
 
