@@ -154,14 +154,11 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 	})
 
 	mockv1 = &mock.MpgV1Client{
-		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
-			assert.Equal(t, "test-org", orgSlug)
-
-			return mpgv1.ListManagedClustersResponse{
-				Data: []mpgv1.ManagedCluster{expectedCluster},
-			}, nil
-		},
 		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+			if id == expectedCluster.Id {
+				return mpgv1.GetManagedClusterResponse{Data: expectedCluster}, nil
+			}
+
 			return mpgv1.GetManagedClusterResponse{}, errors.New("managed postgres cluster not found")
 		},
 	}
