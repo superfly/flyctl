@@ -69,6 +69,9 @@ func TestConfigureDockerJSON_appliesPermsToExistingFile(t *testing.T) {
 }
 
 func TestEnsureDockerConfigDir_createsDirAt0700(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permission bits don't translate to windows")
+	}
 	home := t.TempDir()
 
 	if err := ensureDockerConfigDir(home); err != nil {
@@ -88,6 +91,9 @@ func TestEnsureDockerConfigDir_createsDirAt0700(t *testing.T) {
 }
 
 func TestEnsureDockerConfigDir_leavesExistingDirAlone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permission bits don't translate to windows")
+	}
 	home := t.TempDir()
 	dockerDir := filepath.Join(home, ".docker")
 	if err := os.Mkdir(dockerDir, 0o755); err != nil {
