@@ -39,6 +39,7 @@ func newCreate() *cobra.Command {
 		newOrgRead(),
 		newLiteFSCloud(),
 		newSSH(),
+		newWireGuard(),
 	)
 
 	return cmd
@@ -250,6 +251,37 @@ func newMachineExec() *cobra.Command {
 			Shorthand:   "p",
 			Description: "An allowed command with arguments. This command must match the prefix of a command",
 		},
+	)
+
+	return cmd
+}
+
+func newWireGuard() *cobra.Command {
+	const (
+		short = "Create a WireGuard token"
+		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		usage = "wireguard"
+	)
+
+	cmd := command.New(usage, short, long, runWireGuard,
+		command.RequireSession,
+	)
+
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "WireGuard token",
+		},
+		flag.Org(),
 	)
 
 	return cmd
@@ -537,6 +569,52 @@ func runMachineExec(ctx context.Context) error {
 	}
 
 	token, err = attenuate(token, cmdCav)
+	if err != nil {
+		return err
+	}
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
+func runWireGuard(ctx context.Context) error {
+	var token string
+	apiClient := flyutil.ClientFromContext(ctx)
+
+	expiry := ""
+	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving org %w", err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	token, err = attenuate(token, &resset.IfPresent{
+		Ifs: macaroon.NewCaveatSet(
+			&flyio.Apps{Apps: resset.ResourceSet[uint64, resset.Action]{}},
+			&flyio.FeatureSet{
+				Features: resset.ResourceSet[string, resset.Action]{
+					flyio.FeatureWireGuard: resset.ActionAll,
+				},
+			},
+		),
+		Else: resset.ActionRead,
+	})
 	if err != nil {
 		return err
 	}
