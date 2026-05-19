@@ -134,8 +134,12 @@ func configureDockerJSON(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	// It needs to be readable by Docker, if it gets installed in the future.
-	return os.WriteFile(configPath, updatedJSON, 0o644)
+	if err := os.WriteFile(configPath, updatedJSON, 0o600); err != nil {
+		return err
+	}
+	// os.WriteFile only applies perm on file creation; Chmod explicitly so
+	// the mode is applied on rewrite as well.
+	return os.Chmod(configPath, 0o600)
 }
 
 func runDocker(ctx context.Context) error {
