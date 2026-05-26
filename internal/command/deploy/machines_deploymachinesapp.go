@@ -3,11 +3,13 @@ package deploy
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"math"
 	"net"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -133,6 +135,25 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to deploy machines")
+	}
+
+	// When FLY_EMIT_RELEASE_JSON is set, emit a JSON line to stdout with the
+	// release ID and version created for this deployment. This lets callers
+	// (e.g. flyctl-deployer) reliably capture the exact release without a
+	// separate API call that could race with concurrent deployments.
+	if err == nil && os.Getenv("FLY_EMIT_RELEASE_JSON") != "" {
+		type releaseJSON struct {
+			ID       string `json:"id"`
+			Version  int    `json:"version"`
+			ImageRef string `json:"image_ref"`
+		}
+		if data, jsonErr := json.Marshal(releaseJSON{
+			ID:       md.releaseId,
+			Version:  md.releaseVersion,
+			ImageRef: md.img,
+		}); jsonErr == nil {
+			fmt.Fprintf(md.io.Out, "%s\n", data)
+		}
 	}
 
 	return err
