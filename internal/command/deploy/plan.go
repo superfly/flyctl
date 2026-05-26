@@ -387,7 +387,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
 				span.RecordError(err)
 
-				return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
+				return fmt.Errorf("failed to update machine %s: %w", machineID, err)
 			}
 
 			return nil

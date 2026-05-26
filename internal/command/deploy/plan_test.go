@@ -520,6 +520,99 @@ func TestUpdateMachinesWithNewMachine(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestUpdateProcessGroupScaleUpErrorDoesNotPanic verifies that when
+// updateMachineWChecks returns an error for a scale-up pairing
+// (oldMachine=nil), updateProcessGroup formats the error without
+// dereferencing oldMachine. Before the fix, this panicked inside an
+// errgroup goroutine and crashed the process.
+func TestUpdateProcessGroupScaleUpErrorDoesNotPanic(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+
+	// Empty old state and a single new machine produces exactly one pairing
+	// {oldMachine: nil, newMachine: ...}, hitting the scale-up code path.
+	oldMachines := []*fly.Machine{}
+	newMachines := []*fly.Machine{
+		{
+			ID:         "new-machine",
+			State:      "started",
+			Region:     "iad",
+			HostStatus: fly.HostStatusOk,
+			Config: &fly.MachineConfig{
+				Image: "image1",
+			},
+		},
+	}
+
+	flapsClient := &mock.FlapsClient{
+		AcquireLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
+			return &fly.MachineLease{
+				Data: &fly.MachineLeaseData{
+					Nonce: machineID + "nonce",
+				},
+			}, nil
+		},
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
+			return nil
+		},
+		RefreshLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
+			return &fly.MachineLease{
+				Status: "success",
+				Data:   &fly.MachineLeaseData{Nonce: nonce},
+			}, nil
+		},
+		// LaunchFunc fails so updateOrCreateMachine's scale-up arm returns an
+		// error, which propagates back through updateMachineWChecks to the
+		// error-formatting branch in updateProcessGroup.
+		LaunchFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+			return nil, assert.AnError
+		},
+		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
+			return oldMachines, nil
+		},
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{
+				ID:         machineID,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
+				Config:     &fly.MachineConfig{Image: "image1"},
+			}, nil
+		},
+	}
+
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	md := &machineDeployment{
+		flapsClient: flapsClient,
+		io:          iostreams.FromContext(ctx),
+		app: &flaps.App{
+			Name: "myapp",
+		},
+		appConfig:       &appconfig.Config{AppName: "myapp"},
+		waitTimeout:     10 * time.Second,
+		deployRetries:   0,
+		maxUnavailable:  3,
+		skipSmokeChecks: false,
+	}
+
+	oldAppState := &AppState{Machines: oldMachines}
+	newAppState := &AppState{Machines: newMachines}
+
+	// pushForward=false makes the error propagate immediately instead of
+	// retrying, so we can assert on it.
+	settings := updateMachineSettings{
+		pushForward:          false,
+		skipHealthChecks:     false,
+		skipSmokeChecks:      false,
+		skipLeaseAcquisition: false,
+	}
+
+	err := md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "new-machine",
+		"error must reference the new machine's ID; if oldMachine.ID was used, the test would have panicked instead")
+}
+
 func TestUpdateOrCreateMachine(t *testing.T) {
 	t.Parallel()
 
