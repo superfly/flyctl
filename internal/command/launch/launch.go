@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -49,12 +51,14 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	planStep := plan.GetPlanStep(ctx)
+	createdAppName := ""
 
 	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
 		app, err := state.createApp(ctx)
 		if err != nil {
 			return err
 		}
+		createdAppName = app.Name
 
 		colorize := io.ColorScheme()
 		fmt.Fprintf(io.Out, "%s\n\n", colorize.Green(fmt.Sprintf("Created app '%s' in organization '%s'", app.Name, app.Organization.Slug)))
@@ -63,6 +67,12 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 		if planStep == "create" {
 			return nil
+		}
+	}
+
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.confirmManagedPostgresCreation(ctx, createdAppName, planStep); err != nil {
+			return err
 		}
 	}
 
@@ -209,6 +219,41 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, createdAppName, planStep string) error {
+	if !state.willCreateManagedPostgresCluster(planStep) {
+		return nil
+	}
+
+	io := iostreams.FromContext(ctx)
+	if !io.IsInteractive() || flag.GetYes(ctx) {
+		return nil
+	}
+
+	confirmed, err := prompt.Confirm(ctx, "This launch will create a new Managed Postgres database which may add cost to your account. Do you want to proceed?")
+	if err != nil {
+		return err
+	}
+	if confirmed {
+		return nil
+	}
+
+	if createdAppName != "" {
+		fmt.Fprintf(io.Out, "Deleting app %s...\n", createdAppName)
+		if err := flapsutil.ClientFromContext(ctx).DeleteApp(ctx, createdAppName); err != nil {
+			return fmt.Errorf("launch canceled, but failed to delete app %s: %w", createdAppName, err)
+		}
+		fmt.Fprintf(io.Out, "Deleted app %s\n", createdAppName)
+	}
+
+	return errors.New("launch canceled")
+}
+
+func (state *launchState) willCreateManagedPostgresCluster(planStep string) bool {
+	return state.Plan.Postgres.ManagedPostgres != nil &&
+		state.Plan.Postgres.ManagedPostgres.ClusterID == "" &&
+		(planStep == "" || planStep == "postgres")
 }
 
 func ParseMountOptions(mount *appconfig.Mount, options string) error {

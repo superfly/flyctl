@@ -6,7 +6,72 @@ import (
 	"github.com/stretchr/testify/assert"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
+
+func TestWillCreateManagedPostgresCluster(t *testing.T) {
+	tests := []struct {
+		name     string
+		postgres plan.PostgresPlan
+		planStep string
+		expected bool
+	}{
+		{
+			name: "new managed postgres",
+			postgres: plan.PostgresPlan{
+				ManagedPostgres: &plan.ManagedPostgresPlan{},
+			},
+			expected: true,
+		},
+		{
+			name: "postgres plan step",
+			postgres: plan.PostgresPlan{
+				ManagedPostgres: &plan.ManagedPostgresPlan{},
+			},
+			planStep: "postgres",
+			expected: true,
+		},
+		{
+			name: "deploy plan step",
+			postgres: plan.PostgresPlan{
+				ManagedPostgres: &plan.ManagedPostgresPlan{},
+			},
+			planStep: "deploy",
+			expected: false,
+		},
+		{
+			name: "existing managed postgres",
+			postgres: plan.PostgresPlan{
+				ManagedPostgres: &plan.ManagedPostgresPlan{ClusterID: "mpg_123"},
+			},
+			expected: false,
+		},
+		{
+			name: "unmanaged postgres",
+			postgres: plan.PostgresPlan{
+				FlyPostgres: &plan.FlyPostgresPlan{},
+			},
+			expected: false,
+		},
+		{
+			name:     "no postgres",
+			postgres: plan.PostgresPlan{},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := &launchState{
+				LaunchManifest: LaunchManifest{
+					Plan: &plan.LaunchPlan{Postgres: tt.postgres},
+				},
+			}
+
+			assert.Equal(t, tt.expected, state.willCreateManagedPostgresCluster(tt.planStep))
+		})
+	}
+}
 
 func TestIsComputeValid(t *testing.T) {
 	tests := []struct {
