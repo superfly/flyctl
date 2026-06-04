@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -231,7 +232,7 @@ func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, cr
 		return nil
 	}
 
-	confirmed, err := prompt.Confirm(ctx, "This launch will create a new Managed Postgres database which may add cost to your account. Do you want to proceed?")
+	confirmed, err := prompt.Confirm(ctx, state.managedPostgresCreationPrompt())
 	if err != nil {
 		return err
 	}
@@ -248,6 +249,20 @@ func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, cr
 	}
 
 	return errors.New("launch canceled")
+}
+
+func (state *launchState) managedPostgresCreationPrompt() string {
+	pgPlan := state.Plan.Postgres.ManagedPostgres
+	dbName := pgPlan.GetDbName(state.Plan)
+	region := pgPlan.GetRegion(state.Plan)
+
+	if planDetails, ok := mpg.MPGPlans[pgPlan.Plan]; ok {
+		return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on the %s plan ($%d/mo) in %s. This is an additional paid resource. Do you want to proceed?",
+			dbName, planDetails.Name, planDetails.PricePerMo, region)
+	}
+
+	return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on plan %s in %s. This is an additional paid resource. Do you want to proceed?",
+		dbName, pgPlan.Plan, region)
 }
 
 func (state *launchState) willCreateManagedPostgresCluster(planStep string) bool {

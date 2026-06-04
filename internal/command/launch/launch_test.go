@@ -73,6 +73,27 @@ func TestWillCreateManagedPostgresCluster(t *testing.T) {
 	}
 }
 
+func TestManagedPostgresCreationPrompt(t *testing.T) {
+	state := &launchState{
+		LaunchManifest: LaunchManifest{
+			Plan: &plan.LaunchPlan{
+				AppName:    "my-app",
+				RegionCode: "iad",
+				Postgres: plan.PostgresPlan{
+					ManagedPostgres: &plan.ManagedPostgresPlan{
+						Plan: "basic",
+					},
+				},
+			},
+		},
+	}
+
+	assert.Equal(t,
+		`This launch will create a new Managed Postgres database, "my-app-db", on the Basic plan ($38/mo) in iad. This is an additional paid resource. Do you want to proceed?`,
+		state.managedPostgresCreationPrompt(),
+	)
+}
+
 func TestIsComputeValid(t *testing.T) {
 	tests := []struct {
 		name     string
