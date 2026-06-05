@@ -246,6 +246,7 @@ func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, cr
 		return nil
 	case 1:
 		state.launchWithoutManagedPostgresCluster()
+
 		return nil
 	}
 
