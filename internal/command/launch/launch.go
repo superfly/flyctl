@@ -232,11 +232,20 @@ func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, cr
 		return nil
 	}
 
-	confirmed, err := prompt.Confirm(ctx, state.managedPostgresCreationPrompt())
-	if err != nil {
+	var selectedIndex int
+	if err := prompt.Select(ctx, &selectedIndex, state.managedPostgresCreationPrompt(), "",
+		"Yes, proceed and create the MPG cluster",
+		"No, launch the app without the MPG cluster",
+		"No, cancel this launch and let me start over",
+	); err != nil {
 		return err
 	}
-	if confirmed {
+
+	switch selectedIndex {
+	case 0:
+		return nil
+	case 1:
+		state.launchWithoutManagedPostgresCluster()
 		return nil
 	}
 
@@ -251,17 +260,21 @@ func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, cr
 	return errors.New("launch canceled")
 }
 
+func (state *launchState) launchWithoutManagedPostgresCluster() {
+	state.Plan.Postgres.ManagedPostgres = nil
+}
+
 func (state *launchState) managedPostgresCreationPrompt() string {
 	pgPlan := state.Plan.Postgres.ManagedPostgres
 	dbName := pgPlan.GetDbName(state.Plan)
 	region := pgPlan.GetRegion(state.Plan)
 
 	if planDetails, ok := mpg.MPGPlans[pgPlan.Plan]; ok {
-		return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on the %s plan ($%d/mo) in %s. This is an additional paid resource. Do you want to proceed?",
+		return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on the %s plan ($%d/mo) in %s. This is an additional paid resource. How would you like to proceed?",
 			dbName, planDetails.Name, planDetails.PricePerMo, region)
 	}
 
-	return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on plan %s in %s. This is an additional paid resource. Do you want to proceed?",
+	return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on plan %s in %s. This is an additional paid resource. How would you like to proceed?",
 		dbName, pgPlan.Plan, region)
 }
 
