@@ -212,10 +212,21 @@ func waitForLogs(md *machineDeployment, ctx context.Context, stream logs.LogStre
 	}
 }
 
+// machineHostDedicationID resolves the host dedication ID from whichever machine
+// config is available - the full Config, or the partial IncompleteConfig that's
+// all we get for a machine on a non-ok host.
+func machineHostDedicationID(m *fly.Machine) string {
+	cfg := m.GetConfig()
+	if cfg == nil || cfg.Guest == nil {
+		return ""
+	}
+	return cfg.Guest.HostDedicationID
+}
+
 // dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
 // a mismatch will result in a delete+recreate op
 func dedicatedHostIdMismatch(m *fly.Machine, ac *appconfig.Config) bool {
-	return strings.TrimSpace(ac.HostDedicationID) != "" && m.Config.Guest.HostDedicationID != ac.HostDedicationID
+	return strings.TrimSpace(ac.HostDedicationID) != "" && machineHostDedicationID(m) != ac.HostDedicationID
 }
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
