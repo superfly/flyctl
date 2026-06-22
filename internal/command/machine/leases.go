@@ -139,8 +139,8 @@ func runLeaseView(ctx context.Context) (err error) {
 		rows = append(rows, []string{
 			machine,
 			lease.Data.Nonce,
-			lease.Data.Owner,
 			lease.Status,
+			lease.Data.Owner,
 			expires,
 		})
 	}
