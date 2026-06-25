@@ -50,6 +50,7 @@ var CommonFlags = flag.Set{
 	flag.BuildArg(),
 	flag.BuildSecret(),
 	flag.BuildTarget(),
+	flag.BuildContextWarnSize(),
 	flag.NoCache(),
 	flag.Depot(),
 	flag.DepotScope(),

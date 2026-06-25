@@ -560,6 +560,19 @@ func BuildTarget() String {
 	}
 }
 
+const BuildContextWarnSizeName = "build-context-warn-size"
+
+// BuildContextWarnSize controls the size at which flyctl warns that the Docker
+// build context being uploaded to the builder is unexpectedly large. Setting it
+// to 0 disables the warning. The effective default lives in imgsrc as
+// defaultBuildContextWarnSize.
+func BuildContextWarnSize() String {
+	return String{
+		Name:        BuildContextWarnSizeName,
+		Description: "Warn when the Docker build context is larger than this. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb). Set to 0 to disable. Also set with FLY_BUILD_CONTEXT_WARN_SIZE.",
+	}
+}
+
 func Depot() String {
 	return String{
 		Name:        "depot",
