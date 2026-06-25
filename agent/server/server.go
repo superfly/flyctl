@@ -246,11 +246,11 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 
 	// WIP: can't stay this way, need something more clever than this
 	if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
-		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
+		if tunnel, err = wg.ConnectWS(ctx, state); err != nil {
 			return
 		}
 	} else {
-		if tunnel, err = wg.Connect(context.Background(), state); err != nil {
+		if tunnel, err = wg.Connect(ctx, state); err != nil {
 			return
 		}
 	}
