@@ -67,6 +67,9 @@ func TestDeployMachinesApp(t *testing.T) {
 		waitTimeout:     1 * time.Second,
 	}
 
+	// Shorten the NATS timeout since it's likely to require the fallback in CI
+	natsConnectTimeout = md.waitTimeout
+
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, ios)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
