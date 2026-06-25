@@ -29,6 +29,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var natsConnectTimeout = 10 * time.Second
+
 func (md *machineDeployment) runReleaseCommands(ctx context.Context) error {
 	err := md.runReleaseCommand(ctx, "release")
 
@@ -91,6 +93,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		return nil
 	})
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeout(ctx, natsConnectTimeout)
+		defer cancel()
+
 		stream, err = logs.NewNatsStream(ctx, md.apiClient, md.flapsClient, logOpts)
 		if err != nil {
 			// Silently fallback to app logs polling if NATS streaming client is unavailable.
