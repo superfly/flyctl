@@ -20,7 +20,6 @@ func New() *cobra.Command {
 		newWireguardRemove(),
 		newWireguardReset(),
 		newWireguardWebsockets(),
-		newWireguardToken(),
 	)
 
 	return cmd
@@ -96,93 +95,6 @@ func newWireguardWebsockets() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.ExactArgs(1)
-
-	return cmd
-}
-
-func newWireguardToken() *cobra.Command {
-	const (
-		short = "Commands that managed WireGuard delegated access tokens"
-		long  = `Commands that managed WireGuard delegated access tokens`
-	)
-	cmd := command.New("token", short, long, nil,
-		command.RequireSession,
-	)
-	cmd.AddCommand(
-		newWireguardTokenCreate(),
-		newWireguardTokenDelete(),
-		newWireguardTokenList(),
-		newWireguardTokenStart(),
-		newWireguardTokenUpdate(),
-	)
-
-	return cmd
-}
-
-func newWireguardTokenList() *cobra.Command {
-	const (
-		short = "List all WireGuard tokens"
-		long  = `List all WireGuard tokens`
-	)
-	cmd := command.New("list [org]", short, long, runWireguardTokenList,
-		command.RequireSession,
-	)
-	flag.Add(cmd,
-		flag.JSONOutput(),
-	)
-	cmd.Args = cobra.MaximumNArgs(1)
-
-	return cmd
-}
-
-func newWireguardTokenCreate() *cobra.Command {
-	const (
-		short = "Create a new WireGuard token"
-		long  = `Create a new WireGuard token`
-	)
-	cmd := command.New("create [org] [name]", short, long, runWireguardTokenCreate,
-		command.RequireSession,
-	)
-	cmd.Args = cobra.MaximumNArgs(2)
-
-	return cmd
-}
-
-func newWireguardTokenDelete() *cobra.Command {
-	const (
-		short = "Delete a WireGuard token; token is name:<name> or token:<token>"
-		long  = `Delete a WireGuard token; token is name:<name> or token:<token>`
-	)
-	cmd := command.New("delete [org] [token]", short, long, runWireguardTokenDelete,
-		command.RequireSession,
-	)
-	cmd.Args = cobra.MaximumNArgs(2)
-
-	return cmd
-}
-
-func newWireguardTokenStart() *cobra.Command {
-	const (
-		short = "Start a new WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
-		long  = `Start a new WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)`
-	)
-	cmd := command.New("start [name] [group] [region] [file]", short, long, runWireguardTokenStart,
-		command.RequireSession,
-	)
-	cmd.Args = cobra.MaximumNArgs(4)
-
-	return cmd
-}
-
-func newWireguardTokenUpdate() *cobra.Command {
-	const (
-		short = "Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)"
-		long  = `Rekey a WireGuard peer connection associated with a token (set FLY_WIREGUARD_TOKEN)`
-	)
-	cmd := command.New("update [name] [file]", short, long, runWireguardTokenUpdate,
-		command.RequireSession,
-	)
-	cmd.Args = cobra.MaximumNArgs(2)
 
 	return cmd
 }
