@@ -245,6 +245,11 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	span.SetAttributes(attribute.String("tag", opts.Tag))
 
+	// Warn early if the build context we're about to upload looks unexpectedly
+	// large, so users can spot a missing .dockerignore entry before the slow
+	// transfer happens. Best-effort: never blocks the build.
+	warnOnLargeBuildContext(streams, opts, flag.GetString(ctx, flag.BuildContextWarnSizeName))
+
 	strategies := []imageBuilder{}
 
 	var builderScope depotBuilderScope
