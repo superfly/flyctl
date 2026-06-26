@@ -71,9 +71,14 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 	endpointIP := endpointIPs[rand.Intn(len(endpointIPs))]
 	endpointAddr := net.JoinHostPort(endpointIP.String(), endpointPort)
 
+	var wscancel context.CancelFunc
 	if wswg {
-		port, err := websocketConnect(ctx, endpointHost)
+		var lifetimeCtx context.Context
+		lifetimeCtx, wscancel = context.WithCancel(context.Background())
+		port, err := websocketConnect(ctx, lifetimeCtx, endpointHost)
 		if err != nil {
+			wscancel()
+
 			return nil, err
 		}
 
@@ -90,17 +95,22 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 	fmt.Fprintf(wgConf, "persistent_keepalive_interval=%d\n", cfg.KeepAlive)
 
 	if err := wgDev.IpcSetOperation(bufio.NewReader(wgConf)); err != nil {
+		if wscancel != nil {
+			wscancel()
+		}
+
 		return nil, err
 	}
 	wgDev.Up()
 
 	return &Tunnel{
-		dev:    wgDev,
-		tun:    tunDev,
-		net:    gNet,
-		dnsIP:  cfg.DNS,
-		Config: cfg,
-		State:  state,
+		dev:      wgDev,
+		tun:      tunDev,
+		net:      gNet,
+		dnsIP:    cfg.DNS,
+		Config:   cfg,
+		State:    state,
+		wscancel: wscancel,
 
 		resolv: &net.Resolver{
 			PreferGo: true,
