@@ -167,6 +167,33 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 	require.Equal(t, li.Config.Mounts, []fly.MachineMount{{Path: "/data", Volume: "vol_10001", Name: "data"}})
 }
 
+// Restarting a machine on an unreachable host must not panic: its real config
+// lives in IncompleteConfig (Config is nil). Regression test for issue #4190.
+func TestLaunchInputForRestartHostStatusUnreachable(t *testing.T) {
+	makeTerminalLoggerQuiet(t)
+
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-cool-app",
+		PrimaryRegion: "scl",
+	})
+	assert.NoError(t, err)
+	md.releaseId = "new_release_id"
+
+	li, err := md.launchInputForRestart(&fly.Machine{
+		ID:     "ab1234567890",
+		Region: "ord",
+		Config: nil,
+		IncompleteConfig: &fly.MachineConfig{
+			Metadata: map[string]string{"fly_process_group": "app"},
+		},
+		HostStatus: fly.HostStatusUnreachable,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, li.Config)
+	require.Equal(t, "ord", li.Region)
+	require.Equal(t, "new_release_id", li.Config.Metadata[fly.MachineConfigMetadataKeyFlyReleaseId])
+}
+
 // Test Mounts
 func testLaunchInputForOnMounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
