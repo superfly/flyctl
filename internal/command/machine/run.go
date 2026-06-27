@@ -470,7 +470,7 @@ func runMachineRun(ctx context.Context) error {
 
 	s.Start()
 	// wait for machine to be started
-	err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
+	err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5, "")
 	s.Stop()
 	if err != nil {
 		return err
