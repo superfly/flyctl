@@ -20,7 +20,8 @@ func ParseContainerConfig(mConfig *fly.MachineConfig, composePath, machineConfig
 			composePath = filepath.Join(configDir, composePath)
 		}
 		if err := ParseComposeFileWithPath(mConfig, composePath); err != nil {
-			return err
+			// Add more context to compose file errors
+			return fmt.Errorf("failed to load compose file '%s': %w", composePath, err)
 		}
 	} else if machineConfigStr != "" {
 		// Fall back to machine config if specified
