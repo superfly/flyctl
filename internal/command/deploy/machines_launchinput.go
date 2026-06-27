@@ -21,7 +21,13 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 		return nil, err
 	}
 
-	mConfig := machine.CloneConfig(origMachineRaw.Config)
+	// Use GetConfig() so machines on non-ok hosts (where the real config lives
+	// in IncompleteConfig and Config is nil) are handled, mirroring
+	// launchInputForUpdate. See issue #4190.
+	mConfig := machine.CloneConfig(origMachineRaw.GetConfig())
+	if mConfig == nil {
+		return nil, fmt.Errorf("machine %s has no config", origMachineRaw.ID)
+	}
 	md.setMachineReleaseData(mConfig)
 
 	return &fly.LaunchMachineInput{
