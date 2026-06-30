@@ -35,6 +35,26 @@ type mockFlapsClient struct {
 	machines      []*fly.Machine
 	leases        map[string]struct{}
 	nextMachineID int
+
+	// events records an ordered log of notable flaps operations (e.g.
+	// "launch:<id>", "destroy:<id>") so tests can assert ordering, such as
+	// when a canary machine is destroyed relative to the rolling update.
+	events []string
+	// canaryIDs holds the IDs of machines launched with the fly_canary
+	// metadata, in launch order.
+	canaryIDs []string
+}
+
+// eventIndex returns the index of the first occurrence of the given event in
+// the recorded event log, or -1 if it was never recorded. Callers must hold m.mu.
+func (m *mockFlapsClient) eventIndex(event string) int {
+	for i, e := range m.events {
+		if e == event {
+			return i
+		}
+	}
+
+	return -1
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
@@ -112,6 +132,10 @@ func (m *mockFlapsClient) DeleteVolume(ctx context.Context, appName, volumeId st
 }
 
 func (m *mockFlapsClient) Destroy(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
+	m.mu.Lock()
+	m.events = append(m.events, "destroy:"+input.ID)
+	m.mu.Unlock()
+
 	if m.breakDestroy {
 		return fmt.Errorf("failed to destroy %s", input.ID)
 	}
@@ -200,9 +224,15 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
 	m.nextMachineID += 1
+	id := fmt.Sprintf("%x", m.nextMachineID)
+
+	m.events = append(m.events, "launch:"+id)
+	if builder.Config != nil && builder.Config.Metadata["fly_canary"] == "true" {
+		m.canaryIDs = append(m.canaryIDs, id)
+	}
 
 	return &fly.Machine{
-		ID:         fmt.Sprintf("%x", m.nextMachineID),
+		ID:         id,
 		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
 	}, nil
 }
