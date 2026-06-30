@@ -783,13 +783,13 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		Org:                 orgSlug,
 	})
 	if err != nil {
-		return "", recoverableSpecifyInUi, recoverableInUiError{
+		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
 			fmt.Errorf("failed to determine region: %w", err),
 		}
 	}
 
 	if len(placements) == 0 {
-		return "", recoverableSpecifyInUi, recoverableInUiError{
+		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
 			fmt.Errorf("no regions with capacity for the requested configuration"),
 		}
 	}
