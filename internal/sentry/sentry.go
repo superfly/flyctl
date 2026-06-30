@@ -55,7 +55,7 @@ type CaptureOption func(scope *sentry.Scope)
 
 func WithExtra(key string, val any) CaptureOption {
 	return func(scope *sentry.Scope) {
-		scope.SetExtra(key, val)
+		scope.SetContext(key, sentry.Context{"value": val})
 	}
 }
 
