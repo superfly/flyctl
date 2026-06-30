@@ -101,6 +101,21 @@ func runFork(ctx context.Context) error {
 
 	region := flag.GetString(ctx, "region")
 
+	// A volume lives on a single host, so if that host is unavailable the volume
+	// can't be forked. Report this directly and suggest restoring from a snapshot
+	// as an alternative.
+	if vol.HostStatus != string(fly.HostStatusOk) {
+		return fmt.Errorf(
+			"can't fork volume %s: it's on a host that is currently unavailable or unreachable (host status: %q).\n"+
+				"If the host doesn't recover, you can create a new volume from a recent snapshot instead:\n"+
+				"  fly volume snapshots list %s -a %s\n"+
+				"  fly volume create %s --snapshot-id <snapshot id> -a %s",
+			vol.ID, vol.HostStatus,
+			vol.ID, appName,
+			name, appName,
+		)
+	}
+
 	var attachedMachineImage string
 	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
@@ -108,7 +123,11 @@ func runFork(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		attachedMachineGuest = m.Config.Guest
+		// Guard against a nil config (e.g. the machine's host went unhealthy
+		// between fetching the volume and the machine) so we never panic here.
+		if m.Config != nil {
+			attachedMachineGuest = m.Config.Guest
+		}
 		attachedMachineImage = m.FullImageRef()
 	}
 
