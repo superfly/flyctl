@@ -60,13 +60,13 @@ func WithExtra(key string, val any) CaptureOption {
 				event.Contexts = map[string]sentry.Context{}
 			}
 
-			extraCtx, ok := event.Contexts["extra"]
-			if !ok || extraCtx == nil {
-				extraCtx = sentry.Context{}
+			contextData, ok := event.Contexts[key]
+			if !ok || contextData == nil {
+				contextData = sentry.Context{}
 			}
 
-			extraCtx[key] = val
-			event.Contexts["extra"] = extraCtx
+			contextData["value"] = val
+			event.Contexts[key] = contextData
 
 			return event
 		})
