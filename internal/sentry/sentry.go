@@ -81,7 +81,9 @@ func WithExtra(key string, val any) CaptureOption {
 		case []bool:
 			scope.SetAttributes(attribute.BoolSlice(key, v))
 		default:
-			// For other types, convert to string
+			// For other types (e.g., structs, pointers), convert to string representation.
+			// This provides a fallback for unsupported types but may produce less structured
+			// data than the native type-specific attributes above.
 			scope.SetAttributes(attribute.String(key, fmt.Sprintf("%v", v)))
 		}
 	}
