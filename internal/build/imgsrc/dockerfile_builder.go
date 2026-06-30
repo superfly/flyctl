@@ -29,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/tonistiigi/fsutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -362,7 +363,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	return imageID, nil
 }
 
-func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) client.SolveOpt {
+func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (client.SolveOpt, error) {
 	// Fly.io only supports linux/amd64, but local Docker Engine could be running on ARM,
 	// including Apple Silicon. Use FLY_DEV_PLATFORM to override for local testing.
 	platform := "linux/amd64"
@@ -391,12 +392,21 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 		attrs["build-arg:"+k] = *v
 	}
 
+	dockerfileDir, err := fsutil.NewFS(filepath.Dir(dockerfilePath))
+	if err != nil {
+		return client.SolveOpt{}, err
+	}
+	contextDir, err := fsutil.NewFS(opts.WorkingDir)
+	if err != nil {
+		return client.SolveOpt{}, err
+	}
+
 	return client.SolveOpt{
 		Frontend:      "dockerfile.v0",
 		FrontendAttrs: attrs,
-		LocalDirs: map[string]string{
-			"dockerfile": filepath.Dir(dockerfilePath),
-			"context":    opts.WorkingDir,
+		LocalMounts: map[string]fsutil.FS{
+			"dockerfile": dockerfileDir,
+			"context":    contextDir,
 		},
 		// Docker Engine's worker only supports three exporters.
 		// "moby" exporter works best for flyctl, since we want to keep images in
@@ -405,7 +415,7 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 		Exports: []client.ExportEntry{
 			{Type: "moby", Attrs: map[string]string{"name": opts.Tag}},
 		},
-	}
+	}, nil
 }
 
 func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (string, error) {
@@ -430,7 +440,10 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	eg.Go(newDisplay(statusCh))
 	var res *client.SolveResponse
 	eg.Go(func() error {
-		options := solveOptFromImageOptions(opts, dockerfilePath, buildArgs)
+		options, err := solveOptFromImageOptions(opts, dockerfilePath, buildArgs)
+		if err != nil {
+			return err
+		}
 		secrets := make(map[string][]byte)
 		for k, v := range opts.BuildSecrets {
 			secrets[k] = []byte(v)

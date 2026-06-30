@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/tonistiigi/fsutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -259,6 +260,15 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	exportEntry.Attrs["compression-level"] = strconv.Itoa(opts.CompressionLevel)
 	exportEntry.Attrs["force-compression"] = "true"
 
+	dockerfileDir, err := fsutil.NewFS(filepath.Dir(dockerfilePath))
+	if err != nil {
+		return nil, err
+	}
+	contextDir, err := fsutil.NewFS(opts.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
 	ch := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -269,9 +279,9 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 				"target":   opts.Target,
 				"platform": "linux/amd64",
 			},
-			LocalDirs: map[string]string{
-				"dockerfile": filepath.Dir(dockerfilePath),
-				"context":    opts.WorkingDir,
+			LocalMounts: map[string]fsutil.FS{
+				"dockerfile": dockerfileDir,
+				"context":    contextDir,
 			},
 			Exports: []client.ExportEntry{exportEntry},
 			// Prevent recording the build steps and traces in buildkit as it is _very_ slow.
