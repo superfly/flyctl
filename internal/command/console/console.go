@@ -121,6 +121,7 @@ func New() *cobra.Command {
 			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
 			Hidden:      true,
 		},
+		flag.BuildContextWarnSize(),
 		flag.Bool{
 			Name:        "no-build-cache",
 			Description: "Do not use the cache when building the image",
