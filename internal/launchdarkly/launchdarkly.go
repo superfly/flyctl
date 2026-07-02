@@ -74,7 +74,7 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
 	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
-		logger.Debug("update feature flags failed: %s", err)
+		logger.Debugf("update feature flags failed: %s", err)
 	}
 
 	go ldClient.monitor(ctx)
@@ -95,7 +95,7 @@ func NewServiceClient() (*Client, error) {
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
 	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
-		logger.Debug("update feature flags failed: %s", err)
+		logger.Debugf("update feature flags failed: %s", err)
 	}
 
 	go ldClient.monitor(ctx)
