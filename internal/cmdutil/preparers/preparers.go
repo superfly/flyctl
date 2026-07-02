@@ -63,10 +63,14 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	} else {
 		clientSignalsEnabled = ldClient.ClientSignalsEnabled()
 	}
+	logger.Debugf("client-signals-enabled feature flag is: %v", clientSignalsEnabled)
 	disableClientSignals := !clientSignalsEnabled
 
 	if flyutil.ClientFromContext(ctx) == nil {
-		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens, DisableClientSignals: &disableClientSignals})
+		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
+			Tokens:               cfg.Tokens,
+			DisableClientSignals: &disableClientSignals,
+		})
 		logger.Debug("client initialized.")
 		ctx = flyutil.NewContextWithClient(ctx, client)
 	}
@@ -104,7 +108,9 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 
 	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{DisableClientSignals: disableClientSignals})
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			DisableClientSignals: disableClientSignals,
+		})
 		if err != nil {
 			return nil, err
 		}
