@@ -83,8 +83,9 @@ func InitClient(ctx context.Context) (context.Context, error) {
 
 	if uiexutil.ClientFromContext(ctx) == nil {
 		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger,
-			Tokens: cfg.Tokens,
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
 		})
 		if err != nil {
 			return nil, err
@@ -94,8 +95,9 @@ func InitClient(ctx context.Context) (context.Context, error) {
 
 	if mpgv1.ClientFromContext(ctx) == nil {
 		mpgClient, err := mpgv1.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger,
-			Tokens: cfg.Tokens,
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
 		})
 		if err != nil {
 			return nil, err
@@ -104,8 +106,9 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 	if mpgv2.ClientFromContext(ctx) == nil {
 		mpgClient, err := mpgv2.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger,
-			Tokens: cfg.Tokens,
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
 		})
 		if err != nil {
 			return nil, err
