@@ -89,7 +89,9 @@ func NewServiceClient() (*Client, error) {
 	_, span := tracing.GetTracer().Start(ctx, "new_flyctl_feature_flag_client")
 	defer span.End()
 
-	ldClient := &Client{ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"), flagsMutex: sync.Mutex{}}
+	ldClient := &Client{
+		ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"),
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
