@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/pflag"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/fly-go/pkg/clientsignals"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
@@ -65,10 +66,16 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 	logger.Debugf("client-signals-enabled feature flag is: %v", clientSignalsEnabled)
 
+	var signals *clientsignals.Signals
+	if clientSignalsEnabled {
+		s := clientsignals.DetectOnce()
+		signals = &s
+	}
+
 	if flyutil.ClientFromContext(ctx) == nil {
 		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
-			Tokens:              cfg.Tokens,
-			EnableClientSignals: &clientSignalsEnabled,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
 		})
 		logger.Debug("client initialized.")
 		ctx = flyutil.NewContextWithClient(ctx, client)
@@ -108,7 +115,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 
 	if flapsutil.ClientFromContext(ctx) == nil {
 		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			EnableClientSignals: clientSignalsEnabled,
+			ClientSignals: signals,
 		})
 		if err != nil {
 			return nil, err
