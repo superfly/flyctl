@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -56,8 +57,20 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
+	clientSignalsEnabled := false
+	if ldClient, err := launchdarkly.NewServiceClient(); err != nil {
+		logger.Debugf("could not create feature flag client: %v", err)
+	} else {
+		clientSignalsEnabled = ldClient.ClientSignalsEnabled()
+	}
+	logger.Debugf("client-signals-enabled feature flag is: %v", clientSignalsEnabled)
+	disableClientSignals := !clientSignalsEnabled
+
 	if flyutil.ClientFromContext(ctx) == nil {
-		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
+			Tokens:               cfg.Tokens,
+			DisableClientSignals: &disableClientSignals,
+		})
 		logger.Debug("client initialized.")
 		ctx = flyutil.NewContextWithClient(ctx, client)
 	}
@@ -95,7 +108,9 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 
 	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			DisableClientSignals: disableClientSignals,
+		})
 		if err != nil {
 			return nil, err
 		}
