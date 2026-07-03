@@ -47,6 +47,8 @@ type UserInfo struct {
 }
 
 func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
+	logger := logger.MaybeFromContext(ctx)
+
 	_, span := tracing.GetTracer().Start(ctx, "new_feature_flag_client")
 	defer span.End()
 
@@ -71,7 +73,9 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
-	_ = ldClient.updateFeatureFlags(timeoutCtx)
+	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
+		logger.Debugf("update feature flags failed: %s", err)
+	}
 
 	go ldClient.monitor(ctx)
 
@@ -80,15 +84,21 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 
 func NewServiceClient() (*Client, error) {
 	ctx := context.Background()
+	logger := logger.MaybeFromContext(ctx)
+
 	_, span := tracing.GetTracer().Start(ctx, "new_flyctl_feature_flag_client")
 	defer span.End()
 
-	ldClient := &Client{ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"), flagsMutex: sync.Mutex{}}
+	ldClient := &Client{
+		ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"),
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
-	_ = ldClient.updateFeatureFlags(timeoutCtx)
+	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
+		logger.Debugf("update feature flags failed: %s", err)
+	}
 
 	go ldClient.monitor(ctx)
 
@@ -124,7 +134,6 @@ func (ldClient *Client) GetFeatureFlagValue(key string, defaultValue any) any {
 	span.SetAttributes(attribute.Bool("default_flag", true))
 
 	return defaultValue
-
 }
 
 type FeatureFlag struct {
@@ -190,7 +199,6 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 
 			return nil
 		}
-
 	})
 
 	for _, flagAttribute := range flagAttributes {
@@ -236,4 +244,8 @@ func (ldClient *Client) UseZstdEnabled() bool {
 
 func (ldClient *Client) GetCompressionStrength() any {
 	return ldClient.GetFeatureFlagValue("flyctl-compression-strength", 7)
+}
+
+func (ldClient *Client) ClientSignalsEnabled() bool {
+	return ldClient.GetFeatureFlagValue("flyctl-client-signals-enabled", false).(bool)
 }
