@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/pkg/clientsignals"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
@@ -34,6 +35,10 @@ type NewClientOpts struct {
 
 	// optional, used to construct the underlying HTTP client
 	Transport http.RoundTripper
+
+	// optional; if non-nil, attaches the Fly-Client-* headers/UA suffix
+	// derived from these signals
+	ClientSignals *clientsignals.Signals
 }
 
 func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
@@ -54,7 +59,12 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		baseUrl = uiexUrl
 	}
 
-	httpClient, err := fly.NewHTTPClient(logger.MaybeFromContext(ctx), httptracing.NewTransport(http.DefaultTransport))
+	var transport = httptracing.NewTransport(http.DefaultTransport)
+	if opts.ClientSignals != nil {
+		transport = opts.ClientSignals.WrapTransport(transport)
+	}
+
+	httpClient, err := fly.NewHTTPClient(logger.MaybeFromContext(ctx), transport)
 	if err != nil {
 		return nil, fmt.Errorf("uiex: can't setup HTTP client to %s: %w", baseUrl.String(), err)
 	}
