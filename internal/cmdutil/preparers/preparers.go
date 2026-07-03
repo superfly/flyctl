@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	"github.com/superfly/client-signals"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/fly-go/pkg/clientsignals"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
