@@ -107,7 +107,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
 	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
-	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect --cluster %s\n\n", clusterID)
+	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect %s\n\n", clusterID)
 	for {
 		res, err := mpgClient.GetManagedClusterById(ctx, clusterID)
 		if err != nil {
