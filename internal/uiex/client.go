@@ -59,7 +59,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		baseUrl = uiexUrl
 	}
 
-	var transport http.RoundTripper = httptracing.NewTransport(http.DefaultTransport)
+	var transport = httptracing.NewTransport(http.DefaultTransport)
 	if opts.ClientSignals != nil {
 		transport = opts.ClientSignals.WrapTransport(transport)
 	}
