@@ -29,6 +29,9 @@ type MpgV1Client struct {
 	RestoreManagedClusterBackupFunc func(ctx context.Context, clusterID string, input mpgv1.RestoreManagedClusterBackupInput) (mpgv1.RestoreManagedClusterBackupResponse, error)
 	CreateAttachmentFunc            func(ctx context.Context, clusterId string, input mpgv1.CreateAttachmentInput) (mpgv1.CreateAttachmentResponse, error)
 	DeleteAttachmentFunc            func(ctx context.Context, clusterId string, appName string) (mpgv1.DeleteAttachmentResponse, error)
+	ListExtensionsFunc              func(ctx context.Context, id, database string) (mpgv1.ListExtensionsResponse, error)
+	EnableExtensionFunc             func(ctx context.Context, id, database string, input mpgv1.EnableExtensionInput) error
+	DisableExtensionFunc            func(ctx context.Context, id, database, name string, force bool) error
 }
 
 func (m *MpgV1Client) ListMPGRegions(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
@@ -181,4 +184,28 @@ func (m *MpgV1Client) DeleteAttachment(ctx context.Context, clusterId string, ap
 	}
 
 	return mpgv1.DeleteAttachmentResponse{}, nil
+}
+
+func (m *MpgV1Client) ListExtensions(ctx context.Context, id, database string) (mpgv1.ListExtensionsResponse, error) {
+	if m.ListExtensionsFunc != nil {
+		return m.ListExtensionsFunc(ctx, id, database)
+	}
+
+	return mpgv1.ListExtensionsResponse{}, nil
+}
+
+func (m *MpgV1Client) EnableExtension(ctx context.Context, id, database string, input mpgv1.EnableExtensionInput) error {
+	if m.EnableExtensionFunc != nil {
+		return m.EnableExtensionFunc(ctx, id, database, input)
+	}
+
+	return nil
+}
+
+func (m *MpgV1Client) DisableExtension(ctx context.Context, id, database, name string, force bool) error {
+	if m.DisableExtensionFunc != nil {
+		return m.DisableExtensionFunc(ctx, id, database, name, force)
+	}
+
+	return nil
 }

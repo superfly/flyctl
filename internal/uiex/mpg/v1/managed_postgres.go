@@ -775,6 +775,146 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 	}
 }
 
+// ListExtensions returns the catalog of available Postgres extensions for the
+// given database, along with whether each one is currently installed.
+func (c *Client) ListExtensions(ctx context.Context, id, database string) (ListExtensionsResponse, error) {
+	var response ListExtensionsResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases/%s/extensions", c.BaseURL(), id, database)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("cluster %s or database %s not found", id, database)
+	case http.StatusForbidden:
+		return response, fmt.Errorf("access denied: you don't have permission to list extensions for cluster %s", id)
+	default:
+		return response, fmt.Errorf("failed to list extensions (status %d): %s", res.StatusCode, decodeError(body))
+	}
+}
+
+// EnableExtension installs a Postgres extension in the given database.
+func (c *Client) EnableExtension(ctx context.Context, id, database string, input EnableExtensionInput) error {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases/%s/extensions", c.BaseURL(), id, database)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusCreated, http.StatusNoContent:
+		return nil
+	case http.StatusConflict:
+		return fmt.Errorf("%s", decodeError(body))
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return fmt.Errorf("%s", decodeError(body))
+	case http.StatusNotFound:
+		return fmt.Errorf("cluster %s or database %s not found", id, database)
+	case http.StatusForbidden:
+		return fmt.Errorf("access denied: you don't have permission to enable extensions for cluster %s", id)
+	default:
+		return fmt.Errorf("failed to enable extension (status %d): %s", res.StatusCode, decodeError(body))
+	}
+}
+
+// DisableExtension drops a Postgres extension from the given database.
+func (c *Client) DisableExtension(ctx context.Context, id, database, name string, force bool) error {
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases/%s/extensions/%s", c.BaseURL(), id, database, name)
+	if force {
+		url += "?force=true"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusNoContent:
+		return nil
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
+		return fmt.Errorf("%s", decodeError(body))
+	case http.StatusNotFound:
+		return fmt.Errorf("cluster %s or database %s not found", id, database)
+	case http.StatusForbidden:
+		return fmt.Errorf("access denied: you don't have permission to disable extensions for cluster %s", id)
+	default:
+		return fmt.Errorf("failed to disable extension (status %d): %s", res.StatusCode, decodeError(body))
+	}
+}
+
+// decodeError extracts the "error" field from a UI-EX error response body, or
+// falls back to the raw body string if the body is not a JSON error envelope.
+func decodeError(body []byte) string {
+	var envelope struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err == nil && envelope.Error != "" {
+		return envelope.Error
+	}
+	return string(body)
+}
+
 // DeleteAttachment removes a ManagedServiceAttachment record linking an app to a managed Postgres cluster
 func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName string) (DeleteAttachmentResponse, error) {
 	var response DeleteAttachmentResponse

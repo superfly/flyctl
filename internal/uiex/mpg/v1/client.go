@@ -29,6 +29,9 @@ type ClientV1 interface {
 	ListUsers(ctx context.Context, id string) (ListUsersResponse, error)
 	ListDatabases(ctx context.Context, id string) (ListDatabasesResponse, error)
 	CreateDatabase(ctx context.Context, id string, input CreateDatabaseInput) (CreateDatabaseResponse, error)
+	ListExtensions(ctx context.Context, id, database string) (ListExtensionsResponse, error)
+	EnableExtension(ctx context.Context, id, database string, input EnableExtensionInput) error
+	DisableExtension(ctx context.Context, id, database, name string, force bool) error
 	CreateCluster(ctx context.Context, input CreateClusterInput) (CreateClusterResponse, error)
 	DestroyCluster(ctx context.Context, orgSlug string, id string) error
 	ListManagedClusterBackups(ctx context.Context, clusterID string) (ListManagedClusterBackupsResponse, error)
@@ -200,6 +203,30 @@ type CreateDatabaseInput struct {
 
 type CreateDatabaseResponse struct {
 	Data Database `json:"data"`
+}
+
+type InstalledExtension struct {
+	Version string `json:"version"`
+	Schema  string `json:"schema"`
+}
+
+type Extension struct {
+	Name           string              `json:"name"`
+	Description    string              `json:"description"`
+	DocsURL        string              `json:"docs_url"`
+	DefaultVersion string              `json:"default_version"`
+	IsSystem       bool                `json:"is_system"`
+	Installed      *InstalledExtension `json:"installed"`
+}
+
+type ListExtensionsResponse struct {
+	Data []Extension `json:"data"`
+}
+
+type EnableExtensionInput struct {
+	Name                  string `json:"name"`
+	Schema                string `json:"schema,omitempty"`
+	CreateSchemaIfNeeded  bool   `json:"create_schema_if_needed"`
 }
 
 type CreateClusterInput struct {
