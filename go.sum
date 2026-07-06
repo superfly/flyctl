@@ -164,8 +164,8 @@ github.com/buildpacks/imgutil v0.0.0-20251202182233-51c1c8c186ea h1:91PTHjeL3uzj
 github.com/buildpacks/imgutil v0.0.0-20251202182233-51c1c8c186ea/go.mod h1:yw2U9Ec8KUk7jWY97K0+e6GqrUAr05uTK6LwOEZyupw=
 github.com/buildpacks/lifecycle v0.21.0 h1:s2okNv1I4rETBC4CRm4ly7DRr5eTqx1bpKXyf+ywVms=
 github.com/buildpacks/lifecycle v0.21.0/go.mod h1:5Rb9kld2v1XYQC14fJrIGESqmuJvSYHVlUxAW5MAxNU=
-github.com/buildpacks/pack v0.40.6 h1:w2HbQLv5UEvkbdoGt/QHmEbrMrvIwZZwuo/L0KaPdWE=
-github.com/buildpacks/pack v0.40.6/go.mod h1:/tcPeriACGmDZ0FCwkAyvwJaTFtDykGfaLUZk6u5aMw=
+github.com/buildpacks/pack v0.40.7 h1:TziCq65RQOVS6Ryt1M60iXhuhkVlZ0baG73a/qn14RQ=
+github.com/buildpacks/pack v0.40.7/go.mod h1:W7wGiaWDSyd/6K7wCswZayqsKmiZkdos0Ydv2TXqM8w=
 github.com/cavaliergopher/grab/v3 v3.0.1 h1:4z7TkBfmPjmLAAmkkAZNX/6QJ1nNFdv3SdIHXju0Fr4=
 github.com/cavaliergopher/grab/v3 v3.0.1/go.mod h1:1U/KNnD+Ft6JJiYoYBAimKH2XrYptb8Kl3DFGmsjpq4=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
