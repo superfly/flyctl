@@ -224,9 +224,9 @@ type ListExtensionsResponse struct {
 }
 
 type EnableExtensionInput struct {
-	Name                  string `json:"name"`
-	Schema                string `json:"schema,omitempty"`
-	CreateSchemaIfNeeded  bool   `json:"create_schema_if_needed"`
+	Name                 string `json:"name"`
+	Schema               string `json:"schema,omitempty"`
+	CreateSchemaIfNeeded bool   `json:"create_schema_if_needed"`
 }
 
 type CreateClusterInput struct {
