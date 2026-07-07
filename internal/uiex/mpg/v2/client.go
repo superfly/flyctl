@@ -1049,6 +1049,7 @@ func decodeError(body []byte) string {
 	if err := json.Unmarshal(body, &envelope); err == nil && envelope.Error != "" {
 		return envelope.Error
 	}
+
 	return string(body)
 }
 
