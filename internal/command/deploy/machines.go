@@ -355,65 +355,54 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		return err
 	}
 
-	nMachines := len(machines)
-	if nMachines == 0 {
-		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
-		activeMachines, err := md.flapsClient.ListActive(ctx, md.app.Name)
+	var activeMachines []*fly.Machine
+	activeMachinesLoaded := false
+	loadActiveMachines := func() error {
+		if activeMachinesLoaded {
+			return nil
+		}
+
+		var err error
+		activeMachines, err = md.flapsClient.ListActive(ctx, md.app.Name)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to list machines")
 
 			return err
 		}
-		if len(activeMachines) > 0 {
-			fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
-			md.isFirstDeploy = true
+		activeMachinesLoaded = true
+
+		return nil
+	}
+
+	nMachines := len(machines)
+	if nMachines == 0 {
+		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
+		if err := loadActiveMachines(); err != nil {
+			return err
 		}
 	}
 
 	filtersApplied := map[string]struct{}{}
 	machines = slices.DeleteFunc(machines, func(m *fly.Machine) bool {
-		if len(md.onlyRegions) > 0 {
-			filtersApplied["--regions"] = struct{}{}
-
-			if !md.onlyRegions[m.Region] {
-				return true
-			}
-		}
-
-		if len(md.excludeRegions) > 0 {
-			filtersApplied["--exclude-regions"] = struct{}{}
-
-			if md.excludeRegions[m.Region] {
-				return true
-			}
-		}
-
-		if len(md.onlyMachines) > 0 {
-			filtersApplied["--only-machines"] = struct{}{}
-
-			if !md.onlyMachines[m.ID] {
-				return true
-			}
-		}
-
-		if len(md.excludeMachines) > 0 {
-			filtersApplied["--exclude-machines"] = struct{}{}
-
-			if md.excludeMachines[m.ID] {
-				return true
-			}
-		}
-
-		if len(md.processGroups) > 0 {
-			filtersApplied["--process-groups"] = struct{}{}
-
-			if !md.processGroups[m.ProcessGroup()] {
-				return true
-			}
-		}
-
-		return false
+		return md.machineFilteredFromDeployment(m, filtersApplied)
 	})
+
+	if md.strategy == "bluegreen" && len(machines) == 0 {
+		if err := loadActiveMachines(); err != nil {
+			return err
+		}
+
+		if err := md.validateNoDetachedBluegreenMachines(activeMachines); err != nil {
+			tracing.RecordError(span, err, "failed to validate bluegreen machines")
+
+			return err
+		}
+	}
+
+	if nMachines == 0 && len(activeMachines) > 0 {
+		fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
+		md.isFirstDeploy = true
+	}
 
 	if len(filtersApplied) > 0 {
 		s := ""
@@ -446,6 +435,98 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, releaseCmdSet, true)
 
 	return nil
+}
+
+func (md *machineDeployment) machineFilteredFromDeployment(m *fly.Machine, filtersApplied map[string]struct{}) bool {
+	return md.machineFilteredFromDeploymentByProcessGroup(m, filtersApplied, m.ProcessGroup())
+}
+
+func (md *machineDeployment) machineFilteredFromDeploymentByProcessGroup(m *fly.Machine, filtersApplied map[string]struct{}, processGroup string) bool {
+	if len(md.onlyRegions) > 0 {
+		filtersApplied["--regions"] = struct{}{}
+
+		if !md.onlyRegions[m.Region] {
+			return true
+		}
+	}
+
+	if len(md.excludeRegions) > 0 {
+		filtersApplied["--exclude-regions"] = struct{}{}
+
+		if md.excludeRegions[m.Region] {
+			return true
+		}
+	}
+
+	if len(md.onlyMachines) > 0 {
+		filtersApplied["--only-machines"] = struct{}{}
+
+		if !md.onlyMachines[m.ID] {
+			return true
+		}
+	}
+
+	if len(md.excludeMachines) > 0 {
+		filtersApplied["--exclude-machines"] = struct{}{}
+
+		if md.excludeMachines[m.ID] {
+			return true
+		}
+	}
+
+	if len(md.processGroups) > 0 {
+		filtersApplied["--process-groups"] = struct{}{}
+
+		if !md.processGroups[processGroup] {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (md *machineDeployment) machineProcessGroup(m *fly.Machine) string {
+	group := m.ProcessGroup()
+	if group != "" {
+		return group
+	}
+
+	return md.appConfig.DefaultProcessName()
+}
+
+func (md *machineDeployment) validateNoDetachedBluegreenMachines(activeMachines []*fly.Machine) error {
+	groupsInConfig := md.ProcessNames()
+	ignoredFilters := map[string]struct{}{}
+	var detachedMachines []string
+	for _, m := range activeMachines {
+		if m.IsFlyAppsPlatform() {
+			continue
+		}
+		group := md.machineProcessGroup(m)
+		if md.machineFilteredFromDeploymentByProcessGroup(m, ignoredFilters, group) {
+			continue
+		}
+
+		if !slices.Contains(groupsInConfig, group) {
+			continue
+		}
+
+		detachedMachines = append(detachedMachines, fmt.Sprintf("%s (%s)", m.ID, group))
+	}
+	if len(detachedMachines) == 0 {
+		return nil
+	}
+
+	slices.Sort(detachedMachines)
+
+	return fmt.Errorf(
+		"bluegreen deployment can't safely continue because active Machines outside Fly Launch management belong to configured process groups: %s. "+
+			"If these Machines should be managed by deploys, make sure they have %s=%s and the correct %s metadata; otherwise destroy or move them before using bluegreen",
+		strings.Join(detachedMachines, ", "),
+		fly.MachineConfigMetadataKeyFlyPlatformVersion,
+		fly.MachineFlyPlatformVersion2,
+		fly.MachineConfigMetadataKeyFlyProcessGroup,
+	)
 }
 
 func (md *machineDeployment) setVolumes(ctx context.Context) error {
