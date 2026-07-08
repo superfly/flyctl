@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/superfly/client-signals"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/httptracing"

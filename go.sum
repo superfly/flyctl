@@ -666,10 +666,10 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
-github.com/superfly/client-signals v0.2.0 h1:ecwb3sCWwZ55+gpinSi/3yl4/OSBAsqYpmMUxsbbNaU=
-github.com/superfly/client-signals v0.2.0/go.mod h1:YeQnlJ3sh9ptDyq1QZMKYv+AUW9Xuh77lRS9ULj+m2I=
-github.com/superfly/fly-go v0.8.0 h1:U7cZ2ZzT5F+euzeNnwi0H4by2dUCfykwWrQ3dbrT48Q=
-github.com/superfly/fly-go v0.8.0/go.mod h1:eQjT7h4mTrEjeH2YVLu7ID6jffxJM/pggdQgyZRpQmo=
+github.com/superfly/client-signals/go v0.3.0 h1:UegKdBgPCYn5FqSGdxHUIeyLTAGWnd0kYxlioARw4LY=
+github.com/superfly/client-signals/go v0.3.0/go.mod h1:v/FQ2fZ4zOkOxKmue+bYh96awuh9Qh1ImcdxzRYcHFA=
+github.com/superfly/fly-go v0.9.0 h1:aYPEv8LPm61O22iAY+2kfZScaXJU0szuZfYc54qvWko=
+github.com/superfly/fly-go v0.9.0/go.mod h1:fRCFpiasmGrkifFFgQy+3AUd+On2BvSsrh/zV/mvX7s=
 github.com/superfly/graphql v0.2.6 h1:zppbodNerWecoXEdjkhrqaNaSjGqobhXNlViHFuZzb4=
 github.com/superfly/graphql v0.2.6/go.mod h1:CVfDl31srm8HnJ9udwLu6hFNUW/P6GUM2dKcG1YQ8jc=
 github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2Q=
