@@ -80,7 +80,7 @@ func RunExtensionsEnable(ctx context.Context, clusterID, database, name, schema 
 	}
 
 	fmt.Fprintf(out, "Extension %s enabled on database %s.\n", name, database)
-	
+
 	return nil
 }
 
@@ -98,7 +98,7 @@ func RunExtensionsDisable(ctx context.Context, clusterID, database, name string,
 	}
 
 	fmt.Fprintf(out, "Extension %s disabled on database %s.\n", name, database)
-	
+
 	return nil
 }
 
