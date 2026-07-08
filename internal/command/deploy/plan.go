@@ -58,8 +58,11 @@ type AppState struct {
 }
 
 type machinePairing struct {
-	oldMachine *fly.Machine
-	newMachine *fly.Machine
+	// originalMachine is this machine as read before the deploy began. It's not re-read on recovery retries.
+	// nil for machines being created during the deploy.
+	originalMachine *fly.Machine
+	oldMachine      *fly.Machine
+	newMachine      *fly.Machine
 }
 
 // appState returns the app's state from Flaps.
@@ -109,7 +112,7 @@ type updateMachineSettings struct {
 
 const rollingStrategyMaxConcurrentGroups = 16
 
-func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
+func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, originalAppState, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
 		ctx, "update_machines_w_recovery",
 		trace.WithAttributes(attribute.Bool("push_forward", settings.pushForward)),
@@ -121,6 +124,12 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
 
+	originalMachines := make(map[string]*fly.Machine)
+	if originalAppState != nil {
+		for _, machine := range originalAppState.Machines {
+			originalMachines[machine.ID] = machine
+		}
+	}
 	oldMachines := make(map[string]*fly.Machine)
 	for _, machine := range oldAppState.Machines {
 		oldMachines[machine.ID] = machine
@@ -139,7 +148,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				machineChecksPassed: settings.skipHealthChecks,
 				smokeChecksPassed:   settings.skipSmokeChecks,
 			})
-			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
+			machineTuples = append(machineTuples, machinePairing{originalMachine: originalMachines[oldMachine.ID], oldMachine: oldMachine, newMachine: newMachine})
 		}
 	}
 
@@ -151,7 +160,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				machineChecksPassed: settings.skipHealthChecks,
 				smokeChecksPassed:   settings.skipSmokeChecks,
 			})
-			machineTuples = append(machineTuples, machinePairing{oldMachine: nil, newMachine: newMachine})
+			machineTuples = append(machineTuples, machinePairing{originalMachine: originalMachines[newMachine.ID], oldMachine: nil, newMachine: newMachine})
 		}
 	}
 
@@ -309,7 +318,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			if err != nil {
 				return err
 			}
-			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
+			err = md.updateMachinesWRecovery(ctx, originalAppState, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,
 				skipSmokeChecks:      settings.skipSmokeChecks,
@@ -347,6 +356,10 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 	for _, machPair := range machineTuples {
 		oldMachine := machPair.oldMachine
 		newMachine := machPair.newMachine
+		// Determine if the machine should be started after deployment. This is based
+		// on the state of originalMachine, which was captured pre-deploy and won't
+		// change during deploy recovery retries.
+		skipLaunch := shouldSkipLaunch(machPair.originalMachine, newMachine.Config)
 
 		group.Go(func() error {
 			// if both old and new machines are nil, we don't need to update anything
@@ -382,7 +395,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			}
 			machineCheckResult := checkResult.(*healthcheckResult)
 
-			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, sl, md.io, machineCheckResult)
+			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
 				span.RecordError(err)
@@ -565,7 +578,7 @@ func isEmptyOrNilSlice(v interface{}) bool {
 	return rv.Kind() == reflect.Slice && rv.Len() == 0
 }
 
-func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks", trace.WithAttributes(
 		attribute.Bool("smoke_checks", healthcheckResult.smokeChecksPassed),
 		attribute.Bool("machine_checks", healthcheckResult.machineChecksPassed),
@@ -578,7 +591,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	var err error
 
-	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl)
+	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, skipLaunch, sl)
 	// if machine is nil and the lease is nil, it means we don't need to check on this machine
 	if err != nil || (machine == nil && lease == nil) {
 		span.RecordError(err)
@@ -588,8 +601,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	lm := mach.NewLeasableMachine(md.flapsClient, io, md.app.Name, machine, false)
 
-	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
-	span.SetAttributes(attribute.Bool("should_start", shouldStart))
+	span.SetAttributes(attribute.Bool("should_start", !skipLaunch))
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
@@ -601,7 +613,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		}
 	}
 
-	if !shouldStart {
+	if skipLaunch {
 		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
 
 		return nil
@@ -649,7 +661,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	return nil
 }
 
-func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine) (*fly.Machine, *fly.MachineLease, error) {
+func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine) (*fly.Machine, *fly.MachineLease, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_or_create_machine")
 	defer span.End()
 
@@ -668,7 +680,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		} else {
 			span.AddEvent("Updating old machine")
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing")
+			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing", skipLaunch)
 			if err != nil {
 				span.RecordError(err)
 
@@ -681,7 +693,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 	} else if newMachine != nil {
 		span.AddEvent("Creating a new machine")
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
-		machine, err := md.createMachine(ctx, newMachine.Config, newMachine.Region)
+		machine, err := md.createMachine(ctx, newMachine.Config, newMachine.Region, skipLaunch)
 		if err != nil {
 			span.RecordError(err)
 
@@ -807,7 +819,7 @@ func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID str
 	return lease, nil
 }
 
-func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool) (*fly.Machine, error) {
+func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool, skipLaunch bool) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_config")
 	defer span.End()
 	if compareConfigs(ctx, oldMachine.Config, newMachineConfig) {
@@ -820,6 +832,7 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	}
 	input.Config = newMachineConfig
 	input.RequiresReplacement = input.RequiresReplacement || shouldReplace
+	input.SkipLaunch = skipLaunch
 
 	lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, oldMachine, false)
 	entry := &machineUpdateEntry{
@@ -834,10 +847,11 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	return entry.leasableMachine.Machine(), nil
 }
 
-func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
+func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string, skipLaunch bool) (*fly.Machine, error) {
 	machine, err := md.flapsClient.Launch(ctx, md.app.Name, fly.LaunchMachineInput{
-		Config: machConfig,
-		Region: region,
+		Config:     machConfig,
+		Region:     region,
+		SkipLaunch: skipLaunch,
 	})
 	if err != nil {
 		return nil, err
