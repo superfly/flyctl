@@ -139,6 +139,6 @@ func resolveDatabase(ctx context.Context, clusterID, database string) (string, e
 	if err := prompt.Select(ctx, &idx, "Select database:", "", options...); err != nil {
 		return "", err
 	}
-	
+
 	return dbs.Data[idx].Name, nil
 }
