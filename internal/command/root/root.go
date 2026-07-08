@@ -45,7 +45,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
 	"github.com/superfly/flyctl/internal/command/mpg"
-	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -124,7 +123,6 @@ func New() *cobra.Command {
 		agent.New(),
 		group(image.New(), "configuring"),
 		group(incidents.New(), "upkeep"),
-		group(mysql.New(), "dbs_and_extensions"),
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
