@@ -119,7 +119,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 		},
 		appConfig: &appconfig.Config{AppName: "myapp"},
 	}
-	_, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false)
+	_, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
 	// updating a config with the same config should result in a noop, and shouldn't even use flaps
 	assert.NoError(t, err)
 
@@ -155,17 +155,45 @@ func TestUpdateMachineConfig(t *testing.T) {
 	md.flapsClient = flapsClient
 
 	// ensure that we're actually creating a new machine when we replace it
-	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true)
+	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true, false)
 	assert.NoError(t, err)
 	assert.Equal(t, machine.Config, newMachineConfig)
 	assert.NotEqual(t, machine.ID, "machine2")
 	assert.True(t, destroyedMachine)
 
 	// just a regular machine update
-	machine, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false)
+	machine, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
 	assert.NoError(t, err)
 	assert.NotNil(t, machine)
 	assert.Equal(t, machine.Config, newMachineConfig)
+}
+
+func TestSkipLaunch(t *testing.T) {
+	t.Parallel()
+
+	noStandbys := &fly.MachineConfig{Image: "image"}
+	standby := &fly.MachineConfig{Image: "image", Standbys: []string{"other"}}
+
+	cases := []struct {
+		name    string
+		machine *fly.Machine
+		config  *fly.MachineConfig
+		want    bool // true = skip launch (leave stopped)
+	}{
+		{"new machine (nil) launches", nil, noStandbys, false},
+		{"started stays started", &fly.Machine{State: "started"}, noStandbys, false},
+		{"starting launches", &fly.Machine{State: "starting"}, noStandbys, false},
+		{"failed launches", &fly.Machine{State: "failed"}, noStandbys, false},
+		{"stopped stays stopped", &fly.Machine{State: "stopped"}, noStandbys, true},
+		{"suspended stays stopped", &fly.Machine{State: "suspended"}, noStandbys, true},
+		{"standby stays stopped", &fly.Machine{State: "stopped"}, standby, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, shouldSkipLaunch(tc.machine, tc.config))
+		})
+	}
 }
 
 func withQuietIOStreams(ctx context.Context) context.Context {
@@ -314,7 +342,7 @@ func TestUpdateMachines(t *testing.T) {
 	}
 
 	acquiredLeases = sync.Map{}
-	err := md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 
 	// let's make sure we retry deploys a few times
@@ -336,14 +364,14 @@ func TestUpdateMachines(t *testing.T) {
 		}, nil
 	}
 	acquiredLeases = sync.Map{}
-	err = md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, numFailures)
 
 	numFailures = 0
 	maxNumFailures = 10
 	acquiredLeases = sync.Map{}
-	err = md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.Error(t, err)
 
 	var sentUnrecoverable atomic.Bool
@@ -363,7 +391,7 @@ func TestUpdateMachines(t *testing.T) {
 		}
 	}
 	acquiredLeases = sync.Map{}
-	err = md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.Error(t, err)
 	var unrecoverableErr *unrecoverableError
 	assert.ErrorAs(t, err, &unrecoverableErr)
@@ -516,7 +544,7 @@ func TestUpdateMachinesWithNewMachine(t *testing.T) {
 		skipLeaseAcquisition: false,
 	}
 
-	err := md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 }
 
@@ -607,7 +635,7 @@ func TestUpdateProcessGroupScaleUpErrorDoesNotPanic(t *testing.T) {
 		skipLeaseAcquisition: false,
 	}
 
-	err := md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
+	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "new-machine",
 		"error must reference the new machine's ID; if oldMachine.ID was used, the test would have panicked instead")
@@ -697,7 +725,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 
 	// destroy old machine
 	reset()
-	mach, lease, err := md.updateOrCreateMachine(ctx, oldMachine, nil, sl)
+	mach, lease, err := md.updateOrCreateMachine(ctx, oldMachine, nil, false, sl)
 	assert.NoError(t, err)
 	assert.True(t, destroyedMachine)
 	assert.Nil(t, mach)
@@ -705,7 +733,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 
 	// update old machine
 	reset()
-	mach, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl)
+	mach, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, false, sl)
 	assert.NoError(t, err)
 	assert.True(t, updatedMachine)
 	assert.NotNil(t, mach)
@@ -714,7 +742,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 
 	// create new machine
 	reset()
-	mach, lease, err = md.updateOrCreateMachine(ctx, nil, newMachine, sl)
+	mach, lease, err = md.updateOrCreateMachine(ctx, nil, newMachine, false, sl)
 	assert.NoError(t, err)
 	assert.True(t, createMachine)
 	assert.NotNil(t, mach)
@@ -723,7 +751,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 
 	// new and old machines are nil, so noop
 	reset()
-	mach, lease, err = md.updateOrCreateMachine(ctx, nil, nil, sl)
+	mach, lease, err = md.updateOrCreateMachine(ctx, nil, nil, false, sl)
 	assert.NoError(t, err)
 	assert.False(t, destroyedMachine)
 	assert.False(t, updatedMachine)

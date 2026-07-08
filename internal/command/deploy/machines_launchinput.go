@@ -28,7 +28,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 		ID:                origMachineRaw.ID,
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
-		SkipLaunch:        skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:        shouldSkipLaunch(origMachineRaw, mConfig),
 		MinSecretsVersion: minvers,
 	}, nil
 }
@@ -81,7 +81,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	return &fly.LaunchMachineInput{
 		Region:            region,
 		Config:            mConfig,
-		SkipLaunch:        skipLaunch(nil, mConfig),
+		SkipLaunch:        shouldSkipLaunch(nil, mConfig),
 		MinSecretsVersion: minvers,
 	}, nil
 }
@@ -241,7 +241,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:          shouldSkipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
 		MinSecretsVersion:   minvers,
 	}, nil
@@ -292,7 +292,7 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 // Skip launching currently-stopped or suspended machines if:
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
-func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+func shouldSkipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	state := "<not-set>"
 	if origMachineRaw != nil {
 		state = origMachineRaw.State
