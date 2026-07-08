@@ -119,7 +119,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 		},
 		appConfig: &appconfig.Config{AppName: "myapp"},
 	}
-	_, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false)
+	_, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, true)
 	// updating a config with the same config should result in a noop, and shouldn't even use flaps
 	assert.NoError(t, err)
 
@@ -155,17 +155,91 @@ func TestUpdateMachineConfig(t *testing.T) {
 	md.flapsClient = flapsClient
 
 	// ensure that we're actually creating a new machine when we replace it
-	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true)
+	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true, true)
 	assert.NoError(t, err)
 	assert.Equal(t, machine.Config, newMachineConfig)
 	assert.NotEqual(t, machine.ID, "machine2")
 	assert.True(t, destroyedMachine)
 
 	// just a regular machine update
-	machine, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false)
+	machine, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, true)
 	assert.NoError(t, err)
 	assert.NotNil(t, machine)
 	assert.Equal(t, machine.Config, newMachineConfig)
+}
+
+// TestUpdateMachineConfigSkipLaunch is a regression test for the recovery-retry
+// stranding bug: on a retry the deploy re-fetches oldMachine mid-churn, so its
+// live State can be a transient value (replacing/stopped/created) that skipLaunch()
+// would map to skip_launch=true. The launch decision must instead follow the plan's
+// intent (the shouldStart argument), not oldMachine's transient State.
+func TestUpdateMachineConfigSkipLaunch(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+
+	statuslogger := statuslogger.Create(ctx, 1, false)
+	sl := statuslogger.Line(0)
+
+	// States that skipLaunch() maps to skip_launch=true, i.e. exactly the mid-churn
+	// reads that strand a machine when honored over the plan.
+	for _, transientState := range []string{"replacing", "stopped", "created"} {
+		t.Run("plan intent overrides transient "+transientState, func(t *testing.T) {
+			var captured *fly.LaunchMachineInput
+			flapsClient := &mock.FlapsClient{
+				UpdateFunc: func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (*fly.Machine, error) {
+					b := builder
+					captured = &b
+
+					return &fly.Machine{ID: builder.ID, HostStatus: fly.HostStatusOk, Config: builder.Config}, nil
+				},
+				ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
+					return nil
+				},
+			}
+			md := &machineDeployment{
+				flapsClient: flapsClient,
+				io:          iostreams.FromContext(ctx),
+				app:         &flaps.App{Name: "myapp"},
+				appConfig:   &appconfig.Config{AppName: "myapp"},
+			}
+
+			oldMachine := &fly.Machine{
+				ID:         "machine1",
+				State:      transientState,
+				HostStatus: fly.HostStatusOk,
+				Config: &fly.MachineConfig{
+					Image:    "image1",
+					Metadata: map[string]string{"fly_flyctl_version": "v1"},
+				},
+				LeaseNonce: "nonce",
+			}
+			newMachineConfig := &fly.MachineConfig{
+				Image:    "image2",
+				Metadata: map[string]string{"fly_flyctl_version": "v1"},
+			}
+
+			// Plan intent: this machine should run. skip_launch must be false even
+			// though oldMachine.State would otherwise skip it.
+			captured = nil
+			_, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, true)
+			assert.NoError(t, err)
+			if assert.NotNil(t, captured, "expected an update to be sent to flaps") {
+				assert.False(t, captured.SkipLaunch,
+					"skip_launch must be false when the plan intends the machine to run (oldMachine.State=%q)", transientState)
+			}
+
+			// Plan intent: this machine should stay stopped (e.g. standby). skip_launch
+			// must be true regardless of the transient live State.
+			captured = nil
+			_, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
+			assert.NoError(t, err)
+			if assert.NotNil(t, captured, "expected an update to be sent to flaps") {
+				assert.True(t, captured.SkipLaunch,
+					"skip_launch must be true when the plan intends the machine to stay stopped (oldMachine.State=%q)", transientState)
+			}
+		})
+	}
 }
 
 func withQuietIOStreams(ctx context.Context) context.Context {

@@ -588,7 +588,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	lm := mach.NewLeasableMachine(md.flapsClient, io, md.app.Name, machine, false)
 
-	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
+	shouldStart := machineShouldStart(newMachine)
 	span.SetAttributes(attribute.Bool("should_start", shouldStart))
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
@@ -668,7 +668,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		} else {
 			span.AddEvent("Updating old machine")
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing")
+			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing", machineShouldStart(newMachine))
 			if err != nil {
 				span.RecordError(err)
 
@@ -681,7 +681,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 	} else if newMachine != nil {
 		span.AddEvent("Creating a new machine")
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
-		machine, err := md.createMachine(ctx, newMachine.Config, newMachine.Region)
+		machine, err := md.createMachine(ctx, newMachine.Config, newMachine.Region, !machineShouldStart(newMachine))
 		if err != nil {
 			span.RecordError(err)
 
@@ -807,7 +807,17 @@ func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID str
 	return lease, nil
 }
 
-func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool) (*fly.Machine, error) {
+// machineShouldStart reports whether the deploy plan intends this machine to be
+// running after the update. It reads the launch intent recorded in newAppState by
+// updateExistingMachinesWRecovery: a machine is "started" when it should run (or
+// "replacing" when its successor should run). This plan intent is computed from a
+// clean pre-deploy read and is the authoritative signal for skip_launch, as
+// opposed to a machine's live State which may be mid-churn on a recovery retry.
+func machineShouldStart(newMachine *fly.Machine) bool {
+	return lo.Contains([]string{"started", "replacing"}, newMachine.State)
+}
+
+func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool, shouldStart bool) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_config")
 	defer span.End()
 	if compareConfigs(ctx, oldMachine.Config, newMachineConfig) {
@@ -820,6 +830,13 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	}
 	input.Config = newMachineConfig
 	input.RequiresReplacement = input.RequiresReplacement || shouldReplace
+	// skip_launch must reflect the deploy plan's intent (shouldStart), not
+	// oldMachine's live State. On a recovery retry oldMachine is re-fetched
+	// mid-churn (e.g. replacing/stopped/created), and launchInputForUpdate would
+	// otherwise infer skip_launch=true from that transient state via skipLaunch(),
+	// creating the new version but never starting it — stranding a machine that is
+	// supposed to be running.
+	input.SkipLaunch = !shouldStart
 
 	lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, oldMachine, false)
 	entry := &machineUpdateEntry{
@@ -834,10 +851,11 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	return entry.leasableMachine.Machine(), nil
 }
 
-func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
+func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string, skipLaunch bool) (*fly.Machine, error) {
 	machine, err := md.flapsClient.Launch(ctx, md.app.Name, fly.LaunchMachineInput{
-		Config: machConfig,
-		Region: region,
+		Config:     machConfig,
+		Region:     region,
+		SkipLaunch: skipLaunch,
 	})
 	if err != nil {
 		return nil, err
