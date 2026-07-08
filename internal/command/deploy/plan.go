@@ -309,6 +309,14 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			if err != nil {
 				return err
 			}
+
+			// Let any in-flight replaces settle before re-issuing updates. Stacking a
+			// fresh update on a machine that is still `replacing` is what produces the
+			// "concurrent update in progress" abort storm, and it's what puts a
+			// transient State in front of the launch decision. Best-effort and bounded
+			// by waitTimeout.
+			md.waitForReplacingMachinesToSettle(ctx, currentState, machineLogger)
+
 			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,
@@ -330,7 +338,11 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, "Retrying...")
 			}
 			attempts += 1
-			time.Sleep(1 * time.Second)
+			// Back off exponentially between retries instead of hammering at a fixed
+			// 1s. Combined with the settle-wait above, this gives an app that is
+			// churning (fast-restarting / mid-replace) time to reach a steady state
+			// rather than piling on more colliding updates.
+			time.Sleep(retryBackoff(attempts))
 		}
 	}
 
@@ -789,6 +801,53 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 		time.Sleep(1 * time.Second)
 	}
+}
+
+// waitForReplacingMachinesToSettle blocks until machines that are currently
+// mid-replace reach a stable state, so a recovery retry doesn't stack a fresh
+// update on top of an in-flight replace. flaps aborts such an overlap as
+// "concurrent update in progress", and it's the re-read of that transient state
+// that feeds the launch decision. This is best-effort collision avoidance: a
+// machine that doesn't settle within waitTimeout is left for the update attempt
+// (the source of truth) to deal with, so wait errors are intentionally ignored.
+func (md *machineDeployment) waitForReplacingMachinesToSettle(ctx context.Context, state *AppState, machineLogger *MachineLogger) {
+	stableStates := []string{"started", "stopped", "suspended"}
+
+	var wg sync.WaitGroup
+	for _, m := range state.Machines {
+		if m.State != "replacing" {
+			continue
+		}
+		sl := machineLogger.getLoggerFromID(m.ID)
+		if sl == nil {
+			// Not a machine we're tracking in this deploy; nothing to log against.
+			continue
+		}
+
+		wg.Go(func() {
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for in-flight replace of %s to settle", m.ID))
+			lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, m, false)
+			_, _ = waitForMachineState(ctx, lm, stableStates, md.waitTimeout, sl)
+		})
+	}
+	wg.Wait()
+}
+
+// retryBackoff returns the delay before the Nth (1-based) recovery retry. It grows
+// exponentially and is capped so a run of retries can't stall a deploy indefinitely.
+func retryBackoff(attempt int) time.Duration {
+	const base = 1 * time.Second
+	const maxBackoff = 15 * time.Second
+
+	if attempt < 1 {
+		attempt = 1
+	}
+	backoff := base << min(attempt-1, 30)
+	if backoff > maxBackoff || backoff <= 0 {
+		return maxBackoff
+	}
+
+	return backoff
 }
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
