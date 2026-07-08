@@ -27,6 +27,9 @@ type MpgV2Client struct {
 	RestoreClusterBackupFunc func(ctx context.Context, clusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error)
 	CreateAttachmentFunc     func(ctx context.Context, clusterId string, input mpgv2.CreateAttachmentInput) (mpgv2.CreateAttachmentResponse, error)
 	DeleteAttachmentFunc     func(ctx context.Context, clusterId string, appName string) (mpgv2.DeleteAttachmentResponse, error)
+	ListExtensionsFunc       func(ctx context.Context, id, database string) (mpgv2.ListExtensionsResponse, error)
+	EnableExtensionFunc      func(ctx context.Context, id, database string, input mpgv2.EnableExtensionInput) error
+	DisableExtensionFunc     func(ctx context.Context, id, database, name string, force bool) error
 }
 
 func (m *MpgV2Client) ListRegions(ctx context.Context, orgSlug string) (mpgv2.ListRegionsResponse, error) {
@@ -163,4 +166,28 @@ func (m *MpgV2Client) DeleteAttachment(ctx context.Context, clusterId string, ap
 	}
 
 	return mpgv2.DeleteAttachmentResponse{}, nil
+}
+
+func (m *MpgV2Client) ListExtensions(ctx context.Context, id, database string) (mpgv2.ListExtensionsResponse, error) {
+	if m.ListExtensionsFunc != nil {
+		return m.ListExtensionsFunc(ctx, id, database)
+	}
+
+	return mpgv2.ListExtensionsResponse{}, nil
+}
+
+func (m *MpgV2Client) EnableExtension(ctx context.Context, id, database string, input mpgv2.EnableExtensionInput) error {
+	if m.EnableExtensionFunc != nil {
+		return m.EnableExtensionFunc(ctx, id, database, input)
+	}
+
+	return nil
+}
+
+func (m *MpgV2Client) DisableExtension(ctx context.Context, id, database, name string, force bool) error {
+	if m.DisableExtensionFunc != nil {
+		return m.DisableExtensionFunc(ctx, id, database, name, force)
+	}
+
+	return nil
 }

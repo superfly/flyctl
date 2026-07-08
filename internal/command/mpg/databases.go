@@ -23,6 +23,7 @@ func newDatabases() *cobra.Command {
 	cmd.AddCommand(
 		newDatabasesList(),
 		newDatabasesCreate(),
+		newExtensions(),
 	)
 
 	return cmd
