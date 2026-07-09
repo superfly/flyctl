@@ -15,6 +15,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	clientsignals "github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -303,6 +304,7 @@ func run(ctx context.Context) (err error) {
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil

@@ -9,6 +9,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	clientsignals "github.com/superfly/client-signals/go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -517,6 +518,7 @@ func deployToMachines(
 
 	startTime := time.Now()
 	var status metrics.DeployStatusPayload
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
 
 	metrics.Started(ctx, "deploy")
 	// TODO: remove this once there is nothing upstream using it
