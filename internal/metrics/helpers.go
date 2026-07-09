@@ -80,6 +80,7 @@ type LaunchStatusPayload struct {
 
 	ScannerFamily string `json:"scanner_family"`
 	FlyctlVersion string `json:"flyctlVersion"`
+	ClientAgent   string `json:"clientAgent,omitempty"`
 }
 
 func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
@@ -113,6 +114,7 @@ type DeployStatusPayload struct {
 	Strategy      string `json:"strategy"`
 
 	FlyctlVersion string `json:"flyctlVersion"`
+	ClientAgent   string `json:"clientAgent,omitempty"`
 }
 
 func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
@@ -157,6 +159,17 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 	return func() {
 		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
+}
+
+type clientAgentKey struct{}
+
+func WithClientAgent(ctx context.Context, agent string) context.Context {
+	return context.WithValue(ctx, clientAgentKey{}, agent)
+}
+
+func ClientAgentFromContext(ctx context.Context) string {
+	val, _ := ctx.Value(clientAgentKey{}).(string)
+	return val
 }
 
 type disableFlushMetricsKey struct{}
