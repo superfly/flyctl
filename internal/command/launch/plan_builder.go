@@ -185,6 +185,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 				Plan: &plan.LaunchPlan{
 					AppName:       appName,
 					OrgSlug:       org.Slug,
+					RegionCode:    regionCode,
 					FlyctlVersion: buildinfo.Info().Version,
 				},
 			}
