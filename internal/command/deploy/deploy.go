@@ -517,6 +517,7 @@ func deployToMachines(
 
 	startTime := time.Now()
 	var status metrics.DeployStatusPayload
+	status.ClientAgent = metrics.ClientAgentFromContext(ctx)
 
 	metrics.Started(ctx, "deploy")
 	// TODO: remove this once there is nothing upstream using it

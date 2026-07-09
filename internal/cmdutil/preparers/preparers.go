@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -70,6 +71,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	if clientSignalsEnabled {
 		s := clientsignals.DetectOnce()
 		signals = &s
+		ctx = metrics.WithClientAgent(ctx, s.Agent)
 	}
 
 	if flyutil.ClientFromContext(ctx) == nil {
