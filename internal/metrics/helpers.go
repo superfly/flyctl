@@ -80,6 +80,7 @@ type LaunchStatusPayload struct {
 
 	ScannerFamily string `json:"scanner_family"`
 	FlyctlVersion string `json:"flyctlVersion"`
+	ClientAgent   string `json:"clientAgent,omitempty"`
 }
 
 func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
@@ -113,6 +114,7 @@ type DeployStatusPayload struct {
 	Strategy      string `json:"strategy"`
 
 	FlyctlVersion string `json:"flyctlVersion"`
+	ClientAgent   string `json:"clientAgent,omitempty"`
 }
 
 func DeployStatus(ctx context.Context, payload DeployStatusPayload) {

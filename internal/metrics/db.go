@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
-	clientsignals "github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/config"
@@ -112,11 +111,6 @@ func sendMetricsRequest(ctx context.Context, endpoint, token, userAgent string, 
 
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("User-Agent", userAgent)
-
-	signals := clientsignals.DetectOnce()
-	if signals.Agent != "" {
-		request.Header.Set("Fly-Client-Agent", signals.Agent)
-	}
 
 	client := createHTTPClient()
 
