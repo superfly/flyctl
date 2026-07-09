@@ -67,8 +67,8 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 	logger.Debugf("client-signals-enabled feature flag is: %v", clientSignalsEnabled)
 
-	// Always detect signals for metrics (we control both sides).
-	// The feature flag only gates whether headers are sent on API requests.
+	// Always detect for metrics (we control both sides); the feature flag
+	// only gates whether Fly-Client-* headers are sent on API requests.
 	detected := clientsignals.DetectOnce()
 	ctx = metrics.WithClientAgent(ctx, detected.Agent)
 
