@@ -191,6 +191,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			if srcInfo != nil {
 				partial.Plan.ScannerFamily = srcInfo.Family
 			}
+
 			return partial, nil, err
 		}
 	}
