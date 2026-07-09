@@ -408,6 +408,16 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			var recoverableErr recoverableInUiError
 			if !errors.As(err, &recoverableErr) || !canEnterUi {
+				// Populate status from partial manifest so metrics
+				// events carry org/app context even on early failures.
+				if launchManifest != nil && launchManifest.Plan != nil {
+					status.AppName = launchManifest.Plan.AppName
+					status.OrgSlug = launchManifest.Plan.OrgSlug
+					status.Region = launchManifest.Plan.RegionCode
+					status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
+					status.ScannerFamily = launchManifest.Plan.ScannerFamily
+				}
+
 				return err
 			}
 		}
