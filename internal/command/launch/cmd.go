@@ -303,6 +303,7 @@ func run(ctx context.Context) (err error) {
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
+	status.ClientAgent = metrics.ClientAgentFromContext(ctx)
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil

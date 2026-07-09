@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -66,10 +67,14 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	}
 	logger.Debugf("client-signals-enabled feature flag is: %v", clientSignalsEnabled)
 
+	// Always detect for metrics (we control both sides); the feature flag
+	// only gates whether Fly-Client-* headers are sent on API requests.
+	detected := clientsignals.DetectOnce()
+	ctx = metrics.WithClientAgent(ctx, detected.Agent)
+
 	var signals *clientsignals.Signals
 	if clientSignalsEnabled {
-		s := clientsignals.DetectOnce()
-		signals = &s
+		signals = &detected
 	}
 
 	if flyutil.ClientFromContext(ctx) == nil {
