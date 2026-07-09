@@ -163,12 +163,10 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 
 type clientAgentKey struct{}
 
-// WithClientAgent stores the detected agent name in context.
 func WithClientAgent(ctx context.Context, agent string) context.Context {
 	return context.WithValue(ctx, clientAgentKey{}, agent)
 }
 
-// ClientAgentFromContext returns the agent name stored in context, or "".
 func ClientAgentFromContext(ctx context.Context) string {
 	val, _ := ctx.Value(clientAgentKey{}).(string)
 	return val
