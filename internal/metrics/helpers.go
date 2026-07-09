@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	clientsignals "github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -80,7 +81,8 @@ type LaunchStatusPayload struct {
 
 	ScannerFamily string `json:"scanner_family"`
 	FlyctlVersion string `json:"flyctlVersion"`
-	ClientAgent   string `json:"clientAgent,omitempty"`
+	Operator      string `json:"operator,omitempty"`
+	AgentName     string `json:"agentName,omitempty"`
 }
 
 func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
@@ -114,7 +116,8 @@ type DeployStatusPayload struct {
 	Strategy      string `json:"strategy"`
 
 	FlyctlVersion string `json:"flyctlVersion"`
-	ClientAgent   string `json:"clientAgent,omitempty"`
+	Operator      string `json:"operator,omitempty"`
+	AgentName     string `json:"agentName,omitempty"`
 }
 
 func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
@@ -161,15 +164,17 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 	}
 }
 
-type clientAgentKey struct{}
-
-func WithClientAgent(ctx context.Context, agent string) context.Context {
-	return context.WithValue(ctx, clientAgentKey{}, agent)
-}
-
-func ClientAgentFromContext(ctx context.Context) string {
-	val, _ := ctx.Value(clientAgentKey{}).(string)
-	return val
+// OperatorFromSignals returns an operator classification and, when the
+// operator is "agent", the agent name. Precedence: agent > ci > interactive.
+func OperatorFromSignals(s clientsignals.Signals) (operator, agentName string) {
+	switch {
+	case s.Agent != "":
+		return "agent", s.Agent
+	case s.CI:
+		return "ci", ""
+	default:
+		return "interactive", ""
+	}
 }
 
 type disableFlushMetricsKey struct{}
