@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	clientsignals "github.com/superfly/client-signals/go"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/terminal"
 )
 

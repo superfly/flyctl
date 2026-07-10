@@ -15,7 +15,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	clientsignals "github.com/superfly/client-signals/go"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
