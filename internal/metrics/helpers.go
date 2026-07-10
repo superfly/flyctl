@@ -165,15 +165,18 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 }
 
 // OperatorFromSignals returns an operator classification and, when the
-// operator is "agent", the agent name. Precedence: agent > ci > interactive.
+// operator is "agent", the agent name. Precedence: ci > agent > interactive.
+// Falls back to "unknown" when none of the signals match.
 func OperatorFromSignals(s clientsignals.Signals) (operator, agentName string) {
 	switch {
-	case s.Agent != "":
-		return "agent", s.Agent
 	case s.CI:
 		return "ci", ""
-	default:
+	case s.Agent != "":
+		return "agent", s.Agent
+	case s.Interactive:
 		return "interactive", ""
+	default:
+		return "unknown", ""
 	}
 }
 
