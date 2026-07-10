@@ -13,9 +13,8 @@ import (
 )
 
 type PostgresPlan struct {
-	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
-	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
-	ManagedPostgres  *ManagedPostgresPlan  `json:"managed_postgres"`
+	FlyPostgres     *FlyPostgresPlan     `json:"fly_postgres"`
+	ManagedPostgres *ManagedPostgresPlan `json:"managed_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -24,9 +23,6 @@ func (p *PostgresPlan) Provider() any {
 	}
 	if p.FlyPostgres != nil {
 		return p.FlyPostgres
-	}
-	if p.SupabasePostgres != nil {
-		return p.SupabasePostgres
 	}
 	if p.ManagedPostgres != nil {
 		return p.ManagedPostgres
@@ -247,27 +243,6 @@ func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
 	}
 
 	return &guest
-}
-
-type SupabasePostgresPlan struct {
-	DbName string `json:"db_name"`
-	Region string `json:"region"`
-}
-
-func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
-	if p.DbName == "" {
-		return plan.AppName + "-db"
-	}
-
-	return p.DbName
-}
-
-func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
-	if p.Region == "" {
-		return plan.RegionCode
-	}
-
-	return p.Region
 }
 
 type ManagedPostgresPlan struct {
