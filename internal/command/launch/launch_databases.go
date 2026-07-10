@@ -44,10 +44,6 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.Plan.Postgres.SupabasePostgres != nil && (planStep == "" || planStep == "postgres") {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Supabase Postgres is no longer supported.\n")
-	}
-
 	if state.Plan.Redis.UpstashRedis != nil && (planStep == "" || planStep == "redis") {
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
