@@ -694,7 +694,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		// TODO(billy) do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
-		return md.updateMachinesWRecovery(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+		return md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, &newAppState, nil, updateMachineSettings{
 			pushForward:          true,
 			skipHealthChecks:     true,
 			skipSmokeChecks:      true,
@@ -724,7 +724,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		}
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
-		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
+		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
 			pushForward:          true,
 			skipHealthChecks:     md.skipHealthChecks,
 			skipSmokeChecks:      md.skipSmokeChecks,
@@ -740,7 +740,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			return fmt.Errorf("failed to refresh app state after canary: %w", err)
 		}
 
-		return md.updateMachinesWRecovery(ctx, refreshedState, &newAppState, nil, updateMachineSettings{
+		return md.updateMachinesWRecovery(ctx, oldAppState, refreshedState, &newAppState, nil, updateMachineSettings{
 			pushForward:          true,
 			skipHealthChecks:     md.skipHealthChecks,
 			skipSmokeChecks:      md.skipSmokeChecks,
@@ -749,7 +749,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 	case "rolling":
 		fallthrough
 	default:
-		return md.updateMachinesWRecovery(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+		return md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, &newAppState, nil, updateMachineSettings{
 			pushForward:          true,
 			skipHealthChecks:     md.skipHealthChecks,
 			skipSmokeChecks:      md.skipSmokeChecks,
