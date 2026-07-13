@@ -32,6 +32,35 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 	queueMetric(message)
 }
 
+// SendImmediate sends a single metric to the collector right away instead of
+// queueing it for the end-of-command flush. Long-running processes (e.g. the
+// agent) queue metrics that would otherwise never be flushed.
+func SendImmediate[T any](ctx context.Context, metricSlug string, value T) {
+	if !shouldSendMetrics(ctx) {
+		return
+	}
+
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return
+	}
+
+	buf, err := json.Marshal([]metricsMessage{{
+		Metric:  metricSlug,
+		Payload: payload,
+	}})
+	if err != nil {
+		return
+	}
+
+	done.Add(1)
+	go func() {
+		defer done.Done()
+
+		_ = SendMetrics(ctx, string(buf))
+	}()
+}
+
 func shouldSendMetrics(ctx context.Context) bool {
 	if !Enabled {
 		return false
