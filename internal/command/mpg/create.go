@@ -65,6 +65,11 @@ func newCreate() *cobra.Command {
 			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16 and 17.",
 			Default:     16,
 		},
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Estimate the cost of the Managed Postgres cluster without creating it",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -159,6 +164,7 @@ func runCreate(ctx context.Context) error {
 			PGMajorVersion: pgMajorVersion,
 			StorageInGb:    flag.GetInt(ctx, "volume-size"),
 			PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+			Estimate:       flag.GetBool(ctx, "estimate"),
 		}
 
 		planDetails := MPGPlans[plan]
@@ -178,6 +184,7 @@ func runCreate(ctx context.Context) error {
 		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
 		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
 		PGMajorVersion: pgMajorVersion,
+		Estimate:       flag.GetBool(ctx, "estimate"),
 	}
 
 	planDetails := MPGPlans[plan]
