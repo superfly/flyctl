@@ -47,6 +47,11 @@ func newUpdate() *cobra.Command {
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the Machine update and exit without updating anything",
+			Default:     false,
+		},
 		flag.String{
 			Name:        "command",
 			Shorthand:   "C",
@@ -98,13 +103,6 @@ func runUpdate(ctx context.Context) (err error) {
 		return fmt.Errorf("the machine is on an unreachable host, try again later")
 	}
 
-	// Acquire lease
-	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, appName, machine)
-	defer releaseLeaseFunc()
-	if err != nil {
-		return err
-	}
-
 	var imageOrPath string
 	if image != "" {
 		imageOrPath = image
@@ -131,6 +129,22 @@ func runUpdate(ctx context.Context) (err error) {
 		machineConf.Mounts[0].Path = mp
 	}
 
+	if flag.GetBool(ctx, "estimate") {
+		app, err := estimateApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+		return runMachineChangeEstimate(ctx, app, machineEstimateInput{
+			Operation:      "machine.update",
+			SourceCommand:  "fly machine update",
+			Action:         "update",
+			Current:        machine,
+			Desired:        fly.LaunchMachineInput{Name: machine.Name, Region: machine.Region, Config: machineConf},
+			RunningSeconds: 3600,
+		})
+	}
+
 	// Prompt user to confirm changes
 	if !autoConfirm {
 		confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
@@ -148,6 +162,13 @@ func runUpdate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	// Acquire lease
+	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, appName, machine)
+	if err != nil {
+		return err
+	}
+	defer releaseLeaseFunc()
 
 	// Perform update
 	input := &fly.LaunchMachineInput{

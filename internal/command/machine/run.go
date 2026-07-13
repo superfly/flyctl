@@ -200,6 +200,10 @@ var runOrCreateFlags = flag.Set{
 		Name:        "use-zstd",
 		Description: "Enable zstd compression for the image",
 	},
+	flag.Bool{
+		Name:        "estimate",
+		Description: "Print a JSON cost estimate for the Machine and exit without creating anything",
+	},
 }
 
 func soManyErrors(args ...any) error {
@@ -441,6 +445,10 @@ func runMachineRun(ctx context.Context) error {
 	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
+	if flag.GetBool(ctx, "estimate") {
+		return runMachineEstimate(ctx, app, input, isCreate)
+	}
+
 	machine, err := flapsClient.Launch(ctx, app.Name, input)
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
@@ -663,16 +671,35 @@ type determineMachineConfigInput struct {
 	interact           bool
 }
 
+// resolveMachineGuest resolves the guest spec for a Machine, mutating
+// machineConf in place: --machine-config (if given) is parsed into it first,
+// then the individual --vm-* flags are applied on top. It is shared by
+// determineMachineConfig and `--estimate` so an estimate always prices the
+// guest the command would create.
+func resolveMachineGuest(ctx context.Context, machineConf *fly.MachineConfig) error {
+	if mc := flag.GetString(ctx, "machine-config"); mc != "" {
+		if err := config.ParseConfig(machineConf, mc); err != nil {
+			return err
+		}
+	}
+
+	guest, err := flag.GetMachineGuest(ctx, machineConf.Guest)
+	if err != nil {
+		return err
+	}
+	machineConf.Guest = guest
+
+	return nil
+}
+
 func determineMachineConfig(
 	ctx context.Context,
 	input *determineMachineConfigInput,
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if mc := flag.GetString(ctx, "machine-config"); mc != "" {
-		if err := config.ParseConfig(machineConf, mc); err != nil {
-			return nil, err
-		}
+	if err := resolveMachineGuest(ctx, machineConf); err != nil {
+		return nil, err
 	}
 
 	// identify the container to use
@@ -699,12 +726,6 @@ func determineMachineConfig(
 				container = machineConf.Containers[0]
 			}
 		}
-	}
-
-	var err error
-	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
-	if err != nil {
-		return nil, err
 	}
 
 	if len(flag.GetStringArray(ctx, "kernel-arg")) != 0 {
