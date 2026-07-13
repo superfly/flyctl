@@ -20,8 +20,6 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 	switch provider := launchPlan.Postgres.Provider().(type) {
 	case *plan.FlyPostgresPlan:
 		return describeFlyPostgresPlan(provider)
-	case *plan.SupabasePostgresPlan:
-		return describeSupabasePostgresPlan(provider, launchPlan)
 	case *plan.ManagedPostgresPlan:
 		return describeManagedPostgresPlan(provider, launchPlan)
 	}
@@ -47,11 +45,6 @@ func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
 	}
 
 	return strings.Join(info, ", "), nil
-}
-
-func describeSupabasePostgresPlan(p *plan.SupabasePostgresPlan, launchPlan *plan.LaunchPlan) (string, error) {
-
-	return fmt.Sprintf("(Supabase) %s in %s", p.GetDbName(launchPlan), p.GetRegion(launchPlan)), nil
 }
 
 func describeRedisPlan(ctx context.Context, p plan.RedisPlan) (string, error) {
