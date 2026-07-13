@@ -77,6 +77,11 @@ func newClone() *cobra.Command {
 			Default:     true,
 		},
 		flag.Detach(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the cloned Machine and exit without creating anything",
+			Default:     false,
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -178,6 +183,21 @@ func runMachineClone(ctx context.Context) (err error) {
 				source.Config.Mounts[0].Path = splitVolumeInfo[1]
 			}
 		}
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		app, err := estimateApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+		return runMachineChangeEstimate(ctx, app, machineEstimateInput{
+			Operation:      "machine.clone",
+			SourceCommand:  "fly machine clone",
+			Action:         "clone",
+			Desired:        fly.LaunchMachineInput{Name: flag.GetString(ctx, "name"), Region: region, Config: targetConfig},
+			RunningSeconds: 3600,
+		})
 	}
 
 	for _, mnt := range source.Config.Mounts {

@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -94,6 +95,14 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		fmt.Fprintf(io.Out, "App already scaled to desired state. No need for changes\n")
 
 		return nil
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		return runScaleEstimate(ctx, appName, scaleEstimateInput{
+			Operation:     "scale.count",
+			SourceCommand: "fly scale count",
+			Changes:       scaleCountEstimateChanges(actions),
+		})
 	}
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
@@ -240,6 +249,50 @@ func destroyMachine(ctx context.Context, appName string, machine *fly.Machine) e
 	}
 
 	return flapsClient.Destroy(ctx, appName, input, machine.LeaseNonce)
+}
+
+func scaleCountEstimateChanges(actions []*planItem) []uiex.CostEstimateChange {
+	changes := []uiex.CostEstimateChange{}
+
+	for _, action := range actions {
+		switch {
+		case action.Delta > 0:
+			changes = append(changes, uiex.CostEstimateChange{
+				Kind:    "machine",
+				Action:  "create",
+				Ref:     fmt.Sprintf("%s:%s", action.GroupName, action.Region),
+				Count:   action.Delta,
+				Desired: action.LaunchMachineInput,
+			})
+
+			if action.CreateVolumeRequest != nil && action.CreateVolumeRequest.SizeGb != nil && action.VolumesDelta() > 0 {
+				changes = append(changes, uiex.CostEstimateChange{
+					Kind:   "volume",
+					Action: "create",
+					Ref:    fmt.Sprintf("%s:%s:volume", action.GroupName, action.Region),
+					Count:  action.VolumesDelta(),
+					Desired: scaleVolumeSpec{
+						Region: action.CreateVolumeRequest.Region,
+						SizeGB: *action.CreateVolumeRequest.SizeGb,
+					},
+				})
+			}
+
+		case action.Delta < 0:
+			for i := 0; i > action.Delta; i-- {
+				m := action.Machines[-i]
+				changes = append(changes, uiex.CostEstimateChange{
+					Kind:    "machine",
+					Action:  "destroy",
+					Ref:     m.ID,
+					Count:   1,
+					Current: m,
+				})
+			}
+		}
+	}
+
+	return changes
 }
 
 type planItem struct {
