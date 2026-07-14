@@ -163,8 +163,13 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		return err
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image}}
-	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image"); err != nil {
+	fields := []string{app.Name, app.Organization.Slug, app.Hostname, image}
+	headers := []string{"Name", "Owner", "Hostname", "Image"}
+	if app.Network != "" {
+		fields = append(fields, app.Network)
+		headers = append(headers, "Network")
+	}
+	if err := render.VerticalTable(out, "App", [][]string{fields}, headers...); err != nil {
 		return err
 	}
 
@@ -273,6 +278,9 @@ func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines 
 		"Organization":    app.Organization,
 		"PlatformVersion": app.PlatformVersion,
 		"Machines":        machinesToShow,
+	}
+	if app.Network != "" {
+		status["Network"] = app.Network
 	}
 
 	return render.JSON(out, status)
