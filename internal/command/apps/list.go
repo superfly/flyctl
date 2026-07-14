@@ -86,6 +86,7 @@ func runList(ctx context.Context) (err error) {
 	for _, app := range apps {
 		if app.Network != "" {
 			showNetwork = true
+
 			break
 		}
 	}
