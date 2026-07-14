@@ -24,6 +24,7 @@ func newList() *cobra.Command {
 available to this user. The list includes applications
 from all the organizations the user is a member of. The list shows
 the name, owner (org), status, and date/time of latest deploy for each app.
+Apps on a non-default network also show the network name.
 `
 		short = "List applications."
 	)
@@ -46,7 +47,6 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 }
 
 func runList(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
@@ -54,13 +54,12 @@ func runList(ctx context.Context) (err error) {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
 
-	var apps []fly.App
+	var orgID *string
 	if org != nil {
-		apps, err = client.GetAppsForOrganization(ctx, org.ID)
-	} else {
-		apps, err = client.GetApps(ctx, nil)
+		orgID = &org.ID
 	}
 
+	apps, err := getApps(ctx, orgID)
 	if err != nil {
 		return
 	}
@@ -83,6 +82,14 @@ func runList(ctx context.Context) (err error) {
 
 		return
 	}
+	showNetwork := false
+	for _, app := range apps {
+		if app.Network != "" {
+			showNetwork = true
+			break
+		}
+	}
+
 	for _, app := range apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {
@@ -93,17 +100,87 @@ func runList(ctx context.Context) (err error) {
 			app.Name = "(interactive shells app)"
 		}
 
-		rows = append(rows, []string{
+		row := []string{
 			app.Name,
 			app.Organization.Slug,
 			app.Status,
-			latestDeploy,
-		})
+		}
+		if showNetwork {
+			row = append(row, app.Network)
+		}
+		rows = append(rows, append(row, latestDeploy))
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
+	headers := []string{"Name", "Owner", "Status"}
+	if showNetwork {
+		headers = append(headers, "Network")
+	}
+	headers = append(headers, "Latest Deploy")
+
+	_ = render.Table(out, "", rows, headers...)
 
 	return
+}
+
+// getApps mirrors fly-go's GetApps/GetAppsForOrganization but also requests
+// the network field, which those queries omit.
+func getApps(ctx context.Context, orgID *string) ([]fly.App, error) {
+	client := flyutil.ClientFromContext(ctx)
+
+	query := `
+		query($org: ID, $after: String) {
+			apps(type: "container", first: 200, after: $after, organizationId: $org) {
+				pageInfo {
+					hasNextPage
+					endCursor
+				}
+				nodes {
+					id
+					name
+					deployed
+					hostname
+					platformVersion
+					network
+					organization {
+						slug
+						name
+					}
+					currentRelease {
+						createdAt
+						status
+					}
+					status
+				}
+			}
+		}
+	`
+
+	var apps []fly.App
+	var after *string
+
+	for {
+		req := client.NewRequest(query)
+		if orgID != nil {
+			req.Var("org", *orgID)
+		}
+		if after != nil {
+			req.Var("after", *after)
+		}
+
+		data, err := client.RunWithContext(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		apps = append(apps, data.Apps.Nodes...)
+
+		if !data.Apps.PageInfo.HasNextPage {
+			break
+		}
+		after = &data.Apps.PageInfo.EndCursor
+	}
+
+	return apps, nil
 }
 
 func getOrg(ctx context.Context) (*fly.Organization, error) {
