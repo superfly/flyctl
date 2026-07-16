@@ -449,13 +449,6 @@ func TestDeploy(t *testing.T) {
 	})
 }
 
-// TestFlyDeployComposeNoBuild covers the core regression from
-// github.com/superfly/flyctl/issues/4963: when [build.compose] is set and every
-// service uses a pre-built image, `fly deploy` must NOT build from source and
-// must NOT fall back to auto-detecting a Dockerfile in the working directory.
-//
-// The stray Dockerfile here is intentionally invalid: if flyctl regresses and
-// tries to build it, the deploy fails. Post-fix, the Dockerfile is ignored.
 func TestFlyDeployComposeNoBuild(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
@@ -498,12 +491,6 @@ primary_region = "%s"
 	require.True(t, found, "expected a container using the nginx image")
 }
 
-// TestFlyDeployComposeWithBuild covers R3: when a compose service declares a
-// `build:` directive, flyctl must build from that directive's dockerfile rather
-// than auto-detecting the root Dockerfile.
-//
-// The decoy root Dockerfile is invalid; only Dockerfile.app is valid. A passing
-// deploy proves flyctl built the compose-specified Dockerfile.
 func TestFlyDeployComposeWithBuild(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()

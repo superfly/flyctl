@@ -180,9 +180,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		return nil, err
 	}
 
-	// A compose deploy where every service uses a pre-built image builds no
-	// source image, so an empty top-level image is expected: each container
-	// carries its own image reference.
 	usesCompose := appConfig.Build != nil && appConfig.Build.Compose != nil
 	if !args.RestartOnly && args.DeploymentImage == "" && !usesCompose {
 		return nil, fmt.Errorf("BUG: machines deployment created without specifying the image")

@@ -169,8 +169,6 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	}
 
 	// Docker Compose: only build from source when a service declares `build:`.
-	// If every service uses a pre-built image there is nothing to build, and we
-	// must not fall back to auto-detecting a Dockerfile in the working directory.
 	usesCompose, composeBuild, err := composeBuildInfo(appConfig)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to read compose build info")
@@ -312,10 +310,6 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
-// composeBuildInfo reports whether the app deploys via [build.compose] and, if
-// so, the build directive of the single buildable service. cb is nil when the
-// app uses compose but no service declares a `build:` (every service uses a
-// pre-built image), meaning no source build is required.
 func composeBuildInfo(appConfig *appconfig.Config) (usesCompose bool, cb *containerconfig.ComposeBuild, err error) {
 	if appConfig.Build == nil || appConfig.Build.Compose == nil {
 		return false, nil, nil
@@ -337,9 +331,6 @@ func composeBuildInfo(appConfig *appconfig.Config) (usesCompose bool, cb *contai
 	return true, cb, nil
 }
 
-// applyComposeBuild routes a compose `build:` directive into the image options,
-// resolving the context and dockerfile relative to the fly.toml directory. This
-// takes precedence over auto-detecting a Dockerfile in the working directory.
 func applyComposeBuild(opts *imgsrc.ImageOptions, appConfig *appconfig.Config, cb *containerconfig.ComposeBuild) error {
 	base := filepath.Dir(appConfig.ConfigFilePath())
 

@@ -85,16 +85,11 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 	return &compose, nil
 }
 
-// ComposeBuild describes the build directive of a compose service.
 type ComposeBuild struct {
-	Context    string // build context dir, as written in the compose file
-	Dockerfile string // dockerfile path relative to the context ("" = default)
+	Context    string
+	Dockerfile string
 }
 
-// ComposeBuildInfo returns the build directive of the single service that
-// declares `build:`, or (nil, nil) if every service uses a pre-built image.
-// Compose validation elsewhere enforces at most one build service, so the
-// first match is authoritative.
 func ComposeBuildInfo(composePath string) (*ComposeBuild, error) {
 	compose, err := parseComposeFile(composePath)
 	if err != nil {
@@ -112,9 +107,7 @@ func ComposeBuildInfo(composePath string) (*ComposeBuild, error) {
 	return nil, nil
 }
 
-// parseComposeBuild converts the two compose `build:` forms into a ComposeBuild:
-// the shorthand string (context only) and the long map form (context +
-// dockerfile).
+// parseComposeBuild converts the two compose `build:` forms into a ComposeBuild
 func parseComposeBuild(build any) *ComposeBuild {
 	switch b := build.(type) {
 	case string:
