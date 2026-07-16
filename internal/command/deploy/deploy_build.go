@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -167,6 +168,22 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		return
 	}
 
+	// Docker Compose: only build from source when a service declares `build:`.
+	// If every service uses a pre-built image there is nothing to build, and we
+	// must not fall back to auto-detecting a Dockerfile in the working directory.
+	usesCompose, composeBuild, err := composeBuildInfo(appConfig)
+	if err != nil {
+		tracing.RecordError(span, err, "failed to read compose build info")
+
+		return
+	}
+	if usesCompose && composeBuild == nil {
+		span.AddEvent("compose deploy with no build service; skipping source build")
+		terminal.Debug("compose deploy uses only pre-built images; skipping source build")
+
+		return nil, nil
+	}
+
 	build := appConfig.Build
 	if build == nil {
 		build = new(appconfig.Build)
@@ -241,6 +258,16 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		return
 	}
 
+	// A compose `build:` directive takes precedence over an auto-detected
+	// Dockerfile: route its context/dockerfile into the build options.
+	if composeBuild != nil {
+		if err = applyComposeBuild(&opts, appConfig, composeBuild); err != nil {
+			tracing.RecordError(span, err, "failed to apply compose build directive")
+
+			return
+		}
+	}
+
 	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
 
@@ -283,6 +310,58 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	}
 
 	return
+}
+
+// composeBuildInfo reports whether the app deploys via [build.compose] and, if
+// so, the build directive of the single buildable service. cb is nil when the
+// app uses compose but no service declares a `build:` (every service uses a
+// pre-built image), meaning no source build is required.
+func composeBuildInfo(appConfig *appconfig.Config) (usesCompose bool, cb *containerconfig.ComposeBuild, err error) {
+	if appConfig.Build == nil || appConfig.Build.Compose == nil {
+		return false, nil, nil
+	}
+
+	composePath := appConfig.DetectComposeFile()
+	if composePath == "" {
+		return true, nil, nil
+	}
+	if !filepath.IsAbs(composePath) {
+		composePath = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), composePath)
+	}
+
+	cb, err = containerconfig.ComposeBuildInfo(composePath)
+	if err != nil {
+		return true, nil, err
+	}
+
+	return true, cb, nil
+}
+
+// applyComposeBuild routes a compose `build:` directive into the image options,
+// resolving the context and dockerfile relative to the fly.toml directory. This
+// takes precedence over auto-detecting a Dockerfile in the working directory.
+func applyComposeBuild(opts *imgsrc.ImageOptions, appConfig *appconfig.Config, cb *containerconfig.ComposeBuild) error {
+	base := filepath.Dir(appConfig.ConfigFilePath())
+
+	ctxDir := opts.WorkingDir
+	if cb.Context != "" {
+		abs, err := filepath.Abs(filepath.Join(base, cb.Context))
+		if err != nil {
+			return err
+		}
+		ctxDir = abs
+		opts.WorkingDir = abs
+	}
+
+	if cb.Dockerfile != "" {
+		abs, err := filepath.Abs(filepath.Join(ctxDir, cb.Dockerfile))
+		if err != nil {
+			return err
+		}
+		opts.DockerfilePath = abs
+	}
+
+	return nil
 }
 
 // resolveDockerfilePath returns the absolute path to the Dockerfile

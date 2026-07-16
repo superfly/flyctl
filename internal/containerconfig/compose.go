@@ -85,6 +85,55 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 	return &compose, nil
 }
 
+// ComposeBuild describes the build directive of a compose service.
+type ComposeBuild struct {
+	Context    string // build context dir, as written in the compose file
+	Dockerfile string // dockerfile path relative to the context ("" = default)
+}
+
+// ComposeBuildInfo returns the build directive of the single service that
+// declares `build:`, or (nil, nil) if every service uses a pre-built image.
+// Compose validation elsewhere enforces at most one build service, so the
+// first match is authoritative.
+func ComposeBuildInfo(composePath string) (*ComposeBuild, error) {
+	compose, err := parseComposeFile(composePath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, service := range compose.Services {
+		if service.Build == nil {
+			continue
+		}
+
+		return parseComposeBuild(service.Build), nil
+	}
+
+	return nil, nil
+}
+
+// parseComposeBuild converts the two compose `build:` forms into a ComposeBuild:
+// the shorthand string (context only) and the long map form (context +
+// dockerfile).
+func parseComposeBuild(build any) *ComposeBuild {
+	switch b := build.(type) {
+	case string:
+		return &ComposeBuild{Context: b}
+	case map[string]any:
+		cb := &ComposeBuild{}
+		if ctx, ok := b["context"].(string); ok {
+			cb.Context = ctx
+		}
+		if df, ok := b["dockerfile"].(string); ok {
+			cb.Dockerfile = df
+		}
+
+		return cb
+	default:
+		return &ComposeBuild{}
+	}
+}
+
 // parseDependsOn parses both short and long syntax depends_on
 func parseDependsOn(dependsOn any) (ServiceDependencies, error) {
 	deps := ServiceDependencies{
