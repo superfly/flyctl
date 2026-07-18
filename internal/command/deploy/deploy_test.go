@@ -28,6 +28,11 @@ var testdata embed.FS
 
 func TestCommand_Execute(t *testing.T) {
 	makeTerminalLoggerQuiet(t)
+	const (
+		imageTag       = "test-registry.fly.io/my-image:deployment-00000000000000000000000000"
+		imageDigest    = "sha256:f107dbfaa732063b31ee94aa728c4f5648a672259fd62bfaa245f9b7a53b5479"
+		imageReference = imageTag + "@" + imageDigest
+	)
 
 	// Set FLY_ACCESS_TOKEN to simulate CI/CD environment
 	t.Setenv("FLY_ACCESS_TOKEN", "test-token")
@@ -43,7 +48,7 @@ func TestCommand_Execute(t *testing.T) {
 	cmd := New()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000"})
+	cmd.SetArgs([]string{"--image", imageTag})
 
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
@@ -62,9 +67,10 @@ func TestCommand_Execute(t *testing.T) {
 		Name:         "test-basic",
 		Organization: fly.Organization{Slug: "my-org"},
 	})
-	if err := server.CreateImage(context.Background(), "test-basic", "test-registry.fly.io/my-image:deployment-00000000000000000000000000", &fly.Image{
+	if err := server.CreateImage(context.Background(), "test-basic", imageTag, &fly.Image{
 		ID:             "IMAGE1",
-		Ref:            "test-registry.fly.io/my-image:deployment-00000000000000000000000000",
+		Ref:            imageTag,
+		Digest:         imageDigest,
 		CompressedSize: "1000",
 	}); err != nil {
 		t.Fatal(err)
@@ -76,6 +82,19 @@ func TestCommand_Execute(t *testing.T) {
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)
+	}
+
+	machines, err := server.FlapsClient("test-basic").ListActive(ctx, "test-basic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(machines) == 0 {
+		t.Fatal("expected at least one active app machine")
+	}
+	for _, machine := range machines {
+		if got := machine.Config.Image; got != imageReference {
+			t.Fatalf("expected immutable deployment image %q, got %q", imageReference, got)
+		}
 	}
 }
 
