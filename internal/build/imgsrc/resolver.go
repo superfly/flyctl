@@ -130,6 +130,10 @@ type DeploymentImage struct {
 }
 
 func (di *DeploymentImage) String() string {
+	if di == nil {
+		return "<nil>"
+	}
+
 	if di.Digest == "" {
 		return di.Tag
 	}
