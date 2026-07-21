@@ -77,25 +77,44 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		metadata["lock_instance"] = lockInstance
 	}
 
-	auth, err := fly.StartCLISession(state.Hostname(ctx), args)
+	io := iostreams.FromContext(ctx)
+	logger := logger.FromContext(ctx)
+
+	if !io.IsStdinTTY() {
+		return "", errors.New("fly auth login requires an interactive terminal. In headless environments, set FLY_API_TOKEN to a token created with `fly tokens create`")
+	}
+
+	pkce, err := newPKCELogin(args)
 	if err != nil {
 		return "", err
 	}
 
-	io := iostreams.FromContext(ctx)
-	if err := open.Run(auth.URL); err != nil {
-		fmt.Fprintf(io.ErrOut,
-			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			auth.URL,
-		)
+	auth, err := fly.StartCLISession(state.Hostname(ctx), args)
+	if err != nil {
+		pkce.close()
+
+		return "", err
 	}
 
-	logger := logger.FromContext(ctx)
-
 	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
+	if err := open.Run(auth.URL); err != nil {
+		fmt.Fprintf(io.ErrOut,
+			"failed opening browser. Copy the url (%s) into a browser and continue\n\n",
+			colorize.Bold(auth.URL),
+		)
+	} else {
+		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
+	}
 
-	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
+	var token string
+	if auth.PKCE {
+		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce)
+	} else {
+		// Server predates the PKCE flow
+		pkce.close()
+		token, err = waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
+	}
+
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return "", errors.New("Login expired, please try again")
