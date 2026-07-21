@@ -92,6 +92,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	auth, err := fly.StartCLISession(state.Hostname(ctx), args)
 	if err != nil {
 		pkce.close()
+
 		return "", err
 	}
 

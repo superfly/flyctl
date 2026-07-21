@@ -76,6 +76,7 @@ func randomToken(size int) (string, error) {
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
+
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
@@ -91,12 +92,14 @@ func (p *pkceLogin) serve(l net.Listener) {
 		w.Header().Set("Access-Control-Allow-Private-Network", "true")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
+
 			return
 		}
 
 		q := r.URL.Query()
 		if q.Get("state") != p.state || q.Get("code") == "" {
 			http.Error(w, "invalid callback", http.StatusBadRequest)
+
 			return
 		}
 
@@ -159,6 +162,7 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 			switch {
 			case err == nil && session.AccessToken != "":
 				log.Debug("redeemed access token.")
+
 				return session.AccessToken, nil
 			case err == nil:
 				return "", errors.New("failed to log in, please try again")

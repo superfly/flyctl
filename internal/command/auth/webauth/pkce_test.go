@@ -27,6 +27,7 @@ func newRedeemServer(t *testing.T, id, code, challenge, token string) *httptest.
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/cli_sessions/"+id+"/redeem" {
 			http.NotFound(w, r)
+
 			return
 		}
 
@@ -36,6 +37,7 @@ func newRedeemServer(t *testing.T, id, code, challenge, token string) *httptest.
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, `{"error":"bad body"}`, http.StatusBadRequest)
+
 			return
 		}
 
@@ -43,6 +45,7 @@ func newRedeemServer(t *testing.T, id, code, challenge, token string) *httptest.
 		if body.Code != code || base64.RawURLEncoding.EncodeToString(sum[:]) != challenge {
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprint(w, `{"error":"invalid_code"}`)
+
 			return
 		}
 
