@@ -130,6 +130,13 @@ type DeploymentImage struct {
 }
 
 func (di *DeploymentImage) String() string {
+	// A strategy that finds no image returns a nil *DeploymentImage, which
+	// ResolveReference formats with %+v. Guard the receiver so that doesn't
+	// fault.
+	if di == nil {
+		return "<nil>"
+	}
+
 	if di.Digest == "" {
 		return di.Tag
 	}
