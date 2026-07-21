@@ -351,7 +351,7 @@ func parseFiles(ctx context.Context, flagName string, cb func(value string, file
 		switch {
 		case !ok:
 			return nil, fmt.Errorf("invalid %s argument %s", flagName, f)
-		case !filepath.IsAbs(guestPath):
+		case !path.IsAbs(guestPath):
 			return nil, fmt.Errorf("guest path, %s, must be absolute", guestPath)
 		case fileRef == "":
 			// empty value is allowed to remove file from machine

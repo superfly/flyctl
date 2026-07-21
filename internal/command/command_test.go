@@ -2,12 +2,45 @@ package command
 
 import (
 	"context"
+	"encoding/base64"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
+
+func TestFilesFromCommandUsesPOSIXGuestPath(t *testing.T) {
+	content := []byte("hello from windows")
+	localPath := filepath.Join(t.TempDir(), "config.txt")
+	if err := os.WriteFile(localPath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	fs.StringArray("file-local", []string{"/etc/config.txt=" + localPath}, "")
+	ctx := flag.NewContext(context.Background(), fs)
+
+	files, err := FilesFromCommand(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+
+	if got, want := files[0].GuestPath, "/etc/config.txt"; got != want {
+		t.Errorf("GuestPath = %q, want %q", got, want)
+	}
+	if files[0].RawValue == nil {
+		t.Fatal("RawValue is nil")
+	}
+	if got, want := *files[0].RawValue, base64.StdEncoding.EncodeToString(content); got != want {
+		t.Errorf("RawValue = %q, want %q", got, want)
+	}
+}
 
 func TestHasExternallySuppliedToken(t *testing.T) {
 	t.Run("env var set", func(t *testing.T) {
