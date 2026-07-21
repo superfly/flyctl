@@ -44,7 +44,8 @@ func newCreate() *cobra.Command {
 		flag.Bool{
 			Name:        "v2",
 			Description: "Create a Postgres cluster deployed on the V2 platform",
-			Default:     false,
+			Default:     true,
+			Hidden:      true,
 		},
 		flag.String{
 			Name:        "plan",
