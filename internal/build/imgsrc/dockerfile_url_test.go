@@ -31,6 +31,13 @@ type dockerfileBuilderFunc struct {
 
 func (*dockerfileBuilderFunc) usesDockerfile() {}
 
+func setTempDir(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("TMPDIR", dir)
+	t.Setenv("TMP", dir)
+	t.Setenv("TEMP", dir)
+}
+
 func TestRunImageBuilderDoesNotFetchUnusedDockerfileURL(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -61,7 +68,7 @@ func TestRunImageBuilderDoesNotFetchUnusedDockerfileURL(t *testing.T) {
 
 func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
 	tempRoot := t.TempDir()
-	t.Setenv("TMPDIR", tempRoot)
+	setTempDir(t, tempRoot)
 
 	const content = "FROM alpine:latest\n"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -98,7 +105,7 @@ func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
 
 func TestRunImageBuilderCleansUpAfterBuilderError(t *testing.T) {
 	tempRoot := t.TempDir()
-	t.Setenv("TMPDIR", tempRoot)
+	setTempDir(t, tempRoot)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, "FROM alpine:latest\n")
@@ -109,6 +116,7 @@ func TestRunImageBuilderCleansUpAfterBuilderError(t *testing.T) {
 	var materializedDir string
 	strategy := &dockerfileBuilderFunc{imageBuilderFunc: func(_ context.Context, _ *dockerClientFactory, _ *iostreams.IOStreams, opts ImageOptions, _ *build) (*DeploymentImage, string, error) {
 		materializedDir = filepath.Dir(opts.DockerfilePath)
+
 		return nil, "", expectedErr
 	}}
 
@@ -154,7 +162,7 @@ func TestDownloadDockerfileRejectsHTTPError(t *testing.T) {
 
 func TestDownloadDockerfileRejectsOversizedStreamAndCleansUp(t *testing.T) {
 	tempDir := t.TempDir()
-	t.Setenv("TMPDIR", tempDir)
+	setTempDir(t, tempDir)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.(http.Flusher).Flush()

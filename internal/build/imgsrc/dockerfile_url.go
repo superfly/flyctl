@@ -98,6 +98,7 @@ func downloadDockerfile(ctx context.Context, dockerfileURL string, timeout time.
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		cleanup()
+
 		return "", nil, fmt.Errorf("creating temporary Dockerfile: %w", err)
 	}
 
