@@ -285,22 +285,22 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
-// resolveDockerfilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
+// resolveDockerfilePath returns HTTP(S) URLs unchanged and makes local
+// Dockerfile paths absolute.
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
 	if path = appConfig.Dockerfile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		if !imgsrc.IsDockerfileURL(path) {
+			path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		}
 	} else {
 		path = flag.GetString(ctx, "dockerfile")
 	}
 
-	return
+	if path == "" || imgsrc.IsDockerfileURL(path) {
+		return path, nil
+	}
+
+	return filepath.Abs(path)
 }
 
 // resolveIgnorefilePath returns the absolute path to the Dockerfile
