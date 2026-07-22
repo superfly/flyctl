@@ -67,7 +67,7 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 
 	// Guest
 	if v := c.Deploy.ReleaseCommandCompute; v != nil {
-		guest, err := c.computeToGuest(v)
+		guest, err := c.computeToGuest(v, mConfig.Guest)
 		if err != nil {
 			return nil, err
 		}
@@ -378,7 +378,11 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 	fly.MergeFiles(mConfig, c.MergedFiles)
 
 	// Guest
-	if guest, err := c.toMachineGuest(); err != nil {
+	//
+	// Pass the existing machine guest (carried over from src via the clone above)
+	// so that a partial [[compute]] section preserves values previously set by
+	// `fly scale`/`--vm-*` instead of resetting them to the preset defaults.
+	if guest, err := c.toMachineGuest(mConfig.Guest); err != nil {
 		return nil, err
 	} else if guest != nil {
 		// Only override machine's Guest if app config knows what to set
@@ -429,7 +433,7 @@ func (c *Config) tomachineSetStopConfig(mConfig *fly.MachineConfig) error {
 	return nil
 }
 
-func (c *Config) toMachineGuest() (*fly.MachineGuest, error) {
+func (c *Config) toMachineGuest(existing *fly.MachineGuest) (*fly.MachineGuest, error) {
 	// XXX: Don't be extra smart here, keep it backwards compatible with apps that don't have a [[compute]] section.
 	// Think about apps that counts on `fly deploy` to respect whatever was set by `fly scale` or the --vm-* family flags.
 	// It is important to return a `nil` guest when fly.toml doesn't contain a [[compute]] section for the process group.
@@ -440,21 +444,34 @@ func (c *Config) toMachineGuest() (*fly.MachineGuest, error) {
 	}
 
 	// At most one compute after group flattening
-	return c.computeToGuest(c.Compute[0])
+	return c.computeToGuest(c.Compute[0], existing)
 }
 
-func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
-	size := fly.DefaultVMSize
+func (c *Config) computeToGuest(compute *Compute, existing *fly.MachineGuest) (*fly.MachineGuest, error) {
+	// Pick the guest to build on top of:
+	//   - an explicit `size`        -> seed that preset
+	//   - a GPU compute             -> seed the default GPU preset
+	//   - an existing machine guest -> preserve it (e.g. values set by `fly scale`)
+	//     and only override the fields the user explicitly listed in the [[compute]] section
+	//   - otherwise                 -> seed the default preset
+	// Preserving the existing guest for a partial [[compute]] keeps `fly deploy`
+	// from resetting machines back to shared-cpu-1x/256MB. See issue #4544.
+	guest := &fly.MachineGuest{}
 	switch {
 	case compute.Size != "":
-		size = compute.Size
+		if err := guest.SetSize(compute.Size); err != nil {
+			return nil, err
+		}
 	case compute.MachineGuest != nil && compute.GPUKind != "":
-		size = fly.DefaultGPUVMSize
-	}
-
-	guest := &fly.MachineGuest{}
-	if err := guest.SetSize(size); err != nil {
-		return nil, err
+		if err := guest.SetSize(fly.DefaultGPUVMSize); err != nil {
+			return nil, err
+		}
+	case existing != nil:
+		guest = helpers.Clone(existing)
+	default:
+		if err := guest.SetSize(fly.DefaultVMSize); err != nil {
+			return nil, err
+		}
 	}
 
 	if c.HostDedicationID != "" {
