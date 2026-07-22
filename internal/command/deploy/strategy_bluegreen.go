@@ -90,6 +90,22 @@ type blueGreen struct {
 	uncordonRetryDelay    time.Duration
 }
 
+// machineHasConfiguredChecks returns true if the machine config has any health
+// checks defined — either at the top-level or inside a service. This is
+// intentionally based on the *configuration*, not on the runtime Machine.Checks
+// status field, which is empty for freshly-launched machines.
+func machineHasConfiguredChecks(cfg *fly.MachineConfig) bool {
+	if len(cfg.Checks) > 0 {
+		return true
+	}
+	for _, svc := range cfg.Services {
+		if len(svc.Checks) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
 	bg := &blueGreen{
 		greenMachines:       machineUpdateEntries{},
@@ -174,6 +190,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 			launchInput := mach.launchInput
 			launchInput.SkipServiceRegistration = true
+			launchInput.SkipLaunch = false
 			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
 
 			newMachineRaw, err := bg.flaps.Launch(ctx, bg.app.Name, *launchInput)
@@ -390,7 +407,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
-		if len(gm.leasableMachine.Machine().Checks) == 0 {
+		if !machineHasConfiguredChecks(gm.launchInput.Config) {
 			continue
 		}
 
@@ -405,7 +422,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
-		if len(gm.leasableMachine.Machine().Checks) == 0 {
+		if !machineHasConfiguredChecks(gm.launchInput.Config) {
 			continue
 		}
 

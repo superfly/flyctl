@@ -365,9 +365,20 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_healthchecks", trace.WithAttributes(attribute.Int("num_checks", len(lm.Machine().Checks)), attribute.Int64("timeout_ms", timeout.Milliseconds())))
+	// Count configured checks from the machine config, not the runtime status field.
+	// Machine.Checks (runtime status) is empty for freshly-launched machines and
+	// would cause us to skip health checking entirely if used as the gate.
+	// Use GetConfig() to safely handle a nil Config field.
+	configuredChecks := 0
+	if cfg := lm.Machine().GetConfig(); cfg != nil {
+		configuredChecks = len(cfg.Checks)
+		for _, svc := range cfg.Services {
+			configuredChecks += len(svc.Checks)
+		}
+	}
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_healthchecks", trace.WithAttributes(attribute.Int("num_checks", configuredChecks), attribute.Int64("timeout_ms", timeout.Milliseconds())))
 	defer span.End()
-	if len(lm.Machine().Checks) == 0 {
+	if configuredChecks == 0 {
 		return nil
 	}
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
@@ -395,9 +406,14 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			span.RecordError(err)
 
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
-		case !updateMachine.AllHealthChecks().AllPassing():
+		}
+		checkStatus := updateMachine.AllHealthChecks()
+		// Require at least one check result from the platform AND all checks passing.
+		// AllPassing() is vacuously true when Total == 0 (no results yet), so we
+		// must guard against that or we'd exit immediately on a freshly-started machine.
+		if checkStatus.Total == 0 || !checkStatus.AllPassing() {
 			if lm.showLogs && (!printedFirst || lm.io.IsInteractive()) {
-				lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
+				lm.logHealthCheckStatus(ctx, checkStatus)
 				printedFirst = true
 			}
 			select {
@@ -408,7 +424,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			continue
 		}
 		if lm.showLogs {
-			lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
+			lm.logHealthCheckStatus(ctx, checkStatus)
 		}
 
 		return nil
