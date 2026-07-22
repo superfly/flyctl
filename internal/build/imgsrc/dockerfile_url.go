@@ -46,6 +46,12 @@ func redactDockerfileURL(path string) string {
 	return u.String()
 }
 
+// DockerfilePathForDisplay removes sensitive URL components from HTTP(S)
+// Dockerfile paths and leaves local paths unchanged.
+func DockerfilePathForDisplay(path string) string {
+	return redactDockerfileURL(path)
+}
+
 func redactDockerfileRequestError(err error) error {
 	var urlErr *url.Error
 	if !errors.As(err, &urlErr) {

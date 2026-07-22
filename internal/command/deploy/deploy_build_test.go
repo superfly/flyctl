@@ -38,6 +38,20 @@ func TestMultipleDockerfile(t *testing.T) {
 
 	err = multipleDockerfile(ctx, cfg)
 	assert.ErrorContains(t, err, "fly.production.toml")
+
+	t.Run("redacts credentials in URL warning", func(t *testing.T) {
+		cfg.Build.Dockerfile = "https://" + "user:password@" + "example.com/Dockerfile?token=secret#fragment"
+
+		err := multipleDockerfile(ctx, cfg)
+
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "https://example.com/Dockerfile")
+		assert.NotContains(t, err.Error(), "user")
+		assert.NotContains(t, err.Error(), "password")
+		assert.NotContains(t, err.Error(), "token")
+		assert.NotContains(t, err.Error(), "secret")
+		assert.NotContains(t, err.Error(), "fragment")
+	})
 }
 
 func TestResolveDockerfilePath(t *testing.T) {
