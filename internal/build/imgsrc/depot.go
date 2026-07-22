@@ -59,6 +59,8 @@ type DepotBuilder struct {
 
 func (d *DepotBuilder) Name() string { return "depot.dev" }
 
+func (*DepotBuilder) usesDockerfile() {}
+
 func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "depot_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()

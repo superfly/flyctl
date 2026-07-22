@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 )
@@ -360,7 +361,7 @@ func (c *Config) BuildStrategies() []string {
 	}
 	if c.Build.Dockerfile != "" || c.Build.DockerBuildTarget != "" {
 		if c.Build.Dockerfile != "" {
-			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", c.Build.Dockerfile))
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", dockerfileurl.ForDisplay(c.Build.Dockerfile)))
 		} else {
 			strategies = append(strategies, "a dockerfile")
 		}
