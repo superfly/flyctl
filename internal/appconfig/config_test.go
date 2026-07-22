@@ -77,6 +77,17 @@ func TestManyBuildStrategies(t *testing.T) {
 	assert.Equal(t, 4, len(cfg.BuildStrategies()))
 }
 
+func TestDockerfileURLBuildStrategy(t *testing.T) {
+	dockerfileURL := "https://" + "user:password@" + "example.com/Dockerfile?token=secret#fragment"
+	cfg := Config{Build: &Build{Dockerfile: dockerfileURL}}
+
+	assert.Equal(t, dockerfileURL, cfg.Dockerfile())
+	assert.Equal(t,
+		[]string{`the "https://example.com/Dockerfile" dockerfile`},
+		cfg.BuildStrategies(),
+	)
+}
+
 func TestConfigPortGetter(t *testing.T) {
 	type testcase struct {
 		name         string
