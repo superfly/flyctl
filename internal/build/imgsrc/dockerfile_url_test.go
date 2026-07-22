@@ -224,13 +224,3 @@ func TestDownloadDockerfileRedactsURLFromRequestError(t *testing.T) {
 	assert.NotContains(t, err.Error(), "secret")
 	assert.NotContains(t, err.Error(), "fragment")
 }
-
-func TestRedactDockerfileURL(t *testing.T) {
-	dockerfileURL := "https://" + "user:password@" + "example.com/path/Dockerfile?token=secret#fragment"
-
-	assert.Equal(t, "Dockerfile.custom", redactDockerfileURL("Dockerfile.custom"))
-	assert.Equal(t,
-		"https://example.com/path/Dockerfile",
-		redactDockerfileURL(dockerfileURL),
-	)
-}

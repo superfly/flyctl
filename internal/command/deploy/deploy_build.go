@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -46,7 +47,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, imgsrc.DockerfilePathForDisplay(config), appConfig.ConfigFilePath())
+		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, dockerfileurl.ForDisplay(config), appConfig.ConfigFilePath())
 	}
 
 	return nil
@@ -285,18 +286,21 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
-// resolveDockerfilePath returns HTTP(S) URLs unchanged and makes local
-// Dockerfile paths absolute.
+// resolveDockerfilePath returns HTTP(S) URLs from app config unchanged and
+// makes local Dockerfile paths absolute.
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
 	if path = appConfig.Dockerfile(); path != "" {
-		if !imgsrc.IsDockerfileURL(path) {
-			path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+		if dockerfileurl.IsURL(path) {
+			return path, nil
 		}
-	} else {
-		path = flag.GetString(ctx, "dockerfile")
+
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+
+		return filepath.Abs(path)
 	}
 
-	if path == "" || imgsrc.IsDockerfileURL(path) {
+	path = flag.GetString(ctx, "dockerfile")
+	if path == "" {
 		return path, nil
 	}
 
