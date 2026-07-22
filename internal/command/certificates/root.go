@@ -76,6 +76,10 @@ as a parameter for the certificate.`
 		flag.App(),
 		flag.AppConfig(),
 		flag.JSONOutput(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for adding the certificate and exit without creating anything",
+		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Aliases = []string{"create"}
@@ -107,10 +111,12 @@ ownership verification via DNS before the certificate becomes active.`
 			Description: "Path to private key file (PEM format)",
 		},
 		flag.JSONOutput(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for importing the certificate and exit without uploading anything",
+		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
-	cmd.MarkFlagRequired("fullchain")
-	cmd.MarkFlagRequired("private-key")
 
 	return cmd
 }
@@ -120,8 +126,18 @@ func runCertificatesImport(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
+	if flag.GetBool(ctx, "estimate") {
+		return runCertificateEstimate(ctx, appName, "certs.import", "fly certs import", "create", hostname)
+	}
+
 	fullchainPath := flag.GetString(ctx, "fullchain")
 	privateKeyPath := flag.GetString(ctx, "private-key")
+	if fullchainPath == "" {
+		return fmt.Errorf("required flag \"fullchain\" not set")
+	}
+	if privateKeyPath == "" {
+		return fmt.Errorf("required flag \"private-key\" not set")
+	}
 
 	fullchain, err := os.ReadFile(fullchainPath)
 	if err != nil {
@@ -216,6 +232,10 @@ Use --acme to stop ACME certificate issuance while keeping custom certificates.`
 			Name:        "acme",
 			Description: "Stop ACME certificate issuance, keeping custom certificates",
 			Default:     false,
+		},
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for removing the certificate and exit without deleting anything",
 		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -360,6 +380,10 @@ func runCertificatesAdd(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
+	if flag.GetBool(ctx, "estimate") {
+		return runCertificateEstimate(ctx, appName, "certs.add", "fly certs add", "create", hostname)
+	}
+
 	resp, err := flapsClient.CreateACMECertificate(ctx, appName, fly.CreateCertificateRequest{
 		Hostname: hostname,
 	})
@@ -456,6 +480,14 @@ func runCertificatesRemove(ctx context.Context) error {
 
 	if customOnly && acmeOnly {
 		return fmt.Errorf("cannot specify both --custom and --acme")
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		if customOnly || acmeOnly {
+			return fmt.Errorf("cost estimates are only available for removing the full certificate, not --custom or --acme partial removal")
+		}
+
+		return runCertificateEstimate(ctx, appName, "certs.remove", "fly certs remove", "destroy", hostname)
 	}
 
 	if !flag.GetYes(ctx) {

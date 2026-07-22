@@ -24,6 +24,7 @@ func newScaleMemory() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.ProcessGroup("The process group to apply the VM size to"),
+		flag.Bool{Name: "estimate", Description: "Print a JSON cost estimate for the memory change and exit without changing anything"},
 	)
 
 	return cmd
