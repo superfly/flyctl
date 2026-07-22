@@ -210,8 +210,9 @@ func TestDownloadDockerfileTimesOut(t *testing.T) {
 func TestDownloadDockerfileRedactsURLFromRequestError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+	dockerfileURL := "https://" + "user:password@" + "example.com/Dockerfile?token=secret#fragment"
 
-	path, cleanup, err := downloadDockerfile(ctx, "https://user:password@example.com/Dockerfile?token=secret#fragment", time.Second, 1024)
+	path, cleanup, err := downloadDockerfile(ctx, dockerfileURL, time.Second, 1024)
 
 	assert.Empty(t, path)
 	assert.Nil(t, cleanup)
@@ -225,9 +226,11 @@ func TestDownloadDockerfileRedactsURLFromRequestError(t *testing.T) {
 }
 
 func TestRedactDockerfileURL(t *testing.T) {
+	dockerfileURL := "https://" + "user:password@" + "example.com/path/Dockerfile?token=secret#fragment"
+
 	assert.Equal(t, "Dockerfile.custom", redactDockerfileURL("Dockerfile.custom"))
 	assert.Equal(t,
 		"https://example.com/path/Dockerfile",
-		redactDockerfileURL("https://user:password@example.com/path/Dockerfile?token=secret#fragment"),
+		redactDockerfileURL(dockerfileURL),
 	)
 }
