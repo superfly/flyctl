@@ -542,3 +542,90 @@ services:
 		t.Error("Expected dependency on 'redis'")
 	}
 }
+
+func writeComposeFile(t *testing.T, content string) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	composePath := filepath.Join(tmpDir, "compose.yml")
+	if err := os.WriteFile(composePath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write test compose file: %v", err)
+	}
+
+	return composePath
+}
+
+func TestComposeBuildInfo_NoBuildService(t *testing.T) {
+	// Every service uses a pre-built image: nothing to build.
+	path := writeComposeFile(t, `version: "3"
+services:
+  web:
+    image: nginx:latest
+  db:
+    image: postgres:14
+`)
+
+	cb, err := ComposeBuildInfo(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cb != nil {
+		t.Errorf("expected nil build info, got %+v", cb)
+	}
+}
+
+func TestComposeBuildInfo_ShorthandString(t *testing.T) {
+	// build: ./app  -> context only, default dockerfile.
+	path := writeComposeFile(t, `version: "3"
+services:
+  app:
+    build: ./app
+  cache:
+    image: redis:alpine
+`)
+
+	cb, err := ComposeBuildInfo(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cb == nil {
+		t.Fatal("expected build info, got nil")
+	}
+	if cb.Context != "./app" {
+		t.Errorf("expected context './app', got %q", cb.Context)
+	}
+	if cb.Dockerfile != "" {
+		t.Errorf("expected empty dockerfile, got %q", cb.Dockerfile)
+	}
+}
+
+func TestComposeBuildInfo_LongForm(t *testing.T) {
+	// build: { context:, dockerfile: } -> both honored.
+	path := writeComposeFile(t, `version: "3"
+services:
+  app:
+    build:
+      context: ./src
+      dockerfile: Dockerfile.custom
+`)
+
+	cb, err := ComposeBuildInfo(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cb == nil {
+		t.Fatal("expected build info, got nil")
+	}
+	if cb.Context != "./src" {
+		t.Errorf("expected context './src', got %q", cb.Context)
+	}
+	if cb.Dockerfile != "Dockerfile.custom" {
+		t.Errorf("expected dockerfile 'Dockerfile.custom', got %q", cb.Dockerfile)
+	}
+}
+
+func TestComposeBuildInfo_MissingFile(t *testing.T) {
+	_, err := ComposeBuildInfo(filepath.Join(t.TempDir(), "does-not-exist.yml"))
+	if err == nil {
+		t.Fatal("expected error for missing compose file, got nil")
+	}
+}

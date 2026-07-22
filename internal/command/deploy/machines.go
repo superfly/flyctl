@@ -170,9 +170,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
 
-	if !args.RestartOnly && args.DeploymentImage == "" {
-		return nil, fmt.Errorf("BUG: machines deployment created without specifying the image")
-	}
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
@@ -181,6 +178,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		tracing.RecordError(span, err, "failed to determine app config for machines")
 
 		return nil, err
+	}
+
+	usesCompose := appConfig.Build != nil && appConfig.Build.Compose != nil
+	if !args.RestartOnly && args.DeploymentImage == "" && !usesCompose {
+		return nil, fmt.Errorf("BUG: machines deployment created without specifying the image")
 	}
 
 	// TODO: Blend extraInfo into ValidationError and remove this hack
@@ -666,6 +668,11 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 
 func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
+		return nil
+	}
+	// A compose deploy where every service uses a pre-built image has no
+	// top-level image on purpose; each container carries its own reference.
+	if md.appConfig != nil && md.appConfig.Build != nil && md.appConfig.Build.Compose != nil {
 		return nil
 	}
 	latestImg, err := md.apiClient.LatestImage(ctx, md.app.Name)

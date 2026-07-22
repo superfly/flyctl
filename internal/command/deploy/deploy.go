@@ -602,9 +602,19 @@ func deployToMachines(
 		maxConcurrent = immediateMaxConcurrent
 	}
 
+	// img is nil for compose deploys that build no source image (every service
+	// uses a pre-built image); each container carries its own image reference.
+	var imageTag, imageBuilderID string
+	var imageBuildID int64
+	if img != nil {
+		imageTag = img.Tag
+		imageBuildID = img.BuildID
+		imageBuilderID = img.BuilderID
+	}
+
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
-	status.Image = img.Tag
+	status.Image = imageTag
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
 		status.Strategy = flag.GetString(ctx, "strategy")
@@ -650,7 +660,7 @@ func deployToMachines(
 
 	args := MachineDeploymentArgs{
 		App:                   app,
-		DeploymentImage:       img.Tag,
+		DeploymentImage:       imageTag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
 		PrimaryRegionFlag:     status.PrimaryRegion,
@@ -677,8 +687,8 @@ func deployToMachines(
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
-		BuildID:               img.BuildID,
-		BuilderID:             img.BuilderID,
+		BuildID:               imageBuildID,
+		BuilderID:             imageBuilderID,
 	}
 
 	var path = flag.GetString(ctx, "export-manifest")

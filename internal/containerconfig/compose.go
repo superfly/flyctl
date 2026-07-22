@@ -85,6 +85,48 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 	return &compose, nil
 }
 
+type ComposeBuild struct {
+	Context    string
+	Dockerfile string
+}
+
+func ComposeBuildInfo(composePath string) (*ComposeBuild, error) {
+	compose, err := parseComposeFile(composePath)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, service := range compose.Services {
+		if service.Build == nil {
+			continue
+		}
+
+		return parseComposeBuild(service.Build), nil
+	}
+
+	return nil, nil
+}
+
+// parseComposeBuild converts the two compose `build:` forms into a ComposeBuild
+func parseComposeBuild(build any) *ComposeBuild {
+	switch b := build.(type) {
+	case string:
+		return &ComposeBuild{Context: b}
+	case map[string]any:
+		cb := &ComposeBuild{}
+		if ctx, ok := b["context"].(string); ok {
+			cb.Context = ctx
+		}
+		if df, ok := b["dockerfile"].(string); ok {
+			cb.Dockerfile = df
+		}
+
+		return cb
+	default:
+		return &ComposeBuild{}
+	}
+}
+
 // parseDependsOn parses both short and long syntax depends_on
 func parseDependsOn(dependsOn any) (ServiceDependencies, error) {
 	deps := ServiceDependencies{

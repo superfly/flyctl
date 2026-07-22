@@ -448,3 +448,78 @@ func TestDeploy(t *testing.T) {
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"), "--buildkit --remote-only")
 	})
 }
+
+func TestFlyDeployComposeNoBuild(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	// An invalid Dockerfile that would fail the build if it were ever used.
+	f.WriteFile("Dockerfile", "FROM this-base-image-does-not-exist-4963:nope\n")
+	f.WriteFile("compose.yml", `services:
+  web:
+    image: nginx:latest
+`)
+	f.WriteFlyToml(`app = "%s"
+primary_region = "%s"
+
+[build.compose]
+  file = "compose.yml"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+`, appName, f.PrimaryRegion())
+
+	// Must succeed without building the stray Dockerfile.
+	f.Fly("deploy --remote-only --ha=false")
+
+	// The container should carry the pre-built nginx image, and no source image
+	// should have been substituted.
+	machines := f.MachinesList(appName)
+	require.NotEmpty(t, machines, "expected at least one machine")
+	var found bool
+	for _, m := range machines {
+		for _, c := range m.Config.Containers {
+			if strings.Contains(c.Image, "nginx") {
+				found = true
+			}
+			require.NotContains(t, c.Image, "registry.fly.io",
+				"compose container must use the pre-built image, not a source build")
+		}
+	}
+	require.True(t, found, "expected a container using the nginx image")
+}
+
+func TestFlyDeployComposeWithBuild(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	// Decoy: an invalid root Dockerfile that must NOT be selected.
+	f.WriteFile("Dockerfile", "FROM this-base-image-does-not-exist-4963:nope\n")
+	// The real build target referenced by the compose build directive.
+	f.WriteFile("Dockerfile.app", "FROM nginx\nENV PREFLIGHT_TEST=true\n")
+	f.WriteFile("compose.yml", `services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+`)
+	f.WriteFlyToml(`app = "%s"
+primary_region = "%s"
+
+[build.compose]
+  file = "compose.yml"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+`, appName, f.PrimaryRegion())
+
+	// Must succeed by building Dockerfile.app, not the invalid root Dockerfile.
+	f.Fly("deploy --buildkit --remote-only --ha=false")
+
+	machines := f.MachinesList(appName)
+	require.NotEmpty(t, machines, "expected at least one machine")
+}
