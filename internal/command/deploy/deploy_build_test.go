@@ -37,3 +37,30 @@ func TestMultipleDockerfile(t *testing.T) {
 	err = multipleDockerfile(ctx, cfg)
 	assert.ErrorContains(t, err, "fly.production.toml")
 }
+
+func TestResolveDockerfilePath(t *testing.T) {
+	t.Run("relative config path", func(t *testing.T) {
+		dir := t.TempDir()
+		cfg := &appconfig.Config{
+			Build: &appconfig.Build{Dockerfile: "Dockerfile.custom"},
+		}
+		cfg.SetConfigFilePath(filepath.Join(dir, "fly.toml"))
+
+		got, err := resolveDockerfilePath(context.Background(), cfg)
+
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(dir, "Dockerfile.custom"), got)
+	})
+
+	t.Run("URL remains unchanged", func(t *testing.T) {
+		const dockerfileURL = "https://example.com/Dockerfile"
+		cfg := &appconfig.Config{
+			Build: &appconfig.Build{Dockerfile: dockerfileURL},
+		}
+
+		got, err := resolveDockerfilePath(context.Background(), cfg)
+
+		require.NoError(t, err)
+		assert.Equal(t, dockerfileURL, got)
+	})
+}
