@@ -9,48 +9,15 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
+
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 )
 
 const (
 	dockerfileDownloadTimeout = 30 * time.Second
 	maxDockerfileSizeBytes    = 10 << 20
 )
-
-// IsDockerfileURL reports whether path is an HTTP(S) URL.
-func IsDockerfileURL(path string) bool {
-	u, err := url.Parse(path)
-	if err != nil || u.Host == "" {
-		return false
-	}
-
-	return strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")
-}
-
-func redactDockerfileURL(path string) string {
-	if !IsDockerfileURL(path) {
-		return path
-	}
-
-	u, err := url.Parse(path)
-	if err != nil {
-		return path
-	}
-
-	u.User = nil
-	u.RawQuery = ""
-	u.ForceQuery = false
-	u.Fragment = ""
-
-	return u.String()
-}
-
-// DockerfilePathForDisplay removes sensitive URL components from HTTP(S)
-// Dockerfile paths and leaves local paths unchanged.
-func DockerfilePathForDisplay(path string) string {
-	return redactDockerfileURL(path)
-}
 
 func redactDockerfileRequestError(err error) error {
 	var urlErr *url.Error
@@ -59,13 +26,13 @@ func redactDockerfileRequestError(err error) error {
 	}
 
 	redacted := *urlErr
-	redacted.URL = redactDockerfileURL(urlErr.URL)
+	redacted.URL = dockerfileurl.ForDisplay(urlErr.URL)
 
 	return &redacted
 }
 
 func materializeDockerfile(ctx context.Context, path string) (localPath string, cleanup func(), err error) {
-	if !IsDockerfileURL(path) {
+	if !dockerfileurl.IsURL(path) {
 		return path, func() {}, nil
 	}
 

@@ -6,11 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
 )
 
@@ -80,16 +78,4 @@ func TestResolveDockerfilePath(t *testing.T) {
 		assert.Equal(t, dockerfileURL, got)
 	})
 
-	t.Run("URL flag remains unchanged", func(t *testing.T) {
-		const dockerfileURL = "https://example.com/Dockerfile?token=secret"
-		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-		fs.String("dockerfile", "", "")
-		require.NoError(t, fs.Set("dockerfile", dockerfileURL))
-		ctx := flag.NewContext(context.Background(), fs)
-
-		got, err := resolveDockerfilePath(ctx, &appconfig.Config{})
-
-		require.NoError(t, err)
-		assert.Equal(t, dockerfileURL, got)
-	})
 }

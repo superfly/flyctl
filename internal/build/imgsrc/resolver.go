@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -62,7 +63,7 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("imageoptions.app_name", io.AppName),
 		attribute.String("imageoptions.work_dir", io.WorkingDir),
-		attribute.String("imageoptions.dockerfile_path", redactDockerfileURL(io.DockerfilePath)),
+		attribute.String("imageoptions.dockerfile_path", dockerfileurl.ForDisplay(io.DockerfilePath)),
 		attribute.String("imageoptions.ignorefile_path", io.IgnorefilePath),
 		attribute.String("imageoptions.image.ref", io.ImageRef),
 		attribute.String("imageoptions.image.label", io.ImageLabel),
@@ -364,7 +365,7 @@ func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, o
 		Builder:         opts.Builder,
 		BuiltIn:         opts.BuiltIn,
 		BuiltInSettings: opts.BuiltInSettings,
-		DockerfilePath:  redactDockerfileURL(opts.DockerfilePath),
+		DockerfilePath:  dockerfileurl.ForDisplay(opts.DockerfilePath),
 		ExtraBuildArgs:  opts.ExtraBuildArgs,
 		ImageLabel:      opts.ImageLabel,
 		ImageRef:        opts.ImageRef,
