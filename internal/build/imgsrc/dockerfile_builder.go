@@ -41,6 +41,8 @@ func (*dockerfileBuilder) Name() string {
 	return "Dockerfile"
 }
 
+func (*dockerfileBuilder) usesDockerfile() {}
+
 // lastProgressOutput is the same as progress.Output except
 // that it only output with the last update. It is used in
 // non terminal scenarios to suppress verbose messages
