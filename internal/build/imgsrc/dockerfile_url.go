@@ -2,11 +2,13 @@ package imgsrc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -26,6 +28,36 @@ func IsDockerfileURL(path string) bool {
 	return strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")
 }
 
+func redactDockerfileURL(path string) string {
+	if !IsDockerfileURL(path) {
+		return path
+	}
+
+	u, err := url.Parse(path)
+	if err != nil {
+		return path
+	}
+
+	u.User = nil
+	u.RawQuery = ""
+	u.ForceQuery = false
+	u.Fragment = ""
+
+	return u.String()
+}
+
+func redactDockerfileRequestError(err error) error {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return err
+	}
+
+	redacted := *urlErr
+	redacted.URL = redactDockerfileURL(urlErr.URL)
+
+	return &redacted
+}
+
 func materializeDockerfile(ctx context.Context, path string) (localPath string, cleanup func(), err error) {
 	if !IsDockerfileURL(path) {
 		return path, func() {}, nil
@@ -40,12 +72,12 @@ func downloadDockerfile(ctx context.Context, dockerfileURL string, timeout time.
 
 	req, err := http.NewRequestWithContext(downloadCtx, http.MethodGet, dockerfileURL, http.NoBody)
 	if err != nil {
-		return "", nil, fmt.Errorf("creating Dockerfile request: %w", err)
+		return "", nil, fmt.Errorf("creating Dockerfile request: %w", redactDockerfileRequestError(err))
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", nil, fmt.Errorf("downloading Dockerfile: %w", err)
+		return "", nil, fmt.Errorf("downloading Dockerfile: %w", redactDockerfileRequestError(err))
 	}
 	defer resp.Body.Close()
 
@@ -56,13 +88,19 @@ func downloadDockerfile(ctx context.Context, dockerfileURL string, timeout time.
 		return "", nil, fmt.Errorf("downloading Dockerfile: response exceeds %d-byte limit", maxBytes)
 	}
 
-	f, err := os.CreateTemp("", "flyctl-dockerfile-*")
+	tempDir, err := os.MkdirTemp("", "flyctl-dockerfile-*")
 	if err != nil {
+		return "", nil, fmt.Errorf("creating temporary Dockerfile directory: %w", err)
+	}
+	cleanup = func() { _ = os.RemoveAll(tempDir) }
+
+	path = filepath.Join(tempDir, "Dockerfile")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		cleanup()
 		return "", nil, fmt.Errorf("creating temporary Dockerfile: %w", err)
 	}
 
-	path = f.Name()
-	cleanup = func() { _ = os.Remove(path) }
 	defer func() {
 		if closeErr := f.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("closing temporary Dockerfile: %w", closeErr)

@@ -62,7 +62,7 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("imageoptions.app_name", io.AppName),
 		attribute.String("imageoptions.work_dir", io.WorkingDir),
-		attribute.String("imageoptions.dockerfile_path", io.DockerfilePath),
+		attribute.String("imageoptions.dockerfile_path", redactDockerfileURL(io.DockerfilePath)),
 		attribute.String("imageoptions.ignorefile_path", io.IgnorefilePath),
 		attribute.String("imageoptions.image.ref", io.ImageRef),
 		attribute.String("imageoptions.image.label", io.ImageLabel),
@@ -364,7 +364,7 @@ func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, o
 		Builder:         opts.Builder,
 		BuiltIn:         opts.BuiltIn,
 		BuiltInSettings: opts.BuiltInSettings,
-		DockerfilePath:  opts.DockerfilePath,
+		DockerfilePath:  redactDockerfileURL(opts.DockerfilePath),
 		ExtraBuildArgs:  opts.ExtraBuildArgs,
 		ImageLabel:      opts.ImageLabel,
 		ImageRef:        opts.ImageRef,

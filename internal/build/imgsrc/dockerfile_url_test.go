@@ -2,10 +2,12 @@ package imgsrc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -58,6 +60,9 @@ func TestRunImageBuilderDoesNotFetchUnusedDockerfileURL(t *testing.T) {
 }
 
 func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
 	const content = "FROM alpine:latest\n"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, content)
@@ -67,6 +72,14 @@ func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
 	var materializedPath string
 	strategy := &dockerfileBuilderFunc{imageBuilderFunc: func(_ context.Context, _ *dockerClientFactory, _ *iostreams.IOStreams, opts ImageOptions, _ *build) (*DeploymentImage, string, error) {
 		materializedPath = opts.DockerfilePath
+		assert.Equal(t, filepath.Join(filepath.Dir(materializedPath), "Dockerfile"), materializedPath)
+		assert.Equal(t, tempRoot, filepath.Dir(filepath.Dir(materializedPath)))
+
+		entries, err := os.ReadDir(filepath.Dir(materializedPath))
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Equal(t, "Dockerfile", entries[0].Name())
+
 		got, err := os.ReadFile(materializedPath)
 		require.NoError(t, err)
 		assert.Equal(t, content, string(got))
@@ -79,7 +92,32 @@ func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
 	}, nil)
 
 	require.NoError(t, err)
-	_, err = os.Stat(materializedPath)
+	_, err = os.Stat(filepath.Dir(materializedPath))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestRunImageBuilderCleansUpAfterBuilderError(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, "FROM alpine:latest\n")
+	}))
+	t.Cleanup(server.Close)
+
+	expectedErr := errors.New("builder failed")
+	var materializedDir string
+	strategy := &dockerfileBuilderFunc{imageBuilderFunc: func(_ context.Context, _ *dockerClientFactory, _ *iostreams.IOStreams, opts ImageOptions, _ *build) (*DeploymentImage, string, error) {
+		materializedDir = filepath.Dir(opts.DockerfilePath)
+		return nil, "", expectedErr
+	}}
+
+	_, _, err := runImageBuilder(context.Background(), strategy, nil, nil, ImageOptions{
+		DockerfilePath: server.URL + "/Dockerfile",
+	}, nil)
+
+	assert.ErrorIs(t, err, expectedErr)
+	_, err = os.Stat(materializedDir)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
@@ -134,6 +172,20 @@ func TestDownloadDockerfileRejectsOversizedStreamAndCleansUp(t *testing.T) {
 	assert.Empty(t, entries)
 }
 
+func TestDownloadDockerfileRejectsDeclaredOversize(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "9")
+		fmt.Fprint(w, "123456789")
+	}))
+	t.Cleanup(server.Close)
+
+	path, cleanup, err := downloadDockerfile(context.Background(), server.URL+"/Dockerfile", time.Second, 8)
+
+	assert.Empty(t, path)
+	assert.Nil(t, cleanup)
+	assert.ErrorContains(t, err, "response exceeds 8-byte limit")
+}
+
 func TestDownloadDockerfileTimesOut(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
@@ -145,4 +197,29 @@ func TestDownloadDockerfileTimesOut(t *testing.T) {
 	assert.Empty(t, path)
 	assert.Nil(t, cleanup)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestDownloadDockerfileRedactsURLFromRequestError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	path, cleanup, err := downloadDockerfile(ctx, "https://user:password@example.com/Dockerfile?token=secret#fragment", time.Second, 1024)
+
+	assert.Empty(t, path)
+	assert.Nil(t, cleanup)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.ErrorContains(t, err, "https://example.com/Dockerfile")
+	assert.NotContains(t, err.Error(), "user")
+	assert.NotContains(t, err.Error(), "password")
+	assert.NotContains(t, err.Error(), "token")
+	assert.NotContains(t, err.Error(), "secret")
+	assert.NotContains(t, err.Error(), "fragment")
+}
+
+func TestRedactDockerfileURL(t *testing.T) {
+	assert.Equal(t, "Dockerfile.custom", redactDockerfileURL("Dockerfile.custom"))
+	assert.Equal(t,
+		"https://example.com/path/Dockerfile",
+		redactDockerfileURL("https://user:password@example.com/path/Dockerfile?token=secret#fragment"),
+	)
 }
