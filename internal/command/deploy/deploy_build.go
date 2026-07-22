@@ -46,7 +46,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, config, appConfig.ConfigFilePath())
+		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, imgsrc.DockerfilePathForDisplay(config), appConfig.ConfigFilePath())
 	}
 
 	return nil
