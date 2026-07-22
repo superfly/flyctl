@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestRunImageBuilderDoesNotFetchUnusedDockerfileURL(t *testing.T) {
 	image, _, err := runImageBuilder(context.Background(), strategy, nil, nil, ImageOptions{
 		Builder:        "paketobuildpacks/builder-jammy-base",
 		DockerfilePath: server.URL + "/Dockerfile",
-	}, nil)
+	}, nil, NewDockerfileMaterializer())
 
 	require.NoError(t, err)
 	assert.Same(t, expected, image)
@@ -64,6 +65,18 @@ func TestRunImageBuilderDoesNotFetchUnusedDockerfileURL(t *testing.T) {
 	assert.Implements(t, (*dockerfileConsumer)(nil), &dockerfileBuilder{})
 	assert.Implements(t, (*dockerfileConsumer)(nil), &BuildkitBuilder{})
 	assert.Implements(t, (*dockerfileConsumer)(nil), &DepotBuilder{})
+}
+
+func TestImageOptionsRedactsMalformedDockerfileURL(t *testing.T) {
+	const dockerfileURL = "https://" + "user:pass@" + "example.com/%zz?token=secret#fragment"
+	var got string
+	for _, attr := range (ImageOptions{DockerfilePath: dockerfileURL}).ToSpanAttributes() {
+		if string(attr.Key) == "imageoptions.dockerfile_path" {
+			got = attr.Value.AsString()
+		}
+	}
+
+	assert.Equal(t, "invalid URL", got)
 }
 
 func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
@@ -77,6 +90,7 @@ func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	var materializedPath string
+	materializer := NewDockerfileMaterializer()
 	strategy := &dockerfileBuilderFunc{imageBuilderFunc: func(_ context.Context, _ *dockerClientFactory, _ *iostreams.IOStreams, opts ImageOptions, _ *build) (*DeploymentImage, string, error) {
 		materializedPath = opts.DockerfilePath
 		assert.Equal(t, filepath.Join(filepath.Dir(materializedPath), "Dockerfile"), materializedPath)
@@ -96,9 +110,10 @@ func TestRunImageBuilderMaterializesDockerfileURLAndCleansUp(t *testing.T) {
 
 	_, _, err := runImageBuilder(context.Background(), strategy, nil, nil, ImageOptions{
 		DockerfilePath: server.URL + "/Dockerfile",
-	}, nil)
+	}, nil, materializer)
 
 	require.NoError(t, err)
+	require.NoError(t, materializer.Close())
 	_, err = os.Stat(filepath.Dir(materializedPath))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
@@ -114,6 +129,7 @@ func TestRunImageBuilderCleansUpAfterBuilderError(t *testing.T) {
 
 	expectedErr := errors.New("builder failed")
 	var materializedDir string
+	materializer := NewDockerfileMaterializer()
 	strategy := &dockerfileBuilderFunc{imageBuilderFunc: func(_ context.Context, _ *dockerClientFactory, _ *iostreams.IOStreams, opts ImageOptions, _ *build) (*DeploymentImage, string, error) {
 		materializedDir = filepath.Dir(opts.DockerfilePath)
 
@@ -122,11 +138,44 @@ func TestRunImageBuilderCleansUpAfterBuilderError(t *testing.T) {
 
 	_, _, err := runImageBuilder(context.Background(), strategy, nil, nil, ImageOptions{
 		DockerfilePath: server.URL + "/Dockerfile",
-	}, nil)
+	}, nil, materializer)
 
 	assert.ErrorIs(t, err, expectedErr)
+	require.NoError(t, materializer.Close())
 	_, err = os.Stat(materializedDir)
 	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestRunImageBuilderReusesDockerfileAcrossFailover(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		fmt.Fprint(w, "FROM alpine:latest\n")
+	}))
+	t.Cleanup(server.Close)
+
+	materializer := NewDockerfileMaterializer()
+	var paths []string
+	expectedErr := errors.New("builder connection failed")
+	strategy := &dockerfileBuilderFunc{imageBuilderFunc: func(_ context.Context, _ *dockerClientFactory, _ *iostreams.IOStreams, opts ImageOptions, _ *build) (*DeploymentImage, string, error) {
+		paths = append(paths, opts.DockerfilePath)
+		if len(paths) == 1 {
+			return nil, "", expectedErr
+		}
+
+		return &DeploymentImage{Tag: "dockerfile-image"}, "", nil
+	}}
+	opts := ImageOptions{DockerfilePath: server.URL + "/Dockerfile"}
+
+	_, _, err := runImageBuilder(context.Background(), strategy, nil, nil, opts, nil, materializer)
+	require.ErrorIs(t, err, expectedErr)
+	_, _, err = runImageBuilder(context.Background(), strategy, nil, nil, opts, nil, materializer)
+
+	require.NoError(t, err)
+	require.NoError(t, materializer.Close())
+	assert.Equal(t, int32(1), requests.Load())
+	require.Len(t, paths, 2)
+	assert.Equal(t, paths[0], paths[1])
 }
 
 func TestDownloadDockerfile(t *testing.T) {
@@ -144,9 +193,35 @@ func TestDownloadDockerfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, content, string(got))
 
-	cleanup()
+	require.NoError(t, cleanup())
 	_, err = os.Stat(path)
 	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestDownloadDockerfileAcceptsUppercaseScheme(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, "FROM alpine:latest\n")
+	}))
+	t.Cleanup(server.Close)
+	dockerfileURL := strings.Replace(server.URL, "http://", "HTTP://", 1) + "/Dockerfile"
+
+	path, cleanup, err := downloadDockerfile(context.Background(), dockerfileURL, time.Second, 1024)
+
+	require.NoError(t, err)
+	require.NoError(t, cleanup())
+	assert.NotEmpty(t, path)
+}
+
+func TestDockerfileMaterializerReportsCleanupFailure(t *testing.T) {
+	expectedErr := errors.New("remove failed")
+	materializer := &DockerfileMaterializer{
+		cleanup: func() error { return expectedErr },
+	}
+
+	err := materializer.Close()
+
+	assert.ErrorIs(t, err, expectedErr)
+	assert.ErrorIs(t, materializer.Close(), expectedErr)
 }
 
 func TestDownloadDockerfileRejectsHTTPError(t *testing.T) {
@@ -220,6 +295,42 @@ func TestDownloadDockerfileRedactsURLFromRequestError(t *testing.T) {
 	assert.ErrorContains(t, err, "https://example.com/Dockerfile")
 	assert.NotContains(t, err.Error(), "user")
 	assert.NotContains(t, err.Error(), "password")
+	assert.NotContains(t, err.Error(), "token")
+	assert.NotContains(t, err.Error(), "secret")
+	assert.NotContains(t, err.Error(), "fragment")
+}
+
+func TestDownloadDockerfileRedactsMalformedRedirectURL(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", "https://"+"user:pass@"+"example.com/%zz?token=secret#fragment")
+		w.WriteHeader(http.StatusFound)
+	}))
+	t.Cleanup(server.Close)
+
+	path, cleanup, err := downloadDockerfile(context.Background(), server.URL+"/Dockerfile", time.Second, 1024)
+
+	assert.Empty(t, path)
+	assert.Nil(t, cleanup)
+	assert.ErrorContains(t, err, "failed to parse redirect Location header")
+	assert.NotContains(t, err.Error(), "user")
+	assert.NotContains(t, err.Error(), "pass")
+	assert.NotContains(t, err.Error(), "token")
+	assert.NotContains(t, err.Error(), "secret")
+	assert.NotContains(t, err.Error(), "fragment")
+}
+
+func TestDownloadDockerfileRedactsRelativeRedirectURL(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", "/Dockerfile?token=secret#fragment")
+		w.WriteHeader(http.StatusFound)
+	}))
+	t.Cleanup(server.Close)
+
+	path, cleanup, err := downloadDockerfile(context.Background(), server.URL+"/Dockerfile", time.Second, 1024)
+
+	assert.Empty(t, path)
+	assert.Nil(t, cleanup)
+	assert.ErrorContains(t, err, "/Dockerfile")
 	assert.NotContains(t, err.Error(), "token")
 	assert.NotContains(t, err.Error(), "secret")
 	assert.NotContains(t, err.Error(), "fragment")

@@ -19,6 +19,14 @@ func parse(value string) (*url.URL, bool) {
 	return u, true
 }
 
+// LooksLikeURL reports whether value starts with an HTTP(S) scheme, including
+// malformed values that should fail closed instead of being treated as paths.
+func LooksLikeURL(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+
+	return strings.HasPrefix(value, "http:") || strings.HasPrefix(value, "https:")
+}
+
 // IsURL reports whether value is an HTTP(S) URL.
 func IsURL(value string) bool {
 	_, ok := parse(value)
@@ -31,9 +39,28 @@ func IsURL(value string) bool {
 func ForDisplay(value string) string {
 	u, ok := parse(value)
 	if !ok {
+		if LooksLikeURL(value) {
+			return "invalid URL"
+		}
+
 		return value
 	}
 
+	return redact(u)
+}
+
+// ForRequestError removes sensitive components from an absolute or relative
+// URL reference returned by net/http.
+func ForRequestError(value string) string {
+	u, err := url.Parse(value)
+	if err != nil {
+		return "invalid URL"
+	}
+
+	return redact(u)
+}
+
+func redact(u *url.URL) string {
 	u.User = nil
 	u.RawQuery = ""
 	u.ForceQuery = false

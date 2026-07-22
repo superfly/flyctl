@@ -78,4 +78,22 @@ func TestResolveDockerfilePath(t *testing.T) {
 		assert.Equal(t, dockerfileURL, got)
 	})
 
+	for name, dockerfileURL := range map[string]string{
+		"invalid escape": "https://" + "user:pass@" + "example.com/%zz?token=secret#fragment",
+		"missing slash":  "https:/" + "user:pass@" + "example.com/Dockerfile?token=secret",
+		"backslash form": `https:\user:pass@example.com\Dockerfile?token=secret`,
+	} {
+		t.Run("malformed URL fails closed: "+name, func(t *testing.T) {
+			cfg := &appconfig.Config{
+				Build: &appconfig.Build{Dockerfile: dockerfileURL},
+			}
+
+			got, err := resolveDockerfilePath(context.Background(), cfg)
+
+			assert.Empty(t, got)
+			require.Error(t, err)
+			assert.EqualError(t, err, "invalid Dockerfile URL")
+			assert.NotContains(t, err.Error(), dockerfileURL)
+		})
+	}
 }

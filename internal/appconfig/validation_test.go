@@ -14,8 +14,8 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 )
 
-func TestConfigValidateRedactsDockerfileURL(t *testing.T) {
-	dockerfileURL := "https://" + "user:password@" + "example.com/Dockerfile?token=secret#fragment"
+func TestConfigValidateRedactsMalformedDockerfileURL(t *testing.T) {
+	dockerfileURL := "https://" + "user:pass@" + "example.com/%zz?token=secret#fragment"
 	cfg := &Config{Build: &Build{
 		Builder:    "example.com/builder",
 		Dockerfile: dockerfileURL,
@@ -38,14 +38,14 @@ func TestConfigValidateRedactsDockerfileURL(t *testing.T) {
 	err, output := cfg.Validate(context.Background())
 
 	require.NoError(t, err)
-	assert.Contains(t, output, `the "https://example.com/Dockerfile" dockerfile`)
-	assert.NotContains(t, output, "user:password@")
+	assert.Contains(t, output, `the "invalid URL" dockerfile`)
+	assert.NotContains(t, output, "user:pass@")
 	assert.NotContains(t, output, "token=secret")
 	assert.NotContains(t, output, "#fragment")
 	require.NotNil(t, captured)
 	require.NotEmpty(t, captured.Exception)
-	assert.Contains(t, captured.Exception[0].Value, "https://example.com/Dockerfile")
-	assert.NotContains(t, captured.Exception[0].Value, "user:password@")
+	assert.Contains(t, captured.Exception[0].Value, "invalid URL")
+	assert.NotContains(t, captured.Exception[0].Value, "user:pass@")
 	assert.NotContains(t, captured.Exception[0].Value, "token=secret")
 	assert.NotContains(t, captured.Exception[0].Value, "#fragment")
 }

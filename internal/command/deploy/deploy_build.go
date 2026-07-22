@@ -55,7 +55,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -128,6 +128,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		daemonType, client, appConfig.AppName, io,
 		useWG, recreateBuilder,
 		imgsrc.WithProvisioner(provisioner),
+		imgsrc.WithDockerfileMaterializer(dockerfileMaterializer),
 	)
 
 	var imageRef string
@@ -292,6 +293,9 @@ func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (pa
 	if path = appConfig.Dockerfile(); path != "" {
 		if dockerfileurl.IsURL(path) {
 			return path, nil
+		}
+		if dockerfileurl.LooksLikeURL(path) {
+			return "", errors.New("invalid Dockerfile URL")
 		}
 
 		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
