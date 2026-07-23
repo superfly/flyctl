@@ -269,7 +269,7 @@ func newRun() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "shell",
-			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
+			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, an app for interactive shells is created or reused. The Machine is destroyed when the shell exits; the app is retained for future shells. See also --command and --user.",
 			Hidden:      false,
 		},
 		flag.String{
