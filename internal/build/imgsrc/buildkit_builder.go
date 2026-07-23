@@ -45,6 +45,8 @@ func NewBuildkitBuilder(addr string, provisioner *Provisioner) *BuildkitBuilder 
 
 func (r *BuildkitBuilder) Name() string { return "Buildkit" }
 
+func (*BuildkitBuilder) usesDockerfile() {}
+
 func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "buildkit_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
