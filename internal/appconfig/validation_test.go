@@ -5,12 +5,50 @@ import (
 	"os"
 	"testing"
 
+	getsentry "github.com/getsentry/sentry-go"
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 )
+
+func TestConfigValidateRedactsMalformedDockerfileURL(t *testing.T) {
+	dockerfileURL := "https://" + "user:pass@" + "example.com/%zz?token=secret#fragment"
+	cfg := &Config{Build: &Build{
+		Builder:    "example.com/builder",
+		Dockerfile: dockerfileURL,
+	}}
+
+	var captured *getsentry.Event
+	client, err := getsentry.NewClient(getsentry.ClientOptions{
+		BeforeSend: func(event *getsentry.Event, _ *getsentry.EventHint) *getsentry.Event {
+			captured = event
+
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	hub := getsentry.CurrentHub()
+	previousClient := hub.Client()
+	hub.BindClient(client)
+	t.Cleanup(func() { hub.BindClient(previousClient) })
+
+	err, output := cfg.Validate(context.Background())
+
+	require.NoError(t, err)
+	assert.Contains(t, output, `the "invalid URL" dockerfile`)
+	assert.NotContains(t, output, "user:pass@")
+	assert.NotContains(t, output, "token=secret")
+	assert.NotContains(t, output, "#fragment")
+	require.NotNil(t, captured)
+	require.NotEmpty(t, captured.Exception)
+	assert.Contains(t, captured.Exception[0].Value, "invalid URL")
+	assert.NotContains(t, captured.Exception[0].Value, "user:pass@")
+	assert.NotContains(t, captured.Exception[0].Value, "token=secret")
+	assert.NotContains(t, captured.Exception[0].Value, "#fragment")
+}
 
 func _getValidationContext(t *testing.T) context.Context {
 	ctx := logger.NewContext(context.Background(), logger.New(os.Stderr, logger.Info, false))
