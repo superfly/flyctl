@@ -212,6 +212,58 @@ func TestDownloadDockerfileAcceptsUppercaseScheme(t *testing.T) {
 	assert.NotEmpty(t, path)
 }
 
+func TestDownloadDockerfileDoesNotForwardSensitiveRefererOnRedirect(t *testing.T) {
+	var referer string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/redirect" {
+			w.Header().Set("Location", "/Dockerfile")
+			w.WriteHeader(http.StatusFound)
+
+			return
+		}
+
+		referer = r.Referer()
+		fmt.Fprint(w, "FROM scratch\n")
+	}))
+	t.Cleanup(server.Close)
+
+	path, cleanup, err := downloadDockerfile(context.Background(), server.URL+"/redirect?token=secret", time.Second, 1024)
+
+	require.NoError(t, err)
+	require.NoError(t, cleanup())
+	assert.NotEmpty(t, path)
+	assert.Empty(t, referer)
+}
+
+func TestDockerfileCheckRedirectSanitizesAfterInheritedHook(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/Dockerfile", http.NoBody)
+	require.NoError(t, err)
+	previous, err := http.NewRequest(http.MethodGet, "https://example.com/redirect?token=secret", http.NoBody)
+	require.NoError(t, err)
+
+	checkRedirect := dockerfileCheckRedirect(func(req *http.Request, _ []*http.Request) error {
+		req.Header.Set("Referer", "https://example.com/redirect?token=secret")
+
+		return nil
+	})
+
+	require.NoError(t, checkRedirect(req, []*http.Request{previous}))
+	assert.Empty(t, req.Referer())
+}
+
+func TestDockerfileCheckRedirectRejectsHTTPSDowngrade(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "http://example.com/Dockerfile", http.NoBody)
+	require.NoError(t, err)
+	previous, err := http.NewRequest(http.MethodGet, "https://user:password@example.com/redirect", http.NoBody)
+	require.NoError(t, err)
+
+	err = dockerfileCheckRedirect(nil)(req, []*http.Request{previous})
+
+	assert.ErrorContains(t, err, "refusing Dockerfile redirect from HTTPS to HTTP")
+	assert.NotContains(t, err.Error(), "user")
+	assert.NotContains(t, err.Error(), "password")
+}
+
 func TestDockerfileMaterializerReportsCleanupFailure(t *testing.T) {
 	expectedErr := errors.New("remove failed")
 	materializer := &DockerfileMaterializer{

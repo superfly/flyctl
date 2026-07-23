@@ -51,6 +51,34 @@ func redactDockerfileRequestError(err error) error {
 	return &redacted
 }
 
+func dockerfileHTTPClient() *http.Client {
+	client := *http.DefaultClient
+	client.CheckRedirect = dockerfileCheckRedirect(client.CheckRedirect)
+
+	return &client
+}
+
+func dockerfileCheckRedirect(checkRedirect func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if checkRedirect != nil {
+			if err := checkRedirect(req, via); err != nil {
+				return err
+			}
+		} else if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		if len(via) > 0 && strings.EqualFold(via[len(via)-1].URL.Scheme, "https") && strings.EqualFold(req.URL.Scheme, "http") {
+			return errors.New("refusing Dockerfile redirect from HTTPS to HTTP")
+		}
+
+		// net/http derives Referer from the previous URL, including its query.
+		// Do this after any inherited hook so it cannot restore signed parameters.
+		req.Header.Del("Referer")
+
+		return nil
+	}
+}
+
 func (m *DockerfileMaterializer) materialize(ctx context.Context, path string) (string, error) {
 	if !dockerfileurl.IsURL(path) {
 		return path, nil
@@ -103,7 +131,7 @@ func downloadDockerfile(ctx context.Context, dockerfileURL string, timeout time.
 	}
 	req.URL.Scheme = strings.ToLower(req.URL.Scheme)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := dockerfileHTTPClient().Do(req)
 	if err != nil {
 		return "", nil, fmt.Errorf("downloading Dockerfile: %w", redactDockerfileRequestError(err))
 	}
