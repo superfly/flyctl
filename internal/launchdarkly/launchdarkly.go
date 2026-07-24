@@ -245,7 +245,3 @@ func (ldClient *Client) UseZstdEnabled() bool {
 func (ldClient *Client) GetCompressionStrength() any {
 	return ldClient.GetFeatureFlagValue("flyctl-compression-strength", 7)
 }
-
-func (ldClient *Client) ClientSignalsEnabled() bool {
-	return ldClient.GetFeatureFlagValue("flyctl-client-signals-enabled", false).(bool)
-}
