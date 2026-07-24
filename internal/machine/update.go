@@ -98,17 +98,21 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		waitTimeout = time.Duration(input.Timeout) * time.Second
 	}
 
-	state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout)
-	if err != nil {
+	if err := WaitForStartOrStop(ctx, appName, updatedMachine, "settled", waitTimeout, updatedMachine.InstanceID); err != nil {
 		return fmt.Errorf("error while waiting for machine to update: %w", err)
 	}
 
-	if state == "failed" {
-		return fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, state)
+	settledMachine, err := VerifyUpdateApplied(ctx, appName, m.ID, updatedMachine.InstanceID, m.InstanceID)
+	if err != nil {
+		return err
 	}
 
-	if state == "started" && !input.SkipHealthChecks {
-		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
+	if settledMachine.State == "failed" {
+		return fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, settledMachine.State)
+	}
+
+	if settledMachine.State == "started" && !input.SkipHealthChecks {
+		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{settledMachine}); err != nil {
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}
@@ -116,6 +120,26 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 	fmt.Fprintf(io.Out, "Machine %s updated successfully!\n", colorize.Bold(m.ID))
 
 	return nil
+}
+
+// VerifyUpdateApplied fetches the machine and returns it if its InstanceID
+// matches targetInstanceID. Otherwise it returns an error distinguishing
+// whether the machine remains on previousInstanceID or some unexpected
+// version.
+func VerifyUpdateApplied(ctx context.Context, appName, machineID, targetInstanceID, previousInstanceID string) (*fly.Machine, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	current, err := flapsClient.Get(ctx, appName, machineID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get machine: %w", err)
+	}
+	switch current.InstanceID {
+	case targetInstanceID:
+		return current, nil
+	case previousInstanceID:
+		return nil, fmt.Errorf("machine %s update failed: machine remains on previous version %s (state: %s)", machineID, current.InstanceID, current.State)
+	default:
+		return nil, fmt.Errorf("machine %s update failed: unexpected version %s (state: %s)", machineID, current.InstanceID, current.State)
+	}
 }
 
 type invalidConfigReason string
