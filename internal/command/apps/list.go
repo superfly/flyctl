@@ -3,6 +3,7 @@ package apps
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -65,6 +66,10 @@ func runList(ctx context.Context) (err error) {
 	}
 
 	out := iostreams.FromContext(ctx).Out
+	if len(apps) == 0 {
+		return renderEmptyApps(out, cfg.JSONOutput, silence)
+	}
+
 	if cfg.JSONOutput {
 		_ = render.JSON(out, apps)
 
@@ -121,6 +126,19 @@ func runList(ctx context.Context) (err error) {
 	_ = render.Table(out, "", rows, headers...)
 
 	return
+}
+
+func renderEmptyApps(out io.Writer, jsonOutput, quiet bool) error {
+	if jsonOutput {
+		return render.JSON(out, []fly.App{})
+	}
+	if quiet {
+		return nil
+	}
+
+	_, err := fmt.Fprintln(out, "No apps found.")
+
+	return err
 }
 
 // getApps mirrors fly-go's GetApps/GetAppsForOrganization but also requests
