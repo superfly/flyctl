@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/moby/buildkit/frontend/dockerfile/dockerignore"
+	"github.com/moby/go-archive"
+	"github.com/moby/go-archive/compression"
 	"github.com/moby/patternmatcher"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/terminal"
@@ -79,7 +80,7 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 		ExcludePatterns: options.exclusions,
 	}
 	if options.compressed && len(options.additions) == 0 {
-		opts.Compression = archive.Gzip
+		opts.Compression = compression.Gzip
 	}
 
 	sourcePath, err := fileutils.ReadSymlinkedDirectory(options.sourcePath)
