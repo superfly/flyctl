@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -194,6 +195,21 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 // initBuilder returns a Depot machine to build a container image.
 // Note that the caller is responsible for passing a context with a resonable timeout.
 // Otherwise, the function cloud block indefinitely.
+// depotBuilderRegion picks the region hint sent to the depot builder API: the
+// FLY_REMOTE_BUILDER_REGION env var wins over the LaunchDarkly-served alt
+// region, and an empty result leaves placement to the server.
+func depotBuilderRegion(envRegion, altRegion string) string {
+	region := envRegion
+	if region == "" {
+		region = altRegion
+	}
+	if region != "" {
+		region = "fly-" + region
+	}
+
+	return region
+}
+
 func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
 
@@ -207,10 +223,10 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	}()
 
 	uiexClient := uiexutil.ClientFromContext(ctx)
-	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	if region != "" {
-		region = "fly-" + region
-	}
+	region := depotBuilderRegion(
+		os.Getenv("FLY_REMOTE_BUILDER_REGION"),
+		launchdarkly.ClientFromContext(ctx).AltBuildRegion(),
+	)
 	span.SetAttributes(attribute.String("depot_builder_region", region))
 
 	buildInfo, err := uiexClient.EnsureDepotBuilder(ctx, uiex.EnsureDepotBuilderRequest{

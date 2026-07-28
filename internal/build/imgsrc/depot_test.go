@@ -32,3 +32,24 @@ func TestInitBuilder(t *testing.T) {
 	_, _, err := initBuilder(ctx, build, "app1", ios, DepotBuilderScopeOrganization)
 	require.ErrorContains(t, err, `unsupported protocol scheme "invalid"`)
 }
+
+func TestDepotBuilderRegion(t *testing.T) {
+	cases := []struct {
+		name      string
+		envRegion string
+		altRegion string
+		want      string
+	}{
+		{name: "no region", envRegion: "", altRegion: "", want: ""},
+		{name: "env only", envRegion: "iad", altRegion: "", want: "fly-iad"},
+		{name: "alt only", envRegion: "", altRegion: "ord", want: "fly-ord"},
+		{name: "env wins over alt", envRegion: "iad", altRegion: "ord", want: "fly-iad"},
+		{name: "alias alt region", envRegion: "", altRegion: "eu", want: "fly-eu"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, depotBuilderRegion(tc.envRegion, tc.altRegion))
+		})
+	}
+}
