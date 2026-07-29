@@ -3,7 +3,6 @@ package apps
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -66,14 +65,16 @@ func runList(ctx context.Context) (err error) {
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	if len(apps) == 0 {
-		return renderEmptyApps(out, cfg.JSONOutput, silence)
+	if cfg.JSONOutput {
+		return render.JSON(out, apps)
 	}
 
-	if cfg.JSONOutput {
-		_ = render.JSON(out, apps)
+	if len(apps) == 0 {
+		if !silence {
+			fmt.Fprintln(out, "No apps found")
+		}
 
-		return
+		return nil
 	}
 
 	verbose := flag.GetBool(ctx, "verbose")
@@ -128,19 +129,6 @@ func runList(ctx context.Context) (err error) {
 	return
 }
 
-func renderEmptyApps(out io.Writer, jsonOutput, quiet bool) error {
-	if jsonOutput {
-		return render.JSON(out, []fly.App{})
-	}
-	if quiet {
-		return nil
-	}
-
-	_, err := fmt.Fprintln(out, "No apps found.")
-
-	return err
-}
-
 // getApps mirrors fly-go's GetApps/GetAppsForOrganization but also requests
 // the network field, which those queries omit.
 func getApps(ctx context.Context, orgID *string) ([]fly.App, error) {
@@ -174,7 +162,7 @@ func getApps(ctx context.Context, orgID *string) ([]fly.App, error) {
 		}
 	`
 
-	var apps []fly.App
+	apps := []fly.App{}
 	var after *string
 
 	for {
