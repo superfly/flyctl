@@ -66,9 +66,15 @@ func runList(ctx context.Context) (err error) {
 
 	out := iostreams.FromContext(ctx).Out
 	if cfg.JSONOutput {
-		_ = render.JSON(out, apps)
+		return render.JSON(out, apps)
+	}
 
-		return
+	if len(apps) == 0 {
+		if !silence {
+			fmt.Fprintln(out, "No apps found")
+		}
+
+		return nil
 	}
 
 	verbose := flag.GetBool(ctx, "verbose")
@@ -156,7 +162,7 @@ func getApps(ctx context.Context, orgID *string) ([]fly.App, error) {
 		}
 	`
 
-	var apps []fly.App
+	apps := []fly.App{}
 	var after *string
 
 	for {
