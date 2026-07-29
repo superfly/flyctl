@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -33,6 +34,11 @@ func newDestroy() *cobra.Command {
 		flag.Yes(),
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the volume destruction and exit without destroying anything",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -70,6 +76,30 @@ func runDestroy(ctx context.Context) error {
 			return err
 		}
 		volIDs = append(volIDs, volume.ID)
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		changes := make([]uiex.CostEstimateChange, 0, len(volIDs))
+		for _, volID := range volIDs {
+			volume, err := flapsClient.GetVolume(ctx, appName, volID)
+			if err != nil {
+				return err
+			}
+
+			changes = append(changes, uiex.CostEstimateChange{
+				Kind:    "volume",
+				Action:  "destroy",
+				Ref:     volID,
+				Count:   1,
+				Current: volumeSpec(volume),
+			})
+		}
+
+		return runVolumeEstimate(ctx, appName, volumeEstimateInput{
+			Operation:     "volume.destroy",
+			SourceCommand: "fly volumes destroy",
+			Changes:       changes,
+		})
 	}
 
 	for _, volID := range volIDs {

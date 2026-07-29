@@ -40,6 +40,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 			Aliases:     []string{"memory"},
 		},
 		flag.ProcessGroup("The process group to apply the VM size to"),
+		flag.Bool{Name: "estimate", Description: "Print a JSON cost estimate for the VM size change and exit without changing anything"},
 	)
 
 	return cmd
@@ -60,6 +61,9 @@ func scaleVertically(ctx context.Context, group, sizeName string, memoryMB int) 
 	size, err := v2ScaleVM(ctx, appName, group, sizeName, memoryMB)
 	if err != nil {
 		return err
+	}
+	if flag.GetBool(ctx, "estimate") {
+		return nil
 	}
 
 	if group == "" {

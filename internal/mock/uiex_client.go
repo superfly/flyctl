@@ -22,6 +22,7 @@ type UiexClient struct {
 	FinishBuildFunc                        func(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error)
 	EnsureDepotBuilderFunc                 func(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error)
 	CreateFlyManagedBuilderFunc            func(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
+	CreateCostEstimateFunc                 func(ctx context.Context, orgSlug string, in uiex.CostEstimateRequest) (*uiex.CostEstimateResponse, error)
 	GetAllAppsCurrentReleaseTimestampsFunc func(ctx context.Context) (*map[string]time.Time, error)
 	ListReleasesFunc                       func(ctx context.Context, appName string, count int) ([]uiex.Release, error)
 	GetCurrentReleaseFunc                  func(ctx context.Context, appName string) (*uiex.Release, error)
@@ -91,6 +92,14 @@ func (m *UiexClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug string
 	}
 
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
+}
+
+func (m *UiexClient) CreateCostEstimate(ctx context.Context, orgSlug string, in uiex.CostEstimateRequest) (*uiex.CostEstimateResponse, error) {
+	if m.CreateCostEstimateFunc != nil {
+		return m.CreateCostEstimateFunc(ctx, orgSlug, in)
+	}
+
+	return &uiex.CostEstimateResponse{}, nil
 }
 
 func (m *UiexClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {

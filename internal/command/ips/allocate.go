@@ -57,6 +57,10 @@ func newAllocatev4() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the IPv4 allocation and exit without allocating anything",
+		},
 	)
 
 	return cmd
@@ -106,6 +110,10 @@ func newAllocateEgress() *cobra.Command {
 		flag.AppConfig(),
 		flag.Region(),
 		flag.Yes(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for app-scoped egress IP allocation and exit without allocating anything",
+		},
 	)
 
 	return cmd
@@ -115,6 +123,8 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	addrType := "v4"
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
+	} else if flag.GetBool(ctx, "estimate") {
+		return runAllocateIPAddress(ctx, addrType, nil, "")
 	} else if !flag.GetBool(ctx, "yes") {
 		msg := `Looks like you're accessing a paid feature. Dedicated IPv4 addresses now cost $2/mo.
 Are you ok with this? Alternatively, you could allocate a shared IPv4 address with the --shared flag.`
@@ -153,6 +163,15 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	appName := appconfig.NameFromContext(ctx)
 
+	if flag.GetBool(ctx, "estimate") {
+		switch addrType {
+		case "v4":
+			return runIPEstimate(ctx, appName, "ip.allocate-v4", "fly ips allocate-v4", ipEstimateSpec{Family: "v4", Type: "dedicated", Region: flag.GetRegion(ctx)})
+		case "shared_v4", "v6", "private_v6":
+			return fmt.Errorf("cost estimates are only available for dedicated IPv4 and app-scoped egress IPv4 allocations")
+		}
+	}
+
 	if addrType == "shared_v4" {
 		ip, err := client.AllocateSharedIPAddress(ctx, appName)
 		if err != nil {
@@ -189,6 +208,10 @@ func runAllocateEgressIPAddresses(ctx context.Context) (err error) {
 	region := flag.GetRegion(ctx)
 	if region == "" {
 		return fmt.Errorf("a region must be provided when allocating an app-scoped egress IP address")
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		return runIPEstimate(ctx, appName, "ip.allocate-egress", "fly ips allocate-egress", ipEstimateSpec{Family: "v4", Type: "egress", Region: region})
 	}
 
 	if !flag.GetBool(ctx, "yes") {
