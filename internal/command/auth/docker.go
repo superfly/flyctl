@@ -201,13 +201,32 @@ func runDocker(ctx context.Context) error {
 }
 
 func printDockerAuthSuccess(out io.Writer, cfg *config.Config, now time.Time) {
-	fmt.Fprintf(out, "Authentication successful. You can now tag and push images to %s/{your-app}\n", cfg.RegistryHost)
-
+	fmt.Fprintf(out, "Authentication successful. ")
 	if expiration, ok := dockerCredentialExpiration(cfg.Tokens.Docker()); ok {
-		fmt.Fprintf(out, "Earliest credential expiration: %s\n", humanize.RelTime(expiration, now, "ago", "from now"))
+		fmt.Fprintf(out, "Credential expiration: %s.\n", formatCredentialExpiration(expiration, now))
 	} else {
-		fmt.Fprintln(out, "Credential expiration: unknown")
+		fmt.Fprintln(out, "Credential expiration: unknown.")
 	}
+
+	fmt.Fprintf(out, "\nYou can now tag and push images to %s/{your-app}\n", cfg.RegistryHost)
+}
+
+func formatCredentialExpiration(expiration, now time.Time) string {
+	diff := expiration.Sub(now)
+	label := "from now"
+	if diff < 0 {
+		diff = -diff
+		label = "ago"
+	}
+
+	// go-humanize collapses durations of 37 years or more into "a long
+	// while". Keep its more granular formatting for shorter durations, but
+	// retain an approximate magnitude for very long-lived credentials.
+	if diff >= humanize.LongTime {
+		return fmt.Sprintf("%d years %s", diff/humanize.Year, label)
+	}
+
+	return humanize.RelTime(expiration, now, "ago", "from now")
 }
 
 // dockerCredentialExpiration returns the earliest expiration encoded in the

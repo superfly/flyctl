@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
@@ -182,6 +183,34 @@ func TestDockerCredentialExpiration(t *testing.T) {
 			got, ok := dockerCredentialExpiration(test.credential)
 			assert.Equal(t, test.wantOK, ok)
 			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestFormatCredentialExpiration(t *testing.T) {
+	now := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		expiration time.Time
+		want       string
+	}{
+		"keeps humanize formatting for shorter durations": {
+			expiration: now.Add(6 * 30 * 24 * time.Hour),
+			want:       "6 months from now",
+		},
+		"formats very long future durations as years": {
+			expiration: now.Add(100 * humanize.Year),
+			want:       "100 years from now",
+		},
+		"formats very long past durations as years": {
+			expiration: now.Add(-50 * humanize.Year),
+			want:       "50 years ago",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.want, formatCredentialExpiration(test.expiration, now))
 		})
 	}
 }
