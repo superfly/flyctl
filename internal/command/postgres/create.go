@@ -205,20 +205,11 @@ func run(ctx context.Context) (err error) {
 
 		flapsClient := flapsutil.ClientFromContext(ctx)
 
-		// Resolve the volume
+		// Resolve the volume. The lookup is scoped to the fork-from app, so it
+		// also confirms the volume is associated with that app.
 		vol, err := flapsClient.GetVolume(ctx, forkApp.Name, params.ForkFrom)
 		if err != nil {
-			return fmt.Errorf("Failed to resolve the specified fork-from volume %s: %w", params.ForkFrom, err)
-		}
-
-		appName, err := client.GetAppNameFromVolume(ctx, vol.ID)
-		if err != nil {
-			return err
-		}
-
-		// Confirm that the volume is associated with the fork-from app
-		if *appName != forkApp.Name {
-			return fmt.Errorf("The volume %q specified must be associated with the fork-from app %q", vol.ID, forkApp.Name)
+			return fmt.Errorf("Failed to resolve the specified fork-from volume %s on app %s: %w", params.ForkFrom, forkApp.Name, err)
 		}
 
 		// If the region isn't specified, set the region of the fork target
