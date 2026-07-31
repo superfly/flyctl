@@ -5,10 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/macaroon"
 )
 
 func newTestConfig() *config.Config {
@@ -143,4 +148,58 @@ func TestAddFlyAuthToDockerConfig_preservesOtherRegistries(t *testing.T) {
 	if parsed.CredsStore != "osxkeychain" {
 		t.Errorf("credsStore field was dropped: %q", parsed.CredsStore)
 	}
+}
+
+func TestDockerCredentialExpiration(t *testing.T) {
+	later := time.Now().Round(time.Second)
+	earlier := later.Add(-5 * time.Minute)
+
+	tests := map[string]struct {
+		credential string
+		want       time.Time
+		wantOK     bool
+	}{
+		"uses earliest macaroon expiration": {
+			credential: strings.Join([]string{
+				newTestMacaroon(t, &later),
+				newTestMacaroon(t, &earlier),
+			}, ","),
+			want:   earlier,
+			wantOK: true,
+		},
+		"macaroon without expiration": {
+			credential: newTestMacaroon(t, nil),
+			wantOK:     false,
+		},
+		"opaque OAuth token": {
+			credential: "fo1_opaque",
+			wantOK:     false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, ok := dockerCredentialExpiration(test.credential)
+			assert.Equal(t, test.wantOK, ok)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func newTestMacaroon(t *testing.T, expiration *time.Time) string {
+	t.Helper()
+
+	token, err := macaroon.New([]byte("test"), "test", macaroon.NewSigningKey())
+	require.NoError(t, err)
+	if expiration != nil {
+		require.NoError(t, token.Add(&macaroon.ValidityWindow{
+			NotBefore: expiration.Add(-time.Hour).Unix(),
+			NotAfter:  expiration.Unix(),
+		}))
+	}
+
+	encoded, err := token.String()
+	require.NoError(t, err)
+
+	return encoded
 }
