@@ -5,10 +5,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/dustin/go-humanize"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/macaroon"
 )
 
 func newTestConfig() *config.Config {
@@ -143,4 +149,86 @@ func TestAddFlyAuthToDockerConfig_preservesOtherRegistries(t *testing.T) {
 	if parsed.CredsStore != "osxkeychain" {
 		t.Errorf("credsStore field was dropped: %q", parsed.CredsStore)
 	}
+}
+
+func TestDockerCredentialExpiration(t *testing.T) {
+	later := time.Now().Round(time.Second)
+	earlier := later.Add(-5 * time.Minute)
+
+	tests := map[string]struct {
+		credential string
+		want       time.Time
+		wantOK     bool
+	}{
+		"uses earliest macaroon expiration": {
+			credential: strings.Join([]string{
+				newTestMacaroon(t, &later),
+				newTestMacaroon(t, &earlier),
+			}, ","),
+			want:   earlier,
+			wantOK: true,
+		},
+		"macaroon without expiration": {
+			credential: newTestMacaroon(t, nil),
+			wantOK:     false,
+		},
+		"opaque OAuth token": {
+			credential: "fo1_opaque",
+			wantOK:     false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, ok := dockerCredentialExpiration(test.credential)
+			assert.Equal(t, test.wantOK, ok)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestFormatCredentialExpiration(t *testing.T) {
+	now := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		expiration time.Time
+		want       string
+	}{
+		"keeps humanize formatting for shorter durations": {
+			expiration: now.Add(6 * 30 * 24 * time.Hour),
+			want:       "6 months from now",
+		},
+		"formats very long future durations as years": {
+			expiration: now.Add(100 * humanize.Year),
+			want:       "100 years from now",
+		},
+		"formats very long past durations as years": {
+			expiration: now.Add(-50 * humanize.Year),
+			want:       "50 years ago",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.want, formatCredentialExpiration(test.expiration, now))
+		})
+	}
+}
+
+func newTestMacaroon(t *testing.T, expiration *time.Time) string {
+	t.Helper()
+
+	token, err := macaroon.New([]byte("test"), "test", macaroon.NewSigningKey())
+	require.NoError(t, err)
+	if expiration != nil {
+		require.NoError(t, token.Add(&macaroon.ValidityWindow{
+			NotBefore: expiration.Add(-time.Hour).Unix(),
+			NotAfter:  expiration.Unix(),
+		}))
+	}
+
+	encoded, err := token.String()
+	require.NoError(t, err)
+
+	return encoded
 }
