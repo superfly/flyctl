@@ -52,6 +52,7 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.72
 	github.com/moby/buildkit v0.31.1
+	github.com/moby/go-archive v0.2.0
 	github.com/moby/moby/client v0.5.0
 	github.com/moby/patternmatcher v0.6.1
 	github.com/morikuni/aec v1.1.0
@@ -110,14 +111,13 @@ require (
 	github.com/chainguard-dev/kaniko v1.25.15 // indirect
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
-	github.com/containerd/containerd v1.7.33 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/cel-go v0.26.1 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/in-toto/attestation v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/moby/go-archive v0.2.0 // indirect
 	github.com/moby/moby/api v1.55.0 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
 	github.com/olekukonko/errors v1.2.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
@@ -210,7 +210,6 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/btree v1.0.1 // indirect
@@ -297,13 +296,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259 // indirect
 )
-
-// BuildKit v0.27.x currently pulls Docker module versions that break this repo:
-// - docker/cli >= v29 trips a go language-version mismatch in deps
-// - docker/docker >= v28 and go-connections >= v0.6 conflict with imgutil usage
-// Pin these modules until upstream dependencies converge on compatible versions.
-replace github.com/docker/cli => github.com/docker/cli v27.5.1+incompatible
-
-replace github.com/docker/docker => github.com/docker/docker v27.5.1+incompatible
-
-replace github.com/docker/go-connections => github.com/docker/go-connections v0.5.0
