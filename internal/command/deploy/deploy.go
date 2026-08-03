@@ -609,7 +609,7 @@ func deployToMachines(
 
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
-	status.Image = img.Tag
+	status.Image = img.String()
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
 		status.Strategy = flag.GetString(ctx, "strategy")
@@ -655,7 +655,7 @@ func deployToMachines(
 
 	args := MachineDeploymentArgs{
 		App:                   app,
-		DeploymentImage:       img.Tag,
+		DeploymentImage:       img.String(),
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
 		PrimaryRegionFlag:     status.PrimaryRegion,
