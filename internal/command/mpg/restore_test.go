@@ -114,12 +114,14 @@ func TestRunRestore(t *testing.T) {
 					if tt.clusterVersion != 1 {
 						return mpgv1.GetManagedClusterResponse{}, errors.New("not found")
 					}
+
 					return mpgv1.GetManagedClusterResponse{Data: mpgv1.ManagedCluster{Id: clusterID}}, nil
 				},
 				RestoreManagedClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv1.RestoreManagedClusterBackupInput) (mpgv1.RestoreManagedClusterBackupResponse, error) {
 					v1RestoreCalled = true
 					assert.Equal(t, clusterID, gotClusterID)
 					assert.Equal(t, tt.backupID, input.BackupId)
+
 					return mpgv1.RestoreManagedClusterBackupResponse{}, nil
 				},
 			}
@@ -129,6 +131,7 @@ func TestRunRestore(t *testing.T) {
 					if tt.clusterVersion != 2 {
 						return mpgv2.GetClusterResponse{}, errors.New("not found")
 					}
+
 					return mpgv2.GetClusterResponse{Data: mpgv2.ManagedCluster{Id: clusterID, MpgdClusterId: "mpgd-123"}}, nil
 				},
 				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
@@ -136,6 +139,7 @@ func TestRunRestore(t *testing.T) {
 					assert.Equal(t, clusterID, gotClusterID)
 					assert.Equal(t, tt.backupID, input.BackupId)
 					assert.Equal(t, tt.pitrTime, input.PitrTime)
+
 					return mpgv2.RestoreClusterBackupResponse{}, nil
 				},
 			}
@@ -201,6 +205,7 @@ func TestRunRestoreV2Serialization(t *testing.T) {
 				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
 					assert.Equal(t, clusterID, gotClusterID)
 					capturedInput = input
+
 					return mpgv2.RestoreClusterBackupResponse{}, nil
 				},
 			}
