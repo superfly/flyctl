@@ -21,7 +21,7 @@ func RunRestore(ctx context.Context, clusterID string, backupID string, name str
 
 	response, err := mpgClient.RestoreManagedClusterBackup(ctx, clusterID, input)
 	if err != nil {
-		return fmt.Errorf("failed to restore backup: %w", err)
+		return fmt.Errorf("failed to restore cluster: %w", err)
 	}
 
 	fmt.Fprintf(out, "Restore initiated successfully!\n")
