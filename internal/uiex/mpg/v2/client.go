@@ -197,8 +197,9 @@ type CreateClusterBackupInput struct {
 }
 
 type RestoreClusterBackupInput struct {
-	BackupId string `json:"backup_id"`
+	BackupId string `json:"backup_id,omitempty"`
 	Name     string `json:"name,omitempty"`
+	PitrTime string `json:"pitr_time,omitempty"`
 }
 
 type RestoreClusterBackupResponse struct {
