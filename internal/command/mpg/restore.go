@@ -14,8 +14,12 @@ import (
 
 func newRestore() *cobra.Command {
 	const (
-		long  = `Restore a Managed Postgres cluster from a backup.`
-		short = "Restore MPG cluster from backup."
+		long = `Restore a Managed Postgres backup into a new cluster, leaving the source
+cluster unchanged. The restored cluster is provisioned asynchronously in the
+same organization and billed separately.
+
+Find backup IDs with 'fly mpg backup list'.`
+		short = "Restore MPG cluster from backup into a new cluster."
 		usage = "restore <CLUSTER_ID>"
 	)
 
