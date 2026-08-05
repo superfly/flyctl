@@ -10,7 +10,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"github.com/superfly/client-signals/go"
+	clientsignals "github.com/superfly/client-signals/go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -95,6 +95,10 @@ var CommonFlags = flag.Set{
 		Name:        "ha",
 		Description: "Create spare machines that increases app availability",
 		Default:     true,
+	},
+	flag.Bool{
+		Name:        "ignore-unreachable",
+		Description: "Proceed with deployment even when some machines' hosts are unreachable and their image cannot be verified.",
 	},
 	flag.Bool{
 		Name:        "smoke-checks",
@@ -670,6 +674,7 @@ func deployToMachines(
 		MaxUnavailable:        maxUnavailable,
 		Guest:                 guest,
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
+		IgnoreUnreachable:     flag.GetBool(ctx, "ignore-unreachable"),
 		AllocIP:               ip,
 		Org:                   app.Organization.Slug,
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
