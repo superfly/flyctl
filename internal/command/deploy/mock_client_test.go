@@ -29,6 +29,11 @@ type mockFlapsClient struct {
 	breakGet         bool
 	launchInputs     []fly.LaunchMachineInput
 
+	// GetFunc, when set, overrides the default Get behaviour. Useful for tests
+	// that need fine-grained control over per-machine responses (e.g. to simulate
+	// an unreachable host returning an empty ImageRef).
+	GetFunc func(ctx context.Context, appName, machineID string) (*fly.Machine, error)
+
 	// uncordonTransientFailures causes Uncordon to fail this many times before
 	// succeeding, simulating transient API errors for retry tests.
 	uncordonTransientFailures int
@@ -141,9 +146,14 @@ func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, 
 
 func (m *mockFlapsClient) Get(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	getFn := m.GetFunc
+	breakGet := m.breakGet
+	m.mu.Unlock()
 
-	if m.breakGet {
+	if getFn != nil {
+		return getFn(ctx, appName, machineID)
+	}
+	if breakGet {
 		return nil, fmt.Errorf("failed to get %s", machineID)
 	}
 	// Return a machine with one passing check so that health-check loops

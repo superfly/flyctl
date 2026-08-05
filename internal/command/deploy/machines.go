@@ -80,6 +80,7 @@ type MachineDeploymentArgs struct {
 	DeployRetries         int
 	BuildID               int64
 	BuilderID             string
+	IgnoreUnreachable     bool
 }
 
 func argsFromManifest(manifest *DeployManifest, app *flaps.App) MachineDeploymentArgs {
@@ -162,6 +163,7 @@ type machineDeployment struct {
 	deployRetries         int
 	buildID               int64
 	builderID             string
+	ignoreUnreachable     bool
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -282,6 +284,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		deployRetries:         args.DeployRetries,
 		buildID:               args.BuildID,
 		builderID:             args.BuilderID,
+		ignoreUnreachable:     args.IgnoreUnreachable,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
