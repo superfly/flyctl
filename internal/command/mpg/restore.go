@@ -3,6 +3,7 @@ package mpg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -14,12 +15,12 @@ import (
 
 func newRestore() *cobra.Command {
 	const (
-		long = `Restore a Managed Postgres backup into a new cluster, leaving the source
-cluster unchanged. The restored cluster is provisioned asynchronously in the
-same organization and billed separately.
+		long = `Restore a Managed Postgres cluster from a backup or a point in time into a
+new cluster, leaving the source cluster unchanged. The restored cluster is
+provisioned asynchronously in the same organization and billed separately.
 
 Find backup IDs with 'fly mpg backup list'.`
-		short = "Restore MPG cluster from backup into a new cluster."
+		short = "Restore MPG cluster from a backup or a point in time into a new cluster."
 		usage = "restore <CLUSTER_ID>"
 	)
 
@@ -51,24 +52,28 @@ Find backup IDs with 'fly mpg backup list'.`
 
 func runRestore(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
-	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-	if err != nil {
-		return err
-	}
-
 	backupID := flag.GetString(ctx, "backup-id")
 	pitrTime := flag.GetString(ctx, "pitr-time")
+	name := flag.GetString(ctx, "name")
 	if backupID == "" && pitrTime == "" {
 		return fmt.Errorf("one of --backup-id or --pitr-time is required")
 	}
 	if backupID != "" && pitrTime != "" {
 		return fmt.Errorf("--backup-id and --pitr-time are mutually exclusive")
 	}
+	if pitrTime != "" {
+		if _, err := time.Parse(time.RFC3339, pitrTime); err != nil {
+			return fmt.Errorf("--pitr-time must be an RFC3339 timestamp with an explicit offset (e.g. 2026-06-01T12:00:00Z): %w", err)
+		}
+	}
+
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
+	}
 	if pitrTime != "" && cluster.Version == mpg.VersionV1 {
 		return fmt.Errorf("point-in-time restore is not supported for this cluster")
 	}
-
-	name := flag.GetString(ctx, "name")
 
 	if cluster.Version == mpg.VersionV1 {
 		return cmdv1.RunRestore(ctx, cluster.Id, backupID, name)

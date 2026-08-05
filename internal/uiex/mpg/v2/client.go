@@ -864,7 +864,7 @@ func (c *Client) RestoreClusterBackup(ctx context.Context, clusterID string, inp
 	case http.StatusForbidden:
 		return response, fmt.Errorf("access denied: you don't have permission to restore cluster %s", clusterID)
 	default:
-		return response, fmt.Errorf("failed to restore backup (status %d): %s", res.StatusCode, string(body))
+		return response, fmt.Errorf("failed to restore cluster (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
