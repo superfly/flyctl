@@ -77,7 +77,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 		}
 	}
 
-	cluster, params, credentials, err := GetMpgProxyParams(ctx, localProxyPort, username, clusterID, resolvedOrgSlug)
+	cluster, params, credentials, err := GetMpgConnectParams(ctx, localProxyPort, username, clusterID, resolvedOrgSlug)
 	if err != nil {
 		return err
 	}
