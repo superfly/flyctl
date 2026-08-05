@@ -40,6 +40,10 @@ Find backup IDs with 'fly mpg backup list'.`
 			Shorthand:   "n",
 			Description: "The name of the restored cluster (defaults to a generated name)",
 		},
+		flag.String{
+			Name:        "pitr-time",
+			Description: "Restore to a specific point in time (RFC3339, e.g. 2026-06-01T12:00:00Z). Requires the cluster's PITR recovery window to cover this time. Mutually exclusive with --backup-id.",
+		},
 	)
 
 	return cmd
@@ -53,8 +57,15 @@ func runRestore(ctx context.Context) error {
 	}
 
 	backupID := flag.GetString(ctx, "backup-id")
-	if backupID == "" {
-		return fmt.Errorf("--backup-id flag is required")
+	pitrTime := flag.GetString(ctx, "pitr-time")
+	if backupID == "" && pitrTime == "" {
+		return fmt.Errorf("one of --backup-id or --pitr-time is required")
+	}
+	if backupID != "" && pitrTime != "" {
+		return fmt.Errorf("--backup-id and --pitr-time are mutually exclusive")
+	}
+	if pitrTime != "" && cluster.Version == mpg.VersionV1 {
+		return fmt.Errorf("point-in-time restore is not supported for this cluster")
 	}
 
 	name := flag.GetString(ctx, "name")
@@ -64,5 +75,5 @@ func runRestore(ctx context.Context) error {
 
 	}
 
-	return cmdv2.RunRestore(ctx, cluster.Id, backupID, name)
+	return cmdv2.RunRestore(ctx, cluster.Id, backupID, name, pitrTime)
 }
