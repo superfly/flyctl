@@ -25,9 +25,16 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	var machines []*machineUpdateEntry
 	ios, _, _, _ := iostreams.Test()
 
-	for range numberOfExistingMachines {
+	// testImageRef is a stable ImageRef used by test helpers. All machines in
+	// a test share the same image so DetectMultipleImageVersions passes without
+	// needing to exercise the image-check logic in every test.
+	testImageRef := fly.MachineImageRef{Repository: "test-app", Tag: "test"}
+	for i := range numberOfExistingMachines {
 		machines = append(machines, &machineUpdateEntry{
-			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{
+				ID:       fmt.Sprintf("%x", i+1),
+				ImageRef: testImageRef,
+			}, false),
 			launchInput: &fly.LaunchMachineInput{
 				Config: &fly.MachineConfig{
 					Metadata: map[string]string{},
@@ -57,6 +64,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	strategy.waitBeforeStop = 0
 	strategy.waitBeforeCordon = 0
 	strategy.uncordonRetryDelay = 0
+	strategy.imageRefRetryDelay = 0
 
 	return strategy
 }
@@ -218,10 +226,12 @@ func TestMachineHasConfiguredChecks(t *testing.T) {
 func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState string, skipLaunch bool) *blueGreen {
 	ios, _, _, _ := iostreams.Test()
 
+	testImageRef := fly.MachineImageRef{Repository: "test-app", Tag: "test"}
 	machines := []*machineUpdateEntry{
 		{
 			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{
-				State: machineState,
+				State:    machineState,
+				ImageRef: testImageRef,
 				Config: &fly.MachineConfig{
 					Metadata: map[string]string{},
 					Checks: map[string]fly.MachineCheck{
@@ -258,6 +268,7 @@ func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState st
 	strategy.waitBeforeStop = 0
 	strategy.waitBeforeCordon = 0
 	strategy.uncordonRetryDelay = 0
+	strategy.imageRefRetryDelay = 0
 
 	return strategy
 }
@@ -510,4 +521,213 @@ func TestBlueGreenAbortsWhenGreenChecksFailAfterConfigChange(t *testing.T) {
 		"deploy must abort when the representative green machine's health checks fail, "+
 			"even though blue machines were all auto-stopped "+
 			"(config regressions like a bad internal_port or force_ssl redirect must be caught)")
+}
+
+// ---------------------------------------------------------------------------
+// Tests for DetectMultipleImageVersions / image-ref lookup robustness
+// ---------------------------------------------------------------------------
+
+// newStrategyWithImages builds a blueGreen whose blue machines each carry a
+// specific ImageRef so DetectMultipleImageVersions can be exercised without
+// reaching the rest of the deploy pipeline.
+func newStrategyWithImages(client flapsutil.FlapsClient, images ...fly.MachineImageRef) *blueGreen {
+	ios, _, _, _ := iostreams.Test()
+	var machines []*machineUpdateEntry
+	for _, img := range images {
+		machines = append(machines, &machineUpdateEntry{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{
+				ID: func() string {
+					if img.Tag != "" {
+						return "m-" + img.Tag
+					}
+
+					return fmt.Sprintf("m-unreachable-%d", len(machines))
+				}(),
+				ImageRef: img,
+				Config:   &fly.MachineConfig{Metadata: map[string]string{}},
+			}, false),
+			launchInput: &fly.LaunchMachineInput{
+				Config: &fly.MachineConfig{Metadata: map[string]string{}},
+			},
+		})
+	}
+	strategy := &blueGreen{
+		apiClient:     &mockWebClient{},
+		flaps:         client,
+		maxConcurrent: 10,
+		appConfig:     &appconfig.Config{AppName: "test-app"},
+		io:            ios,
+		colorize:      ios.ColorScheme(),
+		timeout:       5 * time.Second,
+		blueMachines:  machines,
+		app:           &flaps.App{Name: "test-app"},
+	}
+	strategy.initialize()
+	strategy.imageRefRetryDelay = 0
+
+	return strategy
+}
+
+// TestDetectMultipleImageVersions_SingleImage verifies the happy path:
+// all machines on the same image passes the check.
+func TestDetectMultipleImageVersions_SingleImage(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+
+	sameImage := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-01"}
+	strategy := newStrategyWithImages(client, sameImage, sameImage, sameImage)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err)
+}
+
+// TestDetectMultipleImageVersions_DifferentImages verifies that genuinely
+// different image versions across blue machines are still caught.
+func TestDetectMultipleImageVersions_DifferentImages(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+
+	imgA := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-01"}
+	imgB := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-02"}
+	strategy := newStrategyWithImages(client, imgA, imgA, imgB)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.ErrorIs(t, err, ErrMultipleImageVersions)
+}
+
+// TestDetectMultipleImageVersions_EmptyImageRefRefreshSucceeds verifies that
+// when one machine's ImageRef comes back empty from the list API, a fresh Get
+// returning real image data allows the check to proceed.
+func TestDetectMultipleImageVersions_EmptyImageRefRefreshSucceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-01"}
+
+	// The mock Get returns a machine with a real ImageRef.
+	client := &mockFlapsClient{
+		GetFunc: func(_ context.Context, _ string, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{ID: machineID, ImageRef: realImage}, nil
+		},
+	}
+	ctx := context.Background()
+
+	// One machine has the correct image; one has an empty ImageRef (simulates
+	// the list API returning incomplete data for an unreachable host).
+	strategy := newStrategyWithImages(client,
+		realImage,
+		fly.MachineImageRef{}, // empty — should be refreshed via Get
+	)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err, "deploy should succeed when the refreshed machine carries the same image")
+}
+
+// TestDetectMultipleImageVersions_UnreachableHostStatus_Proceeds verifies the
+// primary detection path: the list API itself reports host_status=unreachable.
+// The machine must be excluded from the image tally without any Get lookups,
+// and the deploy proceeds (the machine gets replaced on a healthy host).
+func TestDetectMultipleImageVersions_UnreachableHostStatus_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+
+	// breakGet guards the "no Get lookups" claim: if the code wrongly fell
+	// back to a Get here, the refresh loop would burn retries; the outcome
+	// stays the same but the explicit HostStatus must short-circuit first.
+	client := &mockFlapsClient{breakGet: true}
+	ctx := context.Background()
+
+	strategy := newStrategyWithImages(client, realImage, realImage, fly.MachineImageRef{})
+	strategy.blueMachines[2].leasableMachine.Machine().HostStatus = fly.HostStatusUnreachable
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"a machine on an unreachable host must not block the deploy — it gets replaced")
+}
+
+// TestDetectMultipleImageVersions_UnreachableHost_Proceeds verifies the
+// reported production scenario: 36 ok machines + 1 whose refreshed data comes
+// back with host_status=unreachable. The deploy must proceed (replacing the
+// unreachable machine), not fail with a misleading "different images" error.
+func TestDetectMultipleImageVersions_UnreachableHost_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+
+	client := &mockFlapsClient{
+		GetFunc: func(_ context.Context, _ string, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{
+				ID:         machineID,
+				HostStatus: fly.HostStatusUnreachable,
+				ImageRef:   fly.MachineImageRef{},
+			}, nil
+		},
+	}
+	ctx := context.Background()
+
+	images := make([]fly.MachineImageRef, 36)
+	for i := range images {
+		images[i] = realImage
+	}
+	images = append(images, fly.MachineImageRef{}) // 1 unreachable
+	strategy := newStrategyWithImages(client, images...)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"unreachable machines must not block the deploy — they get replaced")
+}
+
+// TestDetectMultipleImageVersions_RealConflictStillBlocks ensures that
+// skipping unreachable machines does not bypass a genuine image-version
+// conflict among the reachable machines.
+func TestDetectMultipleImageVersions_RealConflictStillBlocks(t *testing.T) {
+	imgA := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+	imgB := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-02"}
+
+	// Get returns the unreachable machine with empty ImageRef.
+	client := &mockFlapsClient{
+		GetFunc: func(_ context.Context, _ string, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{ID: machineID, HostStatus: fly.HostStatusUnreachable}, nil
+		},
+	}
+	ctx := context.Background()
+
+	// Two machines with different real images + 1 unreachable.
+	strategy := newStrategyWithImages(client, imgA, imgB, fly.MachineImageRef{})
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.ErrorIs(t, err, ErrMultipleImageVersions,
+		"unreachable machines must not mask a genuine image-version conflict")
+}
+
+// TestDetectMultipleImageVersions_GetError_Proceeds verifies that a hard Get
+// failure (API error) after all retries is treated like an unreachable host:
+// the machine is skipped and replaced, not reported as a version conflict.
+func TestDetectMultipleImageVersions_GetError_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+	client := &mockFlapsClient{breakGet: true}
+	ctx := context.Background()
+
+	strategy := newStrategyWithImages(client,
+		realImage,
+		fly.MachineImageRef{},
+	)
+	strategy.imageRefRetryAttempts = 1
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"a machine whose image cannot be verified must be replaced, not block the deploy")
+}
+
+// TestFormatDestroyCommand verifies the destroy-command formatter produces
+// copy-paste-ready output for both single and multi-machine cases.
+func TestFormatDestroyCommand(t *testing.T) {
+	t.Run("single machine", func(t *testing.T) {
+		cmd := formatDestroyCommand("my-app", []string{"abc123"})
+		assert.Equal(t, "fly machine destroy --force -a my-app abc123", cmd)
+	})
+
+	t.Run("multiple machines uses backslash continuation", func(t *testing.T) {
+		cmd := formatDestroyCommand("my-app", []string{"aaa111", "bbb222", "ccc333"})
+		assert.Contains(t, cmd, "fly machine destroy --force -a my-app")
+		assert.Contains(t, cmd, "aaa111")
+		assert.Contains(t, cmd, "bbb222")
+		assert.Contains(t, cmd, "ccc333")
+		// Must have backslash continuations so each ID is on its own line.
+		assert.Contains(t, cmd, " \\\n", "expected backslash continuation for multi-machine command")
+	})
 }
