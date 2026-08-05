@@ -88,6 +88,20 @@ type blueGreen struct {
 
 	uncordonRetryAttempts uint
 	uncordonRetryDelay    time.Duration
+
+	// imageRefRetryAttempts / imageRefRetryDelay control the back-off used when
+	// DetectMultipleImageVersions re-fetches a machine whose ImageRef came back
+	// empty from the list API (e.g. due to a transient API error).
+	imageRefRetryAttempts uint
+	imageRefRetryDelay    time.Duration
+}
+
+// hostIsOk reports whether the machine's host is confirmed healthy. Anything
+// else — "unreachable", "unknown", or unset — means the host cannot be
+// trusted to respond: such machines are excluded from image verification and
+// from the cordon/stop stages, and are force-destroyed instead.
+func hostIsOk(m *fly.Machine) bool {
+	return m.HostStatus == fly.HostStatusOk
 }
 
 // machineHasConfiguredChecks returns true if the machine config has any health
@@ -146,6 +160,9 @@ func (bg *blueGreen) initialize() {
 
 	bg.uncordonRetryAttempts = 5
 	bg.uncordonRetryDelay = 500 * time.Millisecond
+
+	bg.imageRefRetryAttempts = 3
+	bg.imageRefRetryDelay = 1 * time.Second
 }
 
 func (bg *blueGreen) isAborted() bool {
@@ -592,6 +609,11 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
+		// A machine on a non-ok host can't respond to a cordon; it gets
+		// force-destroyed at the end of the deployment instead.
+		if !hostIsOk(gm.leasableMachine.Machine()) {
+			continue
+		}
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -622,6 +644,11 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
+		// A machine on a non-ok host can't react to a stop signal; it gets
+		// force-destroyed at the end of the deployment instead.
+		if !hostIsOk(gm.leasableMachine.Machine()) {
+			continue
+		}
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -646,9 +673,18 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "blue_machines_stop_wait")
 	defer span.End()
 
+	// Machines on non-ok hosts were never stopped — waiting on them would only
+	// burn the timeout; they get force-destroyed instead.
+	waitable := machineUpdateEntries{}
+	for _, gm := range bg.blueMachines {
+		if hostIsOk(gm.leasableMachine.Machine()) {
+			waitable = append(waitable, gm)
+		}
+	}
+
 	wait := time.NewTicker(bg.timeout)
 	machineIDToState := map[string]string{}
-	for _, gm := range bg.blueMachines.machines() {
+	for _, gm := range waitable.machines() {
 		machineIDToState[gm.FormattedMachineId()] = gm.Machine().State
 	}
 
@@ -656,7 +692,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 	errChan := make(chan error)
 
 	var done atomic.Uint32
-	for _, gm := range bg.blueMachines {
+	for _, gm := range waitable {
 		id := gm.leasableMachine.FormattedMachineId()
 
 		go func(lm machine.LeasableMachine) {
@@ -674,7 +710,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 
 	var merr *multierror.Error
 	for {
-		if done.Load() == uint32(len(bg.blueMachines)) {
+		if done.Load() == uint32(len(waitable)) {
 			return merr.ErrorOrNil()
 		}
 
@@ -731,6 +767,14 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 
 	if err := p.Wait(); err != nil {
 		return err
+	}
+
+	// Machines that could not be destroyed (typically because their host is
+	// down) would otherwise linger silently. Tell the user how to finish the
+	// cleanup by hand.
+	if len(bg.hangingBlueMachines) > 0 {
+		fmt.Fprintf(bg.io.ErrOut, "\n  Failed to destroy %d machine(s). Remove them manually with:\n\n    %s\n\n",
+			len(bg.hangingBlueMachines), formatDestroyCommand(bg.appConfig.AppName, bg.hangingBlueMachines))
 	}
 
 	return nil
@@ -1048,32 +1092,125 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	return nil
 }
 
-// This method aggregates images for machines in an app
-// If they are greater than 1, it suggest how to remove them and unblock the app
-// It also uses the bg_deployment_tag to suggest blue machines that can be safely deleted.
+// imageRefIsEmpty reports whether a machine's ImageRef fields are both empty,
+// which is how the API signals that full machine data is unavailable (e.g. the
+// host is unreachable). ImageRefWithVersion() would return ":" in this case,
+// which is not a real image identifier.
+func imageRefIsEmpty(m *fly.Machine) bool {
+	return m.ImageRef.Repository == "" && m.ImageRef.Tag == ""
+}
+
+// refreshMachineImageRef fetches fresh data for a single machine and retries
+// on transient API errors using exponential backoff (circuit-break after
+// imageRefRetryAttempts). A successful response that still carries an empty
+// ImageRef is a stable platform signal (the host is unreachable) and is
+// returned to the caller as-is — retrying won't change that outcome.
+func (bg *blueGreen) refreshMachineImageRef(ctx context.Context, machineID string) (*fly.Machine, error) {
+	var fresh *fly.Machine
+
+	err := retry.Do(
+		func() error {
+			var apiErr error
+			fresh, apiErr = bg.flaps.Get(ctx, bg.app.Name, machineID)
+
+			return apiErr // only retry on hard API errors, not on empty-ImageRef responses
+		},
+		retry.Context(ctx),
+		retry.Attempts(bg.imageRefRetryAttempts),
+		retry.Delay(bg.imageRefRetryDelay),
+		retry.MaxDelay(5*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			fmt.Fprintf(bg.io.ErrOut, "  Retrying image lookup for machine %s (attempt %d/%d): %v\n",
+				machineID, n+1, bg.imageRefRetryAttempts, err)
+		}),
+	)
+
+	return fresh, err
+}
+
+// formatDestroyCommand returns a ready-to-run destroy command for one or more
+// unreachable machines. When there are multiple IDs the command uses backslash
+// continuation so users can copy-paste each ID individually or the whole block.
+func formatDestroyCommand(appName string, machineIDs []string) string {
+	base := fmt.Sprintf("fly machine destroy --force -a %s", appName)
+	if len(machineIDs) == 1 {
+		return base + " " + machineIDs[0]
+	}
+	lines := make([]string, len(machineIDs))
+	for i, id := range machineIDs {
+		lines[i] = "  " + id
+	}
+
+	return base + " \\\n" + strings.Join(lines, " \\\n")
+}
+
 func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
 	imageToMachineIDs := map[string][]string{}
 	safeToDelete := map[string]int{}
+	var unreachableIDs []string // machines whose image could not be determined
 
 	for _, mach := range bg.blueMachines {
-		image := mach.leasableMachine.Machine().ImageRefWithVersion()
-		imageToMachineIDs[image] = append(imageToMachineIDs[image], mach.leasableMachine.Machine().ID)
+		m := mach.leasableMachine.Machine()
+
+		// The platform doesn't report this machine's host as ok: its image
+		// cannot be verified and its config is incomplete. Leave it out of the
+		// image tally — its green replacement runs the new image on a healthy
+		// host regardless of what this machine was running.
+		if !hostIsOk(m) {
+			unreachableIDs = append(unreachableIDs, m.ID)
+
+			continue
+		}
+
+		// If the list API returned incomplete data for this machine (empty ImageRef),
+		// attempt a targeted re-fetch with exponential backoff before drawing any
+		// conclusions. This recovers transient errors and avoids misidentifying a
+		// lookup failure as an image-version conflict.
+		if imageRefIsEmpty(m) {
+			fmt.Fprintf(bg.io.ErrOut, "  Machine %s has no image data — retrying lookup...\n", m.ID)
+			freshMachine, err := bg.refreshMachineImageRef(ctx, m.ID)
+
+			if err != nil || !hostIsOk(freshMachine) || imageRefIsEmpty(freshMachine) {
+				// Still no image data after retries: treat it like an
+				// unreachable host and replace the machine.
+				unreachableIDs = append(unreachableIDs, m.ID)
+
+				continue
+			}
+			m = freshMachine
+		}
+
+		image := m.ImageRefWithVersion()
+		imageToMachineIDs[image] = append(imageToMachineIDs[image], m.ID)
 		if mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] == safeToDestroyValue {
 			safeToDelete[image] = 1
 		}
 	}
 
-	if len(imageToMachineIDs) == 1 {
+	// Unreachable machines never block the deploy: warn and proceed. This is
+	// the "080d92df225538 returned ':' " production scenario — pre-existing
+	// behavior misreported it as an image-version conflict.
+	if len(unreachableIDs) > 0 {
+		bg.warnUnreachableMachines(unreachableIDs)
+	}
+
+	// Clean state: all reachable machines agree on a single image, or every
+	// machine sits on an unreachable host (all get replaced). An app with no
+	// machines at all still falls through to the error below, preserving
+	// long-standing behavior.
+	if len(imageToMachineIDs) == 1 || (len(imageToMachineIDs) == 0 && len(unreachableIDs) > 0) {
 		return nil
 	}
 
+	// Genuine image-version conflict across reachable machines.
 	fmt.Fprintf(bg.io.ErrOut, "\n  Found %d different images in your app (for bluegreen to work, all machines need to run a single image)\n", len(imageToMachineIDs))
 	for image, ids := range imageToMachineIDs {
-		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) (%s)\n", image, len(ids), strings.Join(imageToMachineIDs[image], ","))
+		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) (%s)\n", image, len(ids), strings.Join(ids, ","))
 	}
 
 	if len(safeToDelete) > 0 {
-		fmt.Fprintf(bg.io.ErrOut, "\n  These image(s) can be safely destroyed:\n")
+		fmt.Fprintf(bg.io.ErrOut, "\n  These image(s) are from a previous failed deployment and can be safely destroyed:\n")
 		for image := range safeToDelete {
 			fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) ('fly machines destroy --force --image=%s --app=%s')\n", image, len(imageToMachineIDs[image]), image, bg.appConfig.AppName)
 		}
@@ -1087,6 +1224,24 @@ func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\n")
 
 	return ErrMultipleImageVersions
+}
+
+// warnUnreachableMachines prints a standout warning when some machines could
+// not be reached for image verification. The deployment proceeds: green
+// machines are created on healthy hosts and the unreachable blues are
+// destroyed, or reported as hanging when the platform cannot destroy them.
+func (bg *blueGreen) warnUnreachableMachines(unreachableIDs []string) {
+	sep := bg.colorize.Yellow(strings.Repeat("!", 70))
+	fmt.Fprintf(bg.io.ErrOut, "\n%s\n", sep)
+	fmt.Fprint(bg.io.ErrOut, bg.colorize.Yellow("  WARNING: some machines are on hosts that are not ok — skipping image check for them\n"))
+	fmt.Fprintf(bg.io.ErrOut, "\n  %d machine(s) could not be reached to verify their running image:\n", len(unreachableIDs))
+	for _, id := range unreachableIDs {
+		fmt.Fprintf(bg.io.ErrOut, "    · %s\n", id)
+	}
+	fmt.Fprintf(bg.io.ErrOut, "\n  Deployment proceeding. These machines will be replaced on healthy hosts.\n")
+	fmt.Fprintf(bg.io.ErrOut, "\n  If any of them survive this deployment, remove them with:\n\n    %s\n\n",
+		formatDestroyCommand(bg.appConfig.AppName, unreachableIDs))
+	fmt.Fprintf(bg.io.ErrOut, "%s\n\n", sep)
 }
 
 // This method tags blue-machines with a safe to destroy value.
