@@ -49,6 +49,7 @@ trap finish EXIT
 set +e
 
 # Define test groups based on logical groupings
+test_skip=""
 if [[ -n "$group" ]]; then
     case "$group" in
         apps)
@@ -56,6 +57,11 @@ if [[ -n "$group" ]]; then
             ;;
         deploy)
             test_pattern="^Test(FlyDeploy|Deploy)"
+            # Bluegreen tests live in their own matrix leg so this group stays under 15m.
+            test_skip="^TestFlyDeploy_BlueGreen"
+            ;;
+        bluegreen)
+            test_pattern="^TestFlyDeploy_BlueGreen"
             ;;
         launch)
             test_pattern="^Test(FlyLaunch|Launch)"
@@ -89,12 +95,17 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, launch, scale, volume, console, logs, machine, postgres, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, bluegreen, launch, scale, volume, console, logs, machine, postgres, tokens, wireguard, misc"
             exit 1
             ;;
     esac
 
-    go test -tags=integration -v -timeout=15m $test_opts -run "$test_pattern" github.com/superfly/flyctl/test/preflight/... | tee "$test_log"
+    skip_arg=()
+    if [[ -n "$test_skip" ]]; then
+        skip_arg=(-skip "$test_skip")
+    fi
+
+    go test -tags=integration -v -timeout=15m $test_opts -run "$test_pattern" "${skip_arg[@]}" github.com/superfly/flyctl/test/preflight/... | tee "$test_log"
     test_status=$?
 # Legacy numeric sharding using gotesplit (deprecated)
 elif [[ -n "$total" && -n "$index" ]]; then
