@@ -50,12 +50,19 @@ set +e
 
 # Define test groups based on logical groupings
 if [[ -n "$group" ]]; then
+    test_skip_pattern=
     case "$group" in
         apps)
             test_pattern="^TestAppsV2"
             ;;
         deploy)
             test_pattern="^Test(FlyDeploy|Deploy)"
+            # TestDeploy exercises slow fixture builds. Give it an independent
+            # package timeout instead of letting it consume the deploy group's.
+            test_skip_pattern="^TestDeploy$"
+            ;;
+        deploy-fixtures)
+            test_pattern="^TestDeploy$"
             ;;
         launch)
             test_pattern="^Test(FlyLaunch|Launch)"
@@ -77,6 +84,12 @@ if [[ -n "$group" ]]; then
             ;;
         postgres)
             test_pattern="^TestPostgres"
+            # Flex failover can spend several minutes retrying cluster creation.
+            # Run it separately so earlier postgres tests do not exhaust its budget.
+            test_skip_pattern="^TestPostgres_FlexFailover$"
+            ;;
+        postgres-flex-failover)
+            test_pattern="^TestPostgres_FlexFailover$"
             ;;
         tokens)
             test_pattern="^TestTokens"
@@ -89,12 +102,21 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, launch, scale, volume, console, logs, machine, postgres, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-fixtures, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
             exit 1
             ;;
     esac
 
-    go test -tags=integration -v -timeout=15m $test_opts -run "$test_pattern" github.com/superfly/flyctl/test/preflight/... | tee "$test_log"
+    go_test_args=(-tags=integration -v -timeout=15m)
+    if [[ -n "$test_opts" ]]; then
+        go_test_args+=("$test_opts")
+    fi
+    if [[ -n "$test_skip_pattern" ]]; then
+        go_test_args+=(-skip "$test_skip_pattern")
+    fi
+    go_test_args+=(-run "$test_pattern" github.com/superfly/flyctl/test/preflight/...)
+
+    go test "${go_test_args[@]}" | tee "$test_log"
     test_status=$?
 # Legacy numeric sharding using gotesplit (deprecated)
 elif [[ -n "$total" && -n "$index" ]]; then
