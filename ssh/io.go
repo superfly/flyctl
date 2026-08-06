@@ -137,6 +137,7 @@ func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdou
 		// scheduled. Drain both pipes before returning so short-lived commands do
 		// not lose their final output.
 		outputCopies.Wait()
+
 		return err
 	case <-ctx.Done():
 		return errors.New("session forcibly closed; the remote process may still be running")

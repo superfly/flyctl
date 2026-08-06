@@ -24,6 +24,7 @@ type gatedReader struct {
 
 func (r *gatedReader) Read(p []byte) (int, error) {
 	<-r.ready
+
 	return r.reader.Read(p)
 }
 
@@ -48,6 +49,7 @@ func TestSessionIOAttachPipesWaitsForOutput(t *testing.T) {
 			strings.NewReader(""),
 			func() error {
 				close(runCalled)
+
 				return nil
 			},
 		)
