@@ -49,16 +49,20 @@ trap finish EXIT
 set +e
 
 # Define test groups based on logical groupings
-test_skip=""
 if [[ -n "$group" ]]; then
+    test_skip_pattern=
     case "$group" in
         apps)
             test_pattern="^TestAppsV2"
             ;;
         deploy)
             test_pattern="^Test(FlyDeploy|Deploy)"
-            # Bluegreen tests live in their own matrix leg so this group stays under 15m.
-            test_skip="^TestFlyDeploy_BlueGreen"
+            # Slow fixture and bluegreen tests have independent matrix jobs so
+            # they do not consume the shared deploy package timeout.
+            test_skip_pattern="^Test(Deploy$|FlyDeploy_BlueGreen)"
+            ;;
+        deploy-fixtures)
+            test_pattern="^TestDeploy$"
             ;;
         bluegreen)
             test_pattern="^TestFlyDeploy_BlueGreen"
@@ -83,6 +87,12 @@ if [[ -n "$group" ]]; then
             ;;
         postgres)
             test_pattern="^TestPostgres"
+            # Flex failover can spend several minutes retrying cluster creation.
+            # Run it separately so earlier postgres tests do not exhaust its budget.
+            test_skip_pattern="^TestPostgres_FlexFailover$"
+            ;;
+        postgres-flex-failover)
+            test_pattern="^TestPostgres_FlexFailover$"
             ;;
         tokens)
             test_pattern="^TestTokens"
@@ -95,17 +105,21 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, bluegreen, launch, scale, volume, console, logs, machine, postgres, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
             exit 1
             ;;
     esac
 
-    skip_arg=()
-    if [[ -n "$test_skip" ]]; then
-        skip_arg=(-skip "$test_skip")
+    go_test_args=(-tags=integration -v -timeout=15m)
+    if [[ -n "$test_opts" ]]; then
+        go_test_args+=("$test_opts")
     fi
+    if [[ -n "$test_skip_pattern" ]]; then
+        go_test_args+=(-skip "$test_skip_pattern")
+    fi
+    go_test_args+=(-run "$test_pattern" github.com/superfly/flyctl/test/preflight/...)
 
-    go test -tags=integration -v -timeout=15m $test_opts -run "$test_pattern" "${skip_arg[@]}" github.com/superfly/flyctl/test/preflight/... | tee "$test_log"
+    go test "${go_test_args[@]}" | tee "$test_log"
     test_status=$?
 # Legacy numeric sharding using gotesplit (deprecated)
 elif [[ -n "$total" && -n "$index" ]]; then

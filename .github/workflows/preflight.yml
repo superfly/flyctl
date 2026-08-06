@@ -21,6 +21,7 @@ jobs:
         group:
           - apps
           - deploy
+          - deploy-fixtures
           - bluegreen
           - launch
           - scale
@@ -29,6 +30,7 @@ jobs:
           - logs
           - machine
           - postgres
+          - postgres-flex-failover
           - tokens
           - wireguard
           - misc
