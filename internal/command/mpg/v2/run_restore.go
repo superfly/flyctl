@@ -8,7 +8,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func RunRestore(ctx context.Context, clusterID string, backupID string) error {
+func RunRestore(ctx context.Context, clusterID string, backupID string, name string) error {
 	out := iostreams.FromContext(ctx).Out
 	mpgClient := mpgv2.ClientFromContext(ctx)
 
@@ -16,6 +16,7 @@ func RunRestore(ctx context.Context, clusterID string, backupID string) error {
 
 	input := mpgv2.RestoreClusterBackupInput{
 		BackupId: backupID,
+		Name:     name,
 	}
 
 	response, err := mpgClient.RestoreClusterBackup(ctx, clusterID, input)
