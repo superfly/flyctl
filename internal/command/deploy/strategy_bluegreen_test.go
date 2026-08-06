@@ -472,3 +472,42 @@ func TestDeployWithStoppedBlueMachinesEnforcesHealthChecks(t *testing.T) {
 		assert.NoError(t, err, "deploy must succeed when health checks pass")
 	})
 }
+
+// TestBlueGreenAbortsWhenGreenChecksFailAfterConfigChange exercises the
+// primary value of the fix: catching an app-level misconfiguration that
+// silently breaks health checks on the new deploy.
+//
+// Concrete real-world regressions this protects against:
+//
+//   - The new config changes `internal_port` (or the app now listens on a
+//     different port), so the health probe can't reach the process at all.
+//   - The app adds `force_ssl` (e.g. Phoenix's default) or another redirect
+//     rule that traps the health probe with a 3xx, so `/` never returns 200.
+//   - Any other startup-time regression that keeps the machine "running" but
+//     makes the configured HTTP check fail.
+//
+// Pre-fix behaviour with auto-stopped blue machines: green machines were
+// silently marked "1/1 passing" without ever running the check, blues were
+// destroyed, and traffic hit a broken app. The representative-force-start
+// fix ensures at least one green in each check-having group actually starts
+// and gets polled — which is exactly what surfaces these regressions.
+func TestBlueGreenAbortsWhenGreenChecksFailAfterConfigChange(t *testing.T) {
+	// unhealthyGet=true makes the mock return a Machine whose one configured
+	// check reports Critical, mimicking any of the misconfiguration modes
+	// listed above from the poller's point of view.
+	client := &mockFlapsClient{unhealthyGet: true}
+	ctx := context.Background()
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+
+	// Every blue is stopped (auto_stop_machines scenario). Without the fix,
+	// all greens would inherit SkipLaunch=true and skip health polling
+	// entirely — the misconfiguration would slip through undetected.
+	strategy := newBlueGreenStrategyWithState(client, fly.MachineStateStopped, true)
+	strategy.timeout = 500 * time.Millisecond // don't let the test hang
+
+	err := strategy.Deploy(ctx)
+	assert.Error(t, err,
+		"deploy must abort when the representative green machine's health checks fail, "+
+			"even though blue machines were all auto-stopped "+
+			"(config regressions like a bad internal_port or force_ssl redirect must be caught)")
+}

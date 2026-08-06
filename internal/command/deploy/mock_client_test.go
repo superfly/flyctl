@@ -27,7 +27,12 @@ type mockFlapsClient struct {
 	breakDestroy     bool
 	breakLease       bool
 	breakGet         bool
-	launchInputs     []fly.LaunchMachineInput
+	// unhealthyGet, when true, makes Get return a Machine whose health check
+	// status is Critical. Used to simulate an app that starts but whose
+	// checks fail — e.g. because the new config changed the internal_port
+	// or introduced a Phoenix force_ssl redirect that traps the probe.
+	unhealthyGet bool
+	launchInputs []fly.LaunchMachineInput
 
 	// uncordonTransientFailures causes Uncordon to fail this many times before
 	// succeeding, simulating transient API errors for retry tests.
@@ -146,12 +151,17 @@ func (m *mockFlapsClient) Get(ctx context.Context, appName, machineID string) (*
 	if m.breakGet {
 		return nil, fmt.Errorf("failed to get %s", machineID)
 	}
-	// Return a machine with one passing check so that health-check loops
-	// can exit cleanly in tests that don't specifically test failure paths.
+	status := fly.Passing
+	if m.unhealthyGet {
+		status = fly.Critical
+	}
+	// Return a machine with a single check whose status is controlled by
+	// unhealthyGet. Health-check loops exit on all-passing; setting Critical
+	// keeps them polling until the strategy's timeout fires.
 	return &fly.Machine{
 		ID: machineID,
 		Checks: []*fly.MachineCheckStatus{
-			{Name: "check1", Status: fly.Passing},
+			{Name: "check1", Status: status},
 		},
 		Config: &fly.MachineConfig{
 			Checks: map[string]fly.MachineCheck{
