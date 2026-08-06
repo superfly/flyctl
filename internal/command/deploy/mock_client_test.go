@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -25,6 +26,13 @@ type mockFlapsClient struct {
 	breakList        bool
 	breakDestroy     bool
 	breakLease       bool
+	breakGet         bool
+	// unhealthyGet, when true, makes Get return a Machine whose health check
+	// status is Critical. Used to simulate an app that starts but whose
+	// checks fail — e.g. because the new config changed the internal_port
+	// or introduced a Phoenix force_ssl redirect that traps the probe.
+	unhealthyGet bool
+	launchInputs []fly.LaunchMachineInput
 
 	// uncordonTransientFailures causes Uncordon to fail this many times before
 	// succeeding, simulating transient API errors for retry tests.
@@ -137,7 +145,30 @@ func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, 
 }
 
 func (m *mockFlapsClient) Get(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
-	return nil, fmt.Errorf("failed to get %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.breakGet {
+		return nil, fmt.Errorf("failed to get %s", machineID)
+	}
+	status := fly.Passing
+	if m.unhealthyGet {
+		status = fly.Critical
+	}
+	// Return a machine with a single check whose status is controlled by
+	// unhealthyGet. Health-check loops exit on all-passing; setting Critical
+	// keeps them polling until the strategy's timeout fires.
+	return &fly.Machine{
+		ID: machineID,
+		Checks: []*fly.MachineCheckStatus{
+			{Name: "check1", Status: status},
+		},
+		Config: &fly.MachineConfig{
+			Checks: map[string]fly.MachineCheck{
+				"check1": {},
+			},
+		},
+	}, nil
 }
 
 func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
@@ -200,10 +231,24 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
 	m.nextMachineID += 1
+	m.launchInputs = append(m.launchInputs, builder)
+
+	shortDuration := fly.Duration{Duration: 10 * time.Millisecond}
 
 	return &fly.Machine{
 		ID:         fmt.Sprintf("%x", m.nextMachineID),
 		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
+		Config: &fly.MachineConfig{
+			Metadata: map[string]string{},
+			// Use a near-zero grace period and interval so that health-check
+			// goroutines poll almost immediately in tests without real timing.
+			Checks: map[string]fly.MachineCheck{
+				"check1": {
+					GracePeriod: &shortDuration,
+					Interval:    &shortDuration,
+				},
+			},
+		},
 	}, nil
 }
 
