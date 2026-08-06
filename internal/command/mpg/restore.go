@@ -14,8 +14,12 @@ import (
 
 func newRestore() *cobra.Command {
 	const (
-		long  = `Restore a Managed Postgres cluster from a backup.`
-		short = "Restore MPG cluster from backup."
+		long = `Restore a Managed Postgres backup into a new cluster, leaving the source
+cluster unchanged. The restored cluster is provisioned asynchronously in the
+same organization and billed separately.
+
+Find backup IDs with 'fly mpg backup list'.`
+		short = "Restore MPG cluster from backup into a new cluster."
 		usage = "restore <CLUSTER_ID>"
 	)
 
@@ -30,6 +34,11 @@ func newRestore() *cobra.Command {
 		flag.String{
 			Name:        "backup-id",
 			Description: "The backup ID to restore from",
+		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of the restored cluster (defaults to a generated name)",
 		},
 	)
 
@@ -48,10 +57,12 @@ func runRestore(ctx context.Context) error {
 		return fmt.Errorf("--backup-id flag is required")
 	}
 
+	name := flag.GetString(ctx, "name")
+
 	if cluster.Version == mpg.VersionV1 {
-		return cmdv1.RunRestore(ctx, cluster.Id, backupID)
+		return cmdv1.RunRestore(ctx, cluster.Id, backupID, name)
 
 	}
 
-	return cmdv2.RunRestore(ctx, cluster.Id, backupID)
+	return cmdv2.RunRestore(ctx, cluster.Id, backupID, name)
 }

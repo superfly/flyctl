@@ -139,6 +139,7 @@ type CreateManagedClusterBackupResponse struct {
 
 type RestoreManagedClusterBackupInput struct {
 	BackupId string `json:"backup_id"`
+	Name     string `json:"name,omitempty"`
 }
 
 type RestoreManagedClusterBackupResponse struct {
