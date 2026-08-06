@@ -502,7 +502,12 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 
-		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true, "")
+		// Only allocate a remote PTY for an interactive shell. With a fixed
+		// --command the input comes from stdin (often piped/non-TTY), and a
+		// PTY would echo that piped input back to the terminal, leaking
+		// secrets (issue #4536). Mirror the gating used by `fly ssh console`.
+		cmd := flag.GetString(ctx, "command")
+		err = ssh.Console(ctx, sshClient, cmd, cmd == "", "")
 		if destroy {
 			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app.Name, machine, true))
 		}

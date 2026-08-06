@@ -47,18 +47,28 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 	return fd, term.IsTerminal(fd)
 }
 
+// wantPTY reports whether a remote pseudo-terminal should be requested for the
+// session. A PTY is only useful for an interactive session, so we require both
+// that the caller asked for one (allocPTY) and that stdin is an actual
+// terminal. Requesting a PTY for piped, non-terminal stdin makes the remote
+// terminal line discipline echo the piped input back, which can leak secrets
+// (issue #4536).
+func wantPTY(allocPTY, stdinIsTerminal bool) bool {
+	return allocPTY && stdinIsTerminal
+}
+
 func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
 
-	if s.AllocPTY {
+	fd, stdinIsTerminal := getFd(s.Stdin)
+
+	if wantPTY(s.AllocPTY, stdinIsTerminal) {
 		width, height := DefaultWidth, DefaultHeight
 
-		if fd, ok := getFd(s.Stdin); ok {
-			state, err := term.MakeRaw(fd)
-			if err != nil {
-				return err
-			}
-			defer term.Restore(fd, state)
+		state, err := term.MakeRaw(fd)
+		if err != nil {
+			return err
 		}
+		defer term.Restore(fd, state)
 
 		if w, h, err := s.getAndWatchSize(ctx, sess); err == nil {
 			width, height = w, h
