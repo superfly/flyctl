@@ -279,6 +279,8 @@ func TestPostgres_NoMachines(t *testing.T) {
 }
 
 func TestPostgres_haConfigSave(t *testing.T) {
+	t.Skip("legacy unmanaged Postgres is being deprecated")
+
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
