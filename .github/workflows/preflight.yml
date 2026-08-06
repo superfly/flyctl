@@ -22,6 +22,7 @@ jobs:
           - apps
           - deploy
           - deploy-fixtures
+          - bluegreen
           - launch
           - scale
           - volume

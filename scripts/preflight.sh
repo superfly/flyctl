@@ -57,12 +57,15 @@ if [[ -n "$group" ]]; then
             ;;
         deploy)
             test_pattern="^Test(FlyDeploy|Deploy)"
-            # TestDeploy exercises slow fixture builds. Give it an independent
-            # package timeout instead of letting it consume the deploy group's.
-            test_skip_pattern="^TestDeploy$"
+            # Slow fixture and bluegreen tests have independent matrix jobs so
+            # they do not consume the shared deploy package timeout.
+            test_skip_pattern="^Test(Deploy$|FlyDeploy_BlueGreen)"
             ;;
         deploy-fixtures)
             test_pattern="^TestDeploy$"
+            ;;
+        bluegreen)
+            test_pattern="^TestFlyDeploy_BlueGreen"
             ;;
         launch)
             test_pattern="^Test(FlyLaunch|Launch)"
@@ -102,7 +105,7 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, deploy-fixtures, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
             exit 1
             ;;
     esac
