@@ -96,12 +96,24 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 			io.Copy(stdin, s.Stdin)
 		}
 	}()
+
+	// Use a WaitGroup so we only report the command as finished once both
+	// copies have actually drained.
+	var copyWG sync.WaitGroup
 	if s.Stdout != nil {
-		go io.Copy(s.Stdout, stdout)
+		copyWG.Add(1)
+		go func() {
+			defer copyWG.Done()
+			io.Copy(s.Stdout, stdout)
+		}()
 	}
 
 	if s.Stderr != nil {
-		go io.Copy(s.Stderr, stderr)
+		copyWG.Add(1)
+		go func() {
+			defer copyWG.Done()
+			io.Copy(s.Stderr, stderr)
+		}()
 	}
 
 	cmdC := make(chan error, 1)
@@ -112,6 +124,7 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 		} else {
 			err = sess.Run(cmd)
 		}
+		copyWG.Wait()
 		if err != nil && err != io.EOF {
 			cmdC <- err
 		}
