@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -261,16 +262,18 @@ func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState st
 	return strategy
 }
 
-// TestCreateGreenMachinesAlwaysStartsGreenMachines verifies that green
-// machines are always launched with SkipLaunch=false, even when the
-// corresponding blue machine has SkipLaunch=true (e.g. because it was
-// auto-stopped before the deploy).
-func TestCreateGreenMachinesAlwaysStartsGreenMachines(t *testing.T) {
+// TestCreateGreenMachinesForceStartsRepresentative verifies that when the
+// only blue machine in a process group with configured health checks would
+// stay stopped (SkipLaunch=true), its green replacement is promoted to
+// SkipLaunch=false so that at least one machine gets health-verified.
+func TestCreateGreenMachinesForceStartsRepresentative(t *testing.T) {
 	client := &mockFlapsClient{}
 	ctx := context.Background()
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 
-	// Simulate a stopped blue machine: SkipLaunch=true.
+	// Simulate a stopped blue machine: SkipLaunch=true. It has configured
+	// checks, so its green replacement must be force-started as the group's
+	// health-check representative.
 	strategy := newBlueGreenStrategyWithState(client, fly.MachineStateStopped, true)
 
 	err := strategy.CreateGreenMachines(ctx)
@@ -283,7 +286,154 @@ func TestCreateGreenMachinesAlwaysStartsGreenMachines(t *testing.T) {
 
 	assert.Len(t, inputs, 1, "expected one Launch call")
 	assert.False(t, inputs[0].SkipLaunch,
-		"green machine must be launched with SkipLaunch=false regardless of blue machine state")
+		"green machine must be launched with SkipLaunch=false as the process group's health-check representative")
+}
+
+// makeMachineEntry constructs a machineUpdateEntry with just enough state to
+// exercise forceStartRepresentatives: a process-group tag, a SkipLaunch value,
+// and optional configured checks.
+func makeMachineEntry(processGroup string, skipLaunch, hasChecks bool) *machineUpdateEntry {
+	checks := map[string]fly.MachineCheck{}
+	if hasChecks {
+		checks["check1"] = fly.MachineCheck{}
+	}
+
+	return &machineUpdateEntry{
+		launchInput: &fly.LaunchMachineInput{
+			SkipLaunch: skipLaunch,
+			Config: &fly.MachineConfig{
+				Metadata: map[string]string{
+					fly.MachineConfigMetadataKeyFlyProcessGroup: processGroup,
+				},
+				Checks: checks,
+			},
+		},
+	}
+}
+
+// TestForceStartRepresentatives exercises the per-process-group selection
+// logic that decides which green machines must be launched even when their
+// blue counterparts were stopped.
+func TestForceStartRepresentatives(t *testing.T) {
+	t.Run("stopped group with checks forces the first machine", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),
+		}}
+
+		assert.Equal(t, map[int]bool{0: true}, bg.forceStartRepresentatives())
+	})
+
+	t.Run("stopped group without checks is left alone", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("worker", true, false),
+		}}
+
+		assert.Empty(t, bg.forceStartRepresentatives(),
+			"no checks means no representative needed; green should mirror blue's stopped state")
+	})
+
+	t.Run("group with a natural starter needs no forcing", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),  // stopped
+			makeMachineEntry("app", false, true), // already going to start
+		}}
+
+		assert.Empty(t, bg.forceStartRepresentatives(),
+			"a machine that already starts satisfies the invariant")
+	})
+
+	t.Run("multiple stopped in same group forces exactly one", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("app", true, true),
+		}}
+
+		assert.Equal(t, map[int]bool{0: true}, bg.forceStartRepresentatives(),
+			"only the first stopped machine in the group should be promoted")
+	})
+
+	t.Run("multiple stopped groups get one representative each", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("worker", true, true),
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("worker", true, true),
+		}}
+
+		assert.Equal(t, map[int]bool{0: true, 1: true}, bg.forceStartRepresentatives(),
+			"each process group with checks needs its own representative")
+	})
+
+	t.Run("only groups with checks get a representative", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),     // has checks -> force
+			makeMachineEntry("worker", true, false), // no checks -> mirror blue
+		}}
+
+		assert.Equal(t, map[int]bool{0: true}, bg.forceStartRepresentatives())
+	})
+}
+
+// TestCreateGreenMachinesMirrorsBlueSkipLaunchForNonRepresentatives verifies
+// that, given multiple stopped blue machines in a process group with checks,
+// exactly one green is force-started and the rest inherit SkipLaunch=true
+// (so they mirror the pre-deploy stopped state).
+func TestCreateGreenMachinesMirrorsBlueSkipLaunchForNonRepresentatives(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+
+	ios, _, _, _ := iostreams.Test()
+	blues := []*machineUpdateEntry{
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			launchInput:     makeMachineEntry("app", true, true).launchInput,
+		},
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			launchInput:     makeMachineEntry("app", true, true).launchInput,
+		},
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			launchInput:     makeMachineEntry("app", true, true).launchInput,
+		},
+	}
+
+	strategy := &blueGreen{
+		apiClient:       &mockWebClient{},
+		flaps:           client,
+		maxConcurrent:   10,
+		appConfig:       &appconfig.Config{},
+		io:              ios,
+		colorize:        ios.ColorScheme(),
+		clearLinesAbove: func(int) {},
+		timeout:         5 * time.Second,
+		blueMachines:    blues,
+		app:             &flaps.App{Name: "test-app"},
+	}
+	strategy.initialize()
+	strategy.waitBeforeStop = 0
+	strategy.waitBeforeCordon = 0
+	strategy.uncordonRetryDelay = 0
+
+	err := strategy.CreateGreenMachines(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, strategy.greenMachines, 3)
+
+	client.mu.Lock()
+	inputs := client.launchInputs
+	client.mu.Unlock()
+
+	require.Len(t, inputs, 3)
+	started := 0
+	for _, in := range inputs {
+		if !in.SkipLaunch {
+			started++
+		}
+	}
+	assert.Equal(t, 1, started,
+		"exactly one green machine in the group must be force-started; the rest mirror blue's stopped state")
 }
 
 // TestDeployWithStoppedBlueMachinesEnforcesHealthChecks verifies the full

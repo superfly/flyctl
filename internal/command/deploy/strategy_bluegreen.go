@@ -166,6 +166,53 @@ func (bg *blueGreen) sleepAbortable(d time.Duration) bool {
 	}
 }
 
+// forceStartRepresentatives returns the set of blue-machine indices whose
+// green replacements must be launched with SkipLaunch=false so that each
+// process group with configured health checks has at least one machine that
+// starts and can be health-verified.
+//
+// Rule: for each process group with any configured health check, ensure a
+// representative will start. Machines whose blue counterpart is already going
+// to start naturally (SkipLaunch=false — e.g. it was running when the deploy
+// began) satisfy the invariant for free. If no machine in the group would
+// naturally start (e.g. auto_stop_machines turned them all off), promote the
+// first machine in the group.
+//
+// Machines outside the returned set inherit their blue's SkipLaunch value,
+// so a stopped blue produces a stopped green — mirroring the app's
+// pre-deploy state rather than unnecessarily waking up idle workers.
+func (bg *blueGreen) forceStartRepresentatives() map[int]bool {
+	groupHasChecks := map[string]bool{}
+	groupWillStart := map[string]bool{}
+	groupFirstStopped := map[string]int{} // process group -> lowest index of a machine that would stay stopped
+
+	for i, mach := range bg.blueMachines {
+		cfg := mach.launchInput.Config
+		pg := cfg.ProcessGroup()
+
+		if machineHasConfiguredChecks(cfg) {
+			groupHasChecks[pg] = true
+		}
+		if !mach.launchInput.SkipLaunch {
+			groupWillStart[pg] = true
+		} else if _, seen := groupFirstStopped[pg]; !seen {
+			groupFirstStopped[pg] = i
+		}
+	}
+
+	forceStart := map[int]bool{}
+	for pg := range groupHasChecks {
+		if groupWillStart[pg] {
+			continue
+		}
+		if idx, ok := groupFirstStopped[pg]; ok {
+			forceStart[idx] = true
+		}
+	}
+
+	return forceStart
+}
+
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_create")
 	defer span.End()
@@ -178,12 +225,17 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 		float64(bg.maxConcurrent),
 	)))
 
+	// Decide upfront which green machines must be force-started so each
+	// process group with health checks has at least one machine to poll.
+	// Everything else inherits SkipLaunch from its blue counterpart.
+	forceStart := bg.forceStartRepresentatives()
+
 	var lock sync.Mutex
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
 		WithMaxGoroutines(createConcurrency)
-	for _, mach := range bg.blueMachines {
+	for i, mach := range bg.blueMachines {
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -191,7 +243,9 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 			launchInput := mach.launchInput
 			launchInput.SkipServiceRegistration = true
-			launchInput.SkipLaunch = false
+			if forceStart[i] {
+				launchInput.SkipLaunch = false
+			}
 			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
 
 			newMachineRaw, err := bg.flaps.Launch(ctx, bg.app.Name, *launchInput)
