@@ -73,9 +73,15 @@ type Client struct {
 	GetMachineFunc                         func(ctx context.Context, machineId string) (*fly.GqlMachine, error)
 	GetNearestRegionFunc                   func(ctx context.Context) (*fly.Region, error)
 	GetOrganizationBySlugFunc              func(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrgLimitedAccessTokensFunc          func(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error)
 	GetOrganizationRemoteBuilderBySlugFunc func(ctx context.Context, slug string) (*fly.Organization, error)
 	GetOrganizationByAppFunc               func(ctx context.Context, appName string) (*fly.Organization, error)
 	GetOrganizationsFunc                   func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
+	GetAllowedReplaySourceOrgSlugsFunc     func(ctx context.Context, slug string) ([]string, error)
+	AddAllowedReplaySourceOrgsFunc         func(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error)
+	RemoveAllowedReplaySourceOrgsFunc      func(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error)
+	GetAllowAllCrossNetworkReplaysFunc     func(ctx context.Context, slug string) (bool, error)
+	SetAllowAllCrossNetworkReplaysFunc     func(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error)
 	GetSnapshotsFromVolumeFunc             func(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
 	GetWireGuardPeerFunc                   func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeersFunc                  func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
@@ -339,6 +345,10 @@ func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.O
 	return m.GetOrganizationBySlugFunc(ctx, slug)
 }
 
+func (m *Client) GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error) {
+	return m.GetOrgLimitedAccessTokensFunc(ctx, orgSlug)
+}
+
 func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
 	return m.GetOrganizationRemoteBuilderBySlugFunc(ctx, slug)
 }
@@ -349,6 +359,26 @@ func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly
 
 func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
 	return m.GetOrganizationsFunc(ctx, filters...)
+}
+
+func (m *Client) GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error) {
+	return m.GetAllowedReplaySourceOrgSlugsFunc(ctx, slug)
+}
+
+func (m *Client) AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error) {
+	return m.AddAllowedReplaySourceOrgsFunc(ctx, orgSlug, sourceOrgSlugs)
+}
+
+func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error) {
+	return m.RemoveAllowedReplaySourceOrgsFunc(ctx, orgSlug, orgSlugsToRemove)
+}
+
+func (m *Client) GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error) {
+	return m.GetAllowAllCrossNetworkReplaysFunc(ctx, slug)
+}
+
+func (m *Client) SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error) {
+	return m.SetAllowAllCrossNetworkReplaysFunc(ctx, orgSlug, allow)
 }
 
 func (m *Client) GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error) {

@@ -48,6 +48,7 @@ func GetSyntheticsToken(ctx context.Context) (token string, err error) {
 	if err != nil {
 		return "", err
 	}
+
 	return token, nil
 }
 

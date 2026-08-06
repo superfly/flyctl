@@ -52,16 +52,28 @@ func runStatus(ctx context.Context) (err error) {
 		readRegions = strings.Join(addOn.ReadRegions, ",")
 	}
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
 
 	if options == nil {
-		options = make(map[string]interface{})
+		options = make(map[string]any)
 	}
 
 	evictionStatus := "Disabled"
 
 	if options["eviction"] != nil && options["eviction"].(bool) {
 		evictionStatus = "Enabled"
+	}
+
+	autoUpgradeStatus := "Disabled"
+
+	if options["auto_upgrade"] != nil && options["auto_upgrade"].(bool) {
+		autoUpgradeStatus = "Enabled"
+	}
+
+	prodPackStatus := "Disabled"
+
+	if options["prod_pack"] != nil && options["prod_pack"].(bool) {
+		prodPackStatus = "Enabled"
 	}
 
 	obj := [][]string{
@@ -72,11 +84,13 @@ func runStatus(ctx context.Context) (err error) {
 			addOn.PrimaryRegion,
 			readRegions,
 			evictionStatus,
+			autoUpgradeStatus,
+			prodPackStatus,
 			addOn.PublicUrl,
 		},
 	}
 
-	var cols = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Private URL"}
+	var cols = []string{"ID", "Name", "Plan", "Primary Region", "Read Regions", "Eviction", "Auto-Upgrade", "ProdPack", "Private URL"}
 
 	if err = render.VerticalTable(io.Out, "Redis", obj, cols...); err != nil {
 		return

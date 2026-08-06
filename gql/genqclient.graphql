@@ -265,6 +265,26 @@ query ListAddOns($addOnType: AddOnType) {
 	}
 }
 
+query ListOrganizationAddOns($orgSlug: String!, $addOnType: AddOnType) {
+	organization(slug: $orgSlug) {
+		addOns(type: $addOnType) {
+			nodes {
+				id
+				name
+				addOnPlan {
+					displayName
+					description
+				}
+				privateIp
+				primaryRegion
+				readRegions
+				options
+				metadata
+			}
+		}
+	}
+}
+
  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!, $metadata: JSON!) {
 		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options, metadata: $metadata}) {
 			addOn {

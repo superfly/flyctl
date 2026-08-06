@@ -29,6 +29,7 @@ Machines REST fly.`
 		newStart(),
 		newStop(),
 		newStatus(),
+		newWait(),
 		newProxy(),
 		newClone(),
 		newUpdate(),

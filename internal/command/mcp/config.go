@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/tailscale/hujson"
 )
 
 var McpClients = map[string]string{
@@ -132,6 +133,7 @@ func NewRemove() *cobra.Command {
 			},
 		)
 	}
+
 	return cmd
 }
 
@@ -241,11 +243,12 @@ func ListConfigPaths(ctx context.Context, configIsArray bool) ([]ConfigPath, err
 
 	// OS-specific paths
 	var configDir string
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		configDir = filepath.Join(home, "Library", "Application Support")
-	} else if runtime.GOOS == "windows" {
+	case "windows":
 		configDir = filepath.Join(home, "AppData", "Roaming")
-	} else {
+	default:
 		configDir = filepath.Join(home, ".config")
 	}
 
@@ -332,20 +335,19 @@ func ServerMap(configPaths []ConfigPath) (map[string]any, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
+
 			return nil, err
 		}
 
 		// read the configuration file
-		file, err := os.Open(configPath.Path)
+		fileData, err := os.ReadFile(configPath.Path)
 		if err != nil {
 			return nil, err
 		}
-		defer file.Close()
 
-		// parse the configuration file as JSON
+		// parse the configuration file as JSON (tolerating comments and trailing commas)
 		var data map[string]any
-		decoder := json.NewDecoder(file)
-		if err := decoder.Decode(&data); err != nil {
+		if err := unmarshalJSONC(fileData, &data); err != nil {
 			return nil, fmt.Errorf("failed to parse %s: %w", configPath.Path, err)
 		}
 
@@ -507,15 +509,15 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	}
 
 	// Initialize configuration data map
-	configData := make(map[string]interface{})
+	configData := make(map[string]any)
 
 	// Read existing configuration if it exists
 	fileExists := false
 	fileData, err := os.ReadFile(path)
 	if err == nil {
 		fileExists = true
-		// File exists, parse it
-		err = json.Unmarshal(fileData, &configData)
+		// File exists, parse it (tolerating comments and trailing commas)
+		err = unmarshalJSONC(fileData, &configData)
 		if err != nil {
 			return fmt.Errorf("failed to parse existing configuration at %s: %w", path, err)
 		} else {
@@ -526,10 +528,10 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	}
 
 	// Get or create mcpServers field in config
-	var mcpServers map[string]interface{}
+	var mcpServers map[string]any
 
 	if mcpServersRaw, exists := configData[configKey]; exists {
-		if mcpMap, ok := mcpServersRaw.(map[string]interface{}); ok {
+		if mcpMap, ok := mcpServersRaw.(map[string]any); ok {
 			mcpServers = mcpMap
 			log.Debugf("Found existing %s with %d entries", configKey, len(mcpServers))
 		} else {
@@ -537,7 +539,7 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 		}
 	} else {
 		log.Debugf("No %s field found, creating a new one", configKey)
-		mcpServers = make(map[string]interface{})
+		mcpServers = make(map[string]any)
 	}
 
 	// Merge the new MCP server with existing ones
@@ -548,7 +550,7 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 	}
 
 	// Build the server map
-	serverMap := map[string]interface{}{
+	serverMap := map[string]any{
 		"command": command,
 		"args":    args,
 	}
@@ -609,9 +611,9 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		return fmt.Errorf("failed to read configuration at %s: %w", path, err)
 	}
 
-	// Parse the existing configuration
-	configData := make(map[string]interface{})
-	err = json.Unmarshal(fileData, &configData)
+	// Parse the existing configuration (tolerating comments and trailing commas)
+	configData := make(map[string]any)
+	err = unmarshalJSONC(fileData, &configData)
 	if err != nil {
 		return fmt.Errorf("failed to parse existing configuration at %s: %w", path, err)
 	} else {
@@ -619,9 +621,9 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Get the mcpServers field in config
-	var mcpServers map[string]interface{}
+	var mcpServers map[string]any
 	if mcpServersRaw, exists := configData[configKey]; exists {
-		if mcpMap, ok := mcpServersRaw.(map[string]interface{}); ok {
+		if mcpMap, ok := mcpServersRaw.(map[string]any); ok {
 			mcpServers = mcpMap
 			log.Debugf("Found existing %s with %d entries", configKey, len(mcpServers))
 		} else {
@@ -629,6 +631,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		}
 	} else {
 		log.Warnf("No %s field found, nothing to remove", configKey)
+
 		return nil
 	}
 
@@ -638,6 +641,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		delete(mcpServers, name)
 	} else {
 		log.Warnf("MCP server %s not found, nothing to remove", name)
+
 		return nil
 	}
 
@@ -656,6 +660,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	log.Debugf("Successfully updated existing configuration at %s", path)
+
 	return nil
 }
 
@@ -665,7 +670,7 @@ type MCPServer struct {
 	Command string   `json:"command"`
 }
 
-func configExtract(config ConfigPath, server string) (map[string]interface{}, error) {
+func configExtract(config ConfigPath, server string) (map[string]any, error) {
 	// Check if the file exists
 	// Read the configuration file
 	data, err := os.ReadFile(config.Path)
@@ -673,23 +678,23 @@ func configExtract(config ConfigPath, server string) (map[string]interface{}, er
 		return nil, fmt.Errorf("Error reading file: %v", err)
 	}
 
-	// Parse the JSON data
-	jsonConfig := make(map[string]interface{})
-	if err := json.Unmarshal(data, &jsonConfig); err != nil {
+	// Parse the JSON data (tolerating comments and trailing commas)
+	jsonConfig := make(map[string]any)
+	if err := unmarshalJSONC(data, &jsonConfig); err != nil {
 		return nil, fmt.Errorf("Error parsing JSON: %v", err)
 	}
 
-	jsonServers, ok := jsonConfig[config.ConfigName].(map[string]interface{})
+	jsonServers, ok := jsonConfig[config.ConfigName].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("Error finding MCP server configuration: %v", err)
 	}
 
-	serverConfig, ok := jsonServers[server].(map[string]interface{})
+	serverConfig, ok := jsonServers[server].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("Error finding MCP server configuration: %v", err)
 	}
 
-	args, ok := serverConfig["args"].([]interface{})
+	args, ok := serverConfig["args"].([]any)
 
 	if ok {
 		for i, arg := range args {
@@ -719,4 +724,17 @@ func configExtract(config ConfigPath, server string) (map[string]interface{}, er
 	}
 
 	return serverConfig, nil
+}
+
+// unmarshalJSONC unmarshals JSONC (JSON with line/block comments and trailing
+// commas) into v. Editor settings files — Zed, VS Code, Cursor, Neovim,
+// Windsurf — commonly use JSONC, and flyctl needs to tolerate that on the
+// read side. Writes still emit strict JSON; see #4430 for context.
+func unmarshalJSONC(data []byte, v any) error {
+	standardized, err := hujson.Standardize(data)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(standardized, v)
 }

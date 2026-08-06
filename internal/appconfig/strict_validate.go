@@ -22,13 +22,14 @@ func StrictValidate(rawConfig map[string]any) *StrictValidateResult {
 		UnrecognizedKeys:     make(map[string][]string),
 	}
 
-	recognizedFields := getFields(reflect.TypeOf(Config{}))
+	recognizedFields := getFields(reflect.TypeFor[Config]())
 
 	// Check each key in the raw config
 	for key, value := range rawConfig {
 		fieldInfo, recognized := recognizedFields[key]
 		if !recognized {
 			result.UnrecognizedSections = append(result.UnrecognizedSections, key)
+
 			continue
 		}
 
@@ -51,8 +52,8 @@ type fieldInfo struct {
 func getFields(t reflect.Type) map[string]fieldInfo {
 	fields := make(map[string]fieldInfo)
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
+		field := field
 
 		// Skip unexported fields
 		if !field.IsExported() {
@@ -87,7 +88,7 @@ func getFields(t reflect.Type) map[string]fieldInfo {
 		fieldType := field.Type
 
 		// Dereference pointers
-		if fieldType.Kind() == reflect.Ptr {
+		if fieldType.Kind() == reflect.Pointer {
 			fieldType = fieldType.Elem()
 		}
 
@@ -103,7 +104,7 @@ func getFields(t reflect.Type) map[string]fieldInfo {
 }
 
 func isNestedType(t reflect.Type) bool {
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 
@@ -115,7 +116,7 @@ func isNestedType(t reflect.Type) bool {
 	// Check if it's a slice of structs
 	if t.Kind() == reflect.Slice {
 		elemType := t.Elem()
-		if elemType.Kind() == reflect.Ptr {
+		if elemType.Kind() == reflect.Pointer {
 			elemType = elemType.Elem()
 		}
 		if elemType.Kind() == reflect.Struct && !isBuiltinType(elemType) {
@@ -133,6 +134,7 @@ func isNestedType(t reflect.Type) bool {
 // isBuiltinType checks if a type is a builtin that shouldn't be recursively validated
 func isBuiltinType(t reflect.Type) bool {
 	pkg := t.PkgPath()
+
 	return (pkg == "" || strings.HasPrefix(pkg, "time"))
 }
 
@@ -140,13 +142,14 @@ func isBuiltinType(t reflect.Type) bool {
 func validateNestedSection(sectionName string, value any, expectedType reflect.Type, result *StrictValidateResult) {
 	if valueMap, ok := value.(map[string]any); ok {
 		// Dereference pointer types
-		if expectedType.Kind() == reflect.Ptr {
+		if expectedType.Kind() == reflect.Pointer {
 			expectedType = expectedType.Elem()
 		}
 
 		// For regular structs, validate against struct fields
 		if expectedType.Kind() == reflect.Struct {
 			validateStructKeys(sectionName, valueMap, expectedType, result)
+
 			return
 
 		}
@@ -154,7 +157,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 		// For maps, validate each key if it's a nested type
 		if expectedType.Kind() == reflect.Map && isNestedType(expectedType.Elem()) {
 			subType := expectedType.Elem()
-			if subType.Kind() == reflect.Ptr {
+			if subType.Kind() == reflect.Pointer {
 				subType = subType.Elem()
 			}
 
@@ -162,6 +165,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 				section := fmt.Sprintf("%s.%s", sectionName, key)
 				validateNestedSection(section, value, subType, result)
 			}
+
 			return
 		}
 	}
@@ -169,7 +173,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 	// For slices, validate each element if it's a nested type
 	if valueSlice, ok := value.([]any); ok && expectedType.Kind() == reflect.Slice {
 		elemType := expectedType.Elem()
-		if elemType.Kind() == reflect.Ptr {
+		if elemType.Kind() == reflect.Pointer {
 			elemType = elemType.Elem()
 		}
 
@@ -178,6 +182,7 @@ func validateNestedSection(sectionName string, value any, expectedType reflect.T
 				section := fmt.Sprintf("%s[%d]", sectionName, i)
 				validateNestedSection(section, elem, elemType, result)
 			}
+
 			return
 		}
 	}
@@ -200,6 +205,7 @@ func validateStructKeys(sectionPath string, data map[string]any, structType refl
 				inlineRecognized := getFields(inlineType)
 				if _, ok := inlineRecognized[key]; ok {
 					recognized = true
+
 					break
 				}
 			}
@@ -210,6 +216,7 @@ func validateStructKeys(sectionPath string, data map[string]any, structType refl
 				result.UnrecognizedKeys[sectionPath] = []string{}
 			}
 			result.UnrecognizedKeys[sectionPath] = append(result.UnrecognizedKeys[sectionPath], key)
+
 			continue
 		}
 
@@ -225,8 +232,8 @@ func validateStructKeys(sectionPath string, data map[string]any, structType refl
 func getInlineFields(t reflect.Type) []reflect.Type {
 	var inlineTypes []reflect.Type
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
+		field := field
 
 		// Check if field has inline tag
 		tomlTag := field.Tag.Get("toml")
@@ -234,7 +241,7 @@ func getInlineFields(t reflect.Type) []reflect.Type {
 
 		if strings.Contains(tomlTag, "inline") || strings.Contains(jsonTag, "inline") {
 			fieldType := field.Type
-			if fieldType.Kind() == reflect.Ptr {
+			if fieldType.Kind() == reflect.Pointer {
 				fieldType = fieldType.Elem()
 			}
 			inlineTypes = append(inlineTypes, fieldType)

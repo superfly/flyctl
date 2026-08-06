@@ -15,6 +15,7 @@ func StartSyntheticsMonitoringAgent(clientCtx context.Context) {
 
 	if !shouldRunSyntheticsAgent(clientCtx) {
 		log.Debug("synthetics agent disabled")
+
 		return
 	}
 

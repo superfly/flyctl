@@ -45,6 +45,8 @@ func NewBuildkitBuilder(addr string, provisioner *Provisioner) *BuildkitBuilder 
 
 func (r *BuildkitBuilder) Name() string { return "Buildkit" }
 
+func (*BuildkitBuilder) usesDockerfile() {}
+
 func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "buildkit_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
@@ -65,6 +67,7 @@ func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, strea
 
 	if dockerfile == "" {
 		terminal.Debug("dockerfile not found, skipping")
+
 		return nil, "", nil
 	}
 
@@ -78,6 +81,7 @@ func (r *BuildkitBuilder) Run(ctx context.Context, _ *dockerClientFactory, strea
 	build.BuilderMeta.RemoteMachineId = image.BuilderID
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 	span.SetAttributes(image.ToSpanAttributes()...)
+
 	return image, "", nil
 }
 
@@ -163,14 +167,17 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, app
 			if err != nil {
 				return nil, fmt.Errorf("failed to get app: %w", err)
 			}
+
 			return r.connectClient(ctx, app, appName)
 		} else if !ensureBuilder && r.provisioner.buildkitImage != "" { // Retry with ensureBuilder
 			r.addr = ""
+
 			return r.connectClient(ctx, nil, appName)
 		} else {
 			return nil, fmt.Errorf("failed to connect to buildkit: %w", err)
 		}
 	}
+
 	return buildkitClient, nil
 }
 
@@ -196,9 +203,11 @@ func readContent(ctx context.Context, contentClient content.ContentClient, desc 
 			if err == io.EOF {
 				break
 			}
+
 			return "", fmt.Errorf("failed to read from stream: %w", err)
 		}
 		data = append(data, resp.Data...)
 	}
+
 	return string(data), nil
 }

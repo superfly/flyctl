@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -35,11 +36,13 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 		gh, err := exec.LookPath("gh")
 
 		if err != nil {
-			io := iostreams.FromContext(ctx)
-			colorize := io.ColorScheme()
-			fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
-			fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
-			fmt.Fprintln(io.Out)
+			if plan.GetPlanStep(ctx) == "" {
+				io := iostreams.FromContext(ctx)
+				colorize := io.ColorScheme()
+				fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+				fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+				fmt.Fprintln(io.Out)
+			}
 		} else {
 			apiClient := flyutil.ClientFromContext(ctx)
 
@@ -72,7 +75,7 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				err = cmd.Run()
 
 				if err != nil {
-					fmt.Println("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
+					fmt.Printf("failed setting FLY_API_TOKEN secret in GitHub repository settings: %s\n", err)
 				}
 			}
 		}
@@ -89,6 +92,7 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 	if err := state.scannerCreateSecrets(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -103,6 +107,7 @@ func (state *launchState) satisfyScannerAfterDb(ctx context.Context) error {
 	if err := state.scannerSetAppconfig(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -118,6 +123,7 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 		if helpers.FileExists(path) {
 			if flag.GetBool(ctx, "now") {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
+
 				continue
 			}
 			if !flag.GetBool(ctx, "yes") {
@@ -143,6 +149,7 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -185,6 +192,7 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 		}
 		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.Plan.AppName, strings.Join(lo.Keys(secrets), ", "))
 	}
+
 	return nil
 }
 
@@ -277,6 +285,7 @@ func execInitCommand(ctx context.Context, command scanner.InitCommand) (err erro
 	if err = cmd.Wait(); err != nil {
 		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
 	}
+
 	return err
 }
 
@@ -298,11 +307,12 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 	}
 
 	for envName, envVal := range srcInfo.Env {
-		if envVal == "APP_FQDN" {
+		switch envVal {
+		case "APP_FQDN":
 			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
-		} else if envVal == "APP_URL" {
+		case "APP_URL":
 			appConfig.SetEnvVariable(envName, "https://"+appConfig.AppName+".fly.dev")
-		} else {
+		default:
 			appConfig.SetEnvVariable(envName, envVal)
 		}
 	}
@@ -384,5 +394,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		}
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
+
 	return nil
 }

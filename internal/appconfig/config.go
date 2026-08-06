@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 )
@@ -143,6 +144,7 @@ func (f File) toMachineFile() (*fly.File, error) {
 		encodedValue := base64.StdEncoding.EncodeToString([]byte(f.RawValue))
 		file.RawValue = &encodedValue
 	}
+
 	return file, nil
 }
 
@@ -192,12 +194,12 @@ type Experimental struct {
 	EnableConsul   bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
-	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+	Attached       Attached `toml:"attached,omitempty" json:"attached"`
 	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
 }
 
 type Attached struct {
-	Secrets AttachedSecrets `toml:"secrets,omitempty" json:"secrets,omitempty"`
+	Secrets AttachedSecrets `toml:"secrets,omitempty" json:"secrets"`
 }
 
 type AttachedSecrets struct {
@@ -241,7 +243,7 @@ func (c *Config) DetermineIPType(ipType string) string {
 					return "dedicated"
 				} else if p.ContainsPort(80) && !reflect.DeepEqual(p.Handlers, []string{"http"}) {
 					return "dedicated"
-				} else if p.ContainsPort(443) && !(reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
+				} else if p.ContainsPort(443) && (!reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) && !reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
 					return "dedicated"
 				}
 			}
@@ -290,10 +292,11 @@ func (c *Config) DetermineCompression(ctx context.Context) (compression string, 
 // IsUsingGPU returns true if any VMs have a gpu-kind set.
 func (c *Config) IsUsingGPU() bool {
 	for _, vm := range c.Compute {
-		if vm != nil && vm.MachineGuest != nil && vm.MachineGuest.GPUKind != "" {
+		if vm != nil && vm.MachineGuest != nil && vm.GPUKind != "" {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -303,6 +306,7 @@ func (c *Config) HasUdpService() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -310,6 +314,7 @@ func (c *Config) Dockerfile() string {
 	if c == nil || c.Build == nil {
 		return ""
 	}
+
 	return c.Build.Dockerfile
 }
 
@@ -317,6 +322,7 @@ func (c *Config) Ignorefile() string {
 	if c == nil || c.Build == nil {
 		return ""
 	}
+
 	return c.Build.Ignorefile
 }
 
@@ -324,6 +330,7 @@ func (c *Config) DockerBuildTarget() string {
 	if c == nil || c.Build == nil {
 		return ""
 	}
+
 	return c.Build.DockerBuildTarget
 }
 
@@ -335,6 +342,7 @@ func (c *Config) InternalPort() int {
 	if len(c.Services) > 0 {
 		return c.Services[0].InternalPort
 	}
+
 	return 0
 }
 
@@ -353,7 +361,7 @@ func (c *Config) BuildStrategies() []string {
 	}
 	if c.Build.Dockerfile != "" || c.Build.DockerBuildTarget != "" {
 		if c.Build.Dockerfile != "" {
-			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", c.Build.Dockerfile))
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", dockerfileurl.ForDisplay(c.Build.Dockerfile)))
 		} else {
 			strategies = append(strategies, "a dockerfile")
 		}
@@ -397,15 +405,18 @@ func (c *Config) URL() *url.URL {
 		return u
 	case slices.Contains(httpPorts, 80):
 		u.Scheme = "http"
+
 		return u
 	case len(httpsPorts) > 0:
 		slices.Sort(httpsPorts)
 		u.Host = fmt.Sprintf("%s:%d", u.Host, httpsPorts[0])
+
 		return u
 	case len(httpPorts) > 0:
 		slices.Sort(httpPorts)
 		u.Host = fmt.Sprintf("%s:%d", u.Host, httpPorts[0])
 		u.Scheme = "http"
+
 		return u
 	default:
 		return nil
@@ -441,6 +452,7 @@ func (c *Config) DeployStrategy() string {
 	if c.Deploy == nil {
 		return ""
 	}
+
 	return c.Deploy.Strategy
 }
 

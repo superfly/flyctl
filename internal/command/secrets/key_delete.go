@@ -90,6 +90,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 			confirm, err := prompt.Confirm(ctx, fmt.Sprintf("delete secrets key %s?", secret.Name))
 			if err != nil {
 				rerr = errors.Join(rerr, err)
+
 				continue
 			}
 			if !confirm {
@@ -108,5 +109,6 @@ func runKeyDelete(ctx context.Context) (err error) {
 			fmt.Fprintf(out, "Deleted %v\n", secret.Name)
 		}
 	}
+
 	return rerr
 }

@@ -81,6 +81,7 @@ func (c *ColorScheme) Bold(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return bold(t)
 }
 
@@ -88,6 +89,7 @@ func (c *ColorScheme) Underline(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return underline(t)
 }
 
@@ -95,6 +97,7 @@ func (c *ColorScheme) Red(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return red(t)
 }
 
@@ -102,6 +105,7 @@ func (c *ColorScheme) Yellow(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return yellow(t)
 }
 
@@ -109,6 +113,7 @@ func (c *ColorScheme) Green(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return green(t)
 }
 
@@ -119,6 +124,7 @@ func (c *ColorScheme) Gray(t string) string {
 	if c.is256enabled {
 		return gray256(t)
 	}
+
 	return gray(t)
 }
 
@@ -126,6 +132,7 @@ func (c *ColorScheme) Magenta(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return magenta(t)
 }
 
@@ -136,6 +143,7 @@ func (c *ColorScheme) Purple(t string) string {
 	if c.is256enabled {
 		return purple256(t)
 	}
+
 	return magenta(t) // Fallback to magenta for non-256 color terminals
 }
 
@@ -143,6 +151,7 @@ func (c *ColorScheme) Cyan(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return cyan(t)
 }
 
@@ -150,6 +159,7 @@ func (c *ColorScheme) CyanBold(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return cyanBold(t)
 }
 
@@ -157,6 +167,7 @@ func (c *ColorScheme) Blue(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return blue(t)
 }
 
@@ -164,6 +175,7 @@ func (c *ColorScheme) Italic(t string) string {
 	if !c.enabled {
 		return t
 	}
+
 	return italic(t)
 }
 
@@ -232,5 +244,6 @@ func (c *ColorScheme) RedGreenGradient(s string, value float64) string {
 	if c.is256enabled {
 		colors = []string{"196", "202", "208", "214", "220", "190", "154", "118", "82", "46"}
 	}
+
 	return ansi.Color(s, colors[int(float64(len(colors)-1)*value)])
 }

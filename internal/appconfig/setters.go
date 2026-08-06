@@ -20,10 +20,10 @@ func (c *Config) SetInternalPort(port int) {
 
 func (c *Config) SetHttpCheck(path string, headers map[string]string) {
 	check := &ServiceHTTPCheck{
-		HTTPMethod:        fly.StringPointer("GET"),
-		HTTPPath:          fly.StringPointer(path),
-		HTTPProtocol:      fly.StringPointer("http"),
-		HTTPTLSSkipVerify: fly.BoolPointer(false),
+		HTTPMethod:        new("GET"),
+		HTTPPath:          new(path),
+		HTTPProtocol:      new("http"),
+		HTTPTLSSkipVerify: new(false),
 		Interval:          &fly.Duration{Duration: 10 * time.Second},
 		Timeout:           &fly.Duration{Duration: 2 * time.Second},
 		GracePeriod:       &fly.Duration{Duration: 5 * time.Second},

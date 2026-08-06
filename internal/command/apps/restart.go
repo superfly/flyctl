@@ -74,6 +74,7 @@ func runRestart(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachinesRestart(ctx, app)
 }
 

@@ -40,6 +40,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 		for _, name := range appConfig.ProcessNames() {
 			if v, ok := guestPerGroup[name]; ok {
 				guest = v
+
 				break
 			}
 		}
@@ -61,6 +62,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 
 	defaults.volsizeByName = lo.Reduce(volumes, func(agg map[string]int, v fly.Volume, _ int) map[string]int {
 		agg[v.Name] = lo.Max([]int{agg[v.Name], v.SizeGb})
+
 		return agg
 	}, make(map[string]int))
 
@@ -79,6 +81,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 			},
 		)
 	}
+
 	return &defaults
 }
 
@@ -96,6 +99,7 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*fly.MachineConfig, e
 	mc.Mounts = lo.Map(mc.Mounts, func(mount fly.MachineMount, _ int) fly.MachineMount {
 		mount.SizeGb = lo.ValueOr(d.volsizeByName, mount.Name, d.volsize)
 		mount.Encrypted = true
+
 		return mount
 	})
 	mc.Metadata[fly.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
@@ -115,20 +119,27 @@ func (d *defaultValues) PopAvailableVolumes(mConfig *fly.MachineConfig, region s
 	if len(availableVolumes) > 0 {
 		d.existingVolumes[name][region] = lo.Drop(regionVolumes, len(availableVolumes))
 	}
+
 	return availableVolumes
 }
 
-func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region string, delta int) *fly.CreateVolumeRequest {
+func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region string, delta int, existingMachineCount int) *fly.CreateVolumeRequest {
 	if len(mConfig.Mounts) == 0 || delta <= 0 {
 		return nil
 	}
 	mount := mConfig.Mounts[0]
+
+	// Enable RequireUniqueZone for HA scenarios (when total machines in region > 1)
+	// This ensures volumes (and their attached machines) are distributed across different hosts
+	totalMachinesInRegion := existingMachineCount + delta
+	requireUniqueZone := totalMachinesInRegion > 1
+
 	return &fly.CreateVolumeRequest{
 		Name:                mount.Name,
 		Region:              region,
 		SizeGb:              &mount.SizeGb,
-		Encrypted:           fly.Pointer(mount.Encrypted),
-		RequireUniqueZone:   fly.Pointer(false),
+		Encrypted:           new(mount.Encrypted),
+		RequireUniqueZone:   new(requireUniqueZone),
 		SnapshotID:          d.snapshotID,
 		ComputeRequirements: mConfig.Guest,
 		ComputeImage:        mConfig.Image,

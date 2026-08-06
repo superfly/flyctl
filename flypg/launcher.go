@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/ssh"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -211,8 +212,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		volInput := fly.CreateVolumeRequest{
 			Name:                volumeName,
-			Encrypted:           fly.Pointer(true),
-			RequireUniqueZone:   fly.Pointer(true),
+			Encrypted:           new(true),
+			RequireUniqueZone:   new(true),
 			SnapshotID:          snapshot,
 			ComputeRequirements: machineConf.Guest,
 			ComputeImage:        machineConf.Image,
@@ -344,22 +345,22 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 
 	machineConfig.Checks = map[string]fly.MachineCheck{
 		"pg": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathPg,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"role": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathRole,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"vm": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathVm,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
@@ -389,33 +390,27 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 
 func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*fly.AppCompact, error) {
 	fmt.Println("Creating app...")
-	appInput := fly.CreateAppInput{
-		OrganizationID:  config.Organization.ID,
-		Name:            config.AppName,
-		PreferredRegion: &config.Region,
-		AppRoleID:       "postgres_cluster",
-	}
-
-	app, err := l.client.CreateApp(ctx, appInput)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Org:       config.Organization.Slug,
+		Name:      config.AppName,
+		AppRoleID: "postgres_cluster",
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	f := flapsutil.ClientFromContext(ctx)
-	if err := f.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
 	return &fly.AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
 		Organization: &fly.OrganizationBasic{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
+			ID:   config.Organization.ID,
+			Slug: config.Organization.Slug,
 		},
 	}, nil
 }
@@ -499,6 +494,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 	}
 
 	err = appsecrets.Update(ctx, flapsClient, config.AppName, secrets, nil)
+
 	return secrets, err
 }
 

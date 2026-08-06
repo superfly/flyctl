@@ -22,5 +22,6 @@ func makeToken(ctx context.Context, name, orgID, expiry, profile string, options
 	if err != nil {
 		return nil, fmt.Errorf("failed creating token: %w", err)
 	}
+
 	return resp, nil
 }

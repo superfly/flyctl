@@ -22,6 +22,7 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, ipType st
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
+
 	return nil
 }
 
@@ -118,6 +119,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 	}
 
 	fmt.Fprintln(md.io.Out)
+
 	return nil
 }
 
@@ -151,6 +153,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		for _, m := range groupConfig.Mounts {
 			if v := existentVolumes[m.Source]; v > 0 {
 				existentVolumes[m.Source]--
+
 				continue
 			}
 
@@ -177,8 +180,8 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			input := fly.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              fly.Pointer(initialSize),
-				Encrypted:           fly.Pointer(true),
+				SizeGb:              new(initialSize),
+				Encrypted:           new(true),
 				ComputeRequirements: guest,
 				ComputeImage:        md.img,
 				SnapshotRetention:   m.SnapshotRetention,
@@ -193,5 +196,6 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			md.volumes[m.Source] = append(md.volumes[m.Source], *vol)
 		}
 	}
+
 	return nil
 }

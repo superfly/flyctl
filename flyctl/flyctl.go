@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 
 	"github.com/spf13/viper"
 	fly "github.com/superfly/fly-go"
@@ -22,6 +23,7 @@ func InitConfig() {
 	dir, err := helpers.GetConfigDirectory()
 	if err != nil {
 		fmt.Println("Error accessing home directory", err)
+
 		return
 	}
 
@@ -30,6 +32,7 @@ func InitConfig() {
 			fmt.Sprintf("Error accessing config directory at %s", dir),
 			err,
 		)
+
 		return
 	}
 
@@ -100,6 +103,7 @@ func loadConfig() error {
 	err := viper.ReadInConfig()
 	if err == nil {
 		terminal.Debug("Loaded flyctl config from", viper.ConfigFileUsed())
+
 		return nil
 	}
 
@@ -109,6 +113,7 @@ func loadConfig() error {
 				terminal.Debug("error writing flyctl config", err)
 			}
 		}
+
 		return nil
 	}
 
@@ -118,7 +123,7 @@ func loadConfig() error {
 var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigAppSecretsMinvers, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
 func saveConfig() error {
-	out := map[string]interface{}{}
+	out := map[string]any{}
 
 	for key, val := range viper.AllSettings() {
 		if persistConfigKey(key) {
@@ -139,13 +144,7 @@ func persistConfigKey(key string) bool {
 		return true
 	}
 
-	for _, k := range writeableConfigKeys {
-		if k == key {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(writeableConfigKeys, key)
 }
 
 func migrateLegacyConfig() bool {

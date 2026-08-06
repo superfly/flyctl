@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
@@ -11,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -44,14 +47,15 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, config, appConfig.ConfigFilePath())
+		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, dockerfileurl.ForDisplay(config), appConfig.ConfigFilePath())
 	}
+
 	return nil
 }
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -124,11 +128,13 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		daemonType, client, appConfig.AppName, io,
 		useWG, recreateBuilder,
 		imgsrc.WithProvisioner(provisioner),
+		imgsrc.WithDockerfileMaterializer(dockerfileMaterializer),
 	)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to fetch image ref")
+
 		return
 	}
 
@@ -146,10 +152,20 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		img, err = resolver.ResolveReference(ctx, io, opts)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
-			return
+			if trigger := os.Getenv("DEPLOY_TRIGGER"); trigger == "" {
+				return
+			} else {
+				img = &imgsrc.DeploymentImage{
+					ID:  imageRef,
+					Tag: imageRef,
+				}
+				terminal.Debugf("Failed to resolve reference for prebuilt docker image, using imageRef %s: %v\n", img.String(), err)
+				err = nil
+			}
 		}
 
 		span.AddEvent("using pre-built docker image")
+
 		return
 	}
 
@@ -175,8 +191,8 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
 	}
 
-	if appConfig.Experimental != nil {
-		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+	if appConfig.Experimental != nil && appConfig.Experimental.LazyLoadImages {
+		terminal.Warnf("[experimental] lazy_load_images is no longer supported (the overlaybd platform feature was removed May 2025). Remove it from fly.toml.\n")
 	}
 
 	// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
@@ -187,6 +203,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to generate cliBuildSecrets")
+
 		return
 	}
 
@@ -198,6 +215,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to parse labels")
+
 		return
 	}
 	if env.IS_GH_ACTION() {
@@ -213,6 +231,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		tracing.RecordError(span, err, "failed to merge build args")
+
 		return
 	}
 
@@ -220,11 +239,13 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveDockerfilePath")
+
 		return
 	}
 
 	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
+
 		return
 	}
 
@@ -241,6 +262,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		tracing.RecordError(span, err, "failed to start heartbeat")
+
 		return nil, err
 	}
 	defer heartbeat.Stop()
@@ -265,22 +287,28 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
-// resolveDockerfilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
+// resolveDockerfilePath returns HTTP(S) URLs from app config unchanged and
+// makes local Dockerfile paths absolute.
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
 	if path = appConfig.Dockerfile(); path != "" {
+		if dockerfileurl.IsURL(path) {
+			return path, nil
+		}
+		if dockerfileurl.LooksLikeURL(path) {
+			return "", errors.New("invalid Dockerfile URL")
+		}
+
 		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-	} else {
-		path = flag.GetString(ctx, "dockerfile")
+
+		return filepath.Abs(path)
 	}
 
-	return
+	path = flag.GetString(ctx, "dockerfile")
+	if path == "" {
+		return path, nil
+	}
+
+	return filepath.Abs(path)
 }
 
 // resolveIgnorefilePath returns the absolute path to the Dockerfile
@@ -312,9 +340,8 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 		return nil, fmt.Errorf("invalid build args: %w", err)
 	}
 
-	for k, v := range cliBuildArgs {
-		args[k] = v
-	}
+	maps.Copy(args, cliBuildArgs)
+
 	return args, nil
 }
 

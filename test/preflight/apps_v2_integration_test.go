@@ -84,12 +84,12 @@ func TestAppsV2Example(t *testing.T) {
 ENV BUILT_BY_DOCKERFILE=true
 `
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
-	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0o644)
 	if err != nil {
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
-	f.Fly("deploy --detach")
+	f.Fly("deploy --buildkit --remote-only --detach")
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
@@ -109,10 +109,10 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	newConfigFile := strings.Replace(string(configFileBytes), `FOO = 'BAR'`, `BAR = "QUX"`, 1)
 	require.Contains(f, newConfigFile, `BAR = "QUX"`)
 
-	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
+	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0o666)
 	require.NoError(t, err)
 
-	f.Fly("deploy --detach")
+	f.Fly("deploy --buildkit --remote-only --detach")
 
 	result := f.Fly("config show -a %s", appName)
 	require.Contains(f, result.StdOutString(), `"internal_port": 80`)
@@ -128,9 +128,9 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 	appName := f.CreateRandomAppMachines()
 	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
-	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
-	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
-	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName, f.PrimaryRegion())
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName, f.PrimaryRegion())
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx tail -F /dev/null", appName, f.PrimaryRegion())
 	f.Fly("m list -a %s", appName)
 	result := f.Fly("config save -a %s", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
@@ -151,7 +151,7 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 	appName := f.CreateRandomAppMachines()
 	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
-	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
+	f.Fly("m run -a %s -r %s --env ENV=preflight --  nginx tail -F /dev/null", appName, f.PrimaryRegion())
 	if _, err := os.Stat(configFilePath); !errors.Is(err, os.ErrNotExist) {
 		f.Fatalf("config file exists at %s :-(", configFilePath)
 	}
@@ -177,7 +177,7 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 	  auto_rollback = true
 	`
 
-	err := os.WriteFile(configFilePath, []byte(config), 0644)
+	err := os.WriteFile(configFilePath, []byte(config), 0o644)
 	require.NoError(t, err, "error trying to write %s", configFilePath)
 
 	result := f.Fly("launch --no-deploy --ha=false --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
@@ -208,9 +208,9 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 
 	deployToml := func(toml string) *testlib.FlyctlResult {
 		toml = "app = \"" + appName + "\"\n" + toml
-		err := os.WriteFile(configFilePath, []byte(toml), 0666)
+		err := os.WriteFile(configFilePath, []byte(toml), 0o666)
 		require.NoError(t, err, "error trying to write %s", configFilePath)
-		cmd := f.Fly("deploy --detach --now --image nginx --ha=false")
+		cmd := f.Fly("deploy --buildkit --remote-only --detach --now --image nginx --ha=false")
 		cmd.AssertSuccessfulExit()
 		return cmd
 	}
@@ -252,10 +252,8 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 
 	deployOut := deployToml(`
 [[services]]
-  http_checks = []
   internal_port = 8080
   protocol = "tcp"
-  script_checks = []
 
 		[[services.ports]]
 		port = 80
@@ -279,10 +277,8 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 
 [[services]]
   processes = ["web"] # this service only applies to the web process
-  http_checks = []
   internal_port = 8080
   protocol = "tcp"
-  script_checks = []
 
 		[[services.ports]]
 		port = 80
@@ -320,6 +316,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	if len(f.OtherRegions()) > 0 {
 		secondaryRegion = f.OtherRegions()[0]
 	}
+
 	f.Fly("m clone %s --region %s", barWebMachId, secondaryRegion)
 	f.Fly("machine update %s -m ABCD=EFGH -y", webMachId).AssertSuccessfulExit()
 
@@ -346,6 +343,11 @@ web = "nginx -g 'daemon off;'"
 	expectMachinesInGroups(machines, map[string]int{
 		"web": 1,
 	})
+
+	// The deploy above ran with --detach, so the web machine may still be
+	// replacing. Wait for it to settle before issuing another update, otherwise
+	// flaps rejects it with "machine is replacing: concurrent update in progress".
+	f.Fly("machine wait %s --state settled", webMachId).AssertSuccessfulExit()
 
 	// Step 5: Set secrets, to ensure that machine data is kept during a 'restartOnly' deploy.
 	f.Fly("machine update %s -m CUSTOM=META -y", webMachId).AssertSuccessfulExit()
@@ -444,8 +446,18 @@ func testDeployDetach(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
+	ml := f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m := ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started")
+
+	ml = f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m = ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started")
@@ -458,8 +470,18 @@ func testDeployDetachBatching(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("scale count 6 --yes")
 
+	ml := f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m := ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
+
+	ml = f.MachinesList(appName)
+	require.GreaterOrEqual(f, len(ml), 1)
+	m = ml[0]
+	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started", false)
@@ -512,13 +534,13 @@ func TestImageLabel(t *testing.T) {
 ENV BUILT_BY_DOCKERFILE=true
 `
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
-	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0o644)
 	if err != nil {
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
-	f.Fly("deploy --label Z=ZZZ -a %s", appName)
+	f.Fly("deploy --buildkit --remote-only --label Z=ZZZ -a %s", appName)
 	res := f.Fly("image show -a %s --json", appName)
 
 	var machineImages []map[string]string

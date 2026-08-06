@@ -10,7 +10,7 @@ repos:
       - id: check-added-large-files
 
   - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v1.0.0-rc.2
+    rev: v1.0.0-rc.4
     hooks:
       - id: go-mod-tidy
 
@@ -18,7 +18,10 @@ repos:
   # because goalngci-lint github action is much more useful than the pre-commit action.
   # The trick is to run github action only for "manual" hook stage
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.5.0
+    rev: v2.11.3
     hooks:
       - id: golangci-lint
         stages: [pre-commit]
+        args:
+          - --max-issues-per-linter=0
+          - --max-same-issues=0

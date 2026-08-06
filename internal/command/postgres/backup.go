@@ -364,6 +364,7 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Backups enabled. Run `fly secrets deploy -a %s` to restart the cluster with the new configuration.\n", appName)
+
 	return nil
 }
 

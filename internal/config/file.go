@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,7 +30,7 @@ func ReadAccessToken(path string) (string, error) {
 // SetAccessToken sets the value of the access token at the configuration file
 // found at path.
 func SetAccessToken(path, token string) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		AccessTokenFileKey: token,
 	})
 }
@@ -37,7 +38,7 @@ func SetAccessToken(path, token string) error {
 // SetLastLogin sets the last login timestamp at the configuration file
 // found at path.
 func SetLastLogin(path string, timestamp time.Time) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		LastLoginFileKey: timestamp,
 	})
 }
@@ -45,7 +46,7 @@ func SetLastLogin(path string, timestamp time.Time) error {
 // SetMetricsToken sets the value of the metrics token at the configuration file
 // found at path.
 func SetMetricsToken(path, token string) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		MetricsTokenFileKey: token,
 	})
 }
@@ -53,7 +54,7 @@ func SetMetricsToken(path, token string) error {
 // SetSendMetrics sets the value of the send metrics flag at the configuration file
 // found at path.
 func SetSendMetrics(path string, sendMetrics bool) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		SendMetricsFileKey: sendMetrics,
 	})
 }
@@ -61,7 +62,7 @@ func SetSendMetrics(path string, sendMetrics bool) error {
 // SetSyntheticsAgent sets the value of the synthetics agent flag at the configuration file
 // found at path.
 func SetSyntheticsAgent(path string, syntheticsAgent bool) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		SyntheticsAgentFileKey: syntheticsAgent,
 	})
 }
@@ -69,19 +70,19 @@ func SetSyntheticsAgent(path string, syntheticsAgent bool) error {
 // SetAutoUpdate sets the value of the autoupdate flag at the configuration file
 // found at path.
 func SetAutoUpdate(path string, autoUpdate bool) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		AutoUpdateFileKey: autoUpdate,
 	})
 }
 
 func SetWireGuardState(path string, state wg.States) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		WireGuardStateFileKey: state,
 	})
 }
 
 func SetWireGuardWebsocketsEnabled(path string, enabled bool) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		WireGuardWebsocketsFileKey: enabled,
 	})
 }
@@ -89,7 +90,7 @@ func SetWireGuardWebsocketsEnabled(path string, enabled bool) error {
 type AppSecretsMinvers map[string]uint64
 
 func SetAppSecretsMinvers(path string, minvers AppSecretsMinvers) error {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		AppSecretsMinverFileKey: minvers,
 	})
 }
@@ -97,17 +98,17 @@ func SetAppSecretsMinvers(path string, minvers AppSecretsMinvers) error {
 // Clear clears the access token, metrics token, last login timestamp, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {
-	return set(path, map[string]interface{}{
+	return set(path, map[string]any{
 		AccessTokenFileKey:      "",
 		MetricsTokenFileKey:     "",
 		LastLoginFileKey:        time.Time{}, // Zero value for time.Time
-		WireGuardStateFileKey:   map[string]interface{}{},
+		WireGuardStateFileKey:   map[string]any{},
 		AppSecretsMinverFileKey: AppSecretsMinvers{},
 	})
 }
 
-func set(path string, vals map[string]interface{}) error {
-	m := make(map[string]interface{})
+func set(path string, vals map[string]any) error {
+	m := make(map[string]any)
 
 	switch err := unmarshal(path, &m); {
 	case err == nil, os.IsNotExist(err):
@@ -116,9 +117,7 @@ func set(path string, vals map[string]interface{}) error {
 		return err
 	}
 
-	for k, v := range vals {
-		m[k] = v
-	}
+	maps.Copy(m, vals)
 
 	return marshal(path, m)
 }
@@ -127,7 +126,7 @@ func lockPath() string {
 	return filepath.Join(flyctl.ConfigDir(), "flyctl.config.lock")
 }
 
-func unmarshal(path string, v interface{}) (err error) {
+func unmarshal(path string, v any) (err error) {
 	var unlock filemu.UnlockFunc
 	if unlock, err = filemu.RLock(context.Background(), lockPath()); err != nil {
 		return
@@ -143,7 +142,7 @@ func unmarshal(path string, v interface{}) (err error) {
 	return
 }
 
-func unmarshalUnlocked(path string, v interface{}) (err error) {
+func unmarshalUnlocked(path string, v any) (err error) {
 	var f *os.File
 	if f, err = os.Open(path); err != nil {
 		return
@@ -162,7 +161,7 @@ func unmarshalUnlocked(path string, v interface{}) (err error) {
 	return
 }
 
-func marshal(path string, v interface{}) (err error) {
+func marshal(path string, v any) (err error) {
 	var unlock filemu.UnlockFunc
 	if unlock, err = filemu.Lock(context.Background(), lockPath()); err != nil {
 		return
@@ -178,7 +177,7 @@ func marshal(path string, v interface{}) (err error) {
 	return
 }
 
-func marshalUnlocked(path string, v interface{}) (err error) {
+func marshalUnlocked(path string, v any) (err error) {
 	var b bytes.Buffer
 	if err = yaml.NewEncoder(&b).Encode(v); err == nil {
 		// TODO: os.WriteFile does not flush

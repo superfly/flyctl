@@ -42,6 +42,7 @@ func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, er
 	hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
 
 	name := fmt.Sprintf("%s-%s-%s", hostSlug, emailSlug, ulid.Make())
+
 	return name, nil
 }
 

@@ -309,7 +309,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Restart policy for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"no", "always", "on-fail"},
+				Enum:        []string{"no", "always", "on-failure"},
 			},
 			"rm": {
 				Description: "Automatically remove the Machine when it exits",
@@ -320,7 +320,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Schedule for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"hourly", "daily", "monthly"},
+				Enum:        []string{"hourly", "daily", "weekly", "monthly"},
 			},
 			"skip-dns-registration": {
 				Description: "Skip DNS registration for the new machine",
@@ -986,7 +986,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Restart policy for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"no", "always", "on-fail"},
+				Enum:        []string{"no", "always", "on-failure"},
 			},
 			"rm": {
 				Description: "Automatically remove the Machine when it exits",
@@ -997,7 +997,7 @@ var MachineCommands = []FlyCommand{
 				Description: "Schedule for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"hourly", "daily", "monthly"},
+				Enum:        []string{"hourly", "daily", "weekly", "monthly"},
 			},
 			"skip-dns-registration": {
 				Description: "Skip DNS registration for the new machine",
@@ -1482,13 +1482,13 @@ var MachineCommands = []FlyCommand{
 				Description: "Restart policy for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"no", "always", "on-fail"},
+				Enum:        []string{"no", "always", "on-failure"},
 			},
 			"schedule": {
 				Description: "Schedule for the new machine",
 				Required:    false,
 				Type:        "enum",
-				Enum:        []string{"hourly", "daily", "monthly"},
+				Enum:        []string{"hourly", "daily", "weekly", "monthly"},
 			},
 			"skip-dns-registration": {
 				Description: "Skip DNS registration for the new machine",

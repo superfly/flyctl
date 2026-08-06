@@ -20,11 +20,10 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 	switch provider := launchPlan.Postgres.Provider().(type) {
 	case *plan.FlyPostgresPlan:
 		return describeFlyPostgresPlan(provider)
-	case *plan.SupabasePostgresPlan:
-		return describeSupabasePostgresPlan(provider, launchPlan)
 	case *plan.ManagedPostgresPlan:
 		return describeManagedPostgresPlan(provider, launchPlan)
 	}
+
 	return descriptionNone, nil
 }
 
@@ -48,27 +47,24 @@ func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
 	return strings.Join(info, ", "), nil
 }
 
-func describeSupabasePostgresPlan(p *plan.SupabasePostgresPlan, launchPlan *plan.LaunchPlan) (string, error) {
-
-	return fmt.Sprintf("(Supabase) %s in %s", p.GetDbName(launchPlan), p.GetRegion(launchPlan)), nil
-}
-
 func describeRedisPlan(ctx context.Context, p plan.RedisPlan) (string, error) {
 
 	switch provider := p.Provider().(type) {
 	case *plan.UpstashRedisPlan:
 		return describeUpstashRedisPlan(ctx, provider)
 	}
+
 	return descriptionNone, nil
 }
 
 func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan) (string, error) {
-	plan, err := redis.DeterminePlan(ctx)
+	plan, err := redis.DeterminePlan(ctx, "")
 	if err != nil {
 		return "<plan not found, this is an error>", fmt.Errorf("redis plan not found: %w", err)
 	}
 
 	evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
+
 	return fmt.Sprintf("%s Plan: %s Max Data Size, eviction %s", plan.DisplayName, plan.MaxDataSize, evictionStatus), nil
 }
 

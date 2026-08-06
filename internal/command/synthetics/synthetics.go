@@ -17,6 +17,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		newAgent(),
 	)
+
 	return cmd
 }
 
@@ -29,6 +30,7 @@ func newAgent() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -38,5 +40,6 @@ func runAgent(ctx context.Context) (err error) {
 		return err
 	}
 	<-ctx.Done()
+
 	return ctx.Err()
 }

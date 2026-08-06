@@ -11,5 +11,6 @@ func New() *cobra.Command {
 	cmd := apps.NewOpen()
 	cmd.Deprecated = "use `fly apps open` instead"
 	cmd.Hidden = true
+
 	return cmd
 }

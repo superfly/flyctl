@@ -154,13 +154,13 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		InternalPort: 8080,
 		Ports: []fly.MachinePort{
 			{
-				Port: fly.Pointer(80),
+				Port: new(80),
 				TLSOptions: &fly.TLSOptions{
 					ALPN:     []string{"h2", "http/1.1"},
 					Versions: []string{"TLSv1.2", "TLSv1.3"},
 				},
 				HTTPOptions: &fly.HTTPOptions{
-					Compress: fly.Pointer(true),
+					Compress: new(true),
 					Response: &fly.HTTPResponseOptions{
 						Headers: map[string]any{
 							"fly-request-id": false,
@@ -171,7 +171,7 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 				},
 			},
 			{
-				Port:     fly.Pointer(82),
+				Port:     new(82),
 				Handlers: []string{"proxy_proto"},
 				ProxyProtoOptions: &fly.ProxyProtoOptions{
 					Version: "v2",
@@ -277,7 +277,7 @@ func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
 			Source:            "data",
 			Destination:       "/data",
 			InitialSize:       "200",
-			SnapshotRetention: fly.Pointer(10),
+			SnapshotRetention: new(10),
 		}},
 	}, cfg)
 }
@@ -326,7 +326,7 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 				AutoStopMachines: fly.Pointer(fly.MachineAutostopOff),
 				Ports: []fly.MachinePort{
 					{
-						Port:     fly.Pointer(80),
+						Port:     new(80),
 						Handlers: []string{"http"},
 					},
 				},
@@ -392,9 +392,9 @@ func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 		AppName:          "foo",
 		Checks: map[string]*ToplevelCheck{
 			"pg": {
-				Port:     fly.Pointer(5500),
-				Type:     fly.Pointer("http"),
-				HTTPPath: fly.Pointer("/flycheck/pg"),
+				Port:     new(5500),
+				Type:     new("http"),
+				HTTPPath: new("/flycheck/pg"),
 			},
 		},
 	}, cfg)
@@ -409,9 +409,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		configFilePath:   "./testdata/full-reference.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		KillSignal:       fly.Pointer("SIGTERM"),
+		KillSignal:       new("SIGTERM"),
 		KillTimeout:      fly.MustParseDuration("3s"),
-		SwapSizeMB:       fly.Pointer(512),
+		SwapSizeMB:       new(512),
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
 		HostDedicationID: "06031957",
@@ -474,7 +474,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Deploy: &Deploy{
 			Strategy:              "rolling-eyes",
-			MaxUnavailable:        fly.Pointer(0.2),
+			MaxUnavailable:        new(0.2),
 			ReleaseCommand:        "release command",
 			ReleaseCommandTimeout: fly.MustParseDuration("3m"),
 			ReleaseCommandCompute: &Compute{
@@ -506,9 +506,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		HTTPService: &HTTPService{
 			InternalPort:       8080,
 			ForceHTTPS:         true,
-			AutoStartMachines:  fly.Pointer(false),
+			AutoStartMachines:  new(false),
 			AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
-			MinMachinesRunning: fly.Pointer(0),
+			MinMachinesRunning: new(0),
 			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "donuts",
 				HardLimit: 10,
@@ -517,10 +517,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			TLSOptions: &fly.TLSOptions{
 				ALPN:              []string{"h2", "http/1.1"},
 				Versions:          []string{"TLSv1.2", "TLSv1.3"},
-				DefaultSelfSigned: fly.Pointer(false),
+				DefaultSelfSigned: new(false),
 			},
 			HTTPOptions: &fly.HTTPOptions{
-				Compress:    fly.Pointer(true),
+				Compress:    new(true),
 				IdleTimeout: UintPointer(600),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
@@ -535,11 +535,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					Interval:          fly.MustParseDuration("81s"),
 					Timeout:           fly.MustParseDuration("7s"),
 					GracePeriod:       fly.MustParseDuration("2s"),
-					HTTPMethod:        fly.Pointer("GET"),
-					HTTPPath:          fly.Pointer("/"),
-					HTTPProtocol:      fly.Pointer("https"),
-					HTTPTLSSkipVerify: fly.Pointer(true),
-					HTTPTLSServerName: fly.Pointer("sni2.com"),
+					HTTPMethod:        new("GET"),
+					HTTPPath:          new("/"),
+					HTTPProtocol:      new("https"),
+					HTTPTLSSkipVerify: new(true),
+					HTTPTLSServerName: new("sni2.com"),
 					HTTPHeaders: map[string]string{
 						"My-Custom-Header": "whatever",
 					},
@@ -550,7 +550,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					Command:     []string{"curl", "https://fly.io"},
 					Entrypoint:  []string{"/bin/sh"},
 					Image:       "curlimages/curl",
-					KillSignal:  fly.StringPointer("SIGKILL"),
+					KillSignal:  new("SIGKILL"),
 					KillTimeout: fly.MustParseDuration("5s"),
 				},
 			},
@@ -561,7 +561,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Command:     []string{"curl", "https://fly.io"},
 				Entrypoint:  []string{"/bin/sh"},
 				Image:       "curlimages/curl",
-				KillSignal:  fly.StringPointer("SIGKILL"),
+				KillSignal:  new("SIGKILL"),
 				KillTimeout: fly.MustParseDuration("5s"),
 			},
 		},
@@ -595,8 +595,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			Source:             "data",
 			Destination:        "/data",
 			InitialSize:        "30gb",
-			SnapshotRetention:  fly.Pointer(17),
-			ScheduledSnapshots: fly.BoolPointer(true),
+			SnapshotRetention:  new(17),
+			ScheduledSnapshots: new(true),
 		}},
 
 		Processes: map[string]string{
@@ -606,16 +606,16 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Checks: map[string]*ToplevelCheck{
 			"status": {
-				Port:              fly.Pointer(2020),
-				Type:              fly.Pointer("http"),
+				Port:              new(2020),
+				Type:              new("http"),
 				Interval:          fly.MustParseDuration("10s"),
 				Timeout:           fly.MustParseDuration("2s"),
 				GracePeriod:       fly.MustParseDuration("27s"),
-				HTTPMethod:        fly.Pointer("GET"),
-				HTTPPath:          fly.Pointer("/status"),
-				HTTPProtocol:      fly.Pointer("https"),
-				HTTPTLSSkipVerify: fly.Pointer(true),
-				HTTPTLSServerName: fly.Pointer("sni3.com"),
+				HTTPMethod:        new("GET"),
+				HTTPPath:          new("/status"),
+				HTTPProtocol:      new("https"),
+				HTTPTLSSkipVerify: new(true),
+				HTTPTLSServerName: new("sni3.com"),
 				HTTPHeaders: map[string]string{
 					"Content-Type":  "application/json",
 					"Authorization": "super-duper-secret",
@@ -628,9 +628,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				InternalPort:       8081,
 				Protocol:           "tcp",
 				Processes:          []string{"app"},
-				AutoStartMachines:  fly.Pointer(false),
+				AutoStartMachines:  new(false),
 				AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
-				MinMachinesRunning: fly.Pointer(1),
+				MinMachinesRunning: new(1),
 
 				Concurrency: &fly.MachineServiceConcurrency{
 					Type:      "requests",
@@ -640,9 +640,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				Ports: []fly.MachinePort{
 					{
-						Port:       fly.Pointer(80),
-						StartPort:  fly.Pointer(100),
-						EndPort:    fly.Pointer(200),
+						Port:       new(80),
+						StartPort:  new(100),
+						EndPort:    new(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
 						HTTPOptions: &fly.HTTPOptions{
@@ -664,11 +664,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						Interval:          fly.MustParseDuration("81s"),
 						Timeout:           fly.MustParseDuration("7s"),
 						GracePeriod:       fly.MustParseDuration("2s"),
-						HTTPMethod:        fly.Pointer("GET"),
-						HTTPPath:          fly.Pointer("/"),
-						HTTPProtocol:      fly.Pointer("https"),
-						HTTPTLSSkipVerify: fly.Pointer(true),
-						HTTPTLSServerName: fly.Pointer("sni.com"),
+						HTTPMethod:        new("GET"),
+						HTTPPath:          new("/"),
+						HTTPProtocol:      new("https"),
+						HTTPTLSSkipVerify: new(true),
+						HTTPTLSServerName: new("sni.com"),
 						HTTPHeaders: map[string]string{
 							"My-Custom-Header": "whatever",
 						},
@@ -676,8 +676,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					{
 						Interval:   fly.MustParseDuration("33s"),
 						Timeout:    fly.MustParseDuration("10s"),
-						HTTPMethod: fly.Pointer("POST"),
-						HTTPPath:   fly.Pointer("/check2"),
+						HTTPMethod: new("POST"),
+						HTTPPath:   new("/check2"),
 					},
 				},
 				MachineChecks: []*ServiceMachineCheck{
@@ -685,7 +685,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						Command:     []string{"curl", "https://fly.io"},
 						Entrypoint:  []string{"/bin/sh"},
 						Image:       "curlimages/curl",
-						KillSignal:  fly.StringPointer("SIGKILL"),
+						KillSignal:  new("SIGKILL"),
 						KillTimeout: fly.MustParseDuration("5s"),
 					},
 				},
@@ -780,6 +780,7 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
 }
 
+//go:fix inline
 func UintPointer(v uint32) *uint32 {
-	return &v
+	return new(v)
 }

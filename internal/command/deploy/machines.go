@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -178,6 +179,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to determine app config for machines")
+
 		return nil, err
 	}
 
@@ -185,6 +187,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
 		fmt.Fprint(io.ErrOut, extraInfo)
 		tracing.RecordError(span, err, "failed to validate process groups")
+
 		return nil, err
 	}
 
@@ -198,6 +201,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to split release command")
+
 			return nil, err
 		}
 	}
@@ -243,10 +247,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
-	maxConcurrent := args.MaxConcurrent
-	if maxConcurrent < 1 {
-		maxConcurrent = 1
-	}
+	maxConcurrent := max(args.MaxConcurrent, 1)
 
 	md := &machineDeployment{
 		apiClient:             apiClient,
@@ -284,43 +285,52 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
+
 		return nil, err
 	}
 
 	if err := md.setMachinesForDeployment(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set machines for first deployemt")
+
 		return nil, err
 	}
 	if err := md.setVolumes(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set volumes")
+
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set img")
+
 		return nil, err
 	}
 	if err := md.setFirstDeploy(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set first depoyment")
+
 		return nil, err
 	}
 
 	// Provisioning must come after setVolumes
 	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
 		tracing.RecordError(span, err, "failed to provision first depoloy")
+
 		return nil, err
 	}
 
 	// validations must happen after every else
-	if err := md.validateVolumeConfig(); err != nil {
+	if err := md.validateVolumeConfig(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to validate volume config")
+
 		return nil, err
 	}
 	if err = md.createReleaseInBackend(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to create release in backend")
+
 		return nil, err
 	}
 
 	span.SetAttributes(md.ToSpanAttributes()...)
+
 	return md, nil
 }
 
@@ -330,6 +340,7 @@ func (md *machineDeployment) setFirstDeploy(_ context.Context) error {
 	// This is not exaustive as the app could still be scaled down to zero but the
 	// workaround works better for now until it is fixed
 	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed() && md.machineSet.IsEmpty())
+
 	return nil
 }
 
@@ -340,67 +351,58 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list machines")
+
 		return err
+	}
+
+	var activeMachines []*fly.Machine
+	activeMachinesLoaded := false
+	loadActiveMachines := func() error {
+		if activeMachinesLoaded {
+			return nil
+		}
+
+		var err error
+		activeMachines, err = md.flapsClient.ListActive(ctx, md.app.Name)
+		if err != nil {
+			tracing.RecordError(span, err, "failed to list machines")
+
+			return err
+		}
+		activeMachinesLoaded = true
+
+		return nil
 	}
 
 	nMachines := len(machines)
 	if nMachines == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
-		activeMachines, err := md.flapsClient.ListActive(ctx, md.app.Name)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to list machines")
+		if err := loadActiveMachines(); err != nil {
 			return err
-		}
-		if len(activeMachines) > 0 {
-			fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
-			md.isFirstDeploy = true
 		}
 	}
 
 	filtersApplied := map[string]struct{}{}
 	machines = slices.DeleteFunc(machines, func(m *fly.Machine) bool {
-		if len(md.onlyRegions) > 0 {
-			filtersApplied["--regions"] = struct{}{}
-
-			if !md.onlyRegions[m.Region] {
-				return true
-			}
-		}
-
-		if len(md.excludeRegions) > 0 {
-			filtersApplied["--exclude-regions"] = struct{}{}
-
-			if md.excludeRegions[m.Region] {
-				return true
-			}
-		}
-
-		if len(md.onlyMachines) > 0 {
-			filtersApplied["--only-machines"] = struct{}{}
-
-			if !md.onlyMachines[m.ID] {
-				return true
-			}
-		}
-
-		if len(md.excludeMachines) > 0 {
-			filtersApplied["--exclude-machines"] = struct{}{}
-
-			if md.excludeMachines[m.ID] {
-				return true
-			}
-		}
-
-		if len(md.processGroups) > 0 {
-			filtersApplied["--process-groups"] = struct{}{}
-
-			if !md.processGroups[m.ProcessGroup()] {
-				return true
-			}
-		}
-
-		return false
+		return md.machineFilteredFromDeployment(m, filtersApplied)
 	})
+
+	if md.strategy == "bluegreen" && len(machines) == 0 {
+		if err := loadActiveMachines(); err != nil {
+			return err
+		}
+
+		if err := md.validateNoDetachedBluegreenMachines(activeMachines); err != nil {
+			tracing.RecordError(span, err, "failed to validate bluegreen machines")
+
+			return err
+		}
+	}
+
+	if nMachines == 0 && len(activeMachines) > 0 {
+		fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
+		md.isFirstDeploy = true
+	}
 
 	if len(filtersApplied) > 0 {
 		s := ""
@@ -431,7 +433,100 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		releaseCmdSet = []*fly.Machine{releaseCmdMachine}
 	}
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, releaseCmdSet, true)
+
 	return nil
+}
+
+func (md *machineDeployment) machineFilteredFromDeployment(m *fly.Machine, filtersApplied map[string]struct{}) bool {
+	return md.machineFilteredFromDeploymentByProcessGroup(m, filtersApplied, m.ProcessGroup())
+}
+
+func (md *machineDeployment) machineFilteredFromDeploymentByProcessGroup(m *fly.Machine, filtersApplied map[string]struct{}, processGroup string) bool {
+	if len(md.onlyRegions) > 0 {
+		filtersApplied["--regions"] = struct{}{}
+
+		if !md.onlyRegions[m.Region] {
+			return true
+		}
+	}
+
+	if len(md.excludeRegions) > 0 {
+		filtersApplied["--exclude-regions"] = struct{}{}
+
+		if md.excludeRegions[m.Region] {
+			return true
+		}
+	}
+
+	if len(md.onlyMachines) > 0 {
+		filtersApplied["--only-machines"] = struct{}{}
+
+		if !md.onlyMachines[m.ID] {
+			return true
+		}
+	}
+
+	if len(md.excludeMachines) > 0 {
+		filtersApplied["--exclude-machines"] = struct{}{}
+
+		if md.excludeMachines[m.ID] {
+			return true
+		}
+	}
+
+	if len(md.processGroups) > 0 {
+		filtersApplied["--process-groups"] = struct{}{}
+
+		if !md.processGroups[processGroup] {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (md *machineDeployment) machineProcessGroup(m *fly.Machine) string {
+	group := m.ProcessGroup()
+	if group != "" {
+		return group
+	}
+
+	return md.appConfig.DefaultProcessName()
+}
+
+func (md *machineDeployment) validateNoDetachedBluegreenMachines(activeMachines []*fly.Machine) error {
+	groupsInConfig := md.ProcessNames()
+	ignoredFilters := map[string]struct{}{}
+	var detachedMachines []string
+	for _, m := range activeMachines {
+		if m.IsFlyAppsPlatform() {
+			continue
+		}
+		group := md.machineProcessGroup(m)
+		if md.machineFilteredFromDeploymentByProcessGroup(m, ignoredFilters, group) {
+			continue
+		}
+
+		if !slices.Contains(groupsInConfig, group) {
+			continue
+		}
+
+		detachedMachines = append(detachedMachines, fmt.Sprintf("%s (%s)", m.ID, group))
+	}
+	if len(detachedMachines) == 0 {
+		return nil
+	}
+
+	slices.Sort(detachedMachines)
+
+	return fmt.Errorf(
+		"bluegreen deployment can't safely continue because active Machines outside Fly Launch management belong to configured process groups: %s. "+
+			"If these Machines should be managed by deploys, make sure they have %s=%s and the correct %s metadata; otherwise destroy or move them before using bluegreen",
+		strings.Join(detachedMachines, ", "),
+		fly.MachineConfigMetadataKeyFlyPlatformVersion,
+		fly.MachineFlyPlatformVersion2,
+		fly.MachineConfigMetadataKeyFlyProcessGroup,
+	)
 }
 
 func (md *machineDeployment) setVolumes(ctx context.Context) error {
@@ -451,6 +546,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
 		return v.Name
 	})
+
 	return nil
 }
 
@@ -459,13 +555,15 @@ func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
 	for idx, v := range volumes {
 		if region == "" || region == v.Region {
 			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
+
 			return &v
 		}
 	}
+
 	return nil
 }
 
-func (md *machineDeployment) validateVolumeConfig() error {
+func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 	machineGroups := lo.GroupBy(
 		lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *fly.Machine {
 			return lm.Machine()
@@ -494,13 +592,23 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			for _, m := range ms {
 				mConfig := m.GetConfig()
 				if mntDst == "" && len(mConfig.Mounts) != 0 {
-					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
-					// We should show a warning and ask the user for confirmation and let it happen instead of failing here.
-					return fmt.Errorf(
-						"machine %s [%s] has a volume mounted but app config does not specify a volume; "+
-							"remove the volume from the machine or add a [mounts] section to fly.toml",
-						m.ID, groupName,
-					)
+					msg := fmt.Sprintf("Warning! machine %s [%s] has a volume mounted but app config does not specify a volume.\nThis usually indicates a misconfiguration.", m.ID, groupName)
+					fmt.Fprintln(md.io.ErrOut, md.colorize.Red(msg))
+
+					switch confirmed, err := prompt.Confirm(ctx, "Do you still want to continue and detach the volume? This will replace the machine."); {
+					case err == nil:
+						if !confirmed {
+							return fmt.Errorf(
+								"deployment cancelled: machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+									"remove the volume from the machine or add a [mounts] section to fly.toml",
+								m.ID, groupName,
+							)
+						}
+					case prompt.IsNonInteractive(err):
+						return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+					default:
+						return err
+					}
 				}
 
 				if mntDst != "" && len(mConfig.Mounts) == 0 {
@@ -563,12 +671,15 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	latestImg, err := md.apiClient.LatestImage(ctx, md.app.Name)
 	if err == nil {
 		md.img = latestImg
+
 		return nil
 	}
 	if !md.machineSet.IsEmpty() {
 		md.img = md.machineSet.GetMachines()[0].Machine().Config.Image
+
 		return nil
 	}
+
 	return fmt.Errorf("could not find image to use for deployment; backend error was: %w", err)
 }
 
@@ -577,6 +688,7 @@ func (md *machineDeployment) setStrategy() error {
 	if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
 		md.strategy = md.appConfig.Deploy.Strategy
 	}
+
 	return nil
 }
 
@@ -593,10 +705,12 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
+
 		return err
 	}
 	md.releaseId = resp.ID
 	md.releaseVersion = resp.Version
+
 	return nil
 }
 
@@ -611,8 +725,10 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
+
 		return err
 	}
+
 	return nil
 }
 
@@ -678,6 +794,7 @@ func (md *machineDeployment) ProcessNames() (names []string) {
 			return !md.processGroups[name]
 		})
 	}
+
 	return
 }
 

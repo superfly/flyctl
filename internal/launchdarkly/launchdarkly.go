@@ -37,6 +37,7 @@ func ClientFromContext(ctx context.Context) *Client {
 	if client == nil {
 		return nil
 	}
+
 	return client.(*Client)
 }
 
@@ -46,6 +47,8 @@ type UserInfo struct {
 }
 
 func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
+	logger := logger.MaybeFromContext(ctx)
+
 	_, span := tracing.GetTracer().Start(ctx, "new_feature_flag_client")
 	defer span.End()
 
@@ -70,25 +73,35 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
-	_ = ldClient.updateFeatureFlags(timeoutCtx)
+	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
+		logger.Debugf("update feature flags failed: %s", err)
+	}
 
 	go ldClient.monitor(ctx)
+
 	return ldClient, nil
 }
 
 func NewServiceClient() (*Client, error) {
 	ctx := context.Background()
+	logger := logger.MaybeFromContext(ctx)
+
 	_, span := tracing.GetTracer().Start(ctx, "new_flyctl_feature_flag_client")
 	defer span.End()
 
-	ldClient := &Client{ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"), flagsMutex: sync.Mutex{}}
+	ldClient := &Client{
+		ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"),
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
-	_ = ldClient.updateFeatureFlags(timeoutCtx)
+	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
+		logger.Debugf("update feature flags failed: %s", err)
+	}
 
 	go ldClient.monitor(ctx)
+
 	return ldClient, nil
 }
 
@@ -119,8 +132,8 @@ func (ldClient *Client) GetFeatureFlagValue(key string, defaultValue any) any {
 		return flag.Value
 	}
 	span.SetAttributes(attribute.Bool("default_flag", true))
-	return defaultValue
 
+	return defaultValue
 }
 
 type FeatureFlag struct {
@@ -142,12 +155,14 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		span.RecordError(err)
+
 		return err
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		span.RecordError(err)
+
 		return err
 	}
 	defer response.Body.Close()
@@ -155,11 +170,13 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	var flags map[string]FeatureFlag
 	if err := json.NewDecoder(response.Body).Decode(&flags); err != nil {
 		span.RecordError(err)
+
 		return err
 	}
 
 	if flags == nil {
 		span.AddEvent("no flags returned")
+
 		return nil
 	}
 
@@ -167,18 +184,21 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 		switch flagInfo.Value.(type) {
 		case bool:
 			attr := attribute.Bool(flag, flagInfo.Value.(bool))
+
 			return &attr
 		case string:
 			attr := attribute.String(flag, flagInfo.Value.(string))
+
 			return &attr
 		case float64:
 			attr := attribute.Float64(flag, flagInfo.Value.(float64))
+
 			return &attr
 		default:
 			span.AddEvent(fmt.Sprintf("unaccounted for flag type: %s", reflect.TypeOf(flagInfo.Value)))
+
 			return nil
 		}
-
 	})
 
 	for _, flagAttribute := range flagAttributes {
@@ -196,11 +216,13 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 
 func (ldClient *Client) ManagedPostgresEnabled() bool {
 	choice := ldClient.getLaunchPostgresChoiceFlag()
+
 	return choice == "mpg" || choice == "both"
 }
 
 func (ldClient *Client) UnmanagedPostgresEnabled() bool {
 	choice := ldClient.getLaunchPostgresChoiceFlag()
+
 	return choice == "unmanaged-pg" || choice == "both"
 }
 

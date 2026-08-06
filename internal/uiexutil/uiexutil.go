@@ -16,5 +16,6 @@ func NewClientWithOptions(ctx context.Context, opts uiex.NewClientOpts) (*uiex.C
 	if v := logger.MaybeFromContext(ctx); v != nil && opts.Logger == nil {
 		opts.Logger = v
 	}
+
 	return uiex.NewWithOptions(ctx, opts)
 }

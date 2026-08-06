@@ -8,7 +8,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"golang.org/x/mod/semver"
+
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -24,7 +27,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, nil
 	}
 
-	var packageJson map[string]interface{}
+	var packageJson map[string]any
 	err = json.Unmarshal(data, &packageJson)
 	if err != nil {
 		return nil, nil
@@ -47,7 +50,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		s.Family += "/Prisma"
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 
 	var yarnVersion = "latest"
 
@@ -59,13 +62,18 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	out, err := exec.Command("node", "-v").Output()
 
 	if err == nil {
-		nodeVersion = strings.TrimSpace(string(out))
-		if nodeVersion[:1] == "v" {
-			nodeVersion = nodeVersion[1:]
+		versionWithV := strings.TrimSpace(string(out))
+		// Ensure version starts with 'v' for semver comparison
+		if !strings.HasPrefix(versionWithV, "v") {
+			versionWithV = "v" + versionWithV
 		}
-		if nodeVersion < "16" {
+		// Check if node version is less than 16 using proper semver comparison
+		if semver.IsValid(versionWithV) && semver.Compare(versionWithV, "v16.0.0") < 0 {
+			nodeVersion = strings.TrimPrefix(versionWithV, "v")
 			s.Notice += fmt.Sprintf("\n[WARNING] It looks like you have NodeJS v%s installed, but it has reached it's end of support. Using NodeJS v%s (LTS) to build your image instead.\n", nodeVersion, nodeLtsVersion)
 			nodeVersion = nodeLtsVersion
+		} else {
+			nodeVersion = strings.TrimPrefix(versionWithV, "v")
 		}
 	}
 
@@ -78,7 +86,16 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	package_files := []string{"package.json"}
 
 	_, err = os.Stat("yarn.lock")
-	vars["yarn"] = !os.IsNotExist(err)
+	// install yarn if there's a yarn.lock and if nodejs version is under 18
+	yarnLockExists := !os.IsNotExist(err)
+	shouldInstallYarn := false
+	if yarnLockExists {
+		versionWithV := "v" + nodeVersion
+		if semver.IsValid(versionWithV) && semver.Compare(versionWithV, "v18.0.0") < 0 {
+			shouldInstallYarn = true
+		}
+	}
+	vars["yarn"] = shouldInstallYarn
 
 	if os.IsNotExist(err) {
 		vars["packager"] = "npm"
@@ -132,7 +149,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	vars["devDependencies"] = packageJson["devDependencies"] != nil
 
-	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	scripts, ok := packageJson["scripts"].(map[string]any)
 
 	vars["build"] = scripts["build"] != nil
 
@@ -170,6 +187,8 @@ Now: run 'fly deploy' to deploy your Node app.
 	}
 
 	s.Env = env
+
+	s.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersion}
 
 	return s, nil
 }

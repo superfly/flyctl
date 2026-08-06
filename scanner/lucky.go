@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -39,6 +40,7 @@ func configureLucky(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 				UrlPrefix: "/",
 			},
 		},
+		Runtime: plan.RuntimeStruct{Language: "crystal"},
 	}
 
 	return s, nil

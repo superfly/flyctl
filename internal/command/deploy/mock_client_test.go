@@ -26,6 +26,17 @@ type mockFlapsClient struct {
 	breakList        bool
 	breakDestroy     bool
 	breakLease       bool
+	breakGet         bool
+	// unhealthyGet, when true, makes Get return a Machine whose health check
+	// status is Critical. Used to simulate an app that starts but whose
+	// checks fail — e.g. because the new config changed the internal_port
+	// or introduced a Phoenix force_ssl redirect that traps the probe.
+	unhealthyGet bool
+	launchInputs []fly.LaunchMachineInput
+
+	// uncordonTransientFailures causes Uncordon to fail this many times before
+	// succeeding, simulating transient API errors for retry tests.
+	uncordonTransientFailures int
 
 	// mu to protect the members below.
 	mu            sync.Mutex
@@ -36,6 +47,7 @@ type mockFlapsClient struct {
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
 	nonce := fmt.Sprintf("%x-lease", machineID)
+
 	return m.RefreshLease(ctx, appName, machineID, ttl, nonce)
 }
 
@@ -43,12 +55,24 @@ func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flap
 	return nil, fmt.Errorf("failed to assign IP to %s", appName)
 }
 
+func (m *mockFlapsClient) CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) Cordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
 	return fmt.Errorf("failed to cordon %s", machineID)
 }
 
+func (m *mockFlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
 	return nil, fmt.Errorf("failed to create app")
+}
+
+func (m *mockFlapsClient) CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -59,8 +83,20 @@ func (m *mockFlapsClient) CreateVolumeSnapshot(ctx context.Context, appName, vol
 	return fmt.Errorf("failed to create volume snapshot %s", volumeId)
 }
 
+func (m *mockFlapsClient) DeleteACMECertificate(ctx context.Context, appName, hostname string) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) DeleteApp(ctx context.Context, name string) error {
 	return fmt.Errorf("failed to delete app %s", name)
+}
+
+func (m *mockFlapsClient) DeleteCertificate(ctx context.Context, appName, hostname string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
+	return fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
@@ -87,6 +123,7 @@ func (m *mockFlapsClient) Destroy(ctx context.Context, appName string, input fly
 	if m.breakDestroy {
 		return fmt.Errorf("failed to destroy %s", input.ID)
 	}
+
 	return nil
 }
 
@@ -108,7 +145,30 @@ func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, 
 }
 
 func (m *mockFlapsClient) Get(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
-	return nil, fmt.Errorf("failed to get %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.breakGet {
+		return nil, fmt.Errorf("failed to get %s", machineID)
+	}
+	status := fly.Passing
+	if m.unhealthyGet {
+		status = fly.Critical
+	}
+	// Return a machine with a single check whose status is controlled by
+	// unhealthyGet. Health-check loops exit on all-passing; setting Critical
+	// keeps them polling until the strategy's timeout fires.
+	return &fly.Machine{
+		ID: machineID,
+		Checks: []*fly.MachineCheckStatus{
+			{Name: "check1", Status: status},
+		},
+		Config: &fly.MachineConfig{
+			Checks: map[string]fly.MachineCheck{
+				"check1": {},
+			},
+		},
+	}, nil
 }
 
 func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
@@ -117,6 +177,10 @@ func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, 
 
 func (m *mockFlapsClient) GetAllVolumes(ctx context.Context, appName string) ([]fly.Volume, error) {
 	return nil, fmt.Errorf("failed to get all volumes")
+}
+
+func (m *mockFlapsClient) GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
@@ -167,9 +231,24 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
 	m.nextMachineID += 1
+	m.launchInputs = append(m.launchInputs, builder)
+
+	shortDuration := fly.Duration{Duration: 10 * time.Millisecond}
+
 	return &fly.Machine{
 		ID:         fmt.Sprintf("%x", m.nextMachineID),
 		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
+		Config: &fly.MachineConfig{
+			Metadata: map[string]string{},
+			// Use a near-zero grace period and interval so that health-check
+			// goroutines poll almost immediately in tests without real timing.
+			Checks: map[string]fly.MachineCheck{
+				"check1": {
+					GracePeriod: &shortDuration,
+					Interval:    &shortDuration,
+				},
+			},
+		},
 	}, nil
 }
 
@@ -177,6 +256,7 @@ func (m *mockFlapsClient) List(ctx context.Context, appName, state string) ([]*f
 	if m.breakList {
 		return nil, fmt.Errorf("failed to list machines")
 	}
+
 	return m.machines, nil
 }
 
@@ -186,6 +266,10 @@ func (m *mockFlapsClient) ListActive(ctx context.Context, appName string) ([]*fl
 
 func (m *mockFlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error) {
 	return nil, fmt.Errorf("failed to list apps")
+}
+
+func (m *mockFlapsClient) ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
@@ -200,7 +284,7 @@ func (m *mockFlapsClient) ListSecretKeys(ctx context.Context, appName string, ve
 	return nil, fmt.Errorf("failed to list secret keys")
 }
 
-func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	return nil, fmt.Errorf("failed to create request")
 }
 
@@ -244,6 +328,7 @@ func (m *mockFlapsClient) SetMetadata(ctx context.Context, appName, machineID, k
 	if m.breakSetMetadata {
 		return fmt.Errorf("failed to set metadata for %s", machineID)
 	}
+
 	return nil
 }
 
@@ -271,6 +356,16 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 	if m.breakUncordon {
 		return fmt.Errorf("failed to uncordon %s", machineID)
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.uncordonTransientFailures > 0 {
+		m.uncordonTransientFailures--
+
+		return fmt.Errorf("transient error uncordoning %s", machineID)
+	}
+
 	return nil
 }
 
@@ -286,10 +381,11 @@ func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId st
 	return nil, fmt.Errorf("failed to update volume %s", volumeId)
 }
 
-func (m *mockFlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+func (m *mockFlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 	if m.breakWait {
-		return fmt.Errorf("failed to wait for %s", machine.ID)
+		return fmt.Errorf("failed to wait for %s", machineID)
 	}
+
 	return nil
 }
 

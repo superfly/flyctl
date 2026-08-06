@@ -12,29 +12,42 @@ on:
 
 jobs:
   preflight-tests:
+    name: "preflight-tests (${{ matrix.group }})"
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        parallelism: [20]
-        index:
-          [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        group:
+          - apps
+          - deploy
+          - deploy-fixtures
+          - bluegreen
+          - launch
+          - scale
+          - volume
+          - console
+          - logs
+          - machine
+          - postgres
+          - postgres-flex-failover
+          - tokens
+          - wireguard
+          - misc
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-go@v7
         with:
-          go-version-file: "go.mod"
+          go-version-file: 'go.mod'
           check-latest: true
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
-      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
+      - name: Set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
-          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         id: download-flyctl
         with:
           name: flyctl
@@ -46,20 +59,22 @@ jobs:
       - name: Run preflight tests
         id: preflight
         env:
-          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          # Use user token if available (required for deploy token tests), otherwise fall back to limited token
+          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN || secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
-          FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
-          FLY_FORCE_TRACE: "true"
+          FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: 'true'
+          FLY_FORCE_TRACE: 'true'
         run: |
+          mkdir -p bin
           (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
-          ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
+          ./scripts/preflight.sh -r "${{ github.ref }}" -g "${{ matrix.group }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d
         with:
           webhook: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook

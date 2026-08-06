@@ -84,7 +84,9 @@ func runUpload(cmd *cobra.Command, args []string) error {
 
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetIndent("", " ")
-	enc.Encode(meta)
+	if err := enc.Encode(meta); err != nil {
+		return err
+	}
 
 	ctx := cmd.Context()
 
@@ -140,6 +142,7 @@ func runPublish(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Published release", release.Version)
+
 	return nil
 }
 
@@ -151,6 +154,7 @@ func checkExistingRelease(ctx context.Context, client *flypkgs.Client, v version
 	if err == nil && release != nil {
 		return fmt.Errorf("release %s already exists", v)
 	}
+
 	return err
 }
 
@@ -158,6 +162,7 @@ func envOrDefault(varName string, defaultValue string) string {
 	if v := os.Getenv(varName); v != "" {
 		return v
 	}
+
 	return defaultValue
 }
 

@@ -140,6 +140,7 @@ func (s *Server) CreateImage(ctx context.Context, appName, imageRef string, imag
 
 	other := *image
 	s.images[imageKey{appName, imageRef}] = &other
+
 	return nil
 }
 
@@ -171,6 +172,7 @@ func (s *Server) GetMachine(ctx context.Context, appName, machineID string) (*fl
 			return helpers.Clone(machine), nil
 		}
 	}
+
 	return nil, fmt.Errorf("machine not found: %q", machineID)
 }
 

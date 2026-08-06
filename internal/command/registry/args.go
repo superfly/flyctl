@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -48,14 +49,13 @@ func (a ImgInfo) Compare(b ImgInfo) int {
 	if d := strings.Compare(a.Path, b.Path); d != 0 {
 		return d
 	}
+
 	return 0
 }
 
 // AugmentMap includes all of src into targ.
 func AugmentMap[K comparable, V any](targ, src map[K]V) {
-	for k, v := range src {
-		targ[k] = v
-	}
+	maps.Copy(targ, src)
 }
 
 // SortedKeys returns the keys in a map in sorted order.
@@ -63,6 +63,7 @@ func AugmentMap[K comparable, V any](targ, src map[K]V) {
 func SortedKeys[V any](m map[ImgInfo]V) []ImgInfo {
 	keys := lo.Keys(m)
 	slices.SortFunc(keys, func(a, b ImgInfo) int { return a.Compare(b) })
+
 	return keys
 }
 
@@ -74,6 +75,7 @@ func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
+
 	return app, nil
 }
 
@@ -83,8 +85,10 @@ func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, err
 		if flag.IsSpecified(ctx, "select") {
 			return nil, errors.New("--machine can't be used with -s/--select")
 		}
+
 		return argsGetMachineByID(ctx, app)
 	}
+
 	return argsSelectMachine(ctx, app)
 }
 
@@ -119,6 +123,7 @@ func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, 
 	if err := prompt.Select(ctx, &index, "Select a machine:", "", options...); err != nil {
 		return nil, fmt.Errorf("failed to prompt for a machine: %w", err)
 	}
+
 	return machines[index], nil
 }
 
@@ -149,6 +154,7 @@ func argsGetImgPath(ctx context.Context) (string, string, error) {
 		}
 
 		path := flag.GetString(ctx, "image")
+
 		return path, app.Organization.ID, nil
 	}
 
@@ -174,6 +180,7 @@ func argsGetImages(ctx context.Context) (map[ImgInfo]Unit, error) {
 	} else if appName := appconfig.NameFromContext(ctx); appName != "" {
 		return argsGetAppImages(ctx, appName)
 	}
+
 	return nil, fmt.Errorf("No org or application specified")
 }
 
@@ -196,7 +203,6 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 	mu := sync.Mutex{}
 	allImgs := make(map[ImgInfo]Unit)
 	for n := range apps {
-		n := n
 		eg.Go(func() error {
 			app := &apps[n]
 			imgs, err := argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)
@@ -207,6 +213,7 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 			mu.Lock()
 			AugmentMap(allImgs, imgs)
 			mu.Unlock()
+
 			return nil
 		})
 	}
@@ -227,6 +234,7 @@ func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, er
 	}
 
 	org := app.Organization
+
 	return argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)
 }
 
@@ -260,5 +268,6 @@ func argsGetOrgAppImages(ctx context.Context, orgName, orgId, appName string) (m
 		}
 		imgs[img] = Unit{}
 	}
+
 	return imgs, nil
 }

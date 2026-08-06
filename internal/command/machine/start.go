@@ -66,6 +66,7 @@ func runMachineStart(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "%s has been started\n", machine.ID)
 	}
+
 	return
 }
 
@@ -80,6 +81,7 @@ func Start(ctx context.Context, appName string, machine *fly.Machine) (err error
 			if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 				return err
 			}
+
 			return fmt.Errorf("could not start machine %s: %w", machine.ID, err)
 		}
 	}
@@ -87,5 +89,6 @@ func Start(ctx context.Context, appName string, machine *fly.Machine) (err error
 	if res.Status == "error" {
 		return fmt.Errorf("machine could not be started: %s", res.Message)
 	}
+
 	return
 }

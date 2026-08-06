@@ -56,6 +56,7 @@ func newPlace() (cmd *cobra.Command) {
 			Description: "comma-delimited list of key=value weights to adjust placement preferences. e.g., 'region=5,spread=10'",
 		},
 	)
+
 	return
 }
 
@@ -121,6 +122,7 @@ func runPlace(ctx context.Context) error {
 		rows = append(rows, row)
 	}
 	cols := []string{"Region", "Count"}
+
 	return render.Table(out, "", rows, cols...)
 }
 
@@ -141,5 +143,6 @@ func getWeights(ctx context.Context) (*flaps.Weights, error) {
 		}
 		weights[parts[0]] = w
 	}
+
 	return &weights, nil
 }

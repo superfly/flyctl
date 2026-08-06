@@ -70,6 +70,7 @@ func runRestart(ctx context.Context) error {
 	input := fly.RestartMachineInput{
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
+
 	return machinesRestart(ctx, appName, &input)
 }
 

@@ -3,7 +3,6 @@ package flapsutil
 import (
 	"context"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -14,11 +13,16 @@ var _ FlapsClient = (*flaps.Client)(nil)
 type FlapsClient interface {
 	AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error)
 	AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
+	CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	Cordon(ctx context.Context, appName, machineID string, nonce string) (err error)
 	CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error)
+	CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error)
 	CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, appName, volumeId string) error
 	DeleteApp(ctx context.Context, name string) error
+	DeleteACMECertificate(ctx context.Context, appName, hostname string) error
+	DeleteCertificate(ctx context.Context, appName, hostname string) error
+	DeleteCustomCertificate(ctx context.Context, appName, hostname string) error
 	DeleteMetadata(ctx context.Context, appName, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, appName, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignment(ctx context.Context, appName, ip string) (err error)
@@ -32,6 +36,7 @@ type FlapsClient interface {
 	Get(ctx context.Context, appName, machineID string) (*fly.Machine, error)
 	GetApp(ctx context.Context, name string) (app *flaps.App, err error)
 	GetAllVolumes(ctx context.Context, appName string) ([]fly.Volume, error)
+	GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadata(ctx context.Context, appName, machineID string) (map[string]string, error)
@@ -41,15 +46,17 @@ type FlapsClient interface {
 	GetVolume(ctx context.Context, appName, volumeId string) (*fly.Volume, error)
 	GetVolumeSnapshots(ctx context.Context, appName, volumeId string) ([]fly.VolumeSnapshot, error)
 	GetVolumes(ctx context.Context, appName string) ([]fly.Volume, error)
+	CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error)
 	Kill(ctx context.Context, appName, machineID string) (err error)
 	Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (out *fly.Machine, err error)
 	List(ctx context.Context, appName, state string) ([]*fly.Machine, error)
 	ListActive(ctx context.Context, appName string) ([]*fly.Machine, error)
 	ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error)
-	ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
 	ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
+	ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error)
+	ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
-	NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
+	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLease(ctx context.Context, appName, machineID, nonce string) error
 	Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error)
@@ -63,7 +70,7 @@ type FlapsClient interface {
 	Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
-	Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error)
+	Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForApp(ctx context.Context, name string) error
 }
 
@@ -79,5 +86,6 @@ func NewContextWithClient(ctx context.Context, c FlapsClient) context.Context {
 // ClientFromContext returns the client ctx carries.
 func ClientFromContext(ctx context.Context) FlapsClient {
 	c, _ := ctx.Value(clientContextKey).(FlapsClient)
+
 	return c
 }

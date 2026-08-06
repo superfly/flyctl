@@ -93,6 +93,7 @@ func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*
 	var resp fly.CreateBuildResponse
 	resp.CreateBuild.Id = build.ID
 	resp.CreateBuild.Status = build.Status
+
 	return &resp, nil
 }
 
@@ -121,6 +122,7 @@ func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput
 	var resp fly.CreateReleaseResponse
 	resp.CreateRelease.Release.Id = release.ID
 	resp.CreateRelease.Release.Version = release.Version
+
 	return &resp, nil
 }
 
@@ -173,6 +175,7 @@ func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*
 	var resp fly.FinishBuildResponse
 	resp.FinishBuild.Id = build.ID
 	resp.FinishBuild.Status = build.Status
+
 	return &resp, nil
 }
 
@@ -305,10 +308,15 @@ func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly
 	if err != nil {
 		return nil, err
 	}
+
 	return &fly.Organization{ID: app.Organization.ID}, nil
 }
 
 func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error) {
 	panic("TODO")
 }
 
@@ -317,6 +325,26 @@ func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug st
 }
 
 func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error) {
+	panic("TODO")
+}
+
+func (m *Client) AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error) {
+	panic("TODO")
+}
+
+func (m *Client) SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error) {
 	panic("TODO")
 }
 
@@ -388,6 +416,7 @@ func (m *Client) ResolveImageForApp(ctx context.Context, appName, imageRef strin
 	if image == nil {
 		return nil, fmt.Errorf("image not found for app %q: %s", appName, imageRef)
 	}
+
 	return image, nil
 }
 
@@ -418,6 +447,7 @@ func (m *Client) UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput
 
 	var resp fly.UpdateReleaseResponse
 	resp.UpdateRelease.Release.Id = input.ReleaseId
+
 	return &resp, nil
 }
 

@@ -101,13 +101,19 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
+		tokens, err := apiClient.GetOrgLimitedAccessTokens(ctx, org.Slug)
+		if err != nil {
+			return fmt.Errorf("failed retrieving tokens for org %s: %w", org.Slug, err)
+		}
+
 		fmt.Fprintln(out, "Tokens for organization \""+org.Slug+"\":")
-		for _, token := range org.LimitedAccessTokens.Nodes {
+		for _, token := range tokens {
 			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String(), revokedAtToString(token.RevokedAt)})
 		}
 	}
 
 	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At", "Revoked At")
+
 	return nil
 }
 
@@ -115,6 +121,7 @@ func revokedAtToString(time *time.Time) string {
 	if time != nil {
 		return time.String()
 	}
+
 	return ""
 }
 

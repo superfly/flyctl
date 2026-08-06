@@ -15,6 +15,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -144,9 +145,20 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		// don't try to generate a name
 		flag.Bool{
-			Name:        "no-create",
-			Description: "Do not create an app, only generate configuration files",
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
+			Aliases:     []string{"no-create"},
 		},
 		flag.String{
 			Name:        "auto-stop",
@@ -205,6 +217,7 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &manifest, nil
 }
 
@@ -266,6 +279,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 	ctx = appconfig.WithConfig(ctx, nil)
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
+
 	return ctx, parentConfig, err
 }
 
@@ -275,6 +289,7 @@ func run(ctx context.Context) (err error) {
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+
 		return err
 	}
 
@@ -289,6 +304,7 @@ func run(ctx context.Context) (err error) {
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil
@@ -337,6 +353,46 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
+	}
+
+	// For "generate" step, allow command-line flags to override manifest values.
+	// This is necessary because buildManifest() is skipped when loading a manifest from file.
+	// The "generate" step specifically needs this because it's called after propose/create steps,
+	// and the deployer wrapper needs to be able to override specific values without re-proposing.
+	if launchManifest != nil && planStep == "generate" {
+		// Override org if --org flag was provided
+		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
+			launchManifest.Plan.OrgSlug = orgRequested
+		}
+
+		// Override app name if --app flag was provided
+		// This allows explicit override while preserving manifest value by default
+		if appRequested := flag.GetApp(ctx); appRequested != "" && flag.IsSpecified(ctx, "app") {
+			launchManifest.Plan.AppName = appRequested
+		}
+
+		// Override region if --region flag was provided
+		if regionRequested := flag.GetRegion(ctx); regionRequested != "" && flag.IsSpecified(ctx, "region") {
+			launchManifest.Plan.RegionCode = regionRequested
+		}
+
+		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
+		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
+		if launchManifest.PlanSource == nil {
+			launchManifest.PlanSource = newDefaultPlanSource("from manifest")
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -350,19 +406,30 @@ func run(ctx context.Context) (err error) {
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	if launchManifest == nil {
-
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
-			} else {
+			if !errors.As(err, &recoverableErr) || !canEnterUi {
+				// Populate status from partial manifest so metrics
+				// events carry org/app context even on early failures.
+				if launchManifest != nil && launchManifest.Plan != nil {
+					status.AppName = launchManifest.Plan.AppName
+					status.OrgSlug = launchManifest.Plan.OrgSlug
+					status.Region = launchManifest.Plan.RegionCode
+					status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
+					status.ScannerFamily = launchManifest.Plan.ScannerFamily
+				}
+
 				return err
 			}
 		}
 
-		if flag.GetBool(ctx, "manifest") {
+		manifestFlag := flag.GetBool(ctx, "manifest")
+		manifestPath := flag.GetString(ctx, "manifest-path")
+
+		if manifestFlag {
 			var jsonEncoder *json.Encoder
-			if manifestPath := flag.GetString(ctx, "manifest-path"); manifestPath != "" {
+			if manifestPath != "" {
 				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 				if err != nil {
 					return err
@@ -374,7 +441,9 @@ func run(ctx context.Context) (err error) {
 				jsonEncoder = json.NewEncoder(io.Out)
 			}
 			jsonEncoder.SetIndent("", "  ")
-			return jsonEncoder.Encode(launchManifest)
+			encodeErr := jsonEncoder.Encode(launchManifest)
+
+			return encodeErr
 		}
 	}
 
@@ -397,7 +466,7 @@ func run(ctx context.Context) (err error) {
 		status.VM.ProcessN = len(vm.Processes)
 	}
 
-	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.SupabasePostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
 	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
 	status.HasSentry = launchManifest.Plan.Sentry
 
@@ -419,15 +488,13 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
 		colorize := io.ColorScheme()
 
 		// Get terminal width for responsive borders
-		termWidth := io.TerminalWidth()
-		if termWidth > 120 {
-			termWidth = 120 // Cap at 120 for readability
-		}
+		termWidth := min(io.TerminalWidth(),
+			// Cap at 120 for readability
+			120)
 		border := strings.Repeat("═", termWidth)
 
 		// Print top border
@@ -567,6 +634,7 @@ func familyToAppType(family string) string {
 	case "":
 		return "app"
 	}
+
 	return fmt.Sprintf("%s app", family)
 }
 
@@ -580,6 +648,7 @@ func warnLegacyBehavior(ctx context.Context) error {
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
 		}
 	}
+
 	return nil
 }
 
@@ -634,6 +703,7 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 	if err != nil {
 		// If we can't fetch org data, log the error but don't block the launch
 		fmt.Fprintf(io.ErrOut, "Warning: Could not check billing status: %v\n", err)
+
 		return true, nil
 	}
 
@@ -682,6 +752,7 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 	}
 
 	fmt.Fprintln(io.Out)
+
 	return true, nil
 }
 

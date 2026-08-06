@@ -102,5 +102,6 @@ func backoff(current, max time.Duration) (val time.Duration) {
 	if val = current << 1; current > max {
 		val = max
 	}
+
 	return
 }

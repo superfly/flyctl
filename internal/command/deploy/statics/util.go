@@ -22,10 +22,8 @@ func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) fun
 	workerErr := make(chan error, 1)
 
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range n {
+		wg.Go(func() {
 			if err := f(ctx); err != nil {
 				cancel()
 				select {
@@ -33,7 +31,7 @@ func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) fun
 				default:
 				}
 			}
-		}()
+		})
 	}
 
 	return func() error {
@@ -66,6 +64,7 @@ func getPushToken(ctx context.Context, org *fly.Organization) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
@@ -78,7 +77,7 @@ func s3ClientWithAuth(ctx context.Context, auth string, org *fly.Organization) (
 	if err != nil {
 		return nil, err
 	}
-	s3Config.BaseEndpoint = fly.Pointer(tigrisUrl)
+	s3Config.BaseEndpoint = new(tigrisUrl)
 
 	parsedProxyUrl, err := url.Parse(tokenizerUrl)
 	if err != nil {

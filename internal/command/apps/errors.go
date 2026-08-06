@@ -24,6 +24,7 @@ func newErrors() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 	)
+
 	return cmd
 }
 

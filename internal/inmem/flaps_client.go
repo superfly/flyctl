@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -33,11 +32,19 @@ func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.As
 	panic("TODO")
 }
 
+func (m *FlapsClient) CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) Cordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
 	panic("TODO")
 }
 
 func (m *FlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
 	panic("TODO")
 }
 
@@ -50,6 +57,18 @@ func (m *FlapsClient) CreateVolumeSnapshot(ctx context.Context, appName, volumeI
 }
 
 func (m *FlapsClient) DeleteApp(ctx context.Context, name string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteACMECertificate(ctx context.Context, appName, hostname string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteCertificate(ctx context.Context, appName, hostname string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
 	panic("TODO")
 }
 
@@ -118,6 +137,10 @@ func (m *FlapsClient) GetAllVolumes(ctx context.Context, appName string) ([]fly.
 	panic("TODO")
 }
 
+func (m *FlapsClient) GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return &flaps.ListIPAssignmentsResponse{}, nil
 }
@@ -154,6 +177,10 @@ func (m *FlapsClient) GetVolumes(ctx context.Context, appName string) ([]fly.Vol
 	panic("TODO")
 }
 
+func (m *FlapsClient) CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) Kill(ctx context.Context, appName, machineID string) (err error) {
 	panic("TODO")
 }
@@ -176,10 +203,19 @@ func (m *FlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Ma
 			a = append(a, machine)
 		}
 	}
+
 	return a, nil
 }
 
 func (m *FlapsClient) ListApps(ctx context.Context, req flaps.ListAppsRequest) ([]flaps.App, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error) {
 	panic("TODO")
 }
 
@@ -195,18 +231,15 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 			releaseCmdMachine = machine
 		}
 	}
-	return machines, releaseCmdMachine, nil
-}
 
-func (m *FlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
-	panic("TODO")
+	return machines, releaseCmdMachine, nil
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	panic("TODO")
 }
 
-func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	panic("TODO")
 }
 
@@ -262,17 +295,7 @@ func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string
 	panic("TODO")
 }
 
-func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-	if state == "" {
-		state = "started"
-	}
-	mach, err := m.server.GetMachine(ctx, appName, machine.ID)
-	if err != nil {
-		return err
-	}
-	if mach.State != state {
-		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
-	}
+func (m *FlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 	return nil
 }
 

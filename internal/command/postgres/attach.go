@@ -166,6 +166,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 			flycast = &ip.Address
 		}
 	}
+
 	return machineAttachCluster(ctx, params, flycast)
 }
 
@@ -235,9 +236,9 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		AppID:                appName,
 		PostgresClusterAppID: pgAppName,
 		ManualEntry:          true,
-		DatabaseName:         fly.StringPointer(dbName),
-		DatabaseUser:         fly.StringPointer(dbUser),
-		VariableName:         fly.StringPointer(varName),
+		DatabaseName:         new(dbName),
+		DatabaseUser:         new(dbUser),
+		VariableName:         new(varName),
 	}
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)
@@ -297,6 +298,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 			if flypg.ErrorStatus(err) >= 500 {
 				return err
 			}
+
 			return fmt.Errorf("error running database-create: %w", err)
 		}
 	}

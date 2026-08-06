@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
 	"go.uber.org/mock/gomock"
 )
 
@@ -22,12 +23,13 @@ import (
 func testingContext(t *testing.T) context.Context {
 	ctx := context.Background()
 	ctx = state.WithConfigDirectory(ctx, t.TempDir())
+
 	return ctx
 }
 
 func TestValidateBuilder(t *testing.T) {
 	ctx := testingContext(t)
-	p := NewProvisioner(&fly.Organization{})
+	p := NewProvisionerUiexOrg(&uiex.Organization{})
 
 	hasVolumes := false
 	hasMachines := false
@@ -71,7 +73,7 @@ func TestValidateBuilder(t *testing.T) {
 
 func TestValidateBuilderAPIErrors(t *testing.T) {
 	ctx := testingContext(t)
-	p := NewProvisioner(&fly.Organization{})
+	p := NewProvisionerUiexOrg(&uiex.Organization{})
 
 	maxVolumeRetries := 3
 	volumeRetries := 0
@@ -95,6 +97,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 					}
 				}
 			}
+
 			return []fly.Volume{{
 				ID: "bigvolume",
 			}}, nil
@@ -111,6 +114,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 					}
 				}
 			}
+
 			return []*fly.Machine{{
 				ID:    "bigmachine",
 				State: "started",
@@ -166,7 +170,7 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 	ctx := testingContext(t)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 
-	provisioner := NewProvisioner(&fly.Organization{})
+	provisioner := NewProvisionerUiexOrg(&uiex.Organization{})
 	provisioner.useVolume = false
 
 	client.EXPECT().List(gomock.Any(), gomock.Eq(""), gomock.Any()).Return([]*fly.Machine{
@@ -179,10 +183,10 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 
 func TestCreateBuilder(t *testing.T) {
 	ctx := testingContext(t)
-	org := &fly.Organization{
+	org := &uiex.Organization{
 		Slug: "bigorg",
 	}
-	p := NewProvisioner(org)
+	p := NewProvisionerUiexOrg(org)
 
 	createAppShouldFail := false
 	allocateIPAddressShouldFail := false
@@ -191,6 +195,7 @@ func TestCreateBuilder(t *testing.T) {
 			if createAppShouldFail {
 				return nil, errors.New("create app failed")
 			}
+
 			return &fly.App{
 				Name: input.Name,
 			}, nil
@@ -202,6 +207,7 @@ func TestCreateBuilder(t *testing.T) {
 			if allocateIPAddressShouldFail {
 				return nil, errors.New("allocate ip address failed")
 			}
+
 			return &fly.IPAddress{}, nil
 		},
 	}
@@ -218,6 +224,7 @@ func TestCreateBuilder(t *testing.T) {
 			if createAppShouldFail {
 				return nil, errors.New("create app failed")
 			}
+
 			return &flaps.App{
 				Name: req.Name,
 			}, nil
@@ -226,6 +233,7 @@ func TestCreateBuilder(t *testing.T) {
 			if waitForAppShouldFail {
 				return errors.New("wait for app failed")
 			}
+
 			return nil
 		},
 		CreateVolumeFunc: func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -239,6 +247,7 @@ func TestCreateBuilder(t *testing.T) {
 					}
 				}
 			}
+
 			return &fly.Volume{
 				ID: "bigvolume",
 			}, nil
@@ -250,13 +259,15 @@ func TestCreateBuilder(t *testing.T) {
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")
 			}
+
 			return &fly.Machine{
 				ID:    "bigmachine",
 				State: "started",
 			}, nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			time.Sleep(1 * time.Second)
+
 			return nil
 		},
 	}
@@ -310,9 +321,10 @@ func TestRestartBuilderMachine(t *testing.T) {
 					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
 				}
 			}
+
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			return nil
 		},
 	}

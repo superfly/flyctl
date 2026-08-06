@@ -54,7 +54,7 @@ primary_region = "%s"
 	destination = "/data"
 	`, appName, f.PrimaryRegion())
 
-	f.Fly("deploy --ha=false")
+	f.Fly("deploy --buildkit --remote-only --ha=false")
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 
@@ -164,18 +164,30 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	t.Logf("machine %s is destroyed; Snapshot volume %s", machine.ID, vol.ID)
 	f.Fly("volume snapshot create %s --app %s --json", vol.ID, appName)
 	var snapshot *fly.VolumeSnapshot
+	lastSnapshotStatus := ""
 	require.Eventually(f, func() bool {
 		lsRes := f.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
 		var ls []*fly.VolumeSnapshot
 		lsRes.StdOutJSON(&ls)
+		currentSnapshotStatus := "not found"
 		for _, s := range ls {
-			if time.Since(s.CreatedAt) < 1*time.Hour && s.Status == "created" {
+			if time.Since(s.CreatedAt) >= time.Hour {
+				continue
+			}
+
+			currentSnapshotStatus = s.ID + ": " + s.Status
+			if s.Status == "created" {
 				snapshot = s
-				return true
+				break
 			}
 		}
-		return false
-	}, 1*time.Minute, 1*time.Second, "snapshot never made it to created state")
+		if currentSnapshotStatus != lastSnapshotStatus {
+			t.Logf("snapshot status: %s", currentSnapshotStatus)
+			lastSnapshotStatus = currentSnapshotStatus
+		}
+
+		return snapshot != nil
+	}, 5*time.Minute, 5*time.Second, "snapshot never made it to created state")
 
 	// Now destroy a volume (remembering to specify the app name)
 	t.Logf("Destroy volume %s", vol.ID)

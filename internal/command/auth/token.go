@@ -53,6 +53,7 @@ func runAuthToken(ctx context.Context) error {
 
 	if cfg.JSONOutput {
 		render.JSON(io.Out, map[string]string{"token": token})
+
 		return nil
 	}
 
@@ -61,5 +62,6 @@ func runAuthToken(ctx context.Context) error {
 	}
 
 	fmt.Fprintln(io.Out, token)
+
 	return nil
 }

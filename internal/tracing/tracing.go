@@ -39,6 +39,7 @@ func getCollectorUrl() string {
 	if url != "" {
 		return url
 	}
+
 	return "fly-otel-collector-prod.fly.dev"
 }
 
@@ -85,6 +86,7 @@ func getToken(ctx context.Context) string {
 	if token == "" {
 		token = os.Getenv("FLY_API_TOKEN")
 	}
+
 	return token
 }
 

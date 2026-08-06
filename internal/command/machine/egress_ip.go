@@ -11,12 +11,13 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func newEgressIp() *cobra.Command {
 	const (
-		long  = `Manage static egress (outgoing) IP addresses for machines`
+		long  = `(Deprecated) Manage static egress (outgoing) IP addresses for machines`
 		short = `Manage static egress IPs`
 		usage = "egress-ip <command>"
 	)
@@ -24,10 +25,12 @@ func newEgressIp() *cobra.Command {
 	cmd := command.New(usage, short, long, nil)
 
 	cmd.Args = cobra.NoArgs
+	cmd.Deprecated = "consider using app-scoped egress IPs (fly ip allocate-egress) instead."
 
 	cmd.AddCommand(
 		newAllocateEgressIp(),
 		newListEgressIps(),
+		newPromoteEgressIP(),
 		newReleaseEgressIP(),
 	)
 
@@ -36,7 +39,7 @@ func newEgressIp() *cobra.Command {
 
 func newAllocateEgressIp() *cobra.Command {
 	const (
-		long  = `Allocate a pair of static egress IPv4 and IPv6 for a machine`
+		long  = `(Deprecated) Allocate a pair of static egress IPv4 and IPv6 for a machine`
 		short = `Allocate static egress IPs`
 		usage = "allocate <machine-id>"
 	)
@@ -53,6 +56,7 @@ func newAllocateEgressIp() *cobra.Command {
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
+	cmd.Hidden = true
 
 	return cmd
 }
@@ -102,6 +106,29 @@ func newReleaseEgressIP() *cobra.Command {
 	return cmd
 }
 
+func newPromoteEgressIP() *cobra.Command {
+	const (
+		long  = `Promote all machine-scoped egress IP addresses of a machine to app-scoped in the same region`
+		short = `Promote machine egress IPs to app-scoped`
+		usage = "promote <machine-id>"
+	)
+
+	cmd := command.New(usage, short, long, runPromoteEgressIP,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.Yes(),
+	)
+
+	cmd.Args = cobra.ExactArgs(1)
+
+	return cmd
+}
+
 func runAllocateEgressIP(ctx context.Context) (err error) {
 	var (
 		args      = flag.Args(ctx)
@@ -111,7 +138,8 @@ func runAllocateEgressIP(ctx context.Context) (err error) {
 	)
 
 	if !flag.GetYes(ctx) {
-		msg := `Looks like you're allocating a static egress (outgoing) IP. This is an advanced feature, and is not needed by most apps.
+		msg := `You're allocating a machine-scoped static egress (outgoing) IP.
+This is deprecated, and new apps should use app-scoped egress IPs instead (using the command 'fly ip allocate-egress -r <region>').
 Are you sure this is what you want?`
 
 		switch confirmed, err := prompt.Confirm(ctx, msg); {
@@ -134,6 +162,7 @@ Are you sure this is what you want?`
 	fmt.Printf("Allocated egress IPs for machine %s:\n", machineId)
 	fmt.Printf("IPv4: %s\n", ipv4.String())
 	fmt.Printf("IPv6: %s\n", ipv6.String())
+
 	return nil
 }
 
@@ -158,6 +187,7 @@ func runListEgressIps(ctx context.Context) (err error) {
 
 	out := iostreams.FromContext(ctx).Out
 	render.Table(out, "", rows, "Machine ID", "Region", "Type", "Egress IP")
+
 	return nil
 }
 
@@ -192,6 +222,60 @@ func runReleaseEgressIP(ctx context.Context) (err error) {
 	fmt.Printf("Egress IP released for the machine %s\n", machineId)
 	fmt.Printf("IPv4: %s\n", v4.String())
 	fmt.Printf("IPv6: %s\n", v6.String())
+
+	return nil
+}
+
+func runPromoteEgressIP(ctx context.Context) (err error) {
+	var (
+		args       = flag.Args(ctx)
+		client     = flyutil.ClientFromContext(ctx)
+		uiexClient = uiexutil.ClientFromContext(ctx)
+		appName    = appconfig.NameFromContext(ctx)
+		machineID  = args[0]
+	)
+
+	machineIPs, err := client.GetEgressIPAddresses(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	ips, ok := machineIPs[machineID]
+	if !ok || len(ips) == 0 {
+		return fmt.Errorf("no machine-scoped egress IPs found for machine %s", machineID)
+	}
+
+	rows := make([][]string, 0, len(ips))
+	for _, ip := range ips {
+		rows = append(rows, []string{machineID, ip.Region, fmt.Sprintf("v%d", ip.Version), ip.IP})
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	render.Table(out, "", rows, "Machine ID", "Region", "Type", "Egress IP")
+
+	if !flag.GetYes(ctx) {
+		msg := fmt.Sprintf("Are you sure you want to promote these %d egress IP(s) for machine %s to app-scoped?\nThis may result in up to a few minutes of downtime as the egress IP is removed and re-applied.", len(ips), machineID)
+
+		switch confirmed, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	for _, ip := range ips {
+		if err := uiexClient.PromoteMachineEgressIP(ctx, appName, ip.IP); err != nil {
+			return fmt.Errorf("failed to promote egress IP %s: %w", ip.IP, err)
+		}
+	}
+
+	fmt.Printf("Promoted %d egress IP(s) for machine %s to app-scoped egress IPs\n", len(ips), machineID)
+	fmt.Printf("Note that app-scoped egress IPs are regional; if you run machines in multiple regions, promote at least 1 for every region.\n")
 
 	return nil
 }

@@ -21,6 +21,7 @@ func (c *customCtx) Err() error {
 	if c.signalTripped.Load() {
 		return AbortedByUser
 	}
+
 	return c.Context.Err()
 }
 
@@ -31,6 +32,7 @@ var AbortedByUser = abortedErr{}
 // If you're wrapping a context that already has a cancel function, use HookCancelableContext instead.
 func HookContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancelFn := context.WithCancel(ctx)
+
 	return HookCancelableContext(ctx, cancelFn)
 }
 
@@ -47,6 +49,7 @@ func HookCancelableContext(ctx context.Context, cancelFn context.CancelFunc) (co
 		cancelFn()
 		handle.Done()
 	})
+
 	return newCtx, func() {
 		handle.Done()
 		cancelFn()

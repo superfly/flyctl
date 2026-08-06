@@ -24,7 +24,7 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, errors.Wrap(err, "failure extracting Ruby version")
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["rubyVersion"] = rubyVersion
 	s.Files = templatesExecute("templates/ruby", vars)
 
@@ -55,6 +55,8 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 		for i, name := range re.SubexpNames() {
 			if len(m) > 0 && name == "version" {
 				version = m[i]
+
+				break
 			}
 		}
 	}
@@ -66,14 +68,7 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 			return "", err
 		}
 
-		re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
-		m := re.FindStringSubmatch(string(gemfileContents))
-
-		for i, name := range re.SubexpNames() {
-			if len(m) > 0 && name == "version" {
-				version = m[i]
-			}
-		}
+		version = extractGemfileRuby(gemfileContents)
 	}
 
 	if version == "" {
@@ -84,13 +79,11 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 				return "", err
 			}
 
-			version = string(versionString)
+			version = strings.TrimSpace(string(versionString))
 		}
 	}
 
 	if version == "" {
-		version = "3.3.5"
-
 		out, err := exec.Command("ruby", "-v").Output()
 		if err == nil {
 
@@ -101,10 +94,25 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 			for i, name := range re.SubexpNames() {
 				if len(m) > 0 && name == "version" {
 					version = m[i]
+
+					break
 				}
 			}
 		}
 	}
 
 	return version, nil
+}
+
+func extractGemfileRuby(contents []byte) string {
+	re := regexp.MustCompile(`ruby ["'](?P<version>[\d.]+)["']`)
+	m := re.FindStringSubmatch(string(contents))
+
+	for i, name := range re.SubexpNames() {
+		if len(m) > 0 && name == "version" {
+			return m[i]
+		}
+	}
+
+	return ""
 }

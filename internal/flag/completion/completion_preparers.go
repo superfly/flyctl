@@ -31,6 +31,7 @@ func prepareInitialCtx(cmd *cobra.Command) (context.Context, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return ctx, nil
 }
 

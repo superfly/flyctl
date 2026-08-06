@@ -2,17 +2,13 @@ package mpg
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
+	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
-	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newDatabases() *cobra.Command {
@@ -27,6 +23,7 @@ func newDatabases() *cobra.Command {
 	cmd.AddCommand(
 		newDatabasesList(),
 		newDatabasesCreate(),
+		newExtensions(),
 	)
 
 	return cmd
@@ -41,6 +38,7 @@ func newDatabasesList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDatabasesList,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -52,47 +50,17 @@ func newDatabasesList() *cobra.Command {
 }
 
 func runDatabasesList(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
+	clusterID := flag.FirstArg(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
 		return err
 	}
 
-	cfg := config.FromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDatabasesList(ctx, cluster.Id)
 	}
 
-	databases, err := uiexClient.ListDatabases(ctx, clusterID)
-	if err != nil {
-		return fmt.Errorf("failed to list databases for cluster %s: %w", clusterID, err)
-	}
-
-	if len(databases.Data) == 0 {
-		fmt.Fprintf(out, "No databases found for cluster %s\n", clusterID)
-		return nil
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(out, databases.Data)
-	}
-
-	rows := make([][]string, 0, len(databases.Data))
-	for _, db := range databases.Data {
-		rows = append(rows, []string{
-			db.Name,
-		})
-	}
-
-	return render.Table(out, "", rows, "Name")
+	return cmdv2.RunDatabasesList(ctx, cluster.Id)
 }
 
 func newDatabasesCreate() *cobra.Command {
@@ -104,6 +72,7 @@ func newDatabasesCreate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDatabasesCreate,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -120,52 +89,15 @@ func newDatabasesCreate() *cobra.Command {
 }
 
 func runDatabasesCreate(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
+	clusterID := flag.FirstArg(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
 		return err
 	}
 
-	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDatabasesCreate(ctx, cluster.Id)
 	}
 
-	dbName := flag.GetString(ctx, "name")
-	if dbName == "" {
-		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
-			return prompt.NonInteractiveError("database name must be specified with --name flag when not running interactively")
-		}
-		err := prompt.String(ctx, &dbName, "Enter database name:", "", true)
-		if err != nil {
-			return err
-		}
-		if dbName == "" {
-			return fmt.Errorf("database name cannot be empty")
-		}
-	}
-
-	fmt.Fprintf(out, "Creating database %s in cluster %s...\n", dbName, clusterID)
-
-	input := uiex.CreateDatabaseInput{
-		Name: dbName,
-	}
-
-	response, err := uiexClient.CreateDatabase(ctx, clusterID, input)
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
-	}
-
-	fmt.Fprintf(out, "Database created successfully!\n")
-	fmt.Fprintf(out, "  Name: %s\n", response.Data.Name)
-
-	return nil
+	return cmdv2.RunDatabasesCreate(ctx, cluster.Id)
 }

@@ -19,12 +19,14 @@ func BringUpAgent(ctx context.Context, client wireguard.WebClient, app *fly.AppC
 	name := app.Name
 	if err != nil {
 		captureError(ctx, err, "agent-remote", slug, name)
+
 		return nil, nil, errors.Wrap(err, "can't establish agent")
 	}
 
 	dialer, err := agentclient.Dialer(ctx, slug, network)
 	if err != nil {
 		captureError(ctx, err, "agent-remote", slug, name)
+
 		return nil, nil, fmt.Errorf("ssh: can't build tunnel for %s: %s\n", slug, err)
 	}
 
@@ -33,6 +35,7 @@ func BringUpAgent(ctx context.Context, client wireguard.WebClient, app *fly.AppC
 	}
 	if err := agentclient.WaitForTunnel(ctx, slug, network); err != nil {
 		captureError(ctx, err, "agent-remote", slug, name)
+
 		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
 	}
 	if !quiet {

@@ -26,6 +26,7 @@ func New() *cobra.Command {
 		newIncidentsList(),
 		hosts.New(),
 	)
+
 	return cmd
 }
 
@@ -45,6 +46,7 @@ func newIncidentsList() *cobra.Command {
 		flag.Org(),
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -64,15 +66,14 @@ func runIncidentsList(ctx context.Context) error {
 	if incidentCount > 0 {
 		fmt.Fprintf(out, "Incidents count: %d\n\n", incidentCount)
 		table := helpers.MakeSimpleTable(out, []string{"Id", "Name", "Status", "Components", "Started At", "Last Updated"})
-		table.SetRowLine(true)
 		for _, incident := range statuspageIncidents.Incidents {
 			var components []string
 			for _, component := range incident.Components {
 				components = append(components, component.Name)
 			}
-			table.Append([]string{incident.ID, incident.Name, incident.Status, strings.Join(components, ", "), incident.StartedAt, incident.UpdatedAt})
+			table.Append(incident.ID, incident.Name, incident.Status, strings.Join(components, ", "), incident.StartedAt, incident.UpdatedAt) //nolint:errcheck
 		}
-		table.Render()
+		table.Render() //nolint:errcheck
 	} else {
 		fmt.Fprintf(out, "There are no active incidents\n")
 	}

@@ -27,6 +27,7 @@ func dashboard() (cmd *cobra.Command) {
 		extensions_core.SharedFlags,
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -39,5 +40,6 @@ func runDashboard(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
 	return extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeUpstashVector)
 }

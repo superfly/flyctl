@@ -58,6 +58,7 @@ func newBarman() *cobra.Command {
 	cmd.Hidden = true
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -153,22 +154,22 @@ func runBarmanCreate(ctx context.Context) error {
 
 	machineConfig.Checks = map[string]fly.MachineCheck{
 		"connection": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathConnection,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"role": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathRole,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"vm": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathVm,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
@@ -202,9 +203,9 @@ func runBarmanCreate(ctx context.Context) error {
 	volInput := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              fly.Pointer(flag.GetInt(ctx, "volume-size")),
-		Encrypted:           fly.Pointer(true),
-		RequireUniqueZone:   fly.Pointer(true),
+		SizeGb:              new(flag.GetInt(ctx, "volume-size")),
+		Encrypted:           new(true),
+		RequireUniqueZone:   new(true),
 		ComputeRequirements: machineConfig.Guest,
 		ComputeImage:        machineConfig.Image,
 	}
@@ -398,10 +399,10 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": app.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": app.Organization.Slug,
 			},
 		}),
@@ -410,11 +411,13 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 
 func runBarmanCheck(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman check pg")
 }
 
 func runBarmanListBackup(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman list-backup pg")
 }
 
@@ -425,6 +428,7 @@ func runBarmanShowBackup(ctx context.Context) error {
 	backupId := flag.FirstArg(ctx)
 	fmt.Printf("barman show-backup pg %s", backupId)
 	fmt.Fprintf(io.Out, "barman show-backup pg %s", backupId)
+
 	return runConsole(ctx, fmt.Sprintf("barman show-backup pg %s", backupId))
 }
 
@@ -434,6 +438,7 @@ func runBarmanBackup(ctx context.Context) error {
 
 func runBarmanSwitchWal(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman switch-wal pg --force --archive")
 }
 
@@ -489,11 +494,13 @@ func runConsole(ctx context.Context, cmd string) error {
 	sshc, err := ssh.Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
 	if err := ssh.Console(ctx, sshc, cmd, false, ""); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
@@ -511,6 +518,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}

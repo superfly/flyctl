@@ -3,7 +3,7 @@ package lfsc
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -31,6 +31,7 @@ func newRegions() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		urlFlag(),
 		flag.JSONOutput())
+
 	return
 }
 
@@ -54,9 +55,7 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed retrieving litefs cloud regions: %w", err)
 	}
-	sort.Slice(regions, func(i, j int) bool {
-		return regions[i] < regions[j]
-	})
+	slices.Sort(regions)
 
 	out := iostreams.FromContext(ctx).Out
 	if config.FromContext(ctx).JSONOutput {
@@ -74,5 +73,6 @@ func runRegions(ctx context.Context) error {
 
 		rows = append(rows, []string{regionName, region})
 	}
+
 	return render.Table(out, "", rows, "Name", "Code")
 }

@@ -92,7 +92,7 @@ func Test_convergeGroupCounts(t *testing.T) {
 func Test_convergeGroupCounts_maxPerRegion(t *testing.T) {
 	// maxPerRegion * len(regions) < expectedTotal must fail
 	_, err := convergeGroupCounts(10, nil, []string{"scl", "mia"}, 1)
-	assert.Equal(t, MaxPerRegionError, err)
+	assert.Equal(t, ErrMaxPerRegion, err)
 
 	// Happy path cases
 	testcases := []struct {

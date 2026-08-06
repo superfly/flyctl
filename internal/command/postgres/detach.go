@@ -66,6 +66,7 @@ func runDetach(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineDetach(ctx, appFlapsClient, app, pgApp)
 }
 

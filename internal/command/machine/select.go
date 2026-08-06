@@ -54,9 +54,11 @@ func selectOneMachine(ctx context.Context, appName string, machineID string, hav
 			if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
 				return nil, nil, err
 			}
+
 			return nil, nil, fmt.Errorf("could not get machine %s: %w", machineID, err)
 		}
 	}
+
 	return machine, ctx, nil
 }
 
@@ -87,11 +89,13 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*fly.Machin
 				if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
 					return nil, nil, err
 				}
+
 				return nil, nil, fmt.Errorf("could not get machine %s: %w", machineID, err)
 			}
 			machines = append(machines, machine)
 		}
 	}
+
 	return machines, ctx, nil
 }
 
@@ -118,11 +122,13 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 			machineIDs = append(machineIDs, machine.ID)
 		}
 	}
+
 	return machineIDs, ctx, nil
 }
 
 func buildContextFromAppName(ctx context.Context, appName string) (context.Context, error) {
 	ctx = appconfig.WithName(ctx, appName)
+
 	return ctx, nil
 }
 
@@ -143,6 +149,7 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		}
 		ctx = appconfig.WithName(ctx, gqlMachine.App.Name)
 	}
+
 	return ctx, nil
 }
 
@@ -159,6 +166,7 @@ func promptForOneMachine(ctx context.Context, appName string) (*fly.Machine, err
 	if err := prompt.Select(ctx, &selection, "Select a machine:", "", options...); err != nil {
 		return nil, fmt.Errorf("could not prompt for machine: %w", err)
 	}
+
 	return machines[selection], nil
 }
 
@@ -183,6 +191,7 @@ func promptForManyMachines(ctx context.Context, appName string) ([]*fly.Machine,
 	if len(selectedMachines) == 0 {
 		return nil, errors.New("no machines selected")
 	}
+
 	return selectedMachines, nil
 }
 
@@ -203,6 +212,7 @@ func sortAndBuildOptions(machines []*fly.Machine) []string {
 		}
 		options = append(options, fmt.Sprintf("%s %s (%s)", machine.ID, machine.Name, details))
 	}
+
 	return options
 }
 
@@ -219,12 +229,14 @@ func getMachineRole(machine *fly.Machine) string {
 			}
 		}
 	}
+
 	return ""
 }
 
 func rewriteMachineNotFoundErrors(ctx context.Context, err error, machineID string) error {
 	if strings.Contains(err.Error(), "machine not found") {
 		appName := appconfig.NameFromContext(ctx)
+
 		return fmt.Errorf("machine %s was not found in app '%s'", machineID, appName)
 	} else {
 		return nil

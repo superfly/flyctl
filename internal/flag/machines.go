@@ -58,6 +58,19 @@ func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.Machine
 		}
 	}
 
+	if IsSpecified(ctx, "vm-max-memory") {
+		rawValue := GetString(ctx, "vm-max-memory")
+		maxMemoryMB, err := helpers.ParseSize(rawValue, units.RAMInBytes, units.MiB)
+		switch {
+		case err != nil:
+			return nil, err
+		case maxMemoryMB == 0:
+			return nil, fmt.Errorf("--vm-max-memory cannot be zero")
+		default:
+			guest.MaxMemoryMB = maxMemoryMB
+		}
+	}
+
 	if IsSpecified(ctx, "vm-cpu-kind") {
 		guest.CPUKind = GetString(ctx, "vm-cpu-kind")
 		if k := guest.CPUKind; k != "shared" && k != "performance" {
@@ -108,18 +121,23 @@ var VMSizeFlags = Set{
 	},
 	Int{
 		Name:        "vm-cpus",
-		Description: "Number of CPUs",
+		Description: "Number of CPUs (also --cpus)",
 		Aliases:     []string{"cpus"},
 	},
 	String{
 		Name:        "vm-cpu-kind",
-		Description: "The kind of CPU to use ('shared' or 'performance')",
+		Description: "The kind of CPU to use ('shared' or 'performance') (also --vm-cpukind)",
 		Aliases:     []string{"vm-cpukind"},
 	},
 	String{
 		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the VM",
+		Description: "Memory (in megabytes) to attribute to the VM (also --memory)",
 		Aliases:     []string{"memory"},
+	},
+	String{
+		Name:        "vm-max-memory",
+		Description: "Maximum memory (in megabytes) to allow for the VM",
+		Hidden:      true,
 	},
 	Int{
 		Name:        "vm-gpus",
@@ -127,7 +145,7 @@ var VMSizeFlags = Set{
 	},
 	String{
 		Name:        "vm-gpu-kind",
-		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUKinds, ", ")),
+		Description: fmt.Sprintf("If set, the GPU model to attach (%v) (also --vm-gpukind)", strings.Join(validGPUKinds, ", ")),
 		Aliases:     []string{"vm-gpukind"},
 	},
 	String{

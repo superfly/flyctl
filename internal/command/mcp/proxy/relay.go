@@ -104,7 +104,7 @@ func addToMCPServer(ctx context.Context, mcpClient *client.Client, mcpServer *se
 		Version: buildinfo.Info().Version.String(),
 	}
 	initRequest.Params.Capabilities = mcp.ClientCapabilities{
-		Experimental: make(map[string]interface{}),
+		Experimental: make(map[string]any),
 		Roots:        nil,
 		Sampling:     nil,
 	}
@@ -193,6 +193,7 @@ func addPromptsToServer(ctx context.Context, mcpClient *client.Client, mcpServer
 
 		promptsRequest.Params.Cursor = prompts.NextCursor
 	}
+
 	return nil
 }
 
@@ -216,6 +217,7 @@ func addResourcesToServer(ctx context.Context, mcpClient *client.Client, mcpServ
 				if e != nil {
 					return nil, e
 				}
+
 				return readResource.Contents, nil
 			})
 		}
@@ -250,6 +252,7 @@ func addResourceTemplatesToServer(ctx context.Context, mcpClient *client.Client,
 				if e != nil {
 					return nil, e
 				}
+
 				return readResource.Contents, nil
 			})
 		}
@@ -266,7 +269,7 @@ func addResourceTemplatesToServer(ctx context.Context, mcpClient *client.Client,
 
 func addNotificationsToServer(ctx context.Context, mcpClient *client.Client, mcpServer *server.MCPServer) error {
 	mcpClient.OnNotification(func(notification mcp.JSONRPCNotification) {
-		mcpServer.SendNotificationToAllClients(notification.Notification.Method, notification.Notification.Params.AdditionalFields)
+		mcpServer.SendNotificationToAllClients(notification.Method, notification.Params.AdditionalFields)
 	})
 
 	return nil

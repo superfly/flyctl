@@ -60,6 +60,7 @@ func runStatus(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	if cfg.JSONOutput {
 		_ = render.JSON(out, posMap)
+
 		return nil
 	}
 

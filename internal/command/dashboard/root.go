@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -29,6 +30,7 @@ func New() *cobra.Command {
 		flag.AppConfig(),
 	)
 	cmd.Aliases = []string{"dash"}
+
 	return cmd
 }
 
@@ -44,22 +46,44 @@ func newDashboardMetrics() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "grafana",
+			Shorthand:   "g",
+			Description: "Open Grafana metrics dashboard directly",
+			Default:     false,
+		},
 	)
+
 	return cmd
 }
 
 func runDashboard(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
+
 	return runDashboardOpen(ctx, "https://fly.io/apps/"+appName)
 }
 
 func runDashboardMetrics(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
+
+	if flag.GetBool(ctx, "grafana") {
+		client := flyutil.ClientFromContext(ctx)
+		app, err := client.GetAppBasic(ctx, appName)
+		if err != nil {
+			return fmt.Errorf("failed to get app info: %w", err)
+		}
+
+		url := fmt.Sprintf("https://fly-metrics.net/d/fly-app/fly-app?orgId=%s&var-app=%s", app.Organization.InternalNumericID, appName)
+
+		return runDashboardOpen(ctx, url)
+	}
+
 	return runDashboardOpen(ctx, "https://fly.io/apps/"+appName+"/metrics")
 }
 
 func runDashboardOpen(ctx context.Context, url string) error {
 	io := iostreams.FromContext(ctx)
 	fmt.Fprintln(io.Out, "Opening", url)
+
 	return open.Run(url)
 }

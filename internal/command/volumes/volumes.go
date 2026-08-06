@@ -16,7 +16,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/volumes/lsvd"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -44,7 +43,6 @@ func New() *cobra.Command {
 		newExtend(),
 		newShow(),
 		newFork(),
-		lsvd.New(),
 		snapshots.New(),
 	)
 
@@ -127,6 +125,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	if showHostStatus && unreachableVolumes {
 		fmt.Fprintln(out, "* These volumes' hosts could not be reached.")
 	}
+
 	return nil
 }
 
@@ -156,6 +155,7 @@ func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *f
 		}
 		if title == "" {
 			title = text
+
 			continue
 		}
 		volumeLines = append(volumeLines, text)
@@ -165,5 +165,6 @@ func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *f
 	if err != nil {
 		return nil, fmt.Errorf("selecting volume: %w", err)
 	}
+
 	return &volumes[selected], nil
 }

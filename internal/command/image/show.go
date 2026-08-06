@@ -165,8 +165,11 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 			}
 		}
 
-		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Digest == latest.Digest {
+		// Exclude machines that are already running the latest version, and
+		// skip cases where the resolver returned an older or non-newer build
+		// (e.g. a stale pinned minor tag at a lower fly.version than the
+		// machine's current rolling tag) to avoid suggesting downgrades.
+		if !IsUpdateCandidate(machine, latest) {
 			continue
 		}
 		updatable = append(updatable, machine)

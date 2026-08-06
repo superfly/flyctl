@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,7 +28,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 		ID:                origMachineRaw.ID,
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
-		SkipLaunch:        skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:        shouldSkipLaunch(origMachineRaw, mConfig),
 		MinSecretsVersion: minvers,
 	}, nil
 }
@@ -80,7 +81,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	return &fly.LaunchMachineInput{
 		Region:            region,
 		Config:            mConfig,
-		SkipLaunch:        skipLaunch(nil, mConfig),
+		SkipLaunch:        shouldSkipLaunch(nil, mConfig),
 		MinSecretsVersion: minvers,
 	}, nil
 }
@@ -152,7 +153,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
 			machineShouldBeReplaced = true
-			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
 		case oMounts[0].Name == "":
 			// It's rare but can happen, we don't know the mounted volume name
 			// so can't be sure it matches the mounts defined in fly.toml, in this
@@ -241,7 +241,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:          shouldSkipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
 		MinSecretsVersion:   minvers,
 	}, nil
@@ -255,6 +255,7 @@ func hasContainerFiles(mConfig *fly.MachineConfig) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -291,33 +292,40 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 // Skip launching currently-stopped or suspended machines if:
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
-func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+func shouldSkipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	state := "<not-set>"
 	if origMachineRaw != nil {
 		state = origMachineRaw.State
 	}
 
 	switch {
-	case state == fly.MachineStateStarted:
+	case slices.Contains([]string{fly.MachineStateStarted, "starting", "failed"}, state):
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case state == fly.MachineStateStopped, state == fly.MachineStateSuspended:
-		for _, s := range mConfig.Services {
-			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
-				return true
-			}
-		}
+	case origMachineRaw == nil:
+		return false
 	}
-	return false
+
+	return true
 }
 
 // updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
+// It also substitutes image_config references of "." in files with the build image.
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
-	if len(mConfig.Containers) != 0 {
-		for i := range mConfig.Containers {
-			if mConfig.Containers[i].Image == "." {
-				mConfig.Containers[i].Image = mConfig.Image
+	for j := range mConfig.Files {
+		if mConfig.Files[j].ImageConfig != nil && *mConfig.Files[j].ImageConfig == "." {
+			mConfig.Files[j].ImageConfig = &mConfig.Image
+		}
+	}
+
+	for i := range mConfig.Containers {
+		if mConfig.Containers[i].Image == "." {
+			mConfig.Containers[i].Image = mConfig.Image
+		}
+		for j := range mConfig.Containers[i].Files {
+			if mConfig.Containers[i].Files[j].ImageConfig != nil && *mConfig.Containers[i].Files[j].ImageConfig == "." {
+				mConfig.Containers[i].Files[j].ImageConfig = &mConfig.Image
 			}
 		}
 	}

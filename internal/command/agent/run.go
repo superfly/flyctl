@@ -46,12 +46,14 @@ func run(ctx context.Context) error {
 		err = fmt.Errorf("failed setting up logger: %w", err)
 
 		fmt.Fprintln(os.Stderr, err)
+
 		return err
 	}
 	defer closeLogger()
 
 	if config.Tokens(ctx).GraphQL() == "" {
 		logger.Println(fly.ErrNoAuthToken)
+
 		return fly.ErrNoAuthToken
 	}
 

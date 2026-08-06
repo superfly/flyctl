@@ -52,6 +52,7 @@ func (srv *Server) ProxyServer(ctx context.Context) error {
 				target, err := srv.Dial(ctx, "tcp", srv.Addr)
 				if err != nil {
 					terminal.Debug("failed to connect to target: ", err)
+
 					return
 				}
 				defer target.Close() //skipcq: GO-S2307

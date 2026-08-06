@@ -35,6 +35,7 @@ func NewMetricsWs() (*SyntheticsWs, error) {
 
 func getFlyntheticsWsUrl(ctx context.Context) string {
 	cfg := config.FromContext(ctx)
+
 	return fmt.Sprintf("%s/ws", cfg.SyntheticsBaseURL)
 }
 
@@ -59,7 +60,7 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 		HTTPHeader: headers,
 	}
 
-	wsConn, resp, err := websocket.Dial(ctx, rurl, opts)
+	wsConn, resp, err := websocket.Dial(ctx, rurl, opts) // nolint: bodyclose
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
 			// Handle 401 Unauthorized
@@ -72,6 +73,7 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 			// Handle non-HTTP errors
 			log.Printf("Dial failed: %v", err)
 		}
+
 		return fmt.Errorf("error connecting synthetics agent to fynthetics: %w", err)
 	}
 
@@ -111,6 +113,7 @@ func (ws *SyntheticsWs) listen(ctx context.Context) error {
 		if err != nil {
 			logger.Error("read error: ", err)
 			ws.resetConn(c, err)
+
 			continue
 		}
 
@@ -137,6 +140,7 @@ func (ws *SyntheticsWs) write(ctx context.Context, data []byte) (err error) {
 	if err != nil {
 		logger.Error("write error: ", err)
 		ws.resetConn(c, err)
+
 		return err
 	}
 

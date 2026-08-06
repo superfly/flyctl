@@ -33,6 +33,7 @@ func create() (cmd *cobra.Command) {
 			Description: "The name of your bucket",
 		},
 	)
+
 	return cmd
 }
 
@@ -71,7 +72,7 @@ func runCreate(ctx context.Context) (err error) {
 
 	// Include 'shadow_bucket' if all values are provided
 	if shadowBucketSpecified {
-		options["shadow_bucket"] = map[string]interface{}{
+		options["shadow_bucket"] = map[string]any{
 			"access_key":    accessKey,
 			"secret_key":    secretKey,
 			"region":        region,
@@ -82,7 +83,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	// Always include 'website' because the Tigris API expects it
-	options["website"] = map[string]interface{}{
+	options["website"] = map[string]any{
 		"domain_name": "",
 	}
 
@@ -119,5 +120,6 @@ func isShadowBucketSpecified(accessKey, secretKey, region, name, endpoint string
 	if n > 0 && n < len(values) {
 		return false, fmt.Errorf("You must set all required shadow bucket values: shadow-access-key, shadow-secret-key, shadow-region, shadow-name, shadow-endpoint")
 	}
+
 	return n == len(values), nil
 }

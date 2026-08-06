@@ -39,6 +39,7 @@ func newCreate() *cobra.Command {
 		newOrgRead(),
 		newLiteFSCloud(),
 		newSSH(),
+		newWireGuard(),
 	)
 
 	return cmd
@@ -137,6 +138,7 @@ func newOrgRead() *cobra.Command {
 			Description: "Token name",
 			Default:     "Read-only org token",
 		},
+		flag.Org(),
 	)
 
 	return cmd
@@ -254,6 +256,37 @@ func newMachineExec() *cobra.Command {
 	return cmd
 }
 
+func newWireGuard() *cobra.Command {
+	const (
+		short = "Create a WireGuard token"
+		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		usage = "wireguard"
+	)
+
+	cmd := command.New(usage, short, long, runWireGuard,
+		command.RequireSession,
+	)
+
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "WireGuard token",
+		},
+		flag.Org(),
+	)
+
+	return cmd
+}
+
 func makeToken(ctx context.Context, apiClient flyutil.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
@@ -267,6 +300,7 @@ func makeToken(ctx context.Context, apiClient flyutil.Client, orgID string, expi
 	if err != nil {
 		return nil, fmt.Errorf("failed creating token: %w", err)
 	}
+
 	return resp, nil
 }
 
@@ -549,6 +583,52 @@ func runMachineExec(ctx context.Context) error {
 	return nil
 }
 
+func runWireGuard(ctx context.Context) error {
+	var token string
+	apiClient := flyutil.ClientFromContext(ctx)
+
+	expiry := ""
+	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving org %w", err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	token, err = attenuate(token, &resset.IfPresent{
+		Ifs: macaroon.NewCaveatSet(
+			&flyio.Apps{Apps: resset.ResourceSet[uint64, resset.Action]{}},
+			&flyio.FeatureSet{
+				Features: resset.ResourceSet[string, resset.Action]{
+					flyio.FeatureWireGuard: resset.ActionAll,
+				},
+			},
+		),
+		Else: resset.ActionRead,
+	})
+	if err != nil {
+		return err
+	}
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
 func attenuate(token string, cavs ...macaroon.Caveat) (string, error) {
 	var atoken string
 	macTok, disToks, err := flyio.ParsePermissionAndDischargeTokens(token)
@@ -571,6 +651,7 @@ func attenuate(token string, cavs ...macaroon.Caveat) (string, error) {
 	}
 
 	atoken = macaroon.ToAuthorizationHeader(append([][]byte{perm}, disToks...)...)
+
 	return atoken, nil
 }
 
@@ -664,6 +745,7 @@ func runLiteFSCloud(ctx context.Context) (err error) {
 	return nil
 }
 
+//go:fix inline
 func ptr[T any](t T) *T {
-	return &t
+	return new(t)
 }

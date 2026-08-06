@@ -14,10 +14,10 @@ jobs:
             target: "test"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: "${{ matrix.test.workdir }}/go.mod"
       - name: Run Tests (${{ matrix.test.target }})

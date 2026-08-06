@@ -3,19 +3,19 @@ package mpg
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/iostreams"
-
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newList() *cobra.Command {
@@ -28,6 +28,7 @@ If no organization is specified, the user's personal organization is used.`
 
 	cmd := command.New(usage, short, long, runList,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Aliases = []string{"ls"}
@@ -44,11 +45,6 @@ If no organization is specified, the user's personal organization is used.`
 }
 
 func runList(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
@@ -56,29 +52,30 @@ func runList(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	orgSlug := org.Slug
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	mpgv1Client := mpgv1.ClientFromContext(ctx)
 	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
 
 	// For ui-ex request we need the real org slug
-	var fullOrg *gql.GetOrganizationResponse
-	if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
-		err = fmt.Errorf("failed fetching org: %w", err)
-		return err
+	fullOrg, err := gql.GetOrganization(ctx, genqClient, orgSlug)
+	if err != nil {
+		return fmt.Errorf("failed fetching org: %w", err)
 	}
 
 	deleted := flag.GetBool(ctx, "deleted")
-	clusters, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
+	clusters, err := mpgv1Client.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
 	if err != nil {
-		return fmt.Errorf("failed to list managed clusters for organization %s: %w", org.Slug, err)
+		return fmt.Errorf("failed to list postgres clusters for organization %s: %w", orgSlug, err)
 	}
 
 	if len(clusters.Data) == 0 {
 		if deleted {
-			fmt.Fprintf(out, "No deleted managed postgres clusters found in organization %s\n", org.Slug)
+			fmt.Fprintf(out, "No deleted managed postgres clusters found in organization %s\n", orgSlug)
 		} else {
-			fmt.Fprintf(out, "No managed postgres clusters found in organization %s\n", org.Slug)
+			fmt.Fprintf(out, "No managed postgres clusters found in organization %s\n", orgSlug)
 		}
+
 		return nil
 	}
 
@@ -95,8 +92,23 @@ func runList(ctx context.Context) error {
 			cluster.Region,
 			cluster.Status,
 			cluster.Plan,
+			FormatAttachedApps(cluster.AttachedApps),
 		})
 	}
 
-	return render.Table(out, "", rows, "ID", "Name", "Org", "Region", "Status", "Plan")
+	return render.Table(out, "", rows, "ID", "Name", "Org", "Region", "Status", "Plan", "Attached Apps")
+}
+
+// FormatAttachedApps formats the list of attached apps for display
+func FormatAttachedApps(apps []mpg.AttachedApp) string {
+	if len(apps) == 0 {
+		return "<no attached apps>"
+	}
+
+	names := make([]string, len(apps))
+	for i, app := range apps {
+		names[i] = app.Name
+	}
+
+	return strings.Join(names, ", ")
 }

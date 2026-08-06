@@ -33,6 +33,7 @@ func newMachineUncordon() *cobra.Command {
 	)
 
 	cmd.Args = cobra.ArbitraryArgs
+
 	return cmd
 }
 
@@ -65,5 +66,6 @@ func runMachineUncordon(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "done!\n")
 	}
+
 	return
 }

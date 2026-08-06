@@ -30,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -301,6 +302,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 			if update.IsUnderHomebrew() {
 				if relErr := update.ValidateRelease(ctx, r.Version); relErr != nil {
 					logger.Debugf("latest release %s is invalid: %v", r.Version, relErr)
+
 					break
 				}
 			}
@@ -351,6 +353,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 		for i := len(ignoredCmd) - 1; i >= 0; i-- {
 			if !currentCmd.HasParent() || currentCmd.Use != ignoredCmd[i] {
 				match = false
+
 				break
 			}
 			currentCmd = currentCmd.Parent()
@@ -362,6 +365,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -403,6 +407,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	latest, err := version.Parse(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
+
 		return ctx, err
 	}
 
@@ -411,6 +416,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			// Continuing from versionInvalidMsg above
 			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
 		}
+
 		return ctx, nil
 	}
 
@@ -430,6 +436,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			}
 			// Does not return on success
 			err = update.Relaunch(ctx, silent)
+
 			return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
 		} else if runtime.GOOS != "windows" {
 			// Background auto-update has terrible UX on windows,
@@ -553,6 +560,7 @@ func notifyHostIssues(ctx context.Context) (context.Context, error) {
 
 func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 	metrics.Enabled = false
+
 	return ctx, nil
 }
 
@@ -566,21 +574,19 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		return handleReLogin(ctx, "not_authenticated")
 	}
 
-	// Skip timestamp validation if token is from environment variable (CI/CD use case)
-	// This allows automated pipelines to continue working without session timeout
-	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
-
-	if !tokenFromEnv {
+	if !hasExternallySuppliedToken(ctx) {
 		// Check if the token has expired due to age
 		// If LastLogin is zero, it means the user has an old config without the timestamp
 		if cfg.LastLogin.IsZero() {
 			logger.FromContext(ctx).Debug("no login timestamp found, prompting for re-login")
+
 			return handleReLogin(ctx, "no_timestamp")
 		}
 
 		// Check if the token has expired based on the timeout
 		if time.Since(cfg.LastLogin) > TokenTimeout {
 			logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
+
 			return handleReLogin(ctx, "expired")
 		}
 	}
@@ -588,6 +594,20 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
+}
+
+// hasExternallySuppliedToken reports whether the user supplied an auth token
+// via the FLY_ACCESS_TOKEN / FLY_API_TOKEN env vars or the --access-token
+// flag. These are non-interactive auth paths (CI/CD use cases) and must
+// bypass the interactive session-age re-login prompt — otherwise CI runs
+// without a LastLogin timestamp fail with ErrNoAuthToken even when the
+// caller explicitly provided a valid token.
+func hasExternallySuppliedToken(ctx context.Context) bool {
+	if env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != "" {
+		return true
+	}
+
+	return flag.GetString(ctx, flagnames.AccessToken) != ""
 }
 
 // handleReLogin prompts the user to log in and handles the re-login flow
@@ -620,7 +640,7 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			promptMessage = "Would you like to sign in?"
 		}
 
-		confirmed, err := prompt.Confirm(ctx, promptMessage)
+		confirmed, err := prompt.ConfirmYes(ctx, promptMessage)
 		if err != nil {
 			return nil, err
 		}
@@ -682,6 +702,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	// LoadAppConfigIfPresent is chained with RequireAppName
 	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
 		metrics.IsUsingGPU = cfg.IsUsingGPU()
+
 		return ctx, nil
 	}
 
@@ -695,9 +716,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
+
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
+
 			continue
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
@@ -816,6 +839,7 @@ func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Con
 	if wd == "" {
 		return ctx, nil
 	}
+
 	return ChangeWorkingDirectory(ctx, wd)
 }
 

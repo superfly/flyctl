@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/kr/text"
-	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flyctl"
@@ -45,7 +45,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
 	"github.com/superfly/flyctl/internal/command/mpg"
-	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -124,7 +123,6 @@ func New() *cobra.Command {
 		agent.New(),
 		group(image.New(), "configuring"),
 		group(incidents.New(), "upkeep"),
-		group(mysql.New(), "dbs_and_extensions"),
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
@@ -232,7 +230,7 @@ func run(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		cmd.Printf("  %s %s\n", tablewriter.PadRight(c.CommandPath(), " ", 16), c.Short)
+		cmd.Printf("  %s %s\n", tw.PadRight(c.CommandPath(), " ", 16), c.Short)
 	}
 
 	cmd.Println()
@@ -252,5 +250,6 @@ func run(ctx context.Context) error {
 
 func group(cmd *cobra.Command, id string) *cobra.Command {
 	cmd.GroupID = id
+
 	return cmd
 }

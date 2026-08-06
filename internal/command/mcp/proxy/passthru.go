@@ -68,6 +68,7 @@ func waitForServer(proxyInfo ProxyInfo) error {
 			break
 		} else if !strings.Contains(err.Error(), "connection refused") {
 			log.Printf("Error sending message to server: %v", err)
+
 			break
 		}
 
@@ -112,6 +113,7 @@ func processStdin(proxyInfo ProxyInfo, ready *bool, readyCond *sync.Cond) error 
 			// we'll return a generic error JSON
 			errMsg := fmt.Sprintf(`{"type":"error","content":"Failed to send to server: %v"}`, err)
 			fmt.Fprintln(os.Stdout, errMsg)
+
 			continue
 		}
 	}

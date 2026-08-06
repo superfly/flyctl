@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	fly "github.com/superfly/fly-go"
+	imagecmd "github.com/superfly/flyctl/internal/command/image"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -31,6 +32,7 @@ func getProcessgroup(m *fly.Machine) string {
 	if m.HostStatus != fly.HostStatusOk {
 		name += "💀"
 	}
+
 	return name
 }
 
@@ -113,8 +115,10 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		if err != nil {
 			if strings.Contains(err.Error(), "Unknown repository") {
 				unknownRepos[image] = true
+
 				continue
 			}
+
 			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
 		}
 
@@ -122,8 +126,10 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 			latest = latestImage
 		}
 
-		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Digest == latest.Digest {
+		// Exclude machines that are already running the latest version, and
+		// skip cases where the resolver returned an older or non-newer build
+		// to avoid suggesting downgrades.
+		if !imagecmd.IsUpdateCandidate(machine, latest) {
 			continue
 		}
 		updatable = append(updatable, machine)
@@ -157,8 +163,13 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 		return err
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image}}
-	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image"); err != nil {
+	fields := []string{app.Name, app.Organization.Slug, app.Hostname, image}
+	headers := []string{"Name", "Owner", "Hostname", "Image"}
+	if app.Network != "" {
+		fields = append(fields, app.Network)
+		headers = append(headers, "Network")
+	}
+	if err := render.VerticalTable(out, "App", [][]string{fields}, headers...); err != nil {
 		return err
 	}
 
@@ -268,6 +279,10 @@ func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines 
 		"PlatformVersion": app.PlatformVersion,
 		"Machines":        machinesToShow,
 	}
+	if app.Network != "" {
+		status["Network"] = app.Network
+	}
+
 	return render.JSON(out, status)
 }
 
@@ -287,6 +302,7 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 		}
 	} else {
 		fmt.Fprintf(out, "No machines are available on this app %s\n", app.Name)
+
 		return
 	}
 
@@ -314,8 +330,10 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 			return fmt.Errorf("major version mismatch detected")
 		}
 
-		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Digest == latest.Digest {
+		// Exclude machines that are already running the latest version, and
+		// skip cases where the resolver returned an older or non-newer build
+		// to avoid suggesting downgrades.
+		if !imagecmd.IsUpdateCandidate(machine, latest) {
 			continue
 		}
 		updatable = append(updatable, machine)

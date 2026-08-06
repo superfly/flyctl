@@ -6,15 +6,15 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/mpg"
+	mpgregionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type PostgresPlan struct {
-	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
-	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
-	ManagedPostgres  *ManagedPostgresPlan  `json:"managed_postgres"`
+	FlyPostgres     *FlyPostgresPlan     `json:"fly_postgres"`
+	ManagedPostgres *ManagedPostgresPlan `json:"managed_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -24,12 +24,10 @@ func (p *PostgresPlan) Provider() any {
 	if p.FlyPostgres != nil {
 		return p.FlyPostgres
 	}
-	if p.SupabasePostgres != nil {
-		return p.SupabasePostgres
-	}
 	if p.ManagedPostgres != nil {
 		return p.ManagedPostgres
 	}
+
 	return nil
 }
 
@@ -68,7 +66,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
 	if err == nil && mpgEnabled {
 		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
-		validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+		validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 		if isInteractive {
 			if err == nil && validRegion {
 				// Managed postgres is available in this region, use it
@@ -91,6 +89,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 
 	// Default to FlyPostgres
 	fmt.Fprintf(io.ErrOut, "Deprecation Warning: We will soon default to Managed Postgres when launching new apps in compatible regions. Pass --db=mpg to use Managed Postgres now and --db=upg to use Unmanaged Postgres.\n")
+
 	return createFlyPostgresPlan(plan), nil
 }
 
@@ -147,7 +146,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+	validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -161,7 +160,8 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, orgSlug)
+		availableCodes, _ := mpgregionsv1.GetAvailableMPGRegionCodes(ctx, orgSlug)
+
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
 }
@@ -171,12 +171,13 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, orgSlug)
+	availableRegions, err := mpgregionsv1.GetAvailableMPGRegions(ctx, orgSlug)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "Warning: Unable to find regions that support Managed Postgres. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -192,6 +193,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "%s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -207,6 +209,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "Failed to select region. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -238,26 +241,8 @@ func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
 	if p.VmRam != 0 {
 		guest.MemoryMB = p.VmRam
 	}
+
 	return &guest
-}
-
-type SupabasePostgresPlan struct {
-	DbName string `json:"db_name"`
-	Region string `json:"region"`
-}
-
-func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
-	if p.DbName == "" {
-		return plan.AppName + "-db"
-	}
-	return p.DbName
-}
-
-func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
-	if p.Region == "" {
-		return plan.RegionCode
-	}
-	return p.Region
 }
 
 type ManagedPostgresPlan struct {
@@ -272,6 +257,7 @@ func (p *ManagedPostgresPlan) GetDbName(plan *LaunchPlan) string {
 	if p.DbName == "" {
 		return plan.AppName + "-db"
 	}
+
 	return p.DbName
 }
 
@@ -279,5 +265,6 @@ func (p *ManagedPostgresPlan) GetRegion(plan *LaunchPlan) string {
 	if p.Region == "" {
 		return plan.RegionCode
 	}
+
 	return p.Region
 }

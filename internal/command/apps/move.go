@@ -72,6 +72,7 @@ func RunMove(ctx context.Context) error {
 
 	if app.Organization.Slug == org.Slug {
 		fmt.Fprintln(io.Out, "No changes to apply")
+
 		return nil
 	}
 

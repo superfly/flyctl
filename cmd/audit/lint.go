@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/command/root"
@@ -22,21 +23,22 @@ func newLintCmd() *cobra.Command {
 			root := root.New()
 			run := NewCheckRun(root)
 
-			table := tablewriter.NewWriter(os.Stdout)
-			table.SetBorder(false)
-			table.SetAutoWrapText(false)
-			table.SetHeader([]string{"Path", "Check", "Failure Reason"})
+			table := tablewriter.NewTable(os.Stdout,
+				tablewriter.WithHeader([]string{"Path", "Check", "Failure Reason"}),
+				tablewriter.WithRendition(tw.Rendition{
+					Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off},
+				}),
+			)
+			table.Configure(func(cfg *tablewriter.Config) {
+				cfg.Row.Formatting.AutoWrap = tw.WrapNone
+			})
 
 			errors := run.Run()
 			for _, err := range errors {
-				table.Append([]string{
-					err.command,
-					err.check,
-					err.Error(),
-				})
+				table.Append(err.command, err.check, err.Error()) //nolint:errcheck
 			}
 
-			table.Render()
+			table.Render() //nolint:errcheck
 
 			fmt.Println()
 			fmt.Printf("%d checks failed\n", len(errors))
@@ -46,6 +48,7 @@ func newLintCmd() *cobra.Command {
 			}
 		},
 	}
+
 	return cmd
 }
 
@@ -150,6 +153,7 @@ func redundantUsageCheck(run *run, cmd *cobra.Command) error {
 	if strings.Contains(cmd.Use, "[flags]") {
 		return fmt.Errorf("redundant \"[flags]\" in usage string: \"%s\"; remove \"[flags]\"", cmd.Use)
 	}
+
 	return nil
 }
 
@@ -157,6 +161,7 @@ func duplicateDescription(run *run, cmd *cobra.Command) error {
 	if cmd.Long == cmd.Short {
 		return fmt.Errorf("duplicate cmd.Long and cmd.Short; remove cmd.long")
 	}
+
 	return nil
 }
 
@@ -164,6 +169,7 @@ func shortDescriptionCasing(run *run, cmd *cobra.Command) error {
 	if cmd.Short != "" && !unicode.IsUpper([]rune(cmd.Short)[0]) {
 		return fmt.Errorf("cmd.Short should be capitalized")
 	}
+
 	return nil
 }
 
@@ -171,6 +177,7 @@ func newlineInDescription(run *run, cmd *cobra.Command) error {
 	if strings.Contains(cmd.Short, "\n") {
 		return fmt.Errorf("cmd.Short cannot contain newlines")
 	}
+
 	return nil
 }
 
@@ -180,6 +187,7 @@ func missingDescriptions(run *run, cmd *cobra.Command) error {
 	} else if cmd.Short == "" {
 		return fmt.Errorf("has cmd.Long but not cmd.Short; add cmd.Short")
 	}
+
 	return nil
 }
 
@@ -187,6 +195,7 @@ func shortDescriptionTooLong(run *run, cmd *cobra.Command) error {
 	if len(cmd.Short) > 80 {
 		return fmt.Errorf("cmd.Short is too long and risks wrapping; should be 80 characters or less")
 	}
+
 	return nil
 }
 
@@ -194,6 +203,7 @@ func usagePunctuation(run *run, cmd *cobra.Command) error {
 	if strings.HasSuffix(cmd.Use, ".") {
 		return fmt.Errorf("cmd.Use should not end with a period")
 	}
+
 	return nil
 }
 
@@ -242,6 +252,7 @@ func poorCommandName(run *run, cmd *cobra.Command) error {
 	if msg != "" {
 		return fmt.Errorf("command name \"%s\" %s", cmd.Name(), msg)
 	}
+
 	return nil
 }
 
@@ -266,8 +277,10 @@ func invalidGroup(run *run, cmd *cobra.Command) error {
 		for _, g := range cmd.Parent().Groups() {
 			groupIDs = append(groupIDs, g.ID)
 		}
+
 		return fmt.Errorf("group \"%s\" is not registered on the parent command: %v", cmd.GroupID, groupIDs)
 	}
+
 	return nil
 }
 
@@ -313,5 +326,6 @@ func encodeForMessage(x any) string {
 	if err != nil {
 		panic(err)
 	}
+
 	return string(b)
 }

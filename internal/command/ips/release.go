@@ -29,6 +29,7 @@ func newRelease() *cobra.Command {
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
+
 	return cmd
 }
 
@@ -49,6 +50,7 @@ func newReleaseEgress() *cobra.Command {
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
+
 	return cmd
 }
 

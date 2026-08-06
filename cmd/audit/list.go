@@ -113,6 +113,7 @@ func commandAttrs(cmd *cobra.Command) string {
 		attrs = append(attrs, "has_example")
 	}
 	slices.Sort(attrs)
+
 	return strings.Join(attrs, ", ")
 }
 
@@ -128,6 +129,7 @@ func flagAttrs(f *pflag.Flag) string {
 		attrs = append(attrs, "shorthand_deprecated")
 	}
 	slices.Sort(attrs)
+
 	return strings.Join(attrs, ", ")
 }
 
@@ -135,5 +137,6 @@ func countFlags(cmd *cobra.Command) (count int) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		count++
 	})
+
 	return
 }

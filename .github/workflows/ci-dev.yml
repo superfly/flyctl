@@ -31,10 +31,10 @@ jobs:
         run: echo "$GITHUB_CONTEXT"
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
       - name: Get version number
@@ -46,7 +46,7 @@ jobs:
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ steps.version.outputs.next }}" >> $GITHUB_STEP_SUMMARY
       - name: Create tag
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           TAG_NAME: v${{ steps.version.outputs.next }}
         with:

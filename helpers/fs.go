@@ -11,6 +11,7 @@ func FileExists(path string) bool {
 	if err != nil {
 		return false
 	}
+
 	return !info.IsDir()
 }
 
@@ -19,6 +20,7 @@ func DirectoryExists(path string) bool {
 	if err != nil {
 		return false
 	}
+
 	return info.IsDir()
 }
 
@@ -31,6 +33,7 @@ func PathRelativeToCWD(path string) string {
 	if err != nil {
 		return path
 	}
+
 	return path
 }
 

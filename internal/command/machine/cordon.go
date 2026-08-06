@@ -33,6 +33,7 @@ func newMachineCordon() *cobra.Command {
 	)
 
 	cmd.Args = cobra.ArbitraryArgs
+
 	return cmd
 }
 
@@ -64,5 +65,6 @@ func runMachineCordon(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "done!\n")
 	}
+
 	return
 }

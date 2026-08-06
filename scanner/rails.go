@@ -20,7 +20,6 @@ import (
 
 var healthcheck_channel = make(chan string)
 var bundle, ruby string
-var binrails = filepath.Join(".", "bin", "rails")
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
@@ -129,19 +128,31 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// mysql
 		s.DatabaseDesired = DatabaseKindMySQL
 		s.SkipDatabase = false
-	} else if !checksPass(sourceDir, fileExists("Dockerfile")) || checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
-		// postgresql
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
+		// postgresql (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
 	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
-		// sqlite
+		// sqlite (detected from existing Dockerfile)
 		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
-		s.ObjectStorageDesired = true
-	} else {
-		// no database
-		s.DatabaseDesired = DatabaseKindNone
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*sqlite")) {
+		// sqlite (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
+		// Don't set ObjectStorageDesired here - let the normal object storage detection
+		// logic handle it by checking for aws-sdk-s3, active_storage, etc.
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*(mysql|trilogy)")) {
+		// mysql (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindMySQL
+		s.SkipDatabase = false
+	} else if checksPass(sourceDir, dirContains("config/database.yml", "adapter.*postgres")) {
+		// postgresql (detected from database.yml)
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
+	} else {
+		s.DatabaseDesired = DatabaseKindNone
+		s.SkipDatabase = false
 	}
 
 	// enable redis if there are any action cable / anycable channels
@@ -183,7 +194,11 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	if checksPass(sourceDir, dirContains("Gemfile", "aws-sdk-s3")) || checksPass(sourceDir, dirContains("Gemfile.lock", "aws-sdk-s3")) {
 		s.ObjectStorageDesired = true
 	} else if checksPass(sourceDir+"/db/migrate", dirContains("*.rb", ":active_storage_attachments")) {
-		s.ObjectStorageDesired = true
+		// Rails apps may keep old Active Storage migrations around even when
+		// runtime storage is explicitly local. Avoid a false positive in that case.
+		if !railsProductionActiveStorageIsLocal(sourceDir) {
+			s.ObjectStorageDesired = true
+		}
 	} else if checksPass(sourceDir+"/config", fileExists("storage.yml")) {
 		cfgMap := map[string]any{}
 		buf, err := os.ReadFile(path.Join(sourceDir, "config", "storage.yml"))
@@ -194,8 +209,13 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 		if err == nil {
 			for _, v := range cfgMap {
-				submap, ok := v.(map[interface{}]interface{})
-				if ok {
+				switch submap := v.(type) {
+				case map[any]any:
+					service, ok := submap["service"].(string)
+					if ok && service == "S3" {
+						s.ObjectStorageDesired = true
+					}
+				case map[string]any:
 					service, ok := submap["service"].(string)
 					if ok && service == "S3" {
 						s.ObjectStorageDesired = true
@@ -226,6 +246,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
 	// sequence for production credentials to determine the RAILS_MASTER_KEY.
+	binrails := filepath.Join("bin", "rails")
 	masterKey, err := os.ReadFile("config/credentials/production.key")
 	if err != nil {
 		masterKey, err = os.ReadFile("config/master.key")
@@ -290,24 +311,50 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	}
 
 	// fetch healthcheck route in a separate thread
-	go func() {
-		ruby, err := exec.LookPath("ruby")
-		if err != nil {
+	// Skip in tests to avoid file handle issues on Windows during cleanup
+	if config.SkipHealthcheck {
+		// Send empty value immediately to avoid blocking code that reads from the channel
+		go func() {
 			healthcheck_channel <- ""
-			return
-		}
+		}()
+	} else {
+		go func() {
+			ruby, err := exec.LookPath("ruby")
+			if err != nil {
+				healthcheck_channel <- ""
 
-		out, err := exec.Command(ruby, binrails, "runner",
-			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+				return
+			}
 
-		if err == nil {
-			healthcheck_channel <- strings.TrimSpace(string(out))
-		} else {
-			healthcheck_channel <- ""
-		}
-	}()
+			out, err := exec.Command(ruby, binrails, "runner",
+				"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
+
+			if err == nil {
+				healthcheck_channel <- strings.TrimSpace(string(out))
+			} else {
+				healthcheck_channel <- ""
+			}
+		}()
+	}
 
 	return s, nil
+}
+
+func railsProductionActiveStorageIsLocal(sourceDir string) bool {
+	buf, err := os.ReadFile(path.Join(sourceDir, "config", "environments", "production.rb"))
+	if err != nil {
+		return false
+	}
+
+	prodEnv := string(buf)
+	re := regexp.MustCompile(`(?m)config\.active_storage\.service\s*=\s*:(local|test)\b`)
+	if re.MatchString(prodEnv) {
+		return true
+	}
+
+	re = regexp.MustCompile(`(?m)config\.active_storage\.service\s*=\s*["'](local|test)["']\b`)
+
+	return re.MatchString(prodEnv)
 }
 
 func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
@@ -318,6 +365,8 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	//
 	// If the generator fails but a Dockerfile exists, warn the user and proceed.  Only fail if no
 	// Dockerfile exists at the end of this process.
+
+	binrails := filepath.Join("bin", "rails")
 
 	// If bundle or ruby are not available, check if Dockerfile exists and skip generator
 	if bundle == "" || ruby == "" {
@@ -346,6 +395,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 					}
 				}
 			}
+
 			return nil
 		} else {
 			return errors.New("No Dockerfile found and bundle/ruby not available to generate one")
@@ -468,8 +518,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// base generate command
-	args := []string{binrails, "generate", "dockerfile",
-		"--label=fly_launch_runtime:rails"}
+	args := []string{binrails, "generate", "dockerfile", "--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
@@ -481,9 +530,21 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		}
 	}
 
-	// add postgres
-	if plan.Postgres.Provider() != nil {
+	// Pass database flags based on what the app actually uses, not what's in the plan
+	// This ensures the Dockerfile is configured correctly even if the plan includes
+	// a different database (e.g., when migrating from SQLite to Postgres or when
+	// extensions are skipped in tests)
+	switch srcInfo.DatabaseDesired {
+	case DatabaseKindPostgres:
 		args = append(args, "--postgresql", "--no-prepare")
+	case DatabaseKindMySQL:
+		args = append(args, "--mysql")
+	case DatabaseKindSqlite:
+		// No additional flags needed for SQLite here
+	case DatabaseKindNone:
+		// No database flags needed
+	default:
+		// Unknown database kind; no flags added
 	}
 
 	// add redis

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+const flypgPort = "5500"
+
 type Client struct {
 	httpClient *http.Client
 	BaseURL    string
@@ -23,12 +25,22 @@ type Client struct {
 
 // NewFromInstance creates a new Client that targets a specific instance(address)
 func NewFromInstance(address string, dialer agent.Dialer) *Client {
-	url := fmt.Sprintf("http://%s:5500", address)
+	url := formatPGBaseURL(address)
 	terminal.Debugf("flypg will connect to: %s\n", url)
+
 	return &Client{
 		httpClient: newHttpClient(dialer),
 		BaseURL:    url,
 	}
+}
+
+func formatPGBaseURL(address string) string {
+	hostport := net.JoinHostPort(address, flypgPort)
+
+	return (&url.URL{
+		Scheme: "http",
+		Host:   hostport,
+	}).String()
 }
 
 func newHttpClient(dialer agent.Dialer) *http.Client {
@@ -58,7 +70,7 @@ func newHttpClient(dialer agent.Dialer) *http.Client {
 	return &http.Client{Transport: logging}
 }
 
-func (c *Client) doRequest(ctx context.Context, method, path string, in interface{}) (io.ReadCloser, error) {
+func (c *Client) doRequest(ctx context.Context, method, path string, in any) (io.ReadCloser, error) {
 	req, err := c.NewRequest(path, method, in)
 	if err != nil {
 		return nil, err
@@ -74,13 +86,14 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 	if res.StatusCode > 299 {
 		err := newError(res.StatusCode, res)
 		_ = res.Body.Close()
+
 		return nil, err
 	}
 
 	return res.Body, nil
 }
 
-func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
+func (c *Client) Do(ctx context.Context, method, path string, in, out any) error {
 	body, err := c.doRequest(ctx, method, path, in)
 	if err != nil {
 		return err
@@ -90,13 +103,14 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 
 	if out == nil {
 		_, _ = io.Copy(io.Discard, body)
+
 		return nil
 	}
 
 	return json.NewDecoder(body).Decode(out)
 }
 
-func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {
+func (c *Client) NewRequest(path string, method string, in any) (*http.Request, error) {
 	var (
 		body    io.Reader
 		headers = make(map[string][]string)

@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -19,8 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/spinner"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -42,10 +42,6 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
 		}
-	}
-
-	if state.Plan.Postgres.SupabasePostgres != nil && (planStep == "" || planStep == "postgres") {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Supabase Postgres is no longer supported.\n")
 	}
 
 	if state.Plan.Redis.UpstashRedis != nil && (planStep == "" || planStep == "redis") {
@@ -116,6 +112,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		if err != nil {
 			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
 			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
+
 			return err
 		} else {
 			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
@@ -169,9 +166,9 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var (
-		io         = iostreams.FromContext(ctx)
-		pgPlan     = state.Plan.Postgres.ManagedPostgres
-		uiexClient = uiexutil.ClientFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		pgPlan    = state.Plan.Postgres.ManagedPostgres
+		mpgClient = mpgv1.ClientFromContext(ctx)
 	)
 
 	// Check if we should attach to an existing cluster instead of creating a new one
@@ -210,7 +207,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Create cluster using the UI-EX client with retry logic for network errors
-	input := uiex.CreateClusterInput{
+	input := mpgv1.CreateClusterInput{
 		Name:    params.Name,
 		Region:  params.Region,
 		Plan:    params.Plan,
@@ -220,11 +217,12 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
-	var response uiex.CreateClusterResponse
+	var response mpgv1.CreateClusterResponse
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			response, retryErr = uiexClient.CreateCluster(ctx, input)
+			response, retryErr = mpgClient.CreateCluster(ctx, input)
+
 			return retryErr
 		},
 		retry.Context(ctx),
@@ -259,7 +257,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	// Use retry.Do with a 15-minute timeout and exponential backoff
 	err = retry.Do(
 		func() error {
-			cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+			cluster, err := mpgClient.GetManagedClusterById(ctx, response.Data.Id)
 			if err != nil {
 				// For network errors, return the error to trigger retry
 				if containsNetworkError(err.Error()) {
@@ -285,6 +283,18 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		retry.Delay(2*time.Second),
 		retry.MaxDelay(30*time.Second),
 		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			// Log network-related errors and periodic status updates
+			if containsNetworkError(err.Error()) {
+				s.Stop()
+				fmt.Fprintf(io.Out, "Retrying status check due to network issue: %v\n", err)
+				s = spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
+			} else if n%10 == 0 && n > 0 { // Log every 10th attempt to show progress
+				s.Stop()
+				fmt.Fprintf(io.Out, "Still waiting for cluster to be ready (attempt %d)...\n", n+1)
+				s = spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
+			}
+		}),
 	)
 
 	// Stop the spinner
@@ -296,22 +306,26 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		if waitCtx.Err() == context.DeadlineExceeded {
 			fmt.Fprintf(io.Out, "\nCluster creation is taking longer than expected. Continuing with deployment.\n")
 			fmt.Fprintf(io.Out, "You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+
 			return nil
 		}
 		// Check if the user cancelled
 		if ctx.Err() == context.Canceled {
 			fmt.Fprintf(io.Out, "\nContinuing with deployment. You can check the status later with 'fly mpg status' and attach with 'fly mpg attach'.\n")
+
 			return nil
 		}
+
 		return err
 	}
 
 	// Get the cluster credentials with retry logic
-	var cluster uiex.GetManagedClusterResponse
+	var cluster mpgv1.GetManagedClusterResponse
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, response.Data.Id)
+
 			return retryErr
 		},
 		retry.Context(ctx),
@@ -345,19 +359,20 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 // attachToManagedPostgres attaches an existing Managed Postgres cluster to the app
 func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID string) error {
 	var (
-		io         = iostreams.FromContext(ctx)
-		uiexClient = uiexutil.ClientFromContext(ctx)
-		client     = flyutil.ClientFromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		mpgClient = mpgv1.ClientFromContext(ctx)
+		client    = flyutil.ClientFromContext(ctx)
 	)
 
 	// Get cluster details to verify it exists and get credentials
 	fmt.Fprintf(io.Out, "Attaching to existing Managed Postgres cluster %s...\n", clusterID)
 
-	var cluster uiex.GetManagedClusterResponse
+	var cluster mpgv1.GetManagedClusterResponse
 	err := retry.Do(
 		func() error {
 			var retryErr error
-			cluster, retryErr = uiexClient.GetManagedClusterById(ctx, clusterID)
+			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, clusterID)
+
 			return retryErr
 		},
 		retry.Context(ctx),
@@ -386,9 +401,22 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 			state.Plan.AppName, appOrgSlug, clusterID, clusterOrgSlug)
 	}
 
+	// Build connection URI with the database name from the plan (if provided)
+	connectionUri := cluster.Credentials.ConnectionUri
+	dbName := state.Plan.Postgres.ManagedPostgres.DbName
+	if dbName != "" {
+		// Parse the base connection URI and replace the database name
+		parsedUri, err := url.Parse(cluster.Credentials.ConnectionUri)
+		if err != nil {
+			return fmt.Errorf("failed to parse connection URI: %w", err)
+		}
+		parsedUri.Path = "/" + dbName
+		connectionUri = parsedUri.String()
+	}
+
 	// Set the connection string as a secret
 	secrets := map[string]string{
-		"DATABASE_URL": cluster.Credentials.ConnectionUri,
+		"DATABASE_URL": connectionUri,
 	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -397,7 +425,7 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	}
 
 	fmt.Fprintf(io.Out, "Managed Postgres cluster %s is now attached to %s\n", clusterID, state.Plan.AppName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, connectionUri)
 
 	return nil
 }
@@ -418,6 +446,7 @@ func containsNetworkError(errMsg string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -435,6 +464,7 @@ func stringContains(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -470,10 +500,18 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		}
 	}
 
-	db, err := redis.Create(ctx, org, dbName, &region, len(readReplicaRegions) == 0, redisPlan.Eviction, &readReplicaRegions)
+	// Get the default plan (pay-as-you-go)
+	plan, err := redis.DeterminePlan(ctx, "")
 	if err != nil {
 		return err
 	}
+
+	// Launch uses defaults: no auto-upgrade (not available for pay-as-you-go anyway), no prodpack
+	db, err := redis.Create(ctx, org, dbName, &region, plan, len(readReplicaRegions) == 0, redisPlan.Eviction, false, false, &readReplicaRegions)
+	if err != nil {
+		return err
+	}
+
 	return redis.AttachDatabase(ctx, db, state.Plan.AppName)
 }
 
@@ -489,12 +527,12 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 		Provider:       "tigris",
 		Organization:   org,
 		AppName:        state.Plan.AppName,
-		OverrideName:   fly.Pointer(tigrisPlan.Name),
+		OverrideName:   new(tigrisPlan.Name),
 		OverrideRegion: state.Plan.RegionCode,
 		Options: gql.AddOnOptions{
 			"public":     tigrisPlan.Public,
 			"accelerate": tigrisPlan.Accelerate,
-			"website": map[string]interface{}{
+			"website": map[string]any{
 				"domain_name": tigrisPlan.WebsiteDomainName,
 			},
 		},

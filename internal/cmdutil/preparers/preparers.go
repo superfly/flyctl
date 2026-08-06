@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	"github.com/superfly/client-signals/go"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -19,6 +20,8 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
@@ -54,16 +57,23 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
+	s := clientsignals.DetectOnce()
+	signals := &s
+
 	if flyutil.ClientFromContext(ctx) == nil {
-		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
 		logger.Debug("client initialized.")
 		ctx = flyutil.NewContextWithClient(ctx, client)
 	}
 
 	if uiexutil.ClientFromContext(ctx) == nil {
 		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
-			Logger: logger,
-			Tokens: cfg.Tokens,
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
 		})
 		if err != nil {
 			return nil, err
@@ -71,8 +81,33 @@ func InitClient(ctx context.Context) (context.Context, error) {
 		ctx = uiexutil.NewContextWithClient(ctx, client)
 	}
 
+	if mpgv1.ClientFromContext(ctx) == nil {
+		mpgClient, err := mpgv1.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = mpgv1.NewContextWithClient(ctx, mpgClient)
+	}
+	if mpgv2.ClientFromContext(ctx) == nil {
+		mpgClient, err := mpgv2.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = mpgv2.NewContextWithClient(ctx, mpgClient)
+	}
+
 	if flapsutil.ClientFromContext(ctx) == nil {
-		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			ClientSignals: signals,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -127,6 +162,7 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			aliasFlag := flags.Lookup(alias)
 			if aliasFlag == nil {
 				invalidFlagNames = append(invalidFlagNames, alias)
+
 				continue
 			}
 			if origFlag == nil {
@@ -160,5 +196,6 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			err = fmt.Errorf("%s", errorMessages[0])
 		}
 	}
+
 	return ctx, err
 }

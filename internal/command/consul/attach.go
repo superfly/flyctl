@@ -36,6 +36,7 @@ func newAttach() *cobra.Command {
 			Description: "The environment variable name that will be added to the consuming app.",
 		},
 	)
+
 	return cmd
 }
 
@@ -65,5 +66,6 @@ func runAttach(ctx context.Context) error {
 		Detach:   false,
 		CheckDNS: true,
 	})
+
 	return err
 }

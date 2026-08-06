@@ -108,6 +108,7 @@ func (deployer *DeployerState) Configure(ctx context.Context) error {
 	}
 
 	deployer.root = fmt.Sprintf("fly-statics/%s/%d", deployer.appConfig.AppName, deployer.releaseVersion)
+
 	return nil
 }
 
@@ -119,8 +120,8 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 	// List `fly-statics/<app_name>/` to get a list of all versions.
 	paginator := s3.NewListObjectsV2Paginator(deployer.s3, &s3.ListObjectsV2Input{
 		Bucket:    &deployer.bucket,
-		Prefix:    fly.Pointer(fmt.Sprintf("fly-statics/%s/", appName)),
-		Delimiter: fly.Pointer("/"),
+		Prefix:    new(fmt.Sprintf("fly-statics/%s/", appName)),
+		Delimiter: new("/"),
 	})
 
 	versionSet := map[int]struct{}{}
@@ -143,6 +144,7 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 			if err != nil {
 				return 0, false
 			}
+
 			return num, true
 		})
 		for _, version := range versions {

@@ -31,6 +31,7 @@ func newStatus() (cmd *cobra.Command) {
 	cmd = command.New("status [kind]", short, long, runStatus)
 	cmd.Args = cobra.MaximumNArgs(1)
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 
@@ -69,6 +70,7 @@ func runStatus(ctx context.Context) error {
 
 		if res.StatusCode != 200 {
 			err = fly.ErrorFromResp(res)
+
 			return fmt.Errorf("failed to retrieve status: %w", err)
 		}
 
@@ -77,6 +79,7 @@ func runStatus(ctx context.Context) error {
 			return nil
 		}
 		out := iostreams.FromContext(ctx).Out
+
 		return render.JSON(out, result)
 	}
 

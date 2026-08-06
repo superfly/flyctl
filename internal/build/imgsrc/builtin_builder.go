@@ -25,6 +25,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		note := "docker daemon not available, skipping"
 		terminal.Debug(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -32,18 +33,21 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		note := "fly.toml does not include a builtin config"
 		terminal.Debug(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
 	builtin, err := builtins.GetBuiltin(opts.BuiltIn)
 	if err != nil {
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 	// Expand args
 	vdockerfile, err := builtin.GetVDockerfile(opts.BuiltInSettings)
 	if err != nil {
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 
@@ -52,6 +56,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
 	defer docker.Close() // skipcq: GO-S2307
@@ -69,6 +74,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, "")
 	if err != nil {
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	archiveOpts.exclusions = excludes
@@ -82,6 +88,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	if err != nil {
 		build.ContextBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error archiving build context")
 	}
 	build.ContextBuildFinish()
@@ -105,6 +112,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	if err != nil {
 		build.ImageBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
@@ -115,6 +123,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error building")
 	}
 
@@ -128,6 +137,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
+
 			return nil, "", err
 		}
 		build.PushFinish()

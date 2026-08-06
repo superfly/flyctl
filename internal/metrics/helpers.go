@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -17,6 +18,7 @@ var (
 func withUnmatchedStatuses[T any](cb func(map[string]struct{}) T) T {
 	unmatchedStatusesMtx.Lock()
 	defer unmatchedStatusesMtx.Unlock()
+
 	return cb(unmatchedStatuses)
 }
 
@@ -26,10 +28,12 @@ func Started(ctx context.Context, metricSlug string) {
 			return false
 		}
 		unmatchedStatuses[metricSlug] = struct{}{}
+
 		return true
 	})
 	if !ok {
 		terminal.Debugf("Metrics: Attempted to send start event for %s, but it was already started", metricSlug)
+
 		return
 	}
 
@@ -40,12 +44,15 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
 			delete(unmatchedStatuses, metricSlug)
+
 			return true
 		}
+
 		return false
 	})
 	if !ok {
 		terminal.Debugf("Metrics: Attempted to send status for %s, but no start event was sent", metricSlug)
+
 		return
 	}
 
@@ -74,14 +81,18 @@ type LaunchStatusPayload struct {
 
 	ScannerFamily string `json:"scanner_family"`
 	FlyctlVersion string `json:"flyctlVersion"`
+	Operator      string `json:"operator,omitempty"`
+	AgentName     string `json:"agentName,omitempty"`
 }
 
 func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses["launch"]; ok {
 			delete(unmatchedStatuses, "launch")
+
 			return true
 		}
+
 		return false
 	})
 	if !ok {
@@ -105,23 +116,35 @@ type DeployStatusPayload struct {
 	Strategy      string `json:"strategy"`
 
 	FlyctlVersion string `json:"flyctlVersion"`
+	Operator      string `json:"operator,omitempty"`
+	AgentName     string `json:"agentName,omitempty"`
 }
 
 func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses["deploy"]; ok {
 			delete(unmatchedStatuses, "deploy")
+
 			return true
 		}
+
 		return false
 	})
 
 	if !ok {
 		terminal.Debug("Metrics: Attempted to send deploy status for deploy, but no start event was sent")
+
 		return
 	}
 
 	Send(ctx, "deploy/status", payload)
+}
+
+// AgentWireGuardTransport reports which transport the agent used to establish
+// a WireGuard tunnel: "udp" or "websocket". It sends immediately because the
+// agent daemon never reaches the end-of-command metrics flush.
+func AgentWireGuardTransport(ctx context.Context, transport string) {
+	SendImmediate(ctx, "agent_wireguard/transport", map[string]string{"transport": transport})
 }
 
 func Send[T any](ctx context.Context, metricSlug string, value T) {
@@ -142,9 +165,17 @@ func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
 
 func StartTiming(ctx context.Context, metricSlug string) func() {
 	start := time.Now()
+
 	return func() {
 		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
+}
+
+// OperatorFromSignals returns an operator classification and, when the
+// operator is "agent", the agent name. Precedence is defined by
+// clientsignals.Signals.Operator(): ci > agent > interactive > unknown.
+func OperatorFromSignals(s clientsignals.Signals) (operator, agentName string) {
+	return s.Operator(), s.Agent
 }
 
 type disableFlushMetricsKey struct{}

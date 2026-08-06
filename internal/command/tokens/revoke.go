@@ -39,6 +39,7 @@ func runRevoke(ctx context.Context) (err error) {
 		err := apiClient.RevokeLimitedAccessToken(ctx, id)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to revoke token %s: %s\n", id, err)
+
 			continue
 		}
 		fmt.Printf("Revoked %s\n", id)

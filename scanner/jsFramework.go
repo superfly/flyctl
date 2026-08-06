@@ -17,7 +17,45 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
-var packageJson map[string]interface{}
+var packageJson map[string]any
+
+// detectPortFromSource scans common entry point files for port definitions
+// Returns the detected port or 0 if not found
+func detectPortFromSource() int {
+	// Common entry point files to check
+	entryPoints := []string{"server.js", "index.js", "app.js", "src/server.js", "src/index.js", "src/app.js"}
+
+	// Regex patterns to match port definitions
+	// Matches: process.env.PORT || "8080", process.env.PORT || 8080, const port = 8080
+	portPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`process\.env\.PORT\s*\|\|\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`const\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`let\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`var\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`PORT\s*[:=]\s*['"]?(\d{4,5})['"]?`), // For Bun/Deno style
+	}
+
+	for _, entryPoint := range entryPoints {
+		data, err := os.ReadFile(entryPoint)
+		if err != nil {
+			continue
+		}
+
+		content := string(data)
+		for _, pattern := range portPatterns {
+			if matches := pattern.FindStringSubmatch(content); len(matches) > 1 {
+				if port, err := strconv.Atoi(matches[1]); err == nil {
+					// Common web server ports
+					if port >= 3000 && port <= 9999 {
+						return port
+					}
+				}
+			}
+		}
+	}
+
+	return 0
+}
 
 // Handle js frameworks separate from other node applications.  Currently the requirements
 // for a framework is pretty low: to have a "start" script.  Because we are actually
@@ -55,7 +93,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		}
 
 		// check for a start script
-		scripts, ok := packageJson["scripts"].(map[string]interface{})
+		scripts, ok := packageJson["scripts"].(map[string]any)
 		hasStartScript := ok && scripts["start"] != nil
 
 		if hasStartScript {
@@ -153,17 +191,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	}
 
 	// extract deps and devdeps
-	deps, ok := packageJson["dependencies"].(map[string]interface{})
+	deps, ok := packageJson["dependencies"].(map[string]any)
 	if !ok || deps == nil {
-		deps = make(map[string]interface{})
+		deps = make(map[string]any)
 	}
-	devdeps, ok := packageJson["devDependencies"].(map[string]interface{})
+	devdeps, ok := packageJson["devDependencies"].(map[string]any)
 	if !ok || devdeps == nil {
-		devdeps = make(map[string]interface{})
+		devdeps = make(map[string]any)
 	}
-	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	scripts, ok := packageJson["scripts"].(map[string]any)
 	if !ok || scripts == nil {
-		scripts = make(map[string]interface{})
+		scripts = make(map[string]any)
 	}
 
 	// infer db from dependencies
@@ -202,9 +240,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.SkipDatabase = true
 	}
 
-	// default to port 3000
-	srcInfo.Port = 3000
-
 	// etract port from EXPOSE statement in dockerfile
 	dockerfile, err := os.ReadFile("Dockerfile")
 	if err == nil {
@@ -215,6 +250,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 				portFromDockerfile, err := strconv.Atoi(m[i])
 				if err == nil {
 					srcInfo.Port = portFromDockerfile
+
 					continue
 				}
 			}
@@ -259,6 +295,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
+	}
+
+	// Try to detect port from source code if not found in Dockerfile
+	if srcInfo.Port == 0 {
+		if detectedPort := detectPortFromSource(); detectedPort != 0 {
+			srcInfo.Port = detectedPort
+		}
+	}
+
+	if srcInfo.Port == 0 {
+		srcInfo.Port = 3000
 	}
 
 	return srcInfo, nil
@@ -336,12 +383,12 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		// check first to see if the package is already installed
 		installed := false
 
-		deps, ok := packageJson["dependencies"].(map[string]interface{})
+		deps, ok := packageJson["dependencies"].(map[string]any)
 		if ok && deps["@flydotio/dockerfile"] != nil {
 			installed = true
 		}
 
-		deps, ok = packageJson["devDependencies"].(map[string]interface{})
+		deps, ok = packageJson["devDependencies"].(map[string]any)
 		if ok && deps["@flydotio/dockerfile"] != nil {
 			installed = true
 		}

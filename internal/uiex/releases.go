@@ -77,6 +77,7 @@ func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *m
 		if err = json.Unmarshal(body, &out); err != nil {
 			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return out, nil
 	default:
 		return nil, fmt.Errorf("failed to get current release timestamps (status %d): %s", res.StatusCode, string(body))
@@ -121,6 +122,7 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 		if err = json.Unmarshal(body, &response); err != nil {
 			return []Release{}, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return response.Releases, nil
 	default:
 		return []Release{}, fmt.Errorf("failed to list releases (status %d): %s", res.StatusCode, string(body))
@@ -157,6 +159,7 @@ func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release
 		if err = json.Unmarshal(body, &release); err != nil {
 			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return release, nil
 	case http.StatusNotFound:
 		return nil, nil
@@ -202,6 +205,7 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 		if err = json.Unmarshal(body, &response); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return &response.Release, nil
 	default:
 		return nil, fmt.Errorf("failed to create release (status %d): %s", res.StatusCode, string(body))
@@ -246,6 +250,7 @@ func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, me
 		if err = json.Unmarshal(body, &response); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	default:
 		return nil, fmt.Errorf("failed to update release (status %d): %s", res.StatusCode, string(body))

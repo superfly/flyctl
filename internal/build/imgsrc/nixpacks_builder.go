@@ -76,6 +76,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 			return err
 		}
 		terminal.Debugf("copied %d bytes to %s\n", n, installPath)
+
 		return nil
 	}()
 
@@ -105,11 +106,13 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		note := "docker daemon not available, skipping"
 		terminal.Debug(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
 	if err := ensureNixpacksBinary(ctx, streams); err != nil {
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "could not install nixpacks")
 	}
 
@@ -118,6 +121,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 	defer docker.Close() // skipcq: GO-S2307
@@ -134,6 +138,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if remoteHost == "" {
 			build.BuilderInitFinish()
 			build.BuildFinish()
+
 			return nil, "", fmt.Errorf("could not find machine IP")
 		}
 
@@ -141,6 +146,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
+
 			return nil, "", err
 		}
 
@@ -148,6 +154,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
+
 			return nil, "", err
 		}
 
@@ -170,6 +177,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
+
 			return nil, "", err
 		}
 
@@ -202,6 +210,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err := cmd.Run(); err != nil {
 		build.ImageBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 	build.ImageBuildFinish()
@@ -210,6 +219,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.PushStart()
 	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 		build.PushFinish()
+
 		return nil, "", err
 	}
 	build.PushFinish()

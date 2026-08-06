@@ -16,7 +16,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/mpg"
+	mpgregionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
 	"github.com/superfly/flyctl/internal/logger"
 	state2 "github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -87,9 +87,9 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	// Handle database plan from form data
-	if pgData, ok := finalSession.Metadata["postgres"].(map[string]interface{}); ok {
+	if pgData, ok := finalSession.Metadata["postgres"].(map[string]any); ok {
 		logger.Debugf("Postgres form data: %+v", pgData)
-		if mpgData, ok := pgData["managed_postgres"].(map[string]interface{}); ok {
+		if mpgData, ok := pgData["managed_postgres"].(map[string]any); ok {
 			logger.Debugf("Managed Postgres form data: %+v", mpgData)
 			// Validate region for managed Postgres
 			region := "iad" // Default region
@@ -103,13 +103,14 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 			}
 
 			// Check if region is supported for managed Postgres
-			validRegion, err := mpg.IsValidMPGRegion(ctx, org.RawSlug, region)
+			validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, org.RawSlug, region)
 			if err != nil {
 				return fmt.Errorf("failed to validate MPG region: %w", err)
 			}
 
 			if !validRegion {
-				availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, org.Slug)
+				availableCodes, _ := mpgregionsv1.GetAvailableMPGRegionCodes(ctx, org.Slug)
+
 				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, availableCodes)
 			}
 
@@ -123,7 +124,10 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 			}
 
 			// Apply settings from the form
+			// Check both "db_name" (Go struct json tag) and "name" (API/UI convention)
 			if dbName, ok := mpgData["db_name"].(string); ok && dbName != "" {
+				state.Plan.Postgres.ManagedPostgres.DbName = dbName
+			} else if dbName, ok := mpgData["name"].(string); ok && dbName != "" {
 				state.Plan.Postgres.ManagedPostgres.DbName = dbName
 			}
 			if plan, ok := mpgData["plan"].(string); ok && plan != "" {
@@ -174,6 +178,7 @@ outer:
 			iface[name] = num
 		}
 	}
+
 	return nil
 }
 

@@ -221,7 +221,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				SizeGb:              &mnt.SizeGb,
 				Encrypted:           &mnt.Encrypted,
 				SnapshotID:          snapshotID,
-				RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
+				RequireUniqueZone:   new(flag.GetBool(ctx, "volume-requires-unique-zone")),
 				ComputeRequirements: targetConfig.Guest,
 				ComputeImage:        targetConfig.Image,
 			}

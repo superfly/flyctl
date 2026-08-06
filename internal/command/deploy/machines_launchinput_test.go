@@ -15,7 +15,7 @@ import (
 )
 
 func makeTerminalLoggerQuiet(tb testing.TB) {
-	var originalLogger = terminal.DefaultLogger
+	originalLogger := terminal.DefaultLogger
 	terminal.DefaultLogger = logger.New(os.Stdout, logger.Error, true)
 
 	tb.Cleanup(func() {
@@ -34,6 +34,7 @@ func TestLaunchInputForUpdate(t *testing.T) {
 	t.Run("UpdateClearStandbysWithServices", testLaunchInputForUpdateClearStandbysWithServices)
 	t.Run("LaunchFiles", testLaunchInputForLaunchFiles)
 	t.Run("LaunchFiles", testLaunchInputForUpdateFiles)
+	t.Run("ImageConfigSubstitution", testUpdateContainerImageConfig)
 }
 
 // Test the basic flow of launching, restarting and updating a machine for default process group
@@ -85,6 +86,7 @@ func testLaunchInputForBasic(t *testing.T) {
 		Region:     li.Region,
 		Config:     helpers.Clone(li.Config),
 		HostStatus: fly.HostStatusOk,
+		State:      fly.MachineStateStarted,
 	}
 	// also must preserve any user's added metadata except for known fly metadata keys
 	origMachineRaw.Config.Metadata["user-added-me"] = "keep it"
@@ -104,6 +106,7 @@ func testLaunchInputForBasic(t *testing.T) {
 		Region:     li.Region,
 		Config:     helpers.Clone(li.Config),
 		HostStatus: fly.HostStatusOk,
+		State:      fly.MachineStateStarted,
 	}
 	want.Config.Image = "super/globe"
 	want.Config.Env["NOT_SET_ON_RESTART_ONLY"] = "true"
@@ -253,7 +256,6 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.True(t, li.RequiresReplacement)
 	assert.Empty(t, li.Config.Mounts)
-
 }
 
 // test mounts with auto volume resize
@@ -493,7 +495,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 		MergedFiles: []*fly.File{
 			{
 				GuestPath: "/path/to/hello.txt",
-				RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+				RawValue:  new("aGVsbG8gd29ybGQK"),
 			},
 		},
 	})
@@ -520,7 +522,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 			Files: []*fly.File{
 				{
 					GuestPath: "/path/to/hello.txt",
-					RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+					RawValue:  new("aGVsbG8gd29ybGQK"),
 				},
 			},
 		},
@@ -538,11 +540,11 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 		MergedFiles: []*fly.File{
 			{
 				GuestPath:  "/path/to/config/yaml",
-				SecretName: fly.StringPointer("SECRET_CONFIG"),
+				SecretName: new("SECRET_CONFIG"),
 			},
 			{
 				GuestPath: "/path/to/hello.txt",
-				RawValue:  fly.StringPointer("Z29vZGJ5ZQo="),
+				RawValue:  new("Z29vZGJ5ZQo="),
 			},
 		},
 	})
@@ -554,11 +556,11 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 			Files: []*fly.File{
 				{
 					GuestPath: "/path/to/hello.txt",
-					RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+					RawValue:  new("aGVsbG8gd29ybGQK"),
 				},
 				{
 					GuestPath: "/path/to/be/deleted",
-					RawValue:  fly.StringPointer("ZGVsZXRlIG1lCg=="),
+					RawValue:  new("ZGVsZXRlIG1lCg=="),
 				},
 			},
 		},
@@ -568,4 +570,76 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 	assert.Equal(t, "SECRET_CONFIG", *li.Config.Files[0].SecretName)
 	assert.Equal(t, "/path/to/hello.txt", li.Config.Files[1].GuestPath)
 	assert.Equal(t, "Z29vZGJ5ZQo=", *li.Config.Files[1].RawValue)
+}
+
+func testUpdateContainerImageConfig(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-cool-app",
+		PrimaryRegion: "scl",
+	})
+	require.NoError(t, err)
+
+	// Test top-level files image_config substitution
+	mConfig := &fly.MachineConfig{
+		Image: "registry.fly.io/myapp:deploy-1234",
+		Files: []*fly.File{
+			{
+				GuestPath:   "/app/image.json",
+				ImageConfig: new("."),
+			},
+			{
+				GuestPath:   "/app/other.json",
+				ImageConfig: new("nginx:latest"),
+			},
+			{
+				GuestPath: "/app/raw.txt",
+				RawValue:  new("aGVsbG8="),
+			},
+		},
+	}
+	err = md.updateContainerImage(mConfig)
+	require.NoError(t, err)
+	assert.Equal(t, "registry.fly.io/myapp:deploy-1234", *mConfig.Files[0].ImageConfig)
+	assert.Equal(t, "nginx:latest", *mConfig.Files[1].ImageConfig)
+	assert.Nil(t, mConfig.Files[2].ImageConfig)
+
+	// Test container-level files image_config substitution
+	mConfig = &fly.MachineConfig{
+		Image: "registry.fly.io/myapp:deploy-5678",
+		Containers: []*fly.ContainerConfig{
+			{
+				Name:  "app",
+				Image: ".",
+				Files: []*fly.File{
+					{
+						GuestPath:   "/app/image.json",
+						ImageConfig: new("."),
+					},
+					{
+						GuestPath:   "/app/sidecar.json",
+						ImageConfig: new("redis:7"),
+					},
+				},
+			},
+			{
+				Name:  "sidecar",
+				Image: "nginx:latest",
+				Files: []*fly.File{
+					{
+						GuestPath:   "/etc/config.json",
+						ImageConfig: new("."),
+					},
+				},
+			},
+		},
+	}
+	err = md.updateContainerImage(mConfig)
+	require.NoError(t, err)
+	// Container image substitution
+	assert.Equal(t, "registry.fly.io/myapp:deploy-5678", mConfig.Containers[0].Image)
+	assert.Equal(t, "nginx:latest", mConfig.Containers[1].Image)
+	// File image_config substitution
+	assert.Equal(t, "registry.fly.io/myapp:deploy-5678", *mConfig.Containers[0].Files[0].ImageConfig)
+	assert.Equal(t, "redis:7", *mConfig.Containers[0].Files[1].ImageConfig)
+	assert.Equal(t, "registry.fly.io/myapp:deploy-5678", *mConfig.Containers[1].Files[0].ImageConfig)
 }

@@ -36,6 +36,7 @@ func (n *IPNet) UnmarshalText(text []byte) error {
 	}
 
 	n.IP, n.Mask = ipnet.IP, ipnet.Mask
+
 	return nil
 }
 
@@ -57,11 +58,13 @@ func (pk *PrivateKey) UnmarshalText(text []byte) error {
 	}
 
 	copy(pk[:], buf)
+
 	return nil
 }
 
 func (pk PrivateKey) ToHex() string {
 	val := (device.NoisePrivateKey)(pk)
+
 	return hex.EncodeToString(val[:])
 }
 
@@ -81,10 +84,12 @@ func (pk *PublicKey) UnmarshalText(text []byte) error {
 	}
 
 	copy(pk[:], buf)
+
 	return nil
 }
 
 func (pk PublicKey) ToHex() string {
 	val := (device.NoisePublicKey)(pk)
+
 	return hex.EncodeToString(val[:])
 }

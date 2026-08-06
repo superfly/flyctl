@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -86,6 +87,7 @@ func runMachineStop(ctx context.Context) (err error) {
 		}
 		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machine.ID)
 	}
+
 	return
 }
 
@@ -107,6 +109,7 @@ func Stop(ctx context.Context, appName string, machine *fly.Machine, signal stri
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not stop machine %s: %w", machine.ID, err)
 	}
 
@@ -115,7 +118,7 @@ func Stop(ctx context.Context, appName string, machine *fly.Machine, signal stri
 		if err != nil {
 			return fmt.Errorf("could not get machine %s to wait for stop: %w", machine.ID, err)
 		}
-		err = client.Wait(ctx, appName, machine, "stopped", waitTimeout)
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitTimeout(waitTimeout))
 		if err != nil {
 			return fmt.Errorf("machine %s did not stop within the wait timeout: %w", machine.ID, err)
 		}

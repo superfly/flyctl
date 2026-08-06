@@ -40,5 +40,6 @@ func runSync(ctx context.Context) (err error) {
 	if err := appsecrets.Sync(ctx, flapsClient, appName); err != nil {
 		return fmt.Errorf("sync secrets: %w", err)
 	}
+
 	return nil
 }

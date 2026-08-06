@@ -17,7 +17,6 @@ import (
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/worker/label"
 	"github.com/pkg/errors"
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
@@ -28,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/tonistiigi/fsutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -59,6 +59,8 @@ type DepotBuilder struct {
 
 func (d *DepotBuilder) Name() string { return "depot.dev" }
 
+func (*DepotBuilder) usesDockerfile() {}
+
 func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "depot_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
@@ -72,6 +74,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		build.BuildFinish()
 		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
 		tracing.RecordError(span, err, "failed to find dockerfile")
+
 		return nil, "", err
 	case opts.DockerfilePath != "":
 		dockerfile = opts.DockerfilePath
@@ -83,6 +86,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		span.AddEvent("dockerfile not found, skipping")
 		terminal.Debug("dockerfile not found, skipping")
 		build.BuildFinish()
+
 		return nil, "", nil
 	}
 
@@ -93,6 +97,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		if err != nil {
 			tracing.RecordError(span, err, "failed to get relative dockerfile path")
 			build.BuildFinish()
+
 			return nil, "", err
 		}
 		// On Windows, convert \ to a slash / as the docker build will
@@ -109,6 +114,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		build.ImageBuildFinish()
 		build.BuildFinish()
 		tracing.RecordError(span, err, "failed to build image")
+
 		return nil, "", errors.Wrap(err, "error building")
 	}
 	build.BuilderMeta.RemoteMachineId = image.BuilderID
@@ -117,6 +123,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
 	span.SetAttributes(image.ToSpanAttributes()...)
+
 	return image, "", nil
 }
 
@@ -173,6 +180,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	res, buildErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
 	if buildErr != nil {
 		buildState.BuildAndPushFinish()
+
 		return nil, buildErr
 	}
 	buildState.BuildAndPushFinish()
@@ -208,7 +216,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	buildInfo, err := uiexClient.EnsureDepotBuilder(ctx, uiex.EnsureDepotBuilderRequest{
 		AppName:      &appName,
 		Region:       &region,
-		BuilderScope: fly.StringPointer(builderScope.String()),
+		BuilderScope: new(builderScope.String()),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -254,6 +262,15 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	exportEntry.Attrs["compression-level"] = strconv.Itoa(opts.CompressionLevel)
 	exportEntry.Attrs["force-compression"] = "true"
 
+	dockerfileDir, err := fsutil.NewFS(filepath.Dir(dockerfilePath))
+	if err != nil {
+		return nil, err
+	}
+	contextDir, err := fsutil.NewFS(opts.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+
 	ch := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -264,9 +281,9 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 				"target":   opts.Target,
 				"platform": "linux/amd64",
 			},
-			LocalDirs: map[string]string{
-				"dockerfile": filepath.Dir(dockerfilePath),
-				"context":    opts.WorkingDir,
+			LocalMounts: map[string]fsutil.FS{
+				"dockerfile": dockerfileDir,
+				"context":    contextDir,
 			},
 			Exports: []client.ExportEntry{exportEntry},
 			// Prevent recording the build steps and traces in buildkit as it is _very_ slow.
@@ -295,12 +312,14 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		)
 
 		res, err = buildkitClient.Solve(ctx, nil, solverOptions, ch)
+
 		return err
 	})
 	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
 		span.RecordError(err)
+
 		return nil, err
 	}
 
@@ -351,7 +370,7 @@ type Descriptor struct {
 	MediaType   string      `json:"mediaType,omitempty"`
 	Digest      string      `json:"digest,omitempty"`
 	Size        int64       `json:"size,omitempty"`
-	Annotations Annotations `json:"annotations,omitempty"`
+	Annotations Annotations `json:"annotations"`
 }
 
 func (d *Descriptor) Bytes() int64 {
@@ -368,6 +387,7 @@ func (a *Annotations) Manifest() (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return manifest, nil
 }
 
@@ -375,15 +395,17 @@ func (a *Annotations) Bytes() int64 {
 	manifest, err := a.Manifest()
 	if err != nil {
 		log.Printf("failed to get manifest: %v", err)
+
 		return 0
 	}
+
 	return manifest.Bytes()
 }
 
 type Manifest struct {
 	SchemaVersion int             `json:"schemaVersion,omitempty"`
 	MediaType     string          `json:"mediaType,omitempty"`
-	Config        OCIDescriptor   `json:"config,omitempty"`
+	Config        OCIDescriptor   `json:"config"`
 	Layers        []OCIDescriptor `json:"layers,omitempty"`
 }
 
@@ -392,6 +414,7 @@ func (m *Manifest) Bytes() int64 {
 	for _, layer := range m.Layers {
 		size += layer.Size
 	}
+
 	return size
 }
 

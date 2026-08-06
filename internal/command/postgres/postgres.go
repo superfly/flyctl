@@ -126,6 +126,7 @@ func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, clust
 		}
 
 	}
+
 	return nil
 }
 
@@ -142,6 +143,7 @@ func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, f
 	if err != nil && strings.Contains(err.Error(), "Malformed version") {
 		return fmt.Errorf("This image is not compatible with this feature.")
 	}
+
 	return err
 }
 
@@ -169,6 +171,7 @@ func machinesNodeRoles(ctx context.Context, machines []*fly.Machine) (leader *fl
 			replicas = append(replicas, machine)
 		}
 	}
+
 	return leader, replicas
 }
 
@@ -182,9 +185,11 @@ func machineRole(machine *fly.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+
 			break
 		}
 	}
+
 	return role
 }
 
@@ -198,6 +203,7 @@ func pickLeader(ctx context.Context, machines []*fly.Machine) (*fly.Machine, err
 			return machine, nil
 		}
 	}
+
 	return nil, fmt.Errorf("no active leader found")
 }
 

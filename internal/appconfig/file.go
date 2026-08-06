@@ -18,6 +18,7 @@ func ResolveConfigFileFromPath(p string) (string, error) {
 		if os.IsNotExist(err) {
 			return p, nil
 		}
+
 		return "", err
 	}
 
@@ -35,5 +36,6 @@ func ConfigFileExistsAtPath(p string) (bool, error) {
 		return false, err
 	}
 	_, err = os.Stat(p)
+
 	return !os.IsNotExist(err), nil
 }

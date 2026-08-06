@@ -58,6 +58,7 @@ func newAllocatev4() *cobra.Command {
 		flag.AppConfig(),
 		flag.Region(),
 	)
+
 	return cmd
 }
 
@@ -92,8 +93,8 @@ func newAllocatev6() *cobra.Command {
 
 func newAllocateEgress() *cobra.Command {
 	const (
-		long  = `(Beta) Allocates a pair of egress IP addresses for an app`
-		short = `(Beta) Allocate app-scoped egress IPs`
+		long  = `Allocates a pair of egress IP addresses for an app`
+		short = `Allocate app-scoped egress IPs`
 	)
 
 	cmd := command.New("allocate-egress", short, long, runAllocateEgressIPAddresses,
@@ -122,6 +123,7 @@ Are you ok with this? Alternatively, you could allocate a shared IPv4 address wi
 			return err
 		}
 	}
+
 	return runAllocateIPAddress(ctx, addrType, nil, "")
 }
 
@@ -176,6 +178,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	ipAddresses := []fly.IPAddress{*ipAddress}
 	renderListTable(ctx, ipAddresses)
+
 	return nil
 }
 

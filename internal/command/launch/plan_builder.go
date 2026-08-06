@@ -11,8 +11,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -20,11 +20,13 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -40,6 +42,7 @@ func (e recoverableInUiError) String() string {
 			return fmt.Sprintf("%s\n%s\n", flyErr.Err, flyErr.Descript)
 		}
 	}
+
 	return e.base.Error()
 }
 
@@ -88,8 +91,10 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	var asRecoverableErr recoverableInUiError
 	if errors.As(e, &asRecoverableErr) && r.canEnterUi {
 		r.errors = append(r.errors, asRecoverableErr)
+
 		return nil
 	}
+
 	return e
 }
 
@@ -98,16 +103,15 @@ func (r *recoverableErrorBuilder) build() string {
 		return ""
 	}
 
-	var allErrors string
+	var allErrors strings.Builder
 	for _, err := range r.errors {
-		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+		fmt.Fprintf(&allErrors, " * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
 	}
-	return allErrors
+
+	return allErrors.String()
 }
 
 func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
-	io := iostreams.FromContext(ctx)
-
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -122,24 +126,11 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		}
 	}
 
-	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
-	if err != nil {
-		if err := recoverableErrors.tryRecover(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	httpServicePort := 8080
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
 			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
-		}
-		if flag.GetBool(ctx, "manifest") {
-			fmt.Fprintln(io.ErrOut,
-				"Warning: --manifest does not serialize an entire app configuration.\n"+
-					"Creating a manifest from an existing fly.toml may be a lossy process!",
-			)
 		}
 		if service := appConfig.HTTPService; service != nil {
 			httpServicePort = service.InternalPort
@@ -184,12 +175,34 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	}
 	guest := fakeDefaultMachine.Guest
 
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	regionCode, regionExplanation, err := determineRegion(ctx, appConfig, org.Slug, guest, flapsClient)
+	if err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
+			// Return a partial manifest so that metrics events
+			// carry org/app context even on early failures.
+			partial := &LaunchManifest{
+				Plan: &plan.LaunchPlan{
+					AppName:       appName,
+					OrgSlug:       org.Slug,
+					RegionCode:    regionCode,
+					FlyctlVersion: buildinfo.Info().Version,
+				},
+			}
+			if srcInfo != nil {
+				partial.Plan.ScannerFamily = srcInfo.Family
+			}
+
+			return partial, nil, err
+		}
+	}
+
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	lp := &plan.LaunchPlan{
 		AppName:          appName,
 		OrgSlug:          org.Slug,
-		RegionCode:       region.Code,
+		RegionCode:       regionCode,
 		HighAvailability: flag.GetBool(ctx, "ha"),
 		Compute:          compute,
 		CPUKind:          guest.CPUKind,
@@ -245,7 +258,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 
 				// We offer switching to MPG if interactive session and the region is not the same as the MPG region
 				// App should launch in the MPG region
-				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
 					lp.RegionCode = lp.Postgres.ManagedPostgres.Region
 				}
 			case scanner.DatabaseKindMySQL:
@@ -265,7 +278,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 
 			// We offer switching to MPG if interactive session and the region is not the same as the MPG region
 			// App should launch in the MPG region
-			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != region.Code {
+			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
 				lp.RegionCode = lp.Postgres.ManagedPostgres.Region
 			}
 		}
@@ -284,9 +297,12 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		lp.Runtime = srcInfo.Runtime
 	}
 
+	appConfig.AppName = lp.AppName
+
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
+		Config:     appConfig,
 	}, buildCache, nil
 }
 
@@ -326,16 +342,15 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 	default:
 		return true, err
 	}
+
 	return true, nil
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
-	var (
-		io     = iostreams.FromContext(ctx)
-		client = flyutil.ClientFromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
-	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	org, err := uiexClient.GetOrganization(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +358,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org, flag.GetRecreateBuilder(ctx))
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, org, flag.GetRecreateBuilder(ctx))
 	}
 
 	var (
@@ -426,6 +441,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		if m.Plan.ScannerFamily != scannerFamily {
 			got := familyToAppType(scannerFamily)
 			expected := familyToAppType(m.Plan.ScannerFamily)
+
 			return nil, fmt.Errorf("launch manifest was created for a %s, but this is a %s", expected, got)
 		}
 	}
@@ -436,6 +452,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		LaunchManifest: LaunchManifest{
 			m.Plan,
 			m.PlanSource,
+			appConfig,
 		},
 		env: envVars,
 		planBuildCache: planBuildCache{
@@ -443,7 +460,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 			sourceInfo:   srcInfo,
 			warnedNoCcHa: warnedNoCcHa,
 		},
-		cache: map[string]interface{}{},
+		cache: map[string]any{},
 	}, nil
 }
 
@@ -456,7 +473,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	if existingConfig != nil {
 		colorize := io.ColorScheme()
 
-		if existingConfig.AppName != "" {
+		if existingConfig.AppName != "" && !flag.IsSpecified(ctx, "copy-config") {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
@@ -464,9 +481,13 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 
 		// if --attach is specified, we should return the config as the base config
 		attach := flag.GetBool(ctx, "attach")
-		copyConfig := flag.GetBool(ctx, "copy-config") || attach
+		// An explicit --config flag means the caller deliberately chose the file
+		// (e.g. the deployer passing --config fly.api-server.toml). Treat it as
+		// copy-config so we never prompt and never fall back to source scanning.
+		explicitConfig := flag.IsSpecified(ctx, "config")
+		copyConfig := flag.GetBool(ctx, "copy-config") || attach || explicitConfig
 
-		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
+		if !flag.IsSpecified(ctx, "copy-config") && !attach && !explicitConfig && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)
@@ -512,6 +533,7 @@ func sanitizeAppName(dirName string) string {
 			lastIsUnderscore = false
 		}
 	}
+
 	return strings.Trim(string(sanitized), "-")
 }
 
@@ -520,6 +542,7 @@ func validateAppName(appName string) error {
 	if failRegex.MatchString(appName) {
 		return errors.New("app name must consist of only lowercase letters, numbers, and dashes")
 	}
+
 	return nil
 }
 
@@ -540,6 +563,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 				return outName, true
 			}
 		}
+
 		return "", false
 	}
 
@@ -558,6 +582,17 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 	appName := flag.GetString(ctx, "name")
 	cause := "specified on the command line"
 
+	if flag.GetBool(ctx, "force-name") {
+		if appName == "" {
+			return "", "", flyerr.GenericErr{
+				Err:     "app name required when using --force-name",
+				Suggest: "Specify the app name with the --name flag",
+			}
+		}
+
+		return appName, cause, nil
+	}
+
 	if !flag.GetBool(ctx, "generate-name") {
 		// --generate-name wasn't specified, so we try to get a name from the config file or directory name.
 		if appName == "" {
@@ -571,9 +606,10 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 		if parentConfig != nil && parentConfig.AppName != "" {
 			appName = parentConfig.AppName + "-" + appName
-			if cause == "from your fly.toml" {
+			switch cause {
+			case "from your fly.toml":
 				cause = "from parent name and fly.toml"
-			} else if cause == "derived from your directory name" {
+			case "derived from your directory name":
 				if flag.GetString(ctx, "into") != "" {
 					cause = "from parent name and --into"
 				} else if flag.GetString(ctx, "from") != "" {
@@ -620,6 +656,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 	if err := validateAppName(appName); err != nil {
 		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
+
 	return appName, cause, nil
 }
 
@@ -630,6 +667,7 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return !available, nil
 }
 
@@ -653,6 +691,10 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
+	byRawSlug := make(map[string]fly.Organization, len(orgs))
+	for _, o := range orgs {
+		byRawSlug[o.RawSlug] = o
+	}
 	byName := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		byName[o.Name] = o
@@ -667,6 +709,7 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
 			} else {
 				o := orgs[0]
+
 				return &o, fmt.Sprintf("defaulting to '%s'", o.Slug), nil
 			}
 		}
@@ -677,6 +720,13 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	org, foundSlug := bySlug[orgRequested]
 	if !foundSlug {
 		if org, foundName := byName[orgRequested]; foundName {
+			return &org, "specified on the command line", nil
+		}
+
+		// The personal org's canonical Slug is always "personal", but callers
+		// (e.g. the deployer) may supply the real/raw slug (e.g. "lubien-339").
+		// Fall back to a RawSlug lookup before giving up.
+		if org, foundRawSlug := byRawSlug[orgRequested]; foundRawSlug {
 			return &org, "specified on the command line", nil
 		}
 
@@ -711,33 +761,13 @@ var deprecatedRegionReplacements = map[string]string{
 	"hkg": "sin",
 }
 
-// Check if a region is deprecated and return the replacement region
-func remapDeprecatedRegion(ctx context.Context, region *fly.Region) (*fly.Region, error) {
-	if region == nil || !region.Deprecated {
-		return region, nil
-	}
-
-	replacementCode, ok := deprecatedRegionReplacements[region.Code]
-	if !ok {
-		// If there's no definied replacement, return and error
-		return nil, fmt.Errorf("region %s is deprecated. Please use a supported region.", region.Code)
-	}
-
-	// Get the replacement region
-	replacementRegion, err := getRegionByCode(ctx, replacementCode)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get replacement region %s for deprecated region %s: %w", replacementCode, region.Code, err)
-	}
-
-	return replacementRegion, nil
-}
-
-// determineRegion returns the region to use for a new app. In order, it tries:
-//  1. the primary_region field of the config, if one exists
-//  2. the region specified on the command line, if specified
-//  3. the nearest region to the user
-func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
-	client := flyutil.ClientFromContext(ctx)
+// determineRegion returns the region to use for a new app. It uses the
+// placements API to find the best region with capacity for the requested
+// compute. In order, it tries:
+//  1. the region specified on the command line, if specified
+//  2. the primary_region field of the config, if one exists
+//  3. the best available region (by passing "any" to placements)
+func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug string, guest *fly.MachineGuest, flapsClient flapsutil.FlapsClient) (string, string, error) {
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -746,52 +776,39 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
-	// Get the closest region
-	// TODO(allison): does this return paid regions for free orgs?
-	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
-
-	// Remap the closest region if it's deprecated
-	if closestRegionErr == nil && closestRegion != nil {
-		remappedRegion, remapErr := remapDeprecatedRegion(ctx, closestRegion)
-		if remapErr == nil {
-			closestRegion = remappedRegion
-		}
-		// If remapping fails, it'll use the original region and hit the "unknown region" error
+	if replacement, ok := deprecatedRegionReplacements[regionCode]; ok {
+		regionCode = replacement
 	}
 
-	if regionCode != "" {
-		region, err := getRegionByCode(ctx, regionCode)
-		if err != nil {
-			// Check and see if this is recoverable
-			if closestRegionErr == nil {
-				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
-			}
-		}
-		return region, explanation, err
-	}
-	return closestRegion, "this is the fastest region for you", closestRegionErr
-}
-
-// getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
-func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-
-	allRegions, _, err := apiClient.PlatformRegions(ctx)
-	if err != nil {
-		return nil, err
+	if regionCode == "" {
+		regionCode = "any"
+		explanation = "this is the fastest region for you"
 	}
 
-	// Filter out deprecated regions
-	allRegions = lo.Filter(allRegions, func(r fly.Region, _ int) bool {
-		return !r.Deprecated
+	count := uint64(1)
+	if flag.GetBool(ctx, "ha") {
+		count = 2
+	}
+
+	placements, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
+		ComputeRequirements: guest,
+		Region:              regionCode,
+		Count:               count,
+		Org:                 orgSlug,
 	})
-
-	for _, r := range allRegions {
-		if r.Code == regionCode {
-			return &r, nil
+	if err != nil {
+		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
+			fmt.Errorf("failed to determine region: %w", err),
 		}
 	}
-	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
+
+	if len(placements) == 0 {
+		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
+			fmt.Errorf("no regions with capacity for the requested configuration"),
+		}
+	}
+
+	return placements[0].Region, explanation, nil
 }
 
 // Applies the fields of the guest to the provided compute.
@@ -806,6 +823,7 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 			c.MachineGuest = nil
 			c.Memory = ""
 			c.Size = k
+
 			return
 		}
 	}
@@ -826,15 +844,16 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 
 	// Restore original values for fields the Web UI does not return
 	if originalGuest != nil {
-		c.MachineGuest.KernelArgs = originalGuest.KernelArgs
-		c.MachineGuest.GPUs = originalGuest.GPUs
-		c.MachineGuest.HostDedicationID = originalGuest.HostDedicationID
+		c.KernelArgs = originalGuest.KernelArgs
+		c.GPUs = originalGuest.GPUs
+		c.HostDedicationID = originalGuest.HostDedicationID
 	}
 }
 
 func guestToCompute(g *fly.MachineGuest) *appconfig.Compute {
 	var c appconfig.Compute
 	applyGuestToCompute(&c, g)
+
 	return &c
 }
 
@@ -857,14 +876,18 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
 		reason = "specified on the command line"
 	}
+
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
 	if !billable && p.HighAvailability {
-		// Silently turn off high availability if no payment method
-		// The billing check will handle informing the user about payment methods
+		if print {
+			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
+		}
+
 		return false
 	}
+
 	return true
 }

@@ -16,6 +16,7 @@ func getMinvers() (config.AppSecretsMinvers, error) {
 	if err := viper.UnmarshalKey(flyctl.ConfigAppSecretsMinvers, &minvers); err != nil {
 		return nil, errors.Wrap(err, "invalid application secrets minversions")
 	}
+
 	return minvers, nil
 }
 
@@ -29,6 +30,7 @@ func GetMinvers(appName string) (*uint64, error) {
 	if v, ok := minvers[appName]; ok {
 		return &v, nil
 	}
+
 	return nil, nil
 }
 

@@ -97,6 +97,7 @@ func runVulns(ctx context.Context) error {
 		if _, err := io.Copy(ios.Out, res.Body); err != nil {
 			return fmt.Errorf("failed to read scan results: %w", err)
 		}
+
 		return nil
 	}
 
@@ -109,6 +110,7 @@ func runVulns(ctx context.Context) error {
 	}
 
 	scan = filterScan(scan, filter)
+
 	return presentScan(ctx, scan)
 }
 
@@ -122,5 +124,6 @@ func presentScan(ctx context.Context, scan *Scan) error {
 			fmt.Fprintf(ios.Out, "  %s %s: %s %s\n", vuln.Severity, vuln.VulnerabilityID, vuln.PkgName, vuln.InstalledVersion)
 		}
 	}
+
 	return nil
 }

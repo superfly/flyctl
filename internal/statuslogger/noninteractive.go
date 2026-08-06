@@ -50,7 +50,7 @@ func (line *noninteractiveLine) println(s string) {
 	fmt.Fprintln(line.logger.io.Out, s)
 }
 
-func (line *noninteractiveLine) Logf(format string, args ...interface{}) {
+func (line *noninteractiveLine) Logf(format string, args ...any) {
 	line.Log(fmt.Sprintf(format, args...))
 }
 
@@ -59,7 +59,7 @@ func (line *noninteractiveLine) LogStatus(s Status, str string) {
 	line.Log(str)
 }
 
-func (line *noninteractiveLine) LogfStatus(s Status, format string, args ...interface{}) {
+func (line *noninteractiveLine) LogfStatus(s Status, format string, args ...any) {
 	line.LogStatus(s, fmt.Sprintf(format, args...))
 }
 

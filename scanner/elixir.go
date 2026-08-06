@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configureElixir(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -19,6 +20,7 @@ func configureElixir(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+		Runtime: plan.RuntimeStruct{Language: "elixir"},
 	}
 
 	return s, nil

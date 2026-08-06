@@ -6,21 +6,26 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/uiex"
-	"github.com/superfly/flyctl/internal/uiexutil"
-	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newRestore() *cobra.Command {
 	const (
-		long  = `Restore a Managed Postgres cluster from a backup.`
-		short = "Restore MPG cluster from backup."
+		long = `Restore a Managed Postgres backup into a new cluster, leaving the source
+cluster unchanged. The restored cluster is provisioned asynchronously in the
+same organization and billed separately.
+
+Find backup IDs with 'fly mpg backup list'.`
+		short = "Restore MPG cluster from backup into a new cluster."
 		usage = "restore <CLUSTER_ID>"
 	)
 
 	cmd := command.New(usage, short, long, runRestore,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -30,28 +35,21 @@ func newRestore() *cobra.Command {
 			Name:        "backup-id",
 			Description: "The backup ID to restore from",
 		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of the restored cluster (defaults to a generated name)",
+		},
 	)
 
 	return cmd
 }
 
 func runRestore(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
-	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
 	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
 	}
 
 	backupID := flag.GetString(ctx, "backup-id")
@@ -59,20 +57,12 @@ func runRestore(ctx context.Context) error {
 		return fmt.Errorf("--backup-id flag is required")
 	}
 
-	fmt.Fprintf(out, "Restoring cluster %s from backup %s...\n", clusterID, backupID)
+	name := flag.GetString(ctx, "name")
 
-	input := uiex.RestoreManagedClusterBackupInput{
-		BackupId: backupID,
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunRestore(ctx, cluster.Id, backupID, name)
+
 	}
 
-	response, err := uiexClient.RestoreManagedClusterBackup(ctx, clusterID, input)
-	if err != nil {
-		return fmt.Errorf("failed to restore backup: %w", err)
-	}
-
-	fmt.Fprintf(out, "Restore initiated successfully!\n")
-	fmt.Fprintf(out, "  Cluster ID: %s\n", response.Data.Id)
-	fmt.Fprintf(out, "  Cluster Name: %s\n", response.Data.Name)
-
-	return nil
+	return cmdv2.RunRestore(ctx, cluster.Id, backupID, name)
 }

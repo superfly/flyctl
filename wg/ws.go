@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -18,16 +19,7 @@ import (
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
-	ctx, cancel := context.WithCancel(ctx)
-
-	t, err := doConnect(ctx, state, true)
-	if err == nil {
-		t.wscancel = cancel
-	} else {
-		cancel()
-	}
-
-	return t, err
+	return doConnect(ctx, state, true)
 }
 
 func read(r io.Reader, rbuf []byte) ([]byte, error) {
@@ -92,6 +84,7 @@ func (wswg *WsWgProxy) lastIo() time.Duration {
 	wswg.lock.RLock()
 	s := time.Since(wswg.atime)
 	wswg.lock.RUnlock()
+
 	return s
 }
 
@@ -122,12 +115,16 @@ func (wswg *WsWgProxy) Port() (int, error) {
 	return udpBindAddr.Port, nil
 }
 
-func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
-	rurl := fmt.Sprintf("wss://%s:443/", endpoint)
+func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint string) error {
+	rurl := (&url.URL{
+		Scheme: "wss",
+		Host:   net.JoinHostPort(endpoint, "443"),
+		Path:   "/",
+	}).String()
 
 	log.Printf("(re-)connecting to %s", rurl)
 
-	ws, _, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
+	ws, _, err := websocket.Dial(dialCtx, rurl, &websocket.DialOptions{ // nolint: bodyclose
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
@@ -145,7 +142,7 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 		return fmt.Errorf("websocket: %w", err)
 	}
 
-	wsConn := websocket.NetConn(ctx, ws, websocket.MessageText)
+	wsConn := websocket.NetConn(lifetimeCtx, ws, websocket.MessageText)
 
 	var magic [4]byte
 	binary.BigEndian.PutUint32(magic[:], 0x2FACED77)
@@ -175,6 +172,7 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	defer wswg.wrlock.Unlock()
 
 	_, err := c.Write(b)
+
 	return err
 }
 
@@ -232,7 +230,7 @@ func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
 	}
 }
 
-func websocketConnect(ctx context.Context, endpoint string) (int, error) {
+func websocketConnect(dialCtx, lifetimeCtx context.Context, endpoint string) (int, error) {
 	wswg, err := NewWsWgProxy()
 	if err != nil {
 		return 0, err
@@ -243,7 +241,9 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 		return 0, err
 	}
 
-	if err = wswg.Connect(ctx, endpoint); err != nil {
+	if err = wswg.Connect(dialCtx, lifetimeCtx, endpoint); err != nil {
+		wswg.plugConn.Close()
+
 		return 0, err
 	}
 
@@ -264,13 +264,13 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 			case <-tick.C:
 				if !reconnectAt.IsZero() && reconnectAt.Before(time.Now()) {
 					wswg.lock.Lock()
-					wswg.Connect(ctx, endpoint)
+					wswg.Connect(lifetimeCtx, lifetimeCtx, endpoint)
 					wswg.lock.Unlock()
 
 					reconnectAt = time.Time{}
 				}
 
-			case <-ctx.Done():
+			case <-lifetimeCtx.Done():
 				return
 
 			case <-c:
@@ -287,12 +287,12 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 	}()
 
 	go func() {
-		go wswg.ws2wg(ctx)
-		go wswg.wg2ws(ctx)
+		go wswg.ws2wg(lifetimeCtx)
+		go wswg.wg2ws(lifetimeCtx)
 
 		zeroLenMsg := make([]byte, 4)
 
-		for ctx.Err() == nil {
+		for lifetimeCtx.Err() == nil {
 			time.Sleep(1 * time.Second)
 
 			if wswg.lastIo() > (1 * time.Second) {

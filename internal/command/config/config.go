@@ -20,5 +20,6 @@ func New() (cmd *cobra.Command) {
 		newValidate(),
 		newEnv(),
 	)
+
 	return
 }

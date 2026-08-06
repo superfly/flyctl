@@ -320,6 +320,14 @@ func Org() String {
 	}
 }
 
+func MPGCluster() String {
+	return String{
+		Name:        "cluster",
+		Shorthand:   "c",
+		Description: "The target cluster ID",
+	}
+}
+
 // Region returns a region string flag.
 func Region() String {
 	return String{
@@ -343,7 +351,7 @@ func Yes() Bool {
 	return Bool{
 		Name:        flagnames.Yes,
 		Shorthand:   "y",
-		Description: "Accept all confirmations",
+		Description: "Accept all confirmations (also --auto-confirm)",
 		Aliases:     []string{"auto-confirm"},
 	}
 }
@@ -436,7 +444,7 @@ const httpsFailover = "https-failover"
 func HttpsFailover() Bool {
 	return Bool{
 		Name:        httpsFailover,
-		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
+		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails (also --http-failover)",
 		Aliases:     []string{"http-failover"},
 		Default:     true,
 	}
@@ -552,6 +560,19 @@ func BuildTarget() String {
 	}
 }
 
+const BuildContextWarnSizeName = "build-context-warn-size"
+
+// BuildContextWarnSize controls the size at which flyctl warns that the Docker
+// build context being uploaded to the builder is unexpectedly large. Setting it
+// to 0 disables the warning. The effective default lives in imgsrc as
+// defaultBuildContextWarnSize.
+func BuildContextWarnSize() String {
+	return String{
+		Name:        BuildContextWarnSizeName,
+		Description: "Warn when the Docker build context is larger than this. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb). Set to 0 to disable. Also set with FLY_BUILD_CONTEXT_WARN_SIZE.",
+	}
+}
+
 func Depot() String {
 	return String{
 		Name:        "depot",
@@ -636,7 +657,7 @@ func JSONOutput() Bool {
 
 func ProcessGroup(desc string) String {
 	if desc == "" {
-		desc = "The target process group"
+		desc = "The target process group (also --group)"
 	}
 
 	return String{

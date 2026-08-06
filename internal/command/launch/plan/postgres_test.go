@@ -2,6 +2,8 @@ package plan
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -12,13 +14,22 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // mockUIEXClient implements uiexutil.Client for testing
 type mockUIEXClient struct {
-	mpgRegions []uiex.MPGRegion
+	mpgRegions []mpgv1.MPGRegion
+}
+
+func (m *mockUIEXClient) BaseURL() *url.URL {
+	return nil
+}
+
+func (m *mockUIEXClient) HTTPClient() *http.Client {
+	return nil
 }
 
 func (m *mockUIEXClient) ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error) {
@@ -29,8 +40,8 @@ func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*
 	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
-func (m *mockUIEXClient) ListMPGRegions(ctx context.Context, orgSlug string) (uiex.ListMPGRegionsResponse, error) {
-	return uiex.ListMPGRegionsResponse{Data: m.mpgRegions}, nil
+func (m *mockUIEXClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
+	return nil
 }
 
 // mockGenqClient implements the genq.Client interface for testing
@@ -39,76 +50,13 @@ type mockGenqClient struct{}
 func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, resp *genq.Response) error {
 	// Mock the GetOrganization response - just return the same slug
 	// This simulates the ResolveOrganizationSlug behavior
-	resp.Data = map[string]interface{}{
-		"organization": map[string]interface{}{
+	resp.Data = map[string]any{
+		"organization": map[string]any{
 			"rawSlug": "test-org", // Return a fixed value for testing
 		},
 	}
+
 	return nil
-}
-
-func (m *mockUIEXClient) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (uiex.ListManagedClustersResponse, error) {
-	return uiex.ListManagedClustersResponse{}, nil
-}
-
-func (m *mockUIEXClient) GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error) {
-	return uiex.GetManagedClusterResponse{}, nil
-}
-
-func (m *mockUIEXClient) GetManagedClusterById(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error) {
-	return uiex.GetManagedClusterResponse{}, nil
-}
-
-func (m *mockUIEXClient) CreateUser(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error) {
-	return uiex.CreateUserResponse{}, nil
-}
-
-func (m *mockUIEXClient) CreateUserWithRole(ctx context.Context, id string, input uiex.CreateUserWithRoleInput) (uiex.CreateUserWithRoleResponse, error) {
-	return uiex.CreateUserWithRoleResponse{}, nil
-}
-
-func (m *mockUIEXClient) UpdateUserRole(ctx context.Context, id string, username string, input uiex.UpdateUserRoleInput) (uiex.UpdateUserRoleResponse, error) {
-	return uiex.UpdateUserRoleResponse{}, nil
-}
-
-func (m *mockUIEXClient) DeleteUser(ctx context.Context, id string, username string) error {
-	return nil
-}
-
-func (m *mockUIEXClient) GetUserCredentials(ctx context.Context, id string, username string) (uiex.GetUserCredentialsResponse, error) {
-	return uiex.GetUserCredentialsResponse{}, nil
-}
-
-func (m *mockUIEXClient) ListUsers(ctx context.Context, id string) (uiex.ListUsersResponse, error) {
-	return uiex.ListUsersResponse{}, nil
-}
-
-func (m *mockUIEXClient) ListDatabases(ctx context.Context, id string) (uiex.ListDatabasesResponse, error) {
-	return uiex.ListDatabasesResponse{}, nil
-}
-
-func (m *mockUIEXClient) CreateDatabase(ctx context.Context, id string, input uiex.CreateDatabaseInput) (uiex.CreateDatabaseResponse, error) {
-	return uiex.CreateDatabaseResponse{}, nil
-}
-
-func (m *mockUIEXClient) CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error) {
-	return uiex.CreateClusterResponse{}, nil
-}
-
-func (m *mockUIEXClient) DestroyCluster(ctx context.Context, orgSlug string, id string) error {
-	return nil
-}
-
-func (m *mockUIEXClient) ListManagedClusterBackups(ctx context.Context, clusterID string) (uiex.ListManagedClusterBackupsResponse, error) {
-	return uiex.ListManagedClusterBackupsResponse{}, nil
-}
-
-func (m *mockUIEXClient) CreateManagedClusterBackup(ctx context.Context, clusterID string, input uiex.CreateManagedClusterBackupInput) (uiex.CreateManagedClusterBackupResponse, error) {
-	return uiex.CreateManagedClusterBackupResponse{}, nil
-}
-
-func (m *mockUIEXClient) RestoreManagedClusterBackup(ctx context.Context, clusterID string, input uiex.RestoreManagedClusterBackupInput) (uiex.RestoreManagedClusterBackupResponse, error) {
-	return uiex.RestoreManagedClusterBackupResponse{}, nil
 }
 
 func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
@@ -226,21 +174,25 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 			ctx = flagctx.NewContext(ctx, flagSet)
 
 			// Set up mock UIEX client for MPG regions
-			var mpgRegions []uiex.MPGRegion
+			var mpgRegions []mpgv1.MPGRegion
 			if tt.mpgRegionsWithIAD {
-				mpgRegions = []uiex.MPGRegion{
+				mpgRegions = []mpgv1.MPGRegion{
 					{Code: "iad", Available: true},
 					{Code: "lax", Available: true},
 				}
 			} else {
-				mpgRegions = []uiex.MPGRegion{
+				mpgRegions = []mpgv1.MPGRegion{
 					{Code: "lax", Available: true},
 					{Code: "fra", Available: true},
 					// iad is not in the list, so it's not available
 				}
 			}
-			mockUIEX := &mockUIEXClient{mpgRegions: mpgRegions}
-			ctx = uiexutil.NewContextWithClient(ctx, mockUIEX)
+
+			ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+					return mpgv1.ListMPGRegionsResponse{Data: mpgRegions}, nil
+				},
+			})
 
 			// Set up mock API client for platform regions
 			mockClient := &mock.Client{
@@ -270,11 +222,13 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
+
 					return
 				}
 			} else {
 				if err != nil {
 					t.Errorf("expected no error but got: %v", err)
+
 					return
 				}
 			}
@@ -314,7 +268,7 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 		ctx = flagctx.NewContext(ctx, flagSet)
 
 		// Set up mock UIEX client where iad doesn't support MPG but lax does
-		mpgRegions := []uiex.MPGRegion{
+		mpgRegions := []mpgv1.MPGRegion{
 			{Code: "lax", Available: true},
 			{Code: "fra", Available: true},
 			// iad is not in the list, so it's not available
@@ -350,6 +304,7 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 
 		if err != nil {
 			t.Errorf("expected no error but got: %v", err)
+
 			return
 		}
 
@@ -380,6 +335,7 @@ func TestCreateFlyPostgresPlan(t *testing.T) {
 
 	if result.FlyPostgres == nil {
 		t.Errorf("expected FlyPostgres plan but got nil")
+
 		return
 	}
 
@@ -418,6 +374,7 @@ func TestCreateManagedPostgresPlan(t *testing.T) {
 
 	if result.ManagedPostgres == nil {
 		t.Errorf("expected ManagedPostgres plan but got nil")
+
 		return
 	}
 

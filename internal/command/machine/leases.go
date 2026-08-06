@@ -111,6 +111,7 @@ func runLeaseView(ctx context.Context) (err error) {
 			if strings.Contains(err.Error(), " lease not found") {
 				continue
 			}
+
 			return err
 		}
 		if lease == nil {
@@ -126,6 +127,7 @@ func runLeaseView(ctx context.Context) (err error) {
 
 	if len(leases) == 0 {
 		fmt.Fprintln(io.Out, "No leases found")
+
 		return nil
 	}
 
@@ -137,8 +139,8 @@ func runLeaseView(ctx context.Context) (err error) {
 		rows = append(rows, []string{
 			machine,
 			lease.Data.Nonce,
-			lease.Data.Owner,
 			lease.Status,
+			lease.Data.Owner,
 			expires,
 		})
 	}
@@ -169,6 +171,7 @@ func runLeaseClear(ctx context.Context) (err error) {
 			if strings.Contains(err.Error(), " lease not found") {
 				continue
 			}
+
 			return err
 		}
 		fmt.Fprintf(io.Out, "clearing lease for machine %s\n", machineID)

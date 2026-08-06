@@ -49,6 +49,9 @@ const (
 	// BindAddr denotes the name of the local bind address flag.
 	BindAddr = "bind-addr"
 
+	// LocalPort denotes the name of the local MPG proxy port flag.
+	LocalPort = "local-port"
+
 	// ProcessGroup denotes the name of the process group flag.
 	ProcessGroup = "process-group"
 

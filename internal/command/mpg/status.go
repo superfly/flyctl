@@ -2,17 +2,13 @@ package mpg
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/iostreams"
-
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
+	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func newStatus() *cobra.Command {
@@ -24,6 +20,7 @@ func newStatus() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runStatus,
 		command.RequireSession,
+		requireMacaroonToken,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -34,56 +31,16 @@ func newStatus() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
+	clusterID := flag.FirstArg(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
 		return err
 	}
 
-	cfg := config.FromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
-	uiexClient := uiexutil.ClientFromContext(ctx)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunStatus(ctx, cluster.Id)
 
-	clusterID := flag.FirstArg(ctx)
-	if clusterID == "" {
-		cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
-		if err != nil {
-			return err
-		}
-
-		clusterID = cluster.Id
 	}
 
-	// Fetch detailed cluster information by ID
-	clusterDetails, err := uiexClient.GetManagedClusterById(ctx, clusterID)
-	if err != nil {
-		return fmt.Errorf("failed retrieving details for cluster %s: %w", clusterID, err)
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(out, clusterDetails)
-	}
-
-	rows := [][]string{{
-		clusterDetails.Data.Id,
-		clusterDetails.Data.Name,
-		clusterDetails.Data.Organization.Slug,
-		clusterDetails.Data.Region,
-		clusterDetails.Data.Status,
-		strconv.Itoa(clusterDetails.Data.Disk),
-		strconv.Itoa(clusterDetails.Data.Replicas),
-		clusterDetails.Data.IpAssignments.Direct,
-	}}
-
-	cols := []string{
-		"ID",
-		"Name",
-		"Organization",
-		"Region",
-		"Status",
-		"Allocated Disk (GB)",
-		"Replicas",
-		"Direct IP",
-	}
-
-	return render.VerticalTable(out, "Cluster Status", rows, cols...)
+	return cmdv2.RunStatus(ctx, cluster.Id)
 }

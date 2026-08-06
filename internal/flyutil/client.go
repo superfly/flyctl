@@ -71,9 +71,15 @@ type Client interface {
 	GetMachine(ctx context.Context, machineId string) (*fly.GqlMachine, error)
 	GetNearestRegion(ctx context.Context) (*fly.Region, error)
 	GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error)
 	GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error)
 	GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error)
 	GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
+	GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error)
+	AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error)
+	RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error)
+	GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error)
+	SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error)
 	GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
 	GetWireGuardPeer(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeers(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
@@ -110,5 +116,6 @@ func NewContextWithClient(ctx context.Context, c Client) context.Context {
 // ClientFromContext returns the Client ctx carries.
 func ClientFromContext(ctx context.Context) Client {
 	c, _ := ctx.Value(contextKeyClient).(Client)
+
 	return c
 }
