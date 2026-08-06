@@ -288,9 +288,14 @@ func (md *machineDeployment) inferCanaryGuest(processGroup string) *fly.MachineG
 	return canaryGuest
 }
 
-// deployCanaryMachines creates canary machines for each process group.
-// The canary machines are destroyed before returning to the caller.
-func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err error) {
+// deployCanaryMachines creates and health-checks a canary machine for each
+// process group, returning the canaries to the caller. Unlike a smoke test,
+// the canaries are registered in DNS so they serve traffic, and they are kept
+// running until the caller rolls the existing machines. This keeps n+1 healthy
+// serving instances available throughout the roll, avoiding downtime for
+// single-machine apps. The caller is responsible for destroying the returned
+// canaries (see destroyCanaryMachines) once the roll is complete.
+func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (canaries []machine.LeasableMachine, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_canary")
 	defer span.End()
 
@@ -298,6 +303,8 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	total := len(groupsInConfig)
 	sl := statuslogger.Create(ctx, total, true)
 	defer sl.Destroy(false)
+
+	canaries = make([]machine.LeasableMachine, total)
 
 	errors, ctx := errgroup.WithContext(ctx)
 
@@ -313,11 +320,9 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 		name := name
 		idx := idx
 		errors.Go(func() error {
-			var err error
 			lm, err := md.spawnMachineInGroup(ctx, name, nil,
 				withMeta(metadata{key: "fly_canary", value: "true"}),
 				withGuest(md.inferCanaryGuest(name)),
-				withDns(&fly.DNSConfig{SkipRegistration: true}),
 			)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to provision canary machine")
@@ -327,15 +332,10 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				return err
 			}
 
-			defer func() {
-				if err == nil {
-					if destroyErr := machcmd.Destroy(ctx, md.app.Name, lm.Machine(), true); destroyErr != nil {
-						err = destroyErr
-					}
-				}
-			}()
+			// Safe to assign without a lock: each goroutine writes a distinct index.
+			canaries[idx] = lm
 
-			if err = md.runTestMachines(ctx, lm.Machine(), sl.Line(idx)); err != nil {
+			if err := md.runTestMachines(ctx, lm.Machine(), sl.Line(idx)); err != nil {
 				tracing.RecordError(span, err, "failed to run test machine for canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
@@ -343,15 +343,33 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				return err
 			}
 
-			return err
+			return nil
 		})
 	}
 
 	if err := errors.Wait(); err != nil {
-		return err
+		// Clean up any canaries that were created before the failure so we
+		// don't leak them when the deployment aborts.
+		md.destroyCanaryMachines(ctx, canaries)
+
+		return nil, err
 	}
 
-	return nil
+	return canaries, nil
+}
+
+// destroyCanaryMachines destroys the canary machines created by
+// deployCanaryMachines. nil entries (canaries that were never created) are
+// skipped, and destroy failures are logged but do not abort the deployment.
+func (md *machineDeployment) destroyCanaryMachines(ctx context.Context, canaries []machine.LeasableMachine) {
+	for _, lm := range canaries {
+		if lm == nil {
+			continue
+		}
+		if err := machcmd.Destroy(ctx, md.app.Name, lm.Machine(), true); err != nil {
+			terminal.Warnf("failed to destroy canary machine %s: %s", lm.FormattedMachineId(), err)
+		}
+	}
 }
 
 // Create machines for new process groups
@@ -479,9 +497,16 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	md.warnAboutProcessGroupChanges(processGroupMachineDiff)
 
 	if md.strategy == "canary" && !md.isFirstDeploy {
-		if err := md.deployCanaryMachines(ctx); err != nil {
+		canaries, err := md.deployCanaryMachines(ctx)
+		if err != nil {
 			return err
 		}
+		// Keep the canaries serving traffic alongside the existing machines
+		// while they are rolled, then tear them down once the roll is complete
+		// (or has failed). Destroying them only after the roll guarantees an
+		// extra healthy instance is always available, avoiding downtime for
+		// single-machine apps (issue #4745).
+		defer md.destroyCanaryMachines(ctx, canaries)
 	}
 
 	// Destroy machines that don't fit the current process groups
