@@ -33,7 +33,7 @@ jobs:
           - wireguard
           - misc
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
