@@ -184,6 +184,16 @@ type testingTWrapper interface {
 	TempDir() string
 }
 
+// defaultFlyctlCmdTimeout bounds how long a single flyctl invocation may run
+// when the caller doesn't supply a context with its own deadline. Without
+// this, a flyctl command that hangs (rather than erroring out) blocks
+// cmd.Wait() forever, and the only backstop is the shared `go test -timeout`
+// for the whole test binary. When that fires, it panics the entire binary,
+// failing every test in the group instead of just the one that hung. A
+// per-command timeout turns a hang into an ordinary failed attempt, which
+// callers with retry loops (e.g. pg create) already know how to handle.
+const defaultFlyctlCmdTimeout = 10 * time.Minute
+
 // Fly runs flyctl and returns the result.
 // It fails the test if the command exits with a non-zero status.
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
@@ -207,6 +217,12 @@ type FlyCmdConfig struct {
 }
 
 func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfig, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, defaultFlyctlCmdTimeout)
+		defer cancel()
+	}
+
 	argsStr := fmt.Sprintf(flyctlCmd, vals...)
 	args, err := shlex.Split(argsStr)
 	if err != nil {

@@ -50,6 +50,8 @@ set +e
 
 # Define test groups based on logical groupings
 if [[ -n "$group" ]]; then
+    test_timeout=15m
+
     case "$group" in
         apps)
             test_pattern="^TestAppsV2"
@@ -77,6 +79,7 @@ if [[ -n "$group" ]]; then
             ;;
         postgres)
             test_pattern="^TestPostgres"
+            test_timeout=30m # Needs more time than other tests.
             ;;
         tokens)
             test_pattern="^TestTokens"
@@ -94,7 +97,7 @@ if [[ -n "$group" ]]; then
             ;;
     esac
 
-    go test -tags=integration -v -timeout=15m $test_opts -run "$test_pattern" github.com/superfly/flyctl/test/preflight/... | tee "$test_log"
+    go test -tags=integration -v -timeout="$test_timeout" $test_opts -run "$test_pattern" github.com/superfly/flyctl/test/preflight/... | tee "$test_log"
     test_status=$?
 # Legacy numeric sharding using gotesplit (deprecated)
 elif [[ -n "$total" && -n "$index" ]]; then
