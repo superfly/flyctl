@@ -19,7 +19,11 @@ func (state *launchState) launchSentry(ctx context.Context, app_name string) err
 		}
 
 		if extension.SetsSecrets {
-			if err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false); err != nil {
+			if err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+				Stage:    false,
+				Detach:   false,
+				CheckDNS: true,
+			}); err != nil {
 				return err
 			}
 		}

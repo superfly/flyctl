@@ -80,7 +80,7 @@ func TestFromDefinition(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, &Config{
-		KillSignal:  fly.Pointer("SIGINT"),
+		KillSignal:  new("SIGINT"),
 		KillTimeout: fly.MustParseDuration("5s"),
 		Restart: []Restart{
 			{
@@ -104,12 +104,12 @@ func TestFromDefinition(t *testing.T) {
 				},
 				Ports: []fly.MachinePort{
 					{
-						Port:       fly.Pointer(80),
+						Port:       new(80),
 						Handlers:   []string{"http"},
 						ForceHTTPS: true,
 					},
 					{
-						Port:     fly.Pointer(443),
+						Port:     new(443),
 						Handlers: []string{"tls", "http"},
 					},
 				},
@@ -190,7 +190,7 @@ func TestToDefinition(t *testing.T) {
 			"internal_port":        int64(8080),
 			"force_https":          true,
 			"auto_start_machines":  false,
-			"auto_stop_machines":   false,
+			"auto_stop_machines":   "off",
 			"min_machines_running": int64(0),
 			"concurrency": map[string]any{
 				"type":       "donuts",
@@ -203,7 +203,8 @@ func TestToDefinition(t *testing.T) {
 				"default_self_signed": false,
 			},
 			"http_options": map[string]any{
-				"compress": true,
+				"compress":     true,
+				"idle_timeout": int64(600),
 				"response": map[string]any{
 					"headers": map[string]any{
 						"fly-request-id": false,
@@ -237,6 +238,15 @@ func TestToDefinition(t *testing.T) {
 				},
 			},
 		},
+		"machine_checks": []any{
+			map[string]any{
+				"command":      []any{"curl", "https://fly.io"},
+				"image":        "curlimages/curl",
+				"entrypoint":   []any{"/bin/sh"},
+				"kill_signal":  "SIGKILL",
+				"kill_timeout": "5s",
+			},
+		},
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
@@ -247,9 +257,14 @@ func TestToDefinition(t *testing.T) {
 		},
 
 		"deploy": map[string]any{
-			"release_command": "release command",
-			"strategy":        "rolling-eyes",
-			"max_unavailable": 0.2,
+			"strategy":                "rolling-eyes",
+			"max_unavailable":         0.2,
+			"release_command":         "release command",
+			"release_command_timeout": "3m0s",
+			"release_command_vm": map[string]any{
+				"size":   "performance-2x",
+				"memory": "8g",
+			},
 		},
 		"env": map[string]any{
 			"FOO": "BAR",
@@ -289,10 +304,11 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 		"mounts": []any{map[string]any{
-			"source":             "data",
-			"destination":        "/data",
-			"initial_size":       "30gb",
-			"snapshot_retention": int64(17),
+			"source":              "data",
+			"destination":         "/data",
+			"initial_size":        "30gb",
+			"snapshot_retention":  int64(17),
+			"scheduled_snapshots": true,
 		}},
 		"processes": map[string]any{
 			"web":  "run web",
@@ -322,7 +338,7 @@ func TestToDefinition(t *testing.T) {
 				"protocol":             "tcp",
 				"processes":            []any{"app"},
 				"auto_start_machines":  false,
-				"auto_stop_machines":   false,
+				"auto_stop_machines":   "off",
 				"min_machines_running": int64(1),
 				"concurrency": map[string]any{
 					"type":       "requests",
@@ -331,10 +347,13 @@ func TestToDefinition(t *testing.T) {
 				},
 				"ports": []any{
 					map[string]any{
-						"port":        int64(80),
-						"start_port":  int64(100),
-						"end_port":    int64(200),
-						"handlers":    []any{"https"},
+						"port":       int64(80),
+						"start_port": int64(100),
+						"end_port":   int64(200),
+						"handlers":   []any{"https"},
+						"http_options": map[string]any{
+							"idle_timeout": int64(600),
+						},
 						"force_https": true,
 					},
 				},
@@ -397,7 +416,7 @@ func TestFromDefinitionChecksAsList(t *testing.T) {
 	require.NoError(t, err)
 
 	want := map[string]*ToplevelCheck{
-		"pg": {Port: fly.Pointer(80)},
+		"pg": {Port: new(80)},
 	}
 	assert.Equal(t, want, cfg.Checks)
 }
@@ -429,6 +448,7 @@ func TestFromDefinitionKillTimeoutString(t *testing.T) {
 func dFromJSON(jsonBody string) (*fly.Definition, error) {
 	ret := &fly.Definition{}
 	err := json.Unmarshal([]byte(jsonBody), ret)
+
 	return ret, err
 }
 
@@ -437,5 +457,6 @@ func cfgFromJSON(jsonBody string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return FromDefinition(def)
 }

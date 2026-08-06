@@ -17,6 +17,7 @@ const (
 
 	ConfigWireGuardState      = "wire_guard_state"
 	ConfigWireGuardWebsockets = "wire_guard_websockets"
+	ConfigAppSecretsMinvers   = "app_secrets_minvers"
 
 	ConfigRegistryHost = "registry_host"
 )
@@ -29,7 +30,7 @@ type Config interface {
 	GetStringSlice(key string) []string
 	GetInt(key string) int
 	IsSet(key string) bool
-	Set(key string, value interface{})
+	Set(key string, value any)
 }
 
 type config struct {
@@ -40,6 +41,7 @@ func (cfg *config) nsKey(key string) string {
 	if cfg.ns == NSRoot {
 		return key
 	}
+
 	return cfg.ns + "." + key
 }
 
@@ -77,7 +79,7 @@ func ConfigNS(ns string) Config {
 	return &config{ns}
 }
 
-func (cfg *config) Set(key string, value interface{}) {
+func (cfg *config) Set(key string, value any) {
 	fullKey := cfg.nsKey(key)
 	viper.Set(fullKey, value)
 }

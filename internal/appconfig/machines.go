@@ -10,6 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/containerconfig"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -17,6 +18,7 @@ func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*
 	if err != nil {
 		return nil, err
 	}
+
 	return fc.updateMachineConfig(src)
 }
 
@@ -58,6 +60,19 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 
 	// StopConfig
 	c.tomachineSetStopConfig(mConfig)
+
+	// Files
+	mConfig.Files = nil
+	fly.MergeFiles(mConfig, c.MergedFiles)
+
+	// Guest
+	if v := c.Deploy.ReleaseCommandCompute; v != nil {
+		guest, err := c.computeToGuest(v)
+		if err != nil {
+			return nil, err
+		}
+		mConfig.Guest = guest
+	}
 
 	return mConfig, nil
 }
@@ -142,7 +157,9 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	}
 
 	if c.Experimental != nil {
-		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+		if v := c.Experimental.Entrypoint; v != nil {
+			mConfig.Init.Entrypoint = v
+		}
 	}
 
 	mConfig.Env["FLY_TEST_COMMAND"] = "1"
@@ -223,12 +240,32 @@ func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 
 // updateMachineConfig applies configuration options from the optional MachineConfig passed in, then the base config, into a new MachineConfig
 func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig, error) {
-	// For flattened app configs there is only one proces name and it is the group it was flattened for
+	// For flattened app configs there is only one process name and it is the group it was flattened for
 	processGroup := c.DefaultProcessName()
 
 	mConfig := &fly.MachineConfig{}
 	if src != nil {
 		mConfig = helpers.Clone(src)
+	}
+
+	// Extract machine config from fly.toml
+	var appMachineConfig string
+	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
+		appMachineConfig = c.Experimental.MachineConfig
+	}
+
+	if appMachineConfig == "" {
+		appMachineConfig = c.MachineConfig
+	}
+
+	// Parse container configuration (machine config or compose file) directly into mConfig
+	composePath := ""
+	if c.Build != nil && c.Build.Compose != nil {
+		// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+		composePath = c.DetectComposeFile()
+	}
+	if err := containerconfig.ParseContainerConfig(mConfig, composePath, appMachineConfig, c.ConfigFilePath(), c.Container); err != nil {
+		return nil, err
 	}
 
 	// Metrics
@@ -361,6 +398,7 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 			MaxRetries: restart.MaxRetries,
 		}
 	}
+
 	return mConfig, nil
 }
 
@@ -402,13 +440,15 @@ func (c *Config) toMachineGuest() (*fly.MachineGuest, error) {
 	}
 
 	// At most one compute after group flattening
-	compute := c.Compute[0]
+	return c.computeToGuest(c.Compute[0])
+}
 
+func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 	size := fly.DefaultVMSize
 	switch {
 	case compute.Size != "":
 		size = compute.Size
-	case compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "":
+	case compute.MachineGuest != nil && compute.GPUKind != "":
 		size = fly.DefaultGPUVMSize
 	}
 

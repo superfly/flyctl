@@ -95,10 +95,6 @@ app: banana
 
 There is a simple PowerShell script, `winbuild.ps1`, which will run the code generation for the help files, format them, and run a full build, leaving a new binary in the bin directory.
 
-## Running from Branches on Your Local Machine
-
-Run `scripts/build-dfly` to build a Docker image from the current branch. Then, use `scripts/dfly` to run it. This assumes you are already authenticated to Fly in your local environment.
-
 ## Contributing Guide
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md)

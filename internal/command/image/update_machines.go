@@ -8,6 +8,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -23,7 +24,7 @@ func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
 	)
 
 	// Acquire leases for all machines
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -56,13 +57,18 @@ func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
 		eligible[machine] = *machineConf
 	}
 
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return err
+	}
 	for machine, machineConf := range eligible {
 		input := &fly.LaunchMachineInput{
-			Region:           machine.Region,
-			Config:           &machineConf,
-			SkipHealthChecks: skipHealthChecks,
+			Region:            machine.Region,
+			Config:            &machineConf,
+			SkipHealthChecks:  skipHealthChecks,
+			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 			return err
 		}
 	}
@@ -88,7 +94,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 	)
 
 	// Acquire leases
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -150,6 +156,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 
 	if len(members) == 0 {
 		fmt.Fprintln(io.Out, colorize.Bold("No changes to apply"))
+
 		return nil
 	}
 
@@ -160,14 +167,21 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 		}
 	}
 
+	// XXX TODO: use case to think of here is that the machine wasnt provisioned with flyctl.
+	minvers, err := appsecrets.GetMinvers(app.Name)
+	if err != nil {
+		return err
+	}
+
 	// Update replicas
 	for _, member := range members["replica"] {
 		machine := member.Machine
 		input := &fly.LaunchMachineInput{
-			Region: machine.Region,
-			Config: &member.TargetConfig,
+			Region:            machine.Region,
+			Config:            &member.TargetConfig,
+			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 			return err
 		}
 	}
@@ -176,11 +190,12 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 	for _, member := range members["barman"] {
 		machine := member.Machine
 		input := &fly.LaunchMachineInput{
-			Region:           machine.Region,
-			Config:           &member.TargetConfig,
-			SkipHealthChecks: true,
+			Region:            machine.Region,
+			Config:            &member.TargetConfig,
+			SkipHealthChecks:  true,
+			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 			return err
 		}
 	}
@@ -191,10 +206,11 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 			machine := primary.Machine
 
 			input := &fly.LaunchMachineInput{
-				Region: machine.Region,
-				Config: &primary.TargetConfig,
+				Region:            machine.Region,
+				Config:            &primary.TargetConfig,
+				MinSecretsVersion: minvers,
 			}
-			if err := mach.Update(ctx, machine, input); err != nil {
+			if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 				return err
 			}
 		}
@@ -208,6 +224,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 			for _, replica := range members["replicas"] {
 				if replica.Machine.Region == leader.Machine.Region {
 					attemptFailover = true
+
 					break
 				}
 			}
@@ -225,10 +242,11 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 
 			// Update leader
 			input := &fly.LaunchMachineInput{
-				Region: machine.Region,
-				Config: &leader.TargetConfig,
+				Region:            machine.Region,
+				Config:            &leader.TargetConfig,
+				MinSecretsVersion: minvers,
 			}
-			if err := mach.Update(ctx, machine, input); err != nil {
+			if err := mach.Update(ctx, app.Name, machine, input); err != nil {
 				return err
 			}
 		}
@@ -249,9 +267,11 @@ func machineRole(machine *fly.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+
 			break
 		}
 	}
+
 	return role
 }
 
@@ -263,12 +283,12 @@ func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 
 	if image == "" {
 		ref := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-		latestImage, err := client.GetLatestImageDetails(ctx, ref)
+		latestImage, err := client.GetLatestImageDetails(ctx, ref, machine.ImageVersion())
 		if err != nil && !strings.Contains(err.Error(), "Unknown repository") {
 			return "", err
 		}
 
-		if latestImage != nil {
+		if latestImage != nil && IsUpdateCandidate(&machine, latestImage) {
 			image = latestImage.FullImageRef()
 		}
 

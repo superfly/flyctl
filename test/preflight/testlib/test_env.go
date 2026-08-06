@@ -102,7 +102,7 @@ func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 	env.Setenv("FLY_GHA_ERROR_ANNOTATION", "1")
 	env.Setenv("GITHUB_ACTIONS", os.Getenv("GITHUB_ACTIONS"))
 
-	fmt.Println("workdir", env.workDir)
+	t.Logf("workdir %s", env.workDir)
 	return env
 }
 
@@ -184,7 +184,8 @@ type testingTWrapper interface {
 	TempDir() string
 }
 
-// Fly runs a flyctl the result
+// Fly runs flyctl and returns the result.
+// It fails the test if the command exits with a non-zero status.
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	if f.VMSize != "" {
 		if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
@@ -195,19 +196,11 @@ func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
-// FlyAllowExitFailure runs a flyctl command and returns the result, but does not fail the test if the command exits with a non-zero status
+// FlyAllowExitFailure runs flyctl command and returns the result.
+// It does not fail the test even if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
-
-// FlyC runs a flyctl command with a context and returns the result
-func (f *FlyctlTestEnv) FlyC(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
-	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
-}
-
-// func (f *FlyctlTestEnv) FlyAllowExitFailure(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
-// 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
-// }
 
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
@@ -286,7 +279,22 @@ func (f *FlyctlTestEnv) verifyTestOrgExists() {
 	result.AssertSuccessfulExit()
 	var orgMap map[string]string
 	result.StdOutJSON(&orgMap)
-	if _, present := orgMap[f.orgSlug]; !present {
+
+	// Check if org exists as a key (old format) or as a value (new format)
+	found := false
+	if _, present := orgMap[f.orgSlug]; present {
+		found = true
+	} else {
+		// Check values for org slug (handles {"personal": "flyctl-ci-preflight"} format)
+		for _, v := range orgMap {
+			if v == f.orgSlug {
+				found = true
+				break
+			}
+		}
+	}
+
+	if !found {
 		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
 }
@@ -306,7 +314,29 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 	appName := f.CreateRandomAppName()
-	f.Fly("apps create %s --org %s --machines", appName, f.orgSlug).AssertSuccessfulExit()
+
+	// Retry app creation to handle intermittent authorization issues
+	// Related to LimitedAccessTokenConnection latency
+	const maxAttempts = 3
+	var result *FlyctlResult
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result = f.FlyAllowExitFailure("apps create %s --org %s --machines", appName, f.orgSlug)
+		if result.ExitCode() == 0 {
+			break
+		}
+
+		// Allow retry for authorization errors (LimitedAccessTokenConnection latency)
+		stderr := result.StdErrString()
+		if !strings.Contains(stderr, "Not authorized") && !strings.Contains(stderr, "LimitedAccessTokenConnection") {
+			result.AssertSuccessfulExit()
+		}
+
+		if attempt < maxAttempts {
+			time.Sleep(5 * time.Second)
+		}
+	}
+	result.AssertSuccessfulExit()
+
 	return appName
 }
 

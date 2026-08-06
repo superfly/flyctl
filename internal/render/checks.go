@@ -33,6 +33,7 @@ func MachineHealthChecksSummary(machines ...*fly.Machine) string {
 	if crit > 0 {
 		checkStr += ", " + fmt.Sprintf("%d critical", crit)
 	}
+
 	return checkStr
 }
 

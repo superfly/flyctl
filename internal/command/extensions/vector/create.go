@@ -35,6 +35,7 @@ func create() (cmd *cobra.Command) {
 			Description: "The name of your cluster",
 		},
 	)
+
 	return cmd
 }
 
@@ -97,7 +98,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var defaultDimensionCount int = 128
+	var defaultDimensionCount = 128
 
 	var options = gql.AddOnOptions{
 		"similarity_function": function.Identifier,
@@ -120,7 +121,11 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
+		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+			Stage:    false,
+			Detach:   false,
+			CheckDNS: true,
+		})
 	}
 
 	return err

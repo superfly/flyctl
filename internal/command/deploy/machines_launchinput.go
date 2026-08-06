@@ -2,25 +2,35 @@ package deploy
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/containerconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	mConfig := machine.CloneConfig(origMachineRaw.Config)
 	md.setMachineReleaseData(mConfig)
 
 	return &fly.LaunchMachineInput{
-		ID:         origMachineRaw.ID,
-		Config:     mConfig,
-		Region:     origMachineRaw.Region,
-		SkipLaunch: skipLaunch(origMachineRaw, mConfig),
-	}
+		ID:                origMachineRaw.ID,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		SkipLaunch:        shouldSkipLaunch(origMachineRaw, mConfig),
+		MinSecretsVersion: minvers,
+	}, nil
 }
 
 func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
@@ -51,25 +61,43 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 
 	if len(standbyFor) > 0 {
 		mConfig.Standbys = standbyFor
+		mConfig.Env["FLY_STANDBY_FOR"] = strings.Join(standbyFor, ",")
 	}
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	// Update container image
+	if err = md.updateContainerImage(mConfig); err != nil {
+		return nil, err
+	}
+
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
-		Region:     region,
-		Config:     mConfig,
-		SkipLaunch: len(standbyFor) > 0,
+		Region:            region,
+		Config:            mConfig,
+		SkipLaunch:        shouldSkipLaunch(nil, mConfig),
+		MinSecretsVersion: minvers,
 	}, nil
 }
 
 func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
 	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
-	processGroup := origMachineRaw.Config.ProcessGroup()
 
-	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
+	oConfig := origMachineRaw.GetConfig()
+	if origMachineRaw.HostStatus != fly.HostStatusOk {
+		machineShouldBeReplaced = true
+	}
+
+	processGroup := oConfig.ProcessGroup()
+
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup, oConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -78,12 +106,42 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()
 
+	// Update container image
+	if err = md.updateContainerImage(mConfig); err != nil {
+		return nil, err
+	}
+
+	// Ensure container files are re-processed if they reference local files
+	// This is necessary because local files may have been updated since initial parsing
+	if (md.appConfig.MachineConfig != "" || (md.appConfig.Build != nil && md.appConfig.Build.Compose != nil)) && hasContainerFiles(mConfig) {
+		// Re-parse the container config to get fresh file content
+		composePath := ""
+		if md.appConfig.Build != nil && md.appConfig.Build.Compose != nil {
+			// DetectComposeFile returns the explicit file if set, otherwise auto-detects
+			composePath = md.appConfig.DetectComposeFile()
+		}
+		tempConfig := &fly.MachineConfig{}
+		err := containerconfig.ParseContainerConfig(tempConfig, composePath, md.appConfig.MachineConfig, md.appConfig.ConfigFilePath(), md.appConfig.Container)
+		if err == nil && len(tempConfig.Containers) > 0 {
+			// Apply container files from the re-parsed config
+			for _, container := range mConfig.Containers {
+				for _, tempContainer := range tempConfig.Containers {
+					if container.Name == tempContainer.Name && len(tempContainer.Files) > 0 {
+						// Update container files with fresh content
+						container.Files = tempContainer.Files
+					}
+				}
+			}
+		}
+	}
+
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
 	//   * The only allowed in-place operation is to update its destination mount path
 	//   * The other option is to force a machine replacement to remove or attach a different volume
 	mMounts := mConfig.Mounts
-	oMounts := origMachineRaw.Config.Mounts
+	oMounts := oConfig.Mounts
+
 	if len(oMounts) != 0 {
 		var latestExtendThresholdPercent, latestAddSizeGb, latestSizeGbLimit int
 		if len(mMounts) > 0 {
@@ -95,7 +153,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
 			machineShouldBeReplaced = true
-			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
 		case oMounts[0].Name == "":
 			// It's rare but can happen, we don't know the mounted volume name
 			// so can't be sure it matches the mounts defined in fly.toml, in this
@@ -144,13 +201,24 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		machineShouldBeReplaced = true
 	}
 
+	if origMachineRaw.HostStatus != fly.HostStatusOk && len(oMounts) > 0 && len(mMounts) > 0 && oMounts[0].Volume == mMounts[0].Volume {
+		// We are attempting to replace an unreachable machine but reusing the volume id that ties it to the dead host
+		// TODO: Link to recovery instructions to manually create a new volume, empty or from snapshot, an only then recreate the machine.
+		return nil, fmt.Errorf(
+			"machine '%s' requires manual intervention, it can't be automatically replaced because its volume '%s' is on an unreachable host",
+			mID,
+			oMounts[0].Volume,
+		)
+	}
+
 	// If this is a standby machine that now has a service, then clear
 	// the standbys list.
 	if len(mConfig.Services) > 0 && len(mConfig.Standbys) > 0 {
 		mConfig.Standbys = nil
+		delete(mConfig.Env, "FLY_STANDBY_FOR")
 	}
 
-	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != origMachineRaw.Config.Guest.HostDedicationID {
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != oConfig.Guest.HostDedicationID {
 		if len(oMounts) > 0 && len(mMounts) > 0 {
 			// Attempting to rellocate a machine with a volume attached to a different host
 			return nil, fmt.Errorf("can't rellocate machine '%s' to dedication id '%s' because it has an attached volume."+
@@ -164,13 +232,31 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:          shouldSkipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
+		MinSecretsVersion:   minvers,
 	}, nil
+}
+
+// hasContainerFiles returns true if any container has file configurations
+// that might need refreshing from local sources
+func hasContainerFiles(mConfig *fly.MachineConfig) bool {
+	for _, container := range mConfig.Containers {
+		if len(container.Files) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
@@ -197,23 +283,52 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	} else {
 		delete(mConfig.Metadata, fly.MachineConfigMetadataKeyFlyManagedPostgres)
 	}
+
+	if md.builderID != "" {
+		mConfig.Metadata["fly_builder_id"] = md.builderID
+	}
 }
 
-// Skip launching currently-stopped machines if:
+// Skip launching currently-stopped or suspended machines if:
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
-func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+func shouldSkipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+	state := "<not-set>"
+	if origMachineRaw != nil {
+		state = origMachineRaw.State
+	}
+
 	switch {
-	case origMachineRaw.State == fly.MachineStateStarted:
+	case slices.Contains([]string{fly.MachineStateStarted, "starting", "failed"}, state):
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case origMachineRaw.State == fly.MachineStateStopped:
-		for _, s := range mConfig.Services {
-			if (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart) {
-				return true
+	case origMachineRaw == nil:
+		return false
+	}
+
+	return true
+}
+
+// updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
+// It also substitutes image_config references of "." in files with the build image.
+func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
+	for j := range mConfig.Files {
+		if mConfig.Files[j].ImageConfig != nil && *mConfig.Files[j].ImageConfig == "." {
+			mConfig.Files[j].ImageConfig = &mConfig.Image
+		}
+	}
+
+	for i := range mConfig.Containers {
+		if mConfig.Containers[i].Image == "." {
+			mConfig.Containers[i].Image = mConfig.Image
+		}
+		for j := range mConfig.Containers[i].Files {
+			if mConfig.Containers[i].Files[j].ImageConfig != nil && *mConfig.Containers[i].Files[j].ImageConfig == "." {
+				mConfig.Containers[i].Files[j].ImageConfig = &mConfig.Image
 			}
 		}
 	}
-	return false
+
+	return nil
 }

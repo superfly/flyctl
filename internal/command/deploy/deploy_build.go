@@ -4,19 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
@@ -41,37 +47,94 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("Ignoring %s, and using %s (from fly.toml).", found, config)
+		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, dockerfileurl.ForDisplay(config), appConfig.ConfigFilePath())
 	}
+
 	return nil
 }
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
 	span.SetAttributes(attribute.Bool("builder.using_wireguard", useWG))
 
+	ldClient := launchdarkly.ClientFromContext(ctx)
+	depotBool := ldClient.GetFeatureFlagValue("use-depot-for-builds", true).(bool)
+	useManagedBuilder := ldClient.ManagedBuilderEnabled()
+
+	switch flag.GetString(ctx, "depot") {
+	case "", "true":
+		depotBool = true
+	case "false":
+		depotBool = false
+	case "auto":
+	default:
+		return nil, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
+	}
+
+	switch flag.GetString(ctx, "builder-pool") {
+	case "", "true":
+		span.AddEvent("opt-in builder-pool")
+		useManagedBuilder = true
+	case "false":
+		useManagedBuilder = false
+	case "auto":
+		// nothing
+	default:
+		return nil, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
+	}
+
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(
+		!flag.GetRemoteOnly(ctx),
+		!flag.GetLocalOnly(ctx),
+		env.IsCI(),
+		depotBool,
+		flag.GetBool(ctx, "nixpacks"),
+		useManagedBuilder,
+	)
 
 	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	span.SetAttributes(attribute.String("daemon_type", daemonType.String()))
 
 	if err := multipleDockerfile(ctx, appConfig); err != nil {
 		span.AddEvent("found multiple dockerfiles")
-		terminal.Warnf("%s\n", err.Error())
+		terminal.Warnf("%s", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, useWG, recreateBuilder)
+	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+	if err != nil {
+		return nil, err
+	}
+
+	var provisioner *imgsrc.Provisioner
+	buildkitAddr := flag.GetBuildkitAddr(ctx)
+	buildkitImage := flag.GetBuildkitImage(ctx)
+	if flag.GetBool(ctx, "buildkit") && buildkitImage == "" && buildkitAddr == "" {
+		buildkitImage = imgsrc.DefaultBuildkitImage
+	}
+	if buildkitAddr != "" || buildkitImage != "" {
+		provisioner = imgsrc.NewBuildkitProvisioner(org, buildkitAddr, buildkitImage)
+	} else {
+		provisioner = imgsrc.NewProvisionerUiexOrg(org)
+	}
+	resolver := imgsrc.NewResolver(
+		daemonType, client, appConfig.AppName, io,
+		useWG, recreateBuilder,
+		imgsrc.WithProvisioner(provisioner),
+		imgsrc.WithDockerfileMaterializer(dockerfileMaterializer),
+	)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to fetch image ref")
+
 		return
 	}
 
@@ -80,7 +143,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		opts := imgsrc.RefOptions{
 			AppName:    appConfig.AppName,
 			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBuildOnly(ctx),
+			Publish:    flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
 			ImageRef:   imageRef,
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}
@@ -89,10 +152,20 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		img, err = resolver.ResolveReference(ctx, io, opts)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
-			return
+			if trigger := os.Getenv("DEPLOY_TRIGGER"); trigger == "" {
+				return
+			} else {
+				img = &imgsrc.DeploymentImage{
+					ID:  imageRef,
+					Tag: imageRef,
+				}
+				terminal.Debugf("Failed to resolve reference for prebuilt docker image, using imageRef %s: %v\n", img.String(), err)
+				err = nil
+			}
 		}
 
 		span.AddEvent("using pre-built docker image")
+
 		return
 	}
 
@@ -118,15 +191,19 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 		BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
 	}
 
-	if appConfig.Experimental != nil {
-		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+	if appConfig.Experimental != nil && appConfig.Experimental.LazyLoadImages {
+		terminal.Warnf("[experimental] lazy_load_images is no longer supported (the overlaybd platform feature was removed May 2025). Remove it from fly.toml.\n")
 	}
+
+	// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
+	opts.Compression, opts.CompressionLevel = appConfig.DetermineCompression(ctx)
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.
 	// https://docs.docker.com/engine/reference/commandline/buildx_build/#secret
 	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to generate cliBuildSecrets")
+
 		return
 	}
 
@@ -138,6 +215,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to parse labels")
+
 		return
 	}
 	if env.IS_GH_ACTION() {
@@ -153,6 +231,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		tracing.RecordError(span, err, "failed to merge build args")
+
 		return
 	}
 
@@ -160,11 +239,13 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveDockerfilePath")
+
 		return
 	}
 
 	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
 		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
+
 		return
 	}
 
@@ -181,6 +262,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		tracing.RecordError(span, err, "failed to start heartbeat")
+
 		return nil, err
 	}
 	defer heartbeat.Stop()
@@ -205,22 +287,28 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 	return
 }
 
-// resolveDockerfilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
+// resolveDockerfilePath returns HTTP(S) URLs from app config unchanged and
+// makes local Dockerfile paths absolute.
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
 	if path = appConfig.Dockerfile(); path != "" {
+		if dockerfileurl.IsURL(path) {
+			return path, nil
+		}
+		if dockerfileurl.LooksLikeURL(path) {
+			return "", errors.New("invalid Dockerfile URL")
+		}
+
 		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-	} else {
-		path = flag.GetString(ctx, "dockerfile")
+
+		return filepath.Abs(path)
 	}
 
-	return
+	path = flag.GetString(ctx, "dockerfile")
+	if path == "" {
+		return path, nil
+	}
+
+	return filepath.Abs(path)
 }
 
 // resolveIgnorefilePath returns the absolute path to the Dockerfile
@@ -252,9 +340,8 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 		return nil, fmt.Errorf("invalid build args: %w", err)
 	}
 
-	for k, v := range cliBuildArgs {
-		args[k] = v
-	}
+	maps.Copy(args, cliBuildArgs)
+
 	return args, nil
 }
 

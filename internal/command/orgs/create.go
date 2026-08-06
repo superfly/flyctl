@@ -39,6 +39,7 @@ organization later.
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -51,9 +52,7 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	var name string
-
-	name = flag.FirstArg(ctx)
+	var name = flag.FirstArg(ctx)
 
 	if user.EnablePaidHobby {
 		fmt.Fprintf(io.Out, "New organizations start on the Pay As You Go plan.\n\n")

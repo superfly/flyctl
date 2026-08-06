@@ -11,9 +11,11 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -164,6 +166,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 			flycast = &ip.Address
 		}
 	}
+
 	return machineAttachCluster(ctx, params, flycast)
 }
 
@@ -175,7 +178,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 		MinPostgresFlexVersion       = "0.0.3"
 	)
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, params.PgAppName)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
@@ -184,7 +187,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 		return fmt.Errorf("no active machines found")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(params.PgAppName, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -211,6 +214,8 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		superuser = params.SuperUser
 	)
 
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
 	if dbName == "" {
 		dbName = appName
 	}
@@ -231,16 +236,16 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		AppID:                appName,
 		PostgresClusterAppID: pgAppName,
 		ManualEntry:          true,
-		DatabaseName:         fly.StringPointer(dbName),
-		DatabaseUser:         fly.StringPointer(dbUser),
-		VariableName:         fly.StringPointer(varName),
+		DatabaseName:         new(dbName),
+		DatabaseUser:         new(dbUser),
+		VariableName:         new(varName),
 	}
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)
 
 	fmt.Fprintln(io.Out, "Checking for existing attachments")
 
-	secrets, err := client.GetAppSecrets(ctx, input.AppID)
+	secrets, err := appsecrets.List(ctx, flapsClient, appName)
 	if err != nil {
 		return err
 	}
@@ -293,6 +298,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 			if flypg.ErrorStatus(err) >= 500 {
 				return err
 			}
+
 			return fmt.Errorf("error running database-create: %w", err)
 		}
 	}
@@ -323,7 +329,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 	s := map[string]string{}
 	s[*input.VariableName] = connectionString
 
-	_, err = client.SetSecrets(ctx, input.AppID, s)
+	err = appsecrets.Update(ctx, flapsClient, appName, s, nil)
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go/attribute"
 	"github.com/logrusorgru/aurora"
 	"go.opentelemetry.io/otel/trace"
 
@@ -53,9 +54,38 @@ func init() {
 
 type CaptureOption func(scope *sentry.Scope)
 
-func WithExtra(key string, val interface{}) CaptureOption {
+func WithExtra(key string, val any) CaptureOption {
 	return func(scope *sentry.Scope) {
-		scope.SetExtra(key, val)
+		// Use SetAttributes with type-appropriate attribute builders
+		// based on the value type, following the migration from SetExtra
+		// as recommended in https://github.com/getsentry/sentry-go/pull/1274
+		switch v := val.(type) {
+		case string:
+			scope.SetAttributes(attribute.String(key, v))
+		case int:
+			scope.SetAttributes(attribute.Int(key, v))
+		case int64:
+			scope.SetAttributes(attribute.Int64(key, v))
+		case float64:
+			scope.SetAttributes(attribute.Float64(key, v))
+		case bool:
+			scope.SetAttributes(attribute.Bool(key, v))
+		case []string:
+			scope.SetAttributes(attribute.StringSlice(key, v))
+		case []int:
+			scope.SetAttributes(attribute.IntSlice(key, v))
+		case []int64:
+			scope.SetAttributes(attribute.Int64Slice(key, v))
+		case []float64:
+			scope.SetAttributes(attribute.Float64Slice(key, v))
+		case []bool:
+			scope.SetAttributes(attribute.BoolSlice(key, v))
+		default:
+			// For other types (e.g., structs, pointers), convert to string representation.
+			// This provides a fallback for unsupported types but may produce less structured
+			// data than the native type-specific attributes above.
+			scope.SetAttributes(attribute.String(key, fmt.Sprintf("%v", v)))
+		}
 	}
 }
 
@@ -128,6 +158,7 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			err,
 			WithTag("feature", featureName),
 		)
+
 		return
 	}
 
@@ -139,10 +170,10 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			WithTag("feature", featureName),
 			WithTag("app-platform-version", appCompact.PlatformVersion),
 			WithContexts(map[string]sentry.Context{
-				"app": map[string]interface{}{
+				"app": map[string]any{
 					"name": appCompact.Name,
 				},
-				"organization": map[string]interface{}{
+				"organization": map[string]any{
 					"slug": appCompact.Organization.Slug,
 				},
 			}),
@@ -150,6 +181,7 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 			WithRequestID(flapsErr.FlyRequestId),
 			WithStatusCode(flapsErr.ResponseStatusCode),
 		)
+
 		return
 	}
 
@@ -158,10 +190,10 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		WithTag("feature", featureName),
 		WithTag("app-platform-version", appCompact.PlatformVersion),
 		WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": appCompact.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"slug": appCompact.Organization.Slug,
 			},
 		}),
@@ -169,8 +201,55 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 	)
 }
 
+func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureName string, app *flaps.App) {
+	if app == nil {
+		CaptureException(
+			err,
+			WithTag("feature", featureName),
+		)
+
+		return
+	}
+
+	var flapsErr *flaps.FlapsError
+
+	if errors.As(err, &flapsErr) {
+		CaptureException(
+			flapsErr,
+			WithTag("feature", featureName),
+			WithContexts(map[string]sentry.Context{
+				"app": map[string]any{
+					"name": app.Name,
+				},
+				"organization": map[string]any{
+					"slug": app.Organization.Slug,
+				},
+			}),
+			WithTraceID(ctx),
+			WithRequestID(flapsErr.FlyRequestId),
+			WithStatusCode(flapsErr.ResponseStatusCode),
+		)
+
+		return
+	}
+
+	CaptureException(
+		err,
+		WithTag("feature", featureName),
+		WithContexts(map[string]sentry.Context{
+			"app": map[string]any{
+				"name": app.Name,
+			},
+			"organization": map[string]any{
+				"slug": app.Organization.Slug,
+			},
+		}),
+		WithTraceID(ctx),
+	)
+}
+
 // Recover records the given panic to sentry.
-func Recover(v interface{}) {
+func Recover(v any) {
 	if !isInitialized() {
 		return
 	}
@@ -180,16 +259,14 @@ func Recover(v interface{}) {
 	printError(v)
 }
 
-func printError(v interface{}) {
+func printError(v any) {
 	var buf bytes.Buffer
 
 	fmt.Fprintln(&buf, aurora.Red("Oops, something went wrong! Could you try that again?"))
 
-	if buildinfo.IsDev() {
-		fmt.Fprintln(&buf)
-		fmt.Fprintln(&buf, v)
-		fmt.Fprintln(&buf, string(debug.Stack()))
-	}
+	fmt.Fprintln(&buf)
+	fmt.Fprintln(&buf, v)
+	fmt.Fprintln(&buf, string(debug.Stack()))
 
 	buf.WriteTo(os.Stdout)
 }

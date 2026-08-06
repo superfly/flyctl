@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"sync"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -21,15 +22,20 @@ const (
 	apiBaseURLEnvKey           = "FLY_API_BASE_URL"
 	flapsBaseURLEnvKey         = "FLY_FLAPS_BASE_URL"
 	metricsBaseURLEnvKey       = "FLY_METRICS_BASE_URL"
+	syntheticsBaseURLEnvKey    = "FLY_SYNTHETICS_BASE_URL"
 	AccessTokenEnvKey          = "FLY_ACCESS_TOKEN"
 	AccessTokenFileKey         = "access_token"
 	MetricsTokenEnvKey         = "FLY_METRICS_TOKEN"
 	MetricsTokenFileKey        = "metrics_token"
 	SendMetricsEnvKey          = "FLY_SEND_METRICS"
+	SyntheticsAgentEnvKey      = "FLY_SYNTHETICS_AGENT"
 	SendMetricsFileKey         = "send_metrics"
+	SyntheticsAgentFileKey     = "synthetics_agent"
 	AutoUpdateFileKey          = "auto_update"
+	AppSecretsMinverFileKey    = "app_secrets_minvers"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
+	LastLoginFileKey           = "last_login"
 	APITokenEnvKey             = "FLY_API_TOKEN"
 	orgEnvKey                  = "FLY_ORG"
 	registryHostEnvKey         = "FLY_REGISTRY_HOST"
@@ -40,10 +46,11 @@ const (
 	logGQLEnvKey               = "FLY_LOG_GQL_ERRORS"
 	localOnlyEnvKey            = "FLY_LOCAL_ONLY"
 
-	defaultAPIBaseURL     = "https://api.fly.io"
-	defaultFlapsBaseURL   = "https://api.machines.dev"
-	defaultRegistryHost   = "registry.fly.io"
-	defaultMetricsBaseURL = "https://flyctl-metrics.fly.dev"
+	defaultAPIBaseURL        = "https://api.fly.io"
+	defaultFlapsBaseURL      = "https://api.machines.dev"
+	defaultRegistryHost      = "registry.fly.io"
+	defaultMetricsBaseURL    = "https://flyctl-metrics.fly.dev"
+	defaultSyntheticsBaseURL = "https://flynthetics.fly.dev"
 )
 
 // Config wraps the functionality of the configuration file.
@@ -61,6 +68,9 @@ type Config struct {
 	// MetricsBaseURL denotes the base URL of the metrics API.
 	MetricsBaseURL string
 
+	// SyntheticsBaseURL denotes the base URL of the synthetics API.
+	SyntheticsBaseURL string
+
 	// RegistryHost denotes the docker registry host.
 	RegistryHost string
 
@@ -76,6 +86,9 @@ type Config struct {
 	// SendMetrics denotes whether the user wants to send metrics.
 	SendMetrics bool
 
+	// SyntheticsAgent denotes whether the user wants to run the synthetics monitoring agent.
+	SyntheticsAgent bool
+
 	// AutoUpdate denotes whether the user wants to automatically update flyctl.
 	AutoUpdate bool
 
@@ -88,21 +101,28 @@ type Config struct {
 	// LocalOnly denotes whether the user wants only local operations.
 	LocalOnly bool
 
+	// DisableManagedBuilders will make docker daemon type never be managed
+	DisableManagedBuilders bool
+
 	// Tokens is the user's authentication token(s). They are used differently
 	// depending on where they need to be sent.
 	Tokens *tokens.Tokens
 
 	// MetricsToken denotes the user's metrics token.
 	MetricsToken string
+
+	// LastLogin denotes the timestamp of the last successful login.
+	LastLogin time.Time
 }
 
 func Load(ctx context.Context, path string) (*Config, error) {
 	cfg := &Config{
-		APIBaseURL:     defaultAPIBaseURL,
-		FlapsBaseURL:   defaultFlapsBaseURL,
-		RegistryHost:   defaultRegistryHost,
-		MetricsBaseURL: defaultMetricsBaseURL,
-		Tokens:         new(tokens.Tokens),
+		APIBaseURL:        defaultAPIBaseURL,
+		FlapsBaseURL:      defaultFlapsBaseURL,
+		RegistryHost:      defaultRegistryHost,
+		MetricsBaseURL:    defaultMetricsBaseURL,
+		SyntheticsBaseURL: defaultSyntheticsBaseURL,
+		Tokens:            new(tokens.Tokens),
 	}
 
 	// Apply config from the config file, if it exists
@@ -143,7 +163,14 @@ func (cfg *Config) applyEnv() {
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
-	cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey) || cfg.SendMetrics
+	cfg.MetricsToken = env.FirstOrDefault(cfg.MetricsToken, MetricsTokenEnvKey, AccessTokenEnvKey, APITokenEnvKey)
+	if env.FirstOrDefault("", SendMetricsEnvKey) != "" {
+		cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey)
+	}
+	if env.FirstOrDefault("", SyntheticsAgentEnvKey) != "" {
+		cfg.SyntheticsAgent = env.IsTruthy(SyntheticsAgentEnvKey)
+	}
+	cfg.SyntheticsBaseURL = env.FirstOrDefault(cfg.SyntheticsBaseURL, syntheticsBaseURLEnvKey)
 }
 
 // applyFile sets the properties of cfg which may be set via configuration file
@@ -153,19 +180,27 @@ func (cfg *Config) applyFile(path string) (err error) {
 	defer cfg.mu.Unlock()
 
 	var w struct {
-		AccessToken  string `yaml:"access_token"`
-		MetricsToken string `yaml:"metrics_token"`
-		SendMetrics  bool   `yaml:"send_metrics"`
-		AutoUpdate   bool   `yaml:"auto_update"`
+		AccessToken            string    `yaml:"access_token"`
+		MetricsToken           string    `yaml:"metrics_token"`
+		SendMetrics            bool      `yaml:"send_metrics"`
+		AutoUpdate             bool      `yaml:"auto_update"`
+		SyntheticsAgent        bool      `yaml:"synthetics_agent"`
+		DisableManagedBuilders bool      `yaml:"disable_managed_builders"`
+		LastLogin              time.Time `yaml:"last_login"`
 	}
 	w.SendMetrics = true
 	w.AutoUpdate = true
+	w.SyntheticsAgent = true
+	w.DisableManagedBuilders = false
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.Tokens = tokens.ParseFromFile(w.AccessToken, path)
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
+		cfg.SyntheticsAgent = w.SyntheticsAgent
+		cfg.DisableManagedBuilders = w.DisableManagedBuilders
+		cfg.LastLogin = w.LastLogin
 	}
 
 	return
@@ -199,6 +234,10 @@ func (cfg *Config) applyFlags(fs *pflag.FlagSet) {
 
 func (cfg *Config) MetricsBaseURLIsProduction() bool {
 	return cfg.MetricsBaseURL == defaultMetricsBaseURL
+}
+
+func (cfg *Config) SyntheticsBaseURLIsProduction() bool {
+	return cfg.SyntheticsBaseURL == defaultSyntheticsBaseURL
 }
 
 func applyStringFlags(fs *pflag.FlagSet, flags map[string]*string) {

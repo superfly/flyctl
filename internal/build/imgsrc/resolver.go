@@ -3,15 +3,15 @@ package imgsrc
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,11 +22,15 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/retry"
 
 	"github.com/superfly/flyctl/terminal"
 )
@@ -46,20 +50,21 @@ type ImageOptions struct {
 	Target               string
 	NoCache              bool
 	BuiltIn              string
-	BuiltInSettings      map[string]interface{}
+	BuiltInSettings      map[string]any
 	Builder              string
 	Buildpacks           []string
 	Label                map[string]string
 	BuildpacksDockerHost string
 	BuildpacksVolumes    []string
-	UseOverlaybd         bool
+	Compression          string
+	CompressionLevel     int
 }
 
 func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("imageoptions.app_name", io.AppName),
 		attribute.String("imageoptions.work_dir", io.WorkingDir),
-		attribute.String("imageoptions.dockerfile_path", io.DockerfilePath),
+		attribute.String("imageoptions.dockerfile_path", dockerfileurl.ForDisplay(io.DockerfilePath)),
 		attribute.String("imageoptions.ignorefile_path", io.IgnorefilePath),
 		attribute.String("imageoptions.image.ref", io.ImageRef),
 		attribute.String("imageoptions.image.label", io.ImageLabel),
@@ -71,24 +76,19 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 		attribute.String("imageoptions.buildpacks_docker_host", io.BuildpacksDockerHost),
 		attribute.StringSlice("imageoptions.buildpacks", io.Buildpacks),
 		attribute.StringSlice("imageoptions.buildpacks_volumes", io.BuildpacksVolumes),
+		attribute.String("imageoptions.compression", io.Compression),
+		attribute.Int("imageoptions.compressionLevel", io.CompressionLevel),
 	}
 
-	b, err := json.Marshal(io.BuildArgs)
-	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.build_args", string(b)))
+	if io.BuildArgs != nil {
+		attrs = append(attrs, attribute.Bool("imageoptions.has_build_args", true))
 	}
 
-	b, err = json.Marshal(io.ExtraBuildArgs)
-	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.extra_build_args", string(b)))
+	if io.BuildSecrets != nil {
+		attrs = append(attrs, attribute.Bool("imageoptions.has_build_secrets", true))
 	}
 
-	b, err = json.Marshal(io.BuildSecrets)
-	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.build_secrets", string(b)))
-	}
-
-	b, err = json.Marshal(io.BuiltInSettings)
+	b, err := json.Marshal(io.BuiltInSettings)
 	if err == nil {
 		attrs = append(attrs, attribute.String("imageoptions.built_in_settings", string(b)))
 	}
@@ -122,13 +122,28 @@ func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type DeploymentImage struct {
-	ID     string
-	Tag    string
-	Size   int64
-	Labels map[string]string
+	ID        string
+	Tag       string
+	Digest    string
+	Size      int64
+	BuildID   int64
+	BuilderID string
+	Labels    map[string]string
 }
 
-func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
+func (di *DeploymentImage) String() string {
+	if di == nil {
+		return "<nil>"
+	}
+
+	if di.Digest == "" {
+		return di.Tag
+	}
+
+	return fmt.Sprintf("%s@%s", di.Tag, di.Digest)
+}
+
+func (di *DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
 		attribute.String("image.id", di.ID),
 		attribute.String("image.tag", di.Tag),
@@ -144,9 +159,19 @@ func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type Resolver struct {
+	// appName is the name of the app that the resolver is going to build.
+	appName         string
+	apiClient       flyutil.Client
+	heartbeatFn     func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
+	recreateBuilder bool
+	// provisioner is responsible for provisioning a builder machine remotely.
+	provisioner *Provisioner
+	// dockerFactory is a factory for creating docker clients.
+	// Some strategies don't need it, but it won't be nil.
 	dockerFactory *dockerClientFactory
-	apiClient     flyutil.Client
-	heartbeatFn   func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
+	// dockerfileMaterializer is shared by deploy retries so a remote Dockerfile
+	// is fetched once and reused across builder connection failover.
+	dockerfileMaterializer *DockerfileMaterializer
 }
 
 type StopSignal struct {
@@ -184,12 +209,18 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
-			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+			if err == nil && buildResult != nil {
+				// we should only set the image's buildID if we push the build info to web
+				img.BuildID = buildResult.BuildId
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -201,6 +232,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 	err = fmt.Errorf("could not find image %q", opts.ImageRef)
 	tracing.RecordError(span, err, "failed to resolve image")
+
 	return nil, err
 }
 
@@ -209,9 +241,21 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	ctx, span := tracing.GetTracer().Start(ctx, "build_image", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
+	materializer := r.dockerfileMaterializer
+	if materializer == nil {
+		materializer = NewDockerfileMaterializer()
+		defer func() {
+			if cleanupErr := materializer.Close(); cleanupErr != nil {
+				img = nil
+				err = stderrors.Join(err, cleanupErr)
+			}
+		}()
+	}
+
 	if !r.dockerFactory.mode.IsAvailable() {
 		err := errors.New("docker is unavailable to build the deployment image")
 		tracing.RecordError(span, err, "docker is unavailable to build the deployment image")
+
 		return nil, err
 	}
 
@@ -221,10 +265,41 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	span.SetAttributes(attribute.String("tag", opts.Tag))
 
+	// Warn early if the build context we're about to upload looks unexpectedly
+	// large, so users can spot a missing .dockerignore entry before the slow
+	// transfer happens. Best-effort: never blocks the build.
+	warnOnLargeBuildContext(streams, opts, flag.GetString(ctx, flag.BuildContextWarnSizeName))
+
 	strategies := []imageBuilder{}
 
-	if r.dockerFactory.mode.UseNixpacks() {
-		strategies = append(strategies, &nixpacksBuilder{})
+	var builderScope depotBuilderScope
+	builderScopeString := flag.GetString(ctx, "depot-scope")
+
+	switch builderScopeString {
+	case "org", "":
+		builderScope = DepotBuilderScopeOrganization
+	case "app":
+		builderScope = DepotBuilderScopeApp
+	default:
+		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
+	}
+
+	if r.provisioner.UseBuildkit() {
+		strategies = append(strategies, NewBuildkitBuilder(flag.GetBuildkitAddr(ctx), r.provisioner))
+	} else if r.dockerFactory.mode.UseNixpacks() {
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		app, err := flapsClient.GetApp(ctx, opts.AppName)
+		if err != nil {
+			return nil, err
+		}
+		uiexClient := uiexutil.ClientFromContext(ctx)
+		org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+		if err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, &nixpacksBuilder{provisioner: NewProvisionerUiexOrg(org)})
+	} else if (r.dockerFactory.mode.UseDepot() && !r.dockerFactory.mode.UseManagedBuilder()) && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
+		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
 		strategies = []imageBuilder{
 			&buildpacksBuilder{},
@@ -249,18 +324,25 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		bld.ResetTimings()
 		bld.BuildAndPushStart()
 		var note string
-		img, note, err = s.Run(ctx, r.dockerFactory, streams, opts, bld)
+		img, note, err = runImageBuilder(ctx, s, r.dockerFactory, streams, opts, bld, materializer)
 		terminal.Debugf("result image:%+v error:%v\n", img, err)
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, false /* success */, nil, note)
-			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+			if err == nil && buildResult != nil {
+				// we should only set the image's buildID if we push the build info to web
+				img.BuildID = buildResult.BuildId
+			}
+			img.BuilderID = bld.BuilderMeta.RemoteMachineId
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -268,6 +350,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
+
 	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
 }
 
@@ -282,6 +365,7 @@ func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResol
 		Publish:    opts.Publish,
 		Tag:        opts.Tag,
 	}
+
 	return r.createBuildGql(ctx, strategiesAvailable, imageOps)
 }
 
@@ -296,7 +380,7 @@ func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, o
 		Builder:         opts.Builder,
 		BuiltIn:         opts.BuiltIn,
 		BuiltInSettings: opts.BuiltInSettings,
-		DockerfilePath:  opts.DockerfilePath,
+		DockerfilePath:  dockerfileurl.ForDisplay(opts.DockerfilePath),
 		ExtraBuildArgs:  opts.ExtraBuildArgs,
 		ImageLabel:      opts.ImageLabel,
 		ImageRef:        opts.ImageRef,
@@ -305,6 +389,7 @@ func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, o
 		Tag:             opts.Tag,
 		Target:          opts.Target,
 	}
+
 	return r.createBuildGql(ctx, strategiesAvailable, imageOpts)
 }
 
@@ -312,20 +397,25 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
-	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	builderType := "local"
-	if r.dockerFactory.remote {
-		builderType = "remote"
+	builderType := "remote"
+	switch {
+	case r.dockerFactory.mode.PrefersLocal():
+		builderType = "local"
+	case r.dockerFactory.mode.UseDepot():
+		builderType = "depot.dev"
+	case r.dockerFactory.mode.UseNixpacks():
+		builderType = "local"
 	}
-	input := fly.CreateBuildInput{
-		AppName:             r.dockerFactory.appName,
+
+	input := uiex.CreateBuildRequest{
+		AppName:             r.appName,
 		BuilderType:         builderType,
-		ImageOpts:           *imageOpts,
 		MachineId:           "",
 		StrategiesAvailable: strategiesAvailable,
 	}
-	resp, err := client.CreateBuild(ctx, input)
+	resp, err := uiexClient.CreateBuild(ctx, input)
 	if err != nil {
 		var gqlErr *gqlerror.Error
 		isAppNotFoundErr := errors.As(err, &gqlErr) && gqlErr.Path.String() == "createBuild" && gqlErr.Message == "Could not find App"
@@ -334,10 +424,10 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 				sentry.WithTraceID(ctx),
 				sentry.WithTag("feature", "build-api-create-build"),
 				sentry.WithContexts(map[string]sentry.Context{
-					"app": map[string]interface{}{
+					"app": map[string]any{
 						"name": input.AppName,
 					},
-					"builder": map[string]interface{}{
+					"builder": map[string]any{
 						"type": input.BuilderType,
 					},
 				}),
@@ -345,10 +435,11 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		}
 		span.SetAttributes(attribute.Bool("is_app_not_found_error", isAppNotFoundErr))
 		tracing.RecordError(span, err, "failed to create build")
+
 		return newFailedBuild(), err
 	}
 
-	b := newBuild(resp.CreateBuild.Id, false)
+	b := newBuild(resp.Id, false)
 	// TODO: maybe try to capture SIGINT, SIGTERM and send r.FinishBuild(). I tried, and it usually segfaulted. (tvd, 2022-10-14)
 	return b, nil
 }
@@ -357,30 +448,31 @@ func limitLogs(log string) string {
 	if len(log) > logLimit {
 		return log[len(log)-logLimit:]
 	}
+
 	return log
 }
 
 type build struct {
 	CreateApiFailed bool
-	BuildId         string
-	BuilderMeta     *fly.BuilderMetaInput
-	StrategyResults []fly.BuildStrategyAttemptInput
-	Timings         *fly.BuildTimingsInput
-	StartTimes      *fly.BuildTimingsInput
+	BuildId         int64
+	BuilderMeta     *uiex.BuilderMeta
+	StrategyResults []uiex.BuildStrategyAttempt
+	Timings         *uiex.BuildTimings
+	StartTimes      *uiex.BuildTimings
 }
 
 func newFailedBuild() *build {
-	return newBuild("", true)
+	return newBuild(0, true)
 }
 
-func newBuild(buildId string, createApiFailed bool) *build {
+func newBuild(buildId int64, createApiFailed bool) *build {
 	return &build{
 		CreateApiFailed: createApiFailed,
 		BuildId:         buildId,
-		BuilderMeta:     &fly.BuilderMetaInput{},
-		StrategyResults: make([]fly.BuildStrategyAttemptInput, 0),
-		StartTimes:      &fly.BuildTimingsInput{},
-		Timings: &fly.BuildTimingsInput{
+		BuilderMeta:     &uiex.BuilderMeta{},
+		StrategyResults: make([]uiex.BuildStrategyAttempt, 0),
+		StartTimes:      &uiex.BuildTimings{},
+		Timings: &uiex.BuildTimings{
 			BuildAndPushMs: -1,
 			BuilderInitMs:  -1,
 			BuildMs:        -1,
@@ -391,15 +483,20 @@ func newBuild(buildId string, createApiFailed bool) *build {
 	}
 }
 
-func (b *build) SetBuilderMetaPart1(remote bool, remoteAppName string, remoteMachineId string) {
+type builderType string
+
+const (
+	remoteBuilderType builderType = "remote"
+	localBuilderType  builderType = "local"
+	depotBuilderType  builderType = "depot.dev"
+)
+
+func (b *build) SetBuilderMetaPart1(builderType builderType, remoteAppName string, remoteMachineId string) {
 	if b == nil {
 		return
 	}
-	builderType := "remote"
-	if !remote {
-		builderType = "local"
-	}
-	b.BuilderMeta.BuilderType = builderType
+
+	b.BuilderMeta.BuilderType = string(builderType)
 	b.BuilderMeta.RemoteAppName = remoteAppName
 	b.BuilderMeta.RemoteMachineId = remoteMachineId
 }
@@ -412,8 +509,8 @@ func (b *build) SetBuilderMetaPart2(buildkitEnabled bool, dockerVersion string, 
 
 // call this at the start of each strategy to restart all the timers
 func (b *build) ResetTimings() {
-	b.StartTimes = &fly.BuildTimingsInput{}
-	b.Timings = &fly.BuildTimingsInput{
+	b.StartTimes = &uiex.BuildTimings{}
+	b.Timings = &uiex.BuildTimings{
 		BuildAndPushMs: -1,
 		BuilderInitMs:  -1,
 		BuildMs:        -1,
@@ -480,7 +577,7 @@ func (b *build) finishStrategyCommon(strategy string, failed bool, err error, no
 	if err != nil {
 		errMsg = err.Error()
 	}
-	r := fly.BuildStrategyAttemptInput{
+	r := uiex.BuildStrategyAttempt{
 		Strategy: strategy,
 		Result:   result,
 		Error:    limitLogs(errMsg),
@@ -498,7 +595,7 @@ func (b *build) FinishImageStrategy(strategy imageResolver, failed bool, err err
 }
 
 type buildResult struct {
-	BuildId         string
+	BuildId         int64
 	Status          string
 	wallclockTimeMs int
 }
@@ -506,17 +603,18 @@ type buildResult struct {
 func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*buildResult, error) {
 	if build.CreateApiFailed {
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
+
 		return nil, nil
 	}
-	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	status := "failed"
 	if !failed {
 		status = "completed"
 	}
-	input := fly.FinishBuildInput{
+	input := uiex.FinishBuildRequest{
 		BuildId:             build.BuildId,
-		AppName:             r.dockerFactory.appName,
+		AppName:             r.appName,
 		MachineId:           "",
 		Status:              status,
 		Logs:                limitLogs(logs),
@@ -525,26 +623,26 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		Timings:             *build.Timings,
 	}
 	if img != nil {
-		input.FinalImage = fly.BuildFinalImageInput{
+		input.FinalImage = uiex.BuildFinalImage{
 			Id:        img.ID,
 			Tag:       img.Tag,
 			SizeBytes: img.Size,
 		}
 	}
-	resp, err := client.FinishBuild(ctx, input)
+	resp, err := uiexClient.FinishBuild(ctx, input)
 	if err != nil {
 		terminal.Warnf("failed to finish build in graphql: %v\n", err)
 		sentry.CaptureException(err,
 			sentry.WithTraceID(ctx),
 			sentry.WithTag("feature", "build-api-finish-build"),
 			sentry.WithContexts(map[string]sentry.Context{
-				"app": map[string]interface{}{
+				"app": map[string]any{
 					"name": r.dockerFactory.appName,
 				},
-				"sourceBuild": map[string]interface{}{
+				"sourceBuild": map[string]any{
 					"id": build.BuildId,
 				},
-				"builder": map[string]interface{}{
+				"builder": map[string]any{
 					"type":            build.BuilderMeta.BuilderType,
 					"appName":         build.BuilderMeta.RemoteAppName,
 					"machineId":       build.BuilderMeta.RemoteMachineId,
@@ -553,12 +651,14 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 				},
 			}),
 		)
+
 		return nil, err
 	}
+
 	return &buildResult{
-		BuildId:         resp.FinishBuild.Id,
-		Status:          resp.FinishBuild.Status,
-		wallclockTimeMs: resp.FinishBuild.WallclockTimeMs,
+		BuildId:         resp.Id,
+		Status:          resp.Status,
+		wallclockTimeMs: resp.WallclockTimeMs,
 	}, nil
 }
 
@@ -581,6 +681,7 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	resp, err := client.HTTPClient().Do(req.Clone(ctx))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to check heartbeat")
+
 		return err
 	}
 	defer resp.Body.Close() // skipcq: GO-S2307
@@ -597,6 +698,7 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to read response body")
+
 		return &httpError{StatusCode: resp.StatusCode, Body: err.Error()}
 	}
 
@@ -609,8 +711,9 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "start_heartbeat")
 	defer span.End()
 
-	if !r.dockerFactory.remote {
-		span.AddEvent("won't check heartbeart of non-remote build")
+	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() || r.provisioner.UseBuildkit() {
+		span.AddEvent("won't check heartbeat of non-remote build")
+
 		return nil, nil
 	}
 
@@ -620,12 +723,14 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	dockerClient, err := r.dockerFactory.buildFn(ctx, nil)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
+
 		return nil, err
 	}
 	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
 		tracing.RecordError(span, err, "failed to get heartbeaturl")
+
 		return nil, err
 	}
 
@@ -634,6 +739,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	if err != nil {
 		terminal.Warnf(errMsg, err)
 		tracing.RecordError(span, err, "failed to get http request")
+
 		return nil, err
 	}
 	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.Tokens(ctx).Docker())
@@ -642,20 +748,22 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = retry.Retry(func() error {
-		return r.heartbeatFn(ctx, dockerClient, heartbeatReq)
-	}, 3)
+	_, err = backoff.Retry(ctx, func() (any, error) {
+		return nil, r.heartbeatFn(ctx, dockerClient, heartbeatReq)
+	}, backoff.WithMaxTries(3))
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
 			if h.StatusCode == http.StatusNotFound {
 				terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
+
 				return nil, nil
 			}
 		} else {
 			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		}
 		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
+
 		return nil, fmt.Errorf("failed to send first heartbeat: %w", err)
 	}
 
@@ -700,21 +808,12 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 			}
 		}
 	}()
+
 	return &done, nil
 }
 
 func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
-	daemonHost := dockerClient.DaemonHost()
-	parsed, err := url.Parse(daemonHost)
-	if err != nil {
-		return "", err
-	}
-	hostPort := parsed.Host
-	host, _, _ := net.SplitHostPort(hostPort)
-	parsed.Host = host + ":8080"
-	parsed.Scheme = "http"
-	parsed.Path = "/flyio/v1/extendDeadline"
-	return parsed.String(), nil
+	return builderAPIURL(dockerClient.DaemonHost(), "/flyio/v1/extendDeadline")
 }
 
 func (s *StopSignal) Stop() {
@@ -726,17 +825,60 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *Resolver {
-	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder),
-		apiClient:     apiClient,
-		heartbeatFn:   heartbeat,
+func WithProvisioner(provisioner *Provisioner) func(resolver *Resolver) {
+	return func(resolver *Resolver) {
+		resolver.provisioner = provisioner
 	}
+}
+
+// WithDockerfileMaterializer shares one lazy remote Dockerfile snapshot across resolvers.
+func WithDockerfileMaterializer(materializer *DockerfileMaterializer) func(resolver *Resolver) {
+	return func(resolver *Resolver) {
+		resolver.dockerfileMaterializer = materializer
+	}
+}
+
+func NewResolver(
+	daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams,
+	connectOverWireguard, recreateBuilder bool,
+	opts ...func(resolver *Resolver),
+) *Resolver {
+	resolver := &Resolver{
+		appName:         appName,
+		apiClient:       apiClient,
+		heartbeatFn:     heartbeat,
+		recreateBuilder: recreateBuilder,
+	}
+
+	for _, opt := range opts {
+		opt(resolver)
+	}
+
+	resolver.dockerFactory = newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder)
+
+	return resolver
 }
 
 type imageBuilder interface {
 	Name() string
 	Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error)
+}
+
+type dockerfileConsumer interface {
+	usesDockerfile()
+}
+
+func runImageBuilder(ctx context.Context, strategy imageBuilder, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build, materializer *DockerfileMaterializer) (*DeploymentImage, string, error) {
+	if _, ok := strategy.(dockerfileConsumer); ok {
+		path, err := materializer.materialize(ctx, opts.DockerfilePath)
+		if err != nil {
+			return nil, "", err
+		}
+
+		opts.DockerfilePath = path
+	}
+
+	return strategy.Run(ctx, dockerFactory, streams, opts, build)
 }
 
 type imageResolver interface {

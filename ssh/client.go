@@ -30,6 +30,7 @@ func (c *Client) Close() error {
 	}
 
 	c.conn = nil
+
 	return nil
 }
 
@@ -81,6 +82,7 @@ func (c *Client) Connect(ctx context.Context) error {
 		conn, chans, reqs, err := ssh.NewClientConn(tcpConn, tcpConn.RemoteAddr().String(), conf)
 		if err != nil {
 			respCh <- connResp{err: err}
+
 			return
 		}
 
@@ -99,12 +101,13 @@ func (c *Client) Connect(ctx context.Context) error {
 			}
 			c.conn = resp.conn
 			c.Client = resp.client
+
 			return nil
 		}
 	}
 }
 
-func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string) error {
+func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, container string) error {
 	if c.Client == nil {
 		if err := c.Connect(ctx); err != nil {
 			return err
@@ -112,9 +115,18 @@ func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string) error
 	}
 
 	sess, err := c.Client.NewSession()
+
 	if err != nil {
 		return err
 	}
+
+	if container != "" {
+		err = sess.Setenv("FLY_SSH_CONTAINER", container)
+		if err != nil {
+			return err
+		}
+	}
+
 	defer sess.Close()
 
 	return sessIO.attach(ctx, sess, cmd)

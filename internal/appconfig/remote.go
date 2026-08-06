@@ -26,6 +26,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 		return nil, err
 	}
 	cfg.AppName = appName
+
 	return cfg, nil
 }
 
@@ -33,11 +34,11 @@ func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, e
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
-	activeMachines, err := machine.ListActive(ctx)
+	activeMachines, err := machine.ListActive(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("error listing active machines for %s app: %w", appName, err)
 	}
-	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines)
+	machineSet := machine.NewMachineSet(flapsClient, io, appName, activeMachines, true)
 	appConfig, warnings, err := FromAppAndMachineSet(ctx, appName, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to grab app config from existing machines, error: %w", err)
@@ -45,6 +46,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, e
 	if warnings != "" {
 		fmt.Fprintf(io.ErrOut, "WARNINGS:\n%s", warnings)
 	}
+
 	return appConfig, nil
 }
 
@@ -77,5 +79,6 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient flyutil.Client, a
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
 	}
+
 	return appConfig, err
 }

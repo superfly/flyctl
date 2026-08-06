@@ -11,6 +11,9 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -21,16 +24,20 @@ import (
 
 const maxConcurrentActions = 5
 
-func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
+func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts groupCounts, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
 	apiClient := flyutil.ClientFromContext(ctx)
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
+		return m.Config != nil
+	})
 
 	var latestCompleteRelease fly.Release
 	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
@@ -53,7 +60,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
+	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -66,13 +73,26 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(appName, machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
 
+	// Add env variable overrides to launch configs
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return fmt.Errorf("failed parsing environment: %w", err)
+		}
+		lo.ForEach(actions, func(plan *planItem, _ int) {
+			c := plan.LaunchMachineInput.Config
+			c.Env = lo.Assign(c.Env, parsedEnv)
+		})
+	}
+
 	if len(actions) == 0 {
 		fmt.Fprintf(io.Out, "App already scaled to desired state. No need for changes\n")
+
 		return nil
 	}
 
@@ -110,7 +130,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	// XXX: Don't acquire the leases until the user confirms it wants to execute any action
 	//      The downside is that AcquireLeases has the side effect of fetching an updated copy of machine config
 	//      that we don't use here, but it also updates the `LeaseNonce` field of the original machine which we rely on
-	_, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	_, releaseFunc, err := mach.AcquireLeases(ctx, appName, machines)
 	defer releaseFunc() // It's important to call the release func even in case of errors
 	if err != nil {
 		return err
@@ -123,12 +143,11 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	fmt.Fprintf(io.Out, "Executing scale plan\n")
 	for _, action := range actions {
-		action := action
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
 				updatePool.Go(func(ctx context.Context) error {
-					m, err := launchMachine(ctx, action, i)
+					m, err := launchMachine(ctx, appName, action, i)
 					if err != nil {
 						return err
 					}
@@ -140,6 +159,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 						fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
 					}
 					fmt.Fprintln(io.Out)
+
 					return nil
 				})
 			}
@@ -147,21 +167,34 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 			for i := 0; i > action.Delta; i-- {
 				updatePool.Go(func(ctx context.Context) error {
 					m := action.Machines[-i]
-					err := destroyMachine(ctx, m)
+					err := destroyMachine(ctx, appName, m)
 					if err != nil {
 						return err
 					}
 					fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+
 					return nil
 				})
 			}
 		}
 	}
 
-	return updatePool.Wait()
+	err = updatePool.Wait()
+	if err != nil {
+		return err
+	}
+
+	// Scaling may change the situation of app-scoped egress IPs in affected regions
+	regionMap := make(map[string]any, len(regions))
+	for _, r := range regions {
+		regionMap[r] = nil
+	}
+	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
+
+	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine, error) {
+func launchMachine(ctx context.Context, appName string, action *planItem, idx int) (*fly.Machine, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
@@ -186,7 +219,7 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine
 			fmt.Fprintln(io.Out)
 
 			var err error
-			volume, err = flapsClient.CreateVolume(ctx, *cvr)
+			volume, err = flapsClient.CreateVolume(ctx, appName, *cvr)
 			if err != nil {
 				return nil, err
 			}
@@ -196,16 +229,17 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine
 		input.Config.Mounts[0].Volume = volume.ID
 	}
 
-	return flapsClient.Launch(ctx, input)
+	return flapsClient.Launch(ctx, appName, input)
 }
 
-func destroyMachine(ctx context.Context, machine *fly.Machine) error {
+func destroyMachine(ctx context.Context, appName string, machine *fly.Machine) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	input := fly.RemoveMachineInput{
 		ID:   machine.ID,
 		Kill: true,
 	}
-	return flapsClient.Destroy(ctx, input, machine.LeaseNonce)
+
+	return flapsClient.Destroy(ctx, appName, input, machine.LeaseNonce)
 }
 
 type planItem struct {
@@ -225,6 +259,7 @@ func (pi *planItem) VolumesDelta() int {
 	if pi.CreateVolumeRequest == nil {
 		return 0
 	}
+
 	return pi.Delta - len(pi.Volumes)
 }
 
@@ -238,18 +273,32 @@ func (pi *planItem) MachineSize() string {
 	if guest := pi.LaunchMachineInput.Config.Guest; guest != nil {
 		return guest.ToSize()
 	}
+
 	return ""
 }
 
-func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
+	expectedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, group string) int {
+		count := c.absolute
+		if c.relative != 0 {
+			count = len(machineGroups[group]) + c.relative
+		}
+
+		return max(count, 0)
+	})
+
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return nil, err
+	}
 
 	for groupName, groupMachines := range machineGroups {
-		expected, ok := expectedGroupCounts[groupName]
+		expected, ok := expectedCounts[groupName]
 		// Ignore the group if it is not expected to change
 		if !ok {
 			continue
@@ -272,22 +321,24 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int,
 		mConfig := groupMachines[0].Config
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
+		delete(mConfig.Env, "FLY_STANDBY_FOR")
 
 		for region, delta := range regionDiffs {
+			existingMachinesInRegion := perRegionMachines[region]
 			actions = append(actions, &planItem{
 				GroupName:           groupName,
 				Region:              region,
 				Delta:               delta,
-				Machines:            perRegionMachines[region],
-				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
+				Machines:            existingMachinesInRegion,
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
-				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
+				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta, len(existingMachinesInRegion)),
 			})
 		}
 	}
 
 	// Fill in the groups without existing machines
-	for groupName, expected := range expectedGroupCounts {
+	for groupName, expected := range expectedCounts {
 		if seenGroups[groupName] {
 			continue
 		}
@@ -307,9 +358,9 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int,
 				GroupName:           groupName,
 				Region:              region,
 				Delta:               delta,
-				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
-				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
+				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta, 0), // No existing machines for new groups
 			})
 		}
 	}
@@ -317,7 +368,7 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int,
 	return actions, nil
 }
 
-var MaxPerRegionError = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
+var ErrMaxPerRegion = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
 
 func convergeGroupCounts(expectedTotal int, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
 	diffs := make(map[string]int)
@@ -328,7 +379,7 @@ func convergeGroupCounts(expectedTotal int, current map[string]int, regions []st
 
 	if maxPerRegion >= 0 {
 		if len(regions)*maxPerRegion < expectedTotal {
-			return nil, MaxPerRegionError
+			return nil, ErrMaxPerRegion
 		}
 
 		// Compute the diff to any region with more machines than the maximum allowed

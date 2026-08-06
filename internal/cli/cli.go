@@ -67,10 +67,11 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetErr(io.ErrOut)
 
 	// Special case for the launch command, support `flyctl launch args -- [subargs]`
+	// and `flyctl mcp wrap --mcp script -- [subargs]`
 	// Where the arguments after `--` are passed to the scanner/dockerfile generator.
 	// This isn't supported natively by cobra, so we have to manually split the args
 	// See: https://github.com/spf13/cobra/issues/739
-	if len(args) > 0 && args[0] == "launch" {
+	if (len(args) > 0 && args[0] == "launch") || (len(args) > 2 && args[0] == "mcp" && args[1] == "wrap") {
 		index := slices.Index(args, "--")
 		if index >= 0 {
 			ctx = flag.WithExtraArgs(ctx, args[index+1:])
@@ -107,11 +108,13 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
 		printError(io, cs, cmd, err)
+
 		return 126
 	case isUnchangedError(err):
 		// This means the deployment was a noop, which is noteworthy but not something we should
 		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
 		printError(io, cs, cmd, err)
+
 		return 0
 	default:
 		printError(io, cs, cmd, err)
@@ -134,6 +137,7 @@ func isUnchangedError(err error) bool {
 	if errors.As(err, &gqlErr) {
 		return gqlErr.Extensions.Code == "UNCHANGED"
 	}
+
 	return false
 }
 
@@ -142,11 +146,12 @@ func isValidTraceID(id string) bool {
 	if err != nil {
 		return false
 	}
+
 	return t.IsValid()
 }
 
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
-	if env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
+	if cmd != nil && env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
 		printGHAErrorAnnotation(cmd, err)
 	}
 
@@ -180,8 +185,10 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 		fmt.Fprintln(io.ErrOut)
 	}
 
-	if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
-		fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
+	if cmd != nil {
+		if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
+			fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
+		}
 	}
 }
 

@@ -1,4 +1,4 @@
-package deploy_test
+package deploy
 
 import (
 	"bytes"
@@ -8,14 +8,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/inmem"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -23,6 +27,11 @@ import (
 var testdata embed.FS
 
 func TestCommand_Execute(t *testing.T) {
+	makeTerminalLoggerQuiet(t)
+
+	// Set FLY_ACCESS_TOKEN to simulate CI/CD environment
+	t.Setenv("FLY_ACCESS_TOKEN", "test-token")
+
 	dir := t.TempDir()
 	fsys, _ := fs.Sub(testdata, "testdata/basic")
 	if err := copyFS(fsys, dir); err != nil {
@@ -31,7 +40,7 @@ func TestCommand_Execute(t *testing.T) {
 	chdir(t, dir)
 
 	var buf bytes.Buffer
-	cmd := deploy.New()
+	cmd := New()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 	cmd.SetArgs([]string{"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000"})
@@ -40,6 +49,13 @@ func TestCommand_Execute(t *testing.T) {
 	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
 	ctx = task.NewWithContext(ctx)
 	ctx = logger.NewContext(ctx, logger.New(&buf, logger.Info, true))
+
+	// Set up config with LastLogin timestamp to satisfy session timeout check
+	cfg := &config.Config{
+		Tokens:    tokens.Parse("test-token"),
+		LastLogin: time.Now(),
+	}
+	ctx = config.NewContext(ctx, cfg)
 
 	server := inmem.NewServer()
 	server.CreateApp(&fly.App{
@@ -56,6 +72,7 @@ func TestCommand_Execute(t *testing.T) {
 
 	ctx = flyutil.NewContextWithClient(ctx, server.Client())
 	ctx = flapsutil.NewContextWithClient(ctx, server.FlapsClient("test-basic"))
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{})
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)
@@ -78,6 +95,7 @@ func copyFS(fsys fs.FS, dst string) error {
 		if err != nil {
 			return err
 		}
+
 		return os.WriteFile(target, b, 0o666)
 	})
 }

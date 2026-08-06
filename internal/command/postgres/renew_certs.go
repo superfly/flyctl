@@ -8,10 +8,12 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -45,13 +47,15 @@ func newRenewSSHCerts() *cobra.Command {
 func runRefreshSSHCerts(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("app %s is not a postgres app", appName)
@@ -62,10 +66,10 @@ func runRefreshSSHCerts(ctx context.Context) error {
 		return err
 	}
 
-	return refreshSSHCerts(ctx, app)
+	return refreshSSHCerts(ctx, flapsClient, app)
 }
 
-func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
+func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = flyutil.ClientFromContext(ctx)
@@ -73,7 +77,7 @@ func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
 		validDays = flag.GetInt(ctx, "valid-days")
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -94,7 +98,7 @@ func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
 	}
 
 	validHours := validDays * 24
-	cert, err := client.IssueSSHCertificate(ctx, app.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+	cert, err := client.IssueSSHCertificate(ctx, app.Organization.GetID(), []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 	if err != nil {
 		return fmt.Errorf("failed to issue ssh certificate: %w", err)
 	}
@@ -106,7 +110,7 @@ func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
 		"SSH_CERT": cert.Certificate,
 	}
 
-	_, err = client.SetSecrets(ctx, app.Name, secrets)
+	err = appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil)
 	if err != nil {
 		return fmt.Errorf("failed to set ssh secrets: %w", err)
 	}

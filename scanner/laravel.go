@@ -45,6 +45,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 				Generate: func() (string, error) {
 					// Method used in RandBytes never returns an error
 					r, _ := helpers.RandBytes(32)
+
 					return "base64:" + base64.StdEncoding.EncodeToString(r), nil
 				},
 			},
@@ -64,8 +65,10 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	if err != nil || phpVersion == "" {
 		// Fallback to 8.0, which has
 		// the broadest compatibility
-		phpVersion = "8.0"
+		phpVersion = "8.1"
 	}
+
+	s.Runtime = plan.RuntimeStruct{Language: "php", Version: phpVersion}
 
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
@@ -87,6 +90,20 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	s.RedisDesired = redis
 	if db != 0 {
 		s.DatabaseDesired = db
+	}
+
+	// Enable Object Storage( Tigris ) when
+	// * league/flysystem-aws-s3* found in composer.json
+	if checksPass(sourceDir, dirContains("composer.json", "league/flysystem-aws-s3")) {
+		s.ObjectStorageDesired = true
+		s.OverrideExtensionSecretKeyNames = make(map[string]map[string]string)
+		s.OverrideExtensionSecretKeyNames["tigris"] = make(map[string]string)
+
+		// Replace the following secret key names set from the tigris extension provisioning
+		// With their custom secret key name vales
+		s.OverrideExtensionSecretKeyNames["tigris"]["AWS_REGION"] = "AWS_DEFAULT_REGION"
+		s.OverrideExtensionSecretKeyNames["tigris"]["BUCKET_NAME"] = "AWS_BUCKET"
+		s.OverrideExtensionSecretKeyNames["tigris"]["AWS_ENDPOINT_URL_S3"] = "AWS_ENDPOINT"
 	}
 
 	return s, nil
@@ -123,16 +140,16 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 
 	data, err := os.ReadFile("composer.json")
 	if err == nil {
-		var composerJson map[string]interface{}
+		var composerJson map[string]any
 		err = json.Unmarshal(data, &composerJson)
 		if err == nil {
 			// check for the package in the composer.json
-			require, ok := composerJson["require"].(map[string]interface{})
+			require, ok := composerJson["require"].(map[string]any)
 			if ok && require["fly-apps/dockerfile-laravel"] != nil {
 				installed = true
 			}
 
-			requireDev, ok := composerJson["require-dev"].(map[string]interface{})
+			requireDev, ok := composerJson["require-dev"].(map[string]any)
 			if ok && requireDev["fly-apps/dockerfile-laravel"] != nil {
 				installed = true
 			}
@@ -193,21 +210,42 @@ Now: run 'fly deploy' to deploy your %s app.
 }
 
 func extractPhpVersion() (string, error) {
-	/* Example Output:
-	PHP 8.1.8 (cli) (built: Jul  8 2022 10:58:31) (NTS)
-	Copyright (c) The PHP Group
-	Zend Engine v4.1.8, Copyright (c) Zend Technologies
-		with Zend OPcache v8.1.8, Copyright (c), by Zend Technologies
-	*/
-	cmd := exec.Command("php", "-v")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
+	/* VIA composer.json file */
+	// Capture major/minor version (leaving out revision version)
+	re := regexp.MustCompile(`([0-9]+\.[0-9]+)`)
+	var match = re.FindStringSubmatch("")
+
+	data, err := os.ReadFile("composer.json")
+	if err == nil {
+		var composerJson map[string]any
+		err = json.Unmarshal(data, &composerJson)
+		if err == nil {
+			// check for the package in the composer.json
+			require, ok := composerJson["require"].(map[string]any)
+			if ok && require["php"] != nil {
+				str := fmt.Sprint(require["php"])
+				match = re.FindStringSubmatch(str)
+			}
+		}
 	}
 
-	// Capture major/minor version (leaving out revision version)
-	re := regexp.MustCompile(`PHP ([0-9]+\.[0-9]+)\.[0-9]`)
-	match := re.FindStringSubmatch(string(out))
+	if len(match) == 0 {
+		/* VIA php artisan version:
+		PHP 8.1.8 (cli) (built: Jul  8 2022 10:58:31) (NTS)
+		Copyright (c) The PHP Group
+		Zend Engine v4.1.8, Copyright (c) Zend Technologies
+			with Zend OPcache v8.1.8, Copyright (c), by Zend Technologies
+		*/
+		cmd := exec.Command("php", "-v")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return "", err
+		}
+
+		// Capture major/minor version (leaving out revision version)
+		re := regexp.MustCompile(`PHP ([0-9]+\.[0-9]+)\.[0-9]`)
+		match = re.FindStringSubmatch(string(out))
+	}
 
 	if len(match) > 1 {
 		// If the PHP version is below 7.4, we won't have a
@@ -221,6 +259,7 @@ func extractPhpVersion() (string, error) {
 				return "7.4", nil
 			}
 		}
+
 		return match[1], nil
 	}
 
@@ -232,7 +271,7 @@ var redisRegStr = "^[^#]*redis"
 
 // extractConnections detects the database connection of a laravel fly app
 // by checking the .env file in the project's base directory for connection keywords.
-// This ignores commented out lines and prioritizes the first connection occurance over others.
+// This ignores commented out lines and prioritizes the first connection occurrence over others.
 //
 // Returns three variables:
 //

@@ -14,7 +14,7 @@ type Service struct {
 	InternalPort int    `json:"internal_port,omitempty" toml:"internal_port"`
 	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML. The encoder
 	// already omits nil since it can't be represented, and omitempty makes it omit false as well.
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStopMachines   *fly.MachineAutostop           `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Ports              []fly.MachinePort              `json:"ports,omitempty" toml:"ports"`
@@ -57,7 +57,7 @@ type HTTPService struct {
 	InternalPort int  `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
 	ForceHTTPS   bool `toml:"force_https,omitempty" json:"force_https,omitempty"`
 	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML; see the note in Service.
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStopMachines   *fly.MachineAutostop           `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
@@ -77,12 +77,12 @@ func (s *HTTPService) ToService() *Service {
 		HTTPChecks:    s.HTTPChecks,
 		MachineChecks: s.MachineChecks,
 		Ports: []fly.MachinePort{{
-			Port:        fly.IntPointer(80),
+			Port:        new(80),
 			Handlers:    []string{"http"},
 			ForceHTTPS:  s.ForceHTTPS,
 			HTTPOptions: s.HTTPOptions,
 		}, {
-			Port:        fly.IntPointer(443),
+			Port:        new(443),
 			Handlers:    []string{"http", "tls"},
 			HTTPOptions: s.HTTPOptions,
 			TLSOptions:  s.TLSOptions,
@@ -98,6 +98,7 @@ func (c *Config) AllServices() (services []Service) {
 		services = append(services, *c.HTTPService.ToService())
 	}
 	services = append(services, c.Services...)
+
 	return services
 }
 
@@ -118,12 +119,13 @@ func (svc *Service) toMachineService() *fly.MachineService {
 	for _, hc := range svc.HTTPChecks {
 		s.Checks = append(s.Checks, *hc.toMachineCheck())
 	}
+
 	return s
 }
 
-func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineCheck {
-	return &fly.MachineCheck{
-		Type:              fly.Pointer("http"),
+func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineServiceCheck {
+	return &fly.MachineServiceCheck{
+		Type:              new("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
 		GracePeriod:       chk.GracePeriod,
@@ -143,9 +145,9 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 	return fmt.Sprintf("http-%d-%v", port, chk.HTTPMethod)
 }
 
-func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineCheck {
-	return &fly.MachineCheck{
-		Type:        fly.Pointer("tcp"),
+func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineServiceCheck {
+	return &fly.MachineServiceCheck{
+		Type:        new("tcp"),
 		Interval:    chk.Interval,
 		Timeout:     chk.Timeout,
 		GracePeriod: chk.GracePeriod,
@@ -171,6 +173,7 @@ func serviceFromMachineService(ctx context.Context, ms fly.MachineService, proce
 			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &Service{
 		Protocol:           ms.Protocol,
 		InternalPort:       ms.InternalPort,
@@ -185,7 +188,7 @@ func serviceFromMachineService(ctx context.Context, ms fly.MachineService, proce
 	}
 }
 
-func tcpCheckFromMachineCheck(mc fly.MachineCheck) *ServiceTCPCheck {
+func tcpCheckFromMachineCheck(mc fly.MachineServiceCheck) *ServiceTCPCheck {
 	return &ServiceTCPCheck{
 		Interval:    mc.Interval,
 		Timeout:     mc.Timeout,
@@ -193,7 +196,7 @@ func tcpCheckFromMachineCheck(mc fly.MachineCheck) *ServiceTCPCheck {
 	}
 }
 
-func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *ServiceHTTPCheck {
+func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineServiceCheck) *ServiceHTTPCheck {
 	headers := make(map[string]string)
 	for _, h := range mc.HTTPHeaders {
 		if len(h.Values) > 0 {
@@ -203,6 +206,7 @@ func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *Servic
 			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &ServiceHTTPCheck{
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,

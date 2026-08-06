@@ -52,20 +52,20 @@ func runStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"Name", "Status"}
+	var cols = []string{"Name", "Status"}
 
 	optionKeys := []string{"public", "shadow_bucket.write_through", "shadow_bucket.name", "shadow_bucket.endpoint"}
 
-	options, _ := extension.Options.(map[string]interface{})
+	options, _ := extension.Options.(map[string]any)
 
 	for _, key := range optionKeys {
 		value := "False"
 		keys := strings.Split(key, ".")
-		var opt interface{}
+		var opt any
 		var ok bool
 
 		if len(keys) > 1 {
-			nestedMap, exists := options[keys[0]].(map[string]interface{})
+			nestedMap, exists := options[keys[0]].(map[string]any)
 			if exists {
 				opt, ok = nestedMap[keys[1]]
 			} else {
@@ -86,7 +86,7 @@ func runStatus(ctx context.Context) (err error) {
 			}
 		}
 		obj[0] = append(obj[0], value)
-		colName := strings.Title(strings.Replace(strings.Join(keys, " "), "_", " ", -1))
+		colName := strings.Title(strings.ReplaceAll(strings.Join(keys, " "), "_", " "))
 		cols = append(cols, colName)
 	}
 
@@ -98,5 +98,6 @@ func runStatus(ctx context.Context) (err error) {
 	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
 		return
 	}
+
 	return
 }

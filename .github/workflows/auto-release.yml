@@ -9,11 +9,12 @@ permissions:
   contents: write
 
 jobs:
-  run_script:
+  release:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout master branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.0
         with:
           fetch-tags: true
           fetch-depth: "0"
@@ -23,4 +24,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
+          VERBOSE: true
           DEFAULT_BUMP: "patch"
+          GIT_API_TAGGING: false

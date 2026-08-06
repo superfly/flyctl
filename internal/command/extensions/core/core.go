@@ -36,12 +36,13 @@ type ExtensionParams struct {
 	Provider             string
 	PlanID               string
 	OrganizationPlanID   string
-	Options              map[string]interface{}
+	Options              map[string]any
 	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
-	OverrideRegion string
-	OverrideName   *string
+	OverrideRegion                  string
+	OverrideName                    *string
+	OverrideExtensionSecretKeyNames map[string]map[string]string
 }
 
 // Common flags that should be used for all extension commands
@@ -101,17 +102,17 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		if override := params.OverrideName; override != nil {
 			name = *override
 		} else {
-			if name == "" {
-				name = flag.GetString(ctx, "name")
-			}
+			name = flag.GetString(ctx, "name")
 
 			if name == "" {
 				if provider.NameSuffix != "" && targetApp.Name != "" {
 					name = targetApp.Name + "-" + provider.NameSuffix
 				}
-				err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
-				if err != nil {
-					return
+				if !flag.GetYes(ctx) {
+					err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
+					if err != nil {
+						return
+					}
 				}
 			}
 		}
@@ -239,7 +240,9 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	setSecretsFromExtension(ctx, &targetApp, &extension)
+	// Also take into consideration custom key names to replace extension's default secret key names
+	overrideSecretKeyNamesMap := params.OverrideExtensionSecretKeyNames[params.Provider]
+	setSecretsFromExtension(ctx, &targetApp, &extension, overrideSecretKeyNamesMap)
 
 	return extension, nil
 }
@@ -280,6 +283,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 		}
 	} else {
 		fmt.Fprintln(out, "By specifying the --yes flag, you have agreed to the terms displayed above.")
+
 		return nil
 	}
 
@@ -308,6 +312,12 @@ func WaitForProvision(ctx context.Context, name string, provider string) error {
 		resp, err := gql.GetAddOn(ctx, client, name, provider)
 		if err != nil {
 			return err
+		}
+
+		// Validate that the returned add-on matches the expected provider type
+		if resp.AddOn.AddOnProvider.Name != provider {
+			return fmt.Errorf("found add-on '%s' with provider '%s', but expected provider '%s'",
+				resp.AddOn.Name, resp.AddOn.AddOnProvider.Name, provider)
 		}
 
 		if resp.AddOn.Status == "error" {
@@ -373,6 +383,7 @@ func openUrl(ctx context.Context, url string) (err error) {
 	if err := open.Run(url); err != nil {
 		return fmt.Errorf("failed opening %s: %w", url, err)
 	}
+
 	return
 }
 
@@ -382,6 +393,12 @@ func OpenDashboard(ctx context.Context, extensionName string, provider gql.AddOn
 	result, err := gql.GetAddOn(ctx, client, extensionName, string(provider))
 	if err != nil {
 		return err
+	}
+
+	// Validate that the returned add-on matches the expected provider type
+	if result.AddOn.AddOnProvider.Name != string(provider) {
+		return fmt.Errorf("found add-on '%s' with provider '%s', but expected provider '%s'",
+			result.AddOn.Name, result.AddOn.AddOnProvider.Name, provider)
 	}
 
 	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
@@ -405,6 +422,12 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 			return nil, nil, err
 		}
 
+		// Validate that the returned add-on matches the expected provider type
+		if response.AddOn.AddOnProvider.Name != string(provider) {
+			return nil, nil, fmt.Errorf("found add-on '%s' with provider '%s', but expected provider '%s'",
+				response.AddOn.Name, response.AddOn.AddOnProvider.Name, provider)
+		}
+
 		addOn = &response.AddOn.AddOnData
 
 	} else if appName != "" {
@@ -426,19 +449,20 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	return
 }
 
-func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
+func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension, overrideSecretKeyNamesMap map[string]string) (err error) {
 	var (
-		io              = iostreams.FromContext(ctx)
-		client          = flyutil.ClientFromContext(ctx).GenqClient()
-		setSecrets bool = true
+		io         = iostreams.FromContext(ctx)
+		client     = flyutil.ClientFromContext(ctx).GenqClient()
+		setSecrets = true
 	)
 
 	environment := extension.Data.Environment
+
 	if environment == nil || reflect.ValueOf(environment).IsNil() {
 		return nil
 	}
 
-	secrets := extension.Data.Environment.(map[string]interface{})
+	secrets := extension.Data.Environment.(map[string]any)
 
 	if app.Name != "" {
 		appResp, err := gql.GetApp(ctx, client, app.Name)
@@ -473,8 +497,15 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 			AppId: app.Id,
 		}
 		for _, key := range keys {
-			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
-			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+			if customKeyName, exists := overrideSecretKeyNamesMap[key]; exists {
+				// If a custom key name is identified for the extension's secret key, use that custom key
+				input.Secrets = append(input.Secrets, gql.SecretInput{Key: customKeyName, Value: secrets[key].(string)})
+				fmt.Fprintf(io.Out, "%s: %s\n", customKeyName, secrets[key].(string))
+			} else {
+				// Use the default secret key name
+				input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
+				fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+			}
 		}
 
 		fmt.Fprintln(io.Out)
@@ -491,6 +522,7 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		}
 
 	}
+
 	return err
 }
 
@@ -501,7 +533,14 @@ func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
+
+	viewerUser, ok := tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser)
+	if ok {
+		return viewerUser.AgreedToProviderTos, nil
+	} else {
+		// If we are unable to determine if the user has agreed to the provider ToS, return false
+		return false, nil
+	}
 }
 
 func Status(ctx context.Context, provider gql.AddOnType) (err error) {
@@ -520,7 +559,7 @@ func Status(ctx context.Context, provider gql.AddOnType) (err error) {
 		},
 	}
 
-	var cols []string = []string{"Name", "Primary Region", "Status"}
+	var cols = []string{"Name", "Primary Region", "Status"}
 
 	if app != nil {
 		obj[0] = append(obj[0], app.Name)
@@ -640,6 +679,7 @@ var PlatformMap = map[string]string{
 	"NodeJS":        "node",
 	"NodeJS/Prisma": "node",
 	"Laravel":       "php-laravel",
+	"Meteor":        "javascript-meteor",
 	"NestJS":        "node",
 	"NextJS":        "javascript-nextjs",
 	"Nuxt":          "javascript-vue",
@@ -651,4 +691,5 @@ var PlatformMap = map[string]string{
 	"Remix":         "javascript-remix",
 	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
+	"Shopify":       "javascript-remix",
 }

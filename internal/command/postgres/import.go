@@ -9,9 +9,9 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -88,25 +88,19 @@ func runImport(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	// Resolve target app
-	app, err := client.GetAppCompact(ctx, appName)
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed to resolve app: %w", err)
+		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not retrieve machines: %w", err)
 	}
@@ -115,6 +109,9 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("no machines are available on this app %s", appName)
 	}
 	leader, _ := machinesNodeRoles(ctx, machines)
+	if leader == nil {
+		return fmt.Errorf("no active leader found")
+	}
 	machineID := leader.ID
 
 	// Resolve region
@@ -132,9 +129,8 @@ func runImport(ctx context.Context) error {
 	}
 
 	// Set sourceURI as a secret
-	_, err = client.SetSecrets(ctx, app.Name, map[string]string{
-		"SOURCE_DATABASE_URI": sourceURI,
-	})
+	upd := map[string]string{"SOURCE_DATABASE_URI": sourceURI}
+	err = appsecrets.Update(ctx, flapsClient, app.Name, upd, nil)
 	if err != nil {
 		return fmt.Errorf("failed to set secrets: %s", err)
 	}
@@ -172,16 +168,22 @@ func runImport(ctx context.Context) error {
 	}
 	machineConfig.Image = imageRef
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	ephemeralInput := &mach.EphemeralInput{
 		LaunchInput: fly.LaunchMachineInput{
-			Region: region.Code,
-			Config: machineConfig,
+			Region:            region.Code,
+			Config:            machineConfig,
+			MinSecretsVersion: minvers,
 		},
 		What: "to run the import process",
 	}
 
 	// Create ephemeral machine
-	machine, cleanup, err := mach.LaunchEphemeral(ctx, ephemeralInput)
+	machine, cleanup, err := mach.LaunchEphemeral(ctx, appName, ephemeralInput)
 	if err != nil {
 		return err
 	}
@@ -204,9 +206,9 @@ func runImport(ctx context.Context) error {
 	}
 
 	// Unset secret
-	_, err = client.UnsetSecrets(ctx, app.Name, []string{"SOURCE_DATABASE_URI"})
+	err = appsecrets.Update(ctx, flapsClient, app.Name, nil, []string{"SOURCE_DATABASE_URI"})
 	if err != nil {
-		return fmt.Errorf("failed to set secrets: %s", err)
+		return fmt.Errorf("failed to unset secrets: %s", err)
 	}
 
 	return nil

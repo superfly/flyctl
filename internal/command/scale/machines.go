@@ -6,21 +6,12 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*fly.VMSize, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return nil, err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	// Quickly validate sizeName before any network call
 	if err := (&fly.MachineGuest{}).SetSize(sizeName); err != nil && sizeName != "" {
 		return nil, err
@@ -37,7 +28,7 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		group = appConfig.DefaultProcessName()
 	}
 
-	machines, err := listMachinesWithGroup(ctx, group)
+	machines, err := listMachinesWithGroup(ctx, appName, group)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +36,13 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		return nil, fmt.Errorf("No active machines in process group '%s', check `fly status` output", group)
 	}
 
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	machines, releaseFunc, err := mach.AcquireLeases(ctx, appName, machines)
 	defer releaseFunc()
+	if err != nil {
+		return nil, err
+	}
+
+	minvers, err := appsecrets.GetMinvers(appName)
 	if err != nil {
 		return nil, err
 	}
@@ -60,11 +56,12 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		}
 
 		input := &fly.LaunchMachineInput{
-			Name:   machine.Name,
-			Region: machine.Region,
-			Config: machine.Config,
+			Name:              machine.Name,
+			Region:            machine.Region,
+			Config:            machine.Config,
+			MinSecretsVersion: minvers,
 		}
-		if err := mach.Update(ctx, machine, input); err != nil {
+		if err := mach.Update(ctx, appName, machine, input); err != nil {
 			return nil, err
 		}
 	}
@@ -79,8 +76,8 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	return size, nil
 }
 
-func listMachinesWithGroup(ctx context.Context, group string) ([]*fly.Machine, error) {
-	machines, err := mach.ListActive(ctx)
+func listMachinesWithGroup(ctx context.Context, appName string, group string) ([]*fly.Machine, error) {
+	machines, err := mach.ListActive(ctx, appName)
 	if err != nil {
 		return nil, err
 	}

@@ -7,11 +7,9 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -43,21 +41,14 @@ func runList(ctx context.Context) error {
 		return fmt.Errorf("outputting to json is not yet supported")
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	machines, err := machine.ListActive(ctx)
+	machines, err := machine.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}
 
 	if len(machines) == 0 {
 		fmt.Fprintf(io.ErrOut, "No machines found")
+
 		return nil
 	}
 

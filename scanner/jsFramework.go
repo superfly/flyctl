@@ -17,7 +17,45 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
-var packageJson map[string]interface{}
+var packageJson map[string]any
+
+// detectPortFromSource scans common entry point files for port definitions
+// Returns the detected port or 0 if not found
+func detectPortFromSource() int {
+	// Common entry point files to check
+	entryPoints := []string{"server.js", "index.js", "app.js", "src/server.js", "src/index.js", "src/app.js"}
+
+	// Regex patterns to match port definitions
+	// Matches: process.env.PORT || "8080", process.env.PORT || 8080, const port = 8080
+	portPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`process\.env\.PORT\s*\|\|\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`const\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`let\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`var\s+port\s*=\s*['"]?(\d{4,5})['"]?`),
+		regexp.MustCompile(`PORT\s*[:=]\s*['"]?(\d{4,5})['"]?`), // For Bun/Deno style
+	}
+
+	for _, entryPoint := range entryPoints {
+		data, err := os.ReadFile(entryPoint)
+		if err != nil {
+			continue
+		}
+
+		content := string(data)
+		for _, pattern := range portPatterns {
+			if matches := pattern.FindStringSubmatch(content); len(matches) > 1 {
+				if port, err := strconv.Atoi(matches[1]); err == nil {
+					// Common web server ports
+					if port >= 3000 && port <= 9999 {
+						return port
+					}
+				}
+			}
+		}
+	}
+
+	return 0
+}
 
 // Handle js frameworks separate from other node applications.  Currently the requirements
 // for a framework is pretty low: to have a "start" script.  Because we are actually
@@ -55,17 +93,19 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		}
 
 		// check for a start script
-		scripts, ok := packageJson["scripts"].(map[string]interface{})
+		scripts, ok := packageJson["scripts"].(map[string]any)
+		hasStartScript := ok && scripts["start"] != nil
 
-		if ok && scripts["start"] != nil {
+		if hasStartScript {
 			start, ok := scripts["start"].(string)
 			if ok {
 				main = start
 			}
 		}
 
-		// bail if no entrypoint can be found
-		if main == "" {
+		// bail if no entrypoint can be found, or if there's a package.json but no start script
+		// (this allows static sites with package.json for dev serving to fall through to configureStatic)
+		if main == "" || !hasStartScript {
 			return nil, nil
 		}
 	}
@@ -109,6 +149,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || nodeVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersionString}
 		}
 	} else {
 		// ensure bun is in $PATH
@@ -140,6 +182,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || bunVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "bun", Version: bunVersionString}
 		}
 
 		// set family
@@ -147,17 +191,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	}
 
 	// extract deps and devdeps
-	deps, ok := packageJson["dependencies"].(map[string]interface{})
+	deps, ok := packageJson["dependencies"].(map[string]any)
 	if !ok || deps == nil {
-		deps = make(map[string]interface{})
+		deps = make(map[string]any)
 	}
-	devdeps, ok := packageJson["devDependencies"].(map[string]interface{})
+	devdeps, ok := packageJson["devDependencies"].(map[string]any)
 	if !ok || devdeps == nil {
-		devdeps = make(map[string]interface{})
+		devdeps = make(map[string]any)
 	}
-	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	scripts, ok := packageJson["scripts"].(map[string]any)
 	if !ok || scripts == nil {
-		scripts = make(map[string]interface{})
+		scripts = make(map[string]any)
 	}
 
 	// infer db from dependencies
@@ -179,7 +223,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.ObjectStorageDesired = true
 	}
 
-	// if prisma is used, provider is definative
+	// if prisma is used, provider is definitive
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
 			srcInfo.DatabaseDesired = DatabaseKindPostgres
@@ -187,6 +231,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			srcInfo.DatabaseDesired = DatabaseKindMySQL
 		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
 			srcInfo.DatabaseDesired = DatabaseKindSqlite
+			srcInfo.ObjectStorageDesired = true
 		}
 	}
 
@@ -194,9 +239,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	if srcInfo.DatabaseDesired != DatabaseKindPostgres && srcInfo.DatabaseDesired != DatabaseKindMySQL && !srcInfo.RedisDesired {
 		srcInfo.SkipDatabase = true
 	}
-
-	// default to port 3000
-	srcInfo.Port = 3000
 
 	// etract port from EXPOSE statement in dockerfile
 	dockerfile, err := os.ReadFile("Dockerfile")
@@ -207,8 +249,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if len(m) > 0 && name == "port" {
 				portFromDockerfile, err := strconv.Atoi(m[i])
 				if err == nil {
-					fmt.Printf("got port\n")
 					srcInfo.Port = portFromDockerfile
+
 					continue
 				}
 			}
@@ -230,14 +272,22 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if startScript, ok := scripts["start"].(string); ok && strings.Contains(startScript, "meteor") {
+		srcInfo.Family = "Meteor"
+		srcInfo.Env = map[string]string{
+			"PORT":     "3000",
+			"ROOT_URL": "APP_URL",
+		}
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
 		srcInfo.Family = "Next.js"
 	} else if deps["nust"] != nil {
 		srcInfo.Family = "Nust"
-	} else if devdeps["nuxt"] != nil {
+	} else if devdeps["nuxt"] != nil || deps["nuxt"] != nil {
 		srcInfo.Family = "Nuxt"
+	} else if checksPass(sourceDir, fileExists("shopify.app.toml")) {
+		srcInfo.Family = "Shopify"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
 	} else if devdeps["@sveltejs/kit"] != nil {
@@ -245,6 +295,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
+	}
+
+	// Try to detect port from source code if not found in Dockerfile
+	if srcInfo.Port == 0 {
+		if detectedPort := detectPortFromSource(); detectedPort != 0 {
+			srcInfo.Port = detectedPort
+		}
+	}
+
+	if srcInfo.Port == 0 {
+		srcInfo.Port = 3000
 	}
 
 	return srcInfo, nil
@@ -269,15 +330,30 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		}
 	}
 
-	// generate Dockerfile if it doesn't already exist
+	// add litestream if object storage is present and database is sqlite3
+	if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
+		flags = append(flags, "--litestream")
+	}
+
+	// run dockerfile-node if Dockerfile doesn't already exist, or there is a database to be set up
 	_, err = os.Stat("Dockerfile")
-	if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || srcInfo.DatabaseDesired == DatabaseKindSqlite || srcInfo.DatabaseDesired == DatabaseKindPostgres {
 		var args []string
+
+		// add --skip flag if Dockerfile already exists
+		if err == nil {
+			flags = append([]string{"--skip"}, flags...)
+		}
 
 		_, err = os.Stat("node_modules")
 		if errors.Is(err, fs.ErrNotExist) {
 			// no existing node_modules directory: run package directly
 			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
+
+			// add additional flags from launch command
+			if len(flags) > 0 {
+				args = append(args, flags...)
+			}
 		} else {
 			// build command to install package using preferred package manager
 			args = []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
@@ -289,7 +365,13 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			_, err = os.Stat("pnpm-lock.yaml")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+
+				_, err = os.Stat("pnpm-workspace.yaml")
+				if errors.Is(err, fs.ErrNotExist) {
+					args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+				} else {
+					args = []string{"pnpm", "add", "-w", "-D", "@flydotio/dockerfile@latest"}
+				}
 			}
 
 			_, err = os.Stat("bun.lockb")
@@ -301,12 +383,12 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		// check first to see if the package is already installed
 		installed := false
 
-		deps, ok := packageJson["dependencies"].(map[string]interface{})
+		deps, ok := packageJson["dependencies"].(map[string]any)
 		if ok && deps["@flydotio/dockerfile"] != nil {
 			installed = true
 		}
 
-		deps, ok = packageJson["devDependencies"].(map[string]interface{})
+		deps, ok = packageJson["devDependencies"].(map[string]any)
 		if ok && deps["@flydotio/dockerfile"] != nil {
 			installed = true
 		}
@@ -320,7 +402,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app."
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				}
 			}
 		}
 
@@ -368,12 +458,20 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
-			cmd.Stdin = nil
+			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app.\n"
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				}
 			}
 		}
 	}
@@ -397,13 +495,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 	srcInfo.Family = family
 
 	// provide some advice
-	srcInfo.DeployDocs += fmt.Sprintf(`
+	if srcInfo.DeployDocs == "" {
+		srcInfo.DeployDocs = fmt.Sprintf(`
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your %s app.
 `, srcInfo.Family)
+	}
 
 	return nil
 }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
+	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/agent/internal/proto"
@@ -34,7 +35,7 @@ import (
 )
 
 // Establish starts the daemon, if necessary, and returns a client to it.
-func Establish(ctx context.Context, apiClient flyutil.Client) (*Client, error) {
+func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, error) {
 	if err := wireguard.PruneInvalidPeers(ctx, apiClient); err != nil {
 		return nil, err
 	}
@@ -51,11 +52,14 @@ func Establish(ctx context.Context, apiClient flyutil.Client) (*Client, error) {
 		return nil, err
 	}
 
-	if buildinfo.Version().Equal(resVer) {
+	// Seems like the flyctl agent version is set when the agent is started,
+	// so, in development, it can't ever be equal to the flyctl version,
+	// which seems to be set at build time.
+	if buildinfo.Version().Equal(resVer) || (buildinfo.Version().Channel == "dev" && buildinfo.Version().Newer(resVer)) {
 		return c, nil
 	}
 
-	// TOOD: log this instead
+	// TODO: log this instead
 	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
@@ -88,10 +92,40 @@ func Establish(ctx context.Context, apiClient flyutil.Client) (*Client, error) {
 		return nil, err
 	}
 
-	// this is gross, but we need to wait for the agent to exit
-	pause.For(ctx, time.Second)
+	// wait for the agent to exit
+	waitUntilDeleted(ctx, PathToSocket(), time.Second)
 
 	return StartDaemon(ctx)
+}
+
+// Use fsnotify to wait until a file is deleted, fallback to a timeout on any error.
+func waitUntilDeleted(ctx context.Context, path string, timeout time.Duration) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		time.Sleep(timeout)
+
+		return
+	}
+	defer watcher.Close()
+
+	if err = watcher.Add(path); err != nil {
+		return
+	}
+	t := time.NewTimer(timeout)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			return
+		case <-ctx.Done():
+			return
+		case event := <-watcher.Events:
+			if event.Has(fsnotify.Remove) {
+				return
+			}
+		}
+	}
 }
 
 func newClient(network, addr string) *Client {
@@ -113,6 +147,7 @@ func Dial(ctx context.Context, network, addr string) (*Client, error) {
 		if errors.As(err, &syscallErr) && syscallErr.Err == syscall.ENOENT {
 			return nil, ErrAgentNotRunning
 		}
+
 		return nil, err
 	}
 
@@ -167,6 +202,7 @@ func (c *Client) do(ctx context.Context, fn func(net.Conn) error) (err error) {
 			return err
 		case isError(data):
 			c.agentRefusedTokens = true
+
 			return c.do(ctx, fn)
 		default:
 			return err
@@ -482,6 +518,7 @@ func (c *Client) Instances(ctx context.Context, org, app string) (instances Inst
 	}()
 	r, err := compareAndChooseResults(ctx, <-gqlChan, &agentInstances, <-agentChan, org, app)
 	instances = *r
+
 	return
 }
 
@@ -494,12 +531,15 @@ func compareAndChooseResults(ctx context.Context, gqlResult instancesResult, age
 	terminal.Debugf("gqlErr: %v agentErr: %v\n", gqlResult.Err, agentErr)
 	if gqlResult.Err != nil && agentErr != nil {
 		captureError(ctx, fmt.Errorf("two errors looking up: %s %s: gqlErr: %v agentErr: %v", orgSlug, appName, gqlResult.Err.Error(), agentErr), "agentclient-instances", orgSlug, appName)
+
 		return nil, gqlResult.Err
 	} else if gqlResult.Err != nil {
 		captureError(ctx, fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
+
 		return agentResult, nil
 	} else if agentErr != nil {
 		captureError(ctx, fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
+
 		return gqlResult.Instances, nil
 	} else if !arrayEqual(gqlResult.Instances.Addresses, agentResult.Addresses) {
 		return gqlResult.Instances, nil
@@ -517,10 +557,10 @@ func captureError(ctx context.Context, err error, feature, orgSlug, appName stri
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", feature),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": appName,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": orgSlug,
 			},
 		}),
@@ -536,6 +576,7 @@ func arrayEqual(a, b []string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -574,6 +615,7 @@ func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResu
 	resp, err := gql.AgentGetInstances(ctx, gqlClient, appName)
 	if err != nil {
 		terminal.Debugf("gql.AgentGetInstances() error: %v\n", err)
+
 		return instancesResult{nil, err}
 	}
 	if resp.App.Organization.Slug != orgSlug {
@@ -608,10 +650,11 @@ func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResu
 		}
 	}
 	terminal.Debugf("gqlGetInstances() result: %v\n", result)
+
 	return instancesResult{result, nil}
 }
 
-func unmarshal(dst interface{}, data []byte) (err error) {
+func unmarshal(dst any, data []byte) (err error) {
 	src := bytes.NewReader(extractOK(data))
 
 	dec := json.NewDecoder(src)
@@ -655,6 +698,7 @@ func (c *Client) ConnectToTunnel(ctx context.Context, slug, network string, sile
 	if err := c.WaitForTunnel(ctx, slug, network); err != nil {
 		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}
+
 	return dialer, err
 }
 
@@ -699,12 +743,14 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 		timeout := strconv.FormatInt(int64(d.timeout), 10)
 		if err := proto.Write(conn, "connect", d.slug, addr, timeout, d.network); err != nil {
 			c <- err
+
 			return
 		}
 
 		data, err := proto.Read(conn)
 		if err != nil {
 			c <- err
+
 			return
 		}
 
@@ -723,6 +769,7 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 		err = ctx.Err()
 	case err = <-c:
 	}
+
 	return
 }
 
@@ -808,6 +855,7 @@ func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
 	_, err := p.c.Write([]byte(v6addr))
 	if err != nil {
 		p.err = fmt.Errorf("icmp write: address: %w", err)
+
 		return 0, p.err
 	}
 
@@ -817,12 +865,14 @@ func (p *Pinger) WriteTo(buf []byte, addr net.Addr) (int64, error) {
 	_, err = p.c.Write(lbuf)
 	if err != nil {
 		p.err = fmt.Errorf("icmp write: length: %w", err)
+
 		return 0, p.err
 	}
 
 	_, err = p.c.Write(buf)
 	if err != nil {
 		p.err = fmt.Errorf("icmp write: payload: %w", err)
+
 		return 0, p.err
 	}
 
@@ -847,6 +897,7 @@ func (p *Pinger) ReadFrom(buf []byte) (int64, net.Addr, error) {
 
 		if !errors.Is(err, os.ErrDeadlineExceeded) {
 			p.err = fmt.Errorf("icmp read: addr: %w", err)
+
 			return 0, nil, p.err
 		}
 
@@ -856,6 +907,7 @@ func (p *Pinger) ReadFrom(buf []byte) (int64, net.Addr, error) {
 	_, err = io.ReadFull(p.c, lbuf)
 	if err != nil {
 		p.err = fmt.Errorf("icmp read: length: %w", err)
+
 		return 0, nil, p.err
 	}
 
@@ -865,6 +917,7 @@ func (p *Pinger) ReadFrom(buf []byte) (int64, net.Addr, error) {
 	_, err = io.ReadFull(p.c, inbuf)
 	if err != nil {
 		p.err = fmt.Errorf("icmp read: payload: %w", err)
+
 		return 0, nil, p.err
 	}
 

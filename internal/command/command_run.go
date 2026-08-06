@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -26,7 +26,9 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
@@ -36,8 +38,37 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx), false)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.GetApp(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start the feature flag client, if we haven't already
+	if launchdarkly.ClientFromContext(ctx) == nil {
+		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
+			OrganizationID: fmt.Sprint(app.Organization.InternalNumericID),
+			UserID:         0,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create feature flag client: %w", err)
+		}
+		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
+	}
+
+	uiexClient := uiexutil.ClientFromContext(ctx)
+	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+	if err != nil {
+		return nil, err
+	}
+
+	ldClient := launchdarkly.ClientFromContext(ctx)
+	useManagedBuilder := ldClient.ManagedBuilderEnabled()
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"), useManagedBuilder)
+	resolver := imgsrc.NewResolver(
+		daemonType, client, appName, io, flag.GetWireguard(ctx), false,
+		imgsrc.WithProvisioner(imgsrc.NewProvisionerUiexOrg(org)),
+	)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
@@ -73,6 +104,8 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 		opts.BuildArgs = extraArgs
 
+		opts.Compression, opts.CompressionLevel = cfg.DetermineCompression(ctx)
+
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
 			return nil, err
@@ -99,7 +132,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		return nil, errors.New("could not find an image to deploy")
 	}
 
-	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
+	fmt.Fprintf(io.Out, "Image: %s\n", img.String())
 	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
 
 	return img, nil
@@ -134,6 +167,7 @@ func DetermineServices(ctx context.Context, services []fly.MachineService) ([]fl
 		// A dash handler removes the service: --port 5432/tcp:-
 		if slices.Equal(handlers, []string{"-"}) {
 			svc.Ports = nil
+
 			continue
 		}
 
@@ -167,6 +201,7 @@ func DetermineServices(ctx context.Context, services []fly.MachineService) ([]fl
 		if s != nil && len(s.Ports) > 0 {
 			return *s, true
 		}
+
 		return fly.MachineService{}, false
 	})
 
@@ -182,6 +217,7 @@ func parsePortFlag(str string) (internalPort int, protocol string, port, startPo
 		handlers = append(handlers, splittedProtoHandlers[1:]...)
 	} else if len(splittedPortsProto) > 2 {
 		err = errors.New("port must be at most two elements (ports/protocol:handler)")
+
 		return
 	}
 
@@ -194,6 +230,7 @@ func parsePortFlag(str string) (internalPort int, protocol string, port, startPo
 			internalPort = *startPort
 		}
 	}
+
 	return
 }
 
@@ -204,14 +241,16 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 		external_port, err = strconv.Atoi(split[0])
 		if err != nil {
 			err = errors.Wrap(err, "invalid port")
+
 			return
 		}
 
-		port = fly.IntPointer(external_port)
+		port = new(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
 			err = errors.Wrap(err, "invalid machine (internal) port")
+
 			return
 		}
 
@@ -221,28 +260,31 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 			external_port, err = strconv.Atoi(external_split[0])
 			if err != nil {
 				err = errors.Wrap(err, "invalid external port")
+
 				return
 			}
 
-			port = fly.IntPointer(external_port)
+			port = new(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
 			if err != nil {
 				err = errors.Wrap(err, "invalid start port for port range")
+
 				return
 			}
 
-			start_port = fly.IntPointer(start)
+			start_port = new(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
 			if err != nil {
 				err = errors.Wrap(err, "invalid end port for port range")
+
 				return
 			}
 
-			end_port = fly.IntPointer(end)
+			end_port = new(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}
@@ -265,6 +307,7 @@ func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
 		}
 		rawValue := base64.StdEncoding.EncodeToString(content)
 		file.RawValue = &rawValue
+
 		return nil
 	})
 	if err != nil {
@@ -275,6 +318,7 @@ func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
 	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *fly.File) error {
 		encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
 		file.RawValue = &encodedValue
+
 		return nil
 	})
 	if err != nil {
@@ -284,6 +328,7 @@ func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
 
 	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *fly.File) error {
 		file.SecretName = &value
+
 		return nil
 	})
 	if err != nil {
@@ -306,7 +351,7 @@ func parseFiles(ctx context.Context, flagName string, cb func(value string, file
 		switch {
 		case !ok:
 			return nil, fmt.Errorf("invalid %s argument %s", flagName, f)
-		case !filepath.IsAbs(guestPath):
+		case !path.IsAbs(guestPath):
 			return nil, fmt.Errorf("guest path, %s, must be absolute", guestPath)
 		case fileRef == "":
 			// empty value is allowed to remove file from machine
@@ -322,7 +367,7 @@ func parseFiles(ctx context.Context, flagName string, cb func(value string, file
 	return machineFiles, nil
 }
 
-func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region string) ([]fly.MachineMount, error) {
+func DetermineMounts(ctx context.Context, appName string, mounts []fly.MachineMount, region string) ([]fly.MachineMount, error) {
 	unattachedVolumes := make(map[string][]fly.Volume)
 
 	pathIndex := make(map[string]int)
@@ -344,7 +389,7 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 			// Load app volumes the first time
 			if len(unattachedVolumes) == 0 {
 				var err error
-				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
+				unattachedVolumes, err = getUnattachedVolumes(ctx, appName, region)
 				if err != nil {
 					return nil, err
 				}
@@ -366,10 +411,11 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 			})
 		}
 	}
+
 	return mounts, nil
 }
 
-func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]fly.Volume, error) {
+func getUnattachedVolumes(ctx context.Context, appName, regionCode string) (map[string][]fly.Volume, error) {
 	apiclient := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
@@ -381,7 +427,7 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 		regionCode = region.Code
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
+	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
 	}
@@ -394,5 +440,6 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 	}
 
 	unattachedMap := lo.GroupBy(unattached, func(v fly.Volume) string { return v.Name })
+
 	return unattachedMap, nil
 }

@@ -22,5 +22,10 @@ func configureNextJs(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		"NEXT_PUBLIC_EXAMPLE": "Value goes here",
 	}
 
+	// detect node.js version properly...
+	if nodeS, err := configureNode(sourceDir, config); err == nil && nodeS != nil {
+		s.Runtime = nodeS.Runtime
+	}
+
 	return s, nil
 }

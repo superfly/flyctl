@@ -15,6 +15,9 @@ build_target = "thalayer"
   # Old concurrency format
   concurrency = "12,23"
 
+  # Autostop specified with a boolean
+  auto_stop_machines = false
+
   [[services.ports]]
   # Stringified port
   port = "80"

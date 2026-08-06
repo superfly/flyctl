@@ -9,11 +9,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -43,6 +41,7 @@ retrieved from the Fly service and saved in TOML format.`
 			Description: "Output the configuration in YAML format",
 		},
 	)
+
 	return
 }
 
@@ -52,14 +51,6 @@ func runSave(ctx context.Context) error {
 		appName     = appconfig.NameFromContext(ctx)
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
@@ -139,7 +130,9 @@ func loadPrevConfig(configPath string) (*appconfig.Config, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("error loading prev config: %w", err)
 	}
+
 	return cfg, nil
 }

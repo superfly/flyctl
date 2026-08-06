@@ -8,17 +8,28 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/client-signals/go"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/validation"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
@@ -33,7 +44,7 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(cmd,
+	flags := []flag.Flag{
 		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
 		// the launch command in CI environments. We may want to rescind this decision down the line, because
 		// the list of flags is long, but it follows from the precedent of already offering some deployment flags.
@@ -76,6 +87,14 @@ func New() (cmd *cobra.Command) {
 			Name:        "from",
 			Description: "A github repo URL to use as a template for the new app",
 		},
+		flag.String{
+			Name:        "into",
+			Description: "Destination directory for github repo specified with --from",
+		},
+		flag.Bool{
+			Name:        "attach",
+			Description: "Attach this new application to the current application",
+		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -99,6 +118,26 @@ func New() (cmd *cobra.Command) {
 			Hidden:      true,
 		},
 		flag.Bool{
+			Name:        "no-db",
+			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-redis",
+			Description: "Skip automatically provisioning a Redis instance",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-object-storage",
+			Description: "Skip automatically provisioning an object storage bucket",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-github-workflow",
+			Description: "Skip automatically provisioning a GitHub fly deploy workflow",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
@@ -106,7 +145,49 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
-	)
+		// don't try to generate a name
+		flag.Bool{
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
+			Aliases:     []string{"no-create"},
+		},
+		flag.String{
+			Name:        "auto-stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend'",
+			Default:     "stop",
+		},
+		flag.String{
+			Name:        "command",
+			Description: "The command to override the Docker CND.",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volume to mount, in the form of <volume_name>:/path/inside/machine[:<options>]",
+		},
+		flag.StringArray{
+			Name:        "secret",
+			Description: "Set of secrets in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "db",
+			Description: "Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+			NoOptDefVal: "true",
+		},
+	}
+
+	flag.Add(cmd, flags...)
+
+	cmd.AddCommand(NewPlan())
 
 	return
 }
@@ -136,35 +217,70 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &manifest, nil
 }
 
-func setupFromTemplate(ctx context.Context) (context.Context, error) {
+func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
-		return ctx, nil
+		return ctx, nil, nil
 	}
 
-	entries, err := os.ReadDir(".")
+	into := flag.GetString(ctx, "into")
+
+	if into == "" && flag.GetBool(ctx, "attach") {
+		into = filepath.Join(".", "fly", "apps", filepath.Base(from))
+	}
+
+	if into == "" {
+		into = "."
+	} else {
+		err := os.MkdirAll(into, 0755) // skipcq: GSC-G301
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	var parentConfig *appconfig.Config
+
+	entries, err := os.ReadDir(into)
 	if err != nil {
-		return ctx, fmt.Errorf("failed to read directory: %w", err)
+		return ctx, nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 	if len(entries) > 0 {
-		return ctx, errors.New("directory not empty, refusing to clone from git")
+		return ctx, nil, errors.New("directory not empty, refusing to clone from git")
 	}
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", "--recurse-submodules", from, ".")
+	cmd := exec.Command("git", "clone", "--recurse-submodules", from, into)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return ctx, err
+		return ctx, nil, err
 	}
 
+	if into != "." {
+		err := os.Chdir(into)
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed to change directory: %w", err)
+		}
+
+		wd, err := os.Getwd()
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed determining working directory: %w", err)
+		}
+
+		ctx = state.WithWorkingDirectory(ctx, wd)
+		parentConfig = appconfig.ConfigFromContext(ctx)
+	}
+
+	ctx = appconfig.WithConfig(ctx, nil)
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
-	return ctx, err
+
+	return ctx, parentConfig, err
 }
 
 func run(ctx context.Context) (err error) {
@@ -173,36 +289,57 @@ func run(ctx context.Context) (err error) {
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+
 		return err
 	}
 
-	defer tp.Shutdown(ctx)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		tp.Shutdown(shutdownCtx)
+	}()
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
 	defer span.End()
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil
 
-	defer func() {
-		if err != nil {
-			tracing.RecordError(span, err, "launch failed")
-			status.Error = err.Error()
+	if !flag.GetBool(ctx, "no-create") {
+		defer func() {
+			if err != nil {
+				tracing.RecordError(span, err, "launch failed")
+				status.Error = err.Error()
 
-			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
-				err = state.sourceInfo.FailureCallback(err)
+				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
+					err = state.sourceInfo.FailureCallback(err)
+				}
 			}
-		}
 
-		status.TraceID = span.SpanContext().TraceID().String()
-		status.Duration = time.Since(startTime)
-		metrics.LaunchStatus(ctx, status)
-	}()
+			status.TraceID = span.SpanContext().TraceID().String()
+			status.Duration = time.Since(startTime)
+			metrics.LaunchStatus(ctx, status)
+		}()
+	}
 
 	if err := warnLegacyBehavior(ctx); err != nil {
+		return err
+	}
+
+	// Validate conflicting postgres flags
+	if err := validatePostgresFlags(ctx); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionFlag(flag.GetString(ctx, "compression")); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateCompressionLevelFlag(flag.GetInt(ctx, "compression-level")); err != nil {
 		return err
 	}
 
@@ -216,8 +353,49 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
+	}
+
+	// For "generate" step, allow command-line flags to override manifest values.
+	// This is necessary because buildManifest() is skipped when loading a manifest from file.
+	// The "generate" step specifically needs this because it's called after propose/create steps,
+	// and the deployer wrapper needs to be able to override specific values without re-proposing.
+	if launchManifest != nil && planStep == "generate" {
+		// Override org if --org flag was provided
+		if orgRequested := flag.GetOrg(ctx); orgRequested != "" {
+			launchManifest.Plan.OrgSlug = orgRequested
+		}
+
+		// Override app name if --app flag was provided
+		// This allows explicit override while preserving manifest value by default
+		if appRequested := flag.GetApp(ctx); appRequested != "" && flag.IsSpecified(ctx, "app") {
+			launchManifest.Plan.AppName = appRequested
+		}
+
+		// Override region if --region flag was provided
+		if regionRequested := flag.GetRegion(ctx); regionRequested != "" && flag.IsSpecified(ctx, "region") {
+			launchManifest.Plan.RegionCode = regionRequested
+		}
+
+		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
+		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
+		if launchManifest.PlanSource == nil {
+			launchManifest.PlanSource = newDefaultPlanSource("from manifest")
+		}
+	}
+
 	// "--from" arg handling
-	ctx, err = setupFromTemplate(ctx)
+	parentCtx := ctx
+	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
 		return err
 	}
@@ -228,21 +406,50 @@ func run(ctx context.Context) (err error) {
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	if launchManifest == nil {
-
-		launchManifest, cache, err = buildManifest(ctx, &recoverableErrors)
+		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
-			} else {
+			if !errors.As(err, &recoverableErr) || !canEnterUi {
+				// Populate status from partial manifest so metrics
+				// events carry org/app context even on early failures.
+				if launchManifest != nil && launchManifest.Plan != nil {
+					status.AppName = launchManifest.Plan.AppName
+					status.OrgSlug = launchManifest.Plan.OrgSlug
+					status.Region = launchManifest.Plan.RegionCode
+					status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
+					status.ScannerFamily = launchManifest.Plan.ScannerFamily
+				}
+
 				return err
 			}
 		}
 
-		if flag.GetBool(ctx, "manifest") {
-			jsonEncoder := json.NewEncoder(io.Out)
+		manifestFlag := flag.GetBool(ctx, "manifest")
+		manifestPath := flag.GetString(ctx, "manifest-path")
+
+		if manifestFlag {
+			var jsonEncoder *json.Encoder
+			if manifestPath != "" {
+				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+
+				jsonEncoder = json.NewEncoder(file)
+			} else {
+				jsonEncoder = json.NewEncoder(io.Out)
+			}
 			jsonEncoder.SetIndent("", "  ")
-			return jsonEncoder.Encode(launchManifest)
+			encodeErr := jsonEncoder.Encode(launchManifest)
+
+			return encodeErr
 		}
+	}
+
+	// Override internal port if requested using --internal-port flag
+	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+		launchManifest.Plan.HttpServicePort = n
 	}
 
 	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
@@ -259,7 +466,7 @@ func run(ctx context.Context) (err error) {
 		status.VM.ProcessN = len(vm.Processes)
 	}
 
-	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
 	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
 	status.HasSentry = launchManifest.Plan.Sentry
 
@@ -281,12 +488,66 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	fmt.Fprintf(
-		io.Out,
-		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-		familyToAppType(family),
-		summary,
-	)
+	if planStep == "" {
+		colorize := io.ColorScheme()
+
+		// Get terminal width for responsive borders
+		termWidth := min(io.TerminalWidth(),
+			// Cap at 120 for readability
+			120)
+		border := strings.Repeat("═", termWidth)
+
+		// Print top border
+		fmt.Fprintln(io.Out)
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
+
+		// Print ASCII art with purple = characters
+		art := `
+
+
+                       %%%%%%%
+                  %#+++=.  .:+*+*#%%
+               %#+=====:       :++=+#%
+             %#+======-          .++==#%
+            %*=======+.            .+==+%
+           %#========+               *==+%
+           #+========+              = *==*%
+           #=========+           .. : .*=+#
+           #=========*    ==      .:   *==*%
+           #+========+-             :. +==*%
+           #*=========+              :-*==*%         %@
+           %#**+======+-           .-. #==*%      @%%%%@
+           %%#++=======+:      .::.   :*=+%       @%
+           %%%#*++=====++.            #=+#%      @%@
+          %%  %%#*++++++*+.          **+#@       %@
+         %%     @%#***+++*+         =*+#%%      %%
+        @@        @%%##*****       :*+%@%%%    %%
+        @@        @@@@%#***##     .**%%   %% %%%
+        @      @@@@  @@@%%#**%   .+#%@     @%%
+        @@@@@@@           @%#*#.:*%%
+                            @%#**%@
+                             @@%@@
+                            %%#%%%
+                          @#***+**%
+                          %**+***#%
+                          @@%#+*#%
+
+`
+		// Replace = with purple =
+		artColored := strings.ReplaceAll(art, "=", colorize.Purple("="))
+		fmt.Fprintln(io.Out, artColored)
+
+		// Print header text
+		fmt.Fprintf(io.Out, "%s\n\n", colorize.Bold(fmt.Sprintf("We're about to launch your %s on Fly.io. %s", familyToAppType(family), colorize.Purple("Here's what you're getting:"))))
+
+		// Print summary table
+		fmt.Fprintln(io.Out, summary)
+
+		// Print bottom border
+		fmt.Fprintln(io.Out, border)
+		fmt.Fprintln(io.Out)
+	}
 
 	if errors := recoverableErrors.build(); errors != "" {
 
@@ -294,13 +555,26 @@ func run(ctx context.Context) (err error) {
 		incompleteLaunchManifest = true
 	}
 
+	// Check billing status and display appropriate message
+	if planStep == "" {
+		shouldContinue, err := checkBillingStatus(ctx, state)
+		if err != nil {
+			return err
+		}
+		if !shouldContinue {
+			return errors.New("payment method required to continue")
+		}
+	}
+
 	editInUi := false
-	if !flag.GetBool(ctx, "yes") {
+	if !flag.GetBool(ctx, "yes") && planStep == "" {
+		colorize := io.ColorScheme()
 		if incompleteLaunchManifest {
 			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
 		} else {
-			editInUi, err = prompt.Confirm(ctx, "Do you want to tweak these settings before proceeding?")
+			editInUi, err = prompt.Confirm(ctx, colorize.Yellow("Do you want to tweak these settings before proceeding?"))
 		}
+		fmt.Fprintln(io.Out)
 
 		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err
@@ -322,6 +596,32 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+		ctx, err = command.LoadAppConfigIfPresent(ctx)
+		if err != nil {
+			return err
+		}
+
+		config := appconfig.ConfigFromContext(ctx)
+
+		exports := config.Experimental.Attached.Secrets.Export
+
+		if len(exports) > 0 {
+			flycast := config.AppName + ".flycast"
+			for name, secret := range exports {
+				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
+			}
+
+			flapsClient := flapsutil.ClientFromContext(parentCtx)
+			err = appsecrets.Update(parentCtx, flapsClient, parentConfig.AppName, exports, nil)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", parentConfig.AppName, strings.Join(lo.Keys(exports), ", "))
+		}
+	}
+
 	return nil
 }
 
@@ -334,6 +634,7 @@ func familyToAppType(family string) string {
 	case "":
 		return "app"
 	}
+
 	return fmt.Sprintf("%s app", family)
 }
 
@@ -347,5 +648,132 @@ func warnLegacyBehavior(ctx context.Context) error {
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
 		}
 	}
+
 	return nil
+}
+
+// validatePostgresFlags checks for conflicting postgres-related flags
+func validatePostgresFlags(ctx context.Context) error {
+	dbFlag := flag.GetString(ctx, "db")
+	noDb := flag.GetBool(ctx, "no-db")
+
+	// Normalize db flag values
+	switch dbFlag {
+	case "true", "1", "yes":
+		dbFlag = "true"
+	case "mpg", "managed":
+		dbFlag = "mpg"
+	case "upg", "unmanaged", "legacy":
+		dbFlag = "upg"
+	case "false", "0", "no", "":
+		dbFlag = ""
+	default:
+		if dbFlag != "" {
+			return flyerr.GenericErr{
+				Err:     fmt.Sprintf("Invalid value '%s' for --db flag", dbFlag),
+				Suggest: "Valid options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+			}
+		}
+	}
+
+	// Check if db flag conflicts with --no-db
+	if dbFlag != "" && noDb {
+		return flyerr.GenericErr{
+			Err:     "Cannot specify both --db and --no-db",
+			Suggest: "Remove either --db or --no-db",
+		}
+	}
+
+	return nil
+}
+
+// checkBillingStatus checks the organization's billing status and displays appropriate messaging
+// Returns (shouldContinue, error)
+func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	// Skip billing check if running in non-interactive mode or CI
+	if !io.IsInteractive() || env.IsCI() {
+		return true, nil
+	}
+
+	// Fetch organization data including billing status
+	org, err := state.orgCompact(ctx)
+	if err != nil {
+		// If we can't fetch org data, log the error but don't block the launch
+		fmt.Fprintf(io.ErrOut, "Warning: Could not check billing status: %v\n", err)
+
+		return true, nil
+	}
+
+	fmt.Fprintln(io.Out)
+
+	switch org.BillingStatus {
+	case gql.BillingStatusTrialActive:
+		// User is on active free trial - celebrate!
+		fmt.Fprintf(io.Out, "%s\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
+
+	case gql.BillingStatusSourceRequired, gql.BillingStatusTrialEnded:
+		// User needs to add a payment method
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! You'll need to add a payment method in order to proceed."))
+		fmt.Fprintln(io.Out)
+
+		addPayment, err := prompt.Confirm(ctx, "Would you like to do this now?")
+		if err != nil {
+			return false, err
+		}
+
+		if addPayment {
+			// Open billing dashboard URL
+			billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "Opening billing dashboard: %s\n", colorize.Bold(billingURL))
+			fmt.Fprintln(io.Out)
+			fmt.Fprintf(io.Out, "After adding a payment method, please run %s again.\n", colorize.Purple("'fly launch'"))
+
+			// Try to open the URL in the browser
+			if err := openBrowser(billingURL); err != nil {
+				fmt.Fprintf(io.ErrOut, "Could not open browser automatically. Please visit: %s\n", billingURL)
+			}
+
+			return false, nil
+		} else {
+			return false, nil
+		}
+
+	case gql.BillingStatusCurrent, gql.BillingStatusPastDue, gql.BillingStatusDelinquent:
+		// User has a payment method configured - say nothing per requirements
+		// Just continue silently
+
+	default:
+		// Unknown billing status - log but don't block
+		fmt.Fprintf(io.ErrOut, "Warning: Unknown billing status: %s\n", org.BillingStatus)
+	}
+
+	fmt.Fprintln(io.Out)
+
+	return true, nil
+}
+
+// openBrowser attempts to open the given URL in the default browser
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+
+	// Determine the OS and use the appropriate command
+	// We can't use runtime.GOOS directly in exec context, so we check the environment
+	if _, err := exec.LookPath("open"); err == nil {
+		// macOS
+		cmd = exec.Command("open", url)
+	} else if _, err := exec.LookPath("xdg-open"); err == nil {
+		// Linux
+		cmd = exec.Command("xdg-open", url)
+	} else if _, err := exec.LookPath("cmd"); err == nil {
+		// Windows
+		cmd = exec.Command("cmd", "/c", "start", url)
+	} else {
+		return fmt.Errorf("could not determine how to open browser")
+	}
+
+	return cmd.Start()
 }

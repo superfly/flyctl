@@ -12,8 +12,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+	"github.com/superfly/macaroon"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -22,10 +25,9 @@ import (
 
 func newDocker() *cobra.Command {
 	const (
-		long = `Adds registry.fly.io to the docker daemon's authenticated
-registries. This allows you to push images directly to fly from
-the docker cli.
-`
+		long = `Adds registry.fly.io to the Docker daemon's authenticated
+registries. This allows you to push images directly to Fly.io from
+the Docker CLI. Note that tokens may expire.`
 		short = "Authenticate docker"
 	)
 
@@ -52,6 +54,7 @@ func ensureDockerConfigDir(home string) error {
 	} else if !fi.IsDir() {
 		return errors.New("~/.docker is not a dir")
 	}
+
 	return nil
 }
 
@@ -84,13 +87,13 @@ func addFlyAuthToDockerConfig(cfg *config.Config, configJSON []byte) ([]byte, er
 		dockerAuthProviders = make(map[string]json.RawMessage)
 	}
 
-	var flyAuth map[string]interface{}
+	var flyAuth map[string]any
 	if a, ok := dockerAuthProviders[cfg.RegistryHost]; ok {
 		if err := json.Unmarshal(a, &flyAuth); err != nil {
 			return nil, err
 		}
 	} else {
-		flyAuth = make(map[string]interface{})
+		flyAuth = make(map[string]any)
 	}
 	flyAuth["auth"] = base64.URLEncoding.EncodeToString([]byte("x:" + cfg.Tokens.Docker()))
 
@@ -132,18 +135,26 @@ func configureDockerJSON(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	// It needs to be readable by Docker, if it gets installed in the future.
-	return os.WriteFile(configPath, updatedJSON, 0o644)
+	if err := os.WriteFile(configPath, updatedJSON, 0o600); err != nil {
+		return err
+	}
+	// os.WriteFile only applies perm on file creation; Chmod explicitly so
+	// the mode is applied on rewrite as well.
+	return os.Chmod(configPath, 0o600)
 }
 
 func runDocker(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
+	streams := iostreams.FromContext(ctx)
 	binary, err := exec.LookPath("docker")
 	if err != nil {
 		// Try configuring the JSON directly.
 		if err := configureDockerJSON(cfg); err == nil {
+			printDockerAuthSuccess(streams.Out, cfg, time.Now())
+
 			return nil
 		}
+
 		return fmt.Errorf("docker cli not found - make sure it's installed and try again: %w", err)
 	}
 
@@ -184,9 +195,63 @@ func runDocker(ctx context.Context) error {
 		return fmt.Errorf("failed authenticating with %s: %v", host, out.String())
 	}
 
-	io := iostreams.FromContext(ctx)
-
-	fmt.Fprintf(io.Out, "Authentication successful. You can now tag and push images to %s/{your-app}\n", host)
+	printDockerAuthSuccess(iostreams.FromContext(ctx).Out, cfg, time.Now())
 
 	return nil
+}
+
+func printDockerAuthSuccess(out io.Writer, cfg *config.Config, now time.Time) {
+	fmt.Fprintf(out, "Authentication successful. ")
+	if expiration, ok := dockerCredentialExpiration(cfg.Tokens.Docker()); ok {
+		fmt.Fprintf(out, "Credential expiration: %s.\n", formatCredentialExpiration(expiration, now))
+	} else {
+		fmt.Fprintln(out, "Credential expiration: unknown.")
+	}
+
+	fmt.Fprintf(out, "\nYou can now tag and push images to %s/{your-app}\n", cfg.RegistryHost)
+}
+
+func formatCredentialExpiration(expiration, now time.Time) string {
+	diff := expiration.Sub(now)
+	label := "from now"
+	if diff < 0 {
+		diff = -diff
+		label = "ago"
+	}
+
+	// go-humanize collapses durations of 37 years or more into "a long
+	// while". Keep its more granular formatting for shorter durations, but
+	// retain an approximate magnitude for very long-lived credentials.
+	if diff >= humanize.LongTime {
+		return fmt.Sprintf("%d years %s", diff/humanize.Year, label)
+	}
+
+	return humanize.RelTime(expiration, now, "ago", "from now")
+}
+
+// dockerCredentialExpiration returns the earliest expiration encoded in the
+// credential given to Docker. OAuth tokens and macaroons without validity
+// windows do not expose an expiration locally.
+func dockerCredentialExpiration(credential string) (time.Time, bool) {
+	rawTokens, err := macaroon.Parse(credential)
+	if err != nil {
+		return time.Time{}, false
+	}
+
+	var earliest time.Time
+	for _, rawToken := range rawTokens {
+		token, err := macaroon.Decode(rawToken)
+		if err != nil {
+			return time.Time{}, false
+		}
+
+		for _, validity := range macaroon.GetCaveats[*macaroon.ValidityWindow](&token.UnsafeCaveats) {
+			expiration := time.Unix(validity.NotAfter, 0)
+			if earliest.IsZero() || expiration.Before(earliest) {
+				earliest = expiration
+			}
+		}
+	}
+
+	return earliest, !earliest.IsZero()
 }

@@ -10,7 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 type natsLogStream struct {
@@ -18,27 +18,18 @@ type natsLogStream struct {
 	err error
 }
 
-func NewNatsStream(ctx context.Context, apiClient flyutil.Client, opts *LogOptions) (LogStream, error) {
-	app, err := apiClient.GetAppBasic(ctx, opts.AppName)
+func NewNatsStream(ctx context.Context, apiClient WebClient, flapsClient flapsutil.FlapsClient, opts *LogOptions) (LogStream, error) {
+	app, err := flapsClient.GetApp(ctx, opts.AppName)
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching target app: %w", err)
 	}
 
-	agentclient, err := agent.Establish(ctx, apiClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed establishing agent: %w", err)
-	}
-
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
+	_, dialer, err := agent.BringUpAgentOrgSlug(ctx, apiClient, app.Organization.Slug, app.Network, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed establishing wireguard connection for %s organization: %w", app.Organization.Slug, err)
 	}
 
-	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug, ""); err != nil {
-		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
-	}
-
-	nc, err := newNatsClient(ctx, dialer, app.Organization.RawSlug)
+	nc, err := newNatsClient(ctx, dialer, app.Organization.Slug)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating nats connection: %w", err)
 	}
@@ -94,7 +85,7 @@ type natsDialer struct {
 }
 
 func (d *natsDialer) Dial(network, address string) (net.Conn, error) {
-	return d.Dialer.DialContext(d.ctx, network, address)
+	return d.DialContext(d.ctx, network, address)
 }
 
 func fromNats(ctx context.Context, out chan<- LogEntry, nc *nats.Conn, opts *LogOptions) (err error) {

@@ -21,6 +21,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -37,10 +38,6 @@ func getCollectorUrl() string {
 	url := os.Getenv("FLY_TRACE_COLLECTOR_URL")
 	if url != "" {
 		return url
-	}
-
-	if buildinfo.IsDev() {
-		return "fly-otel-collector-dev.fly.dev"
 	}
 
 	return "fly-otel-collector-prod.fly.dev"
@@ -89,6 +86,7 @@ func getToken(ctx context.Context) string {
 	if token == "" {
 		token = os.Getenv("FLY_API_TOKEN")
 	}
+
 	return token
 }
 
@@ -133,6 +131,7 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 		attribute.String("build.info.os", buildinfo.OS()),
 		attribute.String("build.info.arch", buildinfo.Arch()),
 		attribute.String("build.info.commit", buildinfo.Commit()),
+		attribute.Bool("is_ci", env.IsCI()),
 	}
 
 	if appName != "" {

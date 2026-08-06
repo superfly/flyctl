@@ -51,7 +51,7 @@ func runStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	var cols []string = []string{"Name", "Status", "Region"}
+	var cols = []string{"Name", "Status", "Region"}
 
 	if app != nil {
 		obj[0] = append(obj[0], app.Name)
@@ -61,5 +61,6 @@ func runStatus(ctx context.Context) (err error) {
 	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
 		return
 	}
+
 	return
 }

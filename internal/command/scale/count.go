@@ -3,6 +3,7 @@ package scale
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,13 +11,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
-	"github.com/superfly/flyctl/internal/flapsutil"
-	"golang.org/x/exp/maps"
 )
 
 func newScaleCount() *cobra.Command {
@@ -41,19 +39,14 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.Bool{Name: "with-new-volumes", Description: "New machines each get a new volumes even if there are unattached volumes available"},
 		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
 		flag.VMSizeFlags,
+		flag.Env(),
 	)
+
 	return cmd
 }
 
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
@@ -74,7 +67,7 @@ func runScaleCount(ctx context.Context) error {
 		return err
 	}
 
-	unknownNames := lo.Filter(maps.Keys(groups), func(x string, _ int) bool {
+	unknownNames := lo.Filter(slices.Collect(maps.Keys(groups)), func(x string, _ int) bool {
 		return !slices.Contains(processNames, x)
 	})
 	if len(unknownNames) > 0 {
@@ -92,30 +85,45 @@ func runScaleCount(ctx context.Context) error {
 	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 }
 
-func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, error) {
-	groups := make(map[string]int)
+type groupCount struct{ absolute, relative int }
+type groupCounts map[string]groupCount
+
+func parseGroupCounts(args []string, defaultGroupName string) (groupCounts, error) {
+	groups := make(groupCounts)
+	apply := func(group string, countStr string) error {
+		var count groupCount
+		countNum, err := strconv.Atoi(countStr)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(countStr, "+") || strings.HasPrefix(countStr, "-") {
+			if countNum == 0 {
+				return fmt.Errorf("invalid relative scale count: %v", countStr)
+			}
+			count.relative = countNum
+		} else {
+			count.absolute = countNum
+		}
+		groups[group] = count
+
+		return nil
+	}
 
 	// single numeric arg: fly scale count 3
 	if len(args) == 1 {
-		count, err := strconv.Atoi(args[0])
-		if err == nil {
-			groups[defaultGroupName] = count
-		}
+		_ = apply(defaultGroupName, args[0]) // fall-through on error
 	}
 
-	// group labels: fly scale web=X worker=Y
+	// group labels: fly scale count web=X worker=Y
 	if len(groups) < 1 {
 		for _, arg := range args {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("'%s' is not a valid process=count option", arg)
 			}
-			count, err := strconv.Atoi(parts[1])
-			if err != nil {
+			if err := apply(parts[0], parts[1]); err != nil {
 				return nil, err
 			}
-
-			groups[parts[0]] = count
 		}
 	}
 

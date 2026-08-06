@@ -3,6 +3,7 @@ package scanner
 import (
 	"embed"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -45,44 +46,49 @@ const (
 )
 
 type SourceInfo struct {
-	Family                       string
-	Version                      string
-	DockerfilePath               string
-	BuildArgs                    map[string]string
-	Builder                      string
-	ReleaseCmd                   string
-	DockerCommand                string
-	DockerEntrypoint             string
-	KillSignal                   string
-	SwapSizeMB                   int
-	Buildpacks                   []string
-	Secrets                      []Secret
-	Files                        []SourceFile
-	Port                         int
-	Env                          map[string]string
-	Statics                      []Static
-	Processes                    map[string]string
-	DeployDocs                   string
-	Notice                       string
-	SkipDeploy                   bool
-	SkipDatabase                 bool
-	Volumes                      []Volume
-	DockerfileAppendix           []string
-	InitCommands                 []InitCommand
-	PostgresInitCommands         []InitCommand
-	PostgresInitCommandCondition bool
-	DatabaseDesired              DatabaseKind
-	RedisDesired                 bool
-	GitHubActions                GitHubActionsStruct
-	ObjectStorageDesired         bool
-	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
-	HttpCheckPath                string
-	HttpCheckHeaders             map[string]string
-	ConsoleCommand               string
-	MergeConfig                  *MergeConfigStruct
-	AutoInstrumentErrors         bool
-	FailureCallback              func(err error) error
+	Family           string
+	Version          string
+	DockerfilePath   string
+	BuildArgs        map[string]string
+	Builder          string
+	ReleaseCmd       string
+	SeedCmd          string
+	DockerCommand    string
+	DockerEntrypoint string
+	KillSignal       string
+	SwapSizeMB       int
+	Buildpacks       []string
+	Secrets          []Secret
+
+	Files                           []SourceFile
+	Port                            int
+	Env                             map[string]string
+	Statics                         []Static
+	Processes                       map[string]string
+	DeployDocs                      string
+	Notice                          string
+	SkipDeploy                      bool
+	SkipDatabase                    bool
+	Volumes                         []Volume
+	DockerfileAppendix              []string
+	InitCommands                    []InitCommand
+	PostgresInitCommands            []InitCommand
+	PostgresInitCommandCondition    bool
+	DatabaseDesired                 DatabaseKind
+	RedisDesired                    bool
+	GitHubActions                   GitHubActionsStruct
+	ObjectStorageDesired            bool
+	OverrideExtensionSecretKeyNames map[string]map[string]string
+	Concurrency                     map[string]int
+	Callback                        func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
+	HttpCheckPath                   string
+	HttpCheckHeaders                map[string]string
+	ConsoleCommand                  string
+	MergeConfig                     *MergeConfigStruct
+	AutoInstrumentErrors            bool
+	FailureCallback                 func(err error) error
+	Runtime                         plan.RuntimeStruct
+	PostInitCallback                func() error
 }
 
 type SourceFile struct {
@@ -95,9 +101,10 @@ type Static = appconfig.Static
 type Volume = appconfig.Mount
 
 type ScannerConfig struct {
-	Mode         string
-	ExistingPort int
-	Colorize     *iostreams.ColorScheme
+	Mode            string
+	ExistingPort    int
+	Colorize        *iostreams.ColorScheme
+	SkipHealthcheck bool // Skip healthcheck goroutine (primarily for tests)
 }
 
 type GitHubActionsStruct struct {
@@ -118,6 +125,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
+		configureBridgetown,
 		configureLucky,
 		configureRuby,
 		configureGo,
@@ -138,8 +146,12 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+		optOutGithubActions := os.Getenv("OPT_OUT_GITHUB_ACTIONS")
 		if si != nil {
-			github_actions(sourceDir, &si.GitHubActions)
+			if optOutGithubActions == "" {
+				github_actions(sourceDir, &si.GitHubActions)
+			}
+
 			return si, nil
 		}
 	}
@@ -153,11 +165,12 @@ type sourceScanner func(sourceDir string, config *ScannerConfig) (*SourceInfo, e
 // will panic on errors since these files are embedded and should work
 func templates(name string) (files []SourceFile) {
 	filter := func(input []byte) []byte { return input }
+
 	return templatesFilter(name, filter)
 }
 
 // same thing as templates (above) but with template execution given a map of variables
-func templatesExecute(name string, vars map[string]interface{}) (files []SourceFile) {
+func templatesExecute(name string, vars map[string]any) (files []SourceFile) {
 	filter := func(input []byte) []byte {
 		template := template.Must(template.New("name").Parse(string(input)))
 		result := strings.Builder{}
@@ -195,6 +208,7 @@ func templatesFilter(name string, filter func(input []byte) []byte) (files []Sou
 		}
 
 		files = append(files, f)
+
 		return nil
 	})
 	if err != nil {

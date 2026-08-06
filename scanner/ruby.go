@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -18,26 +20,11 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	}
 
 	rubyVersion, err := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
-
-	if err != nil || rubyVersion == "" {
-		rubyVersion = "3.1.2"
-
-		out, err := exec.Command("ruby", "-v").Output()
-		if err == nil {
-
-			version := strings.TrimSpace(string(out))
-			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
-			m := re.FindStringSubmatch(version)
-
-			for i, name := range re.SubexpNames() {
-				if len(m) > 0 && name == "version" {
-					rubyVersion = m[i]
-				}
-			}
-		}
+	if err != nil {
+		return nil, errors.Wrap(err, "failure extracting Ruby version")
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["rubyVersion"] = rubyVersion
 	s.Files = templatesExecute("templates/ruby", vars)
 
@@ -68,6 +55,8 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 		for i, name := range re.SubexpNames() {
 			if len(m) > 0 && name == "version" {
 				version = m[i]
+
+				break
 			}
 		}
 	}
@@ -79,14 +68,7 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 			return "", err
 		}
 
-		re := regexp.MustCompile(`ruby \"(?P<version>[\d.]+)\"`)
-		m := re.FindStringSubmatch(string(gemfileContents))
-
-		for i, name := range re.SubexpNames() {
-			if len(m) > 0 && name == "version" {
-				version = m[i]
-			}
-		}
+		version = extractGemfileRuby(gemfileContents)
 	}
 
 	if version == "" {
@@ -97,9 +79,40 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 				return "", err
 			}
 
-			version = string(versionString)
+			version = strings.TrimSpace(string(versionString))
+		}
+	}
+
+	if version == "" {
+		out, err := exec.Command("ruby", "-v").Output()
+		if err == nil {
+
+			versionString := strings.TrimSpace(string(out))
+			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
+			m := re.FindStringSubmatch(versionString)
+
+			for i, name := range re.SubexpNames() {
+				if len(m) > 0 && name == "version" {
+					version = m[i]
+
+					break
+				}
+			}
 		}
 	}
 
 	return version, nil
+}
+
+func extractGemfileRuby(contents []byte) string {
+	re := regexp.MustCompile(`ruby ["'](?P<version>[\d.]+)["']`)
+	m := re.FindStringSubmatch(string(contents))
+
+	for i, name := range re.SubexpNames() {
+		if len(m) > 0 && name == "version" {
+			return m[i]
+		}
+	}
+
+	return ""
 }

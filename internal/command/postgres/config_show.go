@@ -61,6 +61,7 @@ func runConfigShow(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineConfigShow(ctx, app)
 }
 
@@ -76,12 +77,12 @@ func runMachineConfigShow(ctx context.Context, app *fly.AppCompact) (err error) 
 		return err
 	}
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

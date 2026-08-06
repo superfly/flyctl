@@ -51,23 +51,27 @@ func runMachineStart(ctx context.Context) (err error) {
 		return err
 	}
 
-	machines, release, err := mach.AcquireLeases(ctx, machines)
+	// appName is added to context by selectManyMachines
+	appName := appconfig.NameFromContext(ctx)
+
+	machines, release, err := mach.AcquireLeases(ctx, appName, machines)
 	defer release()
 	if err != nil {
 		return err
 	}
 
 	for _, machine := range machines {
-		if err = Start(ctx, machine); err != nil {
+		if err = Start(ctx, appName, machine); err != nil {
 			return
 		}
 		fmt.Fprintf(io.Out, "%s has been started\n", machine.ID)
 	}
+
 	return
 }
 
-func Start(ctx context.Context, machine *fly.Machine) (err error) {
-	res, err := flapsutil.ClientFromContext(ctx).Start(ctx, machine.ID, machine.LeaseNonce)
+func Start(ctx context.Context, appName string, machine *fly.Machine) (err error) {
+	res, err := flapsutil.ClientFromContext(ctx).Start(ctx, appName, machine.ID, machine.LeaseNonce)
 	if err != nil {
 		// TODO(dov): just do the clone
 		switch {
@@ -77,6 +81,7 @@ func Start(ctx context.Context, machine *fly.Machine) (err error) {
 			if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 				return err
 			}
+
 			return fmt.Errorf("could not start machine %s: %w", machine.ID, err)
 		}
 	}
@@ -84,5 +89,6 @@ func Start(ctx context.Context, machine *fly.Machine) (err error) {
 	if res.Status == "error" {
 		return fmt.Errorf("machine could not be started: %s", res.Message)
 	}
+
 	return
 }

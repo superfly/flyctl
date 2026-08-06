@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -107,6 +108,7 @@ func runConfigUpdate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return runMachineConfigUpdate(ctx, app)
 }
 
@@ -121,13 +123,13 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 		MinPostgresFlexVersion       = "0.0.6"
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, app.Name)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -175,7 +177,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 
 		// Ensure leases are released before we issue restart.
 		releaseLeaseFunc()
-		if err := machinesRestart(ctx, &fly.RestartMachineInput{}); err != nil {
+		if err := machinesRestart(ctx, app.Name, &fly.RestartMachineInput{}); err != nil {
 			return err
 		}
 	}
@@ -225,7 +227,7 @@ func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string)
 		return false, err
 	}
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return false, err
 	}
@@ -314,7 +316,7 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 			switch confirmed, err := prompt.Confirmf(ctx, msg); {
 			case err == nil:
 				if !confirmed {
-					return false, nil, nil
+					return false, nil, fmt.Errorf("cancelled")
 				}
 			case prompt.IsNonInteractive(err):
 				return false, nil, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
@@ -328,7 +330,7 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 }
 
 func resolveChangeLog(ctx context.Context, changes map[string]string, settings *flypg.PGSettings) (diff.Changelog, error) {
-	// Verify that input values are within acceptible ranges.
+	// Verify that input values are within acceptable ranges.
 	// Stolon does not verify this, so we need to do it here.
 	for k, v := range changes {
 		for _, setting := range settings.Settings {
@@ -365,11 +367,10 @@ func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {
 func validateConfigValue(setting flypg.PGSetting, key, val string) error {
 	switch setting.VarType {
 	case "enum":
-		for _, enumVal := range setting.EnumVals {
-			if enumVal == val {
-				return nil
-			}
+		if slices.Contains(setting.EnumVals, val) {
+			return nil
 		}
+
 		return fmt.Errorf("invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
 	case "integer":
 		min, err := strconv.Atoi(setting.MinVal)

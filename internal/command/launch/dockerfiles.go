@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -80,18 +81,23 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 		}()
 		if err != nil {
 			terminal.Debugf("error opening %s file: %v\n", gitIgnore, err)
+
 			continue
 		}
 		relDir, err := filepath.Rel(root, filepath.Dir(gitIgnore))
 		if err != nil {
 			terminal.Debugf("error finding relative directory of %s relative to root %s: %v\n", gitIgnore, root, err)
+
 			continue
 		}
+		relDir = filepath.ToSlash(relDir)
 		relFile, err := filepath.Rel(root, gitIgnore)
 		if err != nil {
 			terminal.Debugf("error finding relative file of %s relative to root %s: %v\n", gitIgnore, root, err)
+
 			continue
 		}
+		relFile = filepath.ToSlash(relFile)
 
 		headerWritten := false
 		scanner := bufio.NewScanner(gitF)
@@ -103,7 +109,7 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 				} else {
 					f.Write(linebreak)
 				}
-				_, err := f.WriteString(fmt.Sprintf("# flyctl launch added from %s\n", relFile))
+				_, err := fmt.Fprintf(f, "# flyctl launch added from %s\n", relFile)
 				if err != nil {
 					return "", err
 				}
@@ -115,13 +121,13 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 			} else if strings.HasPrefix(line, "#") {
 				dockerIgnoreLine = line
 			} else if strings.HasPrefix(line, "!/") {
-				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, line[2:]))
+				dockerIgnoreLine = fmt.Sprintf("!%s", path.Join(relDir, line[2:]))
 			} else if strings.HasPrefix(line, "!") {
-				dockerIgnoreLine = fmt.Sprintf("!%s", filepath.Join(relDir, "**", line[1:]))
+				dockerIgnoreLine = fmt.Sprintf("!%s", path.Join(relDir, "**", line[1:]))
 			} else if strings.HasPrefix(line, "/") {
-				dockerIgnoreLine = filepath.Join(relDir, line[1:])
+				dockerIgnoreLine = path.Join(relDir, line[1:])
 			} else {
-				dockerIgnoreLine = filepath.Join(relDir, "**", line)
+				dockerIgnoreLine = path.Join(relDir, "**", line)
 			}
 			if strings.Contains(dockerIgnoreLine, "fly.toml") {
 				foundFlyDotToml = true
@@ -158,6 +164,7 @@ func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
 	// An existing .dockerignore should always be used instead of .gitignore
 	if helpers.FileExists(dockerIgnore) {
 		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
+
 		return
 	}
 
@@ -180,8 +187,10 @@ func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
 			} else {
 				fmt.Fprintf(io.Out, "Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
 			}
+
 			return nil
 		}
 	}
+
 	return
 }

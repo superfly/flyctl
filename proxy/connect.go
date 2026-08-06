@@ -125,7 +125,7 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Proxying local port %s to remote %s\n", localPort, remoteAddr)
+	fmt.Fprintf(io.Out, "Proxying localhost:%s to remote %s\n", localPort, remoteAddr)
 
 	return &Server{
 		Addr:     remoteAddr,

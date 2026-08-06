@@ -2,7 +2,7 @@ name: Preflight Tests Cleanup
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       reason:
@@ -16,8 +16,8 @@ jobs:
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -33,11 +33,10 @@ jobs:
           go run ./scripts/clean-up-preflight-apps
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d
         with:
+          webhook: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "blocks": [

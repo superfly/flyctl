@@ -17,10 +17,11 @@ func newScaleVm() *cobra.Command {
 		short = "Change an app's VM to a named size (eg. shared-cpu-1x, performance-1x, performance-2x...)"
 		long  = `Change an application's VM size to one of the named VM sizes.
 
-For a full list of supported sizes use the command 'flyctl platform vm-sizes'
+For a full list of supported sizes use the command ` + "`flyctl platform vm-sizes`" + `.
 
-Memory size can be set with --memory=number-of-MB
-e.g. flyctl scale vm shared-cpu-1x --memory=2048
+Memory size can be set with the ` + "`--vm-memory`" + ` flag followed by the number of MB.
+
+For example: ` + "`flyctl scale vm shared-cpu-1x --vm-memory=2048`" + `.
 
 For pricing, see https://fly.io/docs/about/pricing/`
 	)
@@ -40,6 +41,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		},
 		flag.ProcessGroup("The process group to apply the VM size to"),
 	)
+
 	return cmd
 }
 
@@ -47,6 +49,7 @@ func runScaleVM(ctx context.Context) error {
 	sizeName := flag.FirstArg(ctx)
 	memoryMB := flag.GetInt(ctx, "vm-memory")
 	group := flag.GetProcessGroup(ctx)
+
 	return scaleVertically(ctx, group, sizeName, memoryMB)
 }
 
@@ -67,6 +70,9 @@ func scaleVertically(ctx context.Context, group, sizeName string, memoryMB int) 
 
 	fmt.Fprintf(io.Out, "%15s: %s\n", "CPU Cores", formatCores(*size))
 	fmt.Fprintf(io.Out, "%15s: %s\n", "Memory", formatMemory(*size))
+
+	warnVMConfigMismatch(ctx, group, sizeName, memoryMB)
+
 	return nil
 }
 
@@ -74,6 +80,7 @@ func formatCores(size fly.VMSize) string {
 	if size.CPUCores < 1.0 {
 		return fmt.Sprintf("%.2f", size.CPUCores)
 	}
+
 	return fmt.Sprintf("%d", int(size.CPUCores))
 }
 
@@ -81,5 +88,6 @@ func formatMemory(size fly.VMSize) string {
 	if size.MemoryGB < 1.0 {
 		return fmt.Sprintf("%d MB", size.MemoryMB)
 	}
+
 	return fmt.Sprintf("%d GB", int(size.MemoryGB))
 }

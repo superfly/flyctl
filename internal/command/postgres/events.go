@@ -30,6 +30,7 @@ func newEvents() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -105,7 +106,7 @@ func runListEvents(ctx context.Context) error {
 		return err
 	}
 
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}

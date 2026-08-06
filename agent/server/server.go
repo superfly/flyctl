@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/metrics/synthetics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/wg"
@@ -55,6 +57,8 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 	monitorCtx, cancelMonitor := context.WithCancel(ctx)
 	config.MonitorTokens(monitorCtx, toks, nil)
+
+	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
 	err = (&server{
 		Options:               opt,
@@ -242,15 +246,22 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	}
 
 	// WIP: can't stay this way, need something more clever than this
-	if env.IsCI() || os.Getenv("WSWG") != "" || s.Options.ConfigWebsockets {
-		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
+	transport := "udp"
+	if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
+		transport = "websocket"
+
+		if tunnel, err = wg.ConnectWS(ctx, state); err != nil {
 			return
 		}
 	} else {
-		if tunnel, err = wg.Connect(context.Background(), state); err != nil {
+		if tunnel, err = wg.Connect(ctx, state); err != nil {
 			return
 		}
 	}
+
+	// use the agent's run context: the session context may be gone before the
+	// send completes
+	metrics.AgentWireGuardTransport(s.runCtx, transport)
 
 	s.tunnels[tk] = tunnel
 
@@ -278,17 +289,19 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 
 	ret := &agent.Instances{}
 
-	for _, region := range strings.Split(regions, ",") {
+	for region := range strings.SplitSeq(regions, ",") {
 		name := fmt.Sprintf("%s.%s.internal", region, app)
 		addrs, err := tunnel.LookupAAAA(ctx, name)
 		if err != nil {
 			s.printf("can't lookup records for %s: %s", name, err)
+
 			continue
 		}
 
 		if len(addrs) == 1 {
 			ret.Labels = append(ret.Labels, name)
 			ret.Addresses = append(ret.Addresses, addrs[0].String())
+
 			continue
 		}
 
@@ -425,10 +438,10 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	s.cancelTokenMonitoring = cancelMonitor
 }
 
-func (s *server) print(v ...interface{}) {
+func (s *server) print(v ...any) {
 	s.Logger.Print(v...)
 }
 
-func (s *server) printf(format string, v ...interface{}) {
+func (s *server) printf(format string, v ...any) {
 	s.Logger.Printf(format, v...)
 }

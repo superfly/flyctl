@@ -1,0 +1,4 @@
+app = "test-app"
+
+[build.compose]
+# No file specified - should auto-detect

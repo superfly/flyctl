@@ -9,40 +9,17 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
-	"nhooyr.io/websocket"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
-	ctx, cancel := context.WithCancel(ctx)
-
-	t, err := doConnect(ctx, state, true)
-	if err == nil {
-		t.wscancel = cancel
-	} else {
-		cancel()
-	}
-
-	return t, err
-}
-
-func write(w io.Writer, buf []byte) error {
-	var lbuf [4]byte
-	binary.BigEndian.PutUint32(lbuf[:], uint32(len(buf)))
-	if _, err := w.Write(lbuf[:]); err != nil {
-		return err
-	}
-
-	if len(buf) == 0 {
-		return nil
-	}
-
-	_, err := w.Write(buf)
-	return err
+	return doConnect(ctx, state, true)
 }
 
 func read(r io.Reader, rbuf []byte) ([]byte, error) {
@@ -107,6 +84,7 @@ func (wswg *WsWgProxy) lastIo() time.Duration {
 	wswg.lock.RLock()
 	s := time.Since(wswg.atime)
 	wswg.lock.RUnlock()
+
 	return s
 }
 
@@ -137,12 +115,16 @@ func (wswg *WsWgProxy) Port() (int, error) {
 	return udpBindAddr.Port, nil
 }
 
-func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
-	rurl := fmt.Sprintf("wss://%s:443/", endpoint)
+func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint string) error {
+	rurl := (&url.URL{
+		Scheme: "wss",
+		Host:   net.JoinHostPort(endpoint, "443"),
+		Path:   "/",
+	}).String()
 
 	log.Printf("(re-)connecting to %s", rurl)
 
-	ws, _, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
+	ws, _, err := websocket.Dial(dialCtx, rurl, &websocket.DialOptions{ // nolint: bodyclose
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
@@ -160,7 +142,7 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 		return fmt.Errorf("websocket: %w", err)
 	}
 
-	wsConn := websocket.NetConn(ctx, ws, websocket.MessageText)
+	wsConn := websocket.NetConn(lifetimeCtx, ws, websocket.MessageText)
 
 	var magic [4]byte
 	binary.BigEndian.PutUint32(magic[:], 0x2FACED77)
@@ -189,7 +171,9 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	wswg.wrlock.Lock()
 	defer wswg.wrlock.Unlock()
 
-	return write(c, b)
+	_, err := c.Write(b)
+
+	return err
 }
 
 func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
@@ -218,11 +202,11 @@ func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
 }
 
 func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
-	buf := make([]byte, 2000)
+	var buf [2000]byte
 
 	for ctx.Err() == nil {
 		wswg.plugConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		n, a, err := wswg.plugConn.ReadFrom(buf)
+		n, a, err := wswg.plugConn.ReadFrom(buf[4:])
 		if err != nil {
 			if isTimeout(err) {
 				continue
@@ -231,13 +215,14 @@ func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
 			// resetting won't do anything here
 			log.Printf("error reading from udp plugboard: %s", err)
 		}
+		binary.BigEndian.PutUint32(buf[:], uint32(n))
 
 		wswg.lock.Lock()
 		wswg.lastPlugAddr = a
 		c := wswg.wsConn
 		wswg.lock.Unlock()
 
-		if err = wswg.wsWrite(c, buf[:n]); err != nil {
+		if err = wswg.wsWrite(c, buf[:n+4]); err != nil {
 			wswg.resetConn(c, err)
 		}
 
@@ -245,7 +230,7 @@ func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
 	}
 }
 
-func websocketConnect(ctx context.Context, endpoint string) (int, error) {
+func websocketConnect(dialCtx, lifetimeCtx context.Context, endpoint string) (int, error) {
 	wswg, err := NewWsWgProxy()
 	if err != nil {
 		return 0, err
@@ -256,7 +241,9 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 		return 0, err
 	}
 
-	if err = wswg.Connect(ctx, endpoint); err != nil {
+	if err = wswg.Connect(dialCtx, lifetimeCtx, endpoint); err != nil {
+		wswg.plugConn.Close()
+
 		return 0, err
 	}
 
@@ -277,13 +264,13 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 			case <-tick.C:
 				if !reconnectAt.IsZero() && reconnectAt.Before(time.Now()) {
 					wswg.lock.Lock()
-					wswg.Connect(ctx, endpoint)
+					wswg.Connect(lifetimeCtx, lifetimeCtx, endpoint)
 					wswg.lock.Unlock()
 
 					reconnectAt = time.Time{}
 				}
 
-			case <-ctx.Done():
+			case <-lifetimeCtx.Done():
 				return
 
 			case <-c:
@@ -300,10 +287,12 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 	}()
 
 	go func() {
-		go wswg.ws2wg(ctx)
-		go wswg.wg2ws(ctx)
+		go wswg.ws2wg(lifetimeCtx)
+		go wswg.wg2ws(lifetimeCtx)
 
-		for ctx.Err() == nil {
+		zeroLenMsg := make([]byte, 4)
+
+		for lifetimeCtx.Err() == nil {
 			time.Sleep(1 * time.Second)
 
 			if wswg.lastIo() > (1 * time.Second) {
@@ -311,7 +300,7 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 				c := wswg.wsConn
 				wswg.lock.RUnlock()
 
-				if err := wswg.wsWrite(c, nil); err != nil {
+				if err := wswg.wsWrite(c, zeroLenMsg); err != nil {
 					wswg.resetConn(c, err)
 				}
 			}

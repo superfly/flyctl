@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,8 +17,9 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"slices"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -27,29 +29,123 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-const defaultRegion = "iad"
+const defaultRegion = "cdg"
+
+type selectedRegions struct {
+	primary string
+	other   []string
+}
+
+var (
+	regionSelectionOnce sync.Once
+	regionSelection     selectedRegions
+)
+
+type platformRegion struct {
+	Code             string `json:"code"`
+	Name             string `json:"name"`
+	GatewayAvailable bool   `json:"gateway_available"`
+	RequiresPaidPlan bool   `json:"requires_paid_plan"`
+	Deprecated       bool   `json:"deprecated"`
+	Capacity         int    `json:"capacity"`
+}
+
+// getBestRegions fetches platform regions and returns the top N regions
+// with the most available capacity, filtering for usable regions
+func getBestRegions(count int) ([]string, error) {
+	flyctlBin := currentRepoFlyctl()
+
+	cmd := exec.Command(flyctlBin, "platform", "regions", "--json")
+	cmd.Env = os.Environ() // Inherit environment for auth tokens
+
+	// If using preflight test token, map it to FLY_API_TOKEN for the command
+	if preflightToken := os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"); preflightToken != "" {
+		// Create new env with FLY_API_TOKEN set
+		env := os.Environ()
+		env = append(env, "FLY_API_TOKEN="+preflightToken)
+		cmd.Env = env
+	}
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get platform regions (exit code %v): %s", err, string(output))
+	}
+
+	var regions []platformRegion
+	if err := json.Unmarshal(output, &regions); err != nil {
+		return nil, fmt.Errorf("failed to parse regions JSON: %w (output: %s)", err, string(output))
+	}
+
+	// Filter for usable regions (not deprecated, not paid-only, has gateway)
+	var usable []platformRegion
+	for _, r := range regions {
+		if !r.Deprecated && !r.RequiresPaidPlan && r.GatewayAvailable {
+			usable = append(usable, r)
+		}
+	}
+
+	// Sort by capacity (highest first)
+	sort.Slice(usable, func(i, j int) bool {
+		return usable[i].Capacity > usable[j].Capacity
+	})
+
+	// Take top N regions
+	if len(usable) < count {
+		count = len(usable)
+	}
+
+	result := make([]string, count)
+	for i := 0; i < count; i++ {
+		result[i] = usable[i].Code
+	}
+
+	return result, nil
+}
 
 func primaryRegionFromEnv() string {
-	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
-	if regions == "" {
-		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS so using: %s", defaultRegion)
-		return defaultRegion
-	}
-	pieces := strings.SplitN(regions, " ", 2)
-	return pieces[0]
+	regions := selectRegionsFromEnv()
+	return regions.primary
 }
 
 func otherRegionsFromEnv() []string {
-	regions := os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS")
-	if regions == "" {
-		return nil
+	regions := selectRegionsFromEnv()
+	return append([]string(nil), regions.other...)
+}
+
+func selectRegionsFromEnv() selectedRegions {
+	regionSelectionOnce.Do(func() {
+		regions := strings.Fields(os.Getenv("FLY_PREFLIGHT_TEST_FLY_REGIONS"))
+		if len(regions) > 0 {
+			regionSelection.primary = regions[0]
+			if len(regions) > 1 {
+				regionSelection.other = append([]string(nil), regions[1:]...)
+			}
+			return
+		}
+
+		best, err := getBestRegions(2)
+		if err == nil && len(best) > 0 {
+			regionSelection.primary = best[0]
+			if len(best) > 1 {
+				regionSelection.other = append([]string(nil), best[1:]...)
+			}
+			terminal.Debugf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, auto-selected region with best capacity: %s", best[0])
+			return
+		}
+
+		regionSelection.primary = defaultRegion
+		terminal.Warnf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, failed to auto-select (%v), using fallback: %s", err, defaultRegion)
+	})
+
+	return selectedRegions{
+		primary: regionSelection.primary,
+		other:   append([]string(nil), regionSelection.other...),
 	}
-	pieces := strings.Split(regions, " ")
-	if len(pieces) > 1 {
-		return pieces[1:]
-	} else {
-		return nil
-	}
+}
+
+func RepositoryRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	return filepath.Join(path.Dir(filename), "../../..")
 }
 
 func currentRepoFlyctl() string {
@@ -111,75 +207,6 @@ func tryToStopAgentsInOriginalHomeDir(flyctlBin string) {
 
 func tryToStopAgentsFromPastPreflightTests(t testing.TB, flyctlBin string) {
 	// FIXME: make something like ps au | grep flyctl | grep $TMPDIR | grep agent, then kill those procs?
-}
-
-func CopyDir(src, dst string, exclusion []string) error {
-	// Get the file info for the source directory
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	// Create the destination directory with the same permissions as the source directory
-	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
-		return err
-	}
-
-	// Get the list of files and directories in the source directory
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return err
-	}
-
-	// Iterate through each entry in the source directory
-	for _, entry := range entries {
-		if slices.Contains(exclusion, entry.Name()) {
-			continue
-		}
-
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-
-		if entry.IsDir() {
-			// If the entry is a directory, recursively copy it to the destination directory
-			if err := CopyDir(srcPath, dstPath, exclusion); err != nil {
-				return err
-			}
-		} else {
-			// If the entry is a file, copy it to the destination directory
-			if err := copyFile(srcPath, dstPath); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func copyFile(src, dst string) error {
-	// Open the source file for reading
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	// Create the destination file
-	dstFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	// Copy the content from the source file to the destination file
-	_, err = io.Copy(dstFile, srcFile)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("[copy] %s -> %s\n", src, dst)
-
-	return nil
 }
 
 // RunHealthcheck verifies if an app was deployed successfully.

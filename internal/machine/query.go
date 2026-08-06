@@ -8,10 +8,10 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
-func ListActive(ctx context.Context) ([]*fly.Machine, error) {
+func ListActive(ctx context.Context, appName string) ([]*fly.Machine, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.List(ctx, "")
+	machines, err := flapsClient.List(ctx, appName, "")
 	if err != nil {
 		return nil, err
 	}

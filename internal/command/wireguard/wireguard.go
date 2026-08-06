@@ -36,22 +36,19 @@ func runWireguardList(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, peers)
+
 		return nil
 	}
 
-	table := tablewriter.NewWriter(io.Out)
-
-	table.SetHeader([]string{
-		"Name",
-		"Region",
-		"Peer IP",
-	})
+	table := tablewriter.NewTable(io.Out,
+		tablewriter.WithHeader([]string{"Name", "Region", "Peer IP"}),
+	)
 
 	for _, peer := range peers {
-		table.Append([]string{peer.Name, peer.Region, peer.Peerip})
+		table.Append(peer.Name, peer.Region, peer.Peerip) //nolint:errcheck
 	}
 
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	return nil
 }
@@ -117,6 +114,7 @@ func runWireguardReset(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "New WireGuard peer for organization '%s': '%s'\n", org.Slug, conf.WireGuardState.Name)
+
 	return nil
 }
 
@@ -141,8 +139,7 @@ func runWireguardCreate(ctx context.Context) error {
 		name = args[2]
 	}
 
-	// TODO: allow custom network
-	network := ""
+	network := flag.GetString(ctx, "network")
 
 	state, err := wireguard.Create(apiClient, org, region, name, network, "static")
 	if err != nil {
@@ -197,7 +194,7 @@ func runWireguardRemove(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Removing WireGuard peer \"%s\" for organization %s\n", name, org.Slug)
 
-	err = apiClient.RemoveWireGuardPeer(ctx, org, name)
+	err = apiClient.RemoveWireGuardPeer(ctx, org.ID, name)
 	if err != nil {
 		return err
 	}

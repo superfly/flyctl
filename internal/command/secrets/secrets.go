@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -23,6 +22,11 @@ var sharedFlags = flag.Set{
 	flag.Bool{
 		Name:        "stage",
 		Description: "Set secrets but skip deployment for machine apps",
+	},
+	flag.Bool{
+		Name:        "dns-checks",
+		Description: "Perform DNS checks during deployment",
+		Default:     true,
 	},
 }
 
@@ -41,62 +45,78 @@ func New() *cobra.Command {
 	secrets.AddCommand(
 		newList(),
 		newSet(),
+		newSync(),
 		newUnset(),
 		newImport(),
 		newDeploy(),
+		newKeys(),
 	)
 
 	return secrets
 }
 
-func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
+type DeploymentArgs struct {
+	Stage    bool
+	Detach   bool
+	CheckDNS bool
+}
+
+// DeploySecrets deploys machines with the new secret if this step is not to be skipped.
+func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args DeploymentArgs) error {
 	out := iostreams.FromContext(ctx).Out
 
-	if stage {
+	if args.Stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
+
 		return nil
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		return fmt.Errorf("flaps client missing from context")
+	}
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appCompact.Name)
 	if err != nil {
 		return err
 	}
-	if !app.Deployed && len(machines) == 0 {
+	if !appCompact.Deployed && len(machines) == 0 {
 		fmt.Fprintln(out, "Secrets are staged for the first deployment")
+
 		return nil
 	}
 
 	// It would be confusing for setting secrets to deploy the current fly.toml file.
 	// Instead, we always grab the currently deployed app config
-	cfg, err := appconfig.FromRemoteApp(ctx, app.Name)
+	cfg, err := appconfig.FromRemoteApp(ctx, appCompact.Name)
 	if err != nil {
 		return fmt.Errorf("error loading appv2 config: %w", err)
 	}
 	ctx = appconfig.WithConfig(ctx, cfg)
 
+	// Re-fetch app from flaps so it's compatible with deploy.
+	// This won't be needed once we're using the flaps.App everywhere.
+	app, err := flapsClient.GetApp(ctx, appCompact.Name)
+	if err != nil {
+		return fmt.Errorf("error getting app: %w", err)
+	}
+
 	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
-		AppCompact:       app,
+		App:              app,
 		RestartOnly:      true,
-		SkipHealthChecks: detach,
+		SkipHealthChecks: args.Detach,
+		SkipDNSChecks:    args.Detach || !args.CheckDNS,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
+		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
+
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
+		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 	}
+
 	return err
 }

@@ -43,20 +43,39 @@ func TestFlyLaunchV2(t *testing.T) {
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
 		"vm": []any{map[string]any{
-			"cpu_kind": "shared",
-			"cpus":     int64(1),
-			"memory":   "1gb",
+			"cpu_kind":  "shared",
+			"cpus":      int64(1),
+			"memory":    "1gb",
+			"memory_mb": int64(1024),
 		}},
 		"http_service": map[string]any{
 			"force_https":          true,
 			"internal_port":        int64(8080),
-			"auto_stop_machines":   true,
+			"auto_stop_machines":   "stop",
 			"auto_start_machines":  true,
 			"min_machines_running": int64(0),
 			"processes":            []any{"app"},
 		},
 	}
 	require.EqualValues(f, want, toml)
+}
+
+// Launch a new app without passing --region, exercising default region selection.
+func TestFlyLaunchDefaultRegion(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --no-deploy --org %s --name %s --image nginx", f.OrgSlug(), appName)
+	toml := f.UnmarshalFlyToml()
+
+	region, ok := toml["primary_region"].(string)
+	require.True(f, ok, "primary_region should be a string, got %T", toml["primary_region"])
+	require.NotEmpty(f, region, "primary_region should not be empty")
+	require.NotEqual(f, "any", region, "primary_region should be resolved to a real region")
 }
 
 // Run fly launch from a template Fly App directory (fly.toml without app name)
@@ -88,9 +107,10 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
 		"vm": []any{map[string]any{
-			"cpu_kind": "shared",
-			"cpus":     int64(1),
-			"memory":   "1gb",
+			"cpu_kind":  "shared",
+			"cpus":      int64(1),
+			"memory":    "1gb",
+			"memory_mb": int64(1024),
 		}},
 	}
 	require.EqualValues(f, want, toml)
@@ -212,7 +232,7 @@ func TestFlyLaunchHA(t *testing.T) {
 [http_service]
 	internal_port = 80
 	auto_start_machines = true
-	auto_stop_machines = true
+	auto_stop_machines = "stop"
 	processes = ["app"]
 `)
 
@@ -298,7 +318,7 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())

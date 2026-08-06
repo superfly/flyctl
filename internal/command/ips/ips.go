@@ -16,10 +16,14 @@ func New() *cobra.Command {
 	cmd.Aliases = []string{"ip"}
 	cmd.AddCommand(
 		newList(),
+		newAllocate(),
 		newAllocatev4(),
 		newAllocatev6(),
+		newAllocateEgress(),
 		newPrivate(),
 		newRelease(),
+		newReleaseEgress(),
 	)
+
 	return cmd
 }

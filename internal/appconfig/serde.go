@@ -18,7 +18,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s
@@ -54,15 +54,42 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return cfg, nil
 }
 
+// LoadConfigAsMap loads the config as a map, which is useful for strict validation.
+func LoadConfigAsMap(path string) (rawConfig map[string]any, err error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// First unmarshal to get raw config map
+	rawConfig = map[string]any{}
+	if strings.HasSuffix(path, ".json") {
+		err = json.Unmarshal(buf, &rawConfig)
+	} else if strings.HasSuffix(path, ".yaml") {
+		err = yaml.Unmarshal(buf, &rawConfig)
+		if err == nil {
+			stringifyYAMLMapKeys(rawConfig)
+		}
+	} else {
+		err = toml.Unmarshal(buf, &rawConfig)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return patchRoot(rawConfig)
+}
+
 func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	var b []byte
 	var err error
 
-	if format == "json" {
+	switch format {
+	case "json":
 		b, err = json.MarshalIndent(c, "", "  ")
-	} else if format == "yaml" {
+	case "yaml":
 		b, err = c.MarshalAsYAML()
-	} else {
+	default:
 		b, err = c.marshalTOML()
 	}
 
@@ -101,6 +128,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 	}()
 
 	_, err = c.WriteTo(file, strings.TrimLeft(strings.ToLower(filepath.Ext(filename)), "."))
+
 	return
 }
 
@@ -108,6 +136,7 @@ func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	io := iostreams.FromContext(ctx)
 	err = c.WriteToFile(path)
 	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
+
 	return
 }
 
@@ -116,6 +145,7 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	if c == nil {
 		return json.Marshal(nil)
 	}
+
 	return json.Marshal(*c)
 }
 
@@ -157,7 +187,7 @@ func (c *Config) marshalTOML() ([]byte, error) {
 	var b bytes.Buffer
 	encoder := toml.NewEncoder(&b)
 	encoder.SetIndentTables(true)
-	encoder.SetMarshalJsonNumbers(true)
+	encoder.SetMarshalJSONNumbers(true)
 
 	if c != nil {
 		if err := encoder.Encode(c); err != nil {
@@ -174,8 +204,10 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 		var derr *toml.DecodeError
 		if errors.As(err, &derr) {
 			row, col := derr.Position()
+
 			return nil, fmt.Errorf("row %d column %d\n%s", row, col, derr.String())
 		}
+
 		return nil, err
 	}
 	cfg, err := applyPatches(cfgMap)
@@ -246,17 +278,17 @@ func unmarshalYAML(buf []byte) (*Config, error) {
 // stringifyYAMLMapKeys converts map keys from interface{} to string
 // This is necessary because the yaml.v2 package unmarshals map keys as interface{},
 // which is not compatible with TOML and JSON which unmarshal map keys as strings.
-func stringifyYAMLMapKeys(obj interface{}) interface{} {
-	if arrayobj, ok := obj.([]interface{}); ok {
+func stringifyYAMLMapKeys(obj any) any {
+	if arrayobj, ok := obj.([]any); ok {
 		for i, v := range arrayobj {
 			arrayobj[i] = stringifyYAMLMapKeys(v)
 		}
-	} else if mapobj, ok := obj.(map[string]interface{}); ok {
+	} else if mapobj, ok := obj.(map[string]any); ok {
 		for k, v := range mapobj {
 			mapobj[k] = stringifyYAMLMapKeys(v)
 		}
-	} else if mapobj, ok := obj.(map[interface{}]interface{}); ok {
-		newmap := make(map[string]interface{})
+	} else if mapobj, ok := obj.(map[any]any); ok {
+		newmap := make(map[string]any)
 		for k, v := range mapobj {
 			newmap[k.(string)] = stringifyYAMLMapKeys(v)
 		}

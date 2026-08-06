@@ -17,8 +17,10 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -28,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -38,6 +41,11 @@ import (
 )
 
 type Runner func(context.Context) error
+
+const (
+	// TokenTimeout defines how long a login session is valid before requiring re-authentication
+	TokenTimeout = 30 * 24 * time.Hour // 30 days
+)
 
 func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.Command {
 	return &cobra.Command{
@@ -294,6 +302,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 			if update.IsUnderHomebrew() {
 				if relErr := update.ValidateRelease(ctx, r.Version); relErr != nil {
 					logger.Debugf("latest release %s is invalid: %v", r.Version, relErr)
+
 					break
 				}
 			}
@@ -344,6 +353,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 		for i := len(ignoredCmd) - 1; i >= 0; i-- {
 			if !currentCmd.HasParent() || currentCmd.Use != ignoredCmd[i] {
 				match = false
+
 				break
 			}
 			currentCmd = currentCmd.Parent()
@@ -355,6 +365,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -396,6 +407,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	latest, err := version.Parse(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
+
 		return ctx, err
 	}
 
@@ -404,6 +416,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			// Continuing from versionInvalidMsg above
 			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
 		}
+
 		return ctx, nil
 	}
 
@@ -423,6 +436,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			}
 			// Does not return on success
 			err = update.Relaunch(ctx, silent)
+
 			return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
 		} else if runtime.GOOS != "windows" {
 			// Background auto-update has terrible UX on windows,
@@ -546,55 +560,34 @@ func notifyHostIssues(ctx context.Context) (context.Context, error) {
 
 func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 	metrics.Enabled = false
+
 	return ctx, nil
 }
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !flyutil.ClientFromContext(ctx).Authenticated() {
-		io := iostreams.FromContext(ctx)
-		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
-		if io.IsInteractive() &&
-			!env.IsCI() &&
-			!flag.GetBool(ctx, "now") &&
-			!flag.GetBool(ctx, "json") &&
-			!flag.GetBool(ctx, "quiet") &&
-			!flag.GetBool(ctx, "yes") {
+	client := flyutil.ClientFromContext(ctx)
+	cfg := config.FromContext(ctx)
 
-			// Ask before we start opening things
-			confirmed, err := prompt.Confirm(ctx, "You must be logged in to do this. Would you like to sign in?")
-			if err != nil {
-				return nil, err
-			}
-			if !confirmed {
-				return nil, fly.ErrNoAuthToken
-			}
+	// Check if user is authenticated
+	if !client.Authenticated() {
+		return handleReLogin(ctx, "not_authenticated")
+	}
 
-			// Attempt to log the user in
-			token, err := webauth.RunWebLogin(ctx, false)
-			if err != nil {
-				return nil, err
-			}
-			if err := webauth.SaveToken(ctx, token); err != nil {
-				return nil, err
-			}
+	if !hasExternallySuppliedToken(ctx) {
+		// Check if the token has expired due to age
+		// If LastLogin is zero, it means the user has an old config without the timestamp
+		if cfg.LastLogin.IsZero() {
+			logger.FromContext(ctx).Debug("no login timestamp found, prompting for re-login")
 
-			// Reload the config
-			logger.FromContext(ctx).Debug("reloading config after login")
-			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
-				return nil, err
-			}
+			return handleReLogin(ctx, "no_timestamp")
+		}
 
-			// first reset the client
-			ctx = flyutil.NewContextWithClient(ctx, nil)
+		// Check if the token has expired based on the timeout
+		if time.Since(cfg.LastLogin) > TokenTimeout {
+			logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
 
-			// Re-run the auth preparers to update the client with the new token
-			logger.FromContext(ctx).Debug("re-running auth preparers after login")
-			if ctx, err = prepare(ctx, authPreparers...); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, fly.ErrNoAuthToken
+			return handleReLogin(ctx, "expired")
 		}
 	}
 
@@ -603,12 +596,99 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+// hasExternallySuppliedToken reports whether the user supplied an auth token
+// via the FLY_ACCESS_TOKEN / FLY_API_TOKEN env vars or the --access-token
+// flag. These are non-interactive auth paths (CI/CD use cases) and must
+// bypass the interactive session-age re-login prompt — otherwise CI runs
+// without a LastLogin timestamp fail with ErrNoAuthToken even when the
+// caller explicitly provided a valid token.
+func hasExternallySuppliedToken(ctx context.Context) bool {
+	if env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != "" {
+		return true
+	}
+
+	return flag.GetString(ctx, flagnames.AccessToken) != ""
+}
+
+// handleReLogin prompts the user to log in and handles the re-login flow
+// reason can be: "not_authenticated", "no_timestamp", or "expired"
+func handleReLogin(ctx context.Context, reason string) (context.Context, error) {
+	io := iostreams.FromContext(ctx)
+
+	// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
+	if io.IsInteractive() &&
+		!env.IsCI() &&
+		!flag.GetBool(ctx, "now") &&
+		!flag.GetBool(ctx, "json") &&
+		!flag.GetBool(ctx, "quiet") &&
+		!flag.GetBool(ctx, "yes") {
+
+		// Display styled message based on reason
+		colorize := io.ColorScheme()
+
+		if reason == "no_timestamp" || reason == "expired" {
+			// User has been away - show welcome back message
+			fmt.Fprintf(io.Out, "%s\n", colorize.Purple("Welcome back!"))
+			fmt.Fprintf(io.Out, "Your session has expired, please log in to continue using flyctl.\n\n")
+		}
+
+		// Ask before we start opening things
+		var promptMessage string
+		if reason == "not_authenticated" {
+			promptMessage = "You must be logged in to do this. Would you like to sign in?"
+		} else {
+			promptMessage = "Would you like to sign in?"
+		}
+
+		confirmed, err := prompt.ConfirmYes(ctx, promptMessage)
+		if err != nil {
+			return nil, err
+		}
+		if !confirmed {
+			return nil, fly.ErrNoAuthToken
+		}
+
+		// Attempt to log the user in
+		token, err := webauth.RunWebLogin(ctx, false)
+		if err != nil {
+			return nil, err
+		}
+		if err := webauth.SaveToken(ctx, token); err != nil {
+			return nil, err
+		}
+
+		// Reload the config
+		logger.FromContext(ctx).Debug("reloading config after login")
+		if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
+			return nil, err
+		}
+
+		// first reset the clients
+		ctx = flyutil.NewContextWithClient(ctx, nil)
+		ctx = uiexutil.NewContextWithClient(ctx, nil)
+		ctx = flapsutil.NewContextWithClient(ctx, nil)
+
+		// Re-run the auth preparers to update the client with the new token
+		logger.FromContext(ctx).Debug("re-running auth preparers after login")
+		if ctx, err = prepare(ctx, authPreparers...); err != nil {
+			return nil, err
+		}
+
+		return ctx, nil
+	} else {
+		return nil, fly.ErrNoAuthToken
+	}
+}
+
 func tryOpenUserURL(ctx context.Context, url string) error {
+	io := iostreams.FromContext(ctx)
+
+	if !io.IsInteractive() || env.IsCI() {
+		return errors.New("failed opening browser")
+	}
+
 	if err := open.Run(url); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
-			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			url,
-		)
+		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
 	}
 
 	return nil
@@ -622,6 +702,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	// LoadAppConfigIfPresent is chained with RequireAppName
 	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
 		metrics.IsUsingGPU = cfg.IsUsingGPU()
+
 		return ctx, nil
 	}
 
@@ -634,9 +715,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
+
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
+
 			continue
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
@@ -750,6 +833,7 @@ func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Con
 	if wd == "" {
 		return ctx, nil
 	}
+
 	return ChangeWorkingDirectory(ctx, wd)
 }
 

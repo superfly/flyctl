@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -68,6 +69,9 @@ func runMachineExec(ctx context.Context) (err error) {
 	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	// appName is added to context by selectOneMachine
+	appName := appconfig.NameFromContext(ctx)
+
 	timeout := flag.GetInt(ctx, "timeout")
 
 	in := &fly.MachineExecRequest{
@@ -75,7 +79,7 @@ func runMachineExec(ctx context.Context) (err error) {
 		Timeout: timeout,
 	}
 
-	out, err := flapsClient.Exec(ctx, current.ID, in)
+	out, err := flapsClient.Exec(ctx, appName, current.ID, in)
 	if err != nil {
 		return fmt.Errorf("could not exec command on machine %s: %w", current.ID, err)
 	}

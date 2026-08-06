@@ -10,9 +10,9 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -39,7 +39,7 @@ var (
 
 func newBarman() *cobra.Command {
 	const (
-		short = "Manage databases in a cluster"
+		short = "Manage databases in a cluster (Deprecated)"
 		long  = short + "\n"
 	)
 
@@ -55,7 +55,10 @@ func newBarman() *cobra.Command {
 		newBarmanRecover(),
 	)
 
+	cmd.Hidden = true
+
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -97,13 +100,7 @@ func runBarmanCreate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
@@ -157,22 +154,22 @@ func runBarmanCreate(ctx context.Context) error {
 
 	machineConfig.Checks = map[string]fly.MachineCheck{
 		"connection": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathConnection,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"role": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathRole,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"vm": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathVm,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
@@ -206,15 +203,15 @@ func runBarmanCreate(ctx context.Context) error {
 	volInput := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              fly.Pointer(flag.GetInt(ctx, "volume-size")),
-		Encrypted:           fly.Pointer(true),
-		RequireUniqueZone:   fly.Pointer(true),
+		SizeGb:              new(flag.GetInt(ctx, "volume-size")),
+		Encrypted:           new(true),
+		RequireUniqueZone:   new(true),
 		ComputeRequirements: machineConfig.Guest,
 		ComputeImage:        machineConfig.Image,
 	}
 
 	if *volInput.SizeGb == 0 {
-		otherVolumes, err := flapsClient.GetVolumes(ctx)
+		otherVolumes, err := flapsClient.GetVolumes(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -233,7 +230,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
 
-	vol, err = flapsClient.CreateVolume(ctx, volInput)
+	vol, err = flapsClient.CreateVolume(ctx, appName, volInput)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
@@ -243,15 +240,21 @@ func runBarmanCreate(ctx context.Context) error {
 		Path:   volumePath,
 	})
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	launchInput := fly.LaunchMachineInput{
-		Name:   "barman",
-		Region: volInput.Region,
-		Config: &machineConfig,
+		Name:              "barman",
+		Region:            volInput.Region,
+		Config:            &machineConfig,
+		MinSecretsVersion: minvers,
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning barman machine with image %s\n", machineConfig.Image)
 
-	machine, err := flapsClient.Launch(ctx, launchInput)
+	machine, err := flapsClient.Launch(ctx, appName, launchInput)
 	if err != nil {
 		return err
 	}
@@ -260,7 +263,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	waitTimeout := time.Minute * 5
 
-	err = mach.WaitForStartOrStop(ctx, machine, "start", waitTimeout)
+	err = mach.WaitForStartOrStop(ctx, appName, machine, "start", waitTimeout)
 	if err != nil {
 		return err
 	}
@@ -396,10 +399,10 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": app.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": app.Organization.Slug,
 			},
 		}),
@@ -407,18 +410,25 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 }
 
 func runBarmanCheck(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman check pg")
 }
 
 func runBarmanListBackup(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman list-backup pg")
 }
 
 func runBarmanShowBackup(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	io := iostreams.FromContext(ctx)
 	backupId := flag.FirstArg(ctx)
 	fmt.Printf("barman show-backup pg %s", backupId)
 	fmt.Fprintf(io.Out, "barman show-backup pg %s", backupId)
+
 	return runConsole(ctx, fmt.Sprintf("barman show-backup pg %s", backupId))
 }
 
@@ -427,10 +437,14 @@ func runBarmanBackup(ctx context.Context) error {
 }
 
 func runBarmanSwitchWal(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman switch-wal pg --force --archive")
 }
 
 func runBarmanRecover(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	appName := appconfig.NameFromContext(ctx)
 	backupId := flag.GetString(ctx, "backup-id")
 	targetTime := flag.GetString(ctx, "target-time")
@@ -449,6 +463,8 @@ func runBarmanRecover(ctx context.Context) error {
 }
 
 func runConsole(ctx context.Context, cmd string) error {
+	printDeprecationWarning(ctx)
+
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
@@ -457,7 +473,7 @@ func runConsole(ctx context.Context, cmd string) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := ssh.BringUpAgent(ctx, client, app, "", false)
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, "", false)
 	if err != nil {
 		return err
 	}
@@ -478,11 +494,13 @@ func runConsole(ctx context.Context, cmd string) error {
 	sshc, err := ssh.Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
-	if err := ssh.Console(ctx, sshc, cmd, false); err != nil {
+	if err := ssh.Console(ctx, sshc, cmd, false, ""); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
@@ -500,6 +518,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
@@ -509,15 +528,9 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 
 func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return "", err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return "", err
 	}
@@ -548,4 +561,12 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 	// No VM was selected or passed as an argument, so just pick the first one for now
 	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
 	return selectedMachine.PrivateIP, nil
+}
+
+func printDeprecationWarning(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	fmt.Fprintln(io.Out, colorize.Yellow("WARNING: This barman implementation has been deprecated!"))
+	fmt.Fprintln(io.Out, colorize.Yellow("More details on the new implementation can be found here: https://community.fly.io/t/fresh-produce-enhanced-wal-archiving-and-remote-restores"))
 }

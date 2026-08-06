@@ -13,13 +13,14 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func MachinesChecks(ctx context.Context, machines []*fly.Machine) error {
+func MachinesChecks(ctx context.Context, appName string, machines []*fly.Machine) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
 	checksTotal := lo.SumBy(machines, func(m *fly.Machine) int { return len(m.Checks) })
 	if checksTotal == 0 {
 		fmt.Fprintln(io.Out, "No health checks found")
+
 		return nil
 	}
 
@@ -29,7 +30,7 @@ func MachinesChecks(ctx context.Context, machines []*fly.Machine) error {
 	iteration := 0
 
 	fn := func() error {
-		checked, err := retryGetMachines(ctx, machineIDs...)
+		checked, err := retryGetMachines(ctx, appName, machineIDs...)
 		if err != nil {
 			return retry.Unrecoverable(err)
 		}
@@ -60,6 +61,7 @@ func MachinesChecks(ctx context.Context, machines []*fly.Machine) error {
 		if checksPassed != checksTotal {
 			return fmt.Errorf("Waiting for %d non-passing checks", checksTotal-checksPassed)
 		}
+
 		return nil
 	}
 
@@ -67,14 +69,16 @@ func MachinesChecks(ctx context.Context, machines []*fly.Machine) error {
 }
 
 // retryGetMachines calls flaps with exponential backoff 10s max interval and up to 6 times
-func retryGetMachines(ctx context.Context, machineIDs ...string) (result []*fly.Machine, err error) {
+func retryGetMachines(ctx context.Context, appName string, machineIDs ...string) (result []*fly.Machine, err error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	err = retry.Do(
 		func() (err2 error) {
-			result, err2 = flapsClient.GetMany(ctx, machineIDs)
+			result, err2 = flapsClient.GetMany(ctx, appName, machineIDs)
+
 			return err2
 		},
 		retry.Attempts(6), retry.MaxDelay(10*time.Second), retry.Context(ctx),
 	)
+
 	return
 }

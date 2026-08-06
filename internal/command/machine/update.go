@@ -11,11 +11,11 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/watch"
 )
 
 func newUpdate() *cobra.Command {
@@ -61,6 +61,14 @@ func newUpdate() *cobra.Command {
 			Description: "Seconds to wait for individual machines to transition states and become healthy. (default 300)",
 			Default:     300,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Hidden:      false,
+		},
+		flag.BuildkitAddr(),
+		flag.BuildkitImage(),
+		flag.Buildkit(),
 	)
 
 	cmd.Args = cobra.RangeArgs(0, 1)
@@ -70,9 +78,7 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-
+		io               = iostreams.FromContext(ctx)
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 		skipStart        = flag.GetBool(ctx, "skip-start")
@@ -88,8 +94,12 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	appName := appconfig.NameFromContext(ctx)
 
+	if machine.HostStatus != fly.HostStatusOk {
+		return fmt.Errorf("the machine is on an unreachable host, try again later")
+	}
+
 	// Acquire lease
-	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
+	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, appName, machine)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
@@ -129,20 +139,27 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 		if !confirmed {
 			fmt.Fprintf(io.Out, "No changes to apply\n")
+
 			return nil
 		}
 	}
 
+	minvers, err := appsecrets.GetMinvers(appName)
+	if err != nil {
+		return err
+	}
+
 	// Perform update
 	input := &fly.LaunchMachineInput{
-		Name:             machine.Name,
-		Region:           machine.Region,
-		Config:           machineConf,
-		SkipLaunch:       len(machineConf.Standbys) > 0 || skipStart,
-		SkipHealthChecks: skipHealthChecks,
-		Timeout:          flag.GetInt(ctx, "wait-timeout"),
+		Name:              machine.Name,
+		Region:            machine.Region,
+		Config:            machineConf,
+		SkipLaunch:        len(machineConf.Standbys) > 0 || skipStart,
+		SkipHealthChecks:  skipHealthChecks,
+		Timeout:           flag.GetInt(ctx, "wait-timeout"),
+		MinSecretsVersion: minvers,
 	}
-	if err := mach.Update(ctx, machine, input); err != nil {
+	if err := mach.Update(ctx, appName, machine, input); err != nil {
 		var timeoutErr mach.WaitTimeoutErr
 		if errors.As(err, &timeoutErr) {
 			return flyerr.GenericErr{
@@ -150,18 +167,9 @@ func runUpdate(ctx context.Context) (err error) {
 				Descript: timeoutErr.Description(),
 				Suggest:  "Try increasing the --wait-timeout",
 			}
-
 		}
+
 		return err
-	}
-
-	if !(input.SkipLaunch || flag.GetDetach(ctx)) {
-		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
-
-		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
-			return err
-		}
-		fmt.Fprintln(io.Out)
 	}
 
 	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", appName, machine.ID)

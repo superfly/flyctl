@@ -28,6 +28,7 @@ func Dashboard() (cmd *cobra.Command) {
 	)
 	cmd.Aliases = []string{"errors"}
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -40,5 +41,6 @@ func RunDashboard(ctx context.Context) (err error) {
 	}
 
 	err = extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeSentry)
+
 	return
 }

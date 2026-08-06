@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -68,7 +70,10 @@ func runMachineStop(ctx context.Context) (err error) {
 		return err
 	}
 
-	machines, release, err := mach.AcquireLeases(ctx, machines)
+	// appName is added to context by selectManyMachines
+	appName := appconfig.NameFromContext(ctx)
+
+	machines, release, err := mach.AcquireLeases(ctx, appName, machines)
 	defer release()
 	if err != nil {
 		return err
@@ -77,15 +82,16 @@ func runMachineStop(ctx context.Context) (err error) {
 	for _, machine := range machines {
 		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...\n", machine.ID)
 
-		if err = Stop(ctx, machine, signal, timeout); err != nil {
+		if err = Stop(ctx, appName, machine, signal, timeout); err != nil {
 			return
 		}
 		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machine.ID)
 	}
+
 	return
 }
 
-func Stop(ctx context.Context, machine *fly.Machine, signal string, timeout int) (err error) {
+func Stop(ctx context.Context, appName string, machine *fly.Machine, signal string, timeout int) (err error) {
 	machineStopInput := fly.StopMachineInput{
 		ID:     machine.ID,
 		Signal: strings.ToUpper(signal),
@@ -98,20 +104,21 @@ func Stop(ctx context.Context, machine *fly.Machine, signal string, timeout int)
 	waitTimeout := flag.GetDuration(ctx, "wait-timeout")
 
 	client := flapsutil.ClientFromContext(ctx)
-	err = client.Stop(ctx, machineStopInput, machine.LeaseNonce)
+	err = client.Stop(ctx, appName, machineStopInput, machine.LeaseNonce)
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not stop machine %s: %w", machine.ID, err)
 	}
 
 	if waitTimeout != 0 {
-		machine, err := client.Get(ctx, machine.ID)
+		machine, err := client.Get(ctx, appName, machine.ID)
 		if err != nil {
 			return fmt.Errorf("could not get machine %s to wait for stop: %w", machine.ID, err)
 		}
-		err = client.Wait(ctx, machine, "stopped", waitTimeout)
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitTimeout(waitTimeout))
 		if err != nil {
 			return fmt.Errorf("machine %s did not stop within the wait timeout: %w", machine.ID, err)
 		}

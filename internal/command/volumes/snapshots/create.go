@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -20,19 +19,23 @@ func newCreate() *cobra.Command {
 		usage = "create <volume id>"
 	)
 
-	cmd := command.New(usage, short, long, create, command.RequireSession)
+	cmd := command.New(usage, short, long, create,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
 	cmd.Args = cobra.ExactArgs(1)
 
-	flag.Add(cmd, flag.JSONOutput())
+	flag.Add(cmd, flag.App(), flag.JSONOutput())
+
 	return cmd
 }
 
 func create(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
-
 	volumeId := flag.FirstArg(ctx)
-
 	appName := appconfig.NameFromContext(ctx)
+
 	if appName == "" {
 		n, err := client.GetAppNameFromVolume(ctx, volumeId)
 		if err != nil {
@@ -41,14 +44,9 @@ func create(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	err = flapsClient.CreateVolumeSnapshot(ctx, volumeId)
+	err := flapsClient.CreateVolumeSnapshot(ctx, appName, volumeId)
 	if err != nil {
 		return err
 	}

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
-	"golang.org/x/exp/maps"
 )
 
 // UserURLCallback is a function that opens a URL in the user's browser. This is
@@ -42,12 +43,12 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
 	}
 
-	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb)
+	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb, 30*time.Second)
 	if err != nil {
 		log.Debugf("failed to update discharge tokens: %s", err)
 	}
 
-	if file != "" && updated1 || updated2 {
+	if file != "" && (updated1 || updated2) {
 		if err := SetAccessToken(file, t.All()); err != nil {
 			log.Debugf("failed to persist updated tokens: %s", err)
 		}
@@ -141,7 +142,7 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 				// don't continue. might have been partial success
 			}
 
-			updated2, err := refreshDischargeTokens(ctx, localCopy, uucb)
+			updated2, err := refreshDischargeTokens(ctx, localCopy, uucb, 2*time.Minute)
 			if err != nil {
 				logger.Debugf("failed to update discharge tokens: %s", err)
 				// don't continue. might have been partial success
@@ -181,11 +182,21 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 // the user's browser. Set the UserURLCallback package variable if you want to
 // support this.
 //
-// Don't call this when other goroutines might also be accessing t.
-func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback) (bool, error) {
-	updateOpts := []tokens.UpdateOption{tokens.WithDebugger(logger.FromContext(ctx))}
+// Don't call this when other goroutines might also be accessing it.
+func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback, advancePrune time.Duration) (bool, error) {
+	updateOpts := []tokens.UpdateOption{
+		tokens.WithDebugger(logger.FromContext(ctx)),
+		tokens.WithAdvancePrune(advancePrune),
+	}
 
 	if uucb != nil {
+		// Update without UserURLCallback to fetch tokens in parallel.
+		updated, err := t.Update(ctx, updateOpts...)
+		if err == nil || !strings.Contains(err.Error(), "missing user-url callback") {
+			return updated, err
+		}
+
+		// Retry with UserURLCallback if we received a 'missing user-url callback' error.
 		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
 	}
 
@@ -198,6 +209,11 @@ func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLC
 //
 // Don't call this when other goroutines might also be accessing t.
 func fetchOrgTokens(ctx context.Context, t *tokens.Tokens) (bool, error) {
+	// don't fetch missing org tokens if tokens came from environment var
+	if t.FromFile() == "" {
+		return false, nil
+	}
+
 	return doFetchOrgTokens(ctx, t, defaultOrgFetcher, defaultTokenMinter)
 }
 
@@ -222,12 +238,14 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		toks, err := macaroon.Parse(tok)
 		if err != nil {
 			log.Debugf("pruning token: failed to parse macaroon: %v", err)
+
 			return true
 		}
 
 		permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
 		if err != nil {
 			log.Debugf("pruning token: failed to find permission token: %v", err)
+
 			return true
 		}
 
@@ -239,15 +257,18 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		oid, err := flyio.OrganizationScope(&permMacs[0].UnsafeCaveats)
 		if err != nil {
 			log.Debugf("pruning token: failed to calculate org scope: %v", err)
+
 			return true
 		}
 
 		if _, hasOrg := graphIDByNumericID[oid]; !hasOrg {
 			log.Debug("pruning token: not in org")
+
 			return true
 		}
 
 		tokOIDS[oid] = true
+
 		return false
 	})
 
@@ -272,23 +293,22 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		defer wgLock.Unlock()
 		macToks = append(macToks, m)
 	}
-	for _, graphID := range maps.Values(graphIDByNumericID) {
-		graphID := graphID
+	for graphID := range maps.Values(graphIDByNumericID) {
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			log.Debugf("fetching macaroons for org %s", graphID)
 			newToksStr, err := mintToken(ctx, c, graphID)
 			if err != nil {
 				addErr(fmt.Errorf("failed to get macaroons for org %s: %w", graphID, err))
+
 				return
 			}
 
 			newToks, err := macaroon.Parse(newToksStr)
 			if err != nil {
 				addErr(fmt.Errorf("bad macaroons for org %s: %w", graphID, err))
+
 				return
 			}
 
@@ -296,18 +316,20 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 				m, err := macaroon.Decode(newTok)
 				if err != nil {
 					addErr(fmt.Errorf("bad macaroon for org %s: %w", graphID, err))
+
 					return
 				}
 
 				mStr, err := m.String()
 				if err != nil {
 					addErr(fmt.Errorf("failed encoding macaroon for org %s: %w", graphID, err))
+
 					return
 				}
 
 				addMac(mStr)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

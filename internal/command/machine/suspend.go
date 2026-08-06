@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -57,14 +59,17 @@ func runMachineSuspend(ctx context.Context) (err error) {
 		return err
 	}
 
-	machines, release, err := mach.AcquireLeases(ctx, machines)
+	// appName is added to context by selectManyMachines
+	appName := appconfig.NameFromContext(ctx)
+
+	machines, release, err := mach.AcquireLeases(ctx, appName, machines)
 	defer release()
 	if err != nil {
 		return err
 	}
 
 	for _, machine := range machines {
-		if err = suspend(ctx, machine, waitTimeout); err != nil {
+		if err = suspend(ctx, appName, machine, waitTimeout); err != nil {
 			return
 		}
 		if waitTimeout != 0 {
@@ -73,24 +78,26 @@ func runMachineSuspend(ctx context.Context) (err error) {
 			fmt.Fprintf(io.Out, "%s is being suspended\n", machine.ID)
 		}
 	}
+
 	return
 }
 
-func suspend(ctx context.Context, machine *fly.Machine, waitTimeout time.Duration) error {
+func suspend(ctx context.Context, appName string, machine *fly.Machine, waitTimeout time.Duration) error {
 	client := flapsutil.ClientFromContext(ctx)
-	if err := client.Suspend(ctx, machine.ID, machine.LeaseNonce); err != nil {
+	if err := client.Suspend(ctx, appName, machine.ID, machine.LeaseNonce); err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not suspend Machine %s: %w", machine.ID, err)
 	}
 
 	if waitTimeout != 0 {
-		machine, err := client.Get(ctx, machine.ID)
+		machine, err := client.Get(ctx, appName, machine.ID)
 		if err != nil {
 			return fmt.Errorf("could not get Machine %s to wait for suspension: %w", machine.ID, err)
 		}
-		err = client.Wait(ctx, machine, "suspended", waitTimeout)
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("suspended"), flaps.WithWaitTimeout(waitTimeout))
 		if err != nil {
 			return fmt.Errorf("Machine %s was not suspended within the wait timeout: %w", machine.ID, err)
 		}

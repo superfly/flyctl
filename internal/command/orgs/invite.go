@@ -32,6 +32,7 @@ sent, and the user will be pending until they respond.
 	cmd.Args = cobra.MaximumNArgs(2)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 

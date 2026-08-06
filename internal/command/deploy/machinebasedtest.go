@@ -2,14 +2,16 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strconv"
+	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -21,7 +23,27 @@ type createdTestMachine struct {
 	err  error
 }
 
-func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest *fly.Machine) (err error) {
+type machineTestErr struct {
+	testMachineLogs string
+	exitCode        int
+	machineID       string
+}
+
+func (e machineTestErr) Error() string {
+	return fmt.Sprintf("Error test command machine %s exited with non-zero status of %d", e.machineID, e.exitCode)
+}
+
+func (e machineTestErr) Description() string {
+	var desc string
+	desc += fmt.Sprintf("Error: test command failed running on machine %s with exit code %d.\n", e.machineID, e.exitCode)
+	desc += fmt.Sprintf("Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n\n", e.machineID)
+	desc += e.testMachineLogs
+
+	return desc
+
+}
+
+func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest *fly.Machine, sl statuslogger.StatusLine) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "run_test_machine")
 	var (
 		flaps = md.flapsClient
@@ -34,18 +56,24 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		span.End()
 	}()
 
+	if sl == nil {
+		return fmt.Errorf("bug: status logger is nil")
+	}
+
 	processGroup := machineToTest.ProcessGroup()
 	machineChecks := lo.FlatMap(md.appConfig.AllServices(), func(svc appconfig.Service, _ int) []*appconfig.ServiceMachineCheck {
-		matchesProcessGroup := lo.Contains(svc.Processes, processGroup)
+		matchesProcessGroup := lo.Contains(svc.Processes, processGroup) || len(svc.Processes) == 0
 		if matchesProcessGroup {
 			return svc.MachineChecks
 		} else {
 			return nil
 		}
 	})
+	machineChecks = append(machineChecks, md.appConfig.MachineChecks...)
 
 	if len(machineChecks) == 0 {
 		span.AddEvent("no machine checks")
+
 		return nil
 	}
 
@@ -54,11 +82,12 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		var err error
 		defer func() {
 			if err != nil {
-				statuslogger.Failed(ctx, err)
+				sl.Failed(err)
 			}
 		}()
 
-		mach, err = md.createTestMachine(ctx, machineCheck, machineToTest)
+		mach, err = md.createTestMachine(ctx, machineCheck, machineToTest, sl)
+
 		return createdTestMachine{mach, err}
 	})
 
@@ -67,28 +96,31 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	}); hasErr {
 		err := fmt.Errorf("error creating test machine: %w", m.err)
 		tracing.RecordError(span, err, "failed to create test machine")
+
 		return err
 	}
 
-	machineSet := machine.NewMachineSet(flaps, io, lo.FilterMap(machines, func(m createdTestMachine, _ int) (*fly.Machine, bool) {
+	machineSet := machine.NewMachineSet(flaps, io, md.app.Name, lo.FilterMap(machines, func(m createdTestMachine, _ int) (*fly.Machine, bool) {
 		if m.err != nil {
 			tracing.RecordError(span, m.err, "failed to create test machine")
-			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, fmt.Sprintf("failed to create test machine: %s", m.err))
+			sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("failed to create test machine: %s", m.err))
 		}
+
 		return m.mach, m.err == nil
-	}))
+	}), false)
 
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the output
-	err = md.waitForTestMachinesToFinish(ctx, machineSet)
+	err = md.waitForTestMachinesToFinish(ctx, machineSet, sl)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to wait for test cmd machine")
+
 		return err
 	}
 
 	for _, testMachine := range machineSet.GetMachines() {
 		md.waitForLogs(ctx, testMachine.Machine(), 10*time.Second)
 
-		statuslogger.Logf(ctx, "Checking test command machine %s", md.colorize.Bold(testMachine.Machine().ID))
+		sl.Logf("Checking test command machine %s", md.colorize.Bold(testMachine.Machine().ID))
 		lastExitEvent, err := testMachine.WaitForEventType(ctx, "exit", md.releaseCmdTimeout, true)
 		if err != nil {
 			return fmt.Errorf("error finding the test command machine %s exit event: %w", testMachine.Machine().ID, err)
@@ -99,27 +131,22 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		}
 
 		if exitCode != 0 {
-			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "test command failed")
+			sl.LogStatus(statuslogger.StatusFailure, "test command failed")
 			// Preemptive cleanup of the logger so that the logs have a clean place to write to
 
-			fmt.Fprintf(md.io.ErrOut, "Error: test command failed running on machine %s with exit code %s.\n",
-				md.colorize.Bold(testMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
-			fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
-				testMachine.Machine().ID)
 			testLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, testMachine.Machine().ID)
-			if fly.IsNotAuthenticatedError(err) {
-				fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", testMachine.Machine().ID, md.appConfig.AppName, testMachine.Machine().ID)
-			} else {
-				if err != nil {
-					return fmt.Errorf("Error getting test command logs: %w", err)
-				}
+			if err == nil {
+				var logs strings.Builder
 				for _, l := range testLogs {
-					fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+					logs.WriteString(l.Message + "\n")
 				}
+
+				return machineTestErr{machineID: testMachine.Machine().ID, exitCode: exitCode, testMachineLogs: logs.String()}
 			}
+
 			return fmt.Errorf("Error test command machine %s exited with non-zero status of %d", testMachine.Machine().ID, exitCode)
 		}
-		statuslogger.LogfStatus(ctx,
+		sl.LogfStatus(
 			statuslogger.StatusSuccess,
 			"Test machine %s completed successfully",
 			md.colorize.Bold(testMachine.Machine().ID),
@@ -129,28 +156,29 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	return nil
 }
 
-const ErrNoLogsFound = "no logs found"
+var errNoLogsFound = errors.New("no logs found")
 
 func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine, timeout time.Duration) error {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 1 * time.Second
 	b.MaxInterval = 10 * time.Second
-	b.MaxElapsedTime = timeout
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() ([]fly.LogEntry, error) {
 		logs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, mach.ID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(logs) == 0 {
-			return fmt.Errorf(ErrNoLogsFound)
+			return nil, errNoLogsFound
 		}
 
-		return nil
-	}, backoff.WithContext(b, ctx))
+		return logs, nil
+	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(timeout))
+
+	return err
 }
 
-func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconfig.ServiceMachineCheck, machineToTest *fly.Machine) (*fly.Machine, error) {
+func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconfig.ServiceMachineCheck, machineToTest *fly.Machine, sl statuslogger.StatusLine) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_test_machine")
 	defer span.End()
 
@@ -158,13 +186,15 @@ func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconf
 	if err != nil {
 		return nil, err
 	}
-	testMachine, err := md.flapsClient.Launch(ctx, *launchInput)
+	testMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create test machines")
+
 		return nil, fmt.Errorf("error creating a test machine: %w", err)
 	}
 
-	statuslogger.Logf(ctx, "Created test machine %s", md.colorize.Bold(testMachine.ID))
+	sl.Logf("Created test machine %s", md.colorize.Bold(testMachine.ID))
+
 	return testMachine, nil
 }
 
@@ -188,13 +218,19 @@ func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMac
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
-		Config: mConfig,
-		Region: origMachineRaw.Region,
+		Config:            mConfig,
+		Region:            origMachineRaw.Region,
+		MinSecretsVersion: minvers,
 	}, nil
 }
 
-func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, testMachines machine.MachineSet) error {
+func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, testMachines machine.MachineSet, sl statuslogger.StatusLine) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -205,6 +241,7 @@ func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, te
 		for _, mach := range badMachineIDs {
 			err = fmt.Errorf("%w\n%s", err, mach)
 		}
+
 		return fmt.Errorf("error waiting for test command machines to start: %w", err)
 	}
 
@@ -214,16 +251,18 @@ func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, te
 		for _, mach := range badMachineIDs {
 			err = fmt.Errorf("%w\n%s", err, mach)
 		}
+
 		return fmt.Errorf("error waiting for test command machines to finish running: %w", err)
 	}
 
 	machs := lo.FilterMap(testMachines.GetMachines(), func(lm machine.LeasableMachine, _ int) (*fly.Machine, bool) {
 		mach := lm.Machine()
-		m, err := md.flapsClient.Get(ctx, mach.ID)
+		m, err := md.flapsClient.Get(ctx, md.app.Name, mach.ID)
+
 		return m, err == nil
 	})
 	for _, mach := range machs {
-		statuslogger.Logf(ctx, "Test Machine %s: %s", colorize.Bold(mach.ID), mach.State)
+		sl.Logf("Test Machine %s: %s", colorize.Bold(mach.ID), mach.State)
 	}
 
 	return nil

@@ -28,10 +28,11 @@ type IOStreams struct {
 	ErrOut io.Writer
 
 	// the original (non-colorable) output stream
-	originalOut   io.Writer
-	colorEnabled  bool
-	is256enabled  bool
-	terminalTheme string
+	originalOut        io.Writer
+	colorEnabled       bool
+	is256enabled       bool
+	isTrueColorEnabled bool
+	terminalTheme      string
 
 	progressIndicatorEnabled bool
 	progressIndicator        *spinner.Spinner
@@ -59,29 +60,38 @@ func (s *IOStreams) ColorSupport256() bool {
 	return s.is256enabled
 }
 
+func (s *IOStreams) ColorSupportTrueColor() bool {
+	return s.isTrueColorEnabled
+}
+
 func (s *IOStreams) DetectTerminalTheme() string {
 	if !s.ColorEnabled() {
 		s.terminalTheme = "none"
+
 		return "none"
 	}
 
 	if s.pagerProcess != nil {
 		s.terminalTheme = "none"
+
 		return "none"
 	}
 
 	style := os.Getenv("GLAMOUR_STYLE")
 	if style != "" && style != "auto" {
 		s.terminalTheme = "none"
+
 		return "none"
 	}
 
 	if termenv.HasDarkBackground() {
 		s.terminalTheme = "dark"
+
 		return "dark"
 	}
 
 	s.terminalTheme = "light"
+
 	return "light"
 }
 
@@ -105,6 +115,7 @@ func (s *IOStreams) IsStdinTTY() bool {
 	if stdin, ok := s.In.(*os.File); ok {
 		return isTerminal(stdin)
 	}
+
 	return false
 }
 
@@ -120,6 +131,7 @@ func (s *IOStreams) IsStdoutTTY() bool {
 	if stdout, ok := s.Out.(*os.File); ok {
 		return isTerminal(stdout)
 	}
+
 	return false
 }
 
@@ -135,6 +147,7 @@ func (s *IOStreams) IsStderrTTY() bool {
 	if stderr, ok := s.ErrOut.(*os.File); ok {
 		return isTerminal(stderr)
 	}
+
 	return false
 }
 
@@ -142,6 +155,7 @@ func (s *IOStreams) StderrFd() uintptr {
 	if f, ok := s.ErrOut.(*os.File); ok {
 		return f.Fd()
 	}
+
 	return ^(uintptr(0))
 }
 
@@ -149,6 +163,7 @@ func (s *IOStreams) StdoutFd() uintptr {
 	if f, ok := s.Out.(*os.File); ok {
 		return f.Fd()
 	}
+
 	return ^(uintptr(0))
 }
 
@@ -201,6 +216,7 @@ func (s *IOStreams) StartPager() error {
 		return err
 	}
 	s.pagerProcess = pagerCmd.Process
+
 	return nil
 }
 
@@ -290,7 +306,7 @@ func (s *IOStreams) TerminalWidth() int {
 }
 
 func (s *IOStreams) ColorScheme() *ColorScheme {
-	return NewColorScheme(s.ColorEnabled(), s.ColorSupport256())
+	return NewColorScheme(s.ColorEnabled(), s.ColorSupport256(), s.ColorSupportTrueColor())
 }
 
 func (s *IOStreams) ReadUserFile(fn string) ([]byte, error) {
@@ -305,6 +321,7 @@ func (s *IOStreams) ReadUserFile(fn string) ([]byte, error) {
 		}
 	}
 	defer r.Close()
+
 	return io.ReadAll(r)
 }
 
@@ -312,6 +329,7 @@ func (s *IOStreams) TempFile(dir, pattern string) (*os.File, error) {
 	if s.TempFileOverride != nil {
 		return s.TempFileOverride, nil
 	}
+
 	return os.CreateTemp(dir, pattern)
 }
 
@@ -340,6 +358,7 @@ func IsTerminalWriter(w io.Writer) bool {
 	if wf, ok := w.(writerWithFd); ok {
 		return wf.Fd() == os.Stdout.Fd() || wf.Fd() == os.Stderr.Fd()
 	}
+
 	return false
 }
 
@@ -361,6 +380,7 @@ func colorableOut(w terminal.FileWriter) terminal.FileWriter {
 			orig:   f,
 		}
 	}
+
 	return w
 }
 
@@ -371,13 +391,14 @@ func System() *IOStreams {
 	pagerCommand := os.Getenv("PAGER")
 
 	io := &IOStreams{
-		In:           os.Stdin,
-		originalOut:  os.Stdout,
-		Out:          colorableOut(os.Stdout),
-		ErrOut:       colorable.NewColorable(os.Stderr),
-		colorEnabled: EnvColorForced() || (!EnvColorDisabled() && stdoutIsTTY),
-		is256enabled: Is256ColorSupported(),
-		pagerCommand: pagerCommand,
+		In:                 os.Stdin,
+		originalOut:        os.Stdout,
+		Out:                colorableOut(os.Stdout),
+		ErrOut:             colorable.NewColorable(os.Stderr),
+		colorEnabled:       EnvColorForced() || (!EnvColorDisabled() && stdoutIsTTY),
+		is256enabled:       Is256ColorSupported(),
+		isTrueColorEnabled: IsTrueColor(),
+		pagerCommand:       pagerCommand,
 	}
 
 	if stdoutIsTTY && stderrIsTTY {
@@ -387,6 +408,7 @@ func System() *IOStreams {
 	// prevent duplicate isTerminal queries now that we know the answer
 	io.SetStdoutTTY(stdoutIsTTY)
 	io.SetStderrTTY(stderrIsTTY)
+
 	return io
 }
 
@@ -394,6 +416,7 @@ func Test() (*IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
 	in := &bytes.Buffer{}
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
+
 	return &IOStreams{
 		In:     io.NopCloser(in),
 		Out:    out,
@@ -409,6 +432,7 @@ func isCygwinTerminal(w io.Writer) bool {
 	if f, isFile := w.(*os.File); isFile {
 		return isatty.IsCygwinTerminal(f.Fd())
 	}
+
 	return false
 }
 
@@ -432,6 +456,7 @@ func isTextClickable() bool {
 	if os.Getenv("WT_SESSION") != "" || os.Getenv("KONSOLE_VERSION") != "" {
 		return true
 	}
+
 	return false
 }
 
@@ -439,6 +464,7 @@ func terminalSize(w io.Writer) (int, int, error) {
 	if f, isFile := w.(*os.File); isFile {
 		return term.GetSize(int(f.Fd()))
 	}
+
 	return 0, 0, fmt.Errorf("%v is not a file", w)
 }
 
@@ -449,5 +475,6 @@ func appendMissingCharacter(msg string, char byte) string {
 	if len(buff) > 0 && buff[len(buff)-1] != char {
 		buff = append(buff, char)
 	}
+
 	return string(buff)
 }

@@ -9,9 +9,11 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -34,12 +36,15 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := cmdutil.ParseKVStringsToMap(flag.Args(ctx))
 	if err != nil {
@@ -63,14 +68,17 @@ func runSet(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+	return SetSecretsAndDeploy(ctx, flapsClient, app, secrets, DeploymentArgs{
+		Stage:    flag.GetBool(ctx, "stage"),
+		Detach:   flag.GetBool(ctx, "detach"),
+		CheckDNS: flag.GetBool(ctx, "dns-checks"),
+	})
 }
 
-func SetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets map[string]string, stage bool, detach bool) error {
-	client := flyutil.ClientFromContext(ctx)
-	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
-		return err
+func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets map[string]string, args DeploymentArgs) error {
+	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
+		return fmt.Errorf("update secrets: %w", err)
 	}
 
-	return DeploySecrets(ctx, app, stage, detach)
+	return DeploySecrets(ctx, app, args)
 }

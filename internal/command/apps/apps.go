@@ -8,10 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -53,21 +51,11 @@ func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, er
 		return nil, fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, app.Network)
 	if err != nil {
 		return nil, fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	return ctx, nil
 }

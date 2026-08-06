@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -49,6 +48,7 @@ func loadCachedName() error {
 		return err
 	}
 	cachedName = filepath.Base(execName)
+
 	return nil
 }
 
@@ -79,6 +79,7 @@ func (i info) String() string {
 	if i.BranchName != "" {
 		res += fmt.Sprintf(" BranchName: %s", i.BranchName)
 	}
+
 	return res
 }
 
@@ -117,8 +118,8 @@ func BuildTime() time.Time {
 
 func Commit() string {
 	info, _ := debug.ReadBuildInfo()
-	var rev string = "<none>"
-	var dirty string = ""
+	var rev = "<none>"
+	var dirty = ""
 	for _, v := range info.Settings {
 		if v.Key == "vcs.revision" {
 			rev = v.Value
@@ -131,9 +132,10 @@ func Commit() string {
 			}
 		}
 	}
+
 	return rev + dirty
 }
 
 func UserAgent() string {
-	return strings.TrimSpace(fmt.Sprintf("fly-cli/%s", Version()))
+	return fmt.Sprintf("flyctl/%s", Version())
 }

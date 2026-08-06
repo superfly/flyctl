@@ -20,6 +20,7 @@ func Signals() []os.Signal {
 	if runtime.GOOS == "windows" {
 		return []os.Signal{os.Interrupt}
 	}
+
 	return []os.Signal{os.Interrupt, syscall.SIGTERM}
 }
 
@@ -45,6 +46,7 @@ func Hook(event func()) Handle {
 		}
 		event()
 	}()
+
 	return Handle{&boundSignal{sig: signalCh}}
 }
 

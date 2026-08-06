@@ -4,48 +4,65 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() *cobra.Command {
 	const (
-		short = `Manage Postgres clusters.`
-
-		long = short + "\n"
+		short  = `Unmanaged Postgres cluster commands`
+		notice = "Unmanaged Fly Postgres is not supported by Fly.io Support and users are responsible for operations, management, and disaster recovery. If you'd like a managed, supported solution, try 'fly mpg' (Managed Postgres).\n" +
+			"Please visit https://fly.io/docs/mpg/overview/ for more information about Managed Postgres.\n"
+		long = notice
 	)
 
 	cmd := command.New("postgres", short, long, nil)
-
 	cmd.Aliases = []string{"pg"}
 
-	cmd.AddCommand(
-		newAttach(),
-		newConfig(),
-		newConnect(),
-		newCreate(),
-		newDb(),
-		newDetach(),
-		newList(),
-		newRenewSSHCerts(),
-		newRestart(),
-		newUsers(),
-		newFailover(),
-		newAddFlycast(),
-		newImport(),
-		newEvents(),
-		newBarman(),
-	)
+	// Add PreRun to show deprecation notice
+	cmd.PreRun = func(cmd *cobra.Command, args []string) {
+		io := iostreams.FromContext(cmd.Context())
+		fmt.Fprintf(io.ErrOut, "\n%s\n", notice)
+	}
+
+	// Add the same PreRun to all subcommands
+	subcommands := []func() *cobra.Command{
+		newAttach,
+		newBackup,
+		newConfig,
+		newConnect,
+		newCreate,
+		newDb,
+		newDetach,
+		newList,
+		newRenewSSHCerts,
+		newRestart,
+		newUsers,
+		newFailover,
+		newAddFlycast,
+		newImport,
+		newEvents,
+		newBarman,
+	}
+
+	for _, newCmd := range subcommands {
+		subcmd := newCmd()
+		subcmd.PreRun = cmd.PreRun
+		cmd.AddCommand(subcmd)
+	}
 
 	return cmd
 }
 
-func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standalone string) error {
+func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, cluster, flex, standalone string) error {
 	_, dev := os.LookupEnv("FLY_DEV")
 	if dev {
 		return nil
@@ -55,6 +72,10 @@ func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standa
 		// Validate image version to ensure it's compatible with this feature.
 		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {
 			return fmt.Errorf("command is not compatible with this image")
+		}
+
+		if machine.ImageVersion() == "custom" {
+			continue
 		}
 
 		imageVersionStr := machine.ImageVersion()[1:]
@@ -100,12 +121,30 @@ func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standa
 		if imageVersion.LessThan(requiredVersion) {
 			return fmt.Errorf(
 				"%s is running an incompatible image version. (Current: %s, Required: >= %s)\n"+
-					"Please run 'flyctl pg update' to update to the latest available version",
-				machine.ID, imageVersion, requiredVersion.String())
+					"Please run 'flyctl image update -a %s' to update to the latest available version",
+				machine.ID, imageVersion, requiredVersion.String(), appName)
 		}
 
 	}
+
 	return nil
+}
+
+func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, flexVersion string) error {
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines provided")
+	}
+
+	if !IsFlex(machines[0]) {
+		return fmt.Errorf("not a Flex cluster")
+	}
+
+	err := hasRequiredVersionOnMachines(appName, machines, "", flexVersion, "")
+	if err != nil && strings.Contains(err.Error(), "Malformed version") {
+		return fmt.Errorf("This image is not compatible with this feature.")
+	}
+
+	return err
 }
 
 func IsFlex(machine *fly.Machine) bool {
@@ -132,6 +171,7 @@ func machinesNodeRoles(ctx context.Context, machines []*fly.Machine) (leader *fl
 			replicas = append(replicas, machine)
 		}
 	}
+
 	return leader, replicas
 }
 
@@ -145,9 +185,11 @@ func machineRole(machine *fly.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+
 			break
 		}
 	}
+
 	return role
 }
 
@@ -161,11 +203,16 @@ func pickLeader(ctx context.Context, machines []*fly.Machine) (*fly.Machine, err
 			return machine, nil
 		}
 	}
+
 	return nil, fmt.Errorf("no active leader found")
 }
 
+func hasRequiredMemoryForBackup(machine fly.Machine) bool {
+	return machine.Config.Guest.MemoryMB >= 512
+}
+
 func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) error {
-	machines, err := mach.ListActive(ctx)
+	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return err
 	}
@@ -180,9 +227,75 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err != nil {
-		return err
+	machineVersionStr := strings.TrimPrefix(machine.ImageVersion(), "v")
+
+	flyVersion, err := version.NewVersion(machineVersionStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse machine version: %w", err)
+	}
+
+	// This is the version where we begin using Machine IDs instead of hostnames
+	versionGate, err := version.NewVersion("0.0.63")
+	if err != nil {
+		return fmt.Errorf("failed to parse logic gate version: %w", err)
+	}
+
+	if flyVersion.LessThan(versionGate) {
+		// Old logic
+		hostname := fmt.Sprintf("%s.vm.%s.internal", machine.ID, app.Name)
+
+		if err := cmd.UnregisterMember(ctx, leader.PrivateIP, hostname); err != nil {
+			if err2 := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err2 != nil {
+				return err
+			}
+		}
+
+	} else {
+		if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.ID); err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// Runs a command on the specified machine ID in the named app.
+func ExecOnMachine(ctx context.Context, client flapsutil.FlapsClient, appName, machineId, command string) error {
+	var (
+		io = iostreams.FromContext(ctx)
+	)
+
+	in := &fly.MachineExecRequest{
+		Cmd: command,
+	}
+
+	out, err := client.Exec(ctx, appName, machineId, in)
+	if err != nil {
+		return err
+	}
+
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
+	return nil
+}
+
+// Runs a command on the leader of the named cluster.
+func ExecOnLeader(ctx context.Context, client flapsutil.FlapsClient, appName, command string) error {
+	machines, err := client.ListActive(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return ExecOnMachine(ctx, client, appName, leader.ID, command)
 }

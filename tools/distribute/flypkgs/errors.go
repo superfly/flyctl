@@ -14,9 +14,10 @@ type ErrorResponse struct {
 
 func (e ErrorResponse) Error() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("API error: %d\n", e.Code))
+
+	fmt.Fprintf(&sb, "API error: %d\n", e.Code)
 	for _, msg := range e.Messages {
-		sb.WriteString(fmt.Sprintf("  - %s\n", msg))
+		fmt.Fprintf(&sb, "  - %s\n", msg)
 	}
 
 	return sb.String()

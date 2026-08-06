@@ -7,7 +7,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -56,16 +55,11 @@ func runMachineList(ctx context.Context) (err error) {
 		cfg     = config.FromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.List(ctx, "")
+	machines, err := flapsClient.List(ctx, appName, "")
 	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
+		return err
 	}
 
 	if cfg.JSONOutput {
@@ -76,6 +70,7 @@ func runMachineList(ctx context.Context) (err error) {
 		if !silence {
 			fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
 		}
+
 		return nil
 	}
 
@@ -100,14 +95,10 @@ func runMachineList(ctx context.Context) (err error) {
 				volName = machine.Config.Mounts[0].Volume
 			}
 
-			appPlatform := ""
 			machineProcessGroup := ""
 			size := ""
 
 			if machine.Config != nil {
-				if platformVersion, ok := machine.Config.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
-					appPlatform = platformVersion
-				}
 
 				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
@@ -119,7 +110,7 @@ func runMachineList(ctx context.Context) (err error) {
 			}
 
 			note := ""
-			unreachable := machine.HostStatus == "unreachable"
+			unreachable := machine.HostStatus != fly.HostStatusOk
 			if unreachable {
 				unreachableMachines = true
 				note = "*"
@@ -157,7 +148,6 @@ func runMachineList(ctx context.Context) (err error) {
 				volName,
 				lo.Ternary(unreachable, "", machine.CreatedAt),
 				lo.Ternary(unreachable, "", machine.UpdatedAt),
-				appPlatform,
 				machineProcessGroup,
 				size,
 			})
@@ -175,7 +165,6 @@ func runMachineList(ctx context.Context) (err error) {
 			"Volume",
 			"Created",
 			"Last Updated",
-			"App Platform",
 			"Process Group",
 			"Size",
 		}
@@ -185,5 +174,6 @@ func runMachineList(ctx context.Context) (err error) {
 			fmt.Fprintln(io.Out, "* These Machines' hosts could not be reached.")
 		}
 	}
+
 	return nil
 }

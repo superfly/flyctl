@@ -16,9 +16,9 @@ type StatusLogger interface {
 
 type StatusLine interface {
 	Log(s string)
-	Logf(format string, args ...interface{})
+	Logf(format string, args ...any)
 	LogStatus(s Status, str string)
-	LogfStatus(s Status, format string, args ...interface{})
+	LogfStatus(s Status, format string, args ...any)
 	Failed(e error)
 	// Private because it won't redraw on non-interactive loggers.
 	// For outside use, use LogStatus or LogfStatus.

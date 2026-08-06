@@ -24,6 +24,10 @@ import (
 
 var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 
+type WebClient interface {
+	ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error)
+}
+
 func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
@@ -38,6 +42,7 @@ func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, er
 	hostSlug := cleanDNSPattern.ReplaceAllString(strings.Split(host, ".")[0], "-")
 
 	name := fmt.Sprintf("%s-%s-%s", hostSlug, emailSlug, ulid.Make())
+
 	return name, nil
 }
 
@@ -100,7 +105,7 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 
 	pubkey, privatekey := C25519pair()
 
-	data, err := apiClient.CreateWireGuardPeer(ctx, org, regionCode, name, pubkey, network)
+	data, err := apiClient.CreateWireGuardPeer(ctx, org.ID, regionCode, name, pubkey, network)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +186,7 @@ func setWireGuardStateForOrg(ctx context.Context, orgSlug, network string, s *wg
 	return setWireGuardState(ctx, states)
 }
 
-func PruneInvalidPeers(ctx context.Context, apiClient flyutil.Client) error {
+func PruneInvalidPeers(ctx context.Context, apiClient WebClient) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil

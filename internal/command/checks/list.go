@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
@@ -22,14 +21,9 @@ func runAppCheckList(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	nameFilter := flag.GetString(ctx, "check-name")
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -45,12 +39,12 @@ func runAppCheckList(ctx context.Context) error {
 				checks[machine.ID][i] = *check
 			}
 		}
+
 		return render.JSON(out, checks)
 	}
 
 	fmt.Fprintf(out, "Health Checks for %s\n", appName)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
-	table.SetRowLine(true)
 	for _, machine := range machines {
 		sort.Slice(machine.Checks, func(i, j int) bool {
 			return machine.Checks[i].Name < machine.Checks[j].Name
@@ -60,10 +54,10 @@ func runAppCheckList(ctx context.Context) error {
 			if nameFilter != "" && nameFilter != check.Name {
 				continue
 			}
-			table.Append([]string{check.Name, string(check.Status), machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output})
+			table.Append(check.Name, string(check.Status), machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output) //nolint:errcheck
 		}
 	}
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	return nil
 }

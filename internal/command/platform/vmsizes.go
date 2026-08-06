@@ -10,6 +10,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -29,10 +30,12 @@ func newVMSizes() (cmd *cobra.Command) {
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 
 func runMachineVMSizes(ctx context.Context) error {
+	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	type preset struct {
@@ -47,6 +50,7 @@ func runMachineVMSizes(ctx context.Context) error {
 			memory(value.MemoryMB),
 			value.GPUKind,
 		}
+
 		return preset{value, arr}
 	})
 
@@ -62,6 +66,15 @@ func runMachineVMSizes(ctx context.Context) error {
 			return a.GPUKind < b.GPUKind
 		}
 	})
+
+	if cfg.JSONOutput {
+		vmSizes := make(map[string]*fly.MachineGuest, len(sortedPresets))
+		for _, preset := range sortedPresets {
+			vmSizes[preset.strings[0]] = preset.guest
+		}
+
+		return render.JSON(out, vmSizes)
+	}
 
 	// Filter and display shared cpu sizes.
 	shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
@@ -83,19 +96,14 @@ func runMachineVMSizes(ctx context.Context) error {
 	gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
 		return p.strings, p.guest.GPUKind != ""
 	})
+
 	return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
 }
 
 func cores(cores int) string {
-	if cores < 1.0 {
-		return fmt.Sprintf("%d", cores)
-	}
 	return fmt.Sprintf("%d", cores)
 }
 
 func memory(size int) string {
-	if size < 1024 {
-		return fmt.Sprintf("%d MB", size)
-	}
-	return fmt.Sprintf("%d GB", size/1024)
+	return fmt.Sprintf("%d MB", size)
 }

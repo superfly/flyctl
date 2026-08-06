@@ -6,7 +6,6 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -46,6 +45,7 @@ func newExtend() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -59,13 +59,7 @@ func runExtend(ctx context.Context) error {
 		volID    = flag.FirstArg(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
@@ -83,7 +77,7 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if sizeFlag[0] == '+' {
-		volume, err := flapsClient.GetVolume(ctx, volID)
+		volume, err := flapsClient.GetVolume(ctx, appName, volID)
 		if err != nil {
 			return err
 		}
@@ -98,7 +92,7 @@ func runExtend(ctx context.Context) error {
 		volID = volume.ID
 	}
 
-	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, sizeGB)
+	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, appName, volID, sizeGB)
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}

@@ -20,8 +20,8 @@ func TestToMachineConfig(t *testing.T) {
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []fly.MachinePort{
-					{Port: fly.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
-					{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
+					{Port: new(80), Handlers: []string{"http"}, ForceHTTPS: true},
+					{Port: new(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 				},
 			},
 		},
@@ -34,25 +34,26 @@ func TestToMachineConfig(t *testing.T) {
 		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix", TigrisBucket: "example-bucket", IndexDocument: "index.html"}},
 		Mounts:  []fly.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]fly.MachineCheck{
-			"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
+			"listening": {Port: new(8080), Type: new("tcp")},
 			"status": {
-				Port:     fly.Pointer(8080),
-				Type:     fly.Pointer("http"),
+				Port:     new(8080),
+				Type:     new("http"),
 				Interval: fly.MustParseDuration("10s"),
 				Timeout:  fly.MustParseDuration("1s"),
-				HTTPPath: fly.Pointer("/status"),
+				HTTPPath: new("/status"),
 			},
 		},
 		StopConfig: &fly.StopConfig{
 			Timeout: fly.MustParseDuration("10s"),
-			Signal:  fly.Pointer("SIGTERM"),
+			Signal:  new("SIGTERM"),
 		},
 		Init: fly.MachineInit{
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 		},
 		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
 		},
+		DNS: &fly.DNSConfig{Nameservers: []string{"1.2.3.4"}},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -79,7 +80,7 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, "24/7", got.Schedule)
 	assert.Equal(t, true, got.AutoDestroy)
 	assert.Equal(t, &fly.MachineRestart{Policy: "always"}, got.Restart)
-	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, got.DNS)
+	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true, Nameservers: []string{"1.2.3.4"}}, got.DNS)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
 }
@@ -116,8 +117,8 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []fly.MachinePort{
-					{Port: fly.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
-					{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
+					{Port: new(80), Handlers: []string{"http"}, ForceHTTPS: true},
+					{Port: new(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 				},
 			},
 		},
@@ -125,13 +126,13 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix", TigrisBucket: "example-bucket", IndexDocument: "index.html"}},
 		Mounts:  []fly.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]fly.MachineCheck{
-			"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
+			"listening": {Port: new(8080), Type: new("tcp")},
 			"status": {
-				Port:     fly.Pointer(8080),
-				Type:     fly.Pointer("http"),
+				Port:     new(8080),
+				Type:     new("http"),
 				Interval: fly.MustParseDuration("10s"),
 				Timeout:  fly.MustParseDuration("1s"),
-				HTTPPath: fly.Pointer("/status"),
+				HTTPPath: new("/status"),
 			},
 		},
 	}
@@ -153,7 +154,7 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"migrate-db"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 		},
 		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
 		Metadata: map[string]string{
@@ -166,7 +167,12 @@ func TestToReleaseMachineConfig(t *testing.T) {
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		StopConfig: &fly.StopConfig{
 			Timeout: fly.MustParseDuration("10s"),
-			Signal:  fly.Pointer("SIGTERM"),
+			Signal:  new("SIGTERM"),
+		},
+		Guest: &fly.MachineGuest{
+			CPUKind:  "performance",
+			CPUs:     2,
+			MemoryMB: 4096,
 		},
 	}
 
@@ -182,7 +188,7 @@ func TestToTestMachineConfig(t *testing.T) {
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"curl", "https://fly.io"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "curlimages/curl",
@@ -217,13 +223,13 @@ func TestToTestMachineConfigWKillInfo(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
 	require.NoError(t, err)
 
-	cfg.KillSignal = fly.StringPointer("SIGABRT")
+	cfg.KillSignal = new("SIGABRT")
 	cfg.KillTimeout = fly.MustParseDuration("60s")
 
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"curl", "https://fly.io"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "curlimages/curl",
@@ -258,13 +264,13 @@ func TestToTestMachineConfigWKillInfoAndOrigMachineKillInfo(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
 	require.NoError(t, err)
 
-	cfg.HTTPService.MachineChecks[0].KillSignal = fly.StringPointer("SIGTERM")
+	cfg.HTTPService.MachineChecks[0].KillSignal = new("SIGTERM")
 	cfg.HTTPService.MachineChecks[0].KillTimeout = fly.MustParseDuration("10s")
 
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"curl", "https://fly.io"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "curlimages/curl",
@@ -283,7 +289,7 @@ func TestToTestMachineConfigWKillInfoAndOrigMachineKillInfo(t *testing.T) {
 		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		StopConfig: &fly.StopConfig{
-			Signal:  fly.StringPointer("SIGTERM"),
+			Signal:  new("SIGTERM"),
 			Timeout: fly.MustParseDuration("10s"),
 		},
 	}
@@ -291,7 +297,7 @@ func TestToTestMachineConfigWKillInfoAndOrigMachineKillInfo(t *testing.T) {
 	origMachine := &fly.Machine{
 		Config: &fly.MachineConfig{
 			StopConfig: &fly.StopConfig{
-				Signal:  fly.StringPointer("SIGTERM"),
+				Signal:  new("SIGTERM"),
 				Timeout: fly.MustParseDuration("10s"),
 			},
 		},
@@ -309,15 +315,15 @@ func TestToTestMachineConfigWKillInfoNoImageAndOrigMachineKillInfo(t *testing.T)
 	require.NoError(t, err)
 
 	cfg.HTTPService.MachineChecks[0].Image = ""
-	cfg.HTTPService.MachineChecks[0].KillSignal = fly.StringPointer("SIGABRT")
+	cfg.HTTPService.MachineChecks[0].KillSignal = new("SIGABRT")
 	cfg.HTTPService.MachineChecks[0].KillTimeout = fly.MustParseDuration("30s")
-	cfg.KillSignal = fly.StringPointer("SIGTERM")
+	cfg.KillSignal = new("SIGTERM")
 	cfg.KillTimeout = fly.MustParseDuration("60s")
 
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"curl", "https://fly.io"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "nginx",
@@ -336,16 +342,17 @@ func TestToTestMachineConfigWKillInfoNoImageAndOrigMachineKillInfo(t *testing.T)
 		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		StopConfig: &fly.StopConfig{
-			Signal:  fly.StringPointer("SIGABRT"),
+			Signal:  new("SIGABRT"),
 			Timeout: fly.MustParseDuration("30s"),
 		},
 	}
 
 	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "nginx",
 			StopConfig: &fly.StopConfig{
-				Signal:  fly.StringPointer("SIGTERM"),
+				Signal:  new("SIGTERM"),
 				Timeout: fly.MustParseDuration("60s"),
 			},
 		},
@@ -363,13 +370,13 @@ func TestToTestMachineConfigNoImageAndOrigMachineKillInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg.HTTPService.MachineChecks[0].Image = ""
-	cfg.KillSignal = fly.StringPointer("SIGTERM")
+	cfg.KillSignal = new("SIGTERM")
 	cfg.KillTimeout = fly.MustParseDuration("60s")
 
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"curl", "https://fly.io"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "nginx",
@@ -388,16 +395,17 @@ func TestToTestMachineConfigNoImageAndOrigMachineKillInfo(t *testing.T) {
 		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		StopConfig: &fly.StopConfig{
-			Signal:  fly.StringPointer("SIGTERM"),
+			Signal:  new("SIGTERM"),
 			Timeout: fly.MustParseDuration("60s"),
 		},
 	}
 
 	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "nginx",
 			StopConfig: &fly.StopConfig{
-				Signal:  fly.StringPointer("SIGTERM"),
+				Signal:  new("SIGTERM"),
 				Timeout: fly.MustParseDuration("60s"),
 			},
 		},
@@ -417,7 +425,7 @@ func TestToTestMachineConfigWTestMachine(t *testing.T) {
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        []string{"curl", "https://fly.io"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "curlimages/curl",
@@ -445,8 +453,9 @@ func TestToTestMachineConfigWTestMachine(t *testing.T) {
 
 	check := cfg.HTTPService.MachineChecks[0]
 	machine := &fly.Machine{
-		ImageRef:  fly.MachineImageRef{},
-		PrivateIP: "1.2.3.4",
+		HostStatus: fly.HostStatusOk,
+		ImageRef:   fly.MachineImageRef{},
+		PrivateIP:  "1.2.3.4",
 		Config: &fly.MachineConfig{
 			Env: map[string]string{
 				"BAR": "BAZ",
@@ -457,7 +466,7 @@ func TestToTestMachineConfigWTestMachine(t *testing.T) {
 	}
 	got, err := cfg.ToTestMachineConfig(check, machine)
 	assert.NoError(t, err)
-	assert.Equal(t, got, want)
+	assert.Equal(t, want, got)
 }
 
 func TestToConsoleMachineConfig(t *testing.T) {
@@ -467,7 +476,7 @@ func TestToConsoleMachineConfig(t *testing.T) {
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Exec:       []string{"/bin/sleep", "inf"},
-			SwapSizeMB: fly.Pointer(512),
+			SwapSizeMB: new(512),
 		},
 		Env: map[string]string{
 			"FOO":               "BAR",
@@ -510,14 +519,14 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 						Protocol:     "tcp",
 						InternalPort: 8080,
 						Ports: []fly.MachinePort{
-							{Port: fly.Pointer(80), Handlers: []string{"http"}},
-							{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}},
+							{Port: new(80), Handlers: []string{"http"}},
+							{Port: new(443), Handlers: []string{"http", "tls"}},
 						},
 					},
 					{Protocol: "tcp", InternalPort: 1111},
 				},
 				Checks: map[string]fly.MachineCheck{
-					"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
+					"listening": {Port: new(8080), Type: new("tcp")},
 				},
 			},
 		},
@@ -541,7 +550,7 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 					{Protocol: "tcp", InternalPort: 1111},
 				},
 				Checks: map[string]fly.MachineCheck{
-					"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
+					"listening": {Port: new(8080), Type: new("tcp")},
 				},
 			},
 		},
@@ -571,8 +580,8 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []fly.MachinePort{
-					{Port: fly.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
-					{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
+					{Port: new(80), Handlers: []string{"http"}, ForceHTTPS: true},
+					{Port: new(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 				},
 			},
 		},
@@ -583,8 +592,8 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 		},
 		Checks: map[string]fly.MachineCheck{
 			"alive": {
-				Port:        fly.Pointer(8080),
-				Type:        fly.Pointer("tcp"),
+				Port:        new(8080),
+				Type:        new("tcp"),
 				Interval:    fly.MustParseDuration("15s"),
 				Timeout:     fly.MustParseDuration("2s"),
 				GracePeriod: fly.MustParseDuration("5s"),
@@ -632,34 +641,34 @@ func TestToMachineConfig_services(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 8080,
-			Autostart:    fly.Pointer(true),
-			Autostop:     fly.Pointer(true),
+			Autostart:    new(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 			Ports: []fly.MachinePort{
-				{Port: fly.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
-				{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
+				{Port: new(80), Handlers: []string{"http"}, ForceHTTPS: true},
+				{Port: new(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 			},
 		},
 		{
 			Protocol:     "tcp",
 			InternalPort: 1000,
-			Autostart:    fly.Pointer(true),
-			Autostop:     fly.Pointer(true),
+			Autostart:    new(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		},
 		{
 			Protocol:     "tcp",
 			InternalPort: 1001,
-			Autostart:    fly.Pointer(false),
-			Autostop:     fly.Pointer(false),
+			Autostart:    new(false),
+			Autostop:     fly.Pointer(fly.MachineAutostopOff),
 		},
 		{
 			Protocol:     "tcp",
 			InternalPort: 1002,
-			Autostart:    fly.Pointer(false),
+			Autostart:    new(false),
 		},
 		{
 			Protocol:     "tcp",
 			InternalPort: 1003,
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		},
 		{
 			Protocol:     "tcp",

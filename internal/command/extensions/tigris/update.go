@@ -30,7 +30,6 @@ func update() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "custom-domain",
 			Description: "A custom domain name pointing at your bucket",
-			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -41,7 +40,6 @@ func update() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "clear-custom-domain",
 			Description: "Remove a custom domain from a bucket",
-			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -50,6 +48,7 @@ func update() (cmd *cobra.Command) {
 		},
 		SharedFlags,
 	)
+
 	return cmd
 }
 
@@ -65,9 +64,16 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	addOn := response.AddOn
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
+
 	if options == nil {
-		options = make(map[string]interface{})
+		options = make(map[string]any)
+	}
+
+	metadata, _ := addOn.Options.(map[string]any)
+
+	if metadata == nil {
+		metadata = make(map[string]any)
 	}
 
 	accessKey := flag.GetString(ctx, "shadow-access-key")
@@ -89,9 +95,9 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	if clearShadow {
-		options["shadow_bucket"] = map[string]interface{}{}
+		options["shadow_bucket"] = map[string]any{}
 	} else if shadowBucketSpecified {
-		options["shadow_bucket"] = map[string]interface{}{
+		options["shadow_bucket"] = map[string]any{
 			"access_key":    accessKey,
 			"secret_key":    secretKey,
 			"region":        region,
@@ -115,34 +121,40 @@ func runUpdate(ctx context.Context) (err error) {
 
 	if flag.IsSpecified(ctx, "custom-domain") {
 		domain := flag.GetString(ctx, "custom-domain")
-
-		if domain != addOn.Name {
-			return fmt.Errorf("The custom domain must match the bucket name: %s != %s", domain, addOn.Name)
+		if len(domain) > 0 && flag.GetBool(ctx, "clear-custom-domain") {
+			return fmt.Errorf("You cannot specify both --custom-domain and --clear-custom-domain")
 		}
-		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
 
-		confirm, err := prompt.Confirm(ctx, "Continue with the update?")
+		confirm := false
+		if !flag.GetYes(ctx) {
+			fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".t3.tigrisbucket.io")
+			confirm, err = prompt.Confirm(ctx, "Continue with the update?")
+		} else {
+			fmt.Fprintf(io.Out, "By specifying the --yes flag you have agreed to set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".t3.tigrisbucket.io")
+			confirm = true
+		}
 
 		if err != nil || !confirm {
 			return err
 		}
 
-		options["website"] = map[string]interface{}{
+		options["website"] = map[string]any{
 			"domain_name": domain,
 		}
 	}
 
 	if flag.GetBool(ctx, "clear-custom-domain") {
-		options["website"] = map[string]interface{}{
+		options["website"] = map[string]any{
 			"domain_name": "",
 		}
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options, metadata)
 	if err != nil {
 		return
 	}
 
 	err = runStatus(ctx)
+
 	return err
 }

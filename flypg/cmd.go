@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
@@ -73,14 +75,14 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	}
 
 	if !result.Success {
-		return fmt.Errorf(result.Message)
+		return errors.New(result.Message)
 	}
 
 	return nil
 }
 
-func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standbyIP string) error {
-	payload := encodeCommand(standbyIP)
+func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standbyNodeName string) error {
+	payload := encodeCommand(standbyNodeName)
 	cmd := fmt.Sprintf("pg_unregister %s", payload)
 
 	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
@@ -94,22 +96,23 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	}
 
 	if !result.Success {
-		return fmt.Errorf(result.Message)
+		return errors.New(result.Message)
 	}
 
 	return nil
 }
 
 func (pc *Command) ListEvents(ctx context.Context, leaderIP string, flagsName []string) error {
-	cmd := "gosu postgres repmgr -f /data/repmgr.conf cluster event "
+	var cmd strings.Builder
+	cmd.WriteString("gosu postgres repmgr -f /data/repmgr.conf cluster event ")
 
 	// Loops through flagsName to add selected options to the command. The format will look like this -->
 	// gosu postgres repmgr -f /data/repmgr.conf cluster event --compact --event primary_register --limit 5 --node-id 34244738
 	for _, flagName := range flagsName {
-		cmd += fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName))
+		fmt.Fprintf(&cmd, "--%s %s ", flagName, flag.GetString(ctx, flagName))
 	}
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd.String(), ssh.DefaultSshUsername)
 	if err != nil {
 		return err
 	}

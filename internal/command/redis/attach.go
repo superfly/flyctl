@@ -5,18 +5,18 @@ import (
 	"fmt"
 
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func AttachDatabase(ctx context.Context, db *gql.AddOn, appName string) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	s := map[string]string{}
 	s["REDIS_URL"] = db.PublicUrl
 
-	_, err = client.SetSecrets(ctx, appName, s)
-
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	err = appsecrets.Update(ctx, flapsClient, appName, s, nil)
 	if err != nil {
 		fmt.Fprintf(io.Out, "\nCould not attach Redis database %s to app %s\n", db.Name, appName)
 	} else {

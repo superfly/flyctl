@@ -28,10 +28,10 @@ func TestSettersWithService(t *testing.T) {
 			Interval:          fly.MustParseDuration("10s"),
 			Timeout:           fly.MustParseDuration("2s"),
 			GracePeriod:       fly.MustParseDuration("5s"),
-			HTTPMethod:        fly.Pointer("GET"),
-			HTTPPath:          fly.Pointer("/status"),
-			HTTPProtocol:      fly.Pointer("http"),
-			HTTPTLSSkipVerify: fly.Pointer(false),
+			HTTPMethod:        new("GET"),
+			HTTPPath:          new("/status"),
+			HTTPProtocol:      new("http"),
+			HTTPTLSSkipVerify: new(false),
 		}},
 	}})
 }
@@ -52,19 +52,15 @@ func TestSettersWithHTTPService(t *testing.T) {
 			HardLimit: 34,
 			SoftLimit: 12,
 		},
-	})
-	assert.Equal(t, cfg.Checks, map[string]*ToplevelCheck{
-		"status": {
-			Port:              fly.Pointer(1234),
-			Type:              fly.Pointer("http"),
+		HTTPChecks: []*ServiceHTTPCheck{{
 			Interval:          fly.MustParseDuration("10s"),
 			Timeout:           fly.MustParseDuration("2s"),
 			GracePeriod:       fly.MustParseDuration("5s"),
-			HTTPMethod:        fly.Pointer("GET"),
-			HTTPPath:          fly.Pointer("/status"),
-			HTTPProtocol:      fly.Pointer("http"),
-			HTTPTLSSkipVerify: fly.Pointer(false),
-		},
+			HTTPMethod:        new("GET"),
+			HTTPPath:          new("/status"),
+			HTTPProtocol:      new("http"),
+			HTTPTLSSkipVerify: new(false),
+		}},
 	})
 }
 
@@ -170,5 +166,5 @@ func TestSetVolumes(t *testing.T) {
 func TestSetKillSignal(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetKillSignal("TERM")
-	assert.Equal(t, cfg.KillSignal, fly.Pointer("TERM"))
+	assert.Equal(t, cfg.KillSignal, new("TERM"))
 }

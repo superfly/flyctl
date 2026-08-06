@@ -16,5 +16,6 @@ func GetConfigDirectory() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return filepath.Join(homeDir, ".fly"), nil
 }

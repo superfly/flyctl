@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -48,6 +47,7 @@ func newUpdate() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -71,16 +71,11 @@ func runUpdate(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var snapshotRetention *int
 	if flag.GetInt(ctx, "snapshot-retention") != 0 {
-		snapshotRetention = fly.Pointer(flag.GetInt(ctx, "snapshot-retention"))
+		snapshotRetention = new(flag.GetInt(ctx, "snapshot-retention"))
 	}
 
 	out := iostreams.FromContext(ctx).Out
@@ -89,10 +84,10 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	if flag.IsSpecified(ctx, "scheduled-snapshots") {
-		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
+		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
-	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)
+	updatedVolume, err := flapsClient.UpdateVolume(ctx, appName, volumeID, input)
 	if err != nil {
 		return fmt.Errorf("failed updating volume: %w", err)
 	}

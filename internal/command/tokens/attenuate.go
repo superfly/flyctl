@@ -137,5 +137,6 @@ func encodeAndPrintToken(macs []*macaroon.Macaroon, macToks [][]byte, diss []*ma
 	}
 
 	fmt.Println(macaroon.ToAuthorizationHeader(append(macToks, disToks...)...))
+
 	return nil
 }

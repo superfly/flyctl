@@ -40,11 +40,19 @@ func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (
 	panic("TODO")
 }
 
-func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error) {
+func (m *Client) AllocateAppScopedEgressIPAddress(ctx context.Context, appName string, region string) (net.IP, net.IP, error) {
+	panic("TODO")
+}
+
+func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
 	panic("TODO")
 }
 
 func (m *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error) {
+	panic("TODO")
+}
+
+func (m *Client) AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error) {
 	panic("TODO")
 }
 
@@ -68,15 +76,7 @@ func (m *Client) CheckAppCertificate(ctx context.Context, appName, hostname stri
 	panic("TODO")
 }
 
-func (m *Client) CheckDomain(ctx context.Context, name string) (*fly.CheckDomainResult, error) {
-	panic("TODO")
-}
-
 func (m *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*fly.Region, error) {
-	panic("TODO")
-}
-
-func (m *Client) CreateAndRegisterDomain(organizationID string, name string) (*fly.Domain, error) {
 	panic("TODO")
 }
 
@@ -93,18 +93,15 @@ func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*
 	var resp fly.CreateBuildResponse
 	resp.CreateBuild.Id = build.ID
 	resp.CreateBuild.Status = build.Status
+
 	return &resp, nil
 }
 
-func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error) {
+func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, orgID string, name string) (*fly.DelegatedWireGuardToken, error) {
 	panic("TODO")
 }
 
 func (m *Client) CreateDoctorUrl(ctx context.Context) (putUrl string, err error) {
-	panic("TODO")
-}
-
-func (m *Client) CreateDomain(organizationID string, name string) (*fly.Domain, error) {
 	panic("TODO")
 }
 
@@ -125,10 +122,11 @@ func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput
 	var resp fly.CreateReleaseResponse
 	resp.CreateRelease.Release.Id = release.ID
 	resp.CreateRelease.Release.Version = release.Version
+
 	return &resp, nil
 }
 
-func (m *Client) CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
+func (m *Client) CreateWireGuardPeer(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
 	panic("TODO")
 }
 
@@ -140,7 +138,7 @@ func (m *Client) DeleteCertificate(ctx context.Context, appName, hostname string
 	panic("TODO")
 }
 
-func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name, token *string) error {
+func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, orgID string, name, token *string) error {
 	panic("TODO")
 }
 
@@ -164,7 +162,7 @@ func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region
 	panic("TODO")
 }
 
-func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
+func (m *Client) EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error) {
 	panic("TODO")
 }
 
@@ -177,6 +175,7 @@ func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*
 	var resp fly.FinishBuildResponse
 	resp.FinishBuild.Id = build.ID
 	resp.FinishBuild.Status = build.Status
+
 	return &resp, nil
 }
 
@@ -208,6 +207,10 @@ func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName strin
 	panic("TODO")
 }
 
+func (m *Client) GetAppCNAMETarget(ctx context.Context, appName string) (string, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error) {
 	panic("TODO")
 }
@@ -217,6 +220,10 @@ func (m *Client) GetAppLimitedAccessTokens(ctx context.Context, appName string) 
 }
 
 func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.App, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error) {
 	panic("TODO")
 }
 
@@ -252,12 +259,12 @@ func (m *Client) GetAppsForOrganization(ctx context.Context, orgID string) ([]fl
 	panic("TODO")
 }
 
-func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
-	return m.CurrentUser, nil
+func (m *Client) GetAppScopedEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+	return make(map[string][]fly.EgressIPAddress), nil
 }
 
-func (m *Client) GetDNSRecords(ctx context.Context, domainName string) ([]*fly.DNSRecord, error) {
-	panic("TODO")
+func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
+	return m.CurrentUser, nil
 }
 
 func (m *Client) GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error) {
@@ -268,19 +275,15 @@ func (m *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string)
 	panic("TODO")
 }
 
-func (m *Client) GetDomain(ctx context.Context, name string) (*fly.Domain, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*fly.Domain, error) {
-	panic("TODO")
-}
-
 func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error) {
 	return nil, nil // TODO
 }
 
-func (m *Client) GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error) {
+func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetLatestImageDetails(ctx context.Context, image string, flyVersion string) (*fly.ImageVersion, error) {
 	panic("TODO")
 }
 
@@ -301,10 +304,19 @@ func (m *Client) GetNearestRegion(ctx context.Context) (*fly.Region, error) {
 }
 
 func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
-	panic("TODO")
+	app, err := m.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &fly.Organization{ID: app.Organization.ID}, nil
 }
 
 func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error) {
 	panic("TODO")
 }
 
@@ -313,6 +325,26 @@ func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug st
 }
 
 func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetAllowedReplaySourceOrgSlugs(ctx context.Context, slug string) ([]string, error) {
+	panic("TODO")
+}
+
+func (m *Client) AddAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, sourceOrgSlugs []string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug string, orgSlugsToRemove []string) (*fly.Organization, error) {
+	panic("TODO")
+}
+
+func (m *Client) GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error) {
+	panic("TODO")
+}
+
+func (m *Client) SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error) {
 	panic("TODO")
 }
 
@@ -336,11 +368,7 @@ func (m *Client) LatestImage(ctx context.Context, appName string) (string, error
 	panic("TODO")
 }
 
-func (m *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error) {
-	panic("TODO")
-}
-
-func (m *Client) IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
+func (m *Client) IssueSSHCertificate(ctx context.Context, orgID string, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error) {
 	panic("TODO")
 }
 
@@ -364,11 +392,19 @@ func (m *Client) PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region
 	panic("TODO")
 }
 
+func (m *Client) ReleaseAppScopedEgressIPAddress(ctx context.Context, appName, ip string) error {
+	panic("TODO")
+}
+
+func (m *Client) ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error) {
+	panic("TODO")
+}
+
 func (m *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string) error {
 	panic("TODO")
 }
 
-func (m *Client) RemoveWireGuardPeer(ctx context.Context, org *fly.Organization, name string) error {
+func (m *Client) RemoveWireGuardPeer(ctx context.Context, orgID string, name string) error {
 	panic("TODO")
 }
 
@@ -380,6 +416,7 @@ func (m *Client) ResolveImageForApp(ctx context.Context, appName, imageRef strin
 	if image == nil {
 		return nil, fmt.Errorf("image not found for app %q: %s", appName, imageRef)
 	}
+
 	return image, nil
 }
 
@@ -410,6 +447,7 @@ func (m *Client) UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput
 
 	var resp fly.UpdateReleaseResponse
 	resp.UpdateRelease.Release.Id = input.ReleaseId
+
 	return &resp, nil
 }
 

@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/trace"
 )
 
+type flyClient interface {
+	ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error)
+}
+
 type remoteImageResolver struct {
-	flyApi flyutil.Client
+	flyApi flyClient
 }
 
 func (*remoteImageResolver) Name() string {
@@ -30,10 +34,12 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 	build.BuildFinish()
 	if err != nil {
 		tracing.RecordError(span, err, "failed to resolve image")
+
 		return nil, "", err
 	}
 	if img == nil {
 		span.AddEvent("no image found and no error occurred")
+
 		return nil, "no image found and no error occurred", nil
 	}
 
@@ -42,13 +48,22 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 	size, err := strconv.ParseUint(img.CompressedSize, 10, 64)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to parse size")
+
 		return nil, "", err
 	}
 
 	di := &DeploymentImage{
-		ID:   img.ID,
-		Tag:  img.Ref,
-		Size: int64(size),
+		ID:     img.ID,
+		Tag:    img.Ref,
+		Digest: img.Digest,
+		Size:   int64(size),
+	}
+
+	if img.Manifest != nil && img.Manifest.Annotations != nil {
+		if id, ok := img.Manifest.Annotations["fly_builder_id"]; ok {
+			di.BuilderID = id
+			build.BuilderMeta.RemoteMachineId = id
+		}
 	}
 
 	span.SetAttributes(di.ToSpanAttributes()...)

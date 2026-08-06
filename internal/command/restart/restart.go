@@ -27,17 +27,17 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "force",
 			Shorthand:   "f",
-			Description: "Will issue a restart against each Machine even if there are errors. ( Machines only )",
+			Description: "Will issue a restart against each Machine even if there are errors.",
 			Default:     false,
 		},
 		flag.Bool{
 			Name:        "force-stop",
-			Description: "Performs a force stop against the target Machine. ( Machines only )",
+			Description: "Performs a force stop against the target Machine.",
 			Default:     false,
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Restarts app without waiting for health checks. ( Machines only )",
+			Description: "Restarts app without waiting for health checks.",
 			Default:     false,
 		},
 	)

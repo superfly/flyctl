@@ -8,14 +8,21 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	"github.com/superfly/client-signals/go"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
@@ -50,10 +57,61 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
+	s := clientsignals.DetectOnce()
+	signals := &s
+
 	if flyutil.ClientFromContext(ctx) == nil {
-		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
 		logger.Debug("client initialized.")
 		ctx = flyutil.NewContextWithClient(ctx, client)
+	}
+
+	if uiexutil.ClientFromContext(ctx) == nil {
+		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = uiexutil.NewContextWithClient(ctx, client)
+	}
+
+	if mpgv1.ClientFromContext(ctx) == nil {
+		mpgClient, err := mpgv1.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = mpgv1.NewContextWithClient(ctx, mpgClient)
+	}
+	if mpgv2.ClientFromContext(ctx) == nil {
+		mpgClient, err := mpgv2.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger:        logger,
+			Tokens:        cfg.Tokens,
+			ClientSignals: signals,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = mpgv2.NewContextWithClient(ctx, mpgClient)
+	}
+
+	if flapsutil.ClientFromContext(ctx) == nil {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			ClientSignals: signals,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	}
 
 	return ctx, nil
@@ -104,6 +162,7 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			aliasFlag := flags.Lookup(alias)
 			if aliasFlag == nil {
 				invalidFlagNames = append(invalidFlagNames, alias)
+
 				continue
 			}
 			if origFlag == nil {
@@ -132,10 +191,11 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 			errorMessages = append(errorMessages, fmt.Sprintf("flags '%v' have different types", invalidTypes))
 		}
 		if len(errorMessages) > 1 {
-			err = fmt.Errorf("multiple errors occured:\n > %s\n", strings.Join(errorMessages, "\n > "))
+			err = fmt.Errorf("multiple errors occurred:\n > %s\n", strings.Join(errorMessages, "\n > "))
 		} else if len(errorMessages) == 1 {
 			err = fmt.Errorf("%s", errorMessages[0])
 		}
 	}
+
 	return ctx, err
 }

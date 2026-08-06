@@ -15,5 +15,6 @@ func New() *cobra.Command {
 		newAttach(),
 		newDetach(),
 	)
+
 	return cmd
 }

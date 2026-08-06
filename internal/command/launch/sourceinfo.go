@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/cavaliergopher/grab/v3"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -35,6 +37,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	if img := flag.GetString(ctx, "image"); img != "" {
 		fmt.Fprintln(io.Out, "Using image", img)
 		build.Image = img
+
 		return srcInfo, build, nil
 	}
 
@@ -54,22 +57,44 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		if err != nil {
 			return nil, nil, err
 		}
+
 		return srcInfo, build, nil
 	}
 
 	if strategies := appConfig.BuildStrategies(); len(strategies) > 0 {
 		fmt.Fprintf(io.Out, "Using build strategies '%s'. Remove [build] from fly.toml to force a rescan\n", aurora.Yellow(strategies))
+
 		return srcInfo, appConfig.Build, nil
 	}
 
-	fmt.Fprintln(io.Out, "Scanning source code")
+	planStep := plan.GetPlanStep(ctx)
+
+	if planStep == "" || planStep == "generate" {
+		fmt.Fprintln(io.Out, "Scanning source code")
+	}
+
 	srcInfo, err = scanner.Scan(workingDir, scannerConfig)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if srcInfo == nil {
-		fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
+		var colorFn func(arg any) aurora.Value
+		noBlank := planStep == "propose"
+		if noBlank {
+			colorFn = aurora.Red
+		} else {
+			colorFn = aurora.Green
+		}
+		msg := "Could not find a Dockerfile, nor detect a runtime or framework from source code."
+		if !noBlank {
+			msg += " Continuing with a blank app."
+		}
+		fmt.Fprintln(io.Out, colorFn(msg))
+		if noBlank {
+			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
+		}
+
 		return srcInfo, nil, err
 	}
 
@@ -78,12 +103,14 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		appType = appType + " " + srcInfo.Version
 	}
 
-	fmt.Fprintf(io.Out, "Detected %s %s app\n", articleFor(srcInfo.Family), aurora.Green(appType))
+	if planStep == "" || planStep == "generate" {
+		fmt.Fprintf(io.Out, "Detected %s %s app\n", articleFor(srcInfo.Family), aurora.Green(appType))
+	}
 
 	if srcInfo.Builder != "" {
 		fmt.Fprintln(io.Out, "Using the following build configuration:")
 		fmt.Fprintln(io.Out, "\tBuilder:", srcInfo.Builder)
-		if srcInfo.Buildpacks != nil && len(srcInfo.Buildpacks) > 0 {
+		if len(srcInfo.Buildpacks) > 0 {
 			fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 		}
 
@@ -92,13 +119,15 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 			Buildpacks: srcInfo.Buildpacks,
 		}
 	}
+
 	return srcInfo, build, nil
 }
 
 func articleFor(w string) string {
-	var article string = "a"
+	var article = "a"
 	if matched, _ := regexp.MatchString(`^[aeiou]`, strings.ToLower(w)); matched {
 		article += "n"
 	}
+
 	return article
 }

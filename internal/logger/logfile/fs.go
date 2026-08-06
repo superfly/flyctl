@@ -59,6 +59,7 @@ func retainLogs(logsDir string) error {
 				time: date,
 			})
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -77,6 +78,7 @@ func retainLogs(logsDir string) error {
 			lastErr = err
 		}
 	}
+
 	return lastErr
 }
 

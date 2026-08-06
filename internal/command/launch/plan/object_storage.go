@@ -11,6 +11,7 @@ func (p *ObjectStoragePlan) Provider() any {
 	if p.TigrisObjectStorage != nil {
 		return p.TigrisObjectStorage
 	}
+
 	return nil
 }
 

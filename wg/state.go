@@ -74,7 +74,7 @@ func (s *WireGuardState) TunnelConfig() *Config {
 		LocalNetwork:    &wgl,
 		RemotePublicKey: pkey,
 		RemoteNetwork:   &wgr,
-		Endpoint:        s.Peer.Endpointip + ":51820",
+		Endpoint:        net.JoinHostPort(s.Peer.Endpointip, "51820"),
 		DNS:             dns,
 		LogLevel:        wgLogLevel,
 	}

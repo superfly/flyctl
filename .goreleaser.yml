@@ -1,3 +1,5 @@
+version: 2
+
 env:
   - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
 
@@ -81,12 +83,21 @@ dockers:
       - "ghcr.io/superfly/flyctl:latest"
       - "ghcr.io/superfly/flyctl:v{{ .Version }}"
     skip_push: auto
+  - goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.mcp
+    image_templates:
+      - "flyio/mcp:latest"
+      - "flyio/mcp:v{{ .Version }}"
+      - "ghcr.io/superfly/mcp:latest"
+      - "ghcr.io/superfly/mcp:v{{ .Version }}"
+    skip_push: auto
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{.Version}}-{{.Branch}}.{{.CommitTimestamp}}"
+  version_template: "{{.Version}}-{{.Branch}}.{{.CommitTimestamp}}"
 
 changelog:
   sort: asc
@@ -99,7 +110,7 @@ brews:
   - repository:
       owner: superfly
       name: homebrew-tap
-    folder: Formula
+    directory: Formula
     homepage: https://fly.io
     skip_upload: auto
     test: |

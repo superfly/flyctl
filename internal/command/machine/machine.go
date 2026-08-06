@@ -29,6 +29,7 @@ Machines REST fly.`
 		newStart(),
 		newStop(),
 		newStatus(),
+		newWait(),
 		newProxy(),
 		newClone(),
 		newUpdate(),
@@ -38,6 +39,8 @@ Machines REST fly.`
 		newMachineCordon(),
 		newMachineUncordon(),
 		newSuspend(),
+		newEgressIp(),
+		newPlace(),
 	)
 
 	return cmd

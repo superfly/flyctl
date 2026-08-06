@@ -39,7 +39,7 @@ func newRestart() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
+			Description: "Runs rolling restart process without waiting for health checks.",
 			Default:     false,
 		},
 	)
@@ -70,10 +70,11 @@ func runRestart(ctx context.Context) error {
 	input := fly.RestartMachineInput{
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
-	return machinesRestart(ctx, &input)
+
+	return machinesRestart(ctx, appName, &input)
 }
 
-func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err error) {
+func machinesRestart(ctx context.Context, appName string, input *fly.RestartMachineInput) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.20"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -86,13 +87,13 @@ func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err e
 		force = flag.GetBool(ctx, "force")
 	)
 
-	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
+	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, appName)
 	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(appName, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -116,7 +117,7 @@ func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err e
 
 	// Restarting replicas
 	for _, replica := range replicas {
-		if err = mach.Restart(ctx, replica, input, replica.LeaseNonce); err != nil {
+		if err = mach.Restart(ctx, appName, replica, input, replica.LeaseNonce); err != nil {
 			return err
 		}
 	}
@@ -136,14 +137,14 @@ func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err e
 		if err := pgclient.Failover(ctx); err != nil {
 			msg := fmt.Sprintf("failed to perform failover: %s", err.Error())
 			if !force {
-				return fmt.Errorf(msg)
+				return fmt.Errorf("failed to perform failover: %w", err)
 			}
 
 			fmt.Fprintln(io.Out, colorize.Red(msg))
 		}
 	}
 
-	if err = mach.Restart(ctx, leader, input, leader.LeaseNonce); err != nil {
+	if err = mach.Restart(ctx, appName, leader, input, leader.LeaseNonce); err != nil {
 		return err
 	}
 

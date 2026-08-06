@@ -18,6 +18,7 @@ query GetAddOn($name: String, $provider: String) {
 		primaryRegion
 		readRegions
 		options
+		metadata
 		ssoLink
 		organization {
 			slug
@@ -139,6 +140,9 @@ fragment OrganizationData on Organization {
 	paidPlan
 	addOnSsoLink
 	provisionsBetaExtensions
+	name
+	billable
+	billingStatus
 }
 
 fragment AppData on App {
@@ -146,6 +150,7 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	cnameTarget
 	secrets {
 		name
 	}
@@ -177,6 +182,7 @@ query GetNearestRegion{
 		code
 		name
 		gatewayAvailable
+		deprecated
 	}
 }
 
@@ -204,8 +210,8 @@ mutation SetNomadVMCount($input: SetVMCountInput!) {
 	}
 }
 
-mutation DeleteAddOn($name: String) {
-	deleteAddOn(input: {name: $name}) {
+mutation DeleteAddOn($name: String, $provider: String) {
+	deleteAddOn(input: {name: $name, provider: $provider}) {
 		deletedAddOnName
 	}
 }
@@ -250,6 +256,7 @@ query ListAddOns($addOnType: AddOnType) {
 			primaryRegion
 			readRegions
 			options
+			metadata
 			organization {
 				id
 				slug
@@ -258,8 +265,28 @@ query ListAddOns($addOnType: AddOnType) {
 	}
 }
 
- mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
-		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
+query ListOrganizationAddOns($orgSlug: String!, $addOnType: AddOnType) {
+	organization(slug: $orgSlug) {
+		addOns(type: $addOnType) {
+			nodes {
+				id
+				name
+				addOnPlan {
+					displayName
+					description
+				}
+				privateIp
+				primaryRegion
+				readRegions
+				options
+				metadata
+			}
+		}
+	}
+}
+
+ mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!, $metadata: JSON!) {
+		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options, metadata: $metadata}) {
 			addOn {
 				id
 			}

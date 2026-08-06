@@ -18,5 +18,10 @@ func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	s.Files = templates("templates/nuxtjs")
 
+	// detect node.js version properly...
+	if nodeS, err := configureNode(sourceDir, config); err == nil && nodeS != nil {
+		s.Runtime = nodeS.Runtime
+	}
+
 	return s, nil
 }

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -31,13 +31,15 @@ func newList() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runList,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Aliases = []string{"ls"}
 
 	cmd.Args = cobra.ExactArgs(1)
 
-	flag.Add(cmd, flag.JSONOutput())
+	flag.Add(cmd, flag.App(), flag.JSONOutput())
+
 	return cmd
 }
 
@@ -45,6 +47,7 @@ func timeToString(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
+
 	return humanize.Time(t)
 }
 
@@ -58,33 +61,25 @@ func runList(ctx context.Context) error {
 	volID := flag.FirstArg(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
-	var volState string
 	if appName == "" {
-		n, s, err := client.GetAppNameStateFromVolume(ctx, volID)
+		n, err := client.GetAppNameFromVolume(ctx, volID)
 		if err != nil {
 			return fmt.Errorf("failed getting app name from volume: %w", err)
 		}
 		appName = *n
-		volState = *s
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	var snapshots []fly.VolumeSnapshot
-	switch volState {
-	case "pending_destroy", "deleted":
-		snapshots, err = client.GetSnapshotsFromVolume(ctx, volID)
-	default:
-		snapshots, err = flapsClient.GetVolumeSnapshots(ctx, volID)
-	}
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, appName, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
+
+	// sort snapshots from oldest to newest
+	sort.Slice(snapshots, func(i, j int) bool {
+		return snapshots[i].CreatedAt.Before(snapshots[j].CreatedAt)
+	})
 
 	if cfg.JSONOutput {
 		return render.JSON(io.Out, snapshots)
@@ -92,15 +87,12 @@ func runList(ctx context.Context) error {
 
 	if len(snapshots) == 0 {
 		fmt.Fprintf(io.ErrOut, "No snapshots available for volume %s\n", volID)
+
 		return nil
 	}
 
-	// sort snapshots from newest to oldest
-	sort.Slice(snapshots, func(i, j int) bool {
-		return snapshots[i].CreatedAt.After(snapshots[j].CreatedAt)
-	})
-
 	rows := make([][]string, 0, len(snapshots))
+	var totalStoredSize uint64
 	for _, snapshot := range snapshots {
 		id := snapshot.ID
 		if id == "" {
@@ -111,14 +103,35 @@ func runList(ctx context.Context) error {
 		if snapshot.RetentionDays != nil {
 			retentionDays = strconv.Itoa(*snapshot.RetentionDays)
 		}
+
+		storedSize := humanize.IBytes(uint64(snapshot.Size))
+		volSize := humanize.IBytes(uint64(snapshot.VolumeSize))
+		totalStoredSize += uint64(snapshot.Size)
+
 		rows = append(rows, []string{
 			id,
 			snapshot.Status,
-			strconv.Itoa(snapshot.Size),
+			storedSize,
+			volSize,
 			timeToString(snapshot.CreatedAt),
 			retentionDays,
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At", "Retention Days")
+	table := render.NewTable(io.Out, "Snapshots", rows, "ID", "Status", "Stored Size", "Vol Size", "Created At", "Retention Days")
+	table.Options(tablewriter.WithRowAlignmentConfig(tw.CellAlignment{
+		PerColumn: []tw.Align{
+			tw.AlignDefault, // ID
+			tw.AlignDefault, // Status
+			tw.AlignRight,   // Stored Size
+			tw.AlignRight,   // Vol Size
+			tw.AlignDefault, // Created At
+			tw.AlignRight,   // Retention Days
+		},
+	}))
+	table.Render() //nolint:errcheck
+
+	fmt.Fprintf(io.Out, "\nTotal stored size: %s\n", humanize.IBytes(totalStoredSize))
+
+	return nil
 }

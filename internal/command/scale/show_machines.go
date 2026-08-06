@@ -9,7 +9,6 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -21,18 +20,16 @@ func runMachinesScaleShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
+		return m.Config != nil
+	})
 
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
@@ -49,6 +46,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 		if len(machines) == 0 {
 			return nil
 		}
+
 		return machines[0].Config.Guest
 	})
 
@@ -67,6 +65,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 			if guest == nil {
 				return res, false
 			}
+
 			return groupData{
 				Process: name,
 				Count:   len(machines),
@@ -79,8 +78,13 @@ func runMachinesScaleShow(ctx context.Context) error {
 			}, true
 		})
 
-		prettyJSON, _ := json.MarshalIndent(groups, "", "    ")
+		prettyJSON, err := json.MarshalIndent(groups, "", "    ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal machine groups: %w", err)
+		}
+
 		fmt.Fprintln(io.Out, string(prettyJSON))
+
 		return nil
 	}
 
@@ -116,9 +120,11 @@ func formatRegions(machines []*fly.Machine) string {
 			if e.Value > 1 {
 				return fmt.Sprintf("%s(%d)", e.Key, e.Value)
 			}
+
 			return e.Key
 		},
 	)
 	slices.Sort(regions)
+
 	return strings.Join(regions, ",")
 }

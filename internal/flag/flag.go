@@ -14,6 +14,7 @@ import (
 type extraArgsContextKey struct{}
 
 func makeAlias[T any](template T, name string) T {
+
 	var ret T
 	value := reflect.ValueOf(&ret).Elem()
 
@@ -31,6 +32,15 @@ func makeAlias[T any](template T, name string) T {
 	if hiddenField.IsValid() {
 		hiddenField.SetBool(true)
 	}
+
+	useAliasShortHandField := reflect.ValueOf(template).FieldByName("UseAliasShortHand")
+	if useAliasShortHandField.IsValid() {
+		useAliasShortHand := useAliasShortHandField.Interface().(bool)
+		if useAliasShortHand {
+			value.FieldByName("Shorthand").SetString(string(name[0]))
+		}
+	}
+
 	return ret
 }
 
@@ -88,15 +98,17 @@ func (b Bool) addTo(cmd *cobra.Command) {
 
 // String wraps the set of string flags.
 type String struct {
-	Name         string
-	Shorthand    string
-	Description  string
-	Default      string
-	ConfName     string
-	EnvName      string
-	Hidden       bool
-	Aliases      []string
-	CompletionFn func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
+	Name              string
+	Shorthand         string
+	Description       string
+	Default           string
+	NoOptDefVal       string
+	ConfName          string
+	EnvName           string
+	Hidden            bool
+	Aliases           []string
+	UseAliasShortHand bool
+	CompletionFn      func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
 }
 
 func (s String) addTo(cmd *cobra.Command) {
@@ -110,6 +122,9 @@ func (s String) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(s.Name)
 	f.Hidden = s.Hidden
+	if s.NoOptDefVal != "" {
+		f.NoOptDefVal = s.NoOptDefVal
+	}
 
 	// Aliases
 	for _, name := range s.Aliases {
@@ -305,6 +320,14 @@ func Org() String {
 	}
 }
 
+func MPGCluster() String {
+	return String{
+		Name:        "cluster",
+		Shorthand:   "c",
+		Description: "The target cluster ID",
+	}
+}
+
 // Region returns a region string flag.
 func Region() String {
 	return String{
@@ -328,7 +351,7 @@ func Yes() Bool {
 	return Bool{
 		Name:        flagnames.Yes,
 		Shorthand:   "y",
-		Description: "Accept all confirmations",
+		Description: "Accept all confirmations (also --auto-confirm)",
 		Aliases:     []string{"auto-confirm"},
 	}
 }
@@ -421,7 +444,7 @@ const httpsFailover = "https-failover"
 func HttpsFailover() Bool {
 	return Bool{
 		Name:        httpsFailover,
-		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
+		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails (also --http-failover)",
 		Aliases:     []string{"http-failover"},
 		Default:     true,
 	}
@@ -537,11 +560,82 @@ func BuildTarget() String {
 	}
 }
 
+const BuildContextWarnSizeName = "build-context-warn-size"
+
+// BuildContextWarnSize controls the size at which flyctl warns that the Docker
+// build context being uploaded to the builder is unexpectedly large. Setting it
+// to 0 disables the warning. The effective default lives in imgsrc as
+// defaultBuildContextWarnSize.
+func BuildContextWarnSize() String {
+	return String{
+		Name:        BuildContextWarnSizeName,
+		Description: "Warn when the Docker build context is larger than this. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb). Set to 0 to disable. Also set with FLY_BUILD_CONTEXT_WARN_SIZE.",
+	}
+}
+
+func Depot() String {
+	return String{
+		Name:        "depot",
+		Default:     "auto",
+		NoOptDefVal: "true",
+		Description: "Deploy using depot to build the image",
+	}
+}
+
+func DepotScope() String {
+	return String{
+		Name:        "depot-scope",
+		Description: "The scope of the Depot builder's cache to use (org or app)",
+		Default:     "org",
+	}
+}
+
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
 		Default:     false,
 		Description: "Deploy using nixpacks to build the image",
+	}
+}
+
+func BuildkitAddr() String {
+	return String{
+		Name:        "buildkit-addr",
+		Description: "Address of remote buildkit daemon (e.g. tcp://127.0.0.1:1234 or unix:///path/to/socket)",
+		EnvName:     "BUILDKIT_ADDR",
+		Hidden:      true,
+	}
+}
+
+func BuildkitImage() String {
+	return String{
+		Name:        "buildkit-image",
+		Description: "Image to use for remote buildkit daemon",
+		EnvName:     "BUILDKIT_IMAGE",
+		Hidden:      true,
+	}
+}
+
+func Buildkit() Bool {
+	return Bool{
+		Name:        "buildkit",
+		Description: "Deploy using buildkit-based remote builder",
+	}
+}
+
+func Compression() String {
+	return String{
+		Name:        "compression",
+		Description: `Compression algorithm to use for the image. Options are "zstd" or "gzip". Defaults to "gzip".`,
+		Default:     "gzip",
+	}
+}
+
+func CompressionLevel() Int {
+	return Int{
+		Name:        "compression-level",
+		Description: `Compression level to use for the image. Defaults to 7.`,
+		Default:     7,
 	}
 }
 
@@ -563,7 +657,7 @@ func JSONOutput() Bool {
 
 func ProcessGroup(desc string) String {
 	if desc == "" {
-		desc = "The target process group"
+		desc = "The target process group (also --group)"
 	}
 
 	return String{
@@ -630,4 +724,12 @@ func ExtraArgsFromContext(ctx context.Context) []string {
 	}
 
 	return []string{}
+}
+
+func Env() StringArray {
+	return StringArray{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	}
 }

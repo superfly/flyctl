@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -31,20 +32,30 @@ func newDetach() *cobra.Command {
 			Description: "The secret name that will be removed from the app.",
 		},
 	)
+
 	return cmd
 }
 
 func runDetach(ctx context.Context) error {
 	var (
-		apiClient  = flyutil.ClientFromContext(ctx)
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
 	secretsToUnset := []string{secretName}
-	err = secrets.UnsetSecretsAndDeploy(ctx, appCompact, secretsToUnset, false, false)
+	err = secrets.UnsetSecretsAndDeploy(ctx, flapsClient, app, secretsToUnset, secrets.DeploymentArgs{
+		Stage:    false,
+		Detach:   false,
+		CheckDNS: true,
+	})
+
 	return err
 }

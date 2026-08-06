@@ -15,7 +15,10 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -23,14 +26,23 @@ import (
 )
 
 func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
+	if flag.GetBool(ctx, "no-github-workflow") || flag.GetString(ctx, "from") != "" {
+		return nil
+	}
+
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
 	if state.sourceInfo.GitHubActions.Secrets {
 		gh, err := exec.LookPath("gh")
 
 		if err != nil {
-			fmt.Println("Run `fly tokens create deploy -x 999999h` to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
-			fmt.Println("See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+			if plan.GetPlanStep(ctx) == "" {
+				io := iostreams.FromContext(ctx)
+				colorize := io.ColorScheme()
+				fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+				fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+				fmt.Fprintln(io.Out)
+			}
 		} else {
 			apiClient := flyutil.ClientFromContext(ctx)
 
@@ -56,7 +68,6 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				return fmt.Errorf("failed creating token: %w", err)
 			} else {
 				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-				fmt.Println(token)
 
 				fmt.Println("Setting FLY_API_TOKEN secret in GitHub repository settings")
 				cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
@@ -64,7 +75,7 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				err = cmd.Run()
 
 				if err != nil {
-					return fmt.Errorf("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
+					fmt.Printf("failed setting FLY_API_TOKEN secret in GitHub repository settings: %s\n", err)
 				}
 			}
 		}
@@ -81,6 +92,7 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 	if err := state.scannerCreateSecrets(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -95,6 +107,7 @@ func (state *launchState) satisfyScannerAfterDb(ctx context.Context) error {
 	if err := state.scannerSetAppconfig(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -110,11 +123,16 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 		if helpers.FileExists(path) {
 			if flag.GetBool(ctx, "now") {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
+
 				continue
 			}
-			confirm, err := prompt.ConfirmOverwrite(ctx, path)
-			if !confirm || err != nil {
-				continue
+			if !flag.GetBool(ctx, "yes") {
+				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if !confirm || err != nil {
+					continue
+				}
+			} else {
+				fmt.Fprintf(io.Out, "You specified --yes, overwriting %s\n", path)
 			}
 		}
 
@@ -131,6 +149,7 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -166,13 +185,14 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 	}
 
 	if len(secrets) > 0 {
-		apiClient := flyutil.ClientFromContext(ctx)
-		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.Plan.AppName, strings.Join(lo.Keys(secrets), ", "))
 	}
+
 	return nil
 }
 
@@ -195,6 +215,10 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 
 				if state.sourceInfo.ReleaseCmd == "" && cfg.Deploy != nil {
 					state.sourceInfo.ReleaseCmd = cfg.Deploy.ReleaseCommand
+				}
+
+				if state.sourceInfo.SeedCmd == "" && cfg.Deploy != nil {
+					state.sourceInfo.SeedCmd = cfg.Deploy.SeedCommand
 				}
 
 				if len(cfg.Env) > 0 {
@@ -233,6 +257,13 @@ func (state *launchState) scannerRunInitCommands(ctx context.Context) error {
 			}
 		}
 	}
+
+	if state.sourceInfo != nil && state.sourceInfo.PostInitCallback != nil {
+		if err := state.sourceInfo.PostInitCallback(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -254,6 +285,7 @@ func execInitCommand(ctx context.Context, command scanner.InitCommand) (err erro
 	if err = cmd.Wait(); err != nil {
 		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
 	}
+
 	return err
 }
 
@@ -275,9 +307,12 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 	}
 
 	for envName, envVal := range srcInfo.Env {
-		if envVal == "APP_FQDN" {
+		switch envVal {
+		case "APP_FQDN":
 			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
-		} else {
+		case "APP_URL":
+			appConfig.SetEnvVariable(envName, "https://"+appConfig.AppName+".fly.dev")
+		default:
 			appConfig.SetEnvVariable(envName, envVal)
 		}
 	}
@@ -297,8 +332,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		var appVolumes []appconfig.Mount
 		for _, v := range srcInfo.Volumes {
 			appVolumes = append(appVolumes, appconfig.Mount{
-				Source:      v.Source,
-				Destination: v.Destination,
+				Source:                  v.Source,
+				Destination:             v.Destination,
+				AutoExtendSizeThreshold: v.AutoExtendSizeThreshold,
+				AutoExtendSizeIncrement: v.AutoExtendSizeIncrement,
+				AutoExtendSizeLimit:     v.AutoExtendSizeLimit,
 			})
 		}
 		appConfig.SetMounts(appVolumes)
@@ -319,6 +357,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 
 	if srcInfo.ReleaseCmd != "" {
 		appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+	}
+
+	if srcInfo.SeedCmd != "" {
+		// no V1 compatibility for this feature so bypass setters
+		appConfig.Deploy.SeedCommand = srcInfo.SeedCmd
 	}
 
 	if srcInfo.DockerCommand != "" {
@@ -351,5 +394,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		}
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
+
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -30,12 +31,15 @@ func newImport() (cmd *cobra.Command) {
 }
 
 func runImport(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
-		return
+		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := parseSecrets(os.Stdin)
 	if err != nil {
@@ -45,5 +49,9 @@ func runImport(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+	return SetSecretsAndDeploy(ctx, flapsClient, app, secrets, DeploymentArgs{
+		Stage:    flag.GetBool(ctx, "stage"),
+		Detach:   flag.GetBool(ctx, "detach"),
+		CheckDNS: flag.GetBool(ctx, "dns-checks"),
+	})
 }

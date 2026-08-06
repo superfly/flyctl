@@ -93,12 +93,12 @@ func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := flapsClient.ListActive(ctx)
+	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -106,6 +106,7 @@ func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 	if err != nil {
 		return err
 	}
+
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
 		Org:      app.Organization,

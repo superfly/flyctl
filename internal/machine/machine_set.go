@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/sync/errgroup"
 )
 
 type MachineSet interface {
@@ -31,11 +32,12 @@ type machineSet struct {
 	machines []LeasableMachine
 }
 
-func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
+func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, appName string, machines []*fly.Machine, showLogs bool) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
-		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))
+		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, appName, m, showLogs))
 	}
+
 	return &machineSet{
 		machines: leaseMachines,
 	}
@@ -49,37 +51,30 @@ func (ms *machineSet) GetMachines() []LeasableMachine {
 	return ms.machines
 }
 
+// AcquireLeases acquires leases on all machines in the set for the given duration.
 func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration) error {
 	if len(ms.machines) == 0 {
 		return nil
 	}
 
-	results := make(chan error, len(ms.machines))
-	var wg sync.WaitGroup
+	// Don't override ctx. Even leaseCtx is cancelled, we still want to release the leases.
+	eg, leaseCtx := errgroup.WithContext(ctx)
 	for _, m := range ms.machines {
-		wg.Add(1)
-		go func(m LeasableMachine) {
-			defer wg.Done()
-			results <- m.AcquireLease(ctx, duration)
-		}(m)
+		eg.Go(func() error {
+			return m.AcquireLease(leaseCtx, duration)
+		})
 	}
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-	hadError := false
-	for err := range results {
-		if err != nil {
-			hadError = true
-			terminal.Warnf("failed to acquire lease: %v\n", err)
-		}
-	}
-	if hadError {
+
+	waitErr := eg.Wait()
+	if waitErr != nil {
+		terminal.Warnf("failed to acquire lease: %v\n", waitErr)
 		if err := ms.ReleaseLeases(ctx); err != nil {
 			terminal.Warnf("error releasing machine leases: %v\n", err)
 		}
-		return fmt.Errorf("error acquiring leases on all machines")
+
+		return waitErr
 	}
+
 	return nil
 }
 
@@ -97,9 +92,11 @@ func (ms *machineSet) RemoveMachines(ctx context.Context, machines []LeasableMac
 	ms.machines = tempMachines
 
 	subset := machineSet{machines: machines}
+
 	return subset.ReleaseLeases(ctx)
 }
 
+// ReleaseLeases releases leases on all machines in this set.
 func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	if len(ms.machines) == 0 {
 		return nil
@@ -130,15 +127,21 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	}()
 	hadError := false
 	for err := range results {
-		contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-		if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
-			hadError = true
-			terminal.Warnf("failed to release lease: %v\n", err)
+		if err != nil {
+			contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+			var ferr *flaps.FlapsError
+			if errors.As(err, &ferr) && ferr.ResponseStatusCode == http.StatusNotFound {
+				// Having StatusNotFound is expected, if acquiring this entire set is partially failing.
+			} else if !contextWasAlreadyCanceled || !contextTimedOutOrCanceled {
+				hadError = true
+				terminal.Warnf("failed to release lease: %v\n", err)
+			}
 		}
 	}
 	if hadError {
 		return fmt.Errorf("error releasing leases on machines")
 	}
+
 	return nil
 }
 
@@ -164,12 +167,13 @@ func (ms *machineSet) WaitForMachineSetState(ctx context.Context, state string, 
 		wg.Add(1)
 		go func(m LeasableMachine) {
 			defer wg.Done()
-			err := m.WaitForState(ctx, state, timeout, allowInfinite)
+			err := m.WaitForState(ctx, state, timeout, WithAllowInfinite(allowInfinite))
 
 			var flapsErr *flaps.FlapsError
 			if errors.As(err, &flapsErr) {
 				if flapsErr.ResponseStatusCode == http.StatusNotFound && allowNotFound {
 					results <- nil
+
 					return
 				}
 			}
@@ -193,5 +197,6 @@ func (ms *machineSet) WaitForMachineSetState(ctx context.Context, state string, 
 	if hadError {
 		return badMachineIDs, fmt.Errorf("error waiting for state on all machines")
 	}
+
 	return nil, nil
 }

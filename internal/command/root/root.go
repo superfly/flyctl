@@ -3,12 +3,16 @@ package root
 
 import (
 	"context"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/kr/text"
-	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -24,10 +28,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/command/dig"
-	"github.com/superfly/flyctl/internal/command/dnsrecords"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
-	"github.com/superfly/flyctl/internal/command/domains"
 	"github.com/superfly/flyctl/internal/command/extensions"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
@@ -39,8 +41,10 @@ import (
 	"github.com/superfly/flyctl/internal/command/lfsc"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/command/mcp"
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -49,6 +53,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/regions"
+	"github.com/superfly/flyctl/internal/command/registry"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/scale"
@@ -59,6 +64,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
+	"github.com/superfly/flyctl/internal/command/synthetics"
 	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
@@ -74,7 +80,17 @@ func New() *cobra.Command {
 		short = "The Fly.io command line interface"
 	)
 
-	root := command.New("fly", short, long, run)
+	exePath, err := os.Executable()
+	var exe string
+	if err != nil {
+		log.Printf("WARN: failed to find executable, error=%q", err)
+		exe = "fly"
+	} else {
+		exe = filepath.Base(exePath)
+	}
+
+	root := command.New(exe, short, long, run)
+	root.Version = buildinfo.Version().String()
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
@@ -110,11 +126,14 @@ func New() *cobra.Command {
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
+		group(mcp.New(), "upkeep"),
+		group(mpg.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
 		group(secrets.New(), "configuring"),
 		group(ssh.New(), "upkeep"),
 		group(ssh.NewSFTP(), "upkeep"),
 		group(redis.New(), "dbs_and_extensions"),
+		group(registry.New(), "upkeep"),
 		group(checks.New(), "upkeep"),
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),
@@ -132,15 +151,14 @@ func New() *cobra.Command {
 		settings.New(),
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
-		curl.New(),       // TODO: deprecate
-		domains.New(),    // TODO: deprecate
-		open.New(),       // TODO: deprecate
-		create.New(),     // TODO: deprecate
-		destroy.New(),    // TODO: deprecate
-		move.New(),       // TODO: deprecate
-		suspend.New(),    // TODO: deprecate
-		resume.New(),     // TODO: deprecate
-		dnsrecords.New(), // TODO: deprecate
+		synthetics.New(),
+		curl.New(),    // TODO: deprecate
+		open.New(),    // TODO: deprecate
+		create.New(),  // TODO: deprecate
+		destroy.New(), // TODO: deprecate
+		move.New(),    // TODO: deprecate
+		suspend.New(), // TODO: deprecate
+		resume.New(),  // TODO: deprecate
 
 		regions.New(), // TODO: deprecate
 	)
@@ -212,7 +230,7 @@ func run(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		cmd.Printf("  %s %s\n", tablewriter.PadRight(c.CommandPath(), " ", 16), c.Short)
+		cmd.Printf("  %s %s\n", tw.PadRight(c.CommandPath(), " ", 16), c.Short)
 	}
 
 	cmd.Println()
@@ -224,11 +242,14 @@ func run(ctx context.Context) error {
 
 	cmd.Println()
 	cmd.Println("For a full list of commands, run `fly help`.")
+	cmd.Println()
+	cmd.Printf("Running %s v%s\n", buildinfo.Name(), buildinfo.Version())
 
 	return nil
 }
 
 func group(cmd *cobra.Command, id string) *cobra.Command {
 	cmd.GroupID = id
+
 	return cmd
 }

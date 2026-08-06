@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/pkg/errors"
@@ -33,6 +34,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		terminal.Debug(note)
 		span.AddEvent(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -47,6 +49,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	build.BuilderInitFinish()
 	if err != nil {
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 	defer docker.Close() // skipcq: GO-S2307
@@ -70,11 +73,13 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	if err != nil {
 		build.BuildFinish()
 		tracing.RecordError(span, err, "failed to find image with docker")
+
 		return nil, "", err
 	}
 	if img == nil {
 		build.BuildFinish()
 		span.AddEvent("no image found and no error occurred")
+
 		return nil, "no image found and no error occurred", nil
 	}
 
@@ -89,6 +94,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		if err != nil {
 			build.PushFinish()
 			tracing.RecordError(span, err, "failed to tag image")
+
 			return nil, "", errors.Wrap(err, "error tagging image")
 		}
 
@@ -98,6 +104,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
+
 			return nil, "", err
 		}
 
@@ -117,13 +124,14 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
 
-func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*types.ImageSummary, error) {
+func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*image.Summary, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "find_image_with_docker")
 	defer span.End()
 
 	ref, err := dockerparser.Parse(imageName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to parse image")
+
 		return nil, err
 	}
 
@@ -131,9 +139,10 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 
 	isID := imageIDPattern.MatchString(imageName)
 
-	images, err := d.ImageList(ctx, types.ImageListOptions{})
+	images, err := d.ImageList(ctx, image.ListOptions{})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list images")
+
 		return nil, err
 	}
 
@@ -144,6 +153,7 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 			}
 			if img.ID[7:7+len(imageName)] == imageName {
 				terminal.Debug("Found image by id", imageName)
+
 				return &img, nil
 			}
 		}
@@ -169,10 +179,8 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 				continue
 			}
 
-			for _, term := range searchTerms {
-				if tag == term {
-					return &img, nil
-				}
+			if slices.Contains(searchTerms, tag) {
+				return &img, nil
 			}
 		}
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -42,14 +41,14 @@ func newFork() *cobra.Command {
 			Description: "The name of the new volume",
 		},
 		flag.Bool{
-			Name:        "machines-only",
-			Description: "volume will be visible to Machines platform only",
-			Hidden:      true,
-		},
-		flag.Bool{
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 			Default:     true,
+		},
+		flag.Bool{
+			Name:        "unique-zone-app-wide",
+			Description: "Checks all volumes in app for unique zone handling, instead of only volumes with the same name (which is the default)",
+			Default:     false,
 		},
 		flag.String{
 			Name:        "region",
@@ -60,6 +59,7 @@ func newFork() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -71,16 +71,15 @@ func runFork(ctx context.Context) error {
 		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return err
-	}
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	var vol *fly.Volume
+	var (
+		vol *fly.Volume
+		err error
+	)
 	if volID == "" {
-		app, err := client.GetAppBasic(ctx, appName)
+		var app *fly.AppBasic
+		app, err = client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -89,7 +88,7 @@ func runFork(ctx context.Context) error {
 			return err
 		}
 	} else {
-		vol, err = flapsClient.GetVolume(ctx, volID)
+		vol, err = flapsClient.GetVolume(ctx, appName, volID)
 		if err != nil {
 			return fmt.Errorf("failed to get volume: %w", err)
 		}
@@ -100,26 +99,35 @@ func runFork(ctx context.Context) error {
 		name = flag.GetString(ctx, "name")
 	}
 
-	var machinesOnly *bool
-	if flag.IsSpecified(ctx, "machines-only") {
-		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
-	}
-
-	var requireUniqueZone *bool
-	if flag.IsSpecified(ctx, "require-unique-zone") {
-		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
-	}
-
 	region := flag.GetString(ctx, "region")
+
+	// A volume lives on a single host, so if that host is unavailable the volume
+	// can't be forked. Report this directly and suggest restoring from a snapshot
+	// as an alternative.
+	if vol.HostStatus != string(fly.HostStatusOk) {
+		return fmt.Errorf(
+			"can't fork volume %s: it's on a host that is currently unavailable or unreachable (host status: %q).\n"+
+				"If the host doesn't recover, you can create a new volume from a recent snapshot instead:\n"+
+				"  fly volume snapshots list %s -a %s\n"+
+				"  fly volume create %s --snapshot-id <snapshot id> -a %s",
+			vol.ID, vol.HostStatus,
+			vol.ID, appName,
+			name, appName,
+		)
+	}
 
 	var attachedMachineImage string
 	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
-		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
+		m, err := flapsClient.Get(ctx, appName, *vol.AttachedMachine)
 		if err != nil {
 			return err
 		}
-		attachedMachineGuest = m.Config.Guest
+		// Guard against a nil config (e.g. the machine's host went unhealthy
+		// between fetching the volume and the machine) so we never panic here.
+		if m.Config != nil {
+			attachedMachineGuest = m.Config.Guest
+		}
 		attachedMachineImage = m.FullImageRef()
 	}
 
@@ -130,15 +138,15 @@ func runFork(ctx context.Context) error {
 
 	input := fly.CreateVolumeRequest{
 		Name:                name,
-		MachinesOnly:        machinesOnly,
-		RequireUniqueZone:   requireUniqueZone,
+		RequireUniqueZone:   new(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   new(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,
 		Region:              region,
 	}
 
-	volume, err := flapsClient.CreateVolume(ctx, input)
+	volume, err := flapsClient.CreateVolume(ctx, appName, input)
 	if err != nil {
 		return fmt.Errorf("failed to fork volume: %w", err)
 	}

@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -42,23 +42,33 @@ to the root URL of the deployed application.
 	return
 }
 
-func runOpen(ctx context.Context) error {
-	iostream := iostreams.FromContext(ctx)
-	appName := appconfig.NameFromContext(ctx)
+var (
+	openBrowser         = open.Run
+	loadRemoteAppConfig = appconfig.FromRemoteApp
+)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
+func runOpen(ctx context.Context) error {
+	appName := appconfig.NameFromContext(ctx)
+	if appName == "" {
+		return command.ErrRequireAppName
 	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
+	if appConfig != nil && appConfig.AppName != appName {
+		appConfig = nil
+	}
 	if appConfig == nil {
-		appConfig, err = appconfig.FromRemoteApp(ctx, appName)
-		if err != nil {
-			return errors.New("The app config could not be found")
+		var err error
+		appConfig, err = loadRemoteAppConfig(ctx, appName)
+		if err != nil || appConfig == nil {
+			if log := logger.MaybeFromContext(ctx); log != nil && err != nil {
+				log.Debugf("failed loading remote app config for %s: %v", appName, err)
+			}
+
+			appURL := defaultAppURL(appName)
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Warning: couldn't load app config for %s, falling back to the default app URL\n", appName)
+
+			return openAppURL(ctx, appURL)
 		}
 	}
 
@@ -66,6 +76,20 @@ func runOpen(ctx context.Context) error {
 	if appURL == nil {
 		return errors.New("The app doesn't expose a public http service")
 	}
+
+	return openAppURL(ctx, appURL)
+}
+
+func defaultAppURL(appName string) *url.URL {
+	return &url.URL{
+		Scheme: "https",
+		Host:   appName + ".fly.dev",
+		Path:   "/",
+	}
+}
+
+func openAppURL(ctx context.Context, appURL *url.URL) error {
+	iostream := iostreams.FromContext(ctx)
 
 	if relURI := flag.FirstArg(ctx); relURI != "" {
 		newURL, err := appURL.Parse(relURI)
@@ -76,7 +100,7 @@ func runOpen(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(iostream.Out, "opening %s ...\n", appURL)
-	if err := open.Run(appURL.String()); err != nil {
+	if err := openBrowser(appURL.String()); err != nil {
 		return fmt.Errorf("failed opening %s: %w", appURL, err)
 	}
 

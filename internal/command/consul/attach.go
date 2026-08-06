@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -35,6 +36,7 @@ func newAttach() *cobra.Command {
 			Description: "The environment variable name that will be added to the consuming app.",
 		},
 	)
+
 	return cmd
 }
 
@@ -44,10 +46,14 @@ func runAttach(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
 	consulPayload, err := apiClient.EnablePostgresConsul(ctx, appName)
 	if err != nil {
 		return nil
@@ -55,6 +61,11 @@ func runAttach(ctx context.Context) error {
 	secretsToSet := map[string]string{
 		secretName: consulPayload.ConsulURL,
 	}
-	err = secrets.SetSecretsAndDeploy(ctx, appCompact, secretsToSet, false, false)
+	err = secrets.SetSecretsAndDeploy(ctx, flapsClient, app, secretsToSet, secrets.DeploymentArgs{
+		Stage:    false,
+		Detach:   false,
+		CheckDNS: true,
+	})
+
 	return err
 }
