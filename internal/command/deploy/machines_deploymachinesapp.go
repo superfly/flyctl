@@ -920,7 +920,9 @@ func (md *machineDeployment) getPoolSize(totalMachines int) int {
 	case mu >= 1:
 		return int(mu)
 	default:
-		return int(math.Ceil(float64(totalMachines) * mu))
+		// Never return a pool size below 1: a 0 (or negative) value would
+		// panic in acquireLeases ("pool size must be > 0"). See #4262.
+		return max(1, int(math.Ceil(float64(totalMachines)*mu)))
 	}
 }
 

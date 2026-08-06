@@ -246,6 +246,13 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
+	// The --max-unavailable flag is validated in deploy.go, but a value read
+	// straight from fly.toml's [deploy] section bypasses that check. Guard it
+	// here so a max_unavailable of 0 yields a friendly error instead of an
+	// eventual "pool size must be > 0" panic. See #4262.
+	if maxUnavailable <= 0 {
+		return nil, fmt.Errorf("max_unavailable must be > 0 (got %v); set it to at least 1 or a fraction like 0.33", maxUnavailable)
+	}
 
 	maxConcurrent := max(args.MaxConcurrent, 1)
 
