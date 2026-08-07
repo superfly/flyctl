@@ -76,5 +76,6 @@ func loadAppConfigTestContext(t *testing.T, configPath string) context.Context {
 
 	ctx := flag.NewContext(context.Background(), fs)
 	ctx = logger.NewContext(ctx, logger.New(io.Discard, logger.NoLogLevel, false))
+
 	return state.WithWorkingDirectory(ctx, t.TempDir())
 }

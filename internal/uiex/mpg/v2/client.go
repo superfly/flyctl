@@ -197,8 +197,9 @@ type CreateClusterBackupInput struct {
 }
 
 type RestoreClusterBackupInput struct {
-	BackupId string `json:"backup_id"`
+	BackupId string `json:"backup_id,omitempty"`
 	Name     string `json:"name,omitempty"`
+	PitrTime string `json:"pitr_time,omitempty"`
 }
 
 type RestoreClusterBackupResponse struct {
@@ -863,7 +864,7 @@ func (c *Client) RestoreClusterBackup(ctx context.Context, clusterID string, inp
 	case http.StatusForbidden:
 		return response, fmt.Errorf("access denied: you don't have permission to restore cluster %s", clusterID)
 	default:
-		return response, fmt.Errorf("failed to restore backup (status %d): %s", res.StatusCode, string(body))
+		return response, fmt.Errorf("failed to restore cluster (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
