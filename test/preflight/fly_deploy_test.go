@@ -542,3 +542,88 @@ func TestFlyDeploy_BlueGreen_StoppedMachines(t *testing.T) {
 		}
 	})
 }
+
+// TestFlyDeploy_BlueGreen_IgnoreUnreachable tests the --ignore-unreachable
+// flag on the bluegreen strategy. Because we cannot manufacture a genuinely
+// unreachable host in a test environment, these subtests verify the two
+// observable sides of the flag:
+//
+//  1. --ignore-unreachable is a valid flag and does not break normal healthy
+//     deployments.
+//  2. On an app whose machines were manually stopped before the second
+//     deploy, --ignore-unreachable still succeeds (the stopped-machine
+//     SkipLaunch regression is already covered by
+//     TestFlyDeploy_BlueGreen_StoppedMachines; here we confirm
+//     --ignore-unreachable doesn't introduce a regression on the same path).
+func TestFlyDeploy_BlueGreen_IgnoreUnreachable(t *testing.T) {
+	// launchWithChecks creates a fresh single-machine nginx app with an http
+	// service health check and an initial deploy, then returns (env, appName).
+	launchWithChecks := func(t *testing.T) (*testlib.FlyctlTestEnv, string) {
+		t.Helper()
+		f := testlib.NewTestEnvFromEnv(t)
+		appName := f.CreateRandomAppName()
+
+		f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
+			f.OrgSlug(), appName, f.PrimaryRegion())
+
+		appConfig := f.ReadFile("fly.toml")
+		appConfig += `
+	  [[http_service.checks]]
+	    grace_period = "5s"
+	    interval = "10s"
+	    method = "GET"
+	    timeout = "5s"
+	    path = "/"
+	`
+		f.WriteFlyToml("%s", appConfig)
+		f.Fly("deploy --remote-only")
+		return f, appName
+	}
+
+	// --ignore-unreachable on a healthy app (all machines reachable) must
+	// succeed and leave machines in "started" state. This is a regression
+	// guard: --ignore-unreachable must not disrupt a normal bluegreen deploy.
+	t.Run("ignore-unreachable on healthy app succeeds", func(t *testing.T) {
+		f, appName := launchWithChecks(t)
+
+		f.Fly("deploy --remote-only --strategy bluegreen --ignore-unreachable")
+
+		for _, m := range f.MachinesList(appName) {
+			require.Equal(t, fly.MachineStateStarted, m.State,
+				"machine %s should be 'started' after bluegreen --ignore-unreachable on a healthy app, got '%s'",
+				m.ID, m.State)
+		}
+	})
+
+	// --ignore-unreachable on stopped machines (the auto_stop_machines scenario)
+	// must still succeed: stopped machines get SkipLaunch=true in their
+	// launchInput, and --ignore-unreachable must not prevent the green machines
+	// from being properly started.
+	t.Run("ignore-unreachable with stopped machines succeeds", func(t *testing.T) {
+		f, appName := launchWithChecks(t)
+
+		// Stop all machines to reproduce the auto_stop_machines trigger.
+		machines := f.MachinesList(appName)
+		for _, m := range machines {
+			f.Fly("machine stop -a %s %s", appName, m.ID)
+		}
+		require.Eventually(t, func() bool {
+			for _, m := range f.MachinesList(appName) {
+				if m.State != fly.MachineStateStopped {
+					return false
+				}
+			}
+			return true
+		}, 30*time.Second, 2*time.Second, "timed out waiting for machines to stop")
+
+		// --ignore-unreachable must not interfere with the SkipLaunch fix: green
+		// machines must still be started and health-checked properly.
+		f.Fly("deploy --remote-only --strategy bluegreen --ignore-unreachable")
+
+		for _, m := range f.MachinesList(appName) {
+			require.Equal(t, fly.MachineStateStarted, m.State,
+				"machine %s should be 'started' after bluegreen --ignore-unreachable with stopped blue machines, got '%s'",
+				m.ID, m.State)
+		}
+	})
+}
