@@ -65,6 +65,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/synthetics"
+	"github.com/superfly/flyctl/internal/command/ticket"
 	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
@@ -117,6 +118,7 @@ func New() *cobra.Command {
 		group(status.New(), "deploy"),
 		group(logs.New(), "upkeep"),
 		group(doctor.New(), "more_help"),
+		group(ticket.New(), "more_help"),
 		group(dig.New(), "upkeep"),
 		group(volumes.New(), "configuring"),
 		group(lfsc.New(), "dbs_and_extensions"),
