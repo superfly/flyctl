@@ -34,6 +34,11 @@ type mockFlapsClient struct {
 	unhealthyGet bool
 	launchInputs []fly.LaunchMachineInput
 
+	// GetFunc, when set, overrides the default Get behaviour. Useful for tests
+	// that need fine-grained control over per-machine responses (e.g. to simulate
+	// an unreachable host returning an empty ImageRef).
+	GetFunc func(ctx context.Context, appName, machineID string) (*fly.Machine, error)
+
 	// uncordonTransientFailures causes Uncordon to fail this many times before
 	// succeeding, simulating transient API errors for retry tests.
 	uncordonTransientFailures int
@@ -43,6 +48,14 @@ type mockFlapsClient struct {
 	machines      []*fly.Machine
 	leases        map[string]struct{}
 	nextMachineID int
+	destroyCalls  []destroyCall
+}
+
+// destroyCall records one Destroy invocation so tests can assert how a
+// machine was destroyed (force/kill and which lease nonce was sent).
+type destroyCall struct {
+	input fly.RemoveMachineInput
+	nonce string
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
@@ -120,6 +133,10 @@ func (m *mockFlapsClient) DeleteVolume(ctx context.Context, appName, volumeId st
 }
 
 func (m *mockFlapsClient) Destroy(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
+	m.mu.Lock()
+	m.destroyCalls = append(m.destroyCalls, destroyCall{input: input, nonce: nonce})
+	m.mu.Unlock()
+
 	if m.breakDestroy {
 		return fmt.Errorf("failed to destroy %s", input.ID)
 	}
@@ -146,9 +163,14 @@ func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, 
 
 func (m *mockFlapsClient) Get(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	getFn := m.GetFunc
+	breakGet := m.breakGet
+	m.mu.Unlock()
 
-	if m.breakGet {
+	if getFn != nil {
+		return getFn(ctx, appName, machineID)
+	}
+	if breakGet {
 		return nil, fmt.Errorf("failed to get %s", machineID)
 	}
 	status := fly.Passing
