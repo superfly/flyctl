@@ -167,7 +167,7 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "command",
-			Description: "The command to override the Docker CND.",
+			Description: "The command to override the Docker CMD.",
 		},
 		flag.StringSlice{
 			Name:        "volume",
