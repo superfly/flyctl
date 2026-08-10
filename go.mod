@@ -59,7 +59,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/nats-io/nats.go v1.52.0
 	github.com/novln/docker-parser v1.0.0
-	github.com/oklog/ulid/v2 v2.1.1
+	github.com/oklog/ulid/v2 v2.1.2
 	github.com/olekukonko/tablewriter v1.1.4
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pkg/errors v0.9.1
