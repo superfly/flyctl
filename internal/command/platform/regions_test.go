@@ -76,7 +76,7 @@ func TestRunRegionsJSON(t *testing.T) {
 	require.NoError(t, runRegions(ctx))
 
 	var regions []map[string]any
-	require.NoError(t, json.Unmarshal([]byte(out.String()), &regions))
+	require.NoError(t, json.Unmarshal(out.Bytes(), &regions))
 	require.Len(t, regions, 2)
 
 	byCode := map[string]map[string]any{}
