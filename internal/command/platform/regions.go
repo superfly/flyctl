@@ -70,9 +70,10 @@ func runRegions(ctx context.Context) error {
 			rows = append(rows, []string{
 				region.Name,
 				region.Code,
+				lo.Ternary(region.MPGAvailable, io.ColorScheme().SuccessIcon(), ""),
 			})
 		}
 	}
 
-	return render.Table(out, "", rows, "Name", "Code")
+	return render.Table(out, "", rows, "Name", "Code", "MPG")
 }
