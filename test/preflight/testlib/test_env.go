@@ -473,7 +473,3 @@ func (f *FlyctlTestEnv) Skipped() bool {
 func (f *FlyctlTestEnv) TempDir() string {
 	return f.t.TempDir()
 }
-
-func (f *FlyctlTestEnv) IsGpuMachine() bool {
-	return strings.Contains(f.VMSize, "a10") || strings.Contains(f.VMSize, "l40s")
-}
