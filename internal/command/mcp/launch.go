@@ -287,6 +287,8 @@ func runLaunch(ctx context.Context) error {
 		args = append(args, "--vm-cpus", fmt.Sprintf("%d", vmCpus))
 	}
 
+	// Forwarded so that `fly launch` rejects them, rather than dropping a
+	// GPU request on the floor and quietly launching a CPU machine.
 	if vmGpuKind := flag.GetString(ctx, "vm-gpu-kind"); vmGpuKind != "" {
 		args = append(args, "--vm-gpu-kind", vmGpuKind)
 	}

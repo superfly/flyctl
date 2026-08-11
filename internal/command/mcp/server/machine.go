@@ -76,17 +76,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "number",
 			},
-			"vm-gpu-kind": {
-				Description: "If set, the GPU model to attach",
-				Required:    false,
-				Type:        "enum",
-				Enum:        []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"},
-			},
-			"vm-gpus": {
-				Description: "The number of GPUs to use for the new machine",
-				Required:    false,
-				Type:        "number",
-			},
 			"vm-memory": {
 				Description: "The amount of memory (in megabytes) to use for the new machine",
 				Required:    false,
@@ -170,14 +159,6 @@ var MachineCommands = []FlyCommand{
 
 			if vmCpus, ok := args["vm-cpus"]; ok {
 				cmdArgs = append(cmdArgs, "--vm-cpus", vmCpus)
-			}
-
-			if vmGpuKind, ok := args["vm-gpu-kind"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpu-kind", vmGpuKind)
-			}
-
-			if vmGpus, ok := args["vm-gpus"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpus", vmGpus)
 			}
 
 			if vmMemory, ok := args["vm-memory"]; ok {
@@ -348,17 +329,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "number",
 			},
-			"vm-gpu-kind": {
-				Description: "If set, the GPU model to attach",
-				Required:    false,
-				Type:        "enum",
-				Enum:        []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"},
-			},
-			"vm-gpus": {
-				Description: "The number of GPUs to use for the new machine",
-				Required:    false,
-				Type:        "number",
-			},
 			"vm-memory": {
 				Description: "The amount of memory (in megabytes) to use for the new machine",
 				Required:    false,
@@ -481,14 +451,6 @@ var MachineCommands = []FlyCommand{
 
 			if vmCpus, ok := args["vm-cpus"]; ok {
 				cmdArgs = append(cmdArgs, "--vm-cpus", vmCpus)
-			}
-
-			if vmGpuKind, ok := args["vm-gpu-kind"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpu-kind", vmGpuKind)
-			}
-
-			if vmGpus, ok := args["vm-gpus"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpus", vmGpus)
 			}
 
 			if vmMemory, ok := args["vm-memory"]; ok {
@@ -1030,17 +992,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "number",
 			},
-			"vm-gpu-kind": {
-				Description: "If set, the GPU model to attach",
-				Required:    false,
-				Type:        "enum",
-				Enum:        []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"},
-			},
-			"vm-gpus": {
-				Description: "The number of GPUs to use for the new machine",
-				Required:    false,
-				Type:        "number",
-			},
 			"vm-memory": {
 				Description: "The amount of memory (in megabytes) to use for the new machine",
 				Required:    false,
@@ -1173,14 +1124,6 @@ var MachineCommands = []FlyCommand{
 
 			if vmCpus, ok := args["vm-cpus"]; ok {
 				cmdArgs = append(cmdArgs, "--vm-cpus", vmCpus)
-			}
-
-			if vmGpuKind, ok := args["vm-gpu-kind"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpu-kind", vmGpuKind)
-			}
-
-			if vmGpus, ok := args["vm-gpus"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpus", vmGpus)
 			}
 
 			if vmMemory, ok := args["vm-memory"]; ok {
@@ -1516,17 +1459,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "number",
 			},
-			"vm-gpu-kind": {
-				Description: "If set, the GPU model to attach",
-				Required:    false,
-				Type:        "enum",
-				Enum:        []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"},
-			},
-			"vm-gpus": {
-				Description: "The number of GPUs to use for the new machine",
-				Required:    false,
-				Type:        "number",
-			},
 			"vm-memory": {
 				Description: "The amount of memory (in megabytes) to use for the new machine",
 				Required:    false,
@@ -1641,14 +1573,6 @@ var MachineCommands = []FlyCommand{
 
 			if vmCpus, ok := args["vm-cpus"]; ok {
 				cmdArgs = append(cmdArgs, "--vm-cpus", vmCpus)
-			}
-
-			if vmGpuKind, ok := args["vm-gpu-kind"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpu-kind", vmGpuKind)
-			}
-
-			if vmGpus, ok := args["vm-gpus"]; ok {
-				cmdArgs = append(cmdArgs, "--vm-gpus", vmGpus)
 			}
 
 			if vmMemory, ok := args["vm-memory"]; ok {

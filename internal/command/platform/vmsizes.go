@@ -43,15 +43,19 @@ func runMachineVMSizes(ctx context.Context) error {
 		strings []string
 	}
 
-	sortedPresets := lo.MapToSlice(fly.MachinePresets, func(key string, value *fly.MachineGuest) preset {
-		arr := []string{
-			key,
-			cores(value.CPUs),
-			memory(value.MemoryMB),
-			value.GPUKind,
+	// GPU presets are still in fly-go, but GPU machines are no longer offered.
+	sortedPresets := lo.FilterMap(lo.Entries(fly.MachinePresets), func(e lo.Entry[string, *fly.MachineGuest], _ int) (preset, bool) {
+		if e.Value.GPUKind != "" {
+			return preset{}, false
 		}
 
-		return preset{value, arr}
+		arr := []string{
+			e.Key,
+			cores(e.Value.CPUs),
+			memory(e.Value.MemoryMB),
+		}
+
+		return preset{e.Value, arr}, true
 	})
 
 	sort.Slice(sortedPresets, func(i, j int) bool {
@@ -60,10 +64,8 @@ func runMachineVMSizes(ctx context.Context) error {
 		switch {
 		case a.CPUs != b.CPUs:
 			return a.CPUs < b.CPUs
-		case a.MemoryMB != b.MemoryMB:
-			return a.MemoryMB < b.MemoryMB
 		default:
-			return a.GPUKind < b.GPUKind
+			return a.MemoryMB < b.MemoryMB
 		}
 	})
 
@@ -78,7 +80,7 @@ func runMachineVMSizes(ctx context.Context) error {
 
 	// Filter and display shared cpu sizes.
 	shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		return p.strings, p.guest.CPUKind == "shared" && p.guest.GPUKind == ""
+		return p.strings, p.guest.CPUKind == "shared"
 	})
 	if err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory"); err != nil {
 		return err
@@ -86,18 +88,10 @@ func runMachineVMSizes(ctx context.Context) error {
 
 	// Filter and display performance cpu sizes.
 	performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		return p.strings, p.guest.CPUKind == "performance" && p.guest.GPUKind == ""
-	})
-	if err := render.Table(out, "", performance, "Name", "CPU Cores", "Memory"); err != nil {
-		return err
-	}
-
-	// Filter and display gpu sizes.
-	gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		return p.strings, p.guest.GPUKind != ""
+		return p.strings, p.guest.CPUKind == "performance"
 	})
 
-	return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
+	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
 }
 
 func cores(cores int) string {
