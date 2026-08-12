@@ -27,7 +27,10 @@ type ConnectParams struct {
 	Dialer         agent.Dialer
 	DisableSpinner bool
 	Container      string
-	AppNames       []string
+	// Machine connects to the machine itself rather than to one of its
+	// containers. It is mutually exclusive with Container.
+	Machine  bool
+	AppNames []string
 }
 
 type OrganizationImpl interface {

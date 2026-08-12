@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -37,6 +38,14 @@ func newMachineExec() *cobra.Command {
 			Name:        "timeout",
 			Description: "Timeout in seconds",
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to run the command in",
+		},
+		flag.Bool{
+			Name:        "no-container",
+			Description: "Run the command on the machine itself rather than in one of its containers",
+		},
 	)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
@@ -63,6 +72,13 @@ func runMachineExec(ctx context.Context) (err error) {
 		command = args[0]
 	}
 
+	container := flag.GetString(ctx, "container")
+	noContainer := flag.GetBool(ctx, "no-container")
+
+	if container != "" && noContainer {
+		return errors.New("--container and --no-container are mutually exclusive")
+	}
+
 	current, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
@@ -75,8 +91,10 @@ func runMachineExec(ctx context.Context) (err error) {
 	timeout := flag.GetInt(ctx, "timeout")
 
 	in := &fly.MachineExecRequest{
-		Cmd:     command,
-		Timeout: timeout,
+		Cmd:       command,
+		Container: container,
+		Machine:   noContainer,
+		Timeout:   timeout,
 	}
 
 	out, err := flapsClient.Exec(ctx, appName, current.ID, in)

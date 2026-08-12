@@ -132,8 +132,18 @@ func newConsole() *cobra.Command {
 
 	stdArgsSSH(cmd)
 
+	flag.Add(cmd,
+		flag.Bool{
+			Name:        "no-container",
+			Description: "Connect to the machine itself rather than to one of its containers",
+		},
+	)
+
 	return cmd
 }
+
+// SessionTarget selects where a session runs on the remote machine.
+type SessionTarget = ssh.SessionTarget
 
 func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 	// ignore cancelled errors
@@ -201,6 +211,7 @@ func runConsole(ctx context.Context) error {
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),
 		Container:      container,
+		Machine:        flag.GetBool(ctx, "no-container"),
 		AppNames:       []string{app.Name},
 	}
 	sshc, err := Connect(params, addr)
@@ -210,7 +221,9 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	if err := Console(ctx, sshc, cmd, allocPTY, params.Container); err != nil {
+	target := SessionTarget{Container: params.Container, Machine: params.Machine}
+
+	if err := Console(ctx, sshc, cmd, allocPTY, target); err != nil {
 		captureError(ctx, err, app)
 
 		return err
@@ -219,7 +232,7 @@ func runConsole(ctx context.Context) error {
 	return nil
 }
 
-func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, container string) error {
+func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) error {
 	currentStdin, currentStdout, currentStderr, err := setupConsole()
 	defer func() error {
 		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
@@ -241,7 +254,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		TermEnv:  determineTermEnv(),
 	}
 
-	if err := sshClient.Shell(ctx, sessIO, cmd, container); err != nil {
+	if err := sshClient.Shell(ctx, sessIO, cmd, target); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
@@ -372,6 +385,15 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 func selectContainer(ctx context.Context, machine *fly.Machine) (container string, err error) {
 	containers := machine.Config.Containers
 	container = flag.GetString(ctx, "container")
+
+	// --no-container asks for the machine itself, so there is nothing to select.
+	if flag.GetBool(ctx, "no-container") {
+		if container != "" {
+			return "", errors.New("--container and --no-container are mutually exclusive")
+		}
+
+		return "", nil
+	}
 
 	if len(containers) == 0 {
 		if container == "" {

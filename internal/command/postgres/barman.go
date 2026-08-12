@@ -498,7 +498,7 @@ func runConsole(ctx context.Context, cmd string) error {
 		return err
 	}
 
-	if err := ssh.Console(ctx, sshc, cmd, false, ""); err != nil {
+	if err := ssh.Console(ctx, sshc, cmd, false, ssh.SessionTarget{}); err != nil {
 		captureError(ctx, err, app)
 
 		return err
