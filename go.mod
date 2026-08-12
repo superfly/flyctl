@@ -26,7 +26,7 @@ require (
 	github.com/containerd/continuity v0.5.0
 	github.com/depot/depot-go v0.5.3
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.7.0
+	github.com/docker/go-connections v0.8.1
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ejcx/sshcert v1.1.0
