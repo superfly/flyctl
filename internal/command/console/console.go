@@ -233,7 +233,7 @@ func runConsole(ctx context.Context) error {
 		consoleCommand = flag.GetString(ctx, "command")
 	}
 
-	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
+	return ssh.Console(ctx, sshClient, consoleCommand, true, ssh.SessionTarget{Container: params.Container})
 }
 
 func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {

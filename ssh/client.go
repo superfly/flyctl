@@ -107,7 +107,18 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 }
 
-func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, container string) error {
+// SessionTarget selects where a session runs on the remote machine.
+type SessionTarget struct {
+	// Container names the container to run in. When empty, the machine decides
+	// where the session lands.
+	Container string
+
+	// Machine runs the session in the machine's own namespace instead of in a
+	// container. It is mutually exclusive with Container.
+	Machine bool
+}
+
+func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, target SessionTarget) error {
 	if c.Client == nil {
 		if err := c.Connect(ctx); err != nil {
 			return err
@@ -120,9 +131,13 @@ func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, conta
 		return err
 	}
 
-	if container != "" {
-		err = sess.Setenv("FLY_SSH_CONTAINER", container)
-		if err != nil {
+	switch {
+	case target.Machine:
+		if err := sess.Setenv("FLY_SSH_MACHINE", "1"); err != nil {
+			return err
+		}
+	case target.Container != "":
+		if err := sess.Setenv("FLY_SSH_CONTAINER", target.Container); err != nil {
 			return err
 		}
 	}
