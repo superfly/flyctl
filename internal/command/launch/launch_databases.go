@@ -257,7 +257,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var readyCluster mpgapi.Cluster
 	err = retry.Do(
 		func() error {
-			current, err := mpgClient.GetCluster(ctx, clusterID)
+			current, err := mpgClient.GetCluster(waitCtx, clusterID)
 			if err != nil {
 				// For network errors, return the error to trigger retry
 				if containsNetworkError(err.Error()) {
