@@ -176,6 +176,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return state.attachToManagedPostgres(ctx, pgPlan.ClusterID)
 	}
 
+	// InitClient puts a client in the context, so this only trips in tests.
+	if mpgClient == nil {
+		return fmt.Errorf("managed postgres client not found in context")
+	}
+
 	// Get org
 	org, err := state.Org(ctx)
 	if err != nil {
