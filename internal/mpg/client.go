@@ -127,9 +127,9 @@ type Cluster struct {
 // and database via the pooler endpoint, using the given password.
 func (c Cluster) ConnectionURI(password string) string {
 	port := c.Endpoints.Primary.Pooler.Port
- 	if port == 0 {
- 		port = DefaultPort
- 	}
+	if port == 0 {
+		port = DefaultPort
+	}
 
 	u := url.URL{
 		Scheme: "postgres",
