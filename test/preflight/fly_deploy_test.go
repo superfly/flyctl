@@ -159,6 +159,56 @@ ENV PREFLIGHT_TEST=true`)
 	}, 30*time.Second, 2*time.Second)
 }
 
+// TestFlyDeploy_SlowBind_NoFalseListenWarning is the regression test for
+// https://github.com/superfly/flyctl/issues/3358. Apps that take several
+// seconds to bind after boot (Rails/Puma, Node/puppeteer, JVM apps, ...) used
+// to trip flyctl's "The app is not listening on the expected address" warning
+// because the check ran the moment the machine reported "started", before
+// the user's process had a chance to open its listening socket.
+//
+// This test builds an image whose entrypoint sleeps for a few seconds before
+// starting nginx, deploys it without any explicit http_service checks (so the
+// health-check gate returns immediately), and asserts that no false positive
+// warning is emitted while the app is still binding.
+func TestFlyDeploy_SlowBind_NoFalseListenWarning(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	// The sleep is chosen to be well within listenAddressCheckTimeout (15s) so
+	// the polling loop has a chance to observe the bind. It's also long enough
+	// to reliably reproduce the race on machines that would otherwise be fast
+	// enough to hide it.
+	f.WriteFile("Dockerfile", `FROM nginx
+RUN printf '#!/bin/sh\nsleep 8\nexec nginx -g "daemon off;"\n' > /start.sh && chmod +x /start.sh
+CMD ["/start.sh"]
+`)
+
+	// Launch without --now: we want to write a fly.toml with no http_service
+	// checks (matching the issue reporter's config) before the first deploy.
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --no-deploy", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	f.WriteFlyToml(`app = %q
+primary_region = %q
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 80
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+`, appName, f.PrimaryRegion())
+
+	deployRes := f.Fly("deploy --buildkit --remote-only")
+	output := deployRes.StdErrString() + deployRes.StdOutString()
+
+	require.NotContains(f, output, "not listening on the expected address",
+		"deploy should not emit a false 'not listening' warning for slow-binding apps")
+}
+
 // If this test passes at all, that means that a slow metrics server isn't affecting flyctl
 func TestFlyDeploySlowMetrics(t *testing.T) {
 	env := make(map[string]string)

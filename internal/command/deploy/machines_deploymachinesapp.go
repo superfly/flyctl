@@ -1260,6 +1260,59 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff
 	fmt.Fprint(md.io.Out, "\n")
 }
 
+// defaultListenAddressCheckTimeout is the minimum time we'll wait for an app
+// to expose its expected listen addresses before warning that it isn't
+// listening. This exists because some frameworks (e.g. Rails/Puma,
+// NodeJS+puppeteer) take several seconds to bind after the machine is
+// considered started, especially on first boot. Warning immediately produces
+// false positives such as the one reported in
+// https://github.com/superfly/flyctl/issues/3358.
+//
+// When the user has configured any check with a longer `grace_period` (in
+// `[checks]`, `[[services.tcp_checks]]`, `[[services.http_checks]]`, or
+// `[[http_service.checks]]`) we honour that instead, on the theory that the
+// grace period is the user's own declaration of "my app can take this long to
+// come up." See listenAddressCheckTimeoutFor.
+var defaultListenAddressCheckTimeout = 15 * time.Second
+
+// listenAddressCheckTimeoutFor returns how long warnAboutIncorrectListenAddress
+// should poll before giving up and printing the warning. It takes the max of
+// defaultListenAddressCheckTimeout and the largest configured grace_period on
+// any check (top-level, service TCP/HTTP, or http_service) so that users who
+// explicitly opt into a long startup window aren't warned prematurely.
+func listenAddressCheckTimeoutFor(cfg *appconfig.Config) time.Duration {
+	timeout := defaultListenAddressCheckTimeout
+	if cfg == nil {
+		return timeout
+	}
+
+	consider := func(d *fly.Duration) {
+		if d != nil && d.Duration > timeout {
+			timeout = d.Duration
+		}
+	}
+
+	for _, chk := range cfg.Checks {
+		if chk != nil {
+			consider(chk.GracePeriod)
+		}
+	}
+	for _, svc := range cfg.AllServices() {
+		for _, c := range svc.TCPChecks {
+			if c != nil {
+				consider(c.GracePeriod)
+			}
+		}
+		for _, c := range svc.HTTPChecks {
+			if c != nil {
+				consider(c.GracePeriod)
+			}
+		}
+	}
+
+	return timeout
+}
+
 func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context, lm machine.LeasableMachine) {
 	group := lm.Machine().ProcessGroup()
 
@@ -1273,42 +1326,25 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 	}
 	services := groupConfig.AllServices()
 
-	tcpServices := make(map[int]struct{})
+	expectedTCPPorts := make(map[int]struct{})
 	for _, s := range services {
 		if s.Protocol == "tcp" {
-			tcpServices[s.InternalPort] = struct{}{}
+			expectedTCPPorts[s.InternalPort] = struct{}{}
 		}
 	}
 
-	processes, err := md.flapsClient.GetProcesses(ctx, md.app.Name, lm.Machine().ID)
-	// Let's not fail the whole deployment because of this, as listen address check is just a warning
-	if err != nil {
+	// If there are no TCP services expected, there's nothing to warn about.
+	if len(expectedTCPPorts) == 0 {
 		return
 	}
 
-	var foundSockets int
-	for _, proc := range processes {
-		for _, ls := range proc.ListenSockets {
-			foundSockets += 1
-
-			host, portStr, err := net.SplitHostPort(ls.Address)
-			if err != nil {
-				continue
-			}
-			port, err := strconv.Atoi(portStr)
-			if err != nil {
-				continue
-			}
-
-			ip := net.ParseIP(host)
-
-			// We don't know VM's internal ipv4 which is also a valid address to bind to.
-			// Let's assume that whoever binds to a non-loopback address knows what they are doing.
-			// If we expose this address to flyctl later, we can revisit this logic.
-			if !ip.IsLoopback() {
-				delete(tcpServices, port)
-			}
-		}
+	// Poll for a while to give the app a chance to bind before warning.
+	// Slow-starting apps (Rails/Puma, Node/puppeteer, JVM apps) may take several
+	// seconds to open their listening sockets after the machine reports started.
+	timeout := listenAddressCheckTimeoutFor(groupConfig)
+	processes, uncoveredPorts, foundSockets, ok := md.waitForExpectedListenAddresses(ctx, lm, expectedTCPPorts, timeout)
+	if !ok {
+		return
 	}
 
 	// This can either mean that nothing is listening or that VM is running old init that doesn't expose
@@ -1319,13 +1355,13 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 	}
 
 	// All services are covered
-	if len(tcpServices) == 0 {
+	if len(uncoveredPorts) == 0 {
 		return
 	}
 
 	fmt.Fprintf(md.io.ErrOut, "\n%s The app is not listening on the expected address and will not be reachable by fly-proxy.\n", md.colorize.Yellow("WARNING"))
 	fmt.Fprintf(md.io.ErrOut, "You can fix this by configuring your app to listen on the following addresses:\n")
-	for port := range tcpServices {
+	for port := range uncoveredPorts {
 		fmt.Fprintf(md.io.ErrOut, "  - %s\n", md.colorize.Green("0.0.0.0:"+strconv.Itoa(port)))
 	}
 	fmt.Fprintf(md.io.ErrOut, "Found these processes inside the machine with open listening sockets:\n")
@@ -1344,6 +1380,101 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 	}
 	table.Render() //nolint:errcheck
 	fmt.Fprintf(md.io.ErrOut, "\n")
+}
+
+// waitForExpectedListenAddresses polls the machine's process list and returns
+// once every expected TCP port has an open non-loopback listener, or the
+// caller-provided timeout elapses. It returns the final process snapshot,
+// the set of expected ports that are still uncovered, the total number of
+// listening sockets observed on the machine, and whether the check completed
+// successfully (false only when GetProcesses failed and we should stay silent).
+func (md *machineDeployment) waitForExpectedListenAddresses(
+	ctx context.Context,
+	lm machine.LeasableMachine,
+	expectedTCPPorts map[int]struct{},
+	timeout time.Duration,
+) (fly.MachinePsResponse, map[int]struct{}, int, bool) {
+	b := &backoff.ExponentialBackOff{
+		InitialInterval:     500 * time.Millisecond,
+		RandomizationFactor: 0.2,
+		Multiplier:          1.5,
+		MaxInterval:         2 * time.Second,
+	}
+	b.Reset()
+
+	deadline := time.Now().Add(timeout)
+
+	var (
+		processes      fly.MachinePsResponse
+		uncoveredPorts map[int]struct{}
+		foundSockets   int
+	)
+
+	for {
+		var err error
+		processes, err = md.flapsClient.GetProcesses(ctx, md.app.Name, lm.Machine().ID)
+		// Let's not fail the whole deployment because of this, as listen address check is just a warning
+		if err != nil {
+			return nil, nil, 0, false
+		}
+
+		uncoveredPorts = make(map[int]struct{}, len(expectedTCPPorts))
+		for port := range expectedTCPPorts {
+			uncoveredPorts[port] = struct{}{}
+		}
+
+		foundSockets = 0
+		for _, proc := range processes {
+			for _, ls := range proc.ListenSockets {
+				foundSockets++
+
+				host, portStr, err := net.SplitHostPort(ls.Address)
+				if err != nil {
+					continue
+				}
+				port, err := strconv.Atoi(portStr)
+				if err != nil {
+					continue
+				}
+
+				ip := net.ParseIP(host)
+
+				// We don't know VM's internal ipv4 which is also a valid address to bind to.
+				// Let's assume that whoever binds to a non-loopback address knows what they are doing.
+				// If we expose this address to flyctl later, we can revisit this logic.
+				if !ip.IsLoopback() {
+					delete(uncoveredPorts, port)
+				}
+			}
+		}
+
+		// Success: every expected TCP port is covered by a non-loopback listener.
+		if len(uncoveredPorts) == 0 {
+			return processes, uncoveredPorts, foundSockets, true
+		}
+
+		// If we're out of time, return the last snapshot so the caller can warn.
+		if !time.Now().Before(deadline) {
+			return processes, uncoveredPorts, foundSockets, true
+		}
+
+		wait := b.NextBackOff()
+		if wait <= 0 {
+			wait = 500 * time.Millisecond
+		}
+		if remaining := time.Until(deadline); remaining < wait {
+			wait = remaining
+		}
+		if wait <= 0 {
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			return processes, uncoveredPorts, foundSockets, false
+		case <-time.After(wait):
+		}
+	}
 }
 
 type smokeChecksError struct {
