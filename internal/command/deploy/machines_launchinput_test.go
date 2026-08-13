@@ -28,6 +28,7 @@ func TestLaunchInputForUpdate(t *testing.T) {
 
 	t.Run("Basic", testLaunchInputForBasic)
 	t.Run("HostStatusUnreachable", testLaunchInputForUpdateHostStatusUnreachable)
+	t.Run("HostStatusUnreachableWithDedicationID", testLaunchInputForUpdateHostStatusUnreachableWithDedicationID)
 	t.Run("Mounts", testLaunchInputForOnMounts)
 	t.Run("MountsAndAutoResize", testLaunchInputForOnMountsAndAutoResize)
 	t.Run("UpdateKeepUnmanagedFields", testLaunchInputForUpdateKeepUnmanagedFields)
@@ -165,6 +166,30 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, li.RequiresReplacement)
 	require.Equal(t, li.Config.Mounts, []fly.MachineMount{{Path: "/data", Volume: "vol_10001", Name: "data"}})
+}
+
+// Regression for a nil pointer dereference: deploying an app with a
+// host_dedication_id set while one of its machines is on an unreachable host
+// (so Config is nil) used to panic.
+func testLaunchInputForUpdateHostStatusUnreachableWithDedicationID(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:          "my-cool-app",
+		PrimaryRegion:    "scl",
+		HostDedicationID: "host-a",
+	})
+	require.NoError(t, err)
+
+	li, err := md.launchInputForUpdate(&fly.Machine{
+		ID:     "ab1234567890",
+		Region: "ord",
+		IncompleteConfig: &fly.MachineConfig{
+			Metadata: map[string]string{"fly_process_group": "app"},
+		},
+		HostStatus: fly.HostStatusUnreachable,
+	})
+	require.NoError(t, err)
+	require.True(t, li.RequiresReplacement)
+	require.Equal(t, "ord", li.Region)
 }
 
 // Test Mounts

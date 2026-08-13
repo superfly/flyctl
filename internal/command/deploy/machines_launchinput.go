@@ -218,7 +218,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		delete(mConfig.Env, "FLY_STANDBY_FOR")
 	}
 
-	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != oConfig.Guest.HostDedicationID {
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != machineHostDedicationID(origMachineRaw) {
 		if len(oMounts) > 0 && len(mMounts) > 0 {
 			// Attempting to rellocate a machine with a volume attached to a different host
 			return nil, fmt.Errorf("can't rellocate machine '%s' to dedication id '%s' because it has an attached volume."+
@@ -229,6 +229,10 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		// but sets it as a top level directive.
 		// This also works when top level HDID is different than [compute.host_dedication_id]
 		// because a flatten config also overrides the top level directive
+		if mConfig.Guest == nil {
+			// No existing guest config to inherit (unreachable host + no [[compute]] section)
+			mConfig.Guest = &fly.MachineGuest{}
+		}
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
