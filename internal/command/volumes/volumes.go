@@ -33,7 +33,7 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, nil)
 
-	cmd.Aliases = []string{"volume", "vol"}
+	cmd.Aliases = []string{"volume", "vol", "v"}
 
 	cmd.AddCommand(
 		newCreate(),
