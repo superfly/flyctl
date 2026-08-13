@@ -176,7 +176,9 @@ func (c *httpClient) CreateCluster(ctx context.Context, input CreateClusterInput
 // GetCluster fetches a cluster by its public id.
 func (c *httpClient) GetCluster(ctx context.Context, id string) (Cluster, error) {
 	var env clusterEnvelope
-	if err := c.do(ctx, http.MethodGet, "/v1/postgres/"+id, nil, &env, http.StatusOK); err != nil {
+
+	path := "/v1/postgres/" + url.PathEscape(id)
+	if err := c.do(ctx, http.MethodGet, path, nil, &env, http.StatusOK); err != nil {
 		return Cluster{}, err
 	}
 
@@ -186,7 +188,7 @@ func (c *httpClient) GetCluster(ctx context.Context, id string) (Cluster, error)
 // GetUserCredentials returns the username and current password for a named user.
 func (c *httpClient) GetUserCredentials(ctx context.Context, id, username string) (UserCredentials, error) {
 	var env userCredentialsEnvelope
-	path := fmt.Sprintf("/v1/postgres/%s/users/%s/credentials", id, username)
+	path := fmt.Sprintf("/v1/postgres/%s/users/%s/credentials", url.PathEscape(id), url.PathEscape(username))
 	if err := c.do(ctx, http.MethodGet, path, nil, &env, http.StatusOK); err != nil {
 		return UserCredentials{}, err
 	}
