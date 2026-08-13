@@ -27,6 +27,9 @@ type Client interface {
 	EnsureDepotBuilder(ctx context.Context, in uiex.EnsureDepotBuilderRequest) (*uiex.EnsureDepotBuilderResponse, error)
 	CreateFlyManagedBuilder(ctx context.Context, orgSlug string, region string) (uiex.CreateFlyManagedBuilderResponse, error)
 
+	// Cost estimates
+	CreateCostEstimate(ctx context.Context, orgSlug string, in uiex.CostEstimateRequest) (*uiex.CostEstimateResponse, error)
+
 	// Releases
 	GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error)
 	ListReleases(ctx context.Context, appName string, count int) ([]uiex.Release, error)

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/command/mpg/estimate"
 	regionsv2 "github.com/superfly/flyctl/internal/command/mpg/v2/regions"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -21,6 +22,7 @@ type CreateClusterParams struct {
 	StorageInGb    int
 	PGMajorVersion int
 	PostGISEnabled bool
+	Estimate       bool
 }
 
 type CreatePlanDisplay struct {
@@ -85,6 +87,17 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 		StorageInGb:    params.StorageInGb,
 		PostGISEnabled: params.PostGISEnabled,
 		PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
+	}
+
+	if params.Estimate {
+		return estimate.RunCreate(ctx, params.OrgSlug, estimate.CreateInput{
+			Name:           params.Name,
+			Plan:           params.Plan,
+			Region:         selectedRegion.Code,
+			StorageGB:      params.StorageInGb,
+			PGMajorVersion: params.PGMajorVersion,
+			PostGISEnabled: params.PostGISEnabled,
+		})
 	}
 
 	response, err := mpgClient.CreateCluster(ctx, input)

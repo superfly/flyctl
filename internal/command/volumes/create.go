@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -84,6 +85,11 @@ func newCreate() *cobra.Command {
 			Default:     1,
 			Description: "The number of volumes to create",
 		},
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the volume creation and exit without creating anything",
+			Default:     false,
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -112,10 +118,12 @@ func runCreate(ctx context.Context) error {
 		return client.GetAppBasic(ctx, appName)
 	})
 
-	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
-		return err
-	} else if !confirm {
-		return nil
+	if !flag.GetBool(ctx, "estimate") {
+		if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
+			return err
+		} else if !confirm {
+			return nil
+		}
 	}
 
 	app, err := appFuture.Get()
@@ -164,6 +172,25 @@ func runCreate(ctx context.Context) error {
 
 	if flag.IsSpecified(ctx, "scheduled-snapshots") {
 		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		return runVolumeEstimate(ctx, appName, volumeEstimateInput{
+			Operation:     "volume.create",
+			SourceCommand: "fly volumes create",
+			Changes: []uiex.CostEstimateChange{
+				{
+					Kind:   "volume",
+					Action: "create",
+					Ref:    volumeName,
+					Count:  count,
+					Desired: volumeEstimateSpec{
+						Region: region.Code,
+						SizeGB: *input.SizeGb,
+					},
+				},
+			},
+		})
 	}
 
 	out := iostreams.FromContext(ctx).Out

@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -54,6 +55,11 @@ func newFork() *cobra.Command {
 			Name:        "region",
 			Shorthand:   "r",
 			Description: "The target region. By default, the new volume will be created in the source volume's region.",
+		},
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the forked volume and exit without creating anything",
+			Default:     false,
 		},
 		flag.VMSizeFlags,
 	)
@@ -144,6 +150,30 @@ func runFork(ctx context.Context) error {
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,
 		Region:              region,
+	}
+
+	estimateRegion := region
+	if estimateRegion == "" {
+		estimateRegion = vol.Region
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		return runVolumeEstimate(ctx, appName, volumeEstimateInput{
+			Operation:     "volume.fork",
+			SourceCommand: "fly volumes fork",
+			Changes: []uiex.CostEstimateChange{
+				{
+					Kind:   "volume",
+					Action: "fork",
+					Ref:    vol.ID,
+					Count:  1,
+					Desired: volumeEstimateSpec{
+						Region: estimateRegion,
+						SizeGB: vol.SizeGb,
+					},
+				},
+			},
+		})
 	}
 
 	volume, err := flapsClient.CreateVolume(ctx, appName, input)

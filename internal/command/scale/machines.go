@@ -6,9 +6,12 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiex"
 )
 
 func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*fly.VMSize, error) {
@@ -34,6 +37,45 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	}
 	if len(machines) == 0 {
 		return nil, fmt.Errorf("No active machines in process group '%s', check `fly status` output", group)
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		changes := make([]uiex.CostEstimateChange, 0, len(machines))
+		operation := "scale.vm"
+		sourceCommand := "fly scale vm"
+		if sizeName == "" {
+			operation = "scale.memory"
+			sourceCommand = "fly scale memory"
+		}
+
+		for _, machine := range machines {
+			desiredConfig := helpers.Clone(machine.Config)
+			if sizeName != "" {
+				desiredConfig.Guest.SetSize(sizeName)
+			}
+			if memoryMB > 0 {
+				desiredConfig.Guest.MemoryMB = memoryMB
+			}
+
+			changes = append(changes, uiex.CostEstimateChange{
+				Kind:    "machine",
+				Action:  "update",
+				Ref:     machine.ID,
+				Count:   1,
+				Current: machine,
+				Desired: fly.LaunchMachineInput{
+					Name:   machine.Name,
+					Region: machine.Region,
+					Config: desiredConfig,
+				},
+			})
+		}
+
+		return nil, runScaleEstimate(ctx, appName, scaleEstimateInput{
+			Operation:     operation,
+			SourceCommand: sourceCommand,
+			Changes:       changes,
+		})
 	}
 
 	machines, releaseFunc, err := mach.AcquireLeases(ctx, appName, machines)

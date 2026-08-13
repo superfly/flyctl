@@ -6,6 +6,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -14,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -42,6 +44,11 @@ func newExtend() *cobra.Command {
 			Description: "Target volume size in gigabytes",
 		},
 		flag.Yes(),
+		flag.Bool{
+			Name:        "estimate",
+			Description: "Print a JSON cost estimate for the volume extension and exit without extending anything",
+			Default:     false,
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -76,20 +83,42 @@ func runExtend(ctx context.Context) error {
 		return fmt.Errorf("Volume size must be specified")
 	}
 
-	if sizeFlag[0] == '+' {
-		volume, err := flapsClient.GetVolume(ctx, appName, volID)
-		if err != nil {
-			return err
-		}
-		sizeGB += volume.SizeGb
-	}
-
+	var volume *fly.Volume
 	if volID == "" {
-		volume, err := selectVolume(ctx, flapsClient, app)
+		volume, err = selectVolume(ctx, flapsClient, app)
 		if err != nil {
 			return err
 		}
 		volID = volume.ID
+	} else {
+		volume, err = flapsClient.GetVolume(ctx, appName, volID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if sizeFlag[0] == '+' {
+		sizeGB += volume.SizeGb
+	}
+
+	if flag.GetBool(ctx, "estimate") {
+		return runVolumeEstimate(ctx, appName, volumeEstimateInput{
+			Operation:     "volume.extend",
+			SourceCommand: "fly volumes extend",
+			Changes: []uiex.CostEstimateChange{
+				{
+					Kind:    "volume",
+					Action:  "extend",
+					Ref:     volID,
+					Count:   1,
+					Current: volumeSpec(volume),
+					Desired: volumeEstimateSpec{
+						Region: volume.Region,
+						SizeGB: sizeGB,
+					},
+				},
+			},
+		})
 	}
 
 	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, appName, volID, sizeGB)
