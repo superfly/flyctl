@@ -126,10 +126,15 @@ type Cluster struct {
 // ConnectionURI builds a libpq connection string for the cluster's default user
 // and database via the pooler endpoint, using the given password.
 func (c Cluster) ConnectionURI(password string) string {
+	port := c.Endpoints.Primary.Pooler.Port
+ 	if port == 0 {
+ 		port = DefaultPort
+ 	}
+
 	u := url.URL{
 		Scheme: "postgres",
 		User:   url.UserPassword(DefaultUsername, password),
-		Host:   fmt.Sprintf("%s:%d", c.Endpoints.Primary.Pooler.Host, DefaultPort),
+		Host:   fmt.Sprintf("%s:%d", c.Endpoints.Primary.Pooler.Host, port),
 		Path:   "/" + DefaultDatabase,
 	}
 
