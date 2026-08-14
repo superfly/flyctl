@@ -9,6 +9,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -166,9 +167,9 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var (
-		io        = iostreams.FromContext(ctx)
-		pgPlan    = state.Plan.Postgres.ManagedPostgres
-		mpgClient = mpgapi.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		pgPlan      = state.Plan.Postgres.ManagedPostgres
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	// Check if we should attach to an existing cluster instead of creating a new one
@@ -177,8 +178,8 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// InitClient puts a client in the context, so this only trips in tests.
-	if mpgClient == nil {
-		return fmt.Errorf("managed postgres client not found in context")
+	if flapsClient == nil {
+		return fmt.Errorf("flaps client not found in context")
 	}
 
 	// Get org
@@ -203,7 +204,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Create the cluster with retry logic for network errors.
-	input := mpgapi.CreateClusterInput{
+	input := flaps.CreateManagedPostgresClusterRequest{
 		OrgSlug:        slug,
 		Name:           pgPlan.DbName,
 		Region:         pgPlan.Region,
@@ -214,11 +215,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
-	var cluster mpgapi.Cluster
+	var cluster flaps.ManagedPostgresCluster
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			cluster, retryErr = mpgClient.CreateCluster(ctx, input)
+			cluster, retryErr = flapsClient.CreateManagedPostgresCluster(ctx, input)
 
 			return retryErr
 		},
@@ -254,10 +255,10 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	// Poll until the cluster is ready, capturing it for its endpoints, with a
 	// 15-minute timeout and exponential backoff.
-	var readyCluster mpgapi.Cluster
+	var readyCluster flaps.ManagedPostgresCluster
 	err = retry.Do(
 		func() error {
-			current, err := mpgClient.GetCluster(waitCtx, clusterID)
+			current, err := flapsClient.GetManagedPostgresCluster(waitCtx, clusterID)
 			if err != nil {
 				// For network errors, return the error to trigger retry
 				if containsNetworkError(err.Error()) {
@@ -268,11 +269,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 			}
 
 			switch current.Status {
-			case "ready":
+			case flaps.ManagedPostgresStatusReady:
 				readyCluster = current
 
 				return nil // Success!
-			case "error":
+			case flaps.ManagedPostgresStatusFailed, flaps.ManagedPostgresStatusError:
 				return retry.Unrecoverable(fmt.Errorf("cluster creation failed"))
 			default:
 				// Return an error to continue retrying if status is not ready
@@ -322,11 +323,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 	// Fetch the default user's credentials with retry logic, then build
 	// DATABASE_URL from the ready cluster's pooler endpoint.
-	var creds mpgapi.UserCredentials
+	var creds flaps.ManagedPostgresUserCredentials
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			creds, retryErr = mpgClient.GetUserCredentials(ctx, clusterID, mpgapi.DefaultUsername)
+			creds, retryErr = flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgapi.DefaultUsername)
 
 			return retryErr
 		},
@@ -342,14 +343,13 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
 
-	connectionURI := readyCluster.ConnectionURI(creds.Password)
+	connectionURI := mpgapi.ConnectionURI(readyCluster, creds.Password)
 
 	// Set the connection string as a secret
 	secrets := map[string]string{
 		"DATABASE_URL": connectionURI,
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
 	if err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil); err != nil {
 		return fmt.Errorf("failed setting database secrets: %w", err)
 	}

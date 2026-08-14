@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
-	mpgapi "github.com/superfly/flyctl/internal/mpg"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -103,13 +102,6 @@ func InitClient(ctx context.Context) (context.Context, error) {
 			return nil, err
 		}
 		ctx = mpgv2.NewContextWithClient(ctx, mpgClient)
-	}
-	if mpgapi.ClientFromContext(ctx) == nil {
-		mpgClient, err := mpgapi.NewClient(ctx)
-		if err != nil {
-			return nil, err
-		}
-		ctx = mpgapi.NewContextWithClient(ctx, mpgClient)
 	}
 
 	if flapsutil.ClientFromContext(ctx) == nil {

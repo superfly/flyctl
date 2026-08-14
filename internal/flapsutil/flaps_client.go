@@ -17,6 +17,7 @@ type FlapsClient interface {
 	Cordon(ctx context.Context, appName, machineID string, nonce string) (err error)
 	CreateApp(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error)
 	CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error)
+	CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error)
 	CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, appName, volumeId string) error
 	DeleteApp(ctx context.Context, name string) error
@@ -38,6 +39,8 @@ type FlapsClient interface {
 	GetAllVolumes(ctx context.Context, appName string) ([]fly.Volume, error)
 	GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
+	GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error)
+	GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error)
 	GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadata(ctx context.Context, appName, machineID string) (map[string]string, error)
 	GetPlacements(ctx context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error)
