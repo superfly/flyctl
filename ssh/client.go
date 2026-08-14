@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"strings"
+	"sync"
 
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -145,16 +149,135 @@ func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, targe
 
 	defer sess.Close()
 
-	switch {
-	case target.Machine:
-		if err := sess.Setenv("FLY_SSH_MACHINE", "1"); err != nil {
-			return err
-		}
-	case target.Container != "":
-		if err := sess.Setenv("FLY_SSH_CONTAINER", target.Container); err != nil {
-			return err
-		}
+	if err := setTarget(sess, target); err != nil {
+		return err
 	}
 
 	return sessIO.attach(ctx, sess, cmd)
+}
+
+// setTarget tells the server where the session should run, which it reads as
+// env on the session. Every kind of session says it the same way, so this is
+// the one place that names the variables.
+func setTarget(sess *ssh.Session, target SessionTarget) error {
+	switch {
+	case target.Machine:
+		return sess.Setenv("FLY_SSH_MACHINE", "1")
+	case target.Container != "":
+		return sess.Setenv("FLY_SSH_CONTAINER", target.Container)
+	}
+
+	return nil
+}
+
+// SFTP opens an SFTP client against the session target: a container's
+// filesystem, or the machine's own. The target has to be set on the session
+// carrying the subsystem, and sftp.NewClient opens a session of its own with
+// nothing set on it -- so the session is built here, where the target already
+// gets set for shells.
+//
+// Closing the returned client closes that session with it.
+func (c *Client) SFTP(ctx context.Context, target SessionTarget, opts ...sftp.ClientOption) (*sftp.Client, error) {
+	if err := target.validate(); err != nil {
+		return nil, err
+	}
+
+	if c.Client == nil {
+		if err := c.Connect(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	sess, err := c.Client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := setTarget(sess, target); err != nil {
+		sess.Close()
+
+		return nil, err
+	}
+
+	// Whatever the server has to say about a subsystem that never starts, it
+	// says on stderr; the SFTP client would only report the silence that
+	// follows.
+	var stderr sessionStderr
+	sess.Stderr = &stderr
+
+	stdin, err := sess.StdinPipe()
+	if err != nil {
+		sess.Close()
+
+		return nil, err
+	}
+
+	stdout, err := sess.StdoutPipe()
+	if err != nil {
+		sess.Close()
+
+		return nil, err
+	}
+
+	if err := sess.RequestSubsystem("sftp"); err != nil {
+		sess.Close()
+
+		return nil, fmt.Errorf("request sftp subsystem: %w%s", err, stderr.reason())
+	}
+
+	client, err := sftp.NewClientPipe(stdout, sessionWriteCloser{stdin, sess}, opts...)
+	if err != nil {
+		sess.Close()
+
+		return nil, fmt.Errorf("start sftp: %w%s", err, stderr.reason())
+	}
+
+	return client, nil
+}
+
+// sessionWriteCloser ties the session's life to the SFTP client's: pkg/sftp
+// closes the stream it writes to when the client is closed, and the session
+// that stream runs over has nothing left to do at that point.
+type sessionWriteCloser struct {
+	io.WriteCloser
+
+	sess *ssh.Session
+}
+
+func (w sessionWriteCloser) Close() error {
+	err := w.WriteCloser.Close()
+
+	// A session the server has already finished with closes as EOF, which is
+	// the ordinary end of a transfer rather than a failure to report.
+	if cerr := w.sess.Close(); err == nil && !errors.Is(cerr, io.EOF) {
+		err = cerr
+	}
+
+	return err
+}
+
+// sessionStderr collects a session's stderr, which the SSH library writes from
+// its own goroutine while this one reads it.
+type sessionStderr struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (s *sessionStderr) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.buf.Write(p)
+}
+
+// reason renders what the server said, ready to append to an error message.
+func (s *sessionStderr) reason() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if said := strings.TrimSpace(s.buf.String()); said != "" {
+		return ": " + said
+	}
+
+	return ""
 }
