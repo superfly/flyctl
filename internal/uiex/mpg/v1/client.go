@@ -20,7 +20,6 @@ type ClientV1 interface {
 	ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (ListManagedClustersResponse, error)
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (GetManagedClusterResponse, error)
-	ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error)
 	CreateUser(ctx context.Context, id string, input CreateUserInput) (CreateUserResponse, error)
 	CreateUserWithRole(ctx context.Context, id string, input CreateUserWithRoleInput) (CreateUserWithRoleResponse, error)
 	UpdateUserRole(ctx context.Context, id string, username string, input UpdateUserRoleInput) (UpdateUserRoleResponse, error)
@@ -32,7 +31,6 @@ type ClientV1 interface {
 	ListExtensions(ctx context.Context, id, database string) (ListExtensionsResponse, error)
 	EnableExtension(ctx context.Context, id, database string, input EnableExtensionInput) error
 	DisableExtension(ctx context.Context, id, database, name string, force bool) error
-	CreateCluster(ctx context.Context, input CreateClusterInput) (CreateClusterResponse, error)
 	DestroyCluster(ctx context.Context, orgSlug string, id string) error
 	ListManagedClusterBackups(ctx context.Context, clusterID string) (ListManagedClusterBackupsResponse, error)
 	CreateManagedClusterBackup(ctx context.Context, clusterID string, input CreateManagedClusterBackupInput) (CreateManagedClusterBackupResponse, error)
@@ -106,15 +104,6 @@ type GetManagedClusterCredentialsResponse struct {
 type GetManagedClusterResponse struct {
 	Data        ManagedCluster                       `json:"data"`
 	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
-}
-
-type MPGRegion struct {
-	Code      string `json:"code"`      // e.g., "fra"
-	Available bool   `json:"available"` // Whether this region supports MPG
-}
-
-type ListMPGRegionsResponse struct {
-	Data []MPGRegion `json:"data"`
 }
 
 type ManagedClusterBackup struct {
@@ -228,34 +217,6 @@ type EnableExtensionInput struct {
 	Name                 string `json:"name"`
 	Schema               string `json:"schema,omitempty"`
 	CreateSchemaIfNeeded bool   `json:"create_schema_if_needed"`
-}
-
-type CreateClusterInput struct {
-	Name           string `json:"name"`
-	Region         string `json:"region"`
-	Plan           string `json:"plan"`
-	OrgSlug        string `json:"org_slug"`
-	Disk           int    `json:"disk"`
-	PostGISEnabled bool   `json:"postgis_enabled"`
-	PGMajorVersion string `json:"pg_major_version"`
-}
-
-type CreateClusterResponse struct {
-	Ok     bool                `json:"ok"`
-	Errors uiex.DetailedErrors `json:"errors"`
-	Data   struct {
-		Id             string                          `json:"id"`
-		Name           string                          `json:"name"`
-		Status         *string                         `json:"status"`
-		Plan           string                          `json:"plan"`
-		Environment    *string                         `json:"environment"`
-		Region         string                          `json:"region"`
-		Organization   fly.Organization                `json:"organization"`
-		Replicas       int                             `json:"replicas"`
-		Disk           int                             `json:"disk"`
-		IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
-		PostGISEnabled bool                            `json:"postgis_enabled"`
-	} `json:"data"`
 }
 
 type CreateAttachmentInput struct {

@@ -10,16 +10,12 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
-
-// CreateClusterParams is re-exported from cmdv1 for use by external packages (e.g. launch).
-type CreateClusterParams = cmdv1.CreateClusterParams
 
 func newCreate() *cobra.Command {
 	const (
@@ -43,7 +39,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "v2",
-			Description: "Create a Postgres cluster deployed on the V2 platform",
+			Description: "Deprecated: Managed Postgres clusters are always created on v2",
 			Default:     true,
 			Hidden:      true,
 		},
@@ -71,12 +67,25 @@ func newCreate() *cobra.Command {
 	return cmd
 }
 
+// warnIfV2FlagUsed tells the user that --v2 no longer does anything. The flag is
+// kept so scripts passing it keep working, since cobra rejects unknown flags.
+func warnIfV2FlagUsed(ctx context.Context) {
+	if !flag.IsSpecified(ctx, "v2") {
+		return
+	}
+
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintln(io.ErrOut, io.ColorScheme().Yellow("The '--v2' flag is deprecated and no longer has any effect. Managed Postgres clusters are always created on v2."))
+}
+
 func runCreate(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
 		appName = flag.GetString(ctx, "name")
 		err     error
 	)
+
+	warnIfV2FlagUsed(ctx)
 
 	if appName == "" {
 		// If no name is provided, try to get the app name from context
@@ -152,38 +161,18 @@ func runCreate(ctx context.Context) error {
 		slug = org.Slug
 	}
 
-	if flag.GetBool(ctx, "v2") {
-		params := &cmdv2.CreateClusterParams{
-			Name:           appName,
-			OrgSlug:        slug,
-			Plan:           plan,
-			PGMajorVersion: pgMajorVersion,
-			StorageInGb:    flag.GetInt(ctx, "volume-size"),
-			PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
-		}
-
-		planDetails := MPGPlans[plan]
-
-		return cmdv2.RunCreate(ctx, org.RawSlug, params, &cmdv2.CreatePlanDisplay{
-			Name:       planDetails.Name,
-			CPU:        planDetails.CPU,
-			Memory:     planDetails.Memory,
-			PricePerMo: planDetails.PricePerMo,
-		})
-	}
-
-	params := &cmdv1.CreateClusterParams{
+	params := &cmdv2.CreateClusterParams{
 		Name:           appName,
 		OrgSlug:        slug,
 		Plan:           plan,
-		VolumeSizeGB:   flag.GetInt(ctx, "volume-size"),
-		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
 		PGMajorVersion: pgMajorVersion,
+		StorageInGb:    flag.GetInt(ctx, "volume-size"),
+		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
 	}
 
 	planDetails := MPGPlans[plan]
 
-	return cmdv1.RunCreate(ctx, org.RawSlug, params, &cmdv1.CreatePlanDisplay{
+	return cmdv2.RunCreate(ctx, org.RawSlug, params, &cmdv2.CreatePlanDisplay{
 		Name:       planDetails.Name,
 		CPU:        planDetails.CPU,
 		Memory:     planDetails.Memory,
