@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -181,15 +182,23 @@ func TestSFTPSetsTarget(t *testing.T) {
 				t.Fatalf("write file: %v", err)
 			}
 
-			f, err := ftp.Open(path)
+			// SFTP paths are POSIX wherever the file is: a local path reaches
+			// the server spelled "/C:/..." on Windows, and unchanged anywhere
+			// this test would otherwise be running.
+			remote := filepath.ToSlash(path)
+			if !strings.HasPrefix(remote, "/") {
+				remote = "/" + remote
+			}
+
+			f, err := ftp.Open(remote)
 			if err != nil {
-				t.Fatalf("open %s: %v", path, err)
+				t.Fatalf("open %s: %v", remote, err)
 			}
 			defer f.Close()
 
 			content, err := io.ReadAll(f)
 			if err != nil {
-				t.Fatalf("read %s: %v", path, err)
+				t.Fatalf("read %s: %v", remote, err)
 			}
 
 			if string(content) != "hello world" {
