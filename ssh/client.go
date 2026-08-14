@@ -244,13 +244,24 @@ type sessionWriteCloser struct {
 	sess *ssh.Session
 }
 
+// Close closes both halves, reporting the first thing that actually went
+// wrong. A session the server has already finished with closes as EOF on
+// either half -- it hangs up as soon as it is done serving, which it may well
+// do before the client gets here -- and that is the ordinary end of a transfer
+// rather than a failure the caller can act on.
 func (w sessionWriteCloser) Close() error {
-	err := w.WriteCloser.Close()
+	err := ignoreEOF(w.WriteCloser.Close())
 
-	// A session the server has already finished with closes as EOF, which is
-	// the ordinary end of a transfer rather than a failure to report.
-	if cerr := w.sess.Close(); err == nil && !errors.Is(cerr, io.EOF) {
+	if cerr := ignoreEOF(w.sess.Close()); err == nil {
 		err = cerr
+	}
+
+	return err
+}
+
+func ignoreEOF(err error) error {
+	if errors.Is(err, io.EOF) {
+		return nil
 	}
 
 	return err

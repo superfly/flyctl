@@ -22,9 +22,10 @@ import (
 // the SFTP subsystem, and records the env the session carried, which is how a
 // client says which container the session should be served from.
 //
-// It returns a connected Client, the env recorded so far, and a channel closed
-// once the session the subsystem ran over is done.
-func sftpTestServer(t *testing.T) (client *Client, recorded func() map[string]string, sessionDone <-chan struct{}) {
+// It returns a connected Client, the env recorded so far, a channel closed
+// once the session the subsystem ran over is done, and a hangup that drops the
+// session from the server's end.
+func sftpTestServer(t *testing.T) (client *Client, recorded func() map[string]string, sessionDone <-chan struct{}, hangup func()) {
 	t.Helper()
 
 	_, key, err := ed25519.GenerateKey(rand.Reader)
@@ -47,9 +48,10 @@ func sftpTestServer(t *testing.T) (client *Client, recorded func() map[string]st
 	t.Cleanup(func() { listener.Close() })
 
 	var (
-		mu   sync.Mutex
-		env  = map[string]string{}
-		done = make(chan struct{})
+		mu      sync.Mutex
+		env     = map[string]string{}
+		done    = make(chan struct{})
+		serving = make(chan ssh.Channel, 1)
 	)
 
 	go func() {
@@ -70,6 +72,8 @@ func sftpTestServer(t *testing.T) (client *Client, recorded func() map[string]st
 			if err != nil {
 				return
 			}
+
+			serving <- channel
 
 			go func() {
 				defer close(done)
@@ -122,11 +126,13 @@ func sftpTestServer(t *testing.T) (client *Client, recorded func() map[string]st
 	t.Cleanup(func() { conn.Close() })
 
 	return &Client{Client: conn}, func() map[string]string {
-		mu.Lock()
-		defer mu.Unlock()
+			mu.Lock()
+			defer mu.Unlock()
 
-		return maps.Clone(env)
-	}, done
+			return maps.Clone(env)
+		}, done, func() {
+			(<-serving).Close()
+		}
 }
 
 // TestSFTPSetsTarget covers what an SFTP session has to carry to be served
@@ -156,7 +162,7 @@ func TestSFTPSetsTarget(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client, recorded, _ := sftpTestServer(t)
+			client, recorded, _, _ := sftpTestServer(t)
 
 			ftp, err := client.SFTP(context.Background(), tc.target)
 			if err != nil {
@@ -212,7 +218,7 @@ func TestSFTPSetsTarget(t *testing.T) {
 // nothing else holds a reference to it, so closing the SFTP client has to be
 // what closes it.
 func TestSFTPCloseEndsSession(t *testing.T) {
-	client, _, sessionDone := sftpTestServer(t)
+	client, _, sessionDone, _ := sftpTestServer(t)
 
 	ftp, err := client.SFTP(context.Background(), SessionTarget{Container: "worker"})
 	if err != nil {
@@ -227,5 +233,26 @@ func TestSFTPCloseEndsSession(t *testing.T) {
 	case <-sessionDone:
 	case <-time.After(10 * time.Second):
 		t.Fatal("closing the SFTP client left its session open")
+	}
+}
+
+// TestSFTPCloseAfterServerHangup covers the other order these end in: the
+// server drops the session first -- an early failure on its side, or a
+// container server that exits on its own -- and the client closes afterwards.
+// The session is already gone by then, and saying so is not an error the
+// caller can do anything with.
+func TestSFTPCloseAfterServerHangup(t *testing.T) {
+	client, _, sessionDone, hangup := sftpTestServer(t)
+
+	ftp, err := client.SFTP(context.Background(), SessionTarget{Container: "worker"})
+	if err != nil {
+		t.Fatalf("open sftp: %v", err)
+	}
+
+	hangup()
+	<-sessionDone
+
+	if err := ftp.Close(); err != nil {
+		t.Fatalf("close after the server hung up: %v", err)
 	}
 }
