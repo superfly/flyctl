@@ -114,15 +114,26 @@ func runUpdate(ctx context.Context) (err error) {
 
 	// Eviction prompt (always available)
 	if options["eviction"] != nil && options["eviction"].(bool) {
-		if disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?"); disableEviction || err != nil {
+		disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?")
+		if err != nil {
+			return err
+		}
+		if disableEviction {
 			options["eviction"] = false
 		}
 	} else {
-		options["eviction"], err = prompt.Confirm(ctx, "Would you like to enable eviction?")
-	}
-
-	if err != nil {
-		return
+		enableEviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
+		if err != nil {
+			return err
+		}
+		if enableEviction {
+			options["eviction"] = true
+		} else {
+			// Declining to enable must not send an explicit false: if the
+			// add-on metadata is stale, that would disable a feature that is
+			// actually enabled. Omit the key so the server keeps its state.
+			delete(options, "eviction")
+		}
 	}
 
 	// Auto-upgrade only available for fixed plans (not pay-as-you-go or legacy)
@@ -133,15 +144,23 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 
 		if currentAutoUpgrade {
-			if disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?"); disableAutoUpgrade || err != nil {
+			disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if disableAutoUpgrade {
 				options["auto_upgrade"] = false
 			}
 		} else {
-			options["auto_upgrade"], err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
-		}
-
-		if err != nil {
-			return
+			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if enableAutoUpgrade {
+				options["auto_upgrade"] = true
+			} else {
+				delete(options, "auto_upgrade")
+			}
 		}
 	} else if !selectedPlanIsLegacy {
 		// Pay-as-you-go plan - auto-upgrade not available but we should clear it if it was set
@@ -158,15 +177,23 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 
 		if currentProdPack {
-			if disableProdPack, err := prompt.Confirm(ctx, "Would you like to disable ProdPack?"); disableProdPack || err != nil {
+			disableProdPack, err := prompt.Confirm(ctx, "Would you like to disable ProdPack?")
+			if err != nil {
+				return err
+			}
+			if disableProdPack {
 				options["prod_pack"] = false
 			}
 		} else {
-			options["prod_pack"], err = prompt.Confirm(ctx, "Would you like to enable ProdPack ($200/mo)?")
-		}
-
-		if err != nil {
-			return
+			enableProdPack, err := prompt.Confirm(ctx, "Would you like to enable ProdPack ($200/mo)?")
+			if err != nil {
+				return err
+			}
+			if enableProdPack {
+				options["prod_pack"] = true
+			} else {
+				delete(options, "prod_pack")
+			}
 		}
 	} else if currentPlanIsLegacy {
 		fmt.Fprintf(out, "\nNote: Auto-upgrade and ProdPack are not available for legacy plans.\nTo access these features, please upgrade to a current plan.\n\n")
