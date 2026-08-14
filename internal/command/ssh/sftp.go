@@ -159,6 +159,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,
 		Container:      container,
+		Machine:        flag.GetBool(ctx, "no-container"),
 		AppNames:       []string{app.Name},
 	}
 
@@ -169,7 +170,11 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, err
 	}
 
-	return sftp.NewClient(conn.Client,
+	// The target has to reach the subsystem the transfers run over, which is
+	// why this asks the connection for the SFTP client rather than handing the
+	// connection to sftp.NewClient: a session opened without it lands in the
+	// machine's namespace, whatever container was selected above.
+	return conn.SFTP(ctx, SessionTarget{Container: params.Container, Machine: params.Machine},
 		sftp.UseConcurrentReads(true),
 		sftp.UseConcurrentWrites(true),
 	)

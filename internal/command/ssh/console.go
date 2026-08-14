@@ -67,6 +67,10 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Description: "Container to connect to",
 		},
 		flag.Bool{
+			Name:        "no-container",
+			Description: "Connect to the machine itself rather than to one of its containers",
+		},
+		flag.Bool{
 			Name:        "pty",
 			Description: "Allocate a pseudo-terminal (default: on when no command is provided)",
 		},
@@ -131,13 +135,6 @@ func newConsole() *cobra.Command {
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	stdArgsSSH(cmd)
-
-	flag.Add(cmd,
-		flag.Bool{
-			Name:        "no-container",
-			Description: "Connect to the machine itself rather than to one of its containers",
-		},
-	)
 
 	return cmd
 }
