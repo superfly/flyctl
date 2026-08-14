@@ -19,15 +19,15 @@ const (
 // and database via the pooler endpoint, using the given password. The API
 // returns no connection string, so flyctl assembles it client-side.
 func ConnectionURI(c flaps.ManagedPostgresCluster, password string) string {
-	port := c.Endpoints.Primary.Pooler.Port
-	if port == 0 {
-		port = DefaultPort
+	host := c.Endpoints.Primary.Pooler.Host
+	if port := c.Endpoints.Primary.Pooler.Port; port != 0 && port != DefaultPort {
+		host = fmt.Sprintf("%s:%d", host, port)
 	}
 
 	u := url.URL{
-		Scheme: "postgres",
+		Scheme: "postgresql",
 		User:   url.UserPassword(DefaultUsername, password),
-		Host:   fmt.Sprintf("%s:%d", c.Endpoints.Primary.Pooler.Host, port),
+		Host:   host,
 		Path:   "/" + DefaultDatabase,
 	}
 
