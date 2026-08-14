@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -14,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
-	regionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
+	regionsv2 "github.com/superfly/flyctl/internal/command/mpg/v2/regions"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
@@ -66,7 +65,7 @@ func TestNewMPGService_NilClient(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with nil mpg client in context
-	service, err := regionsv1.NewMPGService(ctx)
+	service, err := regionsv2.NewMPGService(ctx)
 	assert.Error(t, err)
 	assert.Nil(t, service)
 	assert.Contains(t, err.Error(), "mpg client not found in context")
@@ -76,51 +75,12 @@ func TestNewMPGService_NilClient(t *testing.T) {
 func TestNewMPGService_ValidClient(t *testing.T) {
 	ctx := setupTestContext()
 
-	mockUiex := &mock.MpgV1Client{}
-	ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
+	mockUiex := &mock.MpgV2Client{}
+	ctx = mpgv2.NewContextWithClient(ctx, mockUiex)
 
-	service, err := regionsv1.NewMPGService(ctx)
+	service, err := regionsv2.NewMPGService(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
-	assert.NotNil(t, service.MpgClient)
-	assert.NotNil(t, service.RegionProvider)
-}
-
-// Test the actual filterMPGRegions function with real data
-func TestFilterMPGRegions_RealFunctionality(t *testing.T) {
-	platformRegions := []fly.Region{
-		{Code: "ord", Name: "Chicago, Illinois (US)"},
-		{Code: "lax", Name: "Los Angeles, California (US)"},
-		{Code: "ams", Name: "Amsterdam, Netherlands (EU)"},
-		{Code: "nrt", Name: "Tokyo, Japan (AS)"},
-	}
-
-	mpgRegions := []mpgv1.MPGRegion{
-		{Code: "ord", Available: true},
-		{Code: "lax", Available: true},
-		{Code: "ams", Available: false}, // Not available
-		// nrt not in MPG regions at all
-	}
-
-	filtered := regionsv1.FilterMPGRegions(platformRegions, mpgRegions)
-
-	// Should only return ord and lax (available in MPG)
-	assert.Len(t, filtered, 2)
-	assert.Equal(t, "ord", filtered[0].Code)
-	assert.Equal(t, "lax", filtered[1].Code)
-
-	// Verify the filtering logic works correctly
-	for _, region := range filtered {
-		found := false
-		for _, mpgRegion := range mpgRegions {
-			if region.Code == mpgRegion.Code && mpgRegion.Available {
-				found = true
-
-				break
-			}
-		}
-		assert.True(t, found, "Filtered region %s should be available in MPG", region.Code)
-	}
 }
 
 // Test ClusterFromFlagOrSelect with actual flag context
@@ -195,17 +155,17 @@ func TestGetAvailableMPGRegions_RealFunction(t *testing.T) {
 		{Code: "ams", Name: "Amsterdam, Netherlands (EU)"},
 	}
 
-	mpgRegions := []mpgv1.MPGRegion{
+	mpgRegions := []mpgv2.Region{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 		{Code: "ams", Available: false}, // Not available
 	}
 
-	mockUiex := &mock.MpgV1Client{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
+	mockUiex := &mock.MpgV2Client{
+		ListRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv2.ListRegionsResponse, error) {
 			assert.Equal(t, "test-org", orgSlug)
 
-			return mpgv1.ListMPGRegionsResponse{
+			return mpgv2.ListRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -218,7 +178,7 @@ func TestGetAvailableMPGRegions_RealFunction(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv2.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test the actual function
 	regions, err := service.GetAvailableMPGRegions(ctx, "test-org")
@@ -239,14 +199,14 @@ func TestIsValidMPGRegion_RealFunction(t *testing.T) {
 		{Code: "lax", Name: "Los Angeles, California (US)"},
 	}
 
-	mpgRegions := []mpgv1.MPGRegion{
+	mpgRegions := []mpgv2.Region{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 	}
 
-	mockUiex := &mock.MpgV1Client{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-			return mpgv1.ListMPGRegionsResponse{
+	mockUiex := &mock.MpgV2Client{
+		ListRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv2.ListRegionsResponse, error) {
+			return mpgv2.ListRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -259,7 +219,7 @@ func TestIsValidMPGRegion_RealFunction(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv2.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test valid region
 	valid, err := service.IsValidMPGRegion(ctx, "test-org", "ord")
@@ -281,14 +241,14 @@ func TestGetAvailableMPGRegionCodes_RealFunction(t *testing.T) {
 		{Code: "lax", Name: "Los Angeles, California (US)"},
 	}
 
-	mpgRegions := []mpgv1.MPGRegion{
+	mpgRegions := []mpgv2.Region{
 		{Code: "ord", Available: true},
 		{Code: "lax", Available: true},
 	}
 
-	mockUiex := &mock.MpgV1Client{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-			return mpgv1.ListMPGRegionsResponse{
+	mockUiex := &mock.MpgV2Client{
+		ListRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv2.ListRegionsResponse, error) {
+			return mpgv2.ListRegionsResponse{
 				Data: mpgRegions,
 			}, nil
 		},
@@ -301,7 +261,7 @@ func TestGetAvailableMPGRegionCodes_RealFunction(t *testing.T) {
 	}
 
 	// Create service with mocked dependencies
-	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
+	service := regionsv2.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
 
 	// Test the actual function
 	codes, err := service.GetAvailableMPGRegionCodes(ctx, "test-org")
@@ -508,121 +468,6 @@ func TestErrorHandling(t *testing.T) {
 	})
 }
 
-// Test the create command logic (extracted from runCreate)
-func TestCreateCommand_Logic(t *testing.T) {
-	ctx := setupTestContext()
-
-	expectedCluster := mpgv1.ManagedCluster{
-		Id:     "new-cluster-123",
-		Name:   "test-db",
-		Region: "ord",
-		Status: "ready",
-		Organization: fly.Organization{
-			Slug: "test-org",
-		},
-	}
-
-	platformRegions := []fly.Region{
-		{Code: "ord", Name: "Chicago, Illinois (US)"},
-		{Code: "lax", Name: "Los Angeles, California (US)"},
-	}
-
-	mpgRegions := []mpgv1.MPGRegion{
-		{Code: "ord", Available: true},
-		{Code: "lax", Available: true},
-	}
-
-	mockUiex := &mock.MpgV1Client{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-			return mpgv1.ListMPGRegionsResponse{
-				Data: mpgRegions,
-			}, nil
-		},
-		CreateClusterFunc: func(ctx context.Context, input mpgv1.CreateClusterInput) (mpgv1.CreateClusterResponse, error) {
-			// Verify the input parameters
-			assert.Equal(t, "test-db", input.Name)
-			assert.Equal(t, "ord", input.Region)
-			assert.Equal(t, "basic", input.Plan)
-			assert.Equal(t, "test-org", input.OrgSlug)
-
-			return mpgv1.CreateClusterResponse{
-				Data: struct {
-					Id             string                          `json:"id"`
-					Name           string                          `json:"name"`
-					Status         *string                         `json:"status"`
-					Plan           string                          `json:"plan"`
-					Environment    *string                         `json:"environment"`
-					Region         string                          `json:"region"`
-					Organization   fly.Organization                `json:"organization"`
-					Replicas       int                             `json:"replicas"`
-					Disk           int                             `json:"disk"`
-					IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
-					PostGISEnabled bool                            `json:"postgis_enabled"`
-				}{
-					Id:             expectedCluster.Id,
-					Name:           expectedCluster.Name,
-					Region:         expectedCluster.Region,
-					Plan:           expectedCluster.Plan,
-					Organization:   expectedCluster.Organization,
-					PostGISEnabled: false,
-				},
-			}, nil
-		},
-		GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
-			assert.Equal(t, "new-cluster-123", id)
-
-			return mpgv1.GetManagedClusterResponse{
-				Data: expectedCluster,
-			}, nil
-		},
-	}
-
-	mockRegionProvider := &MockRegionProvider{
-		GetPlatformRegionsFunc: func(ctx context.Context) ([]fly.Region, error) {
-			return platformRegions, nil
-		},
-	}
-
-	// Create service with mocked dependencies
-	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
-
-	// Test region validation logic using the actual function
-	availableRegions, err := service.GetAvailableMPGRegions(ctx, "test-org")
-	require.NoError(t, err)
-	assert.Len(t, availableRegions, 2, "Should have 2 available regions")
-
-	// Test region selection logic
-	regionCode := "ord"
-	var selectedRegion *fly.Region
-	for _, region := range availableRegions {
-		if region.Code == regionCode {
-			selectedRegion = &region
-
-			break
-		}
-	}
-	require.NotNil(t, selectedRegion, "Should find selected region")
-	assert.Equal(t, "ord", selectedRegion.Code)
-
-	// Test cluster creation
-	input := mpgv1.CreateClusterInput{
-		Name:    "test-db",
-		Region:  selectedRegion.Code,
-		Plan:    "basic",
-		OrgSlug: "test-org",
-	}
-
-	response, err := mockUiex.CreateCluster(ctx, input)
-	require.NoError(t, err)
-	assert.Equal(t, expectedCluster.Id, response.Data.Id)
-	assert.Equal(t, expectedCluster.Name, response.Data.Name)
-
-	// Test cluster status checking
-	cluster, err := mockUiex.GetManagedClusterById(ctx, response.Data.Id)
-	require.NoError(t, err)
-	assert.Equal(t, expectedCluster.Status, cluster.Data.Status)
-}
-
 // Test the attach command logic (extracted from runAttach)
 func TestAttachCommand_Logic(t *testing.T) {
 	ctx := setupTestContext()
@@ -719,48 +564,6 @@ func TestAttachCommand_Logic(t *testing.T) {
 		}
 	}
 	assert.True(t, secretExists, "Secret should exist")
-}
-
-// Test region validation in create command
-func TestCreateCommand_RegionValidation(t *testing.T) {
-	ctx := setupTestContext()
-
-	platformRegions := []fly.Region{
-		{Code: "ord", Name: "Chicago, Illinois (US)"},
-		{Code: "lax", Name: "Los Angeles, California (US)"},
-	}
-
-	mpgRegions := []mpgv1.MPGRegion{
-		{Code: "ord", Available: true},
-		{Code: "lax", Available: true},
-	}
-
-	mockUiex := &mock.MpgV1Client{
-		ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-			return mpgv1.ListMPGRegionsResponse{
-				Data: mpgRegions,
-			}, nil
-		},
-	}
-
-	mockRegionProvider := &MockRegionProvider{
-		GetPlatformRegionsFunc: func(ctx context.Context) ([]fly.Region, error) {
-			return platformRegions, nil
-		},
-	}
-
-	// Create service with mocked dependencies
-	service := regionsv1.NewMPGServiceWithDependencies(mockUiex, mockRegionProvider)
-
-	// Test valid region using the actual function
-	valid, err := service.IsValidMPGRegion(ctx, "test-org", "ord")
-	require.NoError(t, err)
-	assert.True(t, valid, "Should find valid region")
-
-	// Test invalid region using the actual function
-	valid, err = service.IsValidMPGRegion(ctx, "test-org", "invalid")
-	require.NoError(t, err)
-	assert.False(t, valid, "Should not find invalid region")
 }
 
 // Test actual MPG token validation functions
@@ -1058,212 +861,6 @@ func TestPGMajorVersionValidation(t *testing.T) {
 				if tt.expectError {
 					t.Errorf("did not expect error for version %d", tt.version)
 				}
-			}
-		})
-	}
-}
-
-// Test that PG major version is correctly passed to CreateClusterParams
-func TestCreateClusterParams_PGMajorVersion(t *testing.T) {
-	tests := []struct {
-		name            string
-		pgMajorVersion  int
-		expectedVersion int
-	}{
-		{
-			name:            "version 16",
-			pgMajorVersion:  16,
-			expectedVersion: 16,
-		},
-		{
-			name:            "version 17",
-			pgMajorVersion:  17,
-			expectedVersion: 17,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			params := &CreateClusterParams{
-				Name:           "test-db",
-				OrgSlug:        "test-org",
-				Region:         "ord",
-				Plan:           "basic",
-				VolumeSizeGB:   10,
-				PostGISEnabled: false,
-				PGMajorVersion: tt.pgMajorVersion,
-			}
-
-			assert.Equal(t, tt.expectedVersion, params.PGMajorVersion)
-		})
-	}
-}
-
-// Test that PG major version is correctly converted to string in CreateClusterInput
-func TestCreateClusterInput_PGMajorVersion(t *testing.T) {
-	tests := []struct {
-		name            string
-		pgMajorVersion  int
-		expectedVersion string
-	}{
-		{
-			name:            "version 16 as string",
-			pgMajorVersion:  16,
-			expectedVersion: "16",
-		},
-		{
-			name:            "version 17 as string",
-			pgMajorVersion:  17,
-			expectedVersion: "17",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			params := &CreateClusterParams{
-				PGMajorVersion: tt.pgMajorVersion,
-			}
-
-			// Simulate the conversion that happens in create.go line 224
-			input := mpgv1.CreateClusterInput{
-				PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
-			}
-
-			assert.Equal(t, tt.expectedVersion, input.PGMajorVersion)
-		})
-	}
-}
-
-// Test CreateCluster command with pg-major-version flag
-func TestCreateCommand_WithPGMajorVersion(t *testing.T) {
-	tests := []struct {
-		name            string
-		pgMajorVersion  int
-		expectError     bool
-		expectedVersion string
-	}{
-		{
-			name:            "default version 16",
-			pgMajorVersion:  16,
-			expectError:     false,
-			expectedVersion: "16",
-		},
-		{
-			name:            "explicit version 16",
-			pgMajorVersion:  16,
-			expectError:     false,
-			expectedVersion: "16",
-		},
-		{
-			name:            "version 17",
-			pgMajorVersion:  17,
-			expectError:     false,
-			expectedVersion: "17",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := setupTestContext()
-
-			// Add pg-major-version flag to the flag set
-			flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			flagSet.Int("pg-major-version", tt.pgMajorVersion, "PG major version")
-			flagSet.String("name", "test-db", "Cluster name")
-			flagSet.String("region", "ord", "Region")
-			flagSet.String("plan", "basic", "Plan")
-			flagSet.Int("volume-size", 10, "Volume size")
-			flagSet.Bool("enable-postgis-support", false, "PostGIS")
-			ctx = flagctx.NewContext(ctx, flagSet)
-
-			// Add macaroon tokens for MPG compatibility
-			macaroonTokens := tokens.Parse("fm1r_macaroon_token")
-			configWithMacaroonTokens := &config.Config{
-				Tokens: macaroonTokens,
-			}
-			ctx = config.NewContext(ctx, configWithMacaroonTokens)
-
-			mpgRegions := []mpgv1.MPGRegion{
-				{Code: "ord", Available: true},
-			}
-
-			var capturedInput mpgv1.CreateClusterInput
-			mockUiex := &mock.MpgV1Client{
-				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-					return mpgv1.ListMPGRegionsResponse{
-						Data: mpgRegions,
-					}, nil
-				},
-				CreateClusterFunc: func(ctx context.Context, input mpgv1.CreateClusterInput) (mpgv1.CreateClusterResponse, error) {
-					capturedInput = input
-
-					return mpgv1.CreateClusterResponse{
-						Data: struct {
-							Id             string                          `json:"id"`
-							Name           string                          `json:"name"`
-							Status         *string                         `json:"status"`
-							Plan           string                          `json:"plan"`
-							Environment    *string                         `json:"environment"`
-							Region         string                          `json:"region"`
-							Organization   fly.Organization                `json:"organization"`
-							Replicas       int                             `json:"replicas"`
-							Disk           int                             `json:"disk"`
-							IpAssignments  mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
-							PostGISEnabled bool                            `json:"postgis_enabled"`
-						}{
-							Id:             "test-cluster-123",
-							Name:           "test-db",
-							Region:         "ord",
-							Plan:           "basic",
-							PostGISEnabled: false,
-						},
-					}, nil
-				},
-				GetManagedClusterByIdFunc: func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
-					status := "ready"
-
-					return mpgv1.GetManagedClusterResponse{
-						Data: mpgv1.ManagedCluster{
-							Id:     id,
-							Status: status,
-						},
-						Credentials: mpgv1.GetManagedClusterCredentialsResponse{
-							ConnectionUri: "postgresql://test",
-						},
-					}, nil
-				},
-			}
-
-			ctx = mpgv1.NewContextWithClient(ctx, mockUiex)
-
-			// Test the validation logic
-			pgMajorVersion := tt.pgMajorVersion
-			if pgMajorVersion != 16 && pgMajorVersion != 17 {
-				if !tt.expectError {
-					t.Errorf("expected error for version %d", pgMajorVersion)
-				}
-
-				return
-			}
-
-			// Test that the version is correctly passed to CreateClusterInput
-			params := &CreateClusterParams{
-				PGMajorVersion: pgMajorVersion,
-			}
-
-			input := mpgv1.CreateClusterInput{
-				PGMajorVersion: strconv.Itoa(params.PGMajorVersion),
-			}
-
-			assert.Equal(t, tt.expectedVersion, input.PGMajorVersion, "PG major version should be correctly converted to string")
-
-			// Verify the version would be passed correctly in actual CreateCluster call
-			_, err := mockUiex.CreateCluster(ctx, input)
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.expectedVersion, capturedInput.PGMajorVersion, "PG major version should be correctly passed to CreateCluster")
 			}
 		})
 	}

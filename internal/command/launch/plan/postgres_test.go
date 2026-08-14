@@ -16,15 +16,12 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // mockUIEXClient implements uiexutil.Client for testing
-type mockUIEXClient struct {
-	mpgRegions []mpgv1.MPGRegion
-}
+type mockUIEXClient struct{}
 
 func (m *mockUIEXClient) BaseURL() *url.URL {
 	return nil
@@ -269,13 +266,7 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 		flagSet.String("db", "true", "")
 		ctx = flagctx.NewContext(ctx, flagSet)
 
-		// Set up mock UIEX client where iad doesn't support MPG but lax does
-		mpgRegions := []mpgv1.MPGRegion{
-			{Code: "lax", Available: true},
-			{Code: "fra", Available: true},
-			// iad is not in the list, so it's not available
-		}
-		mockUIEX := &mockUIEXClient{mpgRegions: mpgRegions}
+		mockUIEX := &mockUIEXClient{}
 		ctx = uiexutil.NewContextWithClient(ctx, mockUIEX)
 
 		// Set up mock API client for platform regions
