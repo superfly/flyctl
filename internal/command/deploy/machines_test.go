@@ -191,6 +191,8 @@ func testMachineDeploymentForSetMachines(t *testing.T, strategy string, flyLaunc
 // Test any LaunchMachineInput field that must not be set on a machine
 // used to run release command.
 func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
+	const immutableImage = "super/balloon@sha256:f107dbfaa732063b31ee94aa728c4f5648a672259fd62bfaa245f9b7a53b5479"
+
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName: "my-cool-app",
 		Env: map[string]string{
@@ -228,6 +230,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
+	md.img = immutableImage
 
 	md.volumes = map[string][]fly.Volume{
 		"data": {{ID: "vol_12345"}},
@@ -244,7 +247,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"OTHER":             "value",
 				"FLY_PROCESS_GROUP": "app",
 			},
-			Image: "super/balloon",
+			Image: immutableImage,
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "app",
@@ -294,7 +297,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"RELEASE_COMMAND":   "1",
 				"FLY_PROCESS_GROUP": "fly_app_release_command",
 			},
-			Image: "super/balloon",
+			Image: immutableImage,
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "fly_app_release_command",
@@ -343,7 +346,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"RELEASE_COMMAND":   "1",
 				"FLY_PROCESS_GROUP": "fly_app_release_command",
 			},
-			Image: "super/balloon",
+			Image: immutableImage,
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "fly_app_release_command",
