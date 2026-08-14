@@ -185,6 +185,7 @@ func runLs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	root := "/"
 	args := flag.Args(ctx)
@@ -235,6 +236,7 @@ func runGet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	// Check if remote is a directory
 	remoteInfo, err := ftp.Stat(remote)
@@ -460,6 +462,7 @@ func runPut(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	if localInfo.IsDir() {
 		recursive := flag.GetBool(ctx, "recursive")
@@ -947,6 +950,7 @@ func runShell(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	l, err := readline.NewEx(&readline.Config{
 		Prompt:          "\033[31m»\033[0m ",
