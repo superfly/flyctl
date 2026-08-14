@@ -19,7 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
-	mpgapi "github.com/superfly/flyctl/internal/mpg"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
@@ -210,7 +210,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		Region:         pgPlan.Region,
 		Plan:           pgPlan.Plan,
 		DiskSizeGB:     pgPlan.DiskSize,
-		PGMajorVersion: mpgapi.DefaultPGMajorVersion,
+		PGMajorVersion: mpgutil.DefaultPGMajorVersion,
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
@@ -327,7 +327,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			creds, retryErr = flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgapi.DefaultUsername)
+			creds, retryErr = flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgutil.DefaultUsername)
 
 			return retryErr
 		},
@@ -343,7 +343,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
 
-	connectionURI := mpgapi.ConnectionURI(readyCluster, creds.Password)
+	connectionURI := mpgutil.ConnectionURI(readyCluster, creds.Password)
 
 	// Set the connection string as a secret
 	secrets := map[string]string{

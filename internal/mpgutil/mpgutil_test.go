@@ -1,4 +1,4 @@
-package mpg
+package mpgutil
 
 import (
 	"testing"

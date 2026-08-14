@@ -7,7 +7,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/flag"
-	mpgapi "github.com/superfly/flyctl/internal/mpg"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -65,7 +65,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	// Normal flow: prefer managed if enabled and available
 	if _, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug); err == nil && mpgEnabled {
 		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
-		validRegion, err := mpgapi.IsValidRegion(ctx, plan.RegionCode)
+		validRegion, err := mpgutil.IsValidRegion(ctx, plan.RegionCode)
 		if isInteractive {
 			if err == nil && validRegion {
 				// Managed postgres is available in this region, use it
@@ -144,7 +144,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	validRegion, err := mpgapi.IsValidRegion(ctx, plan.RegionCode)
+	validRegion, err := mpgutil.IsValidRegion(ctx, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -158,7 +158,7 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 		return handleInteractiveRegionSwitch(ctx, plan)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpgapi.AvailableRegionCodes(ctx)
+		availableCodes, _ := mpgutil.AvailableRegionCodes(ctx)
 
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
@@ -169,7 +169,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan) (Postg
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpgapi.AvailableRegions(ctx)
+	availableRegions, err := mpgutil.AvailableRegions(ctx)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			colorize := io.ColorScheme()
