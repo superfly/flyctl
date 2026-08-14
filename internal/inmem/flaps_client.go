@@ -145,6 +145,18 @@ func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res
 	return &flaps.ListIPAssignmentsResponse{}, nil
 }
 
+func (m *FlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error) {
 	panic("TODO")
 }

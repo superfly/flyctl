@@ -6,8 +6,8 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/mpg"
-	mpgregionsv1 "github.com/superfly/flyctl/internal/command/mpg/v1/regions"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -63,10 +63,9 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	}
 
 	// Normal flow: prefer managed if enabled and available
-	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
-	if err == nil && mpgEnabled {
+	if _, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug); err == nil && mpgEnabled {
 		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
-		validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+		validRegion, err := mpgutil.IsValidRegion(ctx, plan.RegionCode)
 		if isInteractive {
 			if err == nil && validRegion {
 				// Managed postgres is available in this region, use it
@@ -74,7 +73,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 			}
 
 			// Offer to switch to a nearby region that supports managed postgres
-			return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
+			return handleInteractiveRegionSwitch(ctx, plan)
 		} else {
 			// Non-interactive: log warning and fall back to FlyPostgres
 			if io != nil && err == nil {
@@ -141,12 +140,11 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
 
-	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
-	if err != nil {
+	if _, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug); err != nil {
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	validRegion, err := mpgregionsv1.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+	validRegion, err := mpgutil.IsValidRegion(ctx, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -157,21 +155,21 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 	isInteractive := io != nil && io.IsInteractive()
 	if isInteractive {
 		// Interactive: suggest switching to a supported region
-		return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
+		return handleInteractiveRegionSwitch(ctx, plan)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpgregionsv1.GetAvailableMPGRegionCodes(ctx, orgSlug)
+		availableCodes, _ := mpgutil.AvailableRegionCodes(ctx)
 
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
 }
 
 // handleInteractiveRegionSwitch prompts user to switch to a region that supports managed postgres
-func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlug string) (PostgresPlan, error) {
+func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpgregionsv1.GetAvailableMPGRegions(ctx, orgSlug)
+	availableRegions, err := mpgutil.AvailableRegions(ctx)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			colorize := io.ColorScheme()

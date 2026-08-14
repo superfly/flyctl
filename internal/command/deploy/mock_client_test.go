@@ -88,6 +88,10 @@ func (m *mockFlapsClient) CreateCustomCertificate(ctx context.Context, appName s
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to create managed postgres cluster")
+}
+
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	return nil, fmt.Errorf("failed to create volume %s", req.Name)
 }
@@ -207,6 +211,14 @@ func (m *mockFlapsClient) GetCertificate(ctx context.Context, appName, hostname 
 
 func (m *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return nil, fmt.Errorf("failed to get IP assignments for %s", appName)
+}
+
+func (m *mockFlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to get managed postgres cluster")
+}
+
+func (m *mockFlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+	return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("failed to get managed postgres user credentials")
 }
 
 func (m *mockFlapsClient) GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error) {
