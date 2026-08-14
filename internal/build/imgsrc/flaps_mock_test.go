@@ -147,6 +147,21 @@ func (mr *MockFlapsClientMockRecorder) CreateCustomCertificate(ctx, appName, req
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCustomCertificate", reflect.TypeOf((*MockFlapsClient)(nil).CreateCustomCertificate), ctx, appName, req)
 }
 
+// CreateManagedPostgresCluster mocks base method.
+func (m *MockFlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateManagedPostgresCluster", ctx, req)
+	ret0, _ := ret[0].(flaps.ManagedPostgresCluster)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateManagedPostgresCluster indicates an expected call of CreateManagedPostgresCluster.
+func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresCluster(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresCluster), ctx, req)
+}
+
 // CreateVolume mocks base method.
 func (m *MockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
@@ -452,6 +467,36 @@ func (m *MockFlapsClient) GetIPAssignments(ctx context.Context, appName string) 
 func (mr *MockFlapsClientMockRecorder) GetIPAssignments(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIPAssignments", reflect.TypeOf((*MockFlapsClient)(nil).GetIPAssignments), ctx, appName)
+}
+
+// GetManagedPostgresCluster mocks base method.
+func (m *MockFlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetManagedPostgresCluster", ctx, id)
+	ret0, _ := ret[0].(flaps.ManagedPostgresCluster)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetManagedPostgresCluster indicates an expected call of GetManagedPostgresCluster.
+func (mr *MockFlapsClientMockRecorder) GetManagedPostgresCluster(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).GetManagedPostgresCluster), ctx, id)
+}
+
+// GetManagedPostgresUserCredentials mocks base method.
+func (m *MockFlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetManagedPostgresUserCredentials", ctx, id, username)
+	ret0, _ := ret[0].(flaps.ManagedPostgresUserCredentials)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetManagedPostgresUserCredentials indicates an expected call of GetManagedPostgresUserCredentials.
+func (mr *MockFlapsClientMockRecorder) GetManagedPostgresUserCredentials(ctx, id, username any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManagedPostgresUserCredentials", reflect.TypeOf((*MockFlapsClient)(nil).GetManagedPostgresUserCredentials), ctx, id, username)
 }
 
 // GetMany mocks base method.

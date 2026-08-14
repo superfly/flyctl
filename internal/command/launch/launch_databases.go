@@ -9,16 +9,17 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
@@ -166,14 +167,19 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var (
-		io        = iostreams.FromContext(ctx)
-		pgPlan    = state.Plan.Postgres.ManagedPostgres
-		mpgClient = mpgv1.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		pgPlan      = state.Plan.Postgres.ManagedPostgres
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	// Check if we should attach to an existing cluster instead of creating a new one
 	if pgPlan.ClusterID != "" {
 		return state.attachToManagedPostgres(ctx, pgPlan.ClusterID)
+	}
+
+	// InitClient puts a client in the context, so this only trips in tests.
+	if flapsClient == nil {
+		return fmt.Errorf("flaps client not found in context")
 	}
 
 	// Get org
@@ -197,31 +203,23 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		slug = org.Slug
 	}
 
-	// Create cluster using the same parameters as mpg create
-	params := &mpg.CreateClusterParams{
-		Name:         pgPlan.DbName,
-		OrgSlug:      slug,
-		Region:       pgPlan.Region,
-		Plan:         pgPlan.Plan,
-		VolumeSizeGB: pgPlan.DiskSize,
-	}
-
-	// Create cluster using the UI-EX client with retry logic for network errors
-	input := mpgv1.CreateClusterInput{
-		Name:    params.Name,
-		Region:  params.Region,
-		Plan:    params.Plan,
-		OrgSlug: params.OrgSlug,
-		Disk:    params.VolumeSizeGB,
+	// Create the cluster with retry logic for network errors.
+	input := flaps.CreateManagedPostgresClusterRequest{
+		OrgSlug:        slug,
+		Name:           pgPlan.DbName,
+		Region:         pgPlan.Region,
+		Plan:           pgPlan.Plan,
+		DiskSizeGB:     pgPlan.DiskSize,
+		PGMajorVersion: mpgutil.DefaultPGMajorVersion,
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
-	var response mpgv1.CreateClusterResponse
+	var cluster flaps.ManagedPostgresCluster
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			response, retryErr = mpgClient.CreateCluster(ctx, input)
+			cluster, retryErr = flapsClient.CreateManagedPostgresCluster(ctx, input)
 
 			return retryErr
 		},
@@ -237,9 +235,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
 
+	clusterID := cluster.ID
+
 	// Wait for cluster to be ready
 	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "%s\n", colorize.Bold(fmt.Sprintf("Waiting for cluster %s (%s) to be ready...", params.Name, response.Data.Id)))
+	fmt.Fprintf(io.Out, "%s\n", colorize.Bold(fmt.Sprintf("Waiting for cluster %s (%s) to be ready...", pgPlan.DbName, clusterID)))
 	fmt.Fprintf(io.Out, "\n%s\n", colorize.Bold("This'll take a few minutes, but you don't have to wait around if you don't want to!"))
 	fmt.Fprintf(io.Out, "To connect your Managed Postgres cluster later just:\n")
 	fmt.Fprintf(io.Out, "  - Press %s to continue with deployment\n", colorize.Purple("Ctrl+C"))
@@ -250,14 +250,15 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	s := spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
 
 	// Create a separate context for the wait loop with 15 minute timeout
-	waitCtx := context.Background()
-	waitCtx, cancel := context.WithTimeout(waitCtx, 15*time.Minute)
+	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
 
-	// Use retry.Do with a 15-minute timeout and exponential backoff
+	// Poll until the cluster is ready, capturing it for its endpoints, with a
+	// 15-minute timeout and exponential backoff.
+	var readyCluster flaps.ManagedPostgresCluster
 	err = retry.Do(
 		func() error {
-			cluster, err := mpgClient.GetManagedClusterById(ctx, response.Data.Id)
+			current, err := flapsClient.GetManagedPostgresCluster(waitCtx, clusterID)
 			if err != nil {
 				// For network errors, return the error to trigger retry
 				if containsNetworkError(err.Error()) {
@@ -267,16 +268,17 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 				return retry.Unrecoverable(fmt.Errorf("failed checking cluster status: %w", err))
 			}
 
-			if cluster.Data.Status == "ready" {
+			switch current.Status {
+			case flaps.ManagedPostgresStatusReady:
+				readyCluster = current
+
 				return nil // Success!
-			}
-
-			if cluster.Data.Status == "error" {
+			case flaps.ManagedPostgresStatusFailed, flaps.ManagedPostgresStatusError:
 				return retry.Unrecoverable(fmt.Errorf("cluster creation failed"))
+			default:
+				// Return an error to continue retrying if status is not ready
+				return fmt.Errorf("cluster status is %s, waiting for ready", current.Status)
 			}
-
-			// Return an error to continue retrying if status is not ready
-			return fmt.Errorf("cluster status is %s, waiting for ready", cluster.Data.Status)
 		},
 		retry.Context(waitCtx),
 		retry.Attempts(0), // Unlimited attempts within the timeout
@@ -319,12 +321,13 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return err
 	}
 
-	// Get the cluster credentials with retry logic
-	var cluster mpgv1.GetManagedClusterResponse
+	// Fetch the default user's credentials with retry logic, then build
+	// DATABASE_URL from the ready cluster's pooler endpoint.
+	var creds flaps.ManagedPostgresUserCredentials
 	err = retry.Do(
 		func() error {
 			var retryErr error
-			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, response.Data.Id)
+			creds, retryErr = flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgutil.DefaultUsername)
 
 			return retryErr
 		},
@@ -340,18 +343,19 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
 
+	connectionURI := mpgutil.ConnectionURI(readyCluster, creds.Password)
+
 	// Set the connection string as a secret
 	secrets := map[string]string{
-		"DATABASE_URL": cluster.Credentials.ConnectionUri,
+		"DATABASE_URL": connectionURI,
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
 	if err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil); err != nil {
 		return fmt.Errorf("failed setting database secrets: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "\n%s\n", colorize.Bold(colorize.Green(fmt.Sprintf("Managed Postgres cluster %s is ready and attached to %s", response.Data.Id, state.Plan.AppName))))
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
+	fmt.Fprintf(io.Out, "\n%s\n", colorize.Bold(colorize.Green(fmt.Sprintf("Managed Postgres cluster %s is ready and attached to %s", clusterID, state.Plan.AppName))))
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, connectionURI)
 
 	return nil
 }
