@@ -263,7 +263,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	waitTimeout := time.Minute * 5
 
-	err = mach.WaitForStartOrStop(ctx, appName, machine, "start", waitTimeout)
+	err = mach.WaitForStartOrStop(ctx, appName, machine, "start", waitTimeout, "")
 	if err != nil {
 		return err
 	}

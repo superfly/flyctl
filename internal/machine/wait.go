@@ -15,25 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
-func WaitForState(ctx context.Context, appName string, machine *fly.Machine, desiredState string, timeout time.Duration) (string, error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-
-	if err := WaitForStartOrStop(ctx, appName, machine, desiredState, timeout); err != nil {
-		return "", err
-	}
-	if desiredState == "settled" {
-		m, err := flapsClient.Get(ctx, appName, machine.ID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get machine after waiting for it to settle: %w", err)
-		}
-
-		return m.State, nil
-	}
-
-	return desiredState, nil
-}
-
-func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
+func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration, version string) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -57,8 +39,15 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Factor: 2,
 		Jitter: false,
 	}
+	flapsOpts := []flaps.WaitOption{
+		flaps.WithWaitStates(waitOnAction),
+		flaps.WithWaitTimeout(60 * time.Second),
+	}
+	if version != "" {
+		flapsOpts = append(flapsOpts, flaps.WithWaitVersion(version))
+	}
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, flapsOpts...)
 		if err == nil {
 			return nil
 		}
