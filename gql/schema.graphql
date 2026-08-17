@@ -10149,6 +10149,11 @@ input UpdateAddOnInput {
   planId: ID
 
   """
+  Explicit ProdPack intent for Upstash Redis. Requires a plan change; when absent, ProdPack is left untouched.
+  """
+  prodPack: Boolean
+
+  """
   The add-on service provider type
   """
   provider: String
