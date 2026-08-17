@@ -31,6 +31,7 @@ func (c *captureGenqClient) MakeRequest(_ context.Context, req *genq.Request, re
 		return err
 	}
 	resp.Data = map[string]any{}
+
 	return nil
 }
 
@@ -38,6 +39,7 @@ func (c *captureGenqClient) MakeRequest(_ context.Context, req *genq.Request, re
 func confirmStub(answer bool, err error, called *bool) func() (bool, error) {
 	return func() (bool, error) {
 		*called = true
+
 		return answer, err
 	}
 }
@@ -145,6 +147,7 @@ func TestResolveProdPack(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)
@@ -225,6 +228,7 @@ func TestUpdateRedisAddOnWire(t *testing.T) {
 				if decision == nil {
 					return nil
 				}
+
 				return *decision
 			}())
 

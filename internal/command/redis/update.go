@@ -247,6 +247,7 @@ func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLeg
 		if disableFlag {
 			return boolPtr(false), nil
 		}
+
 		return nil, nil
 	}
 
