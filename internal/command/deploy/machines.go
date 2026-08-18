@@ -769,11 +769,18 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 // isRetryableReleaseStatusError reports whether a failed release status update is
 // worth another attempt.
 //
-// A 5xx from api.fly.io is transient, and notably includes the 504 served by the
-// proxy in front of it when it gives up waiting on the backend. A 4xx means the
-// request itself is wrong and will fail the same way next time. Errors that never
-// produced a response at all (connection reset, TLS handshake failure, timeout)
-// are transport-level and worth retrying.
+// A *uiex.StatusError means the server did answer, so the status code decides:
+// 5xx is transient, and notably includes the 504 served by the proxy in front of
+// api.fly.io when it gives up waiting on the backend, while 4xx means the request
+// itself is wrong and will fail the same way next time.
+//
+// Any other error -- a connection reset, a TLS handshake failure, a response body
+// that could not be read or decoded -- carries no status code to judge, so we
+// cannot tell a transient fault from a permanent one. Setting a release status is
+// idempotent and the retry budget is small and bounded, so the default is to try
+// again rather than fail a deploy that might well have succeeded. Context
+// cancellation and deadline expiry are the exceptions: both are explicit
+// instructions to stop.
 func isRetryableReleaseStatusError(err error) bool {
 	if err == nil {
 		return false

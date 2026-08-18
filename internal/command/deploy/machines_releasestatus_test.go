@@ -23,14 +23,14 @@ func TestIsRetryableReleaseStatusError(t *testing.T) {
 			want: false,
 		},
 		{
-			// The failure that motivated this retry: HAProxy in front of api.fly.io
-			// gives up on the backend and serves its own 504 page.
-			name: "504 from the proxy is retried",
+			name: "502 from the proxy is retried",
 			err:  &uiex.StatusError{Op: "update release", StatusCode: 502, Body: "<html>502 Bad Gateway</html>"},
 			want: true,
 		},
 		{
-			name: "gateway timeout is retried",
+			// The failure that motivated this retry: HAProxy in front of api.fly.io
+			// gives up on the backend and serves its own 504 page.
+			name: "504 from the proxy is retried",
 			err:  &uiex.StatusError{Op: "update release", StatusCode: 504, Body: "<html>504 Gateway Time-out</html>"},
 			want: true,
 		},
