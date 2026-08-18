@@ -39,6 +39,11 @@ type mockFlapsClient struct {
 	// an unreachable host returning an empty ImageRef).
 	GetFunc func(ctx context.Context, appName, machineID string) (*fly.Machine, error)
 
+	// GetProcessesFunc, when set, overrides the default GetProcesses behaviour.
+	// Useful for tests that simulate an app slowly binding to its listening
+	// sockets (see warnAboutIncorrectListenAddress).
+	GetProcessesFunc func(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error)
+
 	// uncordonTransientFailures causes Uncordon to fail this many times before
 	// succeeding, simulating transient API errors for retry tests.
 	uncordonTransientFailures int
@@ -234,6 +239,13 @@ func (m *mockFlapsClient) GetPlacements(ctx context.Context, req *flaps.GetPlace
 }
 
 func (m *mockFlapsClient) GetProcesses(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error) {
+	m.mu.Lock()
+	fn := m.GetProcessesFunc
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, appName, machineID)
+	}
+
 	return nil, fmt.Errorf("failed to get processes for %s", machineID)
 }
 
