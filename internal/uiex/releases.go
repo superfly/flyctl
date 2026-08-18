@@ -12,6 +12,32 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 )
 
+// StatusError is returned when api.fly.io answers with an unexpected status
+// code. It carries the code so callers can tell a transient server-side failure
+// apart from a request that will never succeed.
+type StatusError struct {
+	// Op describes the attempted operation, e.g. "update release".
+	Op string
+	// StatusCode is the HTTP status returned by api.fly.io.
+	StatusCode int
+	// Body is the raw response body, included in the error message.
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("failed to %s (status %d): %s", e.Op, e.StatusCode, e.Body)
+}
+
+// Retryable reports whether the failure is worth another attempt. 5xx responses
+// are transient by definition, and include the 504s served by the proxy in front
+// of api.fly.io when it gives up waiting on the backend. 4xx responses mean the
+// request itself is wrong and will fail identically on a retry.
+//
+// Callers must only retry when the request is idempotent.
+func (e *StatusError) Retryable() bool {
+	return e.StatusCode >= 500
+}
+
 type DeploymentStrategy string
 
 const (
@@ -253,6 +279,6 @@ func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, me
 
 		return response, nil
 	default:
-		return nil, fmt.Errorf("failed to update release (status %d): %s", res.StatusCode, string(body))
+		return nil, &StatusError{Op: "update release", StatusCode: res.StatusCode, Body: string(body)}
 	}
 }
