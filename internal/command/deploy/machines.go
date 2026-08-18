@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
@@ -714,6 +716,15 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
+const (
+	// releaseStatusRetryAttempts bounds how many times a release status update is
+	// attempted before the deploy gives up.
+	releaseStatusRetryAttempts = 3
+	// releaseStatusRetryDelay is the delay before the first retry; it doubles on
+	// each subsequent attempt.
+	releaseStatusRetryDelay = 500 * time.Millisecond
+)
+
 func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
@@ -721,7 +732,30 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	))
 	defer span.End()
 
-	_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+	// Setting a release's status is idempotent, so a transient failure is safe to
+	// retry. Without this, a single blip anywhere between flyctl and api.fly.io
+	// aborts an otherwise healthy deploy after the image has already been built
+	// and pushed -- the user's only recourse being to run the whole deploy again.
+	attempts := 0
+	err := retry.Do(
+		func() error {
+			attempts++
+			_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+
+			return err
+		},
+		retry.Context(ctx),
+		retry.Attempts(releaseStatusRetryAttempts),
+		retry.Delay(releaseStatusRetryDelay),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(isRetryableReleaseStatusError),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Debugf("retrying release status update to %q (attempt %d/%d): %v\n",
+				status, n+2, releaseStatusRetryAttempts, err)
+		}),
+	)
+	span.SetAttributes(attribute.Int("attempts", attempts))
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
@@ -730,6 +764,32 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	}
 
 	return nil
+}
+
+// isRetryableReleaseStatusError reports whether a failed release status update is
+// worth another attempt.
+//
+// A 5xx from api.fly.io is transient, and notably includes the 504 served by the
+// proxy in front of it when it gives up waiting on the backend. A 4xx means the
+// request itself is wrong and will fail the same way next time. Errors that never
+// produced a response at all (connection reset, TLS handshake failure, timeout)
+// are transport-level and worth retrying.
+func isRetryableReleaseStatusError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// The user interrupted us, or a deadline expired. Retrying would ignore that.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var statusErr *uiex.StatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Retryable()
+	}
+
+	return true
 }
 
 func (md *machineDeployment) logClearLinesAbove(count int) {
