@@ -741,6 +741,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 		func() error {
 			attempts++
 			_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+
 			return err
 		},
 		retry.Context(ctx),
