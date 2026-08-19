@@ -69,6 +69,7 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	strategy.launchRetryDelay = 0
 	strategy.launchLookupDelay = 0
 	strategy.imageRefRetryDelay = 0
+	strategy.teardownRetryDelay = 0
 
 	return strategy
 }
@@ -308,6 +309,7 @@ func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState st
 	strategy.launchRetryDelay = 0
 	strategy.launchLookupDelay = 0
 	strategy.imageRefRetryDelay = 0
+	strategy.teardownRetryDelay = 0
 
 	return strategy
 }
@@ -952,6 +954,91 @@ func TestCreateGreenMachinesRetriesLaunchTransients(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Less(t, elapsed, 500*time.Millisecond, "non-retryable errors must fail fast")
+	})
+}
+
+// TestBlueTeardownRetriesTransientFailures covers the Cordon/Stop/Destroy
+// retries added to the bluegreen teardown stages. All three are idempotent,
+// so transient flaps failures (typically 408 propagated from flyd) must not
+// leave blue machines cordoned-but-not-stopped or hanging around after
+// destroy — the observable pain point behind the resilience work.
+func TestBlueTeardownRetriesTransientFailures(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Cordon retries transient failures", func(t *testing.T) {
+		client := &mockFlapsClient{cordonTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 5
+
+		err := bg.CordonBlueMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.cordonTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+	})
+
+	t.Run("Stop retries transient failures", func(t *testing.T) {
+		client := &mockFlapsClient{stopTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 5
+
+		err := bg.StopBlueMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.stopTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+	})
+
+	t.Run("Destroy retries transient failures", func(t *testing.T) {
+		client := &mockFlapsClient{destroyTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 5
+
+		err := bg.DestroyBlueMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.destroyTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+		assert.Empty(t, bg.hangingBlueMachines,
+			"blue machines that were successfully destroyed on retry must NOT be reported as hanging")
+	})
+
+	t.Run("Destroy is non-fatal when retries exhaust", func(t *testing.T) {
+		// Force way more failures than the retry budget: destroy must fail
+		// gracefully (adding the machine to hangingBlueMachines), NOT abort
+		// the deploy.
+		client := &mockFlapsClient{destroyTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 3
+
+		err := bg.DestroyBlueMachines(ctx)
+		assert.NoError(t, err, "destroy failure must not abort the pool")
+		assert.Len(t, bg.hangingBlueMachines, 1,
+			"a machine that couldn't be destroyed must be reported to the user for manual cleanup")
+	})
+
+	t.Run("Cordon warns but continues when retries exhaust", func(t *testing.T) {
+		client := &mockFlapsClient{cordonTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 2
+
+		err := bg.CordonBlueMachines(ctx)
+		assert.NoError(t, err, "cordon exhaustion must not fail the deploy")
+	})
+
+	t.Run("Stop warns but continues when retries exhaust", func(t *testing.T) {
+		client := &mockFlapsClient{stopTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 2
+
+		err := bg.StopBlueMachines(ctx)
+		assert.NoError(t, err, "stop exhaustion must not fail the deploy — destroy will force-kill")
 	})
 }
 

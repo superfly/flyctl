@@ -70,6 +70,14 @@ type mockFlapsClient struct {
 	// the lookup finds no matching machine and we must launch again.
 	launchTransient408Failures int
 
+	// cordonTransientFailures / stopTransientFailures / destroyTransientFailures
+	// each make the corresponding endpoint fail this many times with a
+	// retryable 408 before succeeding. They let tests exercise the retry
+	// loops added to the blue-machine teardown stages of a bluegreen deploy.
+	cordonTransientFailures  int
+	stopTransientFailures    int
+	destroyTransientFailures int
+
 	// mu to protect the members below.
 	mu            sync.Mutex
 	machines      []*fly.Machine
@@ -100,7 +108,20 @@ func (m *mockFlapsClient) CheckCertificate(ctx context.Context, appName, hostnam
 }
 
 func (m *mockFlapsClient) Cordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
-	return fmt.Errorf("failed to cordon %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.cordonTransientFailures > 0 {
+		m.cordonTransientFailures--
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error cordoning %s", machineID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
+	return nil
 }
 
 func (m *mockFlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
@@ -166,6 +187,16 @@ func (m *mockFlapsClient) DeleteVolume(ctx context.Context, appName, volumeId st
 func (m *mockFlapsClient) Destroy(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
 	m.mu.Lock()
 	m.destroyCalls = append(m.destroyCalls, destroyCall{input: input, nonce: nonce})
+	if m.destroyTransientFailures > 0 {
+		m.destroyTransientFailures--
+		m.mu.Unlock()
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error destroying %s", input.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
 	m.mu.Unlock()
 
 	if m.breakDestroy {
@@ -477,7 +508,20 @@ func (m *mockFlapsClient) Start(ctx context.Context, appName, machineID string, 
 }
 
 func (m *mockFlapsClient) Stop(ctx context.Context, appName string, in fly.StopMachineInput, nonce string) (err error) {
-	return fmt.Errorf("failed to stop %s", in.ID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.stopTransientFailures > 0 {
+		m.stopTransientFailures--
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error stopping %s", in.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
+	return nil
 }
 
 func (m *mockFlapsClient) Suspend(ctx context.Context, appName, machineID, nonce string) (err error) {
