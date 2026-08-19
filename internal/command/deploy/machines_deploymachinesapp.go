@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cenkalti/backoff/v5"
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
@@ -1068,10 +1069,36 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	return nil
 }
 
+// updateMachineRetryAttempts / updateMachineRetryDelay control the client-side
+// back-off around leasableMachine.Update. flaps' Update is scoped by the lease
+// nonce, so retrying the same call with the same nonce is safe — flaps will
+// either apply the update (idempotent) or reject it (nonce invalid), in
+// which case the outer deploy-retry loop takes over. Without this a single
+// transient 408 during a rolling or immediate deploy aborts the entire
+// deploy mid-stream even though the operation would have succeeded on a
+// second attempt.
+const (
+	updateMachineRetryAttempts uint          = 3
+	updateMachineRetryDelay    time.Duration = 500 * time.Millisecond
+)
+
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
 
-	return lm.Update(ctx, *e.launchInput)
+	return retry.Do(
+		func() error { return lm.Update(ctx, *e.launchInput) },
+		retry.Context(ctx),
+		retry.Attempts(updateMachineRetryAttempts),
+		retry.Delay(updateMachineRetryDelay),
+		retry.MaxDelay(5*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(flapsutil.IsTransientFlapsError),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Debugf("retrying update for machine %s (attempt %d/%d): %v\n",
+				lm.FormattedMachineId(), n+2, updateMachineRetryAttempts, err)
+		}),
+	)
 }
 
 type spawnOptions struct {
