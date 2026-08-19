@@ -51,7 +51,7 @@ require (
 	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.72
-	github.com/moby/buildkit v0.32.1
+	github.com/moby/buildkit v0.32.2
 	github.com/moby/go-archive v0.3.2
 	github.com/moby/moby/client v0.5.1
 	github.com/moby/patternmatcher v0.6.1
