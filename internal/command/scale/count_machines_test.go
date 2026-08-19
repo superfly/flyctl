@@ -2,6 +2,7 @@ package scale
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -135,5 +136,22 @@ func Test_convergeGroupCounts_maxPerRegion(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
+	}
+}
+
+func TestConvergeGroupCounts_DuplicateRegions(t *testing.T) {
+	errCh := make(chan error, 1)
+	go func() {
+		// Pass a duplicate region. This is a regression test because the function
+		// would choke on duplicates.
+		_, err := convergeGroupCounts(20, nil, []string{"dfw", "sjc", "lhr", "lax", "cdg", "ams", "dfw", "gru", "arn", "sin"}, 2)
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		assert.ErrorIs(t, err, ErrMaxPerRegion)
+	case <-time.After(time.Second):
+		t.Fatal("convergeGroupCounts did not return when regions contained a duplicate")
 	}
 }
