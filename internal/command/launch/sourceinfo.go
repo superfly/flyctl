@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -76,6 +77,15 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	srcInfo, err = scanner.Scan(workingDir, scannerConfig)
 	if err != nil {
 		return nil, nil, err
+	}
+	if srcInfo != nil && srcInfo.DockerfilePath != "" {
+		dockerfilePath, err := filepath.Rel(workingDir, srcInfo.DockerfilePath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not resolve Dockerfile path: %w", err)
+		}
+		if dockerfilePath != "Dockerfile" {
+			build.Dockerfile = dockerfilePath
+		}
 	}
 
 	if srcInfo == nil {
