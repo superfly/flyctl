@@ -139,7 +139,7 @@ func Test_convergeGroupCounts_maxPerRegion(t *testing.T) {
 	}
 }
 
-func TestConvergeGroupCounts_DuplicateRegions(t *testing.T) {
+func Test_convergeGroupCounts_duplicateRegions(t *testing.T) {
 	errCh := make(chan error, 1)
 	go func() {
 		// Pass a duplicate region. This is a regression test because the function
