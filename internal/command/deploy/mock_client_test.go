@@ -48,6 +48,28 @@ type mockFlapsClient struct {
 	// succeeding, simulating transient API errors for retry tests.
 	uncordonTransientFailures int
 
+	// setMetadataTransientFailures causes SetMetadata to fail this many times
+	// before succeeding, simulating transient flaps 408/5xx errors for retry
+	// tests of the checkpointing step.
+	setMetadataTransientFailures int
+
+	// launchPreRequestTransientFailures causes Launch to fail this many times
+	// with a pre-request network error before succeeding, simulating a
+	// connection reset before the request reaches flaps.
+	launchPreRequestTransientFailures int
+
+	// launchSilentSuccessFailures makes Launch return a 408 while still
+	// registering the machine in the mock's internal state, simulating the
+	// case where flaps' upstream call to flyd committed the create but the
+	// response was lost. This lets tests exercise the client-side
+	// idempotency lookup path in launchGreenMachineWithRetry.
+	launchSilentSuccessFailures int
+
+	// launchTransient408Failures makes Launch return a 408 without
+	// committing anything on the mock side, exercising the retry path where
+	// the lookup finds no matching machine and we must launch again.
+	launchTransient408Failures int
+
 	// mu to protect the members below.
 	mu            sync.Mutex
 	machines      []*fly.Machine
@@ -273,6 +295,22 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.launchPreRequestTransientFailures > 0 {
+		m.launchPreRequestTransientFailures--
+
+		return nil, fmt.Errorf("dial tcp: connection refused")
+	}
+
+	if m.launchTransient408Failures > 0 {
+		m.launchTransient408Failures--
+
+		return nil, &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("upstream timeout launching %s", builder.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
 	if m.breakLaunch {
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
@@ -281,11 +319,22 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 
 	shortDuration := fly.Duration{Duration: 10 * time.Millisecond}
 
-	return &fly.Machine{
+	// Copy the builder's metadata onto the created machine so that
+	// List-based idempotency lookups can find it (matching real flaps
+	// behaviour: the metadata we sent in the launch input is persisted
+	// and returned by subsequent List/Get calls).
+	metadata := map[string]string{}
+	if builder.Config != nil && builder.Config.Metadata != nil {
+		for k, v := range builder.Config.Metadata {
+			metadata[k] = v
+		}
+	}
+
+	created := &fly.Machine{
 		ID:         fmt.Sprintf("%x", m.nextMachineID),
 		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
 		Config: &fly.MachineConfig{
-			Metadata: map[string]string{},
+			Metadata: metadata,
 			// Use a near-zero grace period and interval so that health-check
 			// goroutines poll almost immediately in tests without real timing.
 			Checks: map[string]fly.MachineCheck{
@@ -295,15 +344,39 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 				},
 			},
 		},
-	}, nil
+	}
+	m.machines = append(m.machines, created)
+
+	if m.launchSilentSuccessFailures > 0 {
+		m.launchSilentSuccessFailures--
+
+		// Simulate a 408: the machine was committed on the mock side but the
+		// caller sees a transient error. The idempotency lookup should find
+		// this machine by its launch-id metadata on the next attempt.
+		return nil, &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("upstream timeout after commit"),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout after commit"),
+		}
+	}
+
+	return created, nil
 }
 
 func (m *mockFlapsClient) List(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.breakList {
 		return nil, fmt.Errorf("failed to list machines")
 	}
 
-	return m.machines, nil
+	// Defensive copy so callers holding the slice can't race with future
+	// mutations under m.mu.
+	out := make([]*fly.Machine, len(m.machines))
+	copy(out, m.machines)
+
+	return out, nil
 }
 
 func (m *mockFlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Machine, error) {
@@ -371,6 +444,19 @@ func (m *mockFlapsClient) Restart(ctx context.Context, appName string, in fly.Re
 }
 
 func (m *mockFlapsClient) SetMetadata(ctx context.Context, appName, machineID, key, value string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.setMetadataTransientFailures > 0 {
+		m.setMetadataTransientFailures--
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error setting metadata for %s", machineID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("transient upstream timeout"),
+		}
+	}
+
 	if m.breakSetMetadata {
 		return fmt.Errorf("failed to set metadata for %s", machineID)
 	}
