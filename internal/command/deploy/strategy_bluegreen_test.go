@@ -2,7 +2,9 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -65,6 +67,9 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	strategy.waitBeforeStop = 0
 	strategy.waitBeforeCordon = 0
 	strategy.uncordonRetryDelay = 0
+	strategy.tagRetryDelay = 0
+	strategy.launchRetryDelay = 0
+	strategy.launchLookupDelay = 0
 	strategy.imageRefRetryDelay = 0
 
 	return strategy
@@ -301,6 +306,9 @@ func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState st
 	strategy.waitBeforeStop = 0
 	strategy.waitBeforeCordon = 0
 	strategy.uncordonRetryDelay = 0
+	strategy.tagRetryDelay = 0
+	strategy.launchRetryDelay = 0
+	strategy.launchLookupDelay = 0
 	strategy.imageRefRetryDelay = 0
 
 	return strategy
@@ -781,4 +789,252 @@ func TestFormatDestroyCommand(t *testing.T) {
 		// Must have backslash continuations so each ID is on its own line.
 		assert.Contains(t, cmd, " \\\n", "expected backslash continuation for multi-machine command")
 	})
+}
+
+// TestTagBlueMachinesAsSafeForDeletion covers the checkpointing step's
+// resilience guarantees. The tag is best-effort metadata used by operators
+// to identify hanging blue machines; a transient flaps failure here must
+// never abort the deployment (or we'd leave blue and green versions serving
+// traffic side-by-side).
+func TestTagBlueMachinesAsSafeForDeletion(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("succeeds immediately when no errors occur", func(t *testing.T) {
+		client := &mockFlapsClient{}
+		bg := newBlueGreenStrategy(client, 3)
+
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("succeeds after transient 408s are retried", func(t *testing.T) {
+		client := &mockFlapsClient{setMetadataTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.setMetadataTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+	})
+
+	t.Run("returns nil when retries are exhausted (non-fatal)", func(t *testing.T) {
+		// setMetadataTransientFailures greater than the attempt budget forces
+		// the retry loop to give up. The deployment must still proceed.
+		client := &mockFlapsClient{setMetadataTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 2)
+		bg.tagRetryAttempts = 3
+
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		assert.NoError(t, err, "tag failures must be non-fatal so both blue+green don't stay live")
+	})
+
+	t.Run("does not retry non-transient errors", func(t *testing.T) {
+		client := &mockFlapsClient{breakSetMetadata: true}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.tagRetryAttempts = 5
+
+		start := time.Now()
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		elapsed := time.Since(start)
+
+		assert.NoError(t, err)
+		// Non-transient errors bail out on the first attempt, so this must
+		// finish quickly — no exponential back-off between 5 retries.
+		assert.Less(t, elapsed, 500*time.Millisecond, "non-transient failures should not incur retry delay")
+	})
+}
+
+// TestDeployContinuesWhenCheckpointFails guards against a regression where a
+// transient failure of the safe-to-destroy tagging step (SetMetadata against
+// blue machines) aborts the deployment after green machines have already
+// been made ready for traffic. In that state the previous behaviour left
+// both blue and green machines serving traffic side-by-side; the deployment
+// must instead complete end-to-end even when SetMetadata never succeeds.
+func TestDeployContinuesWhenCheckpointFails(t *testing.T) {
+	client := &mockFlapsClient{setMetadataTransientFailures: 999}
+	ctx := flapsutil.NewContextWithClient(context.Background(), client)
+	strategy := newBlueGreenStrategy(client, 2)
+	strategy.tagRetryAttempts = 2
+
+	err := strategy.Deploy(ctx)
+	assert.NoError(t, err, "a persistent SetMetadata failure must not abort the deploy")
+
+	// All blue machines must have been destroyed; leaving any of them alive
+	// alongside green would be the exact bug this test protects against.
+	client.mu.Lock()
+	destroyed := len(client.destroyCalls)
+	client.mu.Unlock()
+	assert.Equal(t, 2, destroyed, "both blue machines should be destroyed at the end of the deploy")
+}
+
+// TestCreateGreenMachinesRetriesLaunchTransients verifies the client-side
+// pseudo-idempotency logic wrapped around flaps.Launch:
+//
+//   - a pre-request transport failure (guaranteed the request never reached
+//     flaps) is retried and eventually succeeds without creating extras;
+//   - an ambiguous 408 that was actually a silent success on the flaps side
+//     is deduplicated via the launch-id metadata lookup so we never end up
+//     with a duplicate green machine;
+//   - an ambiguous 408 that truly failed (no machine committed) is retried
+//     until Launch succeeds;
+//   - a non-transient error (e.g. a 4xx validation error) still fails fast.
+func TestCreateGreenMachinesRetriesLaunchTransients(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("succeeds after transient pre-request failures", func(t *testing.T) {
+		client := &mockFlapsClient{launchPreRequestTransientFailures: 2}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 3
+
+		err := bg.CreateGreenMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.launchPreRequestTransientFailures
+		launched := len(client.launchInputs)
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "transient failures should be consumed by retries")
+		assert.Equal(t, 1, launched, "a truly-failed launch should only produce one committed machine")
+	})
+
+	t.Run("deduplicates silent-success 408 via launch-id lookup", func(t *testing.T) {
+		// The mock commits the machine internally but returns 408. The retry
+		// loop must see the committed machine via List and reuse it instead
+		// of launching again.
+		client := &mockFlapsClient{launchSilentSuccessFailures: 1}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 3
+
+		err := bg.CreateGreenMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		committedMachines := len(client.machines)
+		launchCalls := len(client.launchInputs)
+		client.mu.Unlock()
+
+		assert.Equal(t, 1, committedMachines, "exactly one green machine must exist — the silent-success one")
+		assert.Equal(t, 1, launchCalls, "idempotency lookup must skip the second Launch call")
+		assert.Len(t, bg.greenMachines, 1, "the tracked green machine set must not contain duplicates")
+	})
+
+	t.Run("retries transient 408 that truly failed", func(t *testing.T) {
+		// The mock returns 408 without committing anything. The idempotency
+		// lookup finds nothing, so Launch must be retried until it succeeds.
+		client := &mockFlapsClient{launchTransient408Failures: 2}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 4
+
+		err := bg.CreateGreenMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.launchTransient408Failures
+		committedMachines := len(client.machines)
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all 408s should have been consumed by retries")
+		assert.Equal(t, 1, committedMachines, "only the eventually-successful Launch commits a machine")
+	})
+
+	t.Run("does not retry non-transient errors", func(t *testing.T) {
+		client := &mockFlapsClient{breakLaunch: true}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 5
+
+		start := time.Now()
+		err := bg.CreateGreenMachines(ctx)
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Less(t, elapsed, 500*time.Millisecond, "non-retryable errors must fail fast")
+	})
+}
+
+// TestCreateGreenMachinesStampsLaunchID verifies that every green machine
+// launched during a bluegreen deployment carries a unique idempotency tag
+// in its config metadata. Without this tag the retry loop couldn't detect
+// silent-success 408s from flaps.
+func TestCreateGreenMachinesStampsLaunchID(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := flapsutil.NewContextWithClient(context.Background(), client)
+	bg := newBlueGreenStrategy(client, 3)
+
+	err := bg.CreateGreenMachines(ctx)
+	require.NoError(t, err)
+
+	client.mu.Lock()
+	inputs := append([]fly.LaunchMachineInput(nil), client.launchInputs...)
+	client.mu.Unlock()
+
+	require.Len(t, inputs, 3, "one launch per blue machine")
+
+	seen := map[string]struct{}{}
+	for _, in := range inputs {
+		require.NotNil(t, in.Config)
+		id := in.Config.Metadata[flyctlBGLaunchIDMetadataKey]
+		assert.NotEmpty(t, id, "every launched green machine must carry a launch-id idempotency tag")
+		_, dup := seen[id]
+		assert.False(t, dup, "launch-id must be unique per intended green machine, got a duplicate: %s", id)
+		seen[id] = struct{}{}
+	}
+}
+
+func TestIsTransientFlapsError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil is not retryable", err: nil, want: false},
+		{name: "context canceled is not retryable", err: context.Canceled, want: false},
+		{name: "context deadline exceeded is not retryable", err: context.DeadlineExceeded, want: false},
+		{
+			name: "flaps 408 is retryable",
+			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusRequestTimeout, OriginalError: errors.New("upstream timeout")},
+			want: true,
+		},
+		{
+			name: "flaps 429 is retryable",
+			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusTooManyRequests, OriginalError: errors.New("rate limited")},
+			want: true,
+		},
+		{
+			name: "flaps 502 is retryable",
+			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusBadGateway, OriginalError: errors.New("bad gateway")},
+			want: true,
+		},
+		{
+			name: "flaps 400 is not retryable",
+			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusBadRequest, OriginalError: errors.New("bad request")},
+			want: false,
+		},
+		{
+			name: "connection reset is retryable",
+			err:  errors.New("read tcp 1.2.3.4:443: connection reset by peer"),
+			want: true,
+		},
+		{
+			name: "connection refused is retryable",
+			err:  errors.New("dial tcp: connection refused"),
+			want: true,
+		},
+		{
+			name: "unrelated error is not retryable",
+			err:  errors.New("machine is misconfigured"),
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isTransientFlapsError(tc.err))
+		})
+	}
 }
