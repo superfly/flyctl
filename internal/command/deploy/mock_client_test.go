@@ -78,6 +78,15 @@ type mockFlapsClient struct {
 	stopTransientFailures    int
 	destroyTransientFailures int
 
+	// updateTransientFailures makes Update return a 408 this many times
+	// before succeeding, exercising the in-place update retry loop used by
+	// the rolling / immediate deploy strategies.
+	updateTransientFailures int
+
+	// updateCalls counts every Update invocation (including failed ones) so
+	// tests can assert how many attempts were made.
+	updateCalls int
+
 	// mu to protect the members below.
 	mu            sync.Mutex
 	machines      []*fly.Machine
@@ -546,7 +555,22 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 }
 
 func (m *mockFlapsClient) Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
-	return nil, fmt.Errorf("failed to update %s", builder.ID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.updateCalls++
+
+	if m.updateTransientFailures > 0 {
+		m.updateTransientFailures--
+
+		return nil, &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error updating %s", builder.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
+	return &fly.Machine{ID: builder.ID, Config: builder.Config}, nil
 }
 
 func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
