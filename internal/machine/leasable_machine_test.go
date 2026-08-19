@@ -2,6 +2,8 @@ package machine
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -196,6 +198,105 @@ func TestWaitForHealthchecksToPass_ServiceChecksAreIncluded(t *testing.T) {
 	err := lm.WaitForHealthchecksToPass(context.Background(), 5*time.Second)
 	assert.NoError(t, err)
 	assert.Greater(t, getCalls.Load(), int32(0), "Get should be called to poll service checks")
+}
+
+// TestWaitForHealthchecksToPass_ToleratesTransientGetErrors verifies the
+// poll loop keeps going when flaps returns a transient error (408 / 5xx /
+// network hiccup). Before the fix a single transient blip during health
+// polling would abort the entire wait — and, therefore, the deploy.
+func TestWaitForHealthchecksToPass_ToleratesTransientGetErrors(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			n := calls.Add(1)
+			if n <= 2 {
+				return nil, &flaps.FlapsError{
+					OriginalError:      fmt.Errorf("upstream timeout"),
+					ResponseStatusCode: http.StatusRequestTimeout,
+					ResponseBody:       []byte("upstream timeout"),
+				}
+			}
+
+			return &fly.Machine{
+				ID: machineID,
+				Checks: []*fly.MachineCheckStatus{
+					{Name: "alive", Status: fly.Passing},
+				},
+			}, nil
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{
+		ID: "m1",
+		Config: &fly.MachineConfig{
+			Checks: map[string]fly.MachineCheck{"alive": {}},
+		},
+	})
+
+	err := lm.WaitForHealthchecksToPass(context.Background(), 10*time.Second)
+	assert.NoError(t, err, "transient Get errors during health polling must not abort the wait")
+	assert.GreaterOrEqual(t, calls.Load(), int32(3),
+		"should poll past the two transient 408s and see the passing status")
+}
+
+// TestWaitForHealthchecksToPass_NonTransientErrorSurfaces verifies the wait
+// loop still fails fast on genuinely permanent errors — we don't want to
+// keep hammering flaps for something that will never succeed.
+func TestWaitForHealthchecksToPass_NonTransientErrorSurfaces(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			calls.Add(1)
+
+			return nil, &flaps.FlapsError{
+				OriginalError:      fmt.Errorf("forbidden"),
+				ResponseStatusCode: http.StatusForbidden,
+				ResponseBody:       []byte("forbidden"),
+			}
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{
+		ID: "m1",
+		Config: &fly.MachineConfig{
+			Checks: map[string]fly.MachineCheck{"alive": {}},
+		},
+	})
+
+	err := lm.WaitForHealthchecksToPass(context.Background(), 5*time.Second)
+	assert.Error(t, err, "non-transient errors must be surfaced, not retried indefinitely")
+	assert.Equal(t, int32(1), calls.Load(), "non-transient errors must fail on the first poll")
+}
+
+// TestWaitForEventType_ToleratesTransientGetErrors is the event-poll analogue
+// of the health-check tolerance test.
+func TestWaitForEventType_ToleratesTransientGetErrors(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			n := calls.Add(1)
+			if n <= 2 {
+				return nil, &flaps.FlapsError{
+					OriginalError:      fmt.Errorf("upstream timeout"),
+					ResponseStatusCode: http.StatusRequestTimeout,
+					ResponseBody:       []byte("upstream timeout"),
+				}
+			}
+
+			return &fly.Machine{
+				ID: machineID,
+				Events: []*fly.MachineEvent{
+					{Type: "exit"},
+				},
+			}, nil
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+	ev, err := lm.WaitForEventType(context.Background(), "exit", 10*time.Second, false)
+	assert.NoError(t, err, "transient Get errors during event polling must not abort the wait")
+	assert.NotNil(t, ev)
+	assert.GreaterOrEqual(t, calls.Load(), int32(3))
 }
 
 // Ensure the mock satisfies the interface at compile time.
