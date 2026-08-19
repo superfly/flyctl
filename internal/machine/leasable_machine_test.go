@@ -299,6 +299,64 @@ func TestWaitForEventType_ToleratesTransientGetErrors(t *testing.T) {
 	assert.GreaterOrEqual(t, calls.Load(), int32(3))
 }
 
+// TestAcquireLease_RetriesTransientFailures verifies the lease-acquisition
+// retry loop. AcquireLease is idempotent (a repeated request either
+// returns the same lease or reports the current holder), so a single
+// transient 408 or 5xx must not fail an otherwise-healthy deploy.
+func TestAcquireLease_RetriesTransientFailures(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		AcquireLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
+			n := calls.Add(1)
+			if n <= 2 {
+				return nil, &flaps.FlapsError{
+					OriginalError:      fmt.Errorf("upstream timeout"),
+					ResponseStatusCode: http.StatusRequestTimeout,
+					ResponseBody:       []byte("upstream timeout"),
+				}
+			}
+
+			return &fly.MachineLease{
+				Status: "success",
+				Data:   &fly.MachineLeaseData{Nonce: "nonce-1"},
+			}, nil
+		},
+	}
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+
+	err := lm.AcquireLease(context.Background(), 30*time.Second)
+	assert.NoError(t, err, "transient 408s must be retried until AcquireLease lands")
+	assert.Equal(t, int32(3), calls.Load(), "expected 2 failed + 1 successful attempt")
+	assert.True(t, lm.HasLease())
+}
+
+// TestReleaseLease_RetriesTransientFailures verifies the release-side
+// retry. ReleaseLease is idempotent (releasing an unknown nonce is a
+// no-op on flaps), so retries are safe and preserve deploy hygiene.
+func TestReleaseLease_RetriesTransientFailures(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
+			n := calls.Add(1)
+			if n <= 2 {
+				return &flaps.FlapsError{
+					OriginalError:      fmt.Errorf("upstream timeout"),
+					ResponseStatusCode: http.StatusRequestTimeout,
+					ResponseBody:       []byte("upstream timeout"),
+				}
+			}
+
+			return nil
+		},
+	}
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1", LeaseNonce: "nonce-1"})
+	lm.leaseNonce = "nonce-1"
+
+	err := lm.ReleaseLease(context.Background())
+	assert.NoError(t, err, "transient 408s must be retried until ReleaseLease lands")
+	assert.Equal(t, int32(3), calls.Load(), "expected 2 failed + 1 successful attempt")
+}
+
 // Ensure the mock satisfies the interface at compile time.
 var _ LeasableMachine = &leasableMachine{}
 

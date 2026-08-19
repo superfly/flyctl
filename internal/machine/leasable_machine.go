@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/jpillora/backoff"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -20,6 +21,17 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+)
+
+// leaseRetry* constants control the back-off used around lease acquisition
+// and release. Both operations are idempotent from flaps' perspective
+// (AcquireLease is a POST that either succeeds or reports the current
+// lease's status; ReleaseLease is a DELETE that treats "no lease" as a
+// no-op), so retries are safe and materially reduce spurious deploy
+// failures from transient flaps hiccups.
+const (
+	leaseRetryAttempts uint          = 3
+	leaseRetryDelay    time.Duration = 500 * time.Millisecond
 )
 
 type WaitOptions struct {
@@ -555,7 +567,27 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 		return nil
 	}
 	seconds := int(duration.Seconds())
-	lease, err := lm.flapsClient.AcquireLease(ctx, lm.appName, lm.machine.ID, &seconds)
+
+	var lease *fly.MachineLease
+	err := retry.Do(
+		func() error {
+			var acquireErr error
+			lease, acquireErr = lm.flapsClient.AcquireLease(ctx, lm.appName, lm.machine.ID, &seconds)
+
+			return acquireErr
+		},
+		retry.Context(ctx),
+		retry.Attempts(leaseRetryAttempts),
+		retry.Delay(leaseRetryDelay),
+		retry.MaxDelay(5*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(flapsutil.IsTransientFlapsError),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Debugf("retrying AcquireLease for machine %s (attempt %d/%d): %v\n",
+				lm.machine.ID, n+2, leaseRetryAttempts, err)
+		}),
+	)
 	if err != nil {
 		return err
 	}
@@ -645,7 +677,20 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	return lm.flapsClient.ReleaseLease(ctx, lm.appName, lm.machine.ID, nonce)
+	return retry.Do(
+		func() error { return lm.flapsClient.ReleaseLease(ctx, lm.appName, lm.machine.ID, nonce) },
+		retry.Context(ctx),
+		retry.Attempts(leaseRetryAttempts),
+		retry.Delay(leaseRetryDelay),
+		retry.MaxDelay(5*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(flapsutil.IsTransientFlapsError),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Debugf("retrying ReleaseLease for machine %s (attempt %d/%d): %v\n",
+				lm.machine.ID, n+2, leaseRetryAttempts, err)
+		}),
+	)
 }
 
 func (lm *leasableMachine) resetLease() {

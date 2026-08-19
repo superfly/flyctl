@@ -51,6 +51,39 @@ var (
 	safeToDestroyValue = "safe_to_destroy"
 )
 
+// isTransientWebError classifies errors from the web/GraphQL client used for
+// the pre-deploy CanPerformBluegreenDeployment check. Unlike flaps errors,
+// these carry no structured status code most of the time, so we fall back
+// to transport-level substrings and treat context cancellation as an
+// explicit stop.
+func isTransientWebError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	for _, s := range []string{
+		"connection reset by peer",
+		"connection refused",
+		"i/o timeout",
+		"eof",
+		"temporary failure in name resolution",
+		"no such host",
+		"502 bad gateway",
+		"503 service unavailable",
+		"504 gateway timeout",
+	} {
+		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+
+	return false
+}
+
 type RollbackLog struct {
 	// this ensures that user invoked aborts after green machines are healthy
 	// doesn't cause the greeen machines to be removed. eg. if someone aborts after cordoning blue machines
@@ -950,7 +983,26 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
+	// CanPerformBluegreenDeployment is a read-only GraphQL check that gates the
+	// whole deploy — a transient blip against api.fly.io used to abort every
+	// bluegreen deploy in progress before it even started. Retry with a small
+	// backoff on generic transient errors (timeout/reset/5xx substrings).
+	var canPerform bool
+	err := retry.Do(
+		func() error {
+			var checkErr error
+			canPerform, checkErr = bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
+
+			return checkErr
+		},
+		retry.Context(ctx),
+		retry.Attempts(3),
+		retry.Delay(500*time.Millisecond),
+		retry.MaxDelay(3*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(isTransientWebError),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to validate deployment")
 

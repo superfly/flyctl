@@ -957,6 +957,31 @@ func TestCreateGreenMachinesRetriesLaunchTransients(t *testing.T) {
 	})
 }
 
+// TestIsTransientWebError verifies the classifier used for retries around
+// the pre-deploy CanPerformBluegreenDeployment check. Unlike flaps errors
+// the web/GraphQL client returns opaque strings, so classification is
+// substring-based.
+func TestIsTransientWebError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil is not retryable", err: nil, want: false},
+		{name: "context canceled is not retryable", err: context.Canceled, want: false},
+		{name: "deadline exceeded is not retryable", err: context.DeadlineExceeded, want: false},
+		{name: "connection reset is retryable", err: fmt.Errorf("connection reset by peer"), want: true},
+		{name: "502 is retryable", err: fmt.Errorf("upstream returned 502 Bad Gateway"), want: true},
+		{name: "504 is retryable", err: fmt.Errorf("HTTP 504 Gateway Timeout"), want: true},
+		{name: "unrelated is not retryable", err: fmt.Errorf("not authorized"), want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isTransientWebError(tc.err))
+		})
+	}
+}
+
 // TestBlueTeardownRetriesTransientFailures covers the Cordon/Stop/Destroy
 // retries added to the bluegreen teardown stages. All three are idempotent,
 // so transient flaps failures (typically 408 propagated from flyd) must not
