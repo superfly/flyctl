@@ -1063,7 +1063,7 @@ func TestCreateGreenMachinesStampsLaunchID(t *testing.T) {
 	seen := map[string]struct{}{}
 	for _, in := range inputs {
 		require.NotNil(t, in.Config)
-		id := in.Config.Metadata[flyctlBGLaunchIDMetadataKey]
+		id := in.Config.Metadata[machine.FlyctlLaunchIDMetadataKey]
 		assert.NotEmpty(t, id, "every launched green machine must carry a launch-id idempotency tag")
 		_, dup := seen[id]
 		assert.False(t, dup, "launch-id must be unique per intended green machine, got a duplicate: %s", id)

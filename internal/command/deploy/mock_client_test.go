@@ -62,7 +62,7 @@ type mockFlapsClient struct {
 	// registering the machine in the mock's internal state, simulating the
 	// case where flaps' upstream call to flyd committed the create but the
 	// response was lost. This lets tests exercise the client-side
-	// idempotency lookup path in launchGreenMachineWithRetry.
+	// idempotency lookup path in machine.LaunchWithIdempotency.
 	launchSilentSuccessFailures int
 
 	// launchTransient408Failures makes Launch return a 408 without
