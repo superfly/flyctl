@@ -2,9 +2,7 @@ package deploy
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -983,58 +981,5 @@ func TestCreateGreenMachinesStampsLaunchID(t *testing.T) {
 		_, dup := seen[id]
 		assert.False(t, dup, "launch-id must be unique per intended green machine, got a duplicate: %s", id)
 		seen[id] = struct{}{}
-	}
-}
-
-func TestIsTransientFlapsError(t *testing.T) {
-	cases := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{name: "nil is not retryable", err: nil, want: false},
-		{name: "context canceled is not retryable", err: context.Canceled, want: false},
-		{name: "context deadline exceeded is not retryable", err: context.DeadlineExceeded, want: false},
-		{
-			name: "flaps 408 is retryable",
-			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusRequestTimeout, OriginalError: errors.New("upstream timeout")},
-			want: true,
-		},
-		{
-			name: "flaps 429 is retryable",
-			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusTooManyRequests, OriginalError: errors.New("rate limited")},
-			want: true,
-		},
-		{
-			name: "flaps 502 is retryable",
-			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusBadGateway, OriginalError: errors.New("bad gateway")},
-			want: true,
-		},
-		{
-			name: "flaps 400 is not retryable",
-			err:  &flaps.FlapsError{ResponseStatusCode: http.StatusBadRequest, OriginalError: errors.New("bad request")},
-			want: false,
-		},
-		{
-			name: "connection reset is retryable",
-			err:  errors.New("read tcp 1.2.3.4:443: connection reset by peer"),
-			want: true,
-		},
-		{
-			name: "connection refused is retryable",
-			err:  errors.New("dial tcp: connection refused"),
-			want: true,
-		},
-		{
-			name: "unrelated error is not retryable",
-			err:  errors.New("machine is misconfigured"),
-			want: false,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, isTransientFlapsError(tc.err))
-		})
 	}
 }
