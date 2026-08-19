@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -130,6 +131,16 @@ type blueGreen struct {
 	// empty from the list API (e.g. due to a transient API error).
 	imageRefRetryAttempts uint
 	imageRefRetryDelay    time.Duration
+
+	// teardownRetryAttempts / teardownRetryDelay control the back-off used when
+	// CordonBlueMachines / StopBlueMachines / DestroyBlueMachines hit transient
+	// flaps errors. All three operations are idempotent so retries are safe:
+	//   - Cordon: setting cordon=true twice is a no-op.
+	//   - Stop: stopping an already-stopped machine returns success on flaps.
+	//   - Destroy: destroying an already-destroyed machine returns 404, which
+	//     the destroy wrapper treats as a no-op.
+	teardownRetryAttempts uint
+	teardownRetryDelay    time.Duration
 }
 
 // hostIsOk reports whether the machine's host is confirmed healthy. Anything
@@ -206,6 +217,9 @@ func (bg *blueGreen) initialize() {
 
 	bg.imageRefRetryAttempts = 3
 	bg.imageRefRetryDelay = 1 * time.Second
+
+	bg.teardownRetryAttempts = 5
+	bg.teardownRetryDelay = 500 * time.Millisecond
 }
 
 func (bg *blueGreen) isAborted() bool {
@@ -668,10 +682,31 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := gm.leasableMachine.Cordon(ctx)
+			// Cordon is idempotent: writing cordon=true twice is a no-op, so
+			// we can retry transient failures freely. Without retries a single
+			// 408 leaves the machine uncordoned, which prolongs the window
+			// where blue is still taking traffic after green went ready.
+			err := retry.Do(
+				func() error { return gm.leasableMachine.Cordon(ctx) },
+				retry.Context(ctx),
+				retry.Attempts(bg.teardownRetryAttempts),
+				retry.Delay(bg.teardownRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying cordon for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), n+2, bg.teardownRetryAttempts, err)
+				}),
+			)
 			if err != nil {
-				// Just let the user know, it's not a critical error
-				fmt.Fprintf(bg.io.ErrOut, "  Failed to cordon machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
+				// Non-fatal: the machine will still be stopped and destroyed
+				// below. Warn the user so they can correlate an unusually long
+				// "two versions live" window with a flaps hiccup.
+				tracing.RecordError(span, err, "failed to cordon blue machine")
+				fmt.Fprintf(bg.io.ErrOut, "  [warn] Failed to cordon machine %s after %d attempts: %v\n",
+					bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), bg.teardownRetryAttempts, err)
 
 				return nil
 			}
@@ -703,11 +738,30 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := gm.leasableMachine.Stop(ctx, bg.stopSignal)
+			// Stop is idempotent: stopping an already-stopped machine returns
+			// success. Retrying transient failures gives the app another
+			// chance at a graceful SIGTERM before the destroy step force-kills.
+			err := retry.Do(
+				func() error { return gm.leasableMachine.Stop(ctx, bg.stopSignal) },
+				retry.Context(ctx),
+				retry.Attempts(bg.teardownRetryAttempts),
+				retry.Delay(bg.teardownRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying stop for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), n+2, bg.teardownRetryAttempts, err)
+				}),
+			)
 			if err != nil {
-				// Just let the user know, it's not a critical error as we are gonna destroy the
-				// machines with force later
-				fmt.Fprintf(bg.io.ErrOut, "  Failed to stop machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
+				// Non-fatal: the destroy step below force-kills. Losing the
+				// graceful-shutdown window is a per-machine annoyance, not a
+				// deploy-blocker.
+				tracing.RecordError(span, err, "failed to stop blue machine")
+				fmt.Fprintf(bg.io.ErrOut, "  [warn] Failed to stop machine %s after %d attempts: %v\n",
+					bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), bg.teardownRetryAttempts, err)
 
 				return nil
 			}
@@ -798,26 +852,58 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 				return ErrAborted
 			}
 
-			var err error
-			if hostIsOk(gm.leasableMachine.Machine()) {
-				err = gm.leasableMachine.Destroy(ctx, true)
-			} else {
-				// No lease exists for a machine on a non-ok host (lease
-				// acquisition skips them), so bypass the leasable wrapper and
-				// issue the destroy straight through the flaps API with
-				// kill=true and no nonce — the exact call behind
-				// `fly machine destroy --force`. A stale nonce from the list
-				// response could otherwise make flaps reject the destroy.
-				err = bg.flaps.Destroy(ctx, bg.app.Name, fly.RemoveMachineInput{
-					ID:   gm.leasableMachine.Machine().ID,
-					Kill: true,
-				}, "")
+			// Destroy is idempotent from flyctl's perspective: destroying an
+			// already-destroyed machine returns 404, which we treat as success
+			// (the desired state is "machine gone"), and the leasable-wrapper
+			// treats a machine it already destroyed as a no-op. Retrying
+			// transient failures directly translates into fewer "hanging blue
+			// machines" support tickets after otherwise-successful deploys.
+			destroyOp := func() error {
+				var err error
+				if hostIsOk(gm.leasableMachine.Machine()) {
+					err = gm.leasableMachine.Destroy(ctx, true)
+				} else {
+					// No lease exists for a machine on a non-ok host (lease
+					// acquisition skips them), so bypass the leasable wrapper and
+					// issue the destroy straight through the flaps API with
+					// kill=true and no nonce — the exact call behind
+					// `fly machine destroy --force`. A stale nonce from the list
+					// response could otherwise make flaps reject the destroy.
+					err = bg.flaps.Destroy(ctx, bg.app.Name, fly.RemoveMachineInput{
+						ID:   gm.leasableMachine.Machine().ID,
+						Kill: true,
+					}, "")
+				}
+				// 404 after a successful-but-timed-out prior attempt is a silent
+				// success — the machine really is gone, so surface it as such.
+				var flapsErr *flaps.FlapsError
+				if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
+					return nil
+				}
+
+				return err
 			}
+
+			err := retry.Do(
+				destroyOp,
+				retry.Context(ctx),
+				retry.Attempts(bg.teardownRetryAttempts),
+				retry.Delay(bg.teardownRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying destroy for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), n+2, bg.teardownRetryAttempts, err)
+				}),
+			)
 
 			mu.Lock()
 			defer mu.Unlock()
 
 			if err != nil {
+				tracing.RecordError(span, err, "failed to destroy blue machine")
 				bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
 
 				return nil
