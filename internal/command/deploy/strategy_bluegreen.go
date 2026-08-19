@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -1345,7 +1344,7 @@ func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error
 				retry.Delay(bg.tagRetryDelay),
 				retry.MaxDelay(10*time.Second),
 				retry.DelayType(retry.BackOffDelay),
-				retry.RetryIf(isTransientFlapsError),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
 				retry.LastErrorOnly(true),
 				retry.OnRetry(func(n uint, err error) {
 					fmt.Fprintf(bg.io.ErrOut, "  Retrying safe-for-deletion tag for machine %s (attempt %d/%d): %v\n",
@@ -1383,40 +1382,6 @@ func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error
 	}
 
 	return nil
-}
-
-// isTransientFlapsError reports whether an error returned by flaps is worth
-// another attempt. It's intentionally strict about "pre-request" transports
-// (connection reset/refused, EOF, etc.) but also includes HTTP status codes
-// that flaps uses for transient upstream conditions:
-//   - 408 Request Timeout: flaps hit a context.DeadlineExceeded talking to flyd
-//   - 429 Too Many Requests: rate-limited
-//   - 5xx Server Error: transient server-side failure
-//
-// This classifier must NOT be used with non-idempotent endpoints (like Launch)
-// unless the caller only relies on the pre-request substrings, since a 408
-// from flaps doesn't tell us whether the upstream side-effect happened.
-func isTransientFlapsError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// User interrupted / deadline elapsed for the whole operation: don't retry.
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-
-	var flapsErr *flaps.FlapsError
-	if errors.As(err, &flapsErr) {
-		switch {
-		case flapsErr.ResponseStatusCode == http.StatusRequestTimeout,
-			flapsErr.ResponseStatusCode == http.StatusTooManyRequests,
-			flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600:
-			return true
-		}
-	}
-
-	return hasTransientNetworkSubstring(err)
 }
 
 // launchGreenMachineWithRetry launches a single green machine with client-side
@@ -1457,7 +1422,7 @@ func (bg *blueGreen) launchGreenMachineWithRetry(ctx context.Context, launchInpu
 
 		// A non-transient failure (400/404/etc.) isn't going to get better
 		// with another attempt.
-		if !isTransientFlapsError(err) {
+		if !flapsutil.IsTransientFlapsError(err) {
 			return nil, err
 		}
 
@@ -1525,20 +1490,4 @@ func (bg *blueGreen) findGreenMachineByLaunchID(ctx context.Context, launchID st
 	return nil, nil
 }
 
-func hasTransientNetworkSubstring(err error) bool {
-	message := strings.ToLower(err.Error())
-	for _, s := range []string{
-		"connection reset by peer",
-		"connection refused",
-		"network is unreachable",
-		"temporary failure in name resolution",
-		"no such host",
-		"eof",
-	} {
-		if strings.Contains(message, s) {
-			return true
-		}
-	}
-
-	return false
-}
+// This method tags blue-machines with a safe to destroy value.
