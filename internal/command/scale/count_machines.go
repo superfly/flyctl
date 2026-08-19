@@ -376,6 +376,7 @@ func convergeGroupCounts(expectedTotal int, current map[string]int, regions []st
 	if len(regions) == 0 {
 		regions = lo.Keys(current)
 	}
+	regions = lo.Uniq(regions)
 
 	if maxPerRegion >= 0 {
 		if len(regions)*maxPerRegion < expectedTotal {
