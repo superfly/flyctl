@@ -331,6 +331,28 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 
 	for {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			return err
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			return nil
+		case err != nil && flapsutil.IsTransientFlapsError(err):
+			// A transient Get failure (typically a 5xx or a 408 from flaps'
+			// call to flyd) shouldn't abort the whole wait loop — we're
+			// polling by design. Sleep and try again until the wait context
+			// expires.
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+
+			continue
+		case err != nil:
+			span.RecordError(err)
+
+			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
+		}
+
 		startedAt, startedAtErr := machine.MostRecentStartTimeAfterLaunch()
 		uptime := 0 * time.Second
 		if startedAtErr == nil {
@@ -339,17 +361,6 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		switch {
 		case uptime > 10*time.Second && !lm.isConstantlyRestarting(machine):
 			return nil
-		case errors.Is(waitCtx.Err(), context.Canceled):
-			return err
-		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			return nil
-		case err != nil:
-			span.RecordError(err)
-
-			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
-		}
-
-		switch {
 		case lm.isConstantlyRestarting(machine):
 			err := fmt.Errorf("the app appears to be crashing")
 			span.RecordError(err)
@@ -402,6 +413,16 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			span.RecordError(err)
 
 			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
+		case err != nil && flapsutil.IsTransientFlapsError(err):
+			// A transient Get during health polling is common (flaps' 408 when
+			// its call to flyd times out, brief 5xx blips). Sleep and try
+			// again — the outer waitCtx will cap total time.
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+
+			continue
 		case err != nil:
 			span.RecordError(err)
 
@@ -451,6 +472,15 @@ func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType strin
 			return nil, err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
+		case err != nil && flapsutil.IsTransientFlapsError(err):
+			// Poll loop — transient Get errors are expected and should never
+			// abort the wait. Sleep and try again.
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+
+			continue
 		case err != nil:
 			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
@@ -486,6 +516,13 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 			return nil, err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
+		case err != nil && flapsutil.IsTransientFlapsError(err):
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+
+			continue
 		case err != nil:
 			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
