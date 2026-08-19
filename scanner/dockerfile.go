@@ -12,7 +12,12 @@ const defaultPort = 8080
 var portRegex = regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
 
 func configureDockerfile(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	return ScanDockerfile(filepath.Join(sourceDir, "Dockerfile"), config)
+	sourceInfo, err := ScanDockerfile(filepath.Join(sourceDir, "Dockerfile"), config)
+	if sourceInfo != nil || err != nil {
+		return sourceInfo, err
+	}
+
+	return ScanDockerfile(filepath.Join(sourceDir, "Containerfile"), config)
 }
 
 func ScanDockerfile(dockerfilePath string, config *ScannerConfig) (*SourceInfo, error) {
