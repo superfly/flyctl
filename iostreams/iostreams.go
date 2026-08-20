@@ -185,6 +185,9 @@ func (s *IOStreams) StartPager() error {
 	if err != nil {
 		return err
 	}
+	if len(pagerArgs) == 0 {
+		return nil
+	}
 
 	pagerEnv := os.Environ()
 	for i := len(pagerEnv) - 1; i >= 0; i-- {
@@ -194,6 +197,9 @@ func (s *IOStreams) StartPager() error {
 	}
 	if _, ok := os.LookupEnv("LESS"); !ok {
 		pagerEnv = append(pagerEnv, "LESS=FRX")
+	}
+	if _, ok := os.LookupEnv("LESSCHARSET"); !ok {
+		pagerEnv = append(pagerEnv, "LESSCHARSET=utf-8")
 	}
 	if _, ok := os.LookupEnv("LV"); !ok {
 		pagerEnv = append(pagerEnv, "LV=-c")

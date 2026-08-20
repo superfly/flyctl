@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const defaultMachineListPager = "less -RSX -+F"
+const defaultMachineListPager = "less -RSX -+F -P'Use left/right arrows to scroll; q to quit'"
 
 func newList() *cobra.Command {
 	const (
