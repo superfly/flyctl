@@ -27,6 +27,7 @@ func TestWaitForMachineUsesCanaryTargetState(t *testing.T) {
 			if waitCalls == 1 {
 				return nil
 			}
+
 			return waitErr
 		},
 	}

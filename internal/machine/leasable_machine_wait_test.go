@@ -26,6 +26,7 @@ func TestWaitForStatePinsInstanceIDAsVersion(t *testing.T) {
 	client, err := flaps.NewWithOptions(context.Background(), flaps.NewClientOpts{
 		Transport: waitRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			gotVersion = req.URL.Query().Get("version")
+
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     make(http.Header),

@@ -221,6 +221,7 @@ func TestUpdateMachineWChecksUsesCanaryTargetState(t *testing.T) {
 	client := &mock.FlapsClient{
 		UpdateFunc: func(_ context.Context, _ string, input fly.LaunchMachineInput, _ string) (*fly.Machine, error) {
 			sawSkipLaunch = input.SkipLaunch
+
 			return &fly.Machine{
 				ID:          oldMachine.ID,
 				InstanceID:  "01G6R2TQGS41MBQTCA55X8ZCZW",
@@ -231,6 +232,7 @@ func TestUpdateMachineWChecksUsesCanaryTargetState(t *testing.T) {
 		},
 		WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
 			waitCalls.Add(1)
+
 			return nil
 		},
 	}
