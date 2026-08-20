@@ -209,8 +209,21 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 
 func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, sl statuslogger.StatusLine) error {
 	lm := e.leasableMachine
-	// Don't wait for SkipLaunch machines, they are updated but not started
 	if e.launchInput.SkipLaunch {
+		return nil
+	}
+	if shouldSkipCanaryPostUpdateChecks(md.strategy, lm.Machine().TargetState) {
+		err := lm.WaitForState(
+			ctx,
+			fly.MachineStateStopped,
+			md.waitTimeout,
+			machine.WithJustCreated(),
+			machine.WithVersion(lm.Machine().InstanceID),
+		)
+		if err != nil {
+			return suggestChangeWaitTimeout(err, "wait-timeout")
+		}
+
 		return nil
 	}
 
@@ -243,6 +256,10 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	md.warnAboutIncorrectListenAddress(ctx, lm)
 
 	return nil
+}
+
+func shouldSkipCanaryPostUpdateChecks(strategy, targetState string) bool {
+	return strategy == "canary" && targetState == fly.MachineStateStopped
 }
 
 // restartMachinesApp only restarts existing machines but updates their release metadata

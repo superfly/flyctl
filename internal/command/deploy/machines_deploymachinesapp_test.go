@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -12,8 +13,57 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+func TestWaitForMachineUsesCanaryTargetState(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	waitErr := errors.New("started wait should not run")
+	waitCalls := 0
+	client := &mock.FlapsClient{
+		WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+			waitCalls++
+			if waitCalls == 1 {
+				return nil
+			}
+
+			return waitErr
+		},
+	}
+	machineWithTarget := &fly.Machine{
+		ID:          "machine-id",
+		InstanceID:  "01G6R2TQGS41MBQTCA55X8ZCZW",
+		TargetState: fly.MachineStateStopped,
+	}
+	entry := &machineUpdateEntry{
+		leasableMachine: machine.NewLeasableMachine(client, ios, "app", machineWithTarget, false),
+		launchInput:     &fly.LaunchMachineInput{},
+	}
+	md := &machineDeployment{
+		io:          ios,
+		strategy:    "canary",
+		waitTimeout: time.Second,
+	}
+	ctx := iostreams.NewContext(context.Background(), ios)
+	line := statuslogger.Create(ctx, 1, false).Line(0)
+
+	err := md.waitForMachine(ctx, entry, line)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, waitCalls, "canary must wait for the returned version to reach flyd's stopped target")
+
+	md.strategy = "rolling"
+	err = md.waitForMachine(ctx, entry, line)
+	assert.Error(t, err)
+	assert.Greater(t, waitCalls, 1)
+	rollingWaitCalls := waitCalls
+
+	md.strategy = "canary"
+	machineWithTarget.TargetState = ""
+	err = md.waitForMachine(ctx, entry, line)
+	assert.Error(t, err, "an older server without target_state must retain the started wait")
+	assert.Greater(t, waitCalls, rollingWaitCalls)
+}
 
 func TestUpdateExistingMachinesWRecovery(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
