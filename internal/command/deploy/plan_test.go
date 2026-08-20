@@ -196,6 +196,60 @@ func TestSkipLaunch(t *testing.T) {
 	}
 }
 
+func TestUpdateMachineWChecksUsesCanaryTargetState(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+	oldMachine := &fly.Machine{
+		ID:         "machine-id",
+		State:      fly.MachineStateStarted,
+		LeaseNonce: "lease-nonce",
+		HostStatus: fly.HostStatusOk,
+		Config:     &fly.MachineConfig{Image: "image-v1"},
+	}
+	newMachine := &fly.Machine{
+		ID:         oldMachine.ID,
+		State:      fly.MachineStateStarted,
+		HostStatus: fly.HostStatusOk,
+		Config:     &fly.MachineConfig{Image: "image-v2"},
+	}
+
+	var (
+		sawSkipLaunch bool
+		waitCalls     atomic.Int32
+	)
+	client := &mock.FlapsClient{
+		UpdateFunc: func(_ context.Context, _ string, input fly.LaunchMachineInput, _ string) (*fly.Machine, error) {
+			sawSkipLaunch = input.SkipLaunch
+			return &fly.Machine{
+				ID:          oldMachine.ID,
+				InstanceID:  "01G6R2TQGS41MBQTCA55X8ZCZW",
+				State:       fly.MachineStateCreated,
+				TargetState: fly.MachineStateStopped,
+				Config:      input.Config,
+			}, nil
+		},
+		WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+			waitCalls.Add(1)
+			return nil
+		},
+	}
+	md := &machineDeployment{
+		app:         &flaps.App{Name: "app"},
+		appConfig:   &appconfig.Config{AppName: "app"},
+		flapsClient: client,
+		io:          iostreams.FromContext(ctx),
+		strategy:    "canary",
+		waitTimeout: time.Second,
+	}
+	line := statuslogger.Create(ctx, 1, false).Line(0)
+
+	err := md.updateMachineWChecks(ctx, oldMachine, newMachine, false, line, md.io, &healthcheckResult{})
+	assert.NoError(t, err)
+	assert.False(t, sawSkipLaunch, "server target state must not rewrite retry-stable launch intent")
+	assert.Equal(t, int32(1), waitCalls.Load(), "recovery must wait for the returned version to reach flyd's stopped target")
+}
+
 func withQuietIOStreams(ctx context.Context) context.Context {
 	ios, _, _, _ := iostreams.Test()
 
