@@ -293,6 +293,16 @@ query ListOrganizationAddOns($orgSlug: String!, $addOnType: AddOnType) {
 		}
   }
 
+ mutation UpdateRedisAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!, $metadata: JSON!,
+   # @genqlient(pointer: true)
+   $prodPack: Boolean) {
+		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options, metadata: $metadata, prodPack: $prodPack}) {
+			addOn {
+				id
+			}
+		}
+  }
+
  query ListAddOnPlans($addOnType: AddOnType!) {
 		addOnPlans(type: $addOnType) {
 			nodes {
