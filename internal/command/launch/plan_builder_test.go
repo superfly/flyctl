@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -10,6 +11,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
@@ -29,6 +31,42 @@ func newDetermineOrgCtx(t *testing.T, orgFlag string) context.Context {
 	}
 
 	return flagctx.NewContext(ctx, flagSet)
+}
+
+func TestAppNameTaken(t *testing.T) {
+	someErr := errors.New("flaps is having a day")
+
+	for _, tc := range []struct {
+		name      string
+		available bool
+		err       error
+		wantTaken bool
+		wantErr   error
+	}{
+		{name: "available", available: true},
+		{name: "taken", available: false, wantTaken: true},
+		{name: "error propagates", err: someErr, wantErr: someErr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var asked string
+			ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+				AppNameAvailableFunc: func(ctx context.Context, name string) (bool, error) {
+					asked = name
+					return tc.available, tc.err
+				},
+			})
+
+			taken, err := appNameTaken(ctx, "some-app")
+
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantTaken, taken)
+			assert.Equal(t, "some-app", asked)
+		})
+	}
 }
 
 func TestDetermineOrg(t *testing.T) {
