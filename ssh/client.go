@@ -75,7 +75,9 @@ func (c *Client) Connect(ctx context.Context) error {
 		HostKeyAlgorithms: []string{ssh.KeyAlgoED25519},
 	}
 
-	respCh := make(chan connResp)
+	// Buffered so the handshake goroutine can always send and exit, even once
+	// nobody is left to read the result.
+	respCh := make(chan connResp, 1)
 
 	// ssh.NewClientConn doesn't take a context, so we need to handle cancelation on our end
 	go func() {
@@ -91,19 +93,22 @@ func (c *Client) Connect(ctx context.Context) error {
 		respCh <- connResp{nil, conn, client}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case resp := <-respCh:
-			if resp.err != nil {
-				return resp.err
-			}
-			c.conn = resp.conn
-			c.Client = resp.client
+	select {
+	case <-ctx.Done():
+		// Closing the socket is what unblocks the handshake above, which owns
+		// tcpConn from here on and has no other way to learn we gave up.
+		tcpConn.Close()
 
-			return nil
+		return ctx.Err()
+	case resp := <-respCh:
+		if resp.err != nil {
+			// ssh.NewClientConn closes tcpConn itself when the handshake fails.
+			return resp.err
 		}
+		c.conn = resp.conn
+		c.Client = resp.client
+
+		return nil
 	}
 }
 
