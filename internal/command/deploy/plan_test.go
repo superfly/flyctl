@@ -47,6 +47,30 @@ func TestCompareConfig(t *testing.T) {
 	assert.False(t, compareConfigs(ctx, config1, config2))
 }
 
+func TestGetPoolSize(t *testing.T) {
+	t.Parallel()
+
+	// Regression test for #4262: a max_unavailable of 0 (e.g. from fly.toml
+	// [deploy] max_unavailable = 0) must never produce a pool size of 0, which
+	// previously flowed into acquireLeases and panicked with
+	// "pool size must be > 0".
+	cases := []struct {
+		maxUnavailable float64
+		totalMachines  int
+		want           int
+	}{
+		{maxUnavailable: 0, totalMachines: 4, want: 1},
+		{maxUnavailable: 0.33, totalMachines: 4, want: 2},
+		{maxUnavailable: 1, totalMachines: 4, want: 1},
+		{maxUnavailable: 3, totalMachines: 4, want: 3},
+	}
+	for _, tc := range cases {
+		md := &machineDeployment{maxUnavailable: tc.maxUnavailable}
+		assert.GreaterOrEqual(t, md.getPoolSize(tc.totalMachines), 1)
+		assert.Equal(t, tc.want, md.getPoolSize(tc.totalMachines))
+	}
+}
+
 func TestAppState(t *testing.T) {
 	t.Parallel()
 
