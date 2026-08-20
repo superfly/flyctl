@@ -179,7 +179,7 @@ func runCreate(ctx context.Context) (err error) {
 	if flag.IsSpecified(ctx, "enable-prodpack") {
 		enableProdpack = flag.GetBool(ctx, "enable-prodpack")
 	} else {
-		fmt.Fprintf(io.Out, "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\n\n")
+		fmt.Fprintf(io.Out, "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.\n\n")
 		enableProdpack, err = prompt.Confirm(ctx, "Would you like to enable ProdPack?")
 		if err != nil {
 			return
