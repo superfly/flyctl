@@ -13,6 +13,7 @@ var _ flapsutil.FlapsClient = (*FlapsClient)(nil)
 
 type FlapsClient struct {
 	AcquireLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error)
+	AppNameAvailableFunc                  func(ctx context.Context, name string) (bool, error)
 	AssignIPFunc                          func(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	CheckCertificateFunc                  func(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	CordonFunc                            func(ctx context.Context, appName, machineID string, nonce string) (err error)
@@ -80,6 +81,10 @@ type FlapsClient struct {
 
 func (m *FlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
 	return m.AcquireLeaseFunc(ctx, appName, machineID, ttl)
+}
+
+func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	return m.AppNameAvailableFunc(ctx, name)
 }
 
 func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {

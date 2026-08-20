@@ -12,6 +12,7 @@ var _ FlapsClient = (*flaps.Client)(nil)
 
 type FlapsClient interface {
 	AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error)
+	AppNameAvailable(ctx context.Context, name string) (bool, error)
 	AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error)
 	CheckCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	Cordon(ctx context.Context, appName, machineID string, nonce string) (err error)
