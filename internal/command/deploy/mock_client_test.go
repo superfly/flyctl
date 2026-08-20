@@ -99,6 +99,10 @@ func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID s
 	return m.RefreshLease(ctx, appName, machineID, ttl, nonce)
 }
 
+func (m *mockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	return false, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
 	return nil, fmt.Errorf("failed to assign IP to %s", appName)
 }

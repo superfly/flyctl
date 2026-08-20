@@ -28,6 +28,10 @@ func (m *FlapsClient) AcquireLease(ctx context.Context, appName, machineID strin
 	panic("TODO")
 }
 
+func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
 	panic("TODO")
 }
