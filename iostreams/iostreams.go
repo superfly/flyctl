@@ -45,7 +45,8 @@ type IOStreams struct {
 	stderrIsTTY       bool
 
 	pagerCommand string
-	pagerProcess *os.Process
+	pagerProcess *exec.Cmd
+	pagerOut     io.Writer
 
 	neverPrompt bool
 
@@ -204,18 +205,21 @@ func (s *IOStreams) StartPager() error {
 	}
 	pagerCmd := exec.Command(pagerExe, pagerArgs[1:]...)
 	pagerCmd.Env = pagerEnv
-	pagerCmd.Stdout = s.Out
+	pagerOut := s.Out
+	pagerCmd.Stdout = pagerOut
 	pagerCmd.Stderr = s.ErrOut
 	pagedOut, err := pagerCmd.StdinPipe()
 	if err != nil {
 		return err
 	}
-	s.Out = pagedOut
-	err = pagerCmd.Start()
-	if err != nil {
+	if err := pagerCmd.Start(); err != nil {
+		_ = pagedOut.Close()
+
 		return err
 	}
-	s.pagerProcess = pagerCmd.Process
+	s.Out = pagedOut
+	s.pagerProcess = pagerCmd
+	s.pagerOut = pagerOut
 
 	return nil
 }
@@ -225,9 +229,13 @@ func (s *IOStreams) StopPager() {
 		return
 	}
 
-	s.Out.(io.ReadCloser).Close()
-	_, _ = s.pagerProcess.Wait()
+	if closer, ok := s.Out.(io.Closer); ok {
+		_ = closer.Close()
+	}
+	_ = s.pagerProcess.Wait()
 	s.pagerProcess = nil
+	s.Out = s.pagerOut
+	s.pagerOut = nil
 }
 
 func (s *IOStreams) CanPrompt() bool {
