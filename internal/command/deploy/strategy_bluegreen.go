@@ -578,6 +578,13 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 					errChan <- waitCtx.Err()
 
 					return
+				case err != nil && flapsutil.IsTransientFlapsError(err):
+					// Transient Get errors during health polling are common
+					// (e.g. flaps' 408 when its call to flyd times out).
+					// Keep polling — the wait context caps total time.
+					time.Sleep(interval)
+
+					continue
 				case err != nil:
 					errChan <- err
 
