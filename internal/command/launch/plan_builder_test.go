@@ -52,6 +52,7 @@ func TestAppNameTaken(t *testing.T) {
 			ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
 				AppNameAvailableFunc: func(ctx context.Context, name string) (bool, error) {
 					asked = name
+
 					return tc.available, tc.err
 				},
 			})
