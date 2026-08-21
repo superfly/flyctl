@@ -10,6 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/instrument"
+	"github.com/superfly/flyctl/internal/profile"
 	"github.com/superfly/flyctl/terminal"
 	"gopkg.in/yaml.v3"
 )
@@ -18,9 +19,7 @@ var configDir string
 
 // InitConfig - Initialises config file for Viper
 func InitConfig() {
-	var dir string
-
-	dir, err := helpers.GetConfigDirectory()
+	dir, err := configDirectory()
 	if err != nil {
 		fmt.Println("Error accessing home directory", err)
 
@@ -37,6 +36,27 @@ func InitConfig() {
 	}
 
 	initViper()
+}
+
+// configDirectory resolves the active profile's config directory.
+//
+// This runs while the root command is being built, before cobra has parsed
+// anything, so the profile flag is scraped straight out of os.Args. A profile
+// that fails to resolve is not reported here: the same resolution runs again
+// as a command preparer, which raises a far better error. Falling back to the
+// plain config directory keeps this from being the thing that reports it.
+func configDirectory() (string, error) {
+	opts := profile.ResolveOptions{Flag: profile.FlagFromArgs(os.Args[1:])}
+
+	if wd, err := os.Getwd(); err == nil {
+		opts.WorkingDir = wd
+	}
+
+	if res, err := profile.Resolve(opts); err == nil {
+		return res.Dir, nil
+	}
+
+	return helpers.GetConfigDirectory()
 }
 
 // ConfigDir - Returns Directory holding the Config file
