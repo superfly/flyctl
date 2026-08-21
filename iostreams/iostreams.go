@@ -45,7 +45,8 @@ type IOStreams struct {
 	stderrIsTTY       bool
 
 	pagerCommand string
-	pagerProcess *os.Process
+	pagerProcess *exec.Cmd
+	pagerOut     io.Writer
 
 	neverPrompt bool
 
@@ -184,6 +185,9 @@ func (s *IOStreams) StartPager() error {
 	if err != nil {
 		return err
 	}
+	if len(pagerArgs) == 0 {
+		return nil
+	}
 
 	pagerEnv := os.Environ()
 	for i := len(pagerEnv) - 1; i >= 0; i-- {
@@ -193,6 +197,9 @@ func (s *IOStreams) StartPager() error {
 	}
 	if _, ok := os.LookupEnv("LESS"); !ok {
 		pagerEnv = append(pagerEnv, "LESS=FRX")
+	}
+	if _, ok := os.LookupEnv("LESSCHARSET"); !ok {
+		pagerEnv = append(pagerEnv, "LESSCHARSET=utf-8")
 	}
 	if _, ok := os.LookupEnv("LV"); !ok {
 		pagerEnv = append(pagerEnv, "LV=-c")
@@ -204,30 +211,48 @@ func (s *IOStreams) StartPager() error {
 	}
 	pagerCmd := exec.Command(pagerExe, pagerArgs[1:]...)
 	pagerCmd.Env = pagerEnv
-	pagerCmd.Stdout = s.Out
+	pagerOut := s.Out
+	pagerCmd.Stdout = pagerOut
 	pagerCmd.Stderr = s.ErrOut
 	pagedOut, err := pagerCmd.StdinPipe()
 	if err != nil {
 		return err
 	}
-	s.Out = pagedOut
-	err = pagerCmd.Start()
-	if err != nil {
+	if err := pagerCmd.Start(); err != nil {
+		_ = pagedOut.Close()
+
 		return err
 	}
-	s.pagerProcess = pagerCmd.Process
+	s.Out = pagedOut
+	s.pagerProcess = pagerCmd
+	s.pagerOut = pagerOut
 
 	return nil
 }
 
 func (s *IOStreams) StopPager() {
-	if s.pagerProcess == nil {
-		return
-	}
+	_ = s.StopPagerWithExitCode()
+}
 
-	s.Out.(io.ReadCloser).Close()
-	_, _ = s.pagerProcess.Wait()
+// StopPagerWithExitCode stops the active pager and returns its exit code.
+// A pager that exits normally, or no active pager, returns zero.
+func (s *IOStreams) StopPagerWithExitCode() int {
+	if s.pagerProcess == nil {
+		return 0
+	}
+	if closer, ok := s.Out.(io.Closer); ok {
+		_ = closer.Close()
+	}
+	err := s.pagerProcess.Wait()
+	exitCode := 0
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		exitCode = exitErr.ExitCode()
+	}
 	s.pagerProcess = nil
+	s.Out = s.pagerOut
+	s.pagerOut = nil
+
+	return exitCode
 }
 
 func (s *IOStreams) CanPrompt() bool {
