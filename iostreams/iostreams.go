@@ -231,17 +231,29 @@ func (s *IOStreams) StartPager() error {
 }
 
 func (s *IOStreams) StopPager() {
+	_ = s.StopPagerWithExitCode()
+}
+
+// StopPagerWithExitCode stops the active pager and returns its exit code.
+// A pager that exits normally, or no active pager, returns zero.
+func (s *IOStreams) StopPagerWithExitCode() int {
 	if s.pagerProcess == nil {
-		return
+		return 0
 	}
 
 	if closer, ok := s.Out.(io.Closer); ok {
 		_ = closer.Close()
 	}
-	_ = s.pagerProcess.Wait()
+	err := s.pagerProcess.Wait()
+	exitCode := 0
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		exitCode = exitErr.ExitCode()
+	}
 	s.pagerProcess = nil
 	s.Out = s.pagerOut
 	s.pagerOut = nil
+
+	return exitCode
 }
 
 func (s *IOStreams) CanPrompt() bool {
