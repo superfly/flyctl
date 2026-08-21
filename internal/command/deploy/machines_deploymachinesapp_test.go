@@ -69,29 +69,35 @@ func TestWaitForMachineUsesCanaryTargetState(t *testing.T) {
 
 func TestWaitForMachineTargetStateExclusions(t *testing.T) {
 	tests := []struct {
-		name       string
-		strategy   string
-		target     string
-		skipLaunch bool
-		wantWait   bool
+		name        string
+		strategy    string
+		target      string
+		skipLaunch  bool
+		wantState   string
+		wantVersion string
+		wantWait    bool
 	}{
-		{name: "rolling strategy", strategy: "rolling", target: fly.MachineStateStopped, wantWait: true},
-		{name: "older server", strategy: "canary", wantWait: true},
+		{name: "rolling strategy", strategy: "rolling", target: fly.MachineStateStopped, wantState: fly.MachineStateStarted, wantWait: true},
+		{name: "older server", strategy: "canary", wantState: fly.MachineStateStarted, wantWait: true},
 		{name: "explicit skip launch", strategy: "canary", target: fly.MachineStateStopped, skipLaunch: true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ios, _, _, _ := iostreams.Test()
-			waitCalls := 0
-			waitErr := errors.New("wait called")
-			client := &mock.FlapsClient{
-				WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
-					waitCalls++
+			t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
 
-					return waitErr
-				},
-			}
+			ios, _, _, _ := iostreams.Test()
+			var gotStates, gotVersions []string
+			waitErr := errors.New("wait called")
+			client, err := flaps.NewWithOptions(context.Background(), flaps.NewClientOpts{
+				Transport: deployRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+					gotStates = append(gotStates, req.URL.Query().Get("state"))
+					gotVersions = append(gotVersions, req.URL.Query().Get("version"))
+
+					return nil, waitErr
+				}),
+			})
+			require.NoError(t, err)
 			entry := &machineUpdateEntry{
 				leasableMachine: machine.NewLeasableMachine(client, ios, "app", &fly.Machine{
 					ID:          "machine-id",
@@ -100,17 +106,29 @@ func TestWaitForMachineTargetStateExclusions(t *testing.T) {
 				}, false),
 				launchInput: &fly.LaunchMachineInput{SkipLaunch: tc.skipLaunch},
 			}
-			md := &machineDeployment{io: ios, strategy: tc.strategy, waitTimeout: 20 * time.Millisecond}
+			md := &machineDeployment{
+				io:              ios,
+				appConfig:       appconfig.NewConfig(),
+				strategy:        tc.strategy,
+				waitTimeout:     20 * time.Millisecond,
+				skipSmokeChecks: true,
+			}
 			ctx := iostreams.NewContext(context.Background(), ios)
 			line := statuslogger.Create(ctx, 1, false).Line(0)
 
-			err := md.waitForMachine(ctx, entry, line)
+			err = md.waitForMachine(ctx, entry, line)
 			if tc.wantWait {
 				require.Error(t, err)
-				require.Greater(t, waitCalls, 0)
+				require.NotEmpty(t, gotStates)
+				require.Len(t, gotVersions, len(gotStates))
+				for i := range gotStates {
+					require.Equal(t, tc.wantState, gotStates[i])
+					require.Equal(t, tc.wantVersion, gotVersions[i])
+				}
 			} else {
 				require.NoError(t, err)
-				require.Zero(t, waitCalls)
+				require.Empty(t, gotStates)
+				require.Empty(t, gotVersions)
 			}
 		})
 	}
