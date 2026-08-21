@@ -3,10 +3,12 @@ package deploy
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -17,23 +19,35 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func TestWaitForMachineUsesCanaryTargetState(t *testing.T) {
-	ios, _, _, _ := iostreams.Test()
-	waitErr := errors.New("started wait should not run")
-	waitCalls := 0
-	client := &mock.FlapsClient{
-		WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
-			waitCalls++
-			if waitCalls == 1 {
-				return nil
-			}
+type deployRoundTripFunc func(*http.Request) (*http.Response, error)
 
-			return waitErr
-		},
-	}
+func (f deployRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestWaitForMachineUsesCanaryTargetState(t *testing.T) {
+	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
+
+	ios, _, _, _ := iostreams.Test()
+	const instanceID = "01G6R2TQGS41MBQTCA55X8ZCZW"
+	var gotState, gotVersion string
+	client, err := flaps.NewWithOptions(context.Background(), flaps.NewClientOpts{
+		Transport: deployRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			gotState = req.URL.Query().Get("state")
+			gotVersion = req.URL.Query().Get("version")
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       http.NoBody,
+				Request:    req,
+			}, nil
+		}),
+	})
+	require.NoError(t, err)
 	machineWithTarget := &fly.Machine{
 		ID:          "machine-id",
-		InstanceID:  "01G6R2TQGS41MBQTCA55X8ZCZW",
+		InstanceID:  instanceID,
 		TargetState: fly.MachineStateStopped,
 	}
 	entry := &machineUpdateEntry{
@@ -48,21 +62,58 @@ func TestWaitForMachineUsesCanaryTargetState(t *testing.T) {
 	ctx := iostreams.NewContext(context.Background(), ios)
 	line := statuslogger.Create(ctx, 1, false).Line(0)
 
-	err := md.waitForMachine(ctx, entry, line)
-	assert.NoError(t, err)
-	assert.Equal(t, 1, waitCalls, "canary must wait for the returned version to reach flyd's stopped target")
+	require.NoError(t, md.waitForMachine(ctx, entry, line))
+	require.Equal(t, fly.MachineStateStopped, gotState)
+	require.Equal(t, instanceID, gotVersion)
+}
 
-	md.strategy = "rolling"
-	err = md.waitForMachine(ctx, entry, line)
-	assert.Error(t, err)
-	assert.Greater(t, waitCalls, 1)
-	rollingWaitCalls := waitCalls
+func TestWaitForMachineTargetStateExclusions(t *testing.T) {
+	tests := []struct {
+		name       string
+		strategy   string
+		target     string
+		skipLaunch bool
+		wantWait   bool
+	}{
+		{name: "rolling strategy", strategy: "rolling", target: fly.MachineStateStopped, wantWait: true},
+		{name: "older server", strategy: "canary", wantWait: true},
+		{name: "explicit skip launch", strategy: "canary", target: fly.MachineStateStopped, skipLaunch: true},
+	}
 
-	md.strategy = "canary"
-	machineWithTarget.TargetState = ""
-	err = md.waitForMachine(ctx, entry, line)
-	assert.Error(t, err, "an older server without target_state must retain the started wait")
-	assert.Greater(t, waitCalls, rollingWaitCalls)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ios, _, _, _ := iostreams.Test()
+			waitCalls := 0
+			waitErr := errors.New("wait called")
+			client := &mock.FlapsClient{
+				WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+					waitCalls++
+
+					return waitErr
+				},
+			}
+			entry := &machineUpdateEntry{
+				leasableMachine: machine.NewLeasableMachine(client, ios, "app", &fly.Machine{
+					ID:          "machine-id",
+					InstanceID:  "01G6R2TQGS41MBQTCA55X8ZCZW",
+					TargetState: tc.target,
+				}, false),
+				launchInput: &fly.LaunchMachineInput{SkipLaunch: tc.skipLaunch},
+			}
+			md := &machineDeployment{io: ios, strategy: tc.strategy, waitTimeout: 20 * time.Millisecond}
+			ctx := iostreams.NewContext(context.Background(), ios)
+			line := statuslogger.Create(ctx, 1, false).Line(0)
+
+			err := md.waitForMachine(ctx, entry, line)
+			if tc.wantWait {
+				require.Error(t, err)
+				require.Greater(t, waitCalls, 0)
+			} else {
+				require.NoError(t, err)
+				require.Zero(t, waitCalls)
+			}
+		})
+	}
 }
 
 func TestUpdateExistingMachinesWRecovery(t *testing.T) {
