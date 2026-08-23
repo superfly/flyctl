@@ -3,6 +3,7 @@ package orgs
 import (
 	"bytes"
 	"context"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -58,11 +59,13 @@ func runList(ctx context.Context) error {
 		b     bytes.Buffer
 		first = true
 	)
+	table := tabwriter.NewWriter(&b, 21, 8, 1, ' ', 0)
 
 	for _, org := range orgs {
-		printOrg(&b, &org, first)
+		printOrg(table, &org, first)
 		first = false
 	}
+	_ = table.Flush()
 
 	b.WriteTo(out)
 
