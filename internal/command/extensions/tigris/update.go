@@ -70,8 +70,7 @@ func runUpdate(ctx context.Context) (err error) {
 		options = make(map[string]any)
 	}
 
-	metadata, _ := addOn.Options.(map[string]any)
-
+	metadata := addOn.Metadata
 	if metadata == nil {
 		metadata = make(map[string]any)
 	}
