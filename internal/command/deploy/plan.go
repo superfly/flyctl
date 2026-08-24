@@ -606,7 +606,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	lm := mach.NewLeasableMachine(md.flapsClient, io, md.app.Name, machine, false)
 
-	serverTargetStopped := !skipLaunch && oldMachine != nil && shouldSkipCanaryPostUpdateChecks(md.strategy, machine.TargetState)
+	serverTargetStopped := !skipLaunch && oldMachine != nil && shouldWaitForStoppedUpdate(md.strategy, machine.TargetState)
 	skipPostUpdateChecks := skipLaunch || serverTargetStopped
 	span.SetAttributes(
 		attribute.Bool("should_start", !skipPostUpdateChecks),

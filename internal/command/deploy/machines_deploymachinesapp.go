@@ -212,7 +212,7 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	if e.launchInput.SkipLaunch {
 		return nil
 	}
-	if shouldSkipCanaryPostUpdateChecks(md.strategy, lm.Machine().TargetState) {
+	if shouldWaitForStoppedUpdate(md.strategy, lm.Machine().TargetState) {
 		err := lm.WaitForState(
 			ctx,
 			fly.MachineStateStopped,
@@ -258,8 +258,8 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	return nil
 }
 
-func shouldSkipCanaryPostUpdateChecks(strategy, targetState string) bool {
-	return strategy == "canary" && targetState == fly.MachineStateStopped
+func shouldWaitForStoppedUpdate(strategy, targetState string) bool {
+	return (strategy == "canary" || strategy == "rolling") && targetState == fly.MachineStateStopped
 }
 
 // restartMachinesApp only restarts existing machines but updates their release metadata

@@ -77,7 +77,8 @@ func TestWaitForMachineTargetStateExclusions(t *testing.T) {
 		wantVersion string
 		wantWait    bool
 	}{
-		{name: "rolling strategy", strategy: "rolling", target: fly.MachineStateStopped, wantState: fly.MachineStateStarted, wantWait: true},
+		{name: "rolling stopped target", strategy: "rolling", target: fly.MachineStateStopped, wantState: fly.MachineStateStopped, wantVersion: "01G6R2TQGS41MBQTCA55X8ZCZW", wantWait: true},
+		{name: "canary started target", strategy: "canary", target: fly.MachineStateStarted, wantState: fly.MachineStateStarted, wantWait: true},
 		{name: "older server", strategy: "canary", wantState: fly.MachineStateStarted, wantWait: true},
 		{name: "explicit skip launch", strategy: "canary", target: fly.MachineStateStopped, skipLaunch: true},
 	}
