@@ -112,6 +112,7 @@ func runUpdateWithMetadata(t *testing.T, metadata any) *recordingGenqClient {
 	ctx = flyutil.NewContextWithClient(ctx, client)
 
 	require.NoError(t, runUpdate(ctx))
+
 	return genqClient
 }
 
