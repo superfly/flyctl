@@ -3,9 +3,13 @@ package config
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
@@ -14,6 +18,7 @@ import (
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
 	"github.com/superfly/macaroon/resset"
+	"github.com/superfly/macaroon/tp"
 )
 
 func TestFetchOrgTokens(t *testing.T) {
@@ -199,4 +204,75 @@ func assertTokenOrgs(tb testing.TB, toks *tokens.Tokens, expectedOIDs ...uint64)
 	slices.Sort(expectedOIDs)
 	slices.Sort(actualOIDs)
 	require.Equal(tb, expectedOIDs, actualOIDs)
+}
+
+// TestRefreshDischargeTokensPartialSuccess covers a set of tickets where one
+// discharges on its own and another wants to send the user to their browser.
+// The parallel pass collects the first and fails on the second; the retry with
+// a callback then fails too. The discharge from the first pass is still a real
+// update and has to be reported, or our callers never write it to the config
+// file and every subsequent command fetches it again.
+func TestRefreshDischargeTokensPartialSuccess(t *testing.T) {
+	ctx := logger.NewContext(context.Background(), logger.New(os.Stdout, logger.Debug, true))
+
+	var (
+		thirdParty *tp.TP
+		m          sync.Mutex
+		inits      int
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch path := r.URL.EscapedPath(); {
+		case path == tp.InitPath:
+			thirdParty.InitRequestMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				m.Lock()
+				inits++
+				first := inits == 1
+				m.Unlock()
+
+				// the first ticket to arrive is discharged outright; anything
+				// after it needs the user.
+				if first {
+					thirdParty.RespondDischarge(w, r)
+					return
+				}
+
+				thirdParty.RespondUserInteractive(w, r)
+			})).ServeHTTP(w, r)
+		default:
+			t.Errorf("unexpected request to %s", path)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	store, err := tp.NewMemoryStore(tp.PrefixMunger("/user/"), 100)
+	require.NoError(t, err)
+
+	thirdParty = &tp.TP{
+		Location: server.URL,
+		Key:      macaroon.NewEncryptionKey(),
+		Store:    store,
+	}
+
+	toks := make([][]byte, 0, 2)
+	for _, oid := range []uint64{1, 2} {
+		perm := fakePermissionToken(t, &flyio.Organization{ID: oid, Mask: resset.ActionAll})
+		require.NoError(t, perm.Add3P(thirdParty.Key, thirdParty.Location))
+
+		tok, err := perm.Encode()
+		require.NoError(t, err)
+		toks = append(toks, tok)
+	}
+
+	var callbacks int
+	uucb := func(context.Context, string) error {
+		callbacks++
+		return errors.New("no browser here")
+	}
+
+	updated, err := refreshDischargeTokens(ctx, tokens.Parse(macaroon.ToAuthorizationHeader(toks...)), uucb, time.Minute)
+
+	require.Error(t, err)
+	require.Equal(t, 1, callbacks, "the interactive retry should have run")
+	require.True(t, updated, "the discharge from the parallel pass was dropped")
 }
