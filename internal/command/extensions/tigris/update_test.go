@@ -18,6 +18,7 @@ import (
 type recordingGenqClient struct {
 	t              *testing.T
 	metadata       any
+	options        map[string]any
 	updateOptions  map[string]any
 	updateMetadata any
 }
@@ -25,12 +26,17 @@ type recordingGenqClient struct {
 func (c *recordingGenqClient) MakeRequest(_ context.Context, req *graphql.Request, resp *graphql.Response) error {
 	switch req.OpName {
 	case "GetAddOn":
+		options := c.options
+		if options == nil {
+			options = map[string]any{"public": false}
+		}
+
 		decodeResponse(c.t, resp, map[string]any{
 			"addOn": map[string]any{
 				"id":       "addon-id",
 				"name":     "test-bucket",
 				"status":   "ready",
-				"options":  map[string]any{"public": false},
+				"options":  options,
 				"metadata": c.metadata,
 				"addOnPlan": map[string]any{
 					"id": "plan-id",
@@ -95,6 +101,83 @@ func TestRunUpdateNormalizesNilMetadata(t *testing.T) {
 	genqClient := runUpdateWithMetadata(t, nil)
 	require.IsType(t, map[string]any{}, genqClient.updateMetadata)
 	assert.Empty(t, genqClient.updateMetadata)
+}
+
+func TestRunUpdatePreservesWriteThroughWhenFlagOmitted(t *testing.T) {
+	genqClient := &recordingGenqClient{
+		t: t,
+		options: map[string]any{
+			"shadow_bucket": map[string]any{
+				"access_key":    "old",
+				"secret_key":    "old",
+				"region":        "us-east-1",
+				"name":          "source-bucket",
+				"endpoint":      "https://s3.us-east-1.amazonaws.com",
+				"write_through": true,
+			},
+		},
+	}
+	client := &mock.Client{GenqClientFunc: func() graphql.Client { return genqClient }}
+
+	cmd := update()
+	require.NoError(t, cmd.Flags().Parse([]string{
+		"--shadow-access-key", "123",
+		"--shadow-secret-key", "abc",
+		"--shadow-endpoint", "https://s3.us-east-1.amazonaws.com",
+		"--shadow-region", "us-east-1",
+		"--shadow-name", "source-bucket",
+		"test-bucket",
+	}))
+
+	io, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), io)
+	ctx = flag.NewContext(ctx, cmd.Flags())
+	ctx = flyutil.NewContextWithClient(ctx, client)
+
+	require.NoError(t, runUpdate(ctx))
+
+	shadowBucket, ok := genqClient.updateOptions["shadow_bucket"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, shadowBucket["write_through"])
+}
+
+func TestRunUpdateSetsWriteThroughWhenFlagSpecified(t *testing.T) {
+	genqClient := &recordingGenqClient{
+		t: t,
+		options: map[string]any{
+			"shadow_bucket": map[string]any{
+				"access_key":    "old",
+				"secret_key":    "old",
+				"region":        "us-east-1",
+				"name":          "source-bucket",
+				"endpoint":      "https://s3.us-east-1.amazonaws.com",
+				"write_through": true,
+			},
+		},
+	}
+	client := &mock.Client{GenqClientFunc: func() graphql.Client { return genqClient }}
+
+	cmd := update()
+	require.NoError(t, cmd.Flags().Parse([]string{
+		"--shadow-access-key", "123",
+		"--shadow-secret-key", "abc",
+		"--shadow-endpoint", "https://s3.us-east-1.amazonaws.com",
+		"--shadow-region", "us-east-1",
+		"--shadow-name", "source-bucket",
+		"--shadow-write-through=false",
+		"test-bucket",
+	}))
+
+	io, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), io)
+	ctx = flag.NewContext(ctx, cmd.Flags())
+	ctx = flyutil.NewContextWithClient(ctx, client)
+
+	require.NoError(t, runUpdate(ctx))
+
+	shadowBucket, ok := genqClient.updateOptions["shadow_bucket"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, false, shadowBucket["write_through"])
 }
 
 func runUpdateWithMetadata(t *testing.T, metadata any) *recordingGenqClient {
