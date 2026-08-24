@@ -201,7 +201,15 @@ func TestSkipLaunch(t *testing.T) {
 	}
 }
 
-func TestUpdateMachineWChecksUsesCanaryTargetState(t *testing.T) {
+func TestUpdateMachineWChecksUsesStoppedTargetState(t *testing.T) {
+	for _, strategy := range []string{"canary", "rolling"} {
+		t.Run(strategy, func(t *testing.T) {
+			testUpdateMachineWChecksUsesStoppedTargetState(t, strategy)
+		})
+	}
+}
+
+func testUpdateMachineWChecksUsesStoppedTargetState(t *testing.T, strategy string) {
 	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
 
 	ctx := withQuietIOStreams(context.Background())
@@ -251,7 +259,7 @@ func TestUpdateMachineWChecksUsesCanaryTargetState(t *testing.T) {
 		appConfig:   &appconfig.Config{AppName: "app"},
 		flapsClient: client,
 		io:          iostreams.FromContext(ctx),
-		strategy:    "canary",
+		strategy:    strategy,
 		waitTimeout: time.Second,
 	}
 	line := statuslogger.Create(ctx, 1, false).Line(0)
