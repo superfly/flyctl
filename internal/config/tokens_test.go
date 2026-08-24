@@ -222,8 +222,8 @@ func TestRefreshDischargeTokensPartialSuccess(t *testing.T) {
 	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch path := r.URL.EscapedPath(); {
-		case path == tp.InitPath:
+		switch path := r.URL.EscapedPath(); path {
+		case tp.InitPath:
 			thirdParty.InitRequestMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				m.Lock()
 				inits++
@@ -234,6 +234,7 @@ func TestRefreshDischargeTokensPartialSuccess(t *testing.T) {
 				// after it needs the user.
 				if first {
 					thirdParty.RespondDischarge(w, r)
+
 					return
 				}
 
@@ -267,6 +268,7 @@ func TestRefreshDischargeTokensPartialSuccess(t *testing.T) {
 	var callbacks int
 	uucb := func(context.Context, string) error {
 		callbacks++
+
 		return errors.New("no browser here")
 	}
 
