@@ -672,8 +672,8 @@ github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2
 github.com/superfly/lfsc-go v0.1.1/go.mod h1:zVb0VENz/Il8Nmvvd4XAsX2bWhQ+sr0nK8vv9PeezcE=
 github.com/superfly/ltx v0.3.12 h1:Z7z1sc4g34/jUi3XO84+zBlIsbaoh2RJ3b4zTQpBK/M=
 github.com/superfly/ltx v0.3.12/go.mod h1:ly+Dq7UVacQVEI5/b0r6j+PSNy9ibwx1yikcWAaSkhE=
-github.com/superfly/macaroon v0.3.1 h1:02JF233876dGI53tm/cb72yUkAYKzwQjL1npMYLqE10=
-github.com/superfly/macaroon v0.3.1/go.mod h1:ZAmlRD/Hmp/ddTxE8IonZ7NdTny2DcOffRvZhapQwJw=
+github.com/superfly/macaroon v0.3.2 h1:vrPnUZUsd0DkSO6ievTESgGE1B3LJE3trXnDYZU1KTc=
+github.com/superfly/macaroon v0.3.2/go.mod h1:ZAmlRD/Hmp/ddTxE8IonZ7NdTny2DcOffRvZhapQwJw=
 github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0 h1:0GZOxvuQ2u3XUY7Hr8N02zn4ZN9Iz2xgi3aNNaUpRO4=
 github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0/go.mod h1:w38ieJ28pCyIpQJzuDOKfN5z6Q6R92vOkAYtUv6FL9k=
 github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd h1:Rf9uhF1+VJ7ZHqxrG8pJ6YacmHvVCmByDmGbAWCc/gA=
