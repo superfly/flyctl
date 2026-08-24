@@ -606,9 +606,22 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	lm := mach.NewLeasableMachine(md.flapsClient, io, md.app.Name, machine, false)
 
-	span.SetAttributes(attribute.Bool("should_start", !skipLaunch))
+	serverTargetStopped := !skipLaunch && oldMachine != nil && shouldWaitForStoppedUpdate(md.strategy, machine.TargetState)
+	skipPostUpdateChecks := skipLaunch || serverTargetStopped
+	span.SetAttributes(
+		attribute.Bool("should_start", !skipPostUpdateChecks),
+		attribute.String("target_state", machine.TargetState),
+	)
 
-	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
+	if serverTargetStopped {
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach stopped state", machine.ID))
+		err = lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, mach.WithJustCreated(), mach.WithVersion(machine.InstanceID))
+		if err != nil {
+			span.RecordError(err)
+
+			return err
+		}
+	} else if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
 		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
 		if err != nil {
@@ -618,7 +631,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		}
 	}
 
-	if skipLaunch {
+	if skipPostUpdateChecks {
 		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
 
 		return nil

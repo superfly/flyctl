@@ -2,6 +2,10 @@ package deploy
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -9,6 +13,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -196,6 +201,75 @@ func TestSkipLaunch(t *testing.T) {
 	}
 }
 
+func TestUpdateMachineWChecksUsesStoppedTargetState(t *testing.T) {
+	for _, strategy := range []string{"canary", "rolling"} {
+		t.Run(strategy, func(t *testing.T) {
+			testUpdateMachineWChecksUsesStoppedTargetState(t, strategy)
+		})
+	}
+}
+
+func testUpdateMachineWChecksUsesStoppedTargetState(t *testing.T, strategy string) {
+	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
+
+	ctx := withQuietIOStreams(context.Background())
+	const instanceID = "01G6R2TQGS41MBQTCA55X8ZCZW"
+	oldMachine := &fly.Machine{
+		ID:         "machine-id",
+		State:      fly.MachineStateStarted,
+		LeaseNonce: "lease-nonce",
+		HostStatus: fly.HostStatusOk,
+		Config:     &fly.MachineConfig{Image: "image-v1"},
+	}
+	newMachine := &fly.Machine{
+		ID:         oldMachine.ID,
+		State:      fly.MachineStateStarted,
+		HostStatus: fly.HostStatusOk,
+		Config:     &fly.MachineConfig{Image: "image-v2"},
+	}
+
+	var sawSkipLaunch bool
+	var gotState, gotVersion string
+	client, err := flaps.NewWithOptions(context.Background(), flaps.NewClientOpts{
+		Transport: deployRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			response := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       http.NoBody,
+				Request:    req,
+			}
+			if req.Method == http.MethodPost {
+				var input fly.LaunchMachineInput
+				require.NoError(t, json.NewDecoder(req.Body).Decode(&input))
+				sawSkipLaunch = input.SkipLaunch
+				response.Body = io.NopCloser(strings.NewReader(`{"id":"machine-id","instance_id":"` + instanceID + `","state":"created","target_state":"stopped","config":{"image":"image-v2"}}`))
+
+				return response, nil
+			}
+
+			gotState = req.URL.Query().Get("state")
+			gotVersion = req.URL.Query().Get("version")
+
+			return response, nil
+		}),
+	})
+	require.NoError(t, err)
+	md := &machineDeployment{
+		app:         &flaps.App{Name: "app"},
+		appConfig:   &appconfig.Config{AppName: "app"},
+		flapsClient: client,
+		io:          iostreams.FromContext(ctx),
+		strategy:    strategy,
+		waitTimeout: time.Second,
+	}
+	line := statuslogger.Create(ctx, 1, false).Line(0)
+
+	require.NoError(t, md.updateMachineWChecks(ctx, oldMachine, newMachine, false, line, md.io, &healthcheckResult{}))
+	require.False(t, sawSkipLaunch, "server target state must not rewrite retry-stable launch intent")
+	require.Equal(t, fly.MachineStateStopped, gotState)
+	require.Equal(t, instanceID, gotVersion)
+}
+
 func withQuietIOStreams(ctx context.Context) context.Context {
 	ios, _, _, _ := iostreams.Test()
 
@@ -245,6 +319,7 @@ func TestUpdateMachines(t *testing.T) {
 	})
 
 	acquiredLeases := sync.Map{}
+	listMachines := oldMachines
 
 	flapsClient := &mock.FlapsClient{
 		AcquireLeaseFunc: func(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
@@ -289,7 +364,7 @@ func TestUpdateMachines(t *testing.T) {
 			return nil
 		},
 		ListFunc: func(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
-			return oldMachines, nil
+			return listMachines, nil
 		},
 		StartFunc: func(ctx context.Context, appName, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
 			return &fly.MachineStartResponse{}, nil
@@ -348,7 +423,17 @@ func TestUpdateMachines(t *testing.T) {
 	// let's make sure we retry deploys a few times
 	numFailures := 0
 	maxNumFailures := 3
+	var sawRetrySkipLaunch atomic.Bool
+	listMachines = lo.Map(oldMachines, func(m *fly.Machine, _ int) *fly.Machine {
+		machineCopy := *m
+		machineCopy.State = fly.MachineStateStopped
+
+		return &machineCopy
+	})
 	flapsClient.UpdateFunc = func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+		if builder.SkipLaunch {
+			sawRetrySkipLaunch.Store(true)
+		}
 		if builder.ID == "machine2" {
 			numFailures++
 			if numFailures < maxNumFailures {
@@ -367,9 +452,11 @@ func TestUpdateMachines(t *testing.T) {
 	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, numFailures)
+	assert.False(t, sawRetrySkipLaunch.Load(), "transient stopped retry state must not replace pre-deploy launch intent")
 
 	numFailures = 0
 	maxNumFailures = 10
+	listMachines = oldMachines
 	acquiredLeases = sync.Map{}
 	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.Error(t, err)
