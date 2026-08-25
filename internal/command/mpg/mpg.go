@@ -135,51 +135,84 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 }
 
 func listSelectableClusters(ctx context.Context, orgSlug string) ([]*mpg.Cluster, error) {
+	managedClusters, err := listManagedClusters(ctx, orgSlug, false)
+	if err != nil {
+		return nil, err
+	}
+
+	clusters := make([]*mpg.Cluster, 0, len(managedClusters))
+	for _, cluster := range managedClusters {
+		clusters = append(clusters, clusterFromLegacyAPI(cluster))
+	}
+
+	return clusters, nil
+}
+
+func listManagedClusters(ctx context.Context, orgSlug string, deleted bool) ([]mpgv1.ManagedCluster, error) {
 	mpgClient := flapsutil.ClientFromContext(ctx)
-	publicClusters, err := mpgClient.ListManagedPostgresClusters(ctx, flaps.ListManagedPostgresClustersRequest{OrgSlug: orgSlug})
+	publicClusters, err := mpgClient.ListManagedPostgresClusters(ctx, flaps.ListManagedPostgresClustersRequest{
+		OrgSlug:        orgSlug,
+		IncludeDeleted: deleted,
+	})
 	publicUnavailable := errors.Is(err, flaps.ErrFlapsNotFound)
 	if err != nil && !publicUnavailable {
 		return nil, err
 	}
 
 	mpgv1Client := mpgv1.ClientFromContext(ctx)
-	legacyClusters, err := mpgv1Client.ListManagedClusters(ctx, orgSlug, false)
+	legacyClusters, err := mpgv1Client.ListManagedClusters(ctx, orgSlug, deleted)
 	if err != nil {
 		return nil, err
 	}
 
-	clusters := make([]*mpg.Cluster, 0, len(publicClusters)+len(legacyClusters.Data))
-	publicIDs := make(map[string]struct{}, len(publicClusters))
+	clusters := make([]mpgv1.ManagedCluster, 0, len(publicClusters)+len(legacyClusters.Data))
+	publicIndexes := make(map[string]int, len(publicClusters))
 	if !publicUnavailable {
 		for _, cluster := range publicClusters {
-			publicIDs[cluster.ID] = struct{}{}
-			clusters = append(clusters, clusterFromMachinesAPISummary(cluster, orgSlug))
+			if deleted && cluster.DeletedAt == "" {
+				continue
+			}
+			publicIndexes[cluster.ID] = len(clusters)
+			clusters = append(clusters, managedClusterFromMachinesAPISummary(cluster, orgSlug))
 		}
 	}
 	for _, cluster := range legacyClusters.Data {
-		if _, duplicated := publicIDs[cluster.Id]; duplicated {
+		if index, duplicated := publicIndexes[cluster.Id]; duplicated {
+			clusters[index].ClusterId = cluster.ClusterId
+			clusters[index].Disk = cluster.Disk
+			clusters[index].Replicas = cluster.Replicas
+			if cluster.Organization.Slug != "" {
+				clusters[index].Organization = cluster.Organization
+			}
+			clusters[index].IpAssignments = cluster.IpAssignments
+
 			continue
 		}
-		version := mpg.VersionV1
-		if cluster.Version == 2 {
-			version = mpg.VersionV2
-		}
-		clusters = append(clusters, &mpg.Cluster{
-			Id:            cluster.Id,
-			Name:          cluster.Name,
-			Region:        cluster.Region,
-			Status:        cluster.Status,
-			Plan:          cluster.Plan,
-			Disk:          cluster.Disk,
-			Replicas:      cluster.Replicas,
-			Organization:  cluster.Organization,
-			IpAssignments: cluster.IpAssignments,
-			AttachedApps:  cluster.AttachedApps,
-			Version:       version,
-		})
+		clusters = append(clusters, cluster)
 	}
 
 	return clusters, nil
+}
+
+func clusterFromLegacyAPI(cluster mpgv1.ManagedCluster) *mpg.Cluster {
+	version := mpg.VersionV1
+	if cluster.Version == 2 {
+		version = mpg.VersionV2
+	}
+
+	return &mpg.Cluster{
+		Id:            cluster.Id,
+		Name:          cluster.Name,
+		Region:        cluster.Region,
+		Status:        cluster.Status,
+		Plan:          cluster.Plan,
+		Disk:          cluster.Disk,
+		Replicas:      cluster.Replicas,
+		Organization:  cluster.Organization,
+		IpAssignments: cluster.IpAssignments,
+		AttachedApps:  cluster.AttachedApps,
+		Version:       version,
+	}
 }
 
 func clusterFromMachinesAPI(cluster flaps.ManagedPostgresCluster) *mpg.Cluster {
@@ -197,8 +230,8 @@ func clusterFromMachinesAPI(cluster flaps.ManagedPostgresCluster) *mpg.Cluster {
 	}
 }
 
-func clusterFromMachinesAPISummary(cluster flaps.ManagedPostgresClusterSummary, orgSlug string) *mpg.Cluster {
-	return &mpg.Cluster{
+func managedClusterFromMachinesAPISummary(cluster flaps.ManagedPostgresClusterSummary, orgSlug string) mpgv1.ManagedCluster {
+	return mpgv1.ManagedCluster{
 		Id:           cluster.ID,
 		Name:         cluster.Name,
 		Region:       cluster.Region,
@@ -206,7 +239,7 @@ func clusterFromMachinesAPISummary(cluster flaps.ManagedPostgresClusterSummary, 
 		Plan:         cluster.Plan,
 		Organization: fly.Organization{Slug: orgSlug},
 		AttachedApps: attachedAppsFromMachinesAPI(cluster.AttachedApps),
-		Version:      mpg.VersionV2,
+		Version:      2,
 	}
 }
 

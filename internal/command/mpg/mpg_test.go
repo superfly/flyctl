@@ -261,15 +261,17 @@ func TestOrganizationSlugMatchesRawOrAliasedSlug(t *testing.T) {
 	require.False(t, organizationSlugMatches(nil, "user-org"))
 }
 
-func TestListSelectableClusters(t *testing.T) {
+func TestListManagedClusters(t *testing.T) {
 	tests := []struct {
 		name           string
+		deleted        bool
 		publicClusters []flaps.ManagedPostgresClusterSummary
 		publicErr      error
 		legacyClusters []mpgv1.ManagedCluster
 		wantLegacy     bool
 		wantIDs        []string
 		wantVersions   []mpg.Version
+		wantClusterIDs []string
 		wantErr        string
 	}{
 		{
@@ -279,12 +281,15 @@ func TestListSelectableClusters(t *testing.T) {
 			}},
 			legacyClusters: []mpgv1.ManagedCluster{
 				{Id: "mpg-v1", Name: "legacy-cluster"},
-				{Id: "mpg-v2", Name: "duplicate-private-v2", Version: 2},
+				{Id: "mpg-v2", ClusterId: "fly-mpg-v2", Name: "duplicate-private-v2", Version: 2},
 				{Id: "mpg-v2-private-only", Name: "private-only-v2", Version: 2},
 			},
 			wantLegacy:   true,
 			wantIDs:      []string{"mpg-v2", "mpg-v1", "mpg-v2-private-only"},
 			wantVersions: []mpg.Version{mpg.VersionV2, mpg.VersionV1, mpg.VersionV2},
+			wantClusterIDs: []string{
+				"fly-mpg-v2", "", "",
+			},
 		},
 		{
 			name:       "uses legacy list when public endpoint is unavailable",
@@ -296,6 +301,21 @@ func TestListSelectableClusters(t *testing.T) {
 			},
 			wantIDs:      []string{"mpg-v1", "mpg-v2"},
 			wantVersions: []mpg.Version{mpg.VersionV1, mpg.VersionV2},
+		},
+		{
+			name:    "filters active public clusters from deleted results",
+			deleted: true,
+			publicClusters: []flaps.ManagedPostgresClusterSummary{
+				{ID: "mpg-active", Name: "active"},
+				{ID: "mpg-deleted", Name: "deleted", DeletedAt: "2026-08-25T00:00:00Z"},
+			},
+			legacyClusters: []mpgv1.ManagedCluster{
+				{Id: "mpg-deleted", Name: "duplicate-deleted", Version: 2},
+				{Id: "mpg-v1-deleted", Name: "legacy-deleted", Version: 1},
+			},
+			wantLegacy:   true,
+			wantIDs:      []string{"mpg-deleted", "mpg-v1-deleted"},
+			wantVersions: []mpg.Version{mpg.VersionV2, mpg.VersionV1},
 		},
 		{
 			name:      "does not fall back on public failure",
@@ -310,6 +330,7 @@ func TestListSelectableClusters(t *testing.T) {
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				ListManagedPostgresClustersFunc: func(_ context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
 					require.Equal(t, "example-org", req.OrgSlug)
+					require.Equal(t, test.deleted, req.IncludeDeleted)
 
 					return test.publicClusters, test.publicErr
 				},
@@ -319,13 +340,13 @@ func TestListSelectableClusters(t *testing.T) {
 				ListManagedClustersFunc: func(_ context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
 					legacyCalled = true
 					require.Equal(t, "example-org", orgSlug)
-					require.False(t, deleted)
+					require.Equal(t, test.deleted, deleted)
 
 					return mpgv1.ListManagedClustersResponse{Data: test.legacyClusters}, nil
 				},
 			})
 
-			clusters, err := listSelectableClusters(ctx, "example-org")
+			managedClusters, err := listManagedClusters(ctx, "example-org", test.deleted)
 			if test.wantErr != "" {
 				require.EqualError(t, err, test.wantErr)
 				require.Equal(t, test.wantLegacy, legacyCalled)
@@ -334,11 +355,18 @@ func TestListSelectableClusters(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+			clusters := make([]*mpg.Cluster, 0, len(managedClusters))
+			for _, cluster := range managedClusters {
+				clusters = append(clusters, clusterFromLegacyAPI(cluster))
+			}
 			require.Equal(t, test.wantLegacy, legacyCalled)
 			require.Len(t, clusters, len(test.wantIDs))
 			for i := range clusters {
 				require.Equal(t, test.wantIDs[i], clusters[i].Id)
 				require.Equal(t, test.wantVersions[i], clusters[i].Version)
+				if len(test.wantClusterIDs) != 0 {
+					require.Equal(t, test.wantClusterIDs[i], managedClusters[i].ClusterId)
+				}
 			}
 		})
 	}
