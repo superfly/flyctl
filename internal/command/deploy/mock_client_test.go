@@ -168,6 +168,10 @@ func (m *mockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, 
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	return fmt.Errorf("failed to delete metadata %s", key)
 }
@@ -428,6 +432,10 @@ func (m *mockFlapsClient) ListCertificates(ctx context.Context, appName string, 
 
 func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
 	return nil, nil, fmt.Errorf("failed to list fly apps machines")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
