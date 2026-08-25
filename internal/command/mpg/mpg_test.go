@@ -12,11 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	regionsv2 "github.com/superfly/flyctl/internal/command/mpg/v2/regions"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -56,6 +58,14 @@ func setupTestContext() context.Context {
 	flagSet.String("org", "", "Organization")
 	flagSet.Bool("json", false, "JSON output")
 	ctx = flagctx.NewContext(ctx, flagSet)
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+		},
+		ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			return nil, nil
+		},
+	})
 
 	return ctx
 }
@@ -143,6 +153,195 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 		assert.Equal(t, expectedCluster.Id, cluster.Id)
 		assert.Equal(t, expectedCluster.Name, cluster.Name)
 	})
+}
+
+func TestClusterFromArgOrSelectByID(t *testing.T) {
+	publicCluster := flaps.ManagedPostgresCluster{
+		ID:         "mpg-123",
+		Name:       "public-cluster",
+		Region:     "ord",
+		Status:     "ready",
+		Plan:       "basic",
+		DiskSizeGB: 20,
+		Replicas:   3,
+		Organization: flaps.ManagedPostgresOrganization{
+			Name: "Example Org",
+			Slug: "example-org",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		publicCluster flaps.ManagedPostgresCluster
+		publicErr     error
+		legacyCluster mpgv1.ManagedCluster
+		wantLegacy    bool
+		wantErr       string
+		wantName      string
+		wantOrg       string
+		wantDisk      int
+		wantVersion   mpg.Version
+	}{
+		{
+			name:          "uses public API for MPGv2",
+			publicCluster: publicCluster,
+			wantName:      "public-cluster",
+			wantOrg:       "example-org",
+			wantDisk:      20,
+			wantVersion:   mpg.VersionV2,
+		},
+		{
+			name:      "does not fall back on public failure",
+			publicErr: errors.New("machines api unavailable"),
+			wantErr:   `failed retrieving managed postgres cluster "mpg-123": machines api unavailable`,
+		},
+		{
+			name:       "preserves MPGv2 version from legacy fallback",
+			publicErr:  flaps.ErrFlapsNotFound,
+			wantLegacy: true,
+			legacyCluster: mpgv1.ManagedCluster{
+				Id:      "mpg-123",
+				Name:    "v2-from-legacy-fallback",
+				Version: 2,
+			},
+			wantName:    "v2-from-legacy-fallback",
+			wantVersion: mpg.VersionV2,
+		},
+		{
+			name:          "rejects malformed public success",
+			publicCluster: flaps.ManagedPostgresCluster{},
+			wantErr:       `invalid response retrieving managed postgres cluster "mpg-123": missing cluster ID`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := setupTestContext()
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+					require.Equal(t, "mpg-123", id)
+
+					return test.publicCluster, test.publicErr
+				},
+			})
+			legacyCalled := false
+			ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+				GetManagedClusterByIdFunc: func(_ context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+					legacyCalled = true
+					require.Equal(t, "mpg-123", id)
+
+					return mpgv1.GetManagedClusterResponse{Data: test.legacyCluster}, nil
+				},
+			})
+
+			cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, "mpg-123", "")
+			if test.wantErr != "" {
+				require.EqualError(t, err, test.wantErr)
+				require.Equal(t, test.wantLegacy, legacyCalled)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.wantLegacy, legacyCalled)
+			require.Equal(t, test.wantVersion, cluster.Version)
+			require.Equal(t, test.wantName, cluster.Name)
+			require.Equal(t, test.wantDisk, cluster.Disk)
+			require.Equal(t, test.wantOrg, orgSlug)
+		})
+	}
+}
+
+func TestOrganizationSlugMatchesRawOrAliasedSlug(t *testing.T) {
+	org := &fly.OrganizationBasic{RawSlug: "user-org", Slug: "personal"}
+
+	require.True(t, organizationSlugMatches(org, "user-org"))
+	require.True(t, organizationSlugMatches(org, "personal"))
+	require.False(t, organizationSlugMatches(org, "other-org"))
+	require.False(t, organizationSlugMatches(nil, "user-org"))
+}
+
+func TestListSelectableClusters(t *testing.T) {
+	tests := []struct {
+		name           string
+		publicClusters []flaps.ManagedPostgresClusterSummary
+		publicErr      error
+		legacyClusters []mpgv1.ManagedCluster
+		wantLegacy     bool
+		wantIDs        []string
+		wantVersions   []mpg.Version
+		wantErr        string
+	}{
+		{
+			name: "merges public and legacy clusters without duplicates",
+			publicClusters: []flaps.ManagedPostgresClusterSummary{{
+				ID: "mpg-v2", Name: "public-cluster", Region: "ord", Status: "ready", Plan: "basic",
+			}},
+			legacyClusters: []mpgv1.ManagedCluster{
+				{Id: "mpg-v1", Name: "legacy-cluster"},
+				{Id: "mpg-v2", Name: "duplicate-private-v2", Version: 2},
+				{Id: "mpg-v2-private-only", Name: "private-only-v2", Version: 2},
+			},
+			wantLegacy:   true,
+			wantIDs:      []string{"mpg-v2", "mpg-v1", "mpg-v2-private-only"},
+			wantVersions: []mpg.Version{mpg.VersionV2, mpg.VersionV1, mpg.VersionV2},
+		},
+		{
+			name:       "uses legacy list when public endpoint is unavailable",
+			publicErr:  flaps.ErrFlapsNotFound,
+			wantLegacy: true,
+			legacyClusters: []mpgv1.ManagedCluster{
+				{Id: "mpg-v1", Name: "legacy-cluster"},
+				{Id: "mpg-v2", Name: "private-v2", Version: 2},
+			},
+			wantIDs:      []string{"mpg-v1", "mpg-v2"},
+			wantVersions: []mpg.Version{mpg.VersionV1, mpg.VersionV2},
+		},
+		{
+			name:      "does not fall back on public failure",
+			publicErr: errors.New("machines api unavailable"),
+			wantErr:   "machines api unavailable",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := setupTestContext()
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				ListManagedPostgresClustersFunc: func(_ context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+					require.Equal(t, "example-org", req.OrgSlug)
+
+					return test.publicClusters, test.publicErr
+				},
+			})
+			legacyCalled := false
+			ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+				ListManagedClustersFunc: func(_ context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
+					legacyCalled = true
+					require.Equal(t, "example-org", orgSlug)
+					require.False(t, deleted)
+
+					return mpgv1.ListManagedClustersResponse{Data: test.legacyClusters}, nil
+				},
+			})
+
+			clusters, err := listSelectableClusters(ctx, "example-org")
+			if test.wantErr != "" {
+				require.EqualError(t, err, test.wantErr)
+				require.Equal(t, test.wantLegacy, legacyCalled)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.wantLegacy, legacyCalled)
+			require.Len(t, clusters, len(test.wantIDs))
+			for i := range clusters {
+				require.Equal(t, test.wantIDs[i], clusters[i].Id)
+				require.Equal(t, test.wantVersions[i], clusters[i].Version)
+			}
+		})
+	}
 }
 
 // Test the actual GetAvailableMPGRegions function with mocked dependencies
@@ -786,6 +985,11 @@ func TestBackupList(t *testing.T) {
 
 	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
 	ctx = mpgv2.NewContextWithClient(ctx, mockv2)
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+		},
+	})
 
 	// Run the backup list command
 	err := runBackupList(ctx)

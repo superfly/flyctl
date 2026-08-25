@@ -9,8 +9,10 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/fly-go/flaps"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -126,14 +128,6 @@ func TestRunRestore(t *testing.T) {
 				},
 			}
 			v2Client := &mock.MpgV2Client{
-				GetClusterByIdFunc: func(context.Context, string) (mpgv2.GetClusterResponse, error) {
-					lookupCalled = true
-					if tt.clusterVersion != 2 {
-						return mpgv2.GetClusterResponse{}, errors.New("not found")
-					}
-
-					return mpgv2.GetClusterResponse{Data: mpgv2.ManagedCluster{Id: clusterID, MpgdClusterId: "mpgd-123"}}, nil
-				},
 				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
 					v2RestoreCalled = true
 					assert.Equal(t, clusterID, gotClusterID)
@@ -143,8 +137,19 @@ func TestRunRestore(t *testing.T) {
 					return mpgv2.RestoreClusterBackupResponse{}, nil
 				},
 			}
+			publicClient := &mock.FlapsClient{
+				GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+					lookupCalled = true
+					if tt.clusterVersion != 2 {
+						return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+					}
+
+					return flaps.ManagedPostgresCluster{ID: clusterID}, nil
+				},
+			}
 			ctx = mpgv1.NewContextWithClient(ctx, v1Client)
 			ctx = mpgv2.NewContextWithClient(ctx, v2Client)
+			ctx = flapsutil.NewContextWithClient(ctx, publicClient)
 
 			err := runRestore(ctx)
 			if tt.wantErr != "" {

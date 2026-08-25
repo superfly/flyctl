@@ -26,6 +26,7 @@ type FlapsClient struct {
 	DeleteACMECertificateFunc             func(ctx context.Context, appName, hostname string) error
 	DeleteCertificateFunc                 func(ctx context.Context, appName, hostname string) error
 	DeleteCustomCertificateFunc           func(ctx context.Context, appName, hostname string) error
+	DeleteManagedPostgresClusterFunc      func(ctx context.Context, id string) error
 	DeleteMetadataFunc                    func(ctx context.Context, appName, machineID, key string) error
 	DeleteAppSecretFunc                   func(ctx context.Context, appName, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignmentFunc                func(ctx context.Context, appName, ip string) (err error)
@@ -60,6 +61,7 @@ type FlapsClient struct {
 	ListAppSecretsFunc                    func(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListCertificatesFunc                  func(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error)
 	ListFlyAppsMachinesFunc               func(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
+	ListManagedPostgresClustersFunc       func(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error)
 	ListSecretKeysFunc                    func(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc                        func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -137,6 +139,10 @@ func (m *FlapsClient) DeleteCertificate(ctx context.Context, appName, hostname s
 
 func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
 	return m.DeleteCustomCertificateFunc(ctx, appName, hostname)
+}
+
+func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	return m.DeleteManagedPostgresClusterFunc(ctx, id)
 }
 
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
@@ -273,6 +279,10 @@ func (m *FlapsClient) ListCertificates(ctx context.Context, appName string, opts
 
 func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
 	return m.ListFlyAppsMachinesFunc(ctx, appName)
+}
+
+func (m *FlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	return m.ListManagedPostgresClustersFunc(ctx, req)
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
