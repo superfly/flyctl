@@ -559,13 +559,20 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) availableVolumeCount(name, region string) int {
-	counts := md.availableVolumeCounts[name]
-	if region != "" {
-		return counts[region]
+func cloneAvailableVolumeCounts(counts map[string]map[string]int) map[string]map[string]int {
+	return lo.MapValues(counts, func(regions map[string]int, _ string) map[string]int {
+		return maps.Clone(regions)
+	})
+}
+
+func reserveAvailableVolumes(counts map[string]map[string]int, name, region string, requested int) int {
+	available := counts[name][region]
+	reserved := min(available, requested)
+	if reserved > 0 {
+		counts[name][region] -= reserved
 	}
 
-	return lo.Sum(lo.Values(counts))
+	return requested - reserved
 }
 
 func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
@@ -576,11 +583,25 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 		func(m *fly.Machine) string {
 			return m.ProcessGroup()
 		})
+	rolloutVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
+	type canaryVolumeRequirement struct {
+		group  string
+		name   string
+		region string
+	}
+	var canaryRequirements []canaryVolumeRequirement
 
 	for _, groupName := range md.ProcessNames() {
 		groupConfig, err := md.appConfig.Flatten(groupName)
 		if err != nil {
 			return err
+		}
+		if md.strategy == "canary" && !md.isFirstDeploy && len(groupConfig.Mounts) > 0 {
+			canaryRequirements = append(canaryRequirements, canaryVolumeRequirement{
+				group:  groupName,
+				name:   groupConfig.Mounts[0].Source,
+				region: md.appConfig.PrimaryRegion,
+			})
 		}
 
 		switch ms := machineGroups[groupName]; len(ms) > 0 {
@@ -633,15 +654,18 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 			}
 
 			// Compute the volume differences per region
-			for volSrc, regions := range needsVol {
-				currentPerRegion := md.availableVolumeCounts[volSrc]
+			volumeSources := lo.Keys(needsVol)
+			slices.Sort(volumeSources)
+			for _, volSrc := range volumeSources {
+				regions := needsVol[volSrc]
 				needsPerRegion := lo.CountValues(regions)
 
 				var missing []string
-				for rn, rc := range needsPerRegion {
-					diff := rc - currentPerRegion[rn]
-					if diff > 0 {
-						missing = append(missing, fmt.Sprintf("%s=%d", rn, diff))
+				regionNames := lo.Keys(needsPerRegion)
+				slices.Sort(regionNames)
+				for _, rn := range regionNames {
+					if count := reserveAvailableVolumes(rolloutVolumes, volSrc, rn, needsPerRegion[rn]); count > 0 {
+						missing = append(missing, fmt.Sprintf("%s=%d", rn, count))
 					}
 				}
 				if len(missing) > 0 {
@@ -658,12 +682,24 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 			// Check if there are unattached volumes for new groups with mounts
 			for _, m := range groupConfig.Mounts {
 				region := md.appConfig.PrimaryRegion
-				if md.availableVolumeCount(m.Source, region) == 0 {
+				if reserveAvailableVolumes(rolloutVolumes, m.Source, region, 1) > 0 {
 					return fmt.Errorf(
 						"creating a new machine in group '%s' requires an unattached '%s' volume in region '%s'. Create it with `fly volume create %s --region %s`",
 						groupName, m.Source, region, m.Source, region)
 				}
 			}
+		}
+	}
+
+	// Canary machines for different process groups launch concurrently. Validate
+	// them against a fresh pool because their volumes can be reused by the rollout
+	// after the canary phase has completed and the canaries have been destroyed.
+	canaryVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
+	for _, requirement := range canaryRequirements {
+		if reserveAvailableVolumes(canaryVolumes, requirement.name, requirement.region, 1) > 0 {
+			return fmt.Errorf(
+				"creating a canary machine in group '%s' requires an unattached '%s' volume in region '%s'. Create it with `fly volume create %s --region %s`",
+				requirement.group, requirement.name, requirement.region, requirement.name, requirement.region)
 		}
 	}
 
