@@ -25,6 +25,7 @@ type FlapsClient interface {
 	DeleteACMECertificate(ctx context.Context, appName, hostname string) error
 	DeleteCertificate(ctx context.Context, appName, hostname string) error
 	DeleteCustomCertificate(ctx context.Context, appName, hostname string) error
+	DeleteManagedPostgresCluster(ctx context.Context, id string) error
 	DeleteMetadata(ctx context.Context, appName, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, appName, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignment(ctx context.Context, appName, ip string) (err error)
@@ -59,6 +60,7 @@ type FlapsClient interface {
 	ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error)
 	ListCertificates(ctx context.Context, appName string, opts *flaps.ListCertificatesOpts) (*fly.ListCertificatesResponse, error)
 	ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
+	ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)

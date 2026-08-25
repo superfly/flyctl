@@ -14,7 +14,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -54,7 +53,6 @@ func runList(ctx context.Context) error {
 	}
 	orgSlug := org.Slug
 
-	mpgv1Client := mpgv1.ClientFromContext(ctx)
 	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
 
 	// For ui-ex request we need the real org slug
@@ -64,12 +62,12 @@ func runList(ctx context.Context) error {
 	}
 
 	deleted := flag.GetBool(ctx, "deleted")
-	clusters, err := mpgv1Client.ListManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
+	clusters, err := listManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
 	if err != nil {
 		return fmt.Errorf("failed to list postgres clusters for organization %s: %w", orgSlug, err)
 	}
 
-	if len(clusters.Data) == 0 {
+	if len(clusters) == 0 {
 		if deleted {
 			fmt.Fprintf(out, "No deleted managed postgres clusters found in organization %s\n", orgSlug)
 		} else {
@@ -80,11 +78,11 @@ func runList(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		return render.JSON(out, clusters.Data)
+		return render.JSON(out, clusters)
 	}
 
-	rows := make([][]string, 0, len(clusters.Data))
-	for _, cluster := range clusters.Data {
+	rows := make([][]string, 0, len(clusters))
+	for _, cluster := range clusters {
 		rows = append(rows, []string{
 			cluster.Id,
 			cluster.Name,

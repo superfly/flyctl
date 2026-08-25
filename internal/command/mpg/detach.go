@@ -67,7 +67,7 @@ func runDetach(ctx context.Context) error {
 	clusterOrgSlug := cluster.Organization.Slug
 
 	// Verify that the app and cluster are in the same organization
-	if appOrgSlug != clusterOrgSlug {
+	if !organizationSlugMatches(app.Organization, clusterOrgSlug) {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization",
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}

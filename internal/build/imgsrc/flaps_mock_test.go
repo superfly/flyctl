@@ -291,6 +291,20 @@ func (mr *MockFlapsClientMockRecorder) DeleteIPAssignment(ctx, appName, ip any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPAssignment", reflect.TypeOf((*MockFlapsClient)(nil).DeleteIPAssignment), ctx, appName, ip)
 }
 
+// DeleteManagedPostgresCluster mocks base method.
+func (m *MockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteManagedPostgresCluster", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteManagedPostgresCluster indicates an expected call of DeleteManagedPostgresCluster.
+func (mr *MockFlapsClientMockRecorder) DeleteManagedPostgresCluster(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).DeleteManagedPostgresCluster), ctx, id)
+}
+
 // DeleteMetadata mocks base method.
 func (m *MockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	m.ctrl.T.Helper()
@@ -752,6 +766,21 @@ func (m *MockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName strin
 func (mr *MockFlapsClientMockRecorder) ListFlyAppsMachines(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFlyAppsMachines", reflect.TypeOf((*MockFlapsClient)(nil).ListFlyAppsMachines), ctx, appName)
+}
+
+// ListManagedPostgresClusters mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresClusters", ctx, req)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresClusterSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresClusters indicates an expected call of ListManagedPostgresClusters.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresClusters(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresClusters", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresClusters), ctx, req)
 }
 
 // ListSecretKeys mocks base method.
