@@ -207,7 +207,7 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 	return nil
 }
 
-func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, sl statuslogger.StatusLine) error {
+func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, launchBasisState string, sl statuslogger.StatusLine) error {
 	lm := e.leasableMachine
 	// Don't wait for SkipLaunch machines, they are updated but not started
 	if e.launchInput.SkipLaunch {
@@ -215,10 +215,16 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	}
 
 	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
+		preservedStopped, err := md.waitForStartedOrPreservedStoppedUpdate(ctx, lm, launchBasisState, md.waitTimeout)
+		if err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 
 			return err
+		}
+		if preservedStopped {
+			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s was updated and left stopped", lm.Machine().ID))
+
+			return nil
 		}
 
 		if err := md.runTestMachines(ctx, e.leasableMachine.Machine(), sl); err != nil {
@@ -1001,13 +1007,14 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 				statusRunning()
 			}
 
+			launchBasisState := e.leasableMachine.Machine().State
 			if err := md.updateMachine(ctx, e, sl.Line(startIdx+idx)); err != nil {
 				statusFailure(err)
 				tracing.RecordError(span, err, "failed to update machine")
 
 				return err
 			}
-			if err := md.waitForMachine(ctx, e, sl.Line(startIdx+idx)); err != nil {
+			if err := md.waitForMachine(ctx, e, launchBasisState, sl.Line(startIdx+idx)); err != nil {
 				tracing.RecordError(span, err, "failed to wait for machine")
 				statusFailure(err)
 
