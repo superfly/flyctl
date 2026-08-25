@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
@@ -29,6 +30,15 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 	}
 
 	return md, nil
+}
+
+type volumeListFlapsClient struct {
+	flapsutil.FlapsClient
+	volumes []fly.Volume
+}
+
+func (c *volumeListFlapsClient) GetVolumes(context.Context, string) ([]fly.Volume, error) {
+	return c.volumes, nil
 }
 
 func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
@@ -229,10 +239,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	md.volumes = map[string][]fly.Volume{
-		"data": {{ID: "vol_12345"}},
-	}
-
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
@@ -258,7 +264,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Mounts: []fly.MachineMount{{
 				Name:   "data",
-				Volume: "vol_12345",
+				Volume: "data",
 				Path:   "/data",
 			}},
 			Statics: []*fly.Static{{
@@ -377,10 +383,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	md.volumes = map[string][]fly.Volume{
-		"data": {{ID: "vol_12345"}},
-	}
-
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
@@ -399,7 +401,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"FLY_PROCESS_GROUP": "app",
 			},
 			Mounts: []fly.MachineMount{{
-				Volume: "vol_12345",
+				Volume: "data",
 				Path:   "/data",
 				Name:   "data",
 			}},
@@ -442,6 +444,74 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}, li)
+}
+
+func TestValidateVolumeConfigNewGroupRequiresVolumeInPrimaryRegion(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes:     map[string]string{"worker": "/bin/worker"},
+		Mounts: []appconfig.Mount{{
+			Source:      "data",
+			Destination: "/data",
+			Processes:   []string{"worker"},
+		}},
+	})
+	require.NoError(t, err)
+	md.availableVolumeCounts = map[string]map[string]int{"data": {"syd": 1}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "requires an unattached 'data' volume in region 'qmx'")
+	require.ErrorContains(t, err, "fly volume create data --region qmx")
+
+	md.availableVolumeCounts["data"]["qmx"] = 1
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
+func TestSetVolumesOnlyCountsResolvableVolumes(t *testing.T) {
+	attachedMachine := "machine-id"
+	attachedAllocation := "allocation-id"
+	client := &volumeListFlapsClient{volumes: []fly.Volume{
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "syd", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "unreachable"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedMachine: &attachedMachine},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedAllocation: &attachedAllocation},
+	}}
+	md, err := stabMachineDeployment(&appconfig.Config{Mounts: []appconfig.Mount{{Source: "data", Destination: "/data"}}})
+	require.NoError(t, err)
+	md.flapsClient = client
+
+	require.NoError(t, md.setVolumes(context.Background()))
+	require.Equal(t, map[string]map[string]int{"data": {"qmx": 1, "syd": 1}}, md.availableVolumeCounts)
+}
+
+func TestValidateVolumeConfigReplacementChecksCountByRegion(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes:     map[string]string{"worker": "/bin/worker"},
+		Mounts: []appconfig.Mount{{
+			Source:      "data",
+			Destination: "/data",
+			Processes:   []string{"worker"},
+		}},
+	})
+	require.NoError(t, err)
+	machines := []*fly.Machine{
+		{ID: "machine-1", Region: "qmx", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "worker"}}},
+		{ID: "machine-2", Region: "qmx", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "worker"}}},
+	}
+	ios, _, _, _ := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.machineSet = machine.NewMachineSet(nil, ios, "", machines, true)
+	md.availableVolumeCounts = map[string]map[string]int{"data": {"qmx": 1, "syd": 2}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "Process group 'worker' needs volumes with name 'data'")
+	require.ErrorContains(t, err, "qmx=1")
+
+	md.availableVolumeCounts["data"]["qmx"] = 2
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
 }
 
 // Test machineDeployment.restartOnly

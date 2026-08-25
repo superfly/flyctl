@@ -10,16 +10,16 @@ import (
 )
 
 type defaultValues struct {
-	image           string
-	guest           *fly.MachineGuest
-	guestPerGroup   map[string]*fly.MachineGuest
-	volsize         int
-	volsizeByName   map[string]int
-	releaseId       string
-	releaseVersion  string
-	appConfig       *appconfig.Config
-	existingVolumes map[string]map[string][]*fly.Volume
-	snapshotID      *string
+	image                 string
+	guest                 *fly.MachineGuest
+	guestPerGroup         map[string]*fly.MachineGuest
+	volsize               int
+	volsizeByName         map[string]int
+	releaseId             string
+	releaseVersion        string
+	appConfig             *appconfig.Config
+	availableVolumeCounts map[string]map[string]int
+	snapshotID            *string
 }
 
 func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fly.Machine, volumes []fly.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *fly.MachineGuest) *defaultValues {
@@ -67,15 +67,15 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 	}, make(map[string]int))
 
 	if !withNewVolumes {
-		defaults.existingVolumes = lo.MapValues(
+		defaults.availableVolumeCounts = lo.MapValues(
 			lo.GroupBy(
-				lo.FilterMap(volumes, func(v fly.Volume, _ int) (*fly.Volume, bool) {
-					return &v, !v.IsAttached() && v.HostStatus == "ok"
+				lo.Filter(volumes, func(v fly.Volume, _ int) bool {
+					return !v.IsAttached() && v.HostStatus == "ok"
 				}),
-				func(v *fly.Volume) string { return v.Name },
+				func(v fly.Volume) string { return v.Name },
 			),
-			func(vl []*fly.Volume, _ string) map[string][]*fly.Volume {
-				return lo.GroupBy(vl, func(v *fly.Volume) string {
+			func(vl []fly.Volume, _ string) map[string]int {
+				return lo.CountValuesBy(vl, func(v fly.Volume) string {
 					return v.Region
 				})
 			},
@@ -109,18 +109,20 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*fly.MachineConfig, e
 	return mc, nil
 }
 
-func (d *defaultValues) PopAvailableVolumes(mConfig *fly.MachineConfig, region string, delta int) []*fly.Volume {
+// consumeAvailableVolumeCount subtracts up to delta matching volumes from the
+// available count for the machine config and region. It returns the number consumed.
+func (d *defaultValues) consumeAvailableVolumeCount(mConfig *fly.MachineConfig, region string, delta int) int {
 	if delta <= 0 || len(mConfig.Mounts) == 0 {
-		return nil
+		return 0
 	}
 	name := mConfig.Mounts[0].Name
-	regionVolumes := d.existingVolumes[name][region]
-	availableVolumes := regionVolumes[0:lo.Min([]int{len(regionVolumes), delta})]
-	if len(availableVolumes) > 0 {
-		d.existingVolumes[name][region] = lo.Drop(regionVolumes, len(availableVolumes))
+	available := d.availableVolumeCounts[name][region]
+	count := min(available, delta)
+	if count > 0 {
+		d.availableVolumeCounts[name][region] -= count
 	}
 
-	return availableVolumes
+	return count
 }
 
 func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region string, delta int, existingMachineCount int) *fly.CreateVolumeRequest {

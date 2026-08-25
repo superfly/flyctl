@@ -1,11 +1,148 @@
 package scale
 
 import (
+	"context"
+	"errors"
+	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/iostreams"
 )
+
+type launchMachineFlapsClient struct {
+	flapsutil.FlapsClient
+	createRequests []fly.CreateVolumeRequest
+	createdVolume  *fly.Volume
+	createErr      error
+	launchInput    fly.LaunchMachineInput
+	launchCalls    int
+	launchErr      error
+}
+
+func (c *launchMachineFlapsClient) CreateVolume(_ context.Context, _ string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+	c.createRequests = append(c.createRequests, req)
+
+	return c.createdVolume, c.createErr
+}
+
+func (c *launchMachineFlapsClient) Launch(_ context.Context, _ string, input fly.LaunchMachineInput) (*fly.Machine, error) {
+	c.launchInput = input
+	c.launchCalls++
+	if c.launchErr != nil {
+		return nil, c.launchErr
+	}
+
+	return &fly.Machine{Config: input.Config}, nil
+}
+
+func TestLaunchMachineVolumeSelection(t *testing.T) {
+	newContext := func(client *launchMachineFlapsClient) context.Context {
+		ctx := flapsutil.NewContextWithClient(context.Background(), client)
+
+		return iostreams.NewContext(ctx, &iostreams.IOStreams{Out: io.Discard, ErrOut: io.Discard})
+	}
+	newAction := func() *planItem {
+		return &planItem{
+			LaunchMachineInput: &fly.LaunchMachineInput{
+				Config: &fly.MachineConfig{
+					Mounts: []fly.MachineMount{{Name: "data", Path: "/data"}},
+				},
+			},
+		}
+	}
+
+	t.Run("existing volume is selected by name", func(t *testing.T) {
+		client := &launchMachineFlapsClient{}
+		action := newAction()
+		action.AvailableVolumeCount = 1
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.NoError(t, err)
+		require.Empty(t, client.createRequests)
+		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+
+	t.Run("newly created volume is selected by ID", func(t *testing.T) {
+		client := &launchMachineFlapsClient{createdVolume: &fly.Volume{ID: "vol_created"}}
+		action := newAction()
+		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.NoError(t, err)
+		require.Len(t, client.createRequests, 1)
+		require.Equal(t, "vol_created", client.launchInput.Config.Mounts[0].Volume)
+	})
+
+	t.Run("missing volume source fails before launch", func(t *testing.T) {
+		client := &launchMachineFlapsClient{}
+
+		_, err := launchMachine(newContext(client), "app", newAction(), 0)
+		require.ErrorContains(t, err, "there is no volume to attach or create")
+		require.Zero(t, client.launchCalls)
+	})
+
+	t.Run("volume creation failure is returned before launch", func(t *testing.T) {
+		client := &launchMachineFlapsClient{createErr: errors.New("volume create failed")}
+		action := newAction()
+		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.ErrorIs(t, err, client.createErr)
+		require.Len(t, client.createRequests, 1)
+		require.Zero(t, client.launchCalls)
+	})
+
+	t.Run("launch failure after name selection is returned", func(t *testing.T) {
+		client := &launchMachineFlapsClient{launchErr: errors.New("machine launch failed")}
+		action := newAction()
+		action.AvailableVolumeCount = 1
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.ErrorIs(t, err, client.launchErr)
+		require.Equal(t, 1, client.launchCalls)
+		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+}
+
+func TestConsumeAvailableVolumeCount(t *testing.T) {
+	defaults := &defaultValues{
+		availableVolumeCounts: map[string]map[string]int{"data": {"qmx": 2}},
+	}
+	config := &fly.MachineConfig{Mounts: []fly.MachineMount{{Name: "data"}}}
+
+	require.Equal(t, 2, defaults.consumeAvailableVolumeCount(config, "qmx", 3))
+	require.Equal(t, 0, defaults.consumeAvailableVolumeCount(config, "qmx", 1))
+	require.Equal(t, 0, (&defaultValues{}).consumeAvailableVolumeCount(config, "qmx", 1))
+}
+
+func TestNewDefaultsOnlyCountsReusableVolumes(t *testing.T) {
+	attachedMachine := "machine-id"
+	attachedAllocation := "allocation-id"
+	volumes := []fly.Volume{
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "syd", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "unreachable"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedMachine: &attachedMachine},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedAllocation: &attachedAllocation},
+		{Name: "other", Region: "qmx", State: "created", HostStatus: "ok"},
+	}
+
+	defaults := newDefaults(&appconfig.Config{}, fly.Release{}, nil, volumes, "", false, nil)
+	require.Equal(t, map[string]map[string]int{
+		"data":  {"qmx": 2, "syd": 1},
+		"other": {"qmx": 1},
+	}, defaults.availableVolumeCounts)
+
+	createOnly := newDefaults(&appconfig.Config{}, fly.Release{}, nil, volumes, "", true, nil)
+	require.Nil(t, createOnly.availableVolumeCounts)
+}
 
 func Test_convergeGroupCounts(t *testing.T) {
 	testcases := []struct {
