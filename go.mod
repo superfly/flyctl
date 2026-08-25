@@ -44,7 +44,7 @@ require (
 	github.com/jinzhu/copier v0.4.0
 	github.com/jpillora/backoff v1.0.0
 	github.com/kr/text v0.2.0
-	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
+	github.com/launchdarkly/go-sdk-common/v3 v3.5.1
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.15
 	github.com/mattn/go-isatty v0.0.24
@@ -229,7 +229,7 @@ require (
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/launchdarkly/go-jsonstream/v3 v3.0.0 // indirect
+	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mark3labs/mcp-go v0.58.0
