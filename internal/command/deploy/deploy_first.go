@@ -129,9 +129,9 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		return nil
 	}
 
-	// md.setVolumes already queried for existent unattached volumes, do not create more
-	existentVolumes := lo.MapValues(md.volumes, func(vs []fly.Volume, _ string) int {
-		return len(vs)
+	// md.setVolumes already counted existent unattached volumes, do not create more
+	existentVolumes := lo.MapValues(md.availableVolumeCounts, func(_ map[string]int, name string) int {
+		return md.availableVolumeCount(name, "")
 	})
 
 	// The logic here is to provision one volume per process group that needs it only on the primary region
@@ -188,12 +188,18 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				AutoBackupEnabled:   m.ScheduledSnapshots,
 			}
 
-			vol, err := md.flapsClient.CreateVolume(ctx, md.app.Name, input)
+			_, err = md.flapsClient.CreateVolume(ctx, md.app.Name, input)
 			if err != nil {
 				return err
 			}
 
-			md.volumes[m.Source] = append(md.volumes[m.Source], *vol)
+			if md.availableVolumeCounts == nil {
+				md.availableVolumeCounts = make(map[string]map[string]int)
+			}
+			if md.availableVolumeCounts[m.Source] == nil {
+				md.availableVolumeCounts[m.Source] = make(map[string]int)
+			}
+			md.availableVolumeCounts[m.Source][input.Region]++
 		}
 	}
 

@@ -133,7 +133,7 @@ type machineDeployment struct {
 	// machineSet is this application's machines.
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
-	volumes               map[string][]fly.Volume
+	availableVolumeCounts map[string]map[string]int
 	strategy              string
 	releaseId             string
 	releaseVersion        int
@@ -542,27 +542,30 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	}
 
 	unattached := lo.Filter(volumes, func(v fly.Volume, _ int) bool {
-		return v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
+		return v.State == "created" && v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
 	})
 
-	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
-		return v.Name
-	})
+	md.availableVolumeCounts = lo.MapValues(
+		lo.GroupBy(unattached, func(v fly.Volume) string {
+			return v.Name
+		}),
+		func(volumes []fly.Volume, _ string) map[string]int {
+			return lo.CountValuesBy(volumes, func(v fly.Volume) string {
+				return v.Region
+			})
+		},
+	)
 
 	return nil
 }
 
-func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
-	volumes := md.volumes[name]
-	for idx, v := range volumes {
-		if region == "" || region == v.Region {
-			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
-
-			return &v
-		}
+func (md *machineDeployment) availableVolumeCount(name, region string) int {
+	counts := md.availableVolumeCounts[name]
+	if region != "" {
+		return counts[region]
 	}
 
-	return nil
+	return lo.Sum(lo.Values(counts))
 }
 
 func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
@@ -631,7 +634,7 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 
 			// Compute the volume differences per region
 			for volSrc, regions := range needsVol {
-				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v fly.Volume) string { return v.Region })
+				currentPerRegion := md.availableVolumeCounts[volSrc]
 				needsPerRegion := lo.CountValues(regions)
 
 				var missing []string
@@ -654,10 +657,11 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 		case false:
 			// Check if there are unattached volumes for new groups with mounts
 			for _, m := range groupConfig.Mounts {
-				if vs := md.volumes[m.Source]; len(vs) == 0 {
+				region := md.appConfig.PrimaryRegion
+				if md.availableVolumeCount(m.Source, region) == 0 {
 					return fmt.Errorf(
-						"creating a new machine in group '%s' requires an unattached '%s' volume. Create it with `fly volume create %s`",
-						groupName, m.Source, m.Source)
+						"creating a new machine in group '%s' requires an unattached '%s' volume in region '%s'. Create it with `fly volume create %s --region %s`",
+						groupName, m.Source, region, m.Source, region)
 				}
 			}
 		}
