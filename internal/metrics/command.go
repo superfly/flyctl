@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/internal/instrument"
 )
 
@@ -26,6 +27,8 @@ type commandStats struct {
 	FlapsDuration   float64 `json:"fd"`
 	UsingGPU        bool    `json:"gpu"`
 	Failed          bool    `json:"f"`
+	Operator        string  `json:"op,omitempty"`
+	AgentName       string  `json:"ag,omitempty"`
 }
 
 func RecordCommandContext(ctx context.Context) {
@@ -49,6 +52,8 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 	flaps := instrument.Flaps.Get()
 
 	if commandContext != nil {
+		operator, agentName := OperatorFromSignals(clientsignals.DetectOnce())
+
 		Send(commandContext, "command/stats", commandStats{
 			Command:         cmd.CommandPath(),
 			Duration:        duration.Seconds(),
@@ -58,6 +63,8 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			FlapsDuration:   flaps.Duration,
 			UsingGPU:        IsUsingGPU,
 			Failed:          failed,
+			Operator:        operator,
+			AgentName:       agentName,
 		})
 	}
 }
