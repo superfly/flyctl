@@ -184,9 +184,34 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 //
 // Don't call this when other goroutines might also be accessing it.
 func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback, advancePrune time.Duration) (bool, error) {
+	return doRefreshDischargeTokens(ctx, t, uucb, advancePrune, nonInteractiveDischargeTimeout, interactiveDischargeTimeout)
+}
+
+const (
+	// nonInteractiveDischargeTimeout bounds a discharge pass that has no
+	// UserURLCallback attached. A third party asking for the user fails
+	// immediately in that pass, so everything it can still do is a server round
+	// trip and it has no reason to hold the interactive budget.
+	nonInteractiveDischargeTimeout = 30 * time.Second
+
+	// interactiveDischargeTimeout bounds the retry that can send the user to
+	// their browser. It is sized for a person working through an identity
+	// provider, which is where the whole cost of that pass is.
+	interactiveDischargeTimeout = 90 * time.Second
+)
+
+func doRefreshDischargeTokens(
+	ctx context.Context,
+	t *tokens.Tokens,
+	uucb UserURLCallback,
+	advancePrune time.Duration,
+	nonInteractiveTimeout time.Duration,
+	interactiveTimeout time.Duration,
+) (bool, error) {
 	updateOpts := []tokens.UpdateOption{
 		tokens.WithDebugger(logger.FromContext(ctx)),
 		tokens.WithAdvancePrune(advancePrune),
+		tokens.WithDischargeTimeout(nonInteractiveTimeout),
 	}
 
 	// tokens discharged by the first pass have to be reported even if the
@@ -204,8 +229,12 @@ func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLC
 		updatedParallel = updated
 
 		// Retry with UserURLCallback if a third party wants to send the user to
-		// their browser.
-		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
+		// their browser. This is the pass with a person in it, and the only one
+		// that needs the longer budget; the later option wins.
+		updateOpts = append(updateOpts,
+			tokens.WithUserURLCallback(uucb),
+			tokens.WithDischargeTimeout(interactiveTimeout),
+		)
 	}
 
 	updated, err := t.Update(ctx, updateOpts...)
