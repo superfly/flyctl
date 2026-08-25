@@ -1,13 +1,9 @@
 package machine
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
-	"github.com/olekukonko/tablewriter/pkg/twwidth"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -19,8 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
-
-const defaultMachineListPager = "less -RSX -+F -P'Use left/right arrows to scroll; q to quit'"
 
 func newList() *cobra.Command {
 	const (
@@ -175,43 +169,11 @@ func runMachineList(ctx context.Context) (err error) {
 			"Size",
 		}
 
-		writeMachineListTable(io, appName, rows, headers)
+		_ = render.Table(io.Out, appName, rows, headers...)
 		if unreachableMachines {
 			fmt.Fprintln(io.Out, "* These Machines' hosts could not be reached.")
 		}
 	}
 
 	return nil
-}
-
-func writeMachineListTable(io *iostreams.IOStreams, appName string, rows [][]string, headers []string) {
-	if !io.IsInteractive() {
-		_ = render.Table(io.Out, appName, rows, headers...)
-
-		return
-	}
-
-	var output bytes.Buffer
-	_ = render.Table(&output, appName, rows, headers...)
-
-	if shouldPageMachineListTable(output.String(), io.TerminalWidth()) {
-		if _, pagerSet := os.LookupEnv("PAGER"); !pagerSet {
-			io.SetPager(defaultMachineListPager)
-		}
-		if err := io.StartPager(); err == nil {
-			defer io.StopPager()
-		}
-	}
-
-	_, _ = io.Out.Write(output.Bytes())
-}
-
-func shouldPageMachineListTable(output string, terminalWidth int) bool {
-	for line := range strings.SplitSeq(output, "\n") {
-		if twwidth.Width(line) > terminalWidth {
-			return true
-		}
-	}
-
-	return false
 }

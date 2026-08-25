@@ -7,7 +7,6 @@ import (
 	"maps"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
+	"github.com/superfly/macaroon/tp"
 )
 
 // UserURLCallback is a function that opens a URL in the user's browser. This is
@@ -184,23 +184,62 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 //
 // Don't call this when other goroutines might also be accessing it.
 func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback, advancePrune time.Duration) (bool, error) {
+	return doRefreshDischargeTokens(ctx, t, uucb, advancePrune, nonInteractiveDischargeTimeout, interactiveDischargeTimeout)
+}
+
+const (
+	// nonInteractiveDischargeTimeout bounds a discharge pass that has no
+	// UserURLCallback attached. A third party asking for the user fails
+	// immediately in that pass, so everything it can still do is a server round
+	// trip and it has no reason to hold the interactive budget.
+	nonInteractiveDischargeTimeout = 30 * time.Second
+
+	// interactiveDischargeTimeout bounds the retry that can send the user to
+	// their browser. It is sized for a person working through an identity
+	// provider, which is where the whole cost of that pass is.
+	interactiveDischargeTimeout = 90 * time.Second
+)
+
+func doRefreshDischargeTokens(
+	ctx context.Context,
+	t *tokens.Tokens,
+	uucb UserURLCallback,
+	advancePrune time.Duration,
+	nonInteractiveTimeout time.Duration,
+	interactiveTimeout time.Duration,
+) (bool, error) {
 	updateOpts := []tokens.UpdateOption{
 		tokens.WithDebugger(logger.FromContext(ctx)),
 		tokens.WithAdvancePrune(advancePrune),
+		tokens.WithDischargeTimeout(nonInteractiveTimeout),
 	}
+
+	// tokens discharged by the first pass have to be reported even if the
+	// second one fails: our callers decide whether to persist the tokens from
+	// this return value, and dropping it means re-fetching those discharges on
+	// every command.
+	var updatedParallel bool
 
 	if uucb != nil {
 		// Update without UserURLCallback to fetch tokens in parallel.
 		updated, err := t.Update(ctx, updateOpts...)
-		if err == nil || !strings.Contains(err.Error(), "missing user-url callback") {
+		if err == nil || !errors.Is(err, tp.ErrMissingUserURLCallback) {
 			return updated, err
 		}
+		updatedParallel = updated
 
-		// Retry with UserURLCallback if we received a 'missing user-url callback' error.
-		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
+		// Retry with UserURLCallback if a third party wants to send the user to
+		// their browser. This is the pass with a person in it, and the only one
+		// that needs the longer budget; the later option wins.
+		updateOpts = append(updateOpts,
+			tokens.WithUserURLCallback(uucb),
+			tokens.WithDischargeTimeout(interactiveTimeout),
+		)
 	}
 
-	return t.Update(ctx, updateOpts...)
+	updated, err := t.Update(ctx, updateOpts...)
+
+	return updated || updatedParallel, err
 }
 
 // fetchOrgTokens checks that we macaroons for all orgs the user is a member of.

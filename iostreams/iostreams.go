@@ -45,8 +45,7 @@ type IOStreams struct {
 	stderrIsTTY       bool
 
 	pagerCommand string
-	pagerProcess *exec.Cmd
-	pagerOut     io.Writer
+	pagerProcess *os.Process
 
 	neverPrompt bool
 
@@ -185,9 +184,6 @@ func (s *IOStreams) StartPager() error {
 	if err != nil {
 		return err
 	}
-	if len(pagerArgs) == 0 {
-		return nil
-	}
 
 	pagerEnv := os.Environ()
 	for i := len(pagerEnv) - 1; i >= 0; i-- {
@@ -197,9 +193,6 @@ func (s *IOStreams) StartPager() error {
 	}
 	if _, ok := os.LookupEnv("LESS"); !ok {
 		pagerEnv = append(pagerEnv, "LESS=FRX")
-	}
-	if _, ok := os.LookupEnv("LESSCHARSET"); !ok {
-		pagerEnv = append(pagerEnv, "LESSCHARSET=utf-8")
 	}
 	if _, ok := os.LookupEnv("LV"); !ok {
 		pagerEnv = append(pagerEnv, "LV=-c")
@@ -211,21 +204,18 @@ func (s *IOStreams) StartPager() error {
 	}
 	pagerCmd := exec.Command(pagerExe, pagerArgs[1:]...)
 	pagerCmd.Env = pagerEnv
-	pagerOut := s.Out
-	pagerCmd.Stdout = pagerOut
+	pagerCmd.Stdout = s.Out
 	pagerCmd.Stderr = s.ErrOut
 	pagedOut, err := pagerCmd.StdinPipe()
 	if err != nil {
 		return err
 	}
-	if err := pagerCmd.Start(); err != nil {
-		_ = pagedOut.Close()
-
+	s.Out = pagedOut
+	err = pagerCmd.Start()
+	if err != nil {
 		return err
 	}
-	s.Out = pagedOut
-	s.pagerProcess = pagerCmd
-	s.pagerOut = pagerOut
+	s.pagerProcess = pagerCmd.Process
 
 	return nil
 }
@@ -235,13 +225,9 @@ func (s *IOStreams) StopPager() {
 		return
 	}
 
-	if closer, ok := s.Out.(io.Closer); ok {
-		_ = closer.Close()
-	}
-	_ = s.pagerProcess.Wait()
+	s.Out.(io.ReadCloser).Close()
+	_, _ = s.pagerProcess.Wait()
 	s.pagerProcess = nil
-	s.Out = s.pagerOut
-	s.pagerOut = nil
 }
 
 func (s *IOStreams) CanPrompt() bool {
