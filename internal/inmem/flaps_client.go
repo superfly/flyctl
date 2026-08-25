@@ -76,6 +76,10 @@ func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, host
 	panic("TODO")
 }
 
+func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	panic("TODO")
+}
+
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	panic("TODO")
 }
@@ -249,6 +253,10 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 	}
 
 	return machines, releaseCmdMachine, nil
+}
+
+func (m *FlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	panic("TODO")
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {

@@ -12,11 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	regionsv2 "github.com/superfly/flyctl/internal/command/mpg/v2/regions"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -56,6 +58,14 @@ func setupTestContext() context.Context {
 	flagSet.String("org", "", "Organization")
 	flagSet.Bool("json", false, "JSON output")
 	ctx = flagctx.NewContext(ctx, flagSet)
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+		},
+		ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			return nil, nil
+		},
+	})
 
 	return ctx
 }
@@ -105,6 +115,11 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 	}
 	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
 	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			return nil, nil
+		},
+	})
 
 	t.Run("no clusters found", func(t *testing.T) {
 
@@ -129,6 +144,11 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 	}
 	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
 	ctx = mpgv2.NewContextWithClient(ctx, mockv2)
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+		},
+	})
 
 	t.Run("cluster not found by ID", func(t *testing.T) {
 
@@ -143,6 +163,200 @@ func TestClusterFromFlagOrSelect_WithFlagContext(t *testing.T) {
 		assert.Equal(t, expectedCluster.Id, cluster.Id)
 		assert.Equal(t, expectedCluster.Name, cluster.Name)
 	})
+}
+
+func TestClusterFromArgOrSelectUsesPublicAPIForMPGv2(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+			require.Equal(t, "mpg-123", id)
+			return flaps.ManagedPostgresCluster{
+				ID:         id,
+				Name:       "public-cluster",
+				Region:     "ord",
+				Status:     "ready",
+				Plan:       "basic",
+				DiskSizeGB: 20,
+				Replicas:   3,
+				Organization: flaps.ManagedPostgresOrganization{
+					Name: "Example Org",
+					Slug: "example-org",
+				},
+			}, nil
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(context.Context, string) (mpgv1.GetManagedClusterResponse, error) {
+			t.Fatal("legacy client called for public MPGv2 cluster")
+			return mpgv1.GetManagedClusterResponse{}, nil
+		},
+	})
+
+	cluster, orgSlug, err := ClusterFromArgOrSelect(ctx, "mpg-123", "")
+	require.NoError(t, err)
+	require.Equal(t, mpg.VersionV2, cluster.Version)
+	require.Equal(t, "public-cluster", cluster.Name)
+	require.Equal(t, 20, cluster.Disk)
+	require.Equal(t, "example-org", orgSlug)
+}
+
+func TestClusterFromArgOrSelectDoesNotFallbackOnPublicFailure(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, errors.New("machines api unavailable")
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(context.Context, string) (mpgv1.GetManagedClusterResponse, error) {
+			t.Fatal("legacy client called after non-404 public failure")
+			return mpgv1.GetManagedClusterResponse{}, nil
+		},
+	})
+
+	_, _, err := ClusterFromArgOrSelect(ctx, "mpg-123", "")
+	require.EqualError(t, err, `failed retrieving managed postgres cluster "mpg-123": machines api unavailable`)
+}
+
+func TestClusterFromArgOrSelectPreservesMPGv2VersionFromLegacyFallback(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(_ context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+			require.Equal(t, "mpg-123", id)
+			return mpgv1.GetManagedClusterResponse{Data: mpgv1.ManagedCluster{
+				Id:      id,
+				Name:    "v2-from-legacy-fallback",
+				Version: 2,
+			}}, nil
+		},
+	})
+
+	cluster, _, err := ClusterFromArgOrSelect(ctx, "mpg-123", "")
+	require.NoError(t, err)
+	require.Equal(t, mpg.VersionV2, cluster.Version)
+}
+
+func TestOrganizationSlugMatchesRawOrAliasedSlug(t *testing.T) {
+	org := &fly.OrganizationBasic{RawSlug: "user-org", Slug: "personal"}
+
+	require.True(t, organizationSlugMatches(org, "user-org"))
+	require.True(t, organizationSlugMatches(org, "personal"))
+	require.False(t, organizationSlugMatches(org, "other-org"))
+	require.False(t, organizationSlugMatches(nil, "user-org"))
+}
+
+func TestClusterFromArgOrSelectRejectsEmptyPublicCluster(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, nil
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		GetManagedClusterByIdFunc: func(context.Context, string) (mpgv1.GetManagedClusterResponse, error) {
+			t.Fatal("legacy client called after malformed public success")
+			return mpgv1.GetManagedClusterResponse{}, nil
+		},
+	})
+
+	_, _, err := ClusterFromArgOrSelect(ctx, "mpg-123", "")
+	require.EqualError(t, err, `invalid response retrieving managed postgres cluster "mpg-123": missing cluster ID`)
+}
+
+func TestListSelectableClustersCombinesPublicAndMPGv1Only(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresClustersFunc: func(_ context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			require.Equal(t, "example-org", req.OrgSlug)
+			return []flaps.ManagedPostgresClusterSummary{{
+				ID:     "mpg-v2",
+				Name:   "public-cluster",
+				Region: "ord",
+				Status: "ready",
+				Plan:   "basic",
+			}}, nil
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		ListManagedClustersFunc: func(context.Context, string, bool) (mpgv1.ListManagedClustersResponse, error) {
+			return mpgv1.ListManagedClustersResponse{Data: []mpgv1.ManagedCluster{
+				{Id: "mpg-v1", Name: "legacy-cluster"},
+				{Id: "mpg-v2", Name: "duplicate-private-v2", Version: 1},
+				{Id: "mpg-v2-private-only", Name: "private-only-v2", Version: 2},
+			}}, nil
+		},
+	})
+
+	clusters, err := listSelectableClusters(ctx, "example-org")
+	require.NoError(t, err)
+	require.Len(t, clusters, 2)
+	require.Equal(t, "mpg-v2", clusters[0].Id)
+	require.Equal(t, mpg.VersionV2, clusters[0].Version)
+	require.Equal(t, "mpg-v1", clusters[1].Id)
+	require.Equal(t, mpg.VersionV1, clusters[1].Version)
+}
+
+func TestListSelectableClustersFallsBackToLegacyListOnPublicNotFound(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			return nil, flaps.ErrFlapsNotFound
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		ListManagedClustersFunc: func(context.Context, string, bool) (mpgv1.ListManagedClustersResponse, error) {
+			return mpgv1.ListManagedClustersResponse{Data: []mpgv1.ManagedCluster{
+				{Id: "mpg-v1", Name: "legacy-cluster"},
+				{Id: "mpg-v2", Name: "private-v2", Version: 2},
+			}}, nil
+		},
+	})
+
+	clusters, err := listSelectableClusters(ctx, "example-org")
+	require.NoError(t, err)
+	require.Len(t, clusters, 2)
+	require.Equal(t, mpg.VersionV1, clusters[0].Version)
+	require.Equal(t, mpg.VersionV2, clusters[1].Version)
+}
+
+func TestListSelectableClustersDoesNotFallbackOnPublicFailure(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			return nil, errors.New("machines api unavailable")
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		ListManagedClustersFunc: func(context.Context, string, bool) (mpgv1.ListManagedClustersResponse, error) {
+			t.Fatal("legacy list called after non-404 public failure")
+			return mpgv1.ListManagedClustersResponse{}, nil
+		},
+	})
+
+	_, err := listSelectableClusters(ctx, "example-org")
+	require.EqualError(t, err, "machines api unavailable")
+}
+
+func TestListSelectableClustersRejectsEmptyPublicCluster(t *testing.T) {
+	ctx := setupTestContext()
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			return []flaps.ManagedPostgresClusterSummary{{Name: "missing-id"}}, nil
+		},
+	})
+	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+		ListManagedClustersFunc: func(context.Context, string, bool) (mpgv1.ListManagedClustersResponse, error) {
+			return mpgv1.ListManagedClustersResponse{}, nil
+		},
+	})
+
+	_, err := listSelectableClusters(ctx, "example-org")
+	require.EqualError(t, err, "invalid response listing managed postgres clusters: missing cluster ID")
 }
 
 // Test the actual GetAvailableMPGRegions function with mocked dependencies
@@ -786,6 +1000,11 @@ func TestBackupList(t *testing.T) {
 
 	ctx = mpgv1.NewContextWithClient(ctx, mockv1)
 	ctx = mpgv2.NewContextWithClient(ctx, mockv2)
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+		},
+	})
 
 	// Run the backup list command
 	err := runBackupList(ctx)
