@@ -25,6 +25,7 @@ import (
 type WaitOptions struct {
 	allowInfinite bool
 	justCreated   bool
+	version       string
 }
 
 type WaitOption func(*WaitOptions)
@@ -38,6 +39,12 @@ func WithAllowInfinite(allow bool) WaitOption {
 func WithJustCreated() WaitOption {
 	return func(opts *WaitOptions) {
 		opts.justCreated = true
+	}
+}
+
+func WithVersion(version string) WaitOption {
+	return func(opts *WaitOptions) {
+		opts.version = version
 	}
 }
 
@@ -241,7 +248,14 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		lm.logStatusWaiting(ctx, desiredState)
 	}
 	for {
-		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
+		waitOptions := []flaps.WaitOption{
+			flaps.WithWaitStates(desiredState),
+			flaps.WithWaitTimeout(timeout),
+		}
+		if options.version != "" {
+			waitOptions = append(waitOptions, flaps.WithWaitVersion(options.version))
+		}
+		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, waitOptions...)
 		notFoundResponse := false
 		if err != nil {
 			var flapsErr *flaps.FlapsError
