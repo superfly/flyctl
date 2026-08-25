@@ -133,7 +133,7 @@ type machineDeployment struct {
 	// machineSet is this application's machines.
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
-	volumes               map[string][]fly.Volume
+	availableVolumeCounts map[string]map[string]int
 	strategy              string
 	releaseId             string
 	releaseVersion        int
@@ -542,27 +542,37 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	}
 
 	unattached := lo.Filter(volumes, func(v fly.Volume, _ int) bool {
-		return v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
+		return v.State == "created" && v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
 	})
 
-	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
-		return v.Name
-	})
+	md.availableVolumeCounts = lo.MapValues(
+		lo.GroupBy(unattached, func(v fly.Volume) string {
+			return v.Name
+		}),
+		func(volumes []fly.Volume, _ string) map[string]int {
+			return lo.CountValuesBy(volumes, func(v fly.Volume) string {
+				return v.Region
+			})
+		},
+	)
 
 	return nil
 }
 
-func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
-	volumes := md.volumes[name]
-	for idx, v := range volumes {
-		if region == "" || region == v.Region {
-			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
+func cloneAvailableVolumeCounts(counts map[string]map[string]int) map[string]map[string]int {
+	return lo.MapValues(counts, func(regions map[string]int, _ string) map[string]int {
+		return maps.Clone(regions)
+	})
+}
 
-			return &v
-		}
+func reserveAvailableVolumes(counts map[string]map[string]int, name, region string, requested int) int {
+	available := counts[name][region]
+	reserved := min(available, requested)
+	if reserved > 0 {
+		counts[name][region] -= reserved
 	}
 
-	return nil
+	return requested - reserved
 }
 
 func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
@@ -573,11 +583,25 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 		func(m *fly.Machine) string {
 			return m.ProcessGroup()
 		})
+	rolloutVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
+	type canaryVolumeRequirement struct {
+		group  string
+		name   string
+		region string
+	}
+	var canaryRequirements []canaryVolumeRequirement
 
 	for _, groupName := range md.ProcessNames() {
 		groupConfig, err := md.appConfig.Flatten(groupName)
 		if err != nil {
 			return err
+		}
+		if md.strategy == "canary" && !md.isFirstDeploy && len(groupConfig.Mounts) > 0 {
+			canaryRequirements = append(canaryRequirements, canaryVolumeRequirement{
+				group:  groupName,
+				name:   groupConfig.Mounts[0].Source,
+				region: md.appConfig.PrimaryRegion,
+			})
 		}
 
 		switch ms := machineGroups[groupName]; len(ms) > 0 {
@@ -630,15 +654,18 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 			}
 
 			// Compute the volume differences per region
-			for volSrc, regions := range needsVol {
-				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v fly.Volume) string { return v.Region })
+			volumeSources := lo.Keys(needsVol)
+			slices.Sort(volumeSources)
+			for _, volSrc := range volumeSources {
+				regions := needsVol[volSrc]
 				needsPerRegion := lo.CountValues(regions)
 
 				var missing []string
-				for rn, rc := range needsPerRegion {
-					diff := rc - currentPerRegion[rn]
-					if diff > 0 {
-						missing = append(missing, fmt.Sprintf("%s=%d", rn, diff))
+				regionNames := lo.Keys(needsPerRegion)
+				slices.Sort(regionNames)
+				for _, rn := range regionNames {
+					if count := reserveAvailableVolumes(rolloutVolumes, volSrc, rn, needsPerRegion[rn]); count > 0 {
+						missing = append(missing, fmt.Sprintf("%s=%d", rn, count))
 					}
 				}
 				if len(missing) > 0 {
@@ -654,12 +681,25 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 		case false:
 			// Check if there are unattached volumes for new groups with mounts
 			for _, m := range groupConfig.Mounts {
-				if vs := md.volumes[m.Source]; len(vs) == 0 {
+				region := md.appConfig.PrimaryRegion
+				if reserveAvailableVolumes(rolloutVolumes, m.Source, region, 1) > 0 {
 					return fmt.Errorf(
-						"creating a new machine in group '%s' requires an unattached '%s' volume. Create it with `fly volume create %s`",
-						groupName, m.Source, m.Source)
+						"creating a new machine in group '%s' requires an unattached '%s' volume in region '%s'. Create it with `fly volume create %s --region %s`",
+						groupName, m.Source, region, m.Source, region)
 				}
 			}
+		}
+	}
+
+	// Canary machines for different process groups launch concurrently. Validate
+	// them against a fresh pool because their volumes can be reused by the rollout
+	// after the canary phase has completed and the canaries have been destroyed.
+	canaryVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
+	for _, requirement := range canaryRequirements {
+		if reserveAvailableVolumes(canaryVolumes, requirement.name, requirement.region, 1) > 0 {
+			return fmt.Errorf(
+				"creating a canary machine in group '%s' requires an unattached '%s' volume in region '%s'. Create it with `fly volume create %s --region %s`",
+				requirement.group, requirement.name, requirement.region, requirement.name, requirement.region)
 		}
 	}
 

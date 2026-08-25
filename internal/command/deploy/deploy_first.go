@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/docker/go-units"
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -129,10 +128,9 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		return nil
 	}
 
-	// md.setVolumes already queried for existent unattached volumes, do not create more
-	existentVolumes := lo.MapValues(md.volumes, func(vs []fly.Volume, _ string) int {
-		return len(vs)
-	})
+	// md.setVolumes already counted existent unattached volumes. Reserve those
+	// by name and region before creating anything missing.
+	existentVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
 
 	// The logic here is to provision one volume per process group that needs it only on the primary region
 	for _, groupName := range md.appConfig.ProcessNames() {
@@ -151,9 +149,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		}
 
 		for _, m := range groupConfig.Mounts {
-			if v := existentVolumes[m.Source]; v > 0 {
-				existentVolumes[m.Source]--
-
+			if reserveAvailableVolumes(existentVolumes, m.Source, groupConfig.PrimaryRegion, 1) == 0 {
 				continue
 			}
 
@@ -188,12 +184,18 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				AutoBackupEnabled:   m.ScheduledSnapshots,
 			}
 
-			vol, err := md.flapsClient.CreateVolume(ctx, md.app.Name, input)
+			_, err = md.flapsClient.CreateVolume(ctx, md.app.Name, input)
 			if err != nil {
 				return err
 			}
 
-			md.volumes[m.Source] = append(md.volumes[m.Source], *vol)
+			if md.availableVolumeCounts == nil {
+				md.availableVolumeCounts = make(map[string]map[string]int)
+			}
+			if md.availableVolumeCounts[m.Source] == nil {
+				md.availableVolumeCounts[m.Source] = make(map[string]int)
+			}
+			md.availableVolumeCounts[m.Source][input.Region]++
 		}
 	}
 
