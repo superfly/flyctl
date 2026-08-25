@@ -34,11 +34,18 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 
 type volumeListFlapsClient struct {
 	flapsutil.FlapsClient
-	volumes []fly.Volume
+	volumes        []fly.Volume
+	createRequests []fly.CreateVolumeRequest
 }
 
 func (c *volumeListFlapsClient) GetVolumes(context.Context, string) ([]fly.Volume, error) {
 	return c.volumes, nil
+}
+
+func (c *volumeListFlapsClient) CreateVolume(_ context.Context, _ string, request fly.CreateVolumeRequest) (*fly.Volume, error) {
+	c.createRequests = append(c.createRequests, request)
+
+	return &fly.Volume{Name: request.Name, Region: request.Region, State: "created", HostStatus: "ok"}, nil
 }
 
 func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
@@ -467,6 +474,62 @@ func TestValidateVolumeConfigNewGroupRequiresVolumeInPrimaryRegion(t *testing.T)
 	require.NoError(t, md.validateVolumeConfig(context.Background()))
 }
 
+func TestValidateVolumeConfigReservesSharedVolumesAcrossNewGroups(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes: map[string]string{
+			"alpha": "/bin/alpha",
+			"beta":  "/bin/beta",
+		},
+		Mounts: []appconfig.Mount{{
+			Source:      "shared_data",
+			Destination: "/data",
+			Processes:   []string{"alpha", "beta"},
+		}},
+	})
+	require.NoError(t, err)
+	md.availableVolumeCounts = map[string]map[string]int{"shared_data": {"qmx": 1}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "group 'beta' requires an unattached 'shared_data' volume")
+
+	md.availableVolumeCounts["shared_data"]["qmx"] = 2
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
+func TestValidateVolumeConfigReservesSharedVolumesAcrossExistingAndNewGroups(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes: map[string]string{
+			"alpha": "/bin/alpha",
+			"beta":  "/bin/beta",
+		},
+		Mounts: []appconfig.Mount{{
+			Source:      "shared_data",
+			Destination: "/data",
+			Processes:   []string{"alpha", "beta"},
+		}},
+	})
+	require.NoError(t, err)
+	ios, _, _, _ := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.machineSet = machine.NewMachineSet(nil, ios, "", []*fly.Machine{{
+		ID:     "machine-alpha",
+		Region: "qmx",
+		Config: &fly.MachineConfig{
+			Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "alpha"},
+		},
+	}}, true)
+	md.availableVolumeCounts = map[string]map[string]int{"shared_data": {"qmx": 1}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "group 'beta' requires an unattached 'shared_data' volume")
+
+	md.availableVolumeCounts["shared_data"]["qmx"] = 2
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
 func TestSetVolumesOnlyCountsResolvableVolumes(t *testing.T) {
 	attachedMachine := "machine-id"
 	attachedAllocation := "allocation-id"
@@ -483,6 +546,35 @@ func TestSetVolumesOnlyCountsResolvableVolumes(t *testing.T) {
 
 	require.NoError(t, md.setVolumes(context.Background()))
 	require.Equal(t, map[string]map[string]int{"data": {"qmx": 1, "syd": 1}}, md.availableVolumeCounts)
+}
+
+func TestProvisionVolumesOnFirstDeployReservesByNameAndRegion(t *testing.T) {
+	client := &volumeListFlapsClient{}
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes: map[string]string{
+			"alpha": "/bin/alpha",
+			"beta":  "/bin/beta",
+		},
+		Mounts: []appconfig.Mount{{
+			Source:      "shared_data",
+			Destination: "/data",
+			Processes:   []string{"alpha", "beta"},
+		}},
+	})
+	require.NoError(t, err)
+	ios, _, _, _ := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.flapsClient = client
+	md.isFirstDeploy = true
+	md.availableVolumeCounts = map[string]map[string]int{"shared_data": {"qmx": 1, "syd": 1}}
+
+	require.NoError(t, md.provisionVolumesOnFirstDeploy(context.Background()))
+	require.Len(t, client.createRequests, 1)
+	require.Equal(t, "shared_data", client.createRequests[0].Name)
+	require.Equal(t, "qmx", client.createRequests[0].Region)
+	require.Equal(t, 2, md.availableVolumeCounts["shared_data"]["qmx"])
 }
 
 func TestValidateVolumeConfigReplacementChecksCountByRegion(t *testing.T) {
