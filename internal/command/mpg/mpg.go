@@ -17,13 +17,23 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/iostreams"
 )
+
+const dashboardURL = "https://fly.io/dashboard"
+
+// v2MigrationNotice is the plain-text migration notice for `fly mpg` help
+// output; printV2MigrationNotice renders the styled equivalent. Migration is
+// dashboard-driven and gated by server-side eligibility, so both point at the
+// dashboard rather than a CLI command and don't promise every cluster can
+// migrate yet.
+const v2MigrationNotice = "Managed Postgres v2 is here! Migrate eligible MPG v1 clusters to v2 from your cluster's page in the Fly.io dashboard (" + dashboardURL + ") — connection strings stay the same.\n"
 
 func New() *cobra.Command {
 	const (
 		short = `Manage Managed Postgres clusters.`
 
-		long = short + "\n"
+		long = short + "\n\n" + v2MigrationNotice
 	)
 
 	cmd := command.New("mpg", short, long, nil)
@@ -48,6 +58,44 @@ func New() *cobra.Command {
 	)
 
 	return cmd
+}
+
+// printV2MigrationNotice announces v1 -> v2 migrations for commands that don't
+// act on a single cluster; cluster-scoped commands print printV1MigrationLink
+// once the resolved cluster is known to be v1.
+func printV2MigrationNotice(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	dashboard := colorize.Cyan(io.CreateLink("the Fly.io dashboard", dashboardURL))
+
+	fmt.Fprintf(io.ErrOut, "\n%s\nMigrate eligible MPG v1 clusters to v2 from your cluster's page in %s — connection strings stay the same.\n\n",
+		colorize.Yellow("Managed Postgres v2 is here!"),
+		dashboard,
+	)
+}
+
+// printV1MigrationLink links directly to the dashboard page that migrates the
+// given cluster to MPG v2. The page is per-cluster, so this can only run after
+// a command has resolved which cluster it is acting on.
+func printV1MigrationLink(ctx context.Context, cluster *mpg.Cluster, orgSlug string) {
+	if cluster == nil || cluster.Version != mpg.VersionV1 {
+		return
+	}
+
+	if cluster.Organization.Slug != "" {
+		orgSlug = cluster.Organization.Slug
+	}
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	url := fmt.Sprintf("%s/%s/managed_postgres/%s/v2-migration", dashboardURL, orgSlug, cluster.Id)
+
+	fmt.Fprintf(io.ErrOut, "%s\n%s\n\n",
+		colorize.Yellow(fmt.Sprintf("Cluster %q is on MPG v1 — migrate it to v2 at:", cluster.Name)),
+		colorize.Cyan(io.CreateLinkURL(url)),
+	)
 }
 
 // ClusterFromArgOrSelect retrieves the cluster if the cluster ID is passed in
@@ -94,6 +142,8 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 				Version:       version,
 			}
 
+			printV1MigrationLink(ctx, cluster, cluster.Organization.Slug)
+
 			return cluster, cluster.Organization.Slug, nil
 		}
 
@@ -130,6 +180,8 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 	if err := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...); err != nil {
 		return nil, orgSlug, err
 	}
+
+	printV1MigrationLink(ctx, clusters[index], orgSlug)
 
 	return clusters[index], orgSlug, nil
 }
