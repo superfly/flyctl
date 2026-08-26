@@ -17,13 +17,19 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/iostreams"
 )
+
+const dashboardURL = "https://fly.io/dashboard"
+
+// Plain-text notice for help output; printV2MigrationNotice renders the styled version.
+const v2MigrationNotice = "Managed Postgres v2 is here! Migrate eligible MPG v1 clusters to v2 from your cluster's page in the Fly.io dashboard (" + dashboardURL + ") — connection strings stay the same.\n"
 
 func New() *cobra.Command {
 	const (
 		short = `Manage Managed Postgres clusters.`
 
-		long = short + "\n"
+		long = short + "\n\n" + v2MigrationNotice
 	)
 
 	cmd := command.New("mpg", short, long, nil)
@@ -48,6 +54,44 @@ func New() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func printV2MigrationNotice(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	dashboard := colorize.Cyan(io.CreateLink("the Fly.io dashboard", dashboardURL))
+
+	fmt.Fprintf(io.ErrOut, "\n%s\nMigrate eligible MPG v1 clusters to v2 from your cluster's page in %s — connection strings stay the same.\n\n",
+		colorize.Yellow("Managed Postgres v2 is here!"),
+		dashboard,
+	)
+}
+
+// Unknown eligibility (nil) still shows the link; only the dashboard can run
+// the full eligibility checks.
+func printV1MigrationLink(ctx context.Context, cluster *mpg.Cluster, orgSlug string) {
+	if cluster == nil || cluster.Version != mpg.VersionV1 {
+		return
+	}
+
+	if cluster.EligibleForV2Migration != nil && !*cluster.EligibleForV2Migration {
+		return
+	}
+
+	if cluster.Organization.Slug != "" {
+		orgSlug = cluster.Organization.Slug
+	}
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	url := fmt.Sprintf("%s/%s/managed_postgres/%s/v2-migration", dashboardURL, orgSlug, cluster.Id)
+
+	fmt.Fprintf(io.ErrOut, "%s\n%s\n\n",
+		colorize.Yellow(fmt.Sprintf("Cluster %q is on MPG v1 — migrate it to v2 at:", cluster.Name)),
+		colorize.Cyan(io.CreateLinkURL(url)),
+	)
 }
 
 // ClusterFromArgOrSelect retrieves the cluster if the cluster ID is passed in
@@ -81,18 +125,21 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 			}
 
 			cluster := &mpg.Cluster{
-				Id:            c.Data.Id,
-				Name:          c.Data.Name,
-				Region:        c.Data.Region,
-				Status:        c.Data.Status,
-				Plan:          c.Data.Plan,
-				Disk:          c.Data.Disk,
-				Replicas:      c.Data.Replicas,
-				Organization:  c.Data.Organization,
-				IpAssignments: c.Data.IpAssignments,
-				AttachedApps:  c.Data.AttachedApps,
-				Version:       version,
+				Id:                     c.Data.Id,
+				Name:                   c.Data.Name,
+				Region:                 c.Data.Region,
+				Status:                 c.Data.Status,
+				Plan:                   c.Data.Plan,
+				Disk:                   c.Data.Disk,
+				Replicas:               c.Data.Replicas,
+				Organization:           c.Data.Organization,
+				IpAssignments:          c.Data.IpAssignments,
+				AttachedApps:           c.Data.AttachedApps,
+				Version:                version,
+				EligibleForV2Migration: c.Data.EligibleForV2Migration,
 			}
+
+			printV1MigrationLink(ctx, cluster, cluster.Organization.Slug)
 
 			return cluster, cluster.Organization.Slug, nil
 		}
@@ -130,6 +177,8 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 	if err := prompt.Select(ctx, &index, "Select a Postgres cluster", "", options...); err != nil {
 		return nil, orgSlug, err
 	}
+
+	printV1MigrationLink(ctx, clusters[index], orgSlug)
 
 	return clusters[index], orgSlug, nil
 }
@@ -201,17 +250,18 @@ func clusterFromLegacyAPI(cluster mpgv1.ManagedCluster) *mpg.Cluster {
 	}
 
 	return &mpg.Cluster{
-		Id:            cluster.Id,
-		Name:          cluster.Name,
-		Region:        cluster.Region,
-		Status:        cluster.Status,
-		Plan:          cluster.Plan,
-		Disk:          cluster.Disk,
-		Replicas:      cluster.Replicas,
-		Organization:  cluster.Organization,
-		IpAssignments: cluster.IpAssignments,
-		AttachedApps:  cluster.AttachedApps,
-		Version:       version,
+		Id:                     cluster.Id,
+		Name:                   cluster.Name,
+		Region:                 cluster.Region,
+		Status:                 cluster.Status,
+		Plan:                   cluster.Plan,
+		Disk:                   cluster.Disk,
+		Replicas:               cluster.Replicas,
+		Organization:           cluster.Organization,
+		IpAssignments:          cluster.IpAssignments,
+		AttachedApps:           cluster.AttachedApps,
+		Version:                version,
+		EligibleForV2Migration: cluster.EligibleForV2Migration,
 	}
 }
 
