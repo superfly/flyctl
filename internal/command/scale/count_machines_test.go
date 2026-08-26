@@ -68,10 +68,22 @@ func TestLaunchMachineVolumeSelection(t *testing.T) {
 		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
 	})
 
-	t.Run("newly created volume is selected by ID", func(t *testing.T) {
+	t.Run("newly created volume joins the named pool", func(t *testing.T) {
 		client := &launchMachineFlapsClient{createdVolume: &fly.Volume{ID: "vol_created"}}
 		action := newAction()
 		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.NoError(t, err)
+		require.Len(t, client.createRequests, 1)
+		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+
+	t.Run("with-new-volumes selects the newly created volume by ID", func(t *testing.T) {
+		client := &launchMachineFlapsClient{createdVolume: &fly.Volume{ID: "vol_created"}}
+		action := newAction()
+		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+		action.WithNewVolumes = true
 
 		_, err := launchMachine(newContext(client), "app", action, 0)
 		require.NoError(t, err)
@@ -142,6 +154,7 @@ func TestNewDefaultsOnlyCountsReusableVolumes(t *testing.T) {
 
 	createOnly := newDefaults(&appconfig.Config{}, fly.Release{}, nil, volumes, "", true, nil)
 	require.Nil(t, createOnly.availableVolumeCounts)
+	require.True(t, createOnly.withNewVolumes)
 }
 
 func Test_convergeGroupCounts(t *testing.T) {

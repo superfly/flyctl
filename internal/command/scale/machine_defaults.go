@@ -19,6 +19,7 @@ type defaultValues struct {
 	releaseVersion        string
 	appConfig             *appconfig.Config
 	availableVolumeCounts map[string]map[string]int
+	withNewVolumes        bool
 	snapshotID            *string
 }
 
@@ -54,6 +55,7 @@ func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fl
 		releaseId:      latest.ID,
 		releaseVersion: strconv.Itoa(latest.Version),
 		appConfig:      appConfig,
+		withNewVolumes: withNewVolumes,
 	}
 
 	if snapshotID != "" {
