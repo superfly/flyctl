@@ -29,6 +29,8 @@ type commandStats struct {
 	Failed          bool    `json:"f"`
 	Operator        string  `json:"op,omitempty"`
 	AgentName       string  `json:"ag,omitempty"`
+	AppID           string  `json:"app_id,omitempty"`
+	OrgID           string  `json:"org_id,omitempty"`
 }
 
 func RecordCommandContext(ctx context.Context) {
@@ -65,6 +67,8 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			Failed:          failed,
 			Operator:        operator,
 			AgentName:       agentName,
+			AppID:           AppIDFromContext(commandContext),
+			OrgID:           OrgIDFromContext(commandContext),
 		})
 	}
 }
