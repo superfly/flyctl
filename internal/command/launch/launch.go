@@ -472,6 +472,9 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		return nil, err
 	}
 
+	state.appID = fmt.Sprint(app.InternalNumericID)
+	state.orgID = fmt.Sprint(app.Organization.InternalNumericID)
+
 	return &fly.App{
 		ID:     app.ID,
 		Name:   app.Name,

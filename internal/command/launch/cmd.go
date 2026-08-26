@@ -592,6 +592,8 @@ func run(ctx context.Context) (err error) {
 	}
 
 	err = state.Launch(ctx)
+	status.AppID = state.appID
+	status.OrgID = state.orgID
 	if err != nil {
 		return err
 	}
