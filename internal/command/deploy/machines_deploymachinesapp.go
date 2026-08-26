@@ -215,10 +215,20 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	}
 
 	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, machine.WithJustCreated()); err != nil {
+		waitOpts := []machine.WaitOption{machine.WithJustCreated()}
+		if e.previousInstanceID != "" {
+			waitOpts = append(waitOpts, machine.WithVersion(lm.Machine().InstanceID))
+		}
+		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, waitOpts...); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 
 			return err
+		}
+
+		if e.previousInstanceID != "" {
+			if _, err := machine.VerifyUpdateApplied(ctx, md.app.Name, lm.Machine().ID, lm.Machine().InstanceID, e.previousInstanceID); err != nil {
+				return err
+			}
 		}
 
 		if err := md.runTestMachines(ctx, e.leasableMachine.Machine(), sl); err != nil {
@@ -513,8 +523,9 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 }
 
 type machineUpdateEntry struct {
-	leasableMachine machine.LeasableMachine
-	launchInput     *fly.LaunchMachineInput
+	leasableMachine    machine.LeasableMachine
+	launchInput        *fly.LaunchMachineInput
+	previousInstanceID string
 }
 
 type machineUpdateEntries []*machineUpdateEntry
@@ -1070,6 +1081,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
+	e.previousInstanceID = lm.Machine().InstanceID
 
 	return lm.Update(ctx, *e.launchInput)
 }
