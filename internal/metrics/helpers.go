@@ -196,6 +196,7 @@ func AppIDFromContext(ctx context.Context) string {
 	if v, ok := ctx.Value(appIDKey{}).(string); ok {
 		return v
 	}
+
 	return ""
 }
 
@@ -210,6 +211,7 @@ func OrgIDFromContext(ctx context.Context) string {
 	if v, ok := ctx.Value(orgIDKey{}).(string); ok {
 		return v
 	}
+
 	return ""
 }
 
