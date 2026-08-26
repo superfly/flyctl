@@ -22,11 +22,7 @@ import (
 
 const dashboardURL = "https://fly.io/dashboard"
 
-// v2MigrationNotice is the plain-text migration notice for `fly mpg` help
-// output; printV2MigrationNotice renders the styled equivalent. Migration is
-// dashboard-driven and gated by server-side eligibility, so both point at the
-// dashboard rather than a CLI command and don't promise every cluster can
-// migrate yet.
+// Plain-text notice for help output; printV2MigrationNotice renders the styled version.
 const v2MigrationNotice = "Managed Postgres v2 is here! Migrate eligible MPG v1 clusters to v2 from your cluster's page in the Fly.io dashboard (" + dashboardURL + ") — connection strings stay the same.\n"
 
 func New() *cobra.Command {
@@ -60,9 +56,6 @@ func New() *cobra.Command {
 	return cmd
 }
 
-// printV2MigrationNotice announces v1 -> v2 migrations for commands that don't
-// act on a single cluster; cluster-scoped commands print printV1MigrationLink
-// once the resolved cluster is known to be v1.
 func printV2MigrationNotice(ctx context.Context) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
@@ -75,11 +68,14 @@ func printV2MigrationNotice(ctx context.Context) {
 	)
 }
 
-// printV1MigrationLink links directly to the dashboard page that migrates the
-// given cluster to MPG v2. The page is per-cluster, so this can only run after
-// a command has resolved which cluster it is acting on.
+// Unknown eligibility (nil) still shows the link; only the dashboard can run
+// the full eligibility checks.
 func printV1MigrationLink(ctx context.Context, cluster *mpg.Cluster, orgSlug string) {
 	if cluster == nil || cluster.Version != mpg.VersionV1 {
+		return
+	}
+
+	if cluster.EligibleForV2Migration != nil && !*cluster.EligibleForV2Migration {
 		return
 	}
 
@@ -129,17 +125,18 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 			}
 
 			cluster := &mpg.Cluster{
-				Id:            c.Data.Id,
-				Name:          c.Data.Name,
-				Region:        c.Data.Region,
-				Status:        c.Data.Status,
-				Plan:          c.Data.Plan,
-				Disk:          c.Data.Disk,
-				Replicas:      c.Data.Replicas,
-				Organization:  c.Data.Organization,
-				IpAssignments: c.Data.IpAssignments,
-				AttachedApps:  c.Data.AttachedApps,
-				Version:       version,
+				Id:                     c.Data.Id,
+				Name:                   c.Data.Name,
+				Region:                 c.Data.Region,
+				Status:                 c.Data.Status,
+				Plan:                   c.Data.Plan,
+				Disk:                   c.Data.Disk,
+				Replicas:               c.Data.Replicas,
+				Organization:           c.Data.Organization,
+				IpAssignments:          c.Data.IpAssignments,
+				AttachedApps:           c.Data.AttachedApps,
+				Version:                version,
+				EligibleForV2Migration: c.Data.EligibleForV2Migration,
 			}
 
 			printV1MigrationLink(ctx, cluster, cluster.Organization.Slug)
@@ -253,17 +250,18 @@ func clusterFromLegacyAPI(cluster mpgv1.ManagedCluster) *mpg.Cluster {
 	}
 
 	return &mpg.Cluster{
-		Id:            cluster.Id,
-		Name:          cluster.Name,
-		Region:        cluster.Region,
-		Status:        cluster.Status,
-		Plan:          cluster.Plan,
-		Disk:          cluster.Disk,
-		Replicas:      cluster.Replicas,
-		Organization:  cluster.Organization,
-		IpAssignments: cluster.IpAssignments,
-		AttachedApps:  cluster.AttachedApps,
-		Version:       version,
+		Id:                     cluster.Id,
+		Name:                   cluster.Name,
+		Region:                 cluster.Region,
+		Status:                 cluster.Status,
+		Plan:                   cluster.Plan,
+		Disk:                   cluster.Disk,
+		Replicas:               cluster.Replicas,
+		Organization:           cluster.Organization,
+		IpAssignments:          cluster.IpAssignments,
+		AttachedApps:           cluster.AttachedApps,
+		Version:                version,
+		EligibleForV2Migration: cluster.EligibleForV2Migration,
 	}
 }
 

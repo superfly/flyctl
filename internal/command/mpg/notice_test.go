@@ -62,4 +62,34 @@ func TestPrintV1MigrationLink(t *testing.T) {
 
 		assert.Empty(t, stderr.String())
 	})
+
+	t.Run("ineligible v1 cluster prints nothing", func(t *testing.T) {
+		ios, _, _, stderr := iostreams.Test()
+		ctx := iostreams.NewContext(context.Background(), ios)
+		eligible := false
+
+		printV1MigrationLink(ctx, &mpg.Cluster{
+			Id:                     "abc123",
+			Name:                   "my-db",
+			Version:                mpg.VersionV1,
+			EligibleForV2Migration: &eligible,
+		}, "acme")
+
+		assert.Empty(t, stderr.String())
+	})
+
+	t.Run("eligible v1 cluster gets its migration link", func(t *testing.T) {
+		ios, _, _, stderr := iostreams.Test()
+		ctx := iostreams.NewContext(context.Background(), ios)
+		eligible := true
+
+		printV1MigrationLink(ctx, &mpg.Cluster{
+			Id:                     "abc123",
+			Name:                   "my-db",
+			Version:                mpg.VersionV1,
+			EligibleForV2Migration: &eligible,
+		}, "acme")
+
+		assert.Contains(t, stderr.String(), "https://fly.io/dashboard/acme/managed_postgres/abc123/v2-migration")
+	})
 }
