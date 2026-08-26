@@ -609,6 +609,8 @@ func deployToMachines(
 
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
+	status.AppID = fmt.Sprint(app.InternalNumericID)
+	status.OrgID = fmt.Sprint(app.Organization.InternalNumericID)
 	status.Image = img.Tag
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {

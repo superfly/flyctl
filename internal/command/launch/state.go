@@ -54,6 +54,11 @@ type launchState struct {
 	env map[string]string
 	planBuildCache
 	cache map[string]any
+
+	// appID and orgID are the internal numeric IDs of the app and org,
+	// populated once createApp succeeds, for use in metrics reporting.
+	appID string
+	orgID string
 }
 
 func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T, error) {
