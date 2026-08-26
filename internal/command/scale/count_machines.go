@@ -102,7 +102,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' of size '%s'\n",
 			action.Delta, action.GroupName, action.Region, action.MachineSize())
 
-		volumesToReuse := len(action.Volumes)
+		volumesToReuse := action.AvailableVolumeCount
 		volumesToCreate := action.VolumesDelta()
 		switch {
 		case volumesToReuse > 0 && volumesToCreate > 0:
@@ -202,11 +202,10 @@ func launchMachine(ctx context.Context, appName string, action *planItem, idx in
 	input := helpers.Clone(*action.LaunchMachineInput)
 
 	if len(input.Config.Mounts) > 0 {
-		var volume *fly.Volume
-
+		input.Config.Mounts[0].Volume = input.Config.Mounts[0].Name
 		switch {
-		case idx < len(action.Volumes):
-			volume = action.Volumes[idx]
+		case idx < action.AvailableVolumeCount:
+			// Reuse an existing volume from the fungible named pool.
 		case action.CreateVolumeRequest != nil:
 			cvr := action.CreateVolumeRequest
 			fmt.Fprintf(io.Out, "  Creating volume %s region:%s", colorize.Bold(cvr.Name), cvr.Region)
@@ -218,15 +217,16 @@ func launchMachine(ctx context.Context, appName string, action *planItem, idx in
 			}
 			fmt.Fprintln(io.Out)
 
-			var err error
-			volume, err = flapsClient.CreateVolume(ctx, appName, *cvr)
+			volume, err := flapsClient.CreateVolume(ctx, appName, *cvr)
 			if err != nil {
 				return nil, err
+			}
+			if action.WithNewVolumes {
+				input.Config.Mounts[0].Volume = volume.ID
 			}
 		default:
 			return nil, fmt.Errorf("Launching the machine requires a volume but there is no volume to attach or create")
 		}
-		input.Config.Mounts[0].Volume = volume.ID
 	}
 
 	return flapsClient.Launch(ctx, appName, input)
@@ -249,10 +249,12 @@ type planItem struct {
 	Delta              int
 	Machines           []*fly.Machine
 	LaunchMachineInput *fly.LaunchMachineInput
-	// Volumes to reuse
-	Volumes []*fly.Volume
+	// Number of existing volumes to reuse by name
+	AvailableVolumeCount int
 	// Input used to create new volumes
 	CreateVolumeRequest *fly.CreateVolumeRequest
+	// Attach newly created volumes by ID instead of treating the name as a fungible pool.
+	WithNewVolumes bool
 }
 
 func (pi *planItem) VolumesDelta() int {
@@ -260,7 +262,7 @@ func (pi *planItem) VolumesDelta() int {
 		return 0
 	}
 
-	return pi.Delta - len(pi.Volumes)
+	return pi.Delta - pi.AvailableVolumeCount
 }
 
 func (pi *planItem) MachineSize() string {
@@ -326,13 +328,14 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 		for region, delta := range regionDiffs {
 			existingMachinesInRegion := perRegionMachines[region]
 			actions = append(actions, &planItem{
-				GroupName:           groupName,
-				Region:              region,
-				Delta:               delta,
-				Machines:            existingMachinesInRegion,
-				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
-				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
-				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta, len(existingMachinesInRegion)),
+				GroupName:            groupName,
+				Region:               region,
+				Delta:                delta,
+				Machines:             existingMachinesInRegion,
+				LaunchMachineInput:   &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
+				AvailableVolumeCount: defaults.consumeAvailableVolumeCount(mConfig, region, delta),
+				CreateVolumeRequest:  defaults.CreateVolumeRequest(mConfig, region, delta, len(existingMachinesInRegion)),
+				WithNewVolumes:       defaults.withNewVolumes,
 			})
 		}
 	}
@@ -355,12 +358,13 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName:           groupName,
-				Region:              region,
-				Delta:               delta,
-				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
-				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
-				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta, 0), // No existing machines for new groups
+				GroupName:            groupName,
+				Region:               region,
+				Delta:                delta,
+				LaunchMachineInput:   &fly.LaunchMachineInput{Region: region, Config: mConfig, MinSecretsVersion: minvers},
+				AvailableVolumeCount: defaults.consumeAvailableVolumeCount(mConfig, region, delta),
+				CreateVolumeRequest:  defaults.CreateVolumeRequest(mConfig, region, delta, 0), // No existing machines for new groups
+				WithNewVolumes:       defaults.withNewVolumes,
 			})
 		}
 	}
