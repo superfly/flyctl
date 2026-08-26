@@ -397,6 +397,97 @@ func TestUpdateMachines(t *testing.T) {
 	assert.ErrorAs(t, err, &unrecoverableErr)
 }
 
+func TestUpdateMachinesRecoveryDoesNotRefreshVolumes(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+	oldMachine := &fly.Machine{
+		ID:         "machine1",
+		State:      "started",
+		HostStatus: fly.HostStatusOk,
+		Config: &fly.MachineConfig{
+			Image:  "image1",
+			Mounts: []fly.MachineMount{{Name: "data", Volume: "vol_data", Path: "/data"}},
+		},
+	}
+	newMachine := &fly.Machine{
+		ID:         "machine1",
+		State:      "started",
+		HostStatus: fly.HostStatusOk,
+		Config: &fly.MachineConfig{
+			Image:  "image2",
+			Mounts: []fly.MachineMount{{Name: "data", Volume: "vol_data", Path: "/data"}},
+		},
+	}
+
+	var updateCalls atomic.Int32
+	var getVolumesCalls atomic.Int32
+	flapsClient := &mock.FlapsClient{
+		AcquireLeaseFunc: func(context.Context, string, string, *int) (*fly.MachineLease, error) {
+			return &fly.MachineLease{Data: &fly.MachineLeaseData{Nonce: "nonce"}}, nil
+		},
+		ReleaseLeaseFunc: func(context.Context, string, string, string) error {
+			return nil
+		},
+		RefreshLeaseFunc: func(_ context.Context, _, _ string, _ *int, _ string) (*fly.MachineLease, error) {
+			return &fly.MachineLease{Status: "success", Data: &fly.MachineLeaseData{Nonce: "nonce"}}, nil
+		},
+		UpdateFunc: func(_ context.Context, _ string, input fly.LaunchMachineInput, _ string) (*fly.Machine, error) {
+			if updateCalls.Add(1) == 1 {
+				return nil, assert.AnError
+			}
+
+			return &fly.Machine{ID: input.ID, State: "started", HostStatus: fly.HostStatusOk, Config: input.Config}, nil
+		},
+		WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+			return nil
+		},
+		StartFunc: func(context.Context, string, string, string) (*fly.MachineStartResponse, error) {
+			return &fly.MachineStartResponse{}, nil
+		},
+		ListFunc: func(context.Context, string, string) ([]*fly.Machine, error) {
+			return []*fly.Machine{oldMachine}, nil
+		},
+		GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+			return newMachine, nil
+		},
+		GetProcessesFunc: func(context.Context, string, string) (fly.MachinePsResponse, error) {
+			return fly.MachinePsResponse{}, nil
+		},
+		GetVolumesFunc: func(context.Context, string) ([]fly.Volume, error) {
+			getVolumesCalls.Add(1)
+
+			return nil, assert.AnError
+		},
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	md := &machineDeployment{
+		flapsClient: flapsClient,
+		io:          iostreams.FromContext(ctx),
+		app:         &flaps.App{Name: "myapp"},
+		appConfig: &appconfig.Config{
+			AppName: "myapp",
+			Mounts:  []appconfig.Mount{{Source: "data", Destination: "/data"}},
+		},
+		waitTimeout:     10 * time.Second,
+		deployRetries:   1,
+		maxUnavailable:  1,
+		skipSmokeChecks: true,
+	}
+	oldState := &AppState{Machines: []*fly.Machine{oldMachine}}
+	newState := &AppState{Machines: []*fly.Machine{newMachine}}
+
+	err := md.updateMachinesWRecovery(ctx, oldState, oldState, newState, nil, updateMachineSettings{
+		pushForward:          true,
+		skipHealthChecks:     true,
+		skipSmokeChecks:      true,
+		skipLeaseAcquisition: false,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int32(2), updateCalls.Load())
+	assert.Zero(t, getVolumesCalls.Load(), "deploy recovery must not refresh the obsolete client-side volume inventory")
+}
+
 // TestUpdateMachinesWithNewMachine verifies that deploying with a new machine
 // (oldMachine=nil) doesn't panic when health checks need to run. This
 // reproduces the nil pointer dereference that occurred when oldMachine.ID was
