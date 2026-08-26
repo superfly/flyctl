@@ -124,17 +124,24 @@ func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
 
 	ios, _, _, _ := iostreams.Test()
 	const instanceID = "01G6R2TQGS41MBQTCA55X8ZCZW"
-	var sawStartedWait, sawMachineGet atomic.Bool
+	startedWaitObserved := make(chan struct{})
+	var sawMachineGet atomic.Bool
 	client, err := flaps.NewWithOptions(context.Background(), flaps.NewClientOpts{
 		Transport: updateOutcomeRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 			state := req.URL.Query().Get("state")
 			if state == fly.MachineStateStarted {
-				sawStartedWait.Store(true)
+				close(startedWaitObserved)
 				<-req.Context().Done()
 
 				return nil, req.Context().Err()
 			}
 			if state == fly.MachineStateStopped {
+				select {
+				case <-startedWaitObserved:
+				case <-req.Context().Done():
+					return nil, req.Context().Err()
+				}
+
 				return machineResponse(req, ""), nil
 			}
 
@@ -163,7 +170,6 @@ func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
 	line := statuslogger.Create(ctx, 1, false).Line(0)
 
 	require.NoError(t, md.waitForMachine(ctx, entry, fly.MachineStateStarted, line))
-	require.True(t, sawStartedWait.Load())
 	require.True(t, sawMachineGet.Load())
 }
 
