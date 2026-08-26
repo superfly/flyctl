@@ -23,10 +23,10 @@ import (
 const dashboardURL = "https://fly.io/dashboard"
 
 // v2MigrationNotice is the plain-text migration notice for `fly mpg` help
-// output; printV2MigrationNotice renders the styled equivalent before every
-// runnable subcommand. Migration is dashboard-driven and gated by server-side
-// eligibility, so both point at the dashboard rather than a CLI command and
-// don't promise every cluster can migrate yet.
+// output; printV2MigrationNotice renders the styled equivalent. Migration is
+// dashboard-driven and gated by server-side eligibility, so both point at the
+// dashboard rather than a CLI command and don't promise every cluster can
+// migrate yet.
 const v2MigrationNotice = "Managed Postgres v2 is here! Migrate eligible MPG v1 clusters to v2 from your cluster's page in the Fly.io dashboard (" + dashboardURL + ") — connection strings stay the same.\n"
 
 func New() *cobra.Command {
