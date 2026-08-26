@@ -69,7 +69,7 @@ func splitFlyLaunchMachines(machines []*fly.Machine) (managedMachines, detachedM
 	return managedMachines, detachedMachines
 }
 
-// TestFlyDeployBluegreen_LaunchIdempotencyMetadata is an end-to-end regression
+// TestFlyDeploy_BlueGreen_LaunchIdempotencyMetadata is an end-to-end regression
 // test for the resilience improvements to the bluegreen strategy. It exists
 // primarily to guard the two changes that prevent transient flaps failures
 // from stranding a deployment with both blue and green machines live:
@@ -88,7 +88,7 @@ func splitFlyLaunchMachines(machines []*fly.Machine) (managedMachines, detachedM
 // can't be reliably reproduced in preflight without infrastructure-level
 // fault injection, so this test asserts the observable invariants that hold
 // on any successful deploy.
-func TestFlyDeployBluegreen_LaunchIdempotencyMetadata(t *testing.T) {
+func TestFlyDeploy_BlueGreen_LaunchIdempotencyMetadata(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
