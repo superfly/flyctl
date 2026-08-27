@@ -157,6 +157,10 @@ func (m *FlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flap
 	panic("TODO")
 }
 
+func (m *FlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
 	panic("TODO")
 }
@@ -256,6 +260,10 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 }
 
 func (m *FlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
 	panic("TODO")
 }
 
