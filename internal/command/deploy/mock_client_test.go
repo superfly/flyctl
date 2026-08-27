@@ -144,6 +144,10 @@ func (m *mockFlapsClient) CreateManagedPostgresCluster(ctx context.Context, req 
 	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to create managed postgres cluster")
 }
 
+func (m *mockFlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+	return flaps.ManagedPostgresDatabase{}, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	return nil, fmt.Errorf("failed to create volume %s", req.Name)
 }
@@ -435,6 +439,10 @@ func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName strin
 }
 
 func (m *mockFlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

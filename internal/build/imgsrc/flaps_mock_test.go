@@ -177,6 +177,21 @@ func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresCluster(ctx, req any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresCluster), ctx, req)
 }
 
+// CreateManagedPostgresDatabase mocks base method.
+func (m *MockFlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateManagedPostgresDatabase", ctx, id, req)
+	ret0, _ := ret[0].(flaps.ManagedPostgresDatabase)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateManagedPostgresDatabase indicates an expected call of CreateManagedPostgresDatabase.
+func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresDatabase(ctx, id, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresDatabase", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresDatabase), ctx, id, req)
+}
+
 // CreateVolume mocks base method.
 func (m *MockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
@@ -781,6 +796,21 @@ func (m *MockFlapsClient) ListManagedPostgresClusters(ctx context.Context, req f
 func (mr *MockFlapsClientMockRecorder) ListManagedPostgresClusters(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresClusters", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresClusters), ctx, req)
+}
+
+// ListManagedPostgresDatabases mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresDatabases", ctx, id)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresDatabase)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresDatabases indicates an expected call of ListManagedPostgresDatabases.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresDatabases(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresDatabases", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresDatabases), ctx, id)
 }
 
 // ListSecretKeys mocks base method.
