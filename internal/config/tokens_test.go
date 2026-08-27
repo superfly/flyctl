@@ -352,3 +352,66 @@ func fakeThirdPartyTokens(tb testing.TB, thirdParty *tp.TP, oids ...uint64) *tok
 
 	return tokens.Parse(macaroon.ToAuthorizationHeader(toks...))
 }
+
+func TestScopedIDs(t *testing.T) {
+	t.Run("token for one org reports that org", func(t *testing.T) {
+		orgID, appID := ScopedIDs(fakeTokens(t, "", 123))
+		require.Equal(t, uint64(123), orgID)
+		require.Zero(t, appID)
+	})
+
+	t.Run("token spanning orgs reports neither", func(t *testing.T) {
+		orgID, appID := ScopedIDs(fakeTokens(t, "", 123, 456))
+		require.Zero(t, orgID)
+		require.Zero(t, appID)
+	})
+
+	t.Run("user token alone reports neither", func(t *testing.T) {
+		orgID, appID := ScopedIDs(fakeTokens(t, "fo1_user"))
+		require.Zero(t, orgID)
+		require.Zero(t, appID)
+	})
+
+	t.Run("no tokens reports neither", func(t *testing.T) {
+		orgID, appID := ScopedIDs(nil)
+		require.Zero(t, orgID)
+		require.Zero(t, appID)
+	})
+
+	t.Run("token narrowed to one app reports the app too", func(t *testing.T) {
+		orgID, appID := ScopedIDs(fakeAppScopedTokens(t, 123, 456))
+		require.Equal(t, uint64(123), orgID)
+		require.Equal(t, uint64(456), appID)
+	})
+
+	t.Run("token narrowed to several apps reports only the org", func(t *testing.T) {
+		orgID, appID := ScopedIDs(fakeAppScopedTokens(t, 123, 456, 789))
+		require.Equal(t, uint64(123), orgID)
+		require.Zero(t, appID)
+	})
+}
+
+// fakeAppScopedTokens builds tokens for a single org, narrowed to the given apps.
+func fakeAppScopedTokens(tb testing.TB, oid uint64, appIDs ...uint64) *tokens.Tokens {
+	tb.Helper()
+
+	apps := resset.ResourceSet[uint64, resset.Action]{}
+	for _, id := range appIDs {
+		apps[id] = resset.ActionAll
+	}
+
+	perm := fakePermissionToken(tb,
+		&flyio.Organization{ID: oid, Mask: resset.ActionAll},
+		&flyio.Apps{Apps: apps},
+	)
+	auth := fakeAuthToken(tb, perm)
+
+	encoded := make([][]byte, 0, 2)
+	for _, m := range []*macaroon.Macaroon{perm, auth} {
+		tok, err := m.Encode()
+		require.NoError(tb, err)
+		encoded = append(encoded, tok)
+	}
+
+	return tokens.Parse(macaroon.ToAuthorizationHeader(encoded...))
+}
