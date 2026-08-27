@@ -14,6 +14,10 @@ var (
 	processStartTime = time.Now()
 	commandContext   context.Context
 	mu               sync.Mutex
+
+	// appID and orgID are guarded by mu.
+	appID string
+	orgID string
 )
 
 var IsUsingGPU bool
@@ -31,6 +35,23 @@ type commandStats struct {
 	AgentName       string  `json:"ag,omitempty"`
 	AppID           string  `json:"app_id,omitempty"`
 	OrgID           string  `json:"org_id,omitempty"`
+}
+
+// SetAppOrgIDs records the internal numeric IDs of the app and organization the
+// running command is acting on, to be reported with its stats. Either argument
+// may be empty, so a caller that only knows one of the two can leave the other
+// alone.
+func SetAppOrgIDs(app, org string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if app != "" {
+		appID = app
+	}
+
+	if org != "" {
+		orgID = org
+	}
 }
 
 func RecordCommandContext(ctx context.Context) {
@@ -67,8 +88,8 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			Failed:          failed,
 			Operator:        operator,
 			AgentName:       agentName,
-			AppID:           AppIDFromContext(commandContext),
-			OrgID:           OrgIDFromContext(commandContext),
+			AppID:           appID,
+			OrgID:           orgID,
 		})
 	}
 }
