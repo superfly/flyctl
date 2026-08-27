@@ -46,17 +46,11 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
-	// Get the final process group and prevent empty string
-	processGroup = mConfig.ProcessGroup()
 	region := md.appConfig.PrimaryRegion
 
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
-		vol := md.popVolumeFor(mount0.Name, region)
-		if vol == nil {
-			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, region)
-		}
-		mount0.Volume = vol.ID
+		mount0.Volume = mount0.Name
 	}
 
 	if len(standbyFor) > 0 {
@@ -103,8 +97,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	}
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
-	// Get the final process group and prevent empty string
-	processGroup = mConfig.ProcessGroup()
 
 	// Update container image
 	if err = md.updateContainerImage(mConfig); err != nil {
@@ -164,11 +156,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 			// way is to destroy the current machine and launch a new one with the new volume attached
 			mount0 := &mMounts[0]
 			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mount0.Name)
-			vol := md.popVolumeFor(mount0.Name, origMachineRaw.Region)
-			if vol == nil {
-				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, origMachineRaw.Region)
-			}
-			mount0.Volume = vol.ID
+			mount0.Volume = mount0.Name
 			machineShouldBeReplaced = true
 		case mMounts[0].Path != oMounts[0].Path:
 			// The volume is the same but its mount path changed. Not a big deal.
@@ -193,11 +181,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		// and it is not possible to attach a volume to an existing machine.
 		// The volume could be in a different zone than the machine.
 		mount0 := &mMounts[0]
-		vol := md.popVolumeFor(mount0.Name, origMachineRaw.Region)
-		if vol == nil {
-			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mMounts[0].Name, origMachineRaw.Region)
-		}
-		mount0.Volume = vol.ID
+		mount0.Volume = mount0.Name
 		machineShouldBeReplaced = true
 	}
 
