@@ -182,39 +182,6 @@ func OperatorFromSignals(s clientsignals.Signals) (operator, agentName string) {
 	return s.Operator(), s.Agent
 }
 
-type appIDKey struct{}
-type orgIDKey struct{}
-
-// WithAppID returns a context carrying the given app's internal numeric ID,
-// for later retrieval by AppIDFromContext when reporting command metrics.
-func WithAppID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, appIDKey{}, id)
-}
-
-// AppIDFromContext returns the app ID stored via WithAppID, or "" if none.
-func AppIDFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(appIDKey{}).(string); ok {
-		return v
-	}
-
-	return ""
-}
-
-// WithOrgID returns a context carrying the given org's internal numeric ID,
-// for later retrieval by OrgIDFromContext when reporting command metrics.
-func WithOrgID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, orgIDKey{}, id)
-}
-
-// OrgIDFromContext returns the org ID stored via WithOrgID, or "" if none.
-func OrgIDFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(orgIDKey{}).(string); ok {
-		return v
-	}
-
-	return ""
-}
-
 type disableFlushMetricsKey struct{}
 
 // WithDisableFlushMetrics returns a context with a flag that disables

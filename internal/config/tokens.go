@@ -411,3 +411,63 @@ func defaultTokenMinter(ctx context.Context, c flyutil.Client, id string) (strin
 
 	return resp.CreateLimitedAccessToken.GetLimitedAccessToken().TokenHeader, nil
 }
+
+// ScopedIDs returns the internal numeric IDs of the organization and app that t
+// is scoped to, or zero for either one that can't be determined. It only reads
+// the caveats of the tokens we already hold, so it costs nothing and works even
+// for commands that never look an app up.
+//
+// Tokens hold one macaroon per organization the user belongs to (see
+// fetchOrgTokens), so an organization is only reported when every permission
+// macaroon agrees on the same one. In practice that means single-org tokens --
+// CI and deploy tokens, and users who belong to a single organization -- report
+// an org, and a token spanning several organizations reports none rather than
+// guessing. Apps are only reported by tokens narrowed to exactly one app.
+func ScopedIDs(t *tokens.Tokens) (orgID, appID uint64) {
+	if t == nil {
+		return 0, 0
+	}
+
+	orgIDs := map[uint64]struct{}{}
+	appIDs := map[uint64]struct{}{}
+
+	for _, tok := range t.GetMacaroonTokens() {
+		parsed, err := macaroon.Parse(tok)
+		if err != nil {
+			continue
+		}
+
+		// Discharge tokens carry no permissions, and a bundle covering several
+		// orgs can't be attributed to one, so both yield no permission macaroon
+		// to read here.
+		permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(parsed, flyio.LocationPermission)
+		if err != nil || len(permMacs) != 1 {
+			continue
+		}
+
+		if oid, err := flyio.OrganizationScope(&permMacs[0].UnsafeCaveats); err == nil {
+			orgIDs[oid] = struct{}{}
+		}
+
+		// AppScope returns nil when the token is valid for every app, so a
+		// non-empty result always names specific apps.
+		for _, aid := range flyio.AppScope(&permMacs[0].UnsafeCaveats) {
+			appIDs[aid] = struct{}{}
+		}
+	}
+
+	return onlyID(orgIDs), onlyID(appIDs)
+}
+
+// onlyID returns the single ID in ids, or zero if it holds anything else.
+func onlyID(ids map[uint64]struct{}) uint64 {
+	if len(ids) != 1 {
+		return 0
+	}
+
+	for id := range ids {
+		return id
+	}
+
+	return 0
+}

@@ -515,12 +515,33 @@ func killOldAgent(ctx context.Context) (context.Context, error) {
 
 func startMetrics(ctx context.Context) (context.Context, error) {
 	metrics.RecordCommandContext(ctx)
+	recordTokenScopedIDs(ctx)
 
 	task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
 		metrics.FlushPending()
 	})
 
 	return ctx, nil
+}
+
+// recordTokenScopedIDs attributes this command to an org, and where possible an
+// app, using only what our tokens are already scoped to. Doing it from the
+// tokens rather than by looking the app up keeps this free, and covers the many
+// commands that only ever deal in an app name. Tokens spanning several orgs
+// report nothing instead of guessing, so these are frequently empty.
+func recordTokenScopedIDs(ctx context.Context) {
+	orgID, appID := config.ScopedIDs(config.Tokens(ctx))
+
+	var orgStr, appStr string
+	if orgID != 0 {
+		orgStr = strconv.FormatUint(orgID, 10)
+	}
+
+	if appID != 0 {
+		appStr = strconv.FormatUint(appID, 10)
+	}
+
+	metrics.SetAppOrgIDs(appStr, orgStr)
 }
 
 func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
