@@ -108,7 +108,8 @@ func TestRunRestore(t *testing.T) {
 			ctx = flagctx.NewContext(ctx, flagSet)
 
 			v1RestoreCalled := false
-			v2RestoreCalled := false
+			legacyV2RestoreCalled := false
+			publicV2RestoreCalled := false
 			lookupCalled := false
 			v1Client := &mock.MpgV1Client{
 				GetManagedClusterByIdFunc: func(context.Context, string) (mpgv1.GetManagedClusterResponse, error) {
@@ -129,7 +130,7 @@ func TestRunRestore(t *testing.T) {
 			}
 			v2Client := &mock.MpgV2Client{
 				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
-					v2RestoreCalled = true
+					legacyV2RestoreCalled = true
 					assert.Equal(t, clusterID, gotClusterID)
 					assert.Equal(t, tt.backupID, input.BackupId)
 					assert.Equal(t, tt.pitrTime, input.PitrTime)
@@ -146,6 +147,14 @@ func TestRunRestore(t *testing.T) {
 
 					return flaps.ManagedPostgresCluster{ID: clusterID}, nil
 				},
+				RestoreManagedPostgresClusterFunc: func(_ context.Context, gotClusterID string, input flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+					publicV2RestoreCalled = true
+					assert.Equal(t, clusterID, gotClusterID)
+					assert.Equal(t, tt.backupID, input.BackupID)
+					assert.Equal(t, tt.pitrTime, input.PITRTime)
+
+					return flaps.ManagedPostgresCluster{}, nil
+				},
 			}
 			ctx = mpgv1.NewContextWithClient(ctx, v1Client)
 			ctx = mpgv2.NewContextWithClient(ctx, v2Client)
@@ -161,7 +170,8 @@ func TestRunRestore(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantLookup, lookupCalled)
 			assert.Equal(t, tt.wantV1Restore, v1RestoreCalled)
-			assert.Equal(t, tt.wantV2Restore, v2RestoreCalled)
+			assert.Equal(t, tt.wantV2Restore, publicV2RestoreCalled)
+			assert.False(t, legacyV2RestoreCalled)
 		})
 	}
 }
@@ -205,6 +215,11 @@ func TestRunRestoreV2Serialization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := setupTestContext()
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				RestoreManagedPostgresClusterFunc: func(context.Context, string, flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+					return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+				},
+			})
 			var capturedInput mpgv2.RestoreClusterBackupInput
 			client := &mock.MpgV2Client{
 				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
