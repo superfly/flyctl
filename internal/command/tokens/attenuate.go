@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
 )
@@ -101,12 +102,16 @@ func getTokens(ctx context.Context) ([][]byte, error) {
 }
 
 func getCaveats(ctx context.Context) (*macaroon.CaveatSet, error) {
-	f := os.Stdin
+	streams := iostreams.FromContext(ctx)
+	f := streams.In
 	if path := flag.GetString(ctx, "file"); path != "" {
 		var err error
 		if f, err = os.Open(path); err != nil {
 			return nil, fmt.Errorf("unable to open file `%s`: %w", path, err)
 		}
+		defer f.Close()
+	} else if streams.IsStdinTTY() {
+		fmt.Fprintln(streams.ErrOut, "Reading caveats from stdin; press Ctrl+D to exit.")
 	}
 
 	dec := json.NewDecoder(f)
