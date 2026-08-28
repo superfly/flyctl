@@ -21,6 +21,7 @@ type FlapsClient struct {
 	CreateACMECertificateFunc             func(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error)
 	CreateManagedPostgresClusterFunc      func(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error)
 	CreateManagedPostgresDatabaseFunc     func(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error)
+	CreateManagedPostgresBackupFunc       func(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error
 	CreateVolumeFunc                      func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc              func(ctx context.Context, appName, volumeId string) error
 	DeleteAppFunc                         func(ctx context.Context, name string) error
@@ -64,6 +65,7 @@ type FlapsClient struct {
 	ListFlyAppsMachinesFunc               func(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error)
 	ListManagedPostgresClustersFunc       func(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error)
 	ListManagedPostgresDatabasesFunc      func(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error)
+	ListManagedPostgresBackupsFunc        func(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
 	ListSecretKeysFunc                    func(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc                        func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -117,6 +119,10 @@ func (m *FlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flap
 
 func (m *FlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
 	return m.CreateManagedPostgresDatabaseFunc(ctx, id, req)
+}
+
+func (m *FlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
+	return m.CreateManagedPostgresBackupFunc(ctx, id, req)
 }
 
 func (m *FlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -293,6 +299,10 @@ func (m *FlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps
 
 func (m *FlapsClient) ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
 	return m.ListManagedPostgresDatabasesFunc(ctx, id)
+}
+
+func (m *FlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	return m.ListManagedPostgresBackupsFunc(ctx, id)
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
