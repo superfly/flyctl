@@ -291,6 +291,10 @@ func (m *FlapsClient) ReleaseLease(ctx context.Context, appName, machineID, nonc
 	panic("TODO")
 }
 
+func (m *FlapsClient) RestoreManagedPostgresCluster(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error) {
 	panic("TODO")
 }

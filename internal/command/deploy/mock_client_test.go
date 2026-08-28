@@ -498,6 +498,10 @@ func (m *mockFlapsClient) ReleaseLease(ctx context.Context, appName, machineID, 
 	return nil
 }
 
+func (m *mockFlapsClient) RestoreManagedPostgresCluster(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("not implemented")
+}
+
 func (m *mockFlapsClient) Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error) {
 	return fmt.Errorf("failed to restart %s", in.ID)
 }
