@@ -15,9 +15,10 @@ var (
 	commandContext   context.Context
 	mu               sync.Mutex
 
-	// appID and orgID are guarded by mu.
-	appID string
-	orgID string
+	// appID, orgID and appName are guarded by mu.
+	appID   string
+	orgID   string
+	appName string
 )
 
 var IsUsingGPU bool
@@ -33,6 +34,7 @@ type commandStats struct {
 	Failed          bool    `json:"f"`
 	Operator        string  `json:"op,omitempty"`
 	AgentName       string  `json:"ag,omitempty"`
+	AppName         string  `json:"app,omitempty"`
 	AppID           string  `json:"app_id,omitempty"`
 	OrgID           string  `json:"org_id,omitempty"`
 }
@@ -51,6 +53,21 @@ func SetAppOrgIDs(app, org string) {
 
 	if org != "" {
 		orgID = org
+	}
+}
+
+// SetAppName records the name of the app the running command is acting on. The
+// name comes from the --app flag, FLY_APP or fly.toml, so it costs nothing to
+// resolve and is known to every app-scoped command, including the many that
+// never look the app up. Reporting it lets an invocation be attributed to an
+// app and an organization after the fact even when our tokens span several
+// organizations and ScopedIDs declines to name one.
+func SetAppName(name string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if name != "" {
+		appName = name
 	}
 }
 
@@ -88,6 +105,7 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			Failed:          failed,
 			Operator:        operator,
 			AgentName:       agentName,
+			AppName:         appName,
 			AppID:           appID,
 			OrgID:           orgID,
 		})

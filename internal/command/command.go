@@ -802,6 +802,8 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, ErrRequireAppName
 	}
 
+	metrics.SetAppName(name)
+
 	return appconfig.WithName(ctx, name), nil
 }
 
@@ -828,6 +830,8 @@ func RequireAppNameNoFlag(ctx context.Context) (context.Context, error) {
 	if name == "" {
 		return nil, ErrRequireAppName
 	}
+
+	metrics.SetAppName(name)
 
 	return appconfig.WithName(ctx, name), nil
 }
