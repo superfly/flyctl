@@ -16,6 +16,7 @@ import (
 
 func restoreTestContext() (context.Context, *bytes.Buffer) {
 	io, _, stdout, _ := iostreams.Test()
+
 	return iostreams.NewContext(context.Background(), io), stdout
 }
 
@@ -35,6 +36,7 @@ func TestRunRestoreUsesPublicAPI(t *testing.T) {
 	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
 		RestoreClusterBackupFunc: func(context.Context, string, mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
 			legacyCalled = true
+
 			return mpgv2.RestoreClusterBackupResponse{}, nil
 		},
 	})
@@ -79,6 +81,7 @@ func TestRunRestoreDoesNotFallbackOnOtherPublicErrors(t *testing.T) {
 	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
 		RestoreClusterBackupFunc: func(context.Context, string, mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
 			legacyCalled = true
+
 			return mpgv2.RestoreClusterBackupResponse{}, nil
 		},
 	})

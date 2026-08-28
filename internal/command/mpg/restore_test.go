@@ -108,7 +108,8 @@ func TestRunRestore(t *testing.T) {
 			ctx = flagctx.NewContext(ctx, flagSet)
 
 			v1RestoreCalled := false
-			v2RestoreCalled := false
+			legacyV2RestoreCalled := false
+			publicV2RestoreCalled := false
 			lookupCalled := false
 			v1Client := &mock.MpgV1Client{
 				GetManagedClusterByIdFunc: func(context.Context, string) (mpgv1.GetManagedClusterResponse, error) {
@@ -129,7 +130,7 @@ func TestRunRestore(t *testing.T) {
 			}
 			v2Client := &mock.MpgV2Client{
 				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
-					v2RestoreCalled = true
+					legacyV2RestoreCalled = true
 					assert.Equal(t, clusterID, gotClusterID)
 					assert.Equal(t, tt.backupID, input.BackupId)
 					assert.Equal(t, tt.pitrTime, input.PitrTime)
@@ -147,7 +148,7 @@ func TestRunRestore(t *testing.T) {
 					return flaps.ManagedPostgresCluster{ID: clusterID}, nil
 				},
 				RestoreManagedPostgresClusterFunc: func(_ context.Context, gotClusterID string, input flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
-					v2RestoreCalled = true
+					publicV2RestoreCalled = true
 					assert.Equal(t, clusterID, gotClusterID)
 					assert.Equal(t, tt.backupID, input.BackupID)
 					assert.Equal(t, tt.pitrTime, input.PITRTime)
@@ -169,7 +170,8 @@ func TestRunRestore(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantLookup, lookupCalled)
 			assert.Equal(t, tt.wantV1Restore, v1RestoreCalled)
-			assert.Equal(t, tt.wantV2Restore, v2RestoreCalled)
+			assert.Equal(t, tt.wantV2Restore, publicV2RestoreCalled)
+			assert.False(t, legacyV2RestoreCalled)
 		})
 	}
 }
