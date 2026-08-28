@@ -162,6 +162,20 @@ func (mr *MockFlapsClientMockRecorder) CreateCustomCertificate(ctx, appName, req
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCustomCertificate", reflect.TypeOf((*MockFlapsClient)(nil).CreateCustomCertificate), ctx, appName, req)
 }
 
+// CreateManagedPostgresBackup mocks base method.
+func (m *MockFlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateManagedPostgresBackup", ctx, id, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateManagedPostgresBackup indicates an expected call of CreateManagedPostgresBackup.
+func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresBackup(ctx, id, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresBackup", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresBackup), ctx, id, req)
+}
+
 // CreateManagedPostgresCluster mocks base method.
 func (m *MockFlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
 	m.ctrl.T.Helper()
@@ -781,6 +795,21 @@ func (m *MockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName strin
 func (mr *MockFlapsClientMockRecorder) ListFlyAppsMachines(ctx, appName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListFlyAppsMachines", reflect.TypeOf((*MockFlapsClient)(nil).ListFlyAppsMachines), ctx, appName)
+}
+
+// ListManagedPostgresBackups mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresBackups", ctx, id)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresBackup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresBackups indicates an expected call of ListManagedPostgresBackups.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresBackups(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresBackups", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresBackups), ctx, id)
 }
 
 // ListManagedPostgresClusters mocks base method.
