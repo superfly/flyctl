@@ -70,6 +70,7 @@ type FlapsClient struct {
 	NewRequestFunc                        func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLeaseFunc                      func(ctx context.Context, appName, machineID, nonce string) error
+	RestoreManagedPostgresClusterFunc     func(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error)
 	RestartFunc                           func(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error)
 	SetMetadataFunc                       func(ctx context.Context, appName, machineID, key, value string) error
 	SetAppSecretFunc                      func(ctx context.Context, appName, name string, value string) (*fly.SetAppSecretResp, error)
@@ -319,6 +320,10 @@ func (m *FlapsClient) RefreshLease(ctx context.Context, appName, machineID strin
 
 func (m *FlapsClient) ReleaseLease(ctx context.Context, appName, machineID, nonce string) error {
 	return m.ReleaseLeaseFunc(ctx, appName, machineID, nonce)
+}
+
+func (m *FlapsClient) RestoreManagedPostgresCluster(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	return m.RestoreManagedPostgresClusterFunc(ctx, id, req)
 }
 
 func (m *FlapsClient) Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error) {

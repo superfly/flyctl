@@ -2,8 +2,11 @@ package cmdv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -18,20 +21,37 @@ func RunRestore(ctx context.Context, clusterID string, backupID string, name str
 		fmt.Fprintf(out, "Restoring cluster %s to point in time %s...\n", clusterID, pitrTime)
 	}
 
-	input := mpgv2.RestoreClusterBackupInput{
-		BackupId: backupID,
+	request := flaps.RestoreManagedPostgresClusterRequest{
+		BackupID: backupID,
 		Name:     name,
-		PitrTime: pitrTime,
+		PITRTime: pitrTime,
 	}
 
-	response, err := mpgClient.RestoreClusterBackup(ctx, clusterID, input)
+	response, err := flapsutil.ClientFromContext(ctx).RestoreManagedPostgresCluster(ctx, clusterID, request)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		publicErr := err
+		var legacyResponse mpgv2.RestoreClusterBackupResponse
+		legacyResponse, err = mpgClient.RestoreClusterBackup(ctx, clusterID, mpgv2.RestoreClusterBackupInput{
+			BackupId: backupID,
+			Name:     name,
+			PitrTime: pitrTime,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to restore cluster: %w", publicErr)
+		}
+
+		response = flaps.ManagedPostgresCluster{
+			ID:   legacyResponse.Data.Id,
+			Name: legacyResponse.Data.Name,
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to restore cluster: %w", err)
 	}
 
 	fmt.Fprintf(out, "Restore initiated successfully!\n")
-	fmt.Fprintf(out, "  Cluster ID: %s\n", response.Data.Id)
-	fmt.Fprintf(out, "  Cluster Name: %s\n", response.Data.Name)
+	fmt.Fprintf(out, "  Cluster ID: %s\n", response.ID)
+	fmt.Fprintf(out, "  Cluster Name: %s\n", response.Name)
 
 	return nil
 }

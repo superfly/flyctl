@@ -69,6 +69,7 @@ type FlapsClient interface {
 	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLease(ctx context.Context, appName, machineID, nonce string) error
+	RestoreManagedPostgresCluster(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error)
 	Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error)
 	SetAppSecret(ctx context.Context, appName, name string, value string) (*fly.SetAppSecretResp, error)
 	SetSecretKey(ctx context.Context, appName, name string, typ string, value []byte) (*fly.SetSecretKeyResp, error)
