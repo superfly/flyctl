@@ -171,7 +171,8 @@ func TestStripProdPack(t *testing.T) {
 	assert.Equal(t, true, options["eviction"], "other options untouched")
 }
 
-func TestValidateProdPackPlanChange(t *testing.T) {
+// New logic is to allow prodpack change even without a plan change, so removing this
+/*func TestValidateProdPackPlanChange(t *testing.T) {
 	tests := []struct {
 		name      string
 		decision  *bool
@@ -194,7 +195,7 @@ func TestValidateProdPackPlanChange(t *testing.T) {
 			}
 		})
 	}
-}
+}*/
 
 func TestUpdateRedisAddOnWire(t *testing.T) {
 	tests := []struct {

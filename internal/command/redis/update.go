@@ -160,7 +160,7 @@ func runUpdate(ctx context.Context) (err error) {
 				options["auto_upgrade"] = false
 			}
 		} else {
-			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade? \n   The Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your\n   bandwidth or storage limits, ensuring uninterrupted service.\n   https://fly.io/docs/upstash/redis/#auto-upgrade")
 			if err != nil {
 				return err
 			}
@@ -192,15 +192,15 @@ func runUpdate(ctx context.Context) (err error) {
 		func() (bool, error) {
 			return prompt.Confirm(ctx, "Would you like to disable ProdPack?")
 		},
+		func() (bool, error) {
+			return prompt.Confirm(ctx, "Would you like to enable ProdPack?\n   ProdPack adds enhanced features for production workloads at $200/mo.\n   This setting can be changed later.\n   For more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.")
+		},
 	)
 	if err != nil {
 		return
 	}
 
-	if err = validateProdPackPlanChange(prodPack, addOn.AddOnPlan.Id, selectedPlan.Id); err != nil {
-		return
-	}
-
+    prevProdPack := options["prod_pack"].(bool)
 	stripProdPack(options)
 
 	if prodPack == nil && !selectedPlanIsLegacy {
@@ -223,7 +223,13 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n", addOn.Name)
+	// Display the selected plan and prodPack status
+	// We assume update was successful if no error triggers
+	prodPackEnabled := prevProdPack
+	if prodPack != nil {
+		prodPackEnabled = *prodPack
+	}
+	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n   Plan: %s\n   ProdPack: %t\n", addOn.Name, selectedPlan.DisplayName, prodPackEnabled )
 
 	return
 }
@@ -235,7 +241,7 @@ func runUpdate(ctx context.Context) (err error) {
 // The stored option is intentionally never echoed back as the sent value: it
 // is only used to decide whether offering the disable prompt makes sense. A
 // non-interactive session makes no decision rather than defaulting to disable.
-func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLegacy bool, confirmDisable func() (bool, error)) (*bool, error) {
+func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLegacy bool, confirmDisable func() (bool, error), confirmEnable func() (bool, error)) (*bool, error) {
 	if enableFlag && disableFlag {
 		return nil, fmt.Errorf("--enable-prodpack and --disable-prodpack are mutually exclusive")
 	}
@@ -270,6 +276,18 @@ func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLeg
 			return nil, err
 		case disable:
 			return boolPtr(false), nil
+		}
+	}else{
+	// No stored prodpack means it is not enabled
+	// Always prompt to enable if not enabled, unless non interactive
+		enable, err := confirmEnable()
+		switch {
+		case prompt.IsNonInteractive(err):
+			return nil, nil
+		case err != nil:
+			return nil, err
+		case enable:
+			return boolPtr(true), nil
 		}
 	}
 
