@@ -15,6 +15,33 @@ type GenericErr struct {
 	DocUrl   string
 }
 
+type suggestedError struct {
+	err        error
+	suggestion string
+}
+
+func (e suggestedError) Error() string {
+	return e.err.Error()
+}
+
+func (e suggestedError) Unwrap() error {
+	return e.err
+}
+
+func (e suggestedError) Suggestion() string {
+	return e.suggestion
+}
+
+// WithSuggestion decorates err with user-facing advice while preserving its
+// wrapping chain. A nil error or empty suggestion is returned unchanged.
+func WithSuggestion(err error, suggestion string) error {
+	if err == nil || suggestion == "" {
+		return err
+	}
+
+	return suggestedError{err: err, suggestion: suggestion}
+}
+
 func (e GenericErr) Error() string {
 	return e.Err
 }

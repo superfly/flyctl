@@ -156,6 +156,17 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
+	return withVolumePlacementCapacitySuggestion(err)
+}
+
+const volumePlacementCapacitySuggestion = "There isn't enough capacity on the hosts holding the available volumes to create one or more Machines. " +
+	"Try again later, or use `fly volume create` to add a new, empty volume with the configured name in the affected region, then deploy again."
+
+func withVolumePlacementCapacitySuggestion(err error) error {
+	if flapsutil.HasErrorStatusCode(err, flapsutil.VolumePlacementCapacityStatus) {
+		return flyerr.WithSuggestion(err, volumePlacementCapacitySuggestion)
+	}
+
 	return err
 }
 
