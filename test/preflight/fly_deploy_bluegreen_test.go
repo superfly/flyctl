@@ -13,10 +13,10 @@ import (
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
-// flyctlBGLaunchIDMetadataKey mirrors the constant in
-// internal/command/deploy/strategy_bluegreen.go. It's redeclared here so this
-// integration test doesn't depend on the internal package.
-const flyctlBGLaunchIDMetadataKey = "fly_flyctl_bluegreen_launch_id"
+// flyctlLaunchIDMetadataKey mirrors machine.FlyctlLaunchIDMetadataKey from
+// internal/machine/launch.go. It's redeclared here so this integration test
+// doesn't depend on the internal package.
+const flyctlLaunchIDMetadataKey = "fly_flyctl_launch_id"
 
 func TestFlyDeployBluegreenImplicitAppProcessGroup(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
@@ -117,13 +117,13 @@ func TestFlyDeploy_BlueGreen_LaunchIdempotencyMetadata(t *testing.T) {
 	require.NotEmpty(t, firstLaunchIDs,
 		"every machine created by a bluegreen deploy must carry a %q metadata tag; "+
 			"without it the client-side retry loop can't dedupe silent-success 408s",
-		flyctlBGLaunchIDMetadataKey)
+		flyctlLaunchIDMetadataKey)
 
 	for _, m := range f.MachinesList(appName) {
 		assert.Equal(t, fly.MachineStateStarted, m.State,
 			"machine %s must be started after a successful bluegreen deploy, got %q",
 			m.ID, m.State)
-		assert.NotEmpty(t, m.Config.Metadata[flyctlBGLaunchIDMetadataKey],
+		assert.NotEmpty(t, m.Config.Metadata[flyctlLaunchIDMetadataKey],
 			"machine %s should carry the launch-id metadata tag", m.ID)
 	}
 
@@ -162,7 +162,7 @@ func TestFlyDeploy_BlueGreen_LaunchIdempotencyMetadata(t *testing.T) {
 // collectLaunchIDs returns the set of unique launch-id metadata values found
 // on the app's machines. An empty result signals the bluegreen strategy is
 // no longer stamping the tag — which would break the idempotency retry loop
-// in launchGreenMachineWithRetry.
+// in machine.LaunchWithIdempotency.
 func collectLaunchIDs(t *testing.T, f *testlib.FlyctlTestEnv, appName string) map[string]struct{} {
 	t.Helper()
 
@@ -171,7 +171,7 @@ func collectLaunchIDs(t *testing.T, f *testlib.FlyctlTestEnv, appName string) ma
 		if m.Config == nil {
 			continue
 		}
-		if id := m.Config.Metadata[flyctlBGLaunchIDMetadataKey]; id != "" {
+		if id := m.Config.Metadata[flyctlLaunchIDMetadataKey]; id != "" {
 			ids[id] = struct{}{}
 		}
 	}

@@ -16,7 +16,6 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/go-multierror"
-	"github.com/oklog/ulid/v2"
 	"github.com/sourcegraph/conc/pool"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -50,15 +49,6 @@ var (
 	ErrMultipleImageVersions = errors.New("found multiple image versions")
 
 	safeToDestroyValue = "safe_to_destroy"
-
-	// flyctlBGLaunchIDMetadataKey is a per-launch idempotency tag that flyctl
-	// writes into the machine config's metadata before calling flaps.Launch.
-	// Each intended green machine gets a unique value. When Launch fails with
-	// an ambiguous transient error (like a 408 propagated from flyd via flaps),
-	// the retry loop looks the machine up by this key to detect a silent
-	// success and avoid creating a duplicate machine. The key is intentionally
-	// namespaced under "fly_flyctl_" so it can coexist with any user metadata.
-	flyctlBGLaunchIDMetadataKey = "fly_flyctl_bluegreen_launch_id"
 )
 
 type RollbackLog struct {
@@ -112,10 +102,10 @@ type blueGreen struct {
 	// launchRetryAttempts / launchRetryDelay control the back-off used when
 	// CreateGreenMachines retries a Launch that failed with a transient error.
 	// Retries are safe because each launch input carries a unique per-machine
-	// idempotency tag (flyctlBGLaunchIDMetadataKey) that lets the retry loop
-	// detect a "silent success" (a Launch that hit an ambiguous 408/5xx but
-	// still committed the machine on the flyd side) by listing machines with
-	// that tag before creating a new one.
+	// idempotency tag (machine.FlyctlLaunchIDMetadataKey) that lets the retry
+	// loop detect a "silent success" (a Launch that hit an ambiguous 408/5xx
+	// but still committed the machine on the flyd side) by listing machines
+	// with that tag before creating a new one.
 	launchRetryAttempts uint
 	launchRetryDelay    time.Duration
 
@@ -321,15 +311,28 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 				launchInput.SkipLaunch = false
 			}
 			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
-			// A per-machine ULID lets us safely retry Launch on ambiguous
-			// transient errors (e.g. 408 from flaps): the retry loop first
-			// looks up any machine flaps has already committed with this key
-			// before attempting another Launch, so a "silent success" doesn't
-			// turn into a duplicate green machine.
-			launchID := ulid.Make().String()
-			launchInput.Config.Metadata[flyctlBGLaunchIDMetadataKey] = launchID
 
-			newMachineRaw, err := bg.launchGreenMachineWithRetry(ctx, launchInput, launchID)
+			// machine.LaunchWithIdempotency stamps a per-machine ULID into the
+			// launch input's metadata so a transient 408 that silently
+			// committed the machine gets deduplicated on retry — no duplicate
+			// green machines.
+			newMachineRaw, err := machine.LaunchWithIdempotency(
+				ctx, bg.flaps, bg.app.Name, launchInput,
+				machine.LaunchIdempotencyOpts{
+					RetryAttempts: bg.launchRetryAttempts,
+					RetryDelay:    bg.launchRetryDelay,
+					LookupDelay:   bg.launchLookupDelay,
+					OnRetry: func(attempt, total uint, err error) {
+						fmt.Fprintf(bg.io.ErrOut, "  Retrying green machine launch (attempt %d/%d): %v\n",
+							attempt, total, err)
+					},
+					OnSilentSuccess: func(m *fly.Machine) {
+						fmt.Fprintf(bg.io.ErrOut,
+							"  Launch reported an error but machine %s was already created (idempotency tag matched); reusing it\n",
+							bg.colorize.Bold(m.ID))
+					},
+				},
+			)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to launch machine")
 
@@ -1475,112 +1478,6 @@ func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error
 	}
 
 	return nil
-}
-
-// launchGreenMachineWithRetry launches a single green machine with client-side
-// pseudo-idempotency. flaps' create-machine endpoint doesn't accept an
-// Idempotency-Key header, so we simulate one by writing a unique ULID into
-// the machine's metadata under flyctlBGLaunchIDMetadataKey before every
-// attempt. If a Launch call fails with a transient error we don't know
-// whether the machine was actually committed on the flyd side, so before
-// retrying we list machines and look for one carrying our launch ID. If we
-// find one, we treat the failed Launch as a silent success and return that
-// machine — no duplicate is created.
-//
-// The race we can't fully close is when flaps commits the machine but the
-// list-lookup runs before that write propagates to the read side flaps'
-// list handler queries (Corrosion). launchLookupDelay gives it a brief
-// window to catch up; in the unlikely event a duplicate does slip through,
-// it will be tagged with the same bg.timestamp as the tracked one and get
-// swept by the normal blue→green cycle on the next deployment. That's a
-// strictly better outcome than aborting the deployment mid-flight.
-func (bg *blueGreen) launchGreenMachineWithRetry(ctx context.Context, launchInput *fly.LaunchMachineInput, launchID string) (*fly.Machine, error) {
-	var lastErr error
-	attempts := bg.launchRetryAttempts
-	if attempts == 0 {
-		attempts = 1
-	}
-
-	delay := bg.launchRetryDelay
-	for attempt := uint(0); attempt < attempts; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		newMachineRaw, err := bg.flaps.Launch(ctx, bg.app.Name, *launchInput)
-		if err == nil {
-			return newMachineRaw, nil
-		}
-		lastErr = err
-
-		// A non-transient failure (400/404/etc.) isn't going to get better
-		// with another attempt.
-		if !flapsutil.IsTransientFlapsError(err) {
-			return nil, err
-		}
-
-		// This might have been a silent success. Give flaps' backing store a
-		// moment to reflect the commit, then look for a machine with our
-		// launch ID.
-		if bg.launchLookupDelay > 0 {
-			select {
-			case <-time.After(bg.launchLookupDelay):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-
-		if existing, lookupErr := bg.findGreenMachineByLaunchID(ctx, launchID); lookupErr != nil {
-			// A failed lookup shouldn't mask the original Launch error, but we
-			// still want the user to see it so they can debug if the retry
-			// also fails.
-			fmt.Fprintf(bg.io.ErrOut, "  Idempotency lookup after failed launch returned an error: %v\n", lookupErr)
-		} else if existing != nil {
-			fmt.Fprintf(bg.io.ErrOut,
-				"  Launch reported an error but machine %s was already created (idempotency tag matched); reusing it\n",
-				bg.colorize.Bold(existing.ID))
-
-			return existing, nil
-		}
-
-		// Not the last attempt: back off and try again.
-		if attempt+1 < attempts {
-			fmt.Fprintf(bg.io.ErrOut, "  Retrying green machine launch (attempt %d/%d): %v\n",
-				attempt+2, attempts, err)
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-			if delay < 5*time.Second {
-				delay *= 2
-			}
-		}
-	}
-
-	return nil, lastErr
-}
-
-// findGreenMachineByLaunchID scans the app's machines and returns the one
-// whose metadata carries the given launch ID, if any. It's a client-side
-// filter because flaps' List does not (yet) expose a metadata query in the
-// fly-go client interface.
-func (bg *blueGreen) findGreenMachineByLaunchID(ctx context.Context, launchID string) (*fly.Machine, error) {
-	machines, err := bg.flaps.List(ctx, bg.app.Name, "")
-	if err != nil {
-		return nil, err
-	}
-
-	for _, m := range machines {
-		if m == nil || m.Config == nil {
-			continue
-		}
-		if m.Config.Metadata[flyctlBGLaunchIDMetadataKey] == launchID {
-			return m, nil
-		}
-	}
-
-	return nil, nil
 }
 
 // This method tags blue-machines with a safe to destroy value.

@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
@@ -855,14 +856,21 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 }
 
 func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string, skipLaunch bool) (*fly.Machine, error) {
-	machine, err := md.flapsClient.Launch(ctx, md.app.Name, fly.LaunchMachineInput{
-		Config:     machConfig,
-		Region:     region,
-		SkipLaunch: skipLaunch,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return machine, nil
+	return mach.LaunchWithIdempotency(
+		ctx, md.flapsClient, md.app.Name,
+		&fly.LaunchMachineInput{
+			Config:     machConfig,
+			Region:     region,
+			SkipLaunch: skipLaunch,
+		},
+		mach.LaunchIdempotencyOpts{
+			RetryAttempts: 3,
+			RetryDelay:    500 * time.Millisecond,
+			LookupDelay:   500 * time.Millisecond,
+			OnRetry: func(attempt, total uint, err error) {
+				terminal.Debugf("retrying machine creation (attempt %d/%d): %v\n",
+					attempt, total, err)
+			},
+		},
+	)
 }

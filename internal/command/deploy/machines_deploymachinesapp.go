@@ -1075,7 +1075,18 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	// while we wait for its state and/or health checks
 	e.launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
-	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *e.launchInput)
+	newMachineRaw, err := machine.LaunchWithIdempotency(
+		ctx, md.flapsClient, md.app.Name, e.launchInput,
+		machine.LaunchIdempotencyOpts{
+			RetryAttempts: 3,
+			RetryDelay:    500 * time.Millisecond,
+			LookupDelay:   500 * time.Millisecond,
+			OnRetry: func(attempt, total uint, err error) {
+				terminal.Debugf("retrying machine replacement launch (attempt %d/%d): %v\n",
+					attempt, total, err)
+			},
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -1176,7 +1187,18 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// while we wait for its state and/or health checks
 	launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
 
-	newMachineRaw, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
+	newMachineRaw, err := machine.LaunchWithIdempotency(
+		ctx, md.flapsClient, md.app.Name, launchInput,
+		machine.LaunchIdempotencyOpts{
+			RetryAttempts: 3,
+			RetryDelay:    500 * time.Millisecond,
+			LookupDelay:   500 * time.Millisecond,
+			OnRetry: func(attempt, total uint, err error) {
+				terminal.Debugf("retrying machine scale-up launch (attempt %d/%d): %v\n",
+					attempt, total, err)
+			},
+		},
+	)
 	if err != nil {
 		relCmdWarning := ""
 		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {

@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/logs"
+	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -263,7 +264,26 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 		return err
 	}
 
-	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
+	// Release commands run before the app deploy, so a single transient
+	// failure here used to fail the entire deploy before any user code ran.
+	// LaunchWithIdempotency retries transient errors and deduplicates any
+	// silent-success 408s via a per-launch metadata tag — no duplicate
+	// release_command machines even under flaps hiccups.
+	releaseCmdMachine, err := machine.LaunchWithIdempotency(
+		ctx, md.flapsClient, md.app.Name, launchInput,
+		machine.LaunchIdempotencyOpts{
+			RetryAttempts: 3,
+			RetryDelay:    500 * time.Millisecond,
+			LookupDelay:   500 * time.Millisecond,
+			OnRetry: func(attempt, total uint, err error) {
+				terminal.Debugf("retrying release_command machine launch (attempt %d/%d): %v\n",
+					attempt, total, err)
+			},
+			OnSilentSuccess: func(m *fly.Machine) {
+				terminal.Debugf("release_command machine %s was already created (idempotency tag matched)\n", m.ID)
+			},
+		},
+	)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")
 
