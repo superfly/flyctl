@@ -2,9 +2,12 @@ package cmdv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -14,24 +17,35 @@ import (
 func RunExtensionsList(ctx context.Context, clusterID, database string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	mpgClient := mpgv2.ClientFromContext(ctx)
 
 	database, err := resolveDatabase(ctx, clusterID, database)
 	if err != nil {
 		return err
 	}
 
-	resp, err := mpgClient.ListExtensions(ctx, clusterID, database)
-	if err != nil {
+	extensions, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresExtensions(ctx, clusterID, database)
+	var outputExtensions []mpgv2.Extension
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		resp, legacyErr := mpgv2.ClientFromContext(ctx).ListExtensions(ctx, clusterID, database)
+		if legacyErr != nil {
+			return fmt.Errorf("failed to list extensions for database %s: %w", database, legacyErr)
+		}
+		outputExtensions = resp.Data
+	} else if err != nil {
 		return fmt.Errorf("failed to list extensions for database %s: %w", database, err)
+	} else {
+		outputExtensions = make([]mpgv2.Extension, 0, len(extensions))
+		for _, ext := range extensions {
+			outputExtensions = append(outputExtensions, extensionForOutput(ext))
+		}
 	}
 
 	if cfg.JSONOutput {
-		return render.JSON(out, resp.Data)
+		return render.JSON(out, outputExtensions)
 	}
 
-	rows := make([][]string, 0, len(resp.Data))
-	for _, ext := range resp.Data {
+	rows := make([][]string, 0, len(outputExtensions))
+	for _, ext := range outputExtensions {
 		installed := "no"
 		version := ""
 		schema := ""
@@ -55,7 +69,6 @@ func RunExtensionsList(ctx context.Context, clusterID, database string) error {
 
 func RunExtensionsEnable(ctx context.Context, clusterID, database, name, schema string, createSchema bool) error {
 	out := iostreams.FromContext(ctx).Out
-	mpgClient := mpgv2.ClientFromContext(ctx)
 
 	database, err := resolveDatabase(ctx, clusterID, database)
 	if err != nil {
@@ -69,13 +82,21 @@ func RunExtensionsEnable(ctx context.Context, clusterID, database, name, schema 
 		createSchema = true
 	}
 
-	input := mpgv2.EnableExtensionInput{
-		Name:                 name,
-		Schema:               schema,
-		CreateSchemaIfNeeded: createSchema,
+	input := flaps.EnableManagedPostgresExtensionRequest{
+		Name:         name,
+		Schema:       schema,
+		CreateSchema: createSchema,
 	}
 
-	if err := mpgClient.EnableExtension(ctx, clusterID, database, input); err != nil {
+	err = flapsutil.ClientFromContext(ctx).EnableManagedPostgresExtension(ctx, clusterID, database, input)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		err = mpgv2.ClientFromContext(ctx).EnableExtension(ctx, clusterID, database, mpgv2.EnableExtensionInput{
+			Name:                 name,
+			Schema:               schema,
+			CreateSchemaIfNeeded: createSchema,
+		})
+	}
+	if err != nil {
 		return err
 	}
 
@@ -86,20 +107,48 @@ func RunExtensionsEnable(ctx context.Context, clusterID, database, name, schema 
 
 func RunExtensionsDisable(ctx context.Context, clusterID, database, name string, force bool) error {
 	out := iostreams.FromContext(ctx).Out
-	mpgClient := mpgv2.ClientFromContext(ctx)
 
 	database, err := resolveDatabase(ctx, clusterID, database)
 	if err != nil {
 		return err
 	}
 
-	if err := mpgClient.DisableExtension(ctx, clusterID, database, name, force); err != nil {
+	err = flapsutil.ClientFromContext(ctx).DisableManagedPostgresExtension(ctx, clusterID, database, name, force)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		err = mpgv2.ClientFromContext(ctx).DisableExtension(ctx, clusterID, database, name, force)
+	}
+	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(out, "Extension %s disabled on database %s.\n", name, database)
 
 	return nil
+}
+
+func extensionForOutput(ext flaps.ManagedPostgresExtension) mpgv2.Extension {
+	legacy := mpgv2.Extension{
+		Name:           ext.Name,
+		Description:    optionalString(ext.Description),
+		DefaultVersion: optionalString(ext.DefaultVersion),
+		IsSystem:       ext.System,
+	}
+	if ext.Installed != nil {
+		legacy.Installed = &mpgv2.InstalledExtension{
+			Version: ext.Installed.Version,
+			Schema:  ext.Installed.Schema,
+		}
+	}
+
+	return legacy
+}
+
+func optionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
 }
 
 // resolveDatabase returns the database to target: the explicit flag value if
@@ -111,18 +160,26 @@ func resolveDatabase(ctx context.Context, clusterID, database string) (string, e
 		return database, nil
 	}
 
-	mpgClient := mpgv2.ClientFromContext(ctx)
-	dbs, err := mpgClient.ListDatabases(ctx, clusterID)
-	if err != nil {
+	databases, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresDatabases(ctx, clusterID)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		response, legacyErr := mpgv2.ClientFromContext(ctx).ListDatabases(ctx, clusterID)
+		if legacyErr != nil {
+			return "", fmt.Errorf("failed to list databases: %w", legacyErr)
+		}
+		databases = make([]flaps.ManagedPostgresDatabase, 0, len(response.Data))
+		for _, database := range response.Data {
+			databases = append(databases, flaps.ManagedPostgresDatabase{Name: database.Name})
+		}
+	} else if err != nil {
 		return "", fmt.Errorf("failed to list databases: %w", err)
 	}
 
-	if len(dbs.Data) == 0 {
+	if len(databases) == 0 {
 		return "", fmt.Errorf("no databases found in cluster %s", clusterID)
 	}
 
-	if len(dbs.Data) == 1 {
-		return dbs.Data[0].Name, nil
+	if len(databases) == 1 {
+		return databases[0].Name, nil
 	}
 
 	io := iostreams.FromContext(ctx)
@@ -130,8 +187,8 @@ func resolveDatabase(ctx context.Context, clusterID, database string) (string, e
 		return "", prompt.NonInteractiveError("the cluster has multiple databases; pass --database to choose one")
 	}
 
-	options := make([]string, 0, len(dbs.Data))
-	for _, db := range dbs.Data {
+	options := make([]string, 0, len(databases))
+	for _, db := range databases {
 		options = append(options, db.Name)
 	}
 
@@ -140,5 +197,5 @@ func resolveDatabase(ctx context.Context, clusterID, database string) (string, e
 		return "", err
 	}
 
-	return dbs.Data[idx].Name, nil
+	return databases[idx].Name, nil
 }
