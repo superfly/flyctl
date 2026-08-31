@@ -80,6 +80,10 @@ func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id strin
 	panic("TODO")
 }
 
+func (m *FlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
+	panic("TODO")
+}
+
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	panic("TODO")
 }
@@ -158,6 +162,10 @@ func (m *FlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flap
 }
 
 func (m *FlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
 	panic("TODO")
 }
 
@@ -271,6 +279,10 @@ func (m *FlapsClient) ListManagedPostgresDatabases(ctx context.Context, id strin
 	panic("TODO")
 }
 
+func (m *FlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
 	panic("TODO")
 }
@@ -332,6 +344,10 @@ func (m *FlapsClient) Update(ctx context.Context, appName string, builder fly.La
 }
 
 func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
 	panic("TODO")
 }
 
