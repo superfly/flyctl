@@ -16,8 +16,10 @@ import (
 // ambiguous 408/5xx but committed the machine anyway) and reuse the
 // committed machine instead of creating a duplicate on retry.
 //
-// The key is intentionally namespaced under "fly_flyctl_" so it can coexist
-// with any user metadata.
+// LaunchWithIdempotency always stamps a fresh value here on entry, so any
+// pre-existing value (e.g. carried over from a machine config cloned from a
+// previous deploy) is discarded. The key is intentionally namespaced under
+// "fly_flyctl_" so it can coexist with any user metadata.
 const FlyctlLaunchIDMetadataKey = "fly_flyctl_launch_id"
 
 // LaunchIdempotencyOpts controls the retry behaviour of LaunchWithIdempotency.
@@ -61,12 +63,19 @@ func (o *LaunchIdempotencyOpts) applyDefaults() {
 // LaunchWithIdempotency wraps flaps.Launch with client-side pseudo-idempotency.
 //
 // flaps' create-machine endpoint doesn't accept an Idempotency-Key header, so
-// we simulate one: this helper stamps a unique ULID into the launch input's
-// metadata under FlyctlLaunchIDMetadataKey (unless the caller already set
-// one), calls Launch, and on transient failure lists machines for the app
-// looking for one carrying that ID before retrying. If it finds one, the
-// "failure" is treated as a silent success and the committed machine is
-// returned \u2014 no duplicate is created.
+// we simulate one: this helper stamps a freshly-generated ULID into the
+// launch input's metadata under FlyctlLaunchIDMetadataKey, calls Launch, and
+// on transient failure lists machines for the app looking for one carrying
+// that ID before retrying. If it finds one, the "failure" is treated as a
+// silent success and the committed machine is returned — no duplicate is
+// created.
+//
+// The launch-id is always regenerated, overwriting any value already present
+// in the input's metadata. Callers commonly derive launch inputs by cloning
+// an existing machine's config (bluegreen green machines, rolling replacements,
+// scale-ups), which means a stale launch-id from a previous deploy would
+// otherwise be carried forward and collide with this deploy's idempotency
+// lookup.
 //
 // The race we can't fully close is when flaps commits the machine but the
 // lookup runs before that write propagates to the read side flaps' List
@@ -92,11 +101,10 @@ func LaunchWithIdempotency(
 		input.Config.Metadata = map[string]string{}
 	}
 
-	launchID := input.Config.Metadata[FlyctlLaunchIDMetadataKey]
-	if launchID == "" {
-		launchID = ulid.Make().String()
-		input.Config.Metadata[FlyctlLaunchIDMetadataKey] = launchID
-	}
+	// Always stamp a fresh ULID. See the doc comment: a caller-provided or
+	// cloned-from-previous-deploy value here would break dedup across deploys.
+	launchID := ulid.Make().String()
+	input.Config.Metadata[FlyctlLaunchIDMetadataKey] = launchID
 
 	var lastErr error
 	delay := opts.RetryDelay

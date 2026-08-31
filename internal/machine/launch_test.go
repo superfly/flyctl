@@ -173,24 +173,30 @@ func TestLaunchWithIdempotency_ExhaustsRetries(t *testing.T) {
 	assert.Equal(t, int32(3), launchCalls.Load(), "should attempt exactly RetryAttempts times")
 }
 
-// TestLaunchWithIdempotency_UsesCallerProvidedLaunchID verifies the helper
-// respects a launch-id the caller pre-set (useful when the caller wants
-// the ID to be visible outside the helper for correlation).
-func TestLaunchWithIdempotency_UsesCallerProvidedLaunchID(t *testing.T) {
+// TestLaunchWithIdempotency_OverwritesStaleLaunchID verifies the helper
+// always stamps a fresh launch-id, even when the input's metadata already
+// carries one. This matters because callers commonly derive launch inputs
+// from an existing machine's config (bluegreen green machines cloned from
+// blue, rolling replacements, scale-ups) — a stale ID from a previous
+// deploy would otherwise be carried forward and break dedup on this deploy.
+func TestLaunchWithIdempotency_OverwritesStaleLaunchID(t *testing.T) {
 	client := newLaunchTestClient(t)
 	client.LaunchFunc = func(ctx context.Context, appName string, in fly.LaunchMachineInput) (*fly.Machine, error) {
 		return &fly.Machine{ID: "m1", Config: in.Config}, nil
 	}
 
+	const stale = "stale-id-from-previous-deploy"
 	m, err := LaunchWithIdempotency(
 		context.Background(), client, "test-app",
 		&fly.LaunchMachineInput{Config: &fly.MachineConfig{
-			Metadata: map[string]string{FlyctlLaunchIDMetadataKey: "caller-provided-id"},
+			Metadata: map[string]string{FlyctlLaunchIDMetadataKey: stale},
 		}},
 		LaunchIdempotencyOpts{RetryAttempts: 2},
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "caller-provided-id", m.Config.Metadata[FlyctlLaunchIDMetadataKey])
+	got := m.Config.Metadata[FlyctlLaunchIDMetadataKey]
+	assert.NotEmpty(t, got, "a fresh launch-id must always be stamped")
+	assert.NotEqual(t, stale, got, "a stale launch-id in the input must be overwritten")
 }
 
 // TestLaunchWithIdempotency_NilConfigReturnsError enforces the API contract
