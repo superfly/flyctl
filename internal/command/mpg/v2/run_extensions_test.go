@@ -139,6 +139,7 @@ func TestRunExtensionsList(t *testing.T) {
 					require.Equal(t, []map[string]any{{
 						"name": "hstore", "description": "", "docs_url": "", "default_version": "", "is_system": false, "installed": nil,
 					}}, got)
+
 					return
 				}
 				docsURL := ""
@@ -285,6 +286,7 @@ func TestResolveDatabaseUsesPublicAPIWithLegacyFallback(t *testing.T) {
 		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 			ListManagedPostgresDatabasesFunc: func(_ context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
 				require.Equal(t, "mpg-123", id)
+
 				return []flaps.ManagedPostgresDatabase{{Name: "only-db"}}, nil
 			},
 		})
@@ -305,6 +307,7 @@ func TestResolveDatabaseUsesPublicAPIWithLegacyFallback(t *testing.T) {
 			ListDatabasesFunc: func(_ context.Context, id string) (mpgv2.ListDatabasesResponse, error) {
 				legacyCalls++
 				require.Equal(t, "mpg-123", id)
+
 				return mpgv2.ListDatabasesResponse{Data: []mpgv2.Database{{Name: "legacy-db"}}}, nil
 			},
 		})
