@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -181,7 +182,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	err = updatePool.Wait()
 	if err != nil {
-		return err
+		return withVolumePlacementCapacitySuggestion(err)
 	}
 
 	// Scaling may change the situation of app-scoped egress IPs in affected regions
@@ -192,6 +193,17 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
 
 	return nil
+}
+
+const volumePlacementCapacitySuggestion = "There isn't enough capacity on the hosts holding the available volumes to create the remaining Machines. " +
+	"Try again later, or use --with-new-volumes to create new empty volumes on hosts with capacity."
+
+func withVolumePlacementCapacitySuggestion(err error) error {
+	if flapsutil.HasErrorStatusCode(err, flapsutil.VolumePlacementCapacityStatus) {
+		return flyerr.WithSuggestion(err, volumePlacementCapacitySuggestion)
+	}
+
+	return err
 }
 
 func launchMachine(ctx context.Context, appName string, action *planItem, idx int) (*fly.Machine, error) {

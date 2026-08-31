@@ -3,6 +3,7 @@ package scale
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -10,8 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -119,6 +122,39 @@ func TestLaunchMachineVolumeSelection(t *testing.T) {
 		require.ErrorIs(t, err, client.launchErr)
 		require.Equal(t, 1, client.launchCalls)
 		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+}
+
+func TestVolumePlacementCapacitySuggestion(t *testing.T) {
+	placementErr := &flaps.FlapsError{
+		OriginalError: errors.New("failed_precondition: insufficient resources for volumes"),
+		ResponseBody:  []byte(`{"status":"volume_placement_capacity"}`),
+		FlyRequestId:  "request-id",
+	}
+
+	t.Run("adds scale advice and preserves Flaps metadata", func(t *testing.T) {
+		err := withVolumePlacementCapacitySuggestion(fmt.Errorf("failed to launch VM: %w", placementErr))
+
+		require.ErrorIs(t, err, placementErr)
+		require.Equal(t, "request-id", flaps.GetErrorRequestID(err))
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "--with-new-volumes")
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "empty volumes")
+	})
+
+	t.Run("finds the status after another joined Flaps error", func(t *testing.T) {
+		otherErr := &flaps.FlapsError{
+			OriginalError: errors.New("another failure"),
+			ResponseBody:  []byte(`{"status":"unknown"}`),
+		}
+		err := withVolumePlacementCapacitySuggestion(errors.Join(otherErr, placementErr))
+
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "--with-new-volumes")
+	})
+
+	t.Run("leaves unrelated errors unchanged", func(t *testing.T) {
+		err := errors.New("machine launch failed")
+
+		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
 	})
 }
 
