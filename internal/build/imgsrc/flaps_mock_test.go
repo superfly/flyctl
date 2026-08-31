@@ -206,6 +206,21 @@ func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresDatabase(ctx, id, re
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresDatabase", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresDatabase), ctx, id, req)
 }
 
+// CreateManagedPostgresUser mocks base method.
+func (m *MockFlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateManagedPostgresUser", ctx, id, req)
+	ret0, _ := ret[0].(flaps.ManagedPostgresUser)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateManagedPostgresUser indicates an expected call of CreateManagedPostgresUser.
+func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresUser(ctx, id, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresUser", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresUser), ctx, id, req)
+}
+
 // CreateVolume mocks base method.
 func (m *MockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	m.ctrl.T.Helper()
@@ -334,6 +349,20 @@ func (mr *MockFlapsClientMockRecorder) DeleteManagedPostgresCluster(ctx, id any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).DeleteManagedPostgresCluster), ctx, id)
 }
 
+// DeleteManagedPostgresUser mocks base method.
+func (m *MockFlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteManagedPostgresUser", ctx, id, username)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteManagedPostgresUser indicates an expected call of DeleteManagedPostgresUser.
+func (mr *MockFlapsClientMockRecorder) DeleteManagedPostgresUser(ctx, id, username any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteManagedPostgresUser", reflect.TypeOf((*MockFlapsClient)(nil).DeleteManagedPostgresUser), ctx, id, username)
+}
+
 // DeleteMetadata mocks base method.
 func (m *MockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	m.ctrl.T.Helper()
@@ -375,6 +404,34 @@ func (m *MockFlapsClient) DeleteVolume(ctx context.Context, appName, volumeId st
 func (mr *MockFlapsClientMockRecorder) DeleteVolume(ctx, appName, volumeId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVolume", reflect.TypeOf((*MockFlapsClient)(nil).DeleteVolume), ctx, appName, volumeId)
+}
+
+// DisableManagedPostgresExtension mocks base method.
+func (m *MockFlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DisableManagedPostgresExtension", ctx, id, database, name, force)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DisableManagedPostgresExtension indicates an expected call of DisableManagedPostgresExtension.
+func (mr *MockFlapsClientMockRecorder) DisableManagedPostgresExtension(ctx, id, database, name, force any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableManagedPostgresExtension", reflect.TypeOf((*MockFlapsClient)(nil).DisableManagedPostgresExtension), ctx, id, database, name, force)
+}
+
+// EnableManagedPostgresExtension mocks base method.
+func (m *MockFlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnableManagedPostgresExtension", ctx, id, database, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnableManagedPostgresExtension indicates an expected call of EnableManagedPostgresExtension.
+func (mr *MockFlapsClientMockRecorder) EnableManagedPostgresExtension(ctx, id, database, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnableManagedPostgresExtension", reflect.TypeOf((*MockFlapsClient)(nil).EnableManagedPostgresExtension), ctx, id, database, req)
 }
 
 // Destroy mocks base method.
@@ -842,6 +899,36 @@ func (mr *MockFlapsClientMockRecorder) ListManagedPostgresDatabases(ctx, id any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresDatabases", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresDatabases), ctx, id)
 }
 
+// ListManagedPostgresUsers mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresUsers", ctx, id)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresUser)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresUsers indicates an expected call of ListManagedPostgresUsers.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresUsers(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresUsers", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresUsers), ctx, id)
+}
+
+// ListManagedPostgresExtensions mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresExtensions", ctx, id, database)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresExtension)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresExtensions indicates an expected call of ListManagedPostgresExtensions.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresExtensions(ctx, id, database any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresExtensions", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresExtensions), ctx, id, database)
+}
+
 // ListSecretKeys mocks base method.
 func (m *MockFlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	m.ctrl.T.Helper()
@@ -1059,6 +1146,20 @@ func (m *MockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, 
 func (mr *MockFlapsClientMockRecorder) UpdateAppSecrets(ctx, appName, values any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAppSecrets", reflect.TypeOf((*MockFlapsClient)(nil).UpdateAppSecrets), ctx, appName, values)
+}
+
+// UpdateManagedPostgresUserRole mocks base method.
+func (m *MockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateManagedPostgresUserRole", ctx, id, username, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateManagedPostgresUserRole indicates an expected call of UpdateManagedPostgresUserRole.
+func (mr *MockFlapsClientMockRecorder) UpdateManagedPostgresUserRole(ctx, id, username, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateManagedPostgresUserRole", reflect.TypeOf((*MockFlapsClient)(nil).UpdateManagedPostgresUserRole), ctx, id, username, req)
 }
 
 // UpdateVolume mocks base method.

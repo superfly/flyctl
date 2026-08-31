@@ -157,7 +157,15 @@ func (m *mockFlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id 
 	return flaps.ManagedPostgresDatabase{}, fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
+	return flaps.ManagedPostgresUser{}, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
 	return fmt.Errorf("not implemented")
 }
 
@@ -186,6 +194,14 @@ func (m *mockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, 
 }
 
 func (m *mockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
 	return fmt.Errorf("not implemented")
 }
 
@@ -459,7 +475,15 @@ func (m *mockFlapsClient) ListManagedPostgresDatabases(ctx context.Context, id s
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -607,6 +631,10 @@ func (m *mockFlapsClient) Update(ctx context.Context, appName string, builder fl
 
 func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
 	return nil, fmt.Errorf("failed to update app secret %v", values)
+}
+
+func (m *mockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
+	return fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
