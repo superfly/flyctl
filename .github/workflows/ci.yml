@@ -1,6 +1,11 @@
 name: CI
 on:
   push:
+    # The workflow in ci-dev.yml also runs unit tests, but on pull_request
+    # instead of on push. We therefore limit this workflow to master pushes
+    # so we don't run unit tests twice.
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
