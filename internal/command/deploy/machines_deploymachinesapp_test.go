@@ -2,14 +2,18 @@ package deploy
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
@@ -75,4 +79,28 @@ func TestDeployMachinesApp(t *testing.T) {
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 	err := md.deployMachinesApp(ctx)
 	assert.NoError(t, err)
+}
+
+func TestVolumePlacementCapacitySuggestion(t *testing.T) {
+	placementErr := &flaps.FlapsError{
+		OriginalError: errors.New("failed_precondition: insufficient resources for volumes"),
+		ResponseBody:  []byte(`{"status":"volume_placement_capacity"}`),
+		FlyRequestId:  "request-id",
+	}
+
+	t.Run("adds deploy advice and preserves Flaps metadata", func(t *testing.T) {
+		err := withVolumePlacementCapacitySuggestion(fmt.Errorf("failed to create machine: %w", placementErr))
+
+		require.ErrorIs(t, err, placementErr)
+		require.Equal(t, "request-id", flaps.GetErrorRequestID(err))
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "Try again later")
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "fly volume create")
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "empty volume")
+	})
+
+	t.Run("leaves unrelated errors unchanged", func(t *testing.T) {
+		err := errors.New("machine launch failed")
+
+		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
+	})
 }
