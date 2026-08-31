@@ -22,6 +22,7 @@ type FlapsClient interface {
 	CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error)
 	CreateManagedPostgresUser(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error)
 	CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error
+	EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error
 	CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, appName, volumeId string) error
 	DeleteApp(ctx context.Context, name string) error
@@ -30,6 +31,7 @@ type FlapsClient interface {
 	DeleteCustomCertificate(ctx context.Context, appName, hostname string) error
 	DeleteManagedPostgresCluster(ctx context.Context, id string) error
 	DeleteManagedPostgresUser(ctx context.Context, id, username string) error
+	DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error
 	DeleteMetadata(ctx context.Context, appName, machineID, key string) error
 	DeleteAppSecret(ctx context.Context, appName, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignment(ctx context.Context, appName, ip string) (err error)
@@ -68,6 +70,7 @@ type FlapsClient interface {
 	ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error)
 	ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error)
 	ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
+	ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)

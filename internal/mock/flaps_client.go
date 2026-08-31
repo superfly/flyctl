@@ -23,6 +23,7 @@ type FlapsClient struct {
 	CreateManagedPostgresDatabaseFunc     func(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error)
 	CreateManagedPostgresUserFunc         func(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error)
 	CreateManagedPostgresBackupFunc       func(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error
+	EnableManagedPostgresExtensionFunc    func(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error
 	CreateVolumeFunc                      func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc              func(ctx context.Context, appName, volumeId string) error
 	DeleteAppFunc                         func(ctx context.Context, name string) error
@@ -31,6 +32,7 @@ type FlapsClient struct {
 	DeleteCustomCertificateFunc           func(ctx context.Context, appName, hostname string) error
 	DeleteManagedPostgresClusterFunc      func(ctx context.Context, id string) error
 	DeleteManagedPostgresUserFunc         func(ctx context.Context, id, username string) error
+	DisableManagedPostgresExtensionFunc   func(ctx context.Context, id, database, name string, force bool) error
 	DeleteMetadataFunc                    func(ctx context.Context, appName, machineID, key string) error
 	DeleteAppSecretFunc                   func(ctx context.Context, appName, name string) (*fly.DeleteAppSecretResp, error)
 	DeleteIPAssignmentFunc                func(ctx context.Context, appName, ip string) (err error)
@@ -69,6 +71,7 @@ type FlapsClient struct {
 	ListManagedPostgresDatabasesFunc      func(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error)
 	ListManagedPostgresUsersFunc          func(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error)
 	ListManagedPostgresBackupsFunc        func(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
+	ListManagedPostgresExtensionsFunc     func(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
 	ListSecretKeysFunc                    func(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc                        func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -134,6 +137,10 @@ func (m *FlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string
 	return m.CreateManagedPostgresBackupFunc(ctx, id, req)
 }
 
+func (m *FlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
+	return m.EnableManagedPostgresExtensionFunc(ctx, id, database, req)
+}
+
 func (m *FlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	return m.CreateVolumeFunc(ctx, appName, req)
 }
@@ -168,6 +175,10 @@ func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id strin
 
 func (m *FlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
 	return m.DeleteManagedPostgresUserFunc(ctx, id, username)
+}
+
+func (m *FlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
+	return m.DisableManagedPostgresExtensionFunc(ctx, id, database, name, force)
 }
 
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
@@ -320,6 +331,10 @@ func (m *FlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) (
 
 func (m *FlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
 	return m.ListManagedPostgresBackupsFunc(ctx, id)
+}
+
+func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	return m.ListManagedPostgresExtensionsFunc(ctx, id, database)
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {

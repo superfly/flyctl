@@ -84,6 +84,10 @@ func (m *FlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, usernam
 	panic("TODO")
 }
 
+func (m *FlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
+	panic("TODO")
+}
+
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	panic("TODO")
 }
@@ -170,6 +174,10 @@ func (m *FlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, 
 }
 
 func (m *FlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
 	panic("TODO")
 }
 
@@ -284,6 +292,10 @@ func (m *FlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) (
 }
 
 func (m *FlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
 	panic("TODO")
 }
 

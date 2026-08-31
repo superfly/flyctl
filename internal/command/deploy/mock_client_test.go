@@ -165,6 +165,10 @@ func (m *mockFlapsClient) CreateManagedPostgresBackup(ctx context.Context, id st
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	return nil, fmt.Errorf("failed to create volume %s", req.Name)
 }
@@ -194,6 +198,10 @@ func (m *mockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id s
 }
 
 func (m *mockFlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
 	return fmt.Errorf("not implemented")
 }
 
@@ -472,6 +480,10 @@ func (m *mockFlapsClient) ListManagedPostgresUsers(ctx context.Context, id strin
 }
 
 func (m *mockFlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
