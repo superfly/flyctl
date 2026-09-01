@@ -128,7 +128,7 @@ func runAllocateInteractive(ctx context.Context) error {
 
 	if len(existingIPs) > 0 {
 		fmt.Fprint(io.Out, "Your app already has the following IP addresses:\n\n")
-		renderListTable(ctx, ipAssignmentsToIPAddresses(existingIPs))
+		renderListTable(ctx, appName, ipAssignmentsToIPAddresses(existingIPs))
 	}
 
 	recommendDedicated := requiresDedicated && hasSharedV4 && !hasV4
@@ -232,7 +232,7 @@ Would you like to allocate the following address?
 			return err
 		}
 
-		renderAssignedIP(ctx, res)
+		renderAssignedIP(ctx, appName, res)
 
 		return nil
 	}

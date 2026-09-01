@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 )
 
@@ -16,7 +17,7 @@ func TestIPAssignmentsToIPAddresses(t *testing.T) {
 		{IP: "37.16.1.1", Region: "global", CreatedAt: now},
 		{IP: "66.241.124.1", Region: "global", Shared: true, CreatedAt: now},
 		{IP: "2a09:8280:1::1", Region: "global", CreatedAt: now},
-		{IP: "fdaa:0:1::2", Region: "global", ServiceName: svc, CreatedAt: now},
+		{IP: "fdaa:0:1::2", Region: "global", ServiceName: svc, CreatedAt: now, Network: &flaps.IPAssignmentNetwork{Name: "my-net", OrgSlug: "my-org"}},
 		{IP: "149.248.1.1", Region: "ams", Egress: true, CreatedAt: now},
 		{IP: "2a09:8280:2::1", Region: "ams", Egress: true, CreatedAt: now},
 	}
@@ -32,6 +33,34 @@ func TestIPAssignmentsToIPAddresses(t *testing.T) {
 		assert.Equal(t, now, ip.CreatedAt)
 	}
 	assert.Equal(t, svc, got[3].ServiceName)
+
+	for i, ip := range got {
+		if i == 3 {
+			continue
+		}
+		assert.Nil(t, ip.Network, "ip %d should have no network", i)
+	}
+	require.NotNil(t, got[3].Network)
+	assert.Equal(t, "my-net", got[3].Network.Name)
+	require.NotNil(t, got[3].Network.Organization)
+	assert.Equal(t, "my-org", got[3].Network.Organization.Slug)
+}
+
+func TestNetworkName(t *testing.T) {
+	assert.Equal(t, "", networkName(fly.IPAddress{}, "my-org"))
+
+	flycast := ipAssignmentsToIPAddresses([]flaps.IPAssignment{
+		{IP: "fdaa:0:1::2", Network: &flaps.IPAssignmentNetwork{Name: "", OrgSlug: "my-org"}},
+		{IP: "fdaa:0:2::2", Network: &flaps.IPAssignmentNetwork{Name: "my-net", OrgSlug: "my-org"}},
+	})
+
+	// Networks in the app's own org are shown without the org prefix.
+	assert.Equal(t, "default", networkName(flycast[0], "my-org"))
+	assert.Equal(t, "my-net", networkName(flycast[1], "my-org"))
+
+	// Networks in other orgs (or with an unknown app org) carry the org prefix.
+	assert.Equal(t, "my-org/default", networkName(flycast[0], "other-org"))
+	assert.Equal(t, "my-org/my-net", networkName(flycast[1], ""))
 }
 
 func TestEgressIPAddressesByRegion(t *testing.T) {

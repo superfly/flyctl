@@ -148,7 +148,7 @@ func runAllocateIPAddress(ctx context.Context, addrType flaps.IPAssignmentType, 
 		return err
 	}
 
-	renderAssignedIP(ctx, res)
+	renderAssignedIP(ctx, appName, res)
 
 	return nil
 }
