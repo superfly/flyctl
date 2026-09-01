@@ -35,10 +35,12 @@ func (c *captureGenqClient) MakeRequest(_ context.Context, req *genq.Request, re
 	return nil
 }
 
-// confirmStub returns a canned answer and records whether it was called.
-func confirmStub(answer bool, err error, called *bool) func() (bool, error) {
-	return func() (bool, error) {
+// confirmStub returns a canned answer, records whether it was called and
+// records the current-state argument the caller phrased the prompt from.
+func confirmStub(answer bool, err error, called *bool, currentlyOn *bool) func(bool) (bool, error) {
+	return func(on bool) (bool, error) {
 		*called = true
+		*currentlyOn = on
 
 		return answer, err
 	}
@@ -48,54 +50,84 @@ func TestResolveProdPack(t *testing.T) {
 	nonInteractive := prompt.NonInteractiveError("prompt: non interactive")
 
 	tests := []struct {
-		name         string
-		enableFlag   bool
-		disableFlag  bool
-		stored       any
-		legacy       bool
-		answer       bool
-		answerErr    error
-		want         *bool
-		wantErr      bool
-		wantPrompted bool
+		name           string
+		enableFlag     bool
+		disableFlag    bool
+		stored         any
+		legacy         bool
+		answer         bool
+		answerErr      error
+		want           *bool
+		wantErr        bool
+		wantPrompted   bool
+		wantPromptedOn bool
 	}{
 		{
-			name:   "no flags, key absent: no decision, no prompt",
-			stored: nil,
-			want:   nil,
+			name:         "no flags, key absent, user confirms enable: explicit true",
+			stored:       nil,
+			answer:       true,
+			want:         boolPtr(true),
+			wantPrompted: true,
 		},
 		{
-			name:   "no flags, stored false: no decision, no prompt",
-			stored: false,
-			want:   nil,
-		},
-		{
-			name:         "no flags, stored true, user declines disable: no decision",
-			stored:       true,
+			name:         "no flags, key absent, user declines enable: no decision",
+			stored:       nil,
 			answer:       false,
 			want:         nil,
 			wantPrompted: true,
 		},
 		{
-			name:         "no flags, stored true, user confirms disable: explicit false",
-			stored:       true,
+			name:         "no flags, stored false, user confirms enable: explicit true",
+			stored:       false,
 			answer:       true,
-			want:         boolPtr(false),
+			want:         boolPtr(true),
 			wantPrompted: true,
 		},
 		{
-			name:         "no flags, stored true, non-interactive: no decision instead of disable",
-			stored:       true,
+			name:         "no flags, stored false, user declines enable: no decision",
+			stored:       false,
+			answer:       false,
+			want:         nil,
+			wantPrompted: true,
+		},
+		{
+			name:           "no flags, stored true, user declines disable: no decision",
+			stored:         true,
+			answer:         false,
+			want:           nil,
+			wantPrompted:   true,
+			wantPromptedOn: true,
+		},
+		{
+			name:           "no flags, stored true, user confirms disable: explicit false",
+			stored:         true,
+			answer:         true,
+			want:           boolPtr(false),
+			wantPrompted:   true,
+			wantPromptedOn: true,
+		},
+		{
+			name:           "no flags, stored true, non-interactive: no decision instead of disable",
+			stored:         true,
+			answerErr:      nonInteractive,
+			want:           nil,
+			wantPrompted:   true,
+			wantPromptedOn: true,
+		},
+		{
+			name:         "no flags, key absent, non-interactive: no decision instead of enable",
+			stored:       nil,
 			answerErr:    nonInteractive,
 			want:         nil,
 			wantPrompted: true,
 		},
 		{
-			name:         "no flags, stored true, prompt error propagates",
-			stored:       true,
-			answerErr:    errors.New("boom"),
-			wantErr:      true,
-			wantPrompted: true,
+			name:           "no flags, stored true, prompt error propagates",
+			stored:         true,
+			answerErr:      errors.New("boom"),
+			wantErr:        true,
+			wantPrompted:   true,
+			wantPromptedOn: true,
 		},
 		{
 			name:       "enable flag: explicit true, no prompt",
@@ -134,16 +166,18 @@ func TestResolveProdPack(t *testing.T) {
 			want:   nil,
 		},
 		{
-			name:   "stored non-bool garbage: treated as unknown, no prompt",
-			stored: "yes",
-			want:   nil,
+			name:         "stored non-bool garbage: prompts to enable",
+			stored:       "yes",
+			answer:       true,
+			want:         boolPtr(true),
+			wantPrompted: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prompted := false
-			got, err := resolveProdPack(tt.enableFlag, tt.disableFlag, tt.stored, tt.legacy, confirmStub(tt.answer, tt.answerErr, &prompted))
+			prompted, promptedOn := false, false
+			got, err := resolveProdPack(tt.enableFlag, tt.disableFlag, tt.stored, tt.legacy, confirmStub(tt.answer, tt.answerErr, &prompted, &promptedOn))
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -152,6 +186,7 @@ func TestResolveProdPack(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantPrompted, prompted, "prompt invocation")
+			assert.Equal(t, tt.wantPromptedOn, promptedOn, "prompt phrasing")
 
 			if tt.want == nil {
 				assert.Nil(t, got)
@@ -163,6 +198,30 @@ func TestResolveProdPack(t *testing.T) {
 	}
 }
 
+// A ProdPack decision must reach the wire even when the plan is untouched:
+// Upstash applies the add-on change on its own.
+func TestResolveProdPackIsIndependentOfPlanChange(t *testing.T) {
+	prompted, promptedOn := false, false
+	got, err := resolveProdPack(false, false, false, false, confirmStub(true, nil, &prompted, &promptedOn))
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.True(t, *got)
+}
+
+func TestOptionState(t *testing.T) {
+	assert.Equal(t, "unchanged", optionState(map[string]any{}, "eviction"))
+	assert.Equal(t, "enabled", optionState(map[string]any{"eviction": true}, "eviction"))
+	assert.Equal(t, "disabled", optionState(map[string]any{"eviction": false}, "eviction"))
+	assert.Equal(t, "disabled", optionState(map[string]any{"eviction": "yes"}, "eviction"))
+}
+
+func TestProdPackState(t *testing.T) {
+	assert.Equal(t, "unchanged", prodPackState(nil))
+	assert.Equal(t, "enabled", prodPackState(boolPtr(true)))
+	assert.Equal(t, "disabled", prodPackState(boolPtr(false)))
+}
+
 func TestStripProdPack(t *testing.T) {
 	options := map[string]any{"prod_pack": true, "eviction": true}
 	stripProdPack(options)
@@ -170,32 +229,6 @@ func TestStripProdPack(t *testing.T) {
 	assert.False(t, present, "prod_pack must be omitted from the legacy options blob")
 	assert.Equal(t, true, options["eviction"], "other options untouched")
 }
-
-// New logic is to allow prodpack change even without a plan change, so removing this
-/*func TestValidateProdPackPlanChange(t *testing.T) {
-	tests := []struct {
-		name      string
-		decision  *bool
-		current   string
-		selected  string
-		expectErr bool
-	}{
-		{name: "explicit decision with same plan", decision: boolPtr(false), current: "plan", selected: "plan", expectErr: true},
-		{name: "explicit decision with changed plan", decision: boolPtr(true), current: "plan", selected: "other"},
-		{name: "no decision with same plan", current: "plan", selected: "plan"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateProdPackPlanChange(tt.decision, tt.current, tt.selected)
-			if tt.expectErr {
-				require.EqualError(t, err, "ProdPack can only be changed together with a plan change; pick a different plan or drop the flag")
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}*/
 
 func TestUpdateRedisAddOnWire(t *testing.T) {
 	tests := []struct {
@@ -215,13 +248,18 @@ func TestUpdateRedisAddOnWire(t *testing.T) {
 			disable:      true,
 			wantProdPack: false,
 		},
+		{
+			name:         "explicit enable uses typed input and omits option key",
+			enable:       true,
+			wantProdPack: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// This mirrors production wiring: resolve intent, sanitize the
 			// legacy options blob, then pass intent through the typed operation.
-			decision, err := resolveProdPack(tt.enable, tt.disable, tt.stored, false, func() (bool, error) {
+			decision, err := resolveProdPack(tt.enable, tt.disable, tt.stored, false, func(bool) (bool, error) {
 				return false, nil
 			})
 			require.NoError(t, err)
@@ -249,10 +287,15 @@ func TestUpdateRedisAddOnWire(t *testing.T) {
 	}
 }
 
-func TestSamePlanProdPackDecisionRejectsBeforeGraphQLRequest(t *testing.T) {
+// The plan argument is unrelated to the ProdPack argument: sending the same
+// plan back must still carry an explicit ProdPack decision to the provider.
+func TestProdPackDecisionSurvivesUnchangedPlan(t *testing.T) {
 	client := &captureGenqClient{}
-	err := validateProdPackPlanChange(boolPtr(false), "plan", "plan")
 
-	require.EqualError(t, err, "ProdPack can only be changed together with a plan change; pick a different plan or drop the flag")
-	assert.Zero(t, client.requests, "same-plan intent must stop before the GraphQL mutation")
+	_, err := gql.UpdateRedisAddOn(context.Background(), client, "addon", "plan", []string{"ord"}, map[string]any{}, map[string]any{}, boolPtr(true))
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, client.requests)
+	assert.Equal(t, "plan", client.variables["planId"])
+	assert.Equal(t, true, client.variables["prodPack"])
 }
