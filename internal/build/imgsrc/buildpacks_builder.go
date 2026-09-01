@@ -94,6 +94,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 		return nil, "", err
 	}
+	terminal.Debugf("Buildpacks: Moby client Docker host %s\n", mobyClient.DaemonHost())
 
 	packClient, err := packclient.NewClient(packclient.WithDockerClient(mobyClient), packclient.WithLogger(newPackLogger(streams.Out)))
 	if err != nil {
@@ -131,6 +132,16 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 	build.ContextBuildFinish()
 
+	// Pack passes DockerHost to lifecycle containers. An empty value makes pack
+	// mount the local Unix socket, which is unavailable when the daemon is
+	// remote. Use the ready client's host unless the user supplied an explicit
+	// override.
+	buildpacksDockerHost := opts.BuildpacksDockerHost
+	if buildpacksDockerHost == "" && dockerFactory.IsRemote() {
+		buildpacksDockerHost = docker.DaemonHost()
+		terminal.Debugf("Buildpacks: using remote Docker host %s for lifecycle containers\n", buildpacksDockerHost)
+	}
+
 	if opts.BuildpacksDockerHost != "" {
 		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks docker host: %v", opts.BuildpacksDockerHost))
 	}
@@ -152,7 +163,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		Builder:        builder,
 		ClearCache:     opts.NoCache,
 		Image:          newCacheTag(opts.AppName),
-		DockerHost:     opts.BuildpacksDockerHost,
+		DockerHost:     buildpacksDockerHost,
 		Buildpacks:     buildpacks,
 		Env:            normalizeBuildArgs(opts.BuildArgs),
 		UserID:         uid,
