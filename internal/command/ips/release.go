@@ -9,7 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func newRelease() *cobra.Command {
@@ -55,45 +55,36 @@ func newReleaseEgress() *cobra.Command {
 }
 
 func runReleaseIPAddress(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
+	return releaseIPAddresses(ctx, flag.Args(ctx))
+}
 
-	appName := appconfig.NameFromContext(ctx)
-
-	for _, address := range flag.Args(ctx) {
-
-		if ip := net.ParseIP(address); ip == nil {
-			return fmt.Errorf("Invalid IP address: '%s'", address)
-		}
-
-		if err := client.ReleaseIPAddress(ctx, appName, address); err != nil {
-			return err
-		}
-
-		fmt.Printf("Released %s from %s\n", address, appName)
+func runReleaseEgressIPAddress(ctx context.Context) error {
+	if err := releaseIPAddresses(ctx, flag.Args(ctx)); err != nil {
+		return err
 	}
+
+	SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, "")
 
 	return nil
 }
 
-func runReleaseEgressIPAddress(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
-
+// releaseIPAddresses releases the given addresses from the app. The Machines API uses the same
+// endpoint for ingress and egress IPs.
+func releaseIPAddresses(ctx context.Context, addresses []string) error {
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	for _, address := range flag.Args(ctx) {
-
+	for _, address := range addresses {
 		if ip := net.ParseIP(address); ip == nil {
 			return fmt.Errorf("Invalid IP address: '%s'", address)
 		}
 
-		if err := client.ReleaseAppScopedEgressIPAddress(ctx, appName, address); err != nil {
+		if err := flapsClient.DeleteIPAssignment(ctx, appName, address); err != nil {
 			return err
 		}
 
 		fmt.Printf("Released %s from %s\n", address, appName)
 	}
-
-	SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, "")
 
 	return nil
 }

@@ -7,12 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -112,9 +111,9 @@ func newAllocateEgress() *cobra.Command {
 }
 
 func runAllocateIPAddressV4(ctx context.Context) error {
-	addrType := "v4"
+	addrType := flaps.IPAssignmentTypeV4
 	if flag.GetBool(ctx, "shared") {
-		addrType = "shared_v4"
+		addrType = flaps.IPAssignmentTypeSharedV4
 	} else if !flag.GetBool(ctx, "yes") {
 		msg := `Looks like you're accessing a paid feature. Dedicated IPv4 addresses now cost $2/mo.
 Are you ok with this? Alternatively, you could allocate a shared IPv4 address with the --shared flag.`
@@ -124,66 +123,48 @@ Are you ok with this? Alternatively, you could allocate a shared IPv4 address wi
 		}
 	}
 
-	return runAllocateIPAddress(ctx, addrType, nil, "")
+	return runAllocateIPAddress(ctx, addrType, "", "")
 }
 
 func runAllocateIPAddressV6(ctx context.Context) (err error) {
-	private := flag.GetBool(ctx, "private")
-	if private {
-		orgSlug := flag.GetOrg(ctx)
-		var org *fly.Organization
-
-		if orgSlug != "" {
-			org, err = orgs.OrgFromSlug(ctx, orgSlug)
-			if err != nil {
-				return err
-			}
-		}
-
-		network := flag.GetString(ctx, "network")
-
-		return runAllocateIPAddress(ctx, "private_v6", org, network)
+	if flag.GetBool(ctx, "private") {
+		return runAllocateIPAddress(ctx, flaps.IPAssignmentTypePrivateV6, flag.GetOrg(ctx), flag.GetString(ctx, "network"))
 	}
 
-	return runAllocateIPAddress(ctx, "v6", nil, "")
+	return runAllocateIPAddress(ctx, flaps.IPAssignmentTypeV6, "", "")
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organization, network string) (err error) {
-	client := flyutil.ClientFromContext(ctx)
-
+func runAllocateIPAddress(ctx context.Context, addrType flaps.IPAssignmentType, orgSlug string, network string) (err error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	if addrType == "shared_v4" {
-		ip, err := client.AllocateSharedIPAddress(ctx, appName)
-		if err != nil {
-			return err
-		}
-
-		renderSharedTable(ctx, ip)
-
-		return nil
-	}
-
-	region := flag.GetRegion(ctx)
-
-	orgID := ""
-	if org != nil {
-		orgID = org.ID
-	}
-
-	ipAddress, err := client.AllocateIPAddress(ctx, appName, addrType, region, orgID, network)
+	res, err := flapsClient.AssignIP(ctx, appName, flaps.AssignIPRequest{
+		Type:         addrType,
+		Region:       regionForIPType(ctx, addrType),
+		Organization: orgSlug,
+		Network:      network,
+	})
 	if err != nil {
 		return err
 	}
 
-	ipAddresses := []fly.IPAddress{*ipAddress}
-	renderListTable(ctx, ipAddresses)
+	renderAssignedIP(ctx, res)
 
 	return nil
 }
 
+// regionForIPType returns the --region flag for IP types that support regional allocation.
+// Shared v4 and private v6 addresses are not regional and the API rejects a region for them.
+func regionForIPType(ctx context.Context, addrType flaps.IPAssignmentType) string {
+	switch addrType {
+	case flaps.IPAssignmentTypeV4, flaps.IPAssignmentTypeV6:
+		return flag.GetRegion(ctx)
+	default:
+		return ""
+	}
+}
+
 func runAllocateEgressIPAddresses(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	region := flag.GetRegion(ctx)
@@ -215,14 +196,20 @@ If this is intentional, type Y to continue.`, region)
 		}
 	}
 
-	v4, v6, err := client.AllocateAppScopedEgressIPAddress(ctx, appName, region)
+	res, err := flapsClient.AssignIP(ctx, appName, flaps.AssignIPRequest{
+		Type:   flaps.IPAssignmentTypeEgressPair,
+		Region: region,
+	})
 	if err != nil {
 		return err
 	}
+	if res.IPPair == nil {
+		return fmt.Errorf("expected an egress IP pair for region %s but the API returned none", region)
+	}
 
 	fmt.Printf("Allocated egress IPs for region %s:\n", region)
-	fmt.Printf("%s\n", v4.String())
-	fmt.Printf("%s\n", v6.String())
+	fmt.Printf("%s\n", res.IPPair.V4)
+	fmt.Printf("%s\n", res.IPPair.V6)
 	fmt.Println("Newly-allocated egress IPs may need 5 - 10 minutes to take effect on existing machines.")
 
 	SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, "")

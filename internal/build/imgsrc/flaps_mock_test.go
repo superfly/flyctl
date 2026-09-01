@@ -74,10 +74,10 @@ func (mr *MockFlapsClientMockRecorder) AppNameAvailable(ctx, name any) *gomock.C
 }
 
 // AssignIP mocks base method.
-func (m *MockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (*flaps.IPAssignment, error) {
+func (m *MockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AssignIP", ctx, appName, req)
-	ret0, _ := ret[0].(*flaps.IPAssignment)
+	ret0, _ := ret[0].(*flaps.AssignIPResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
