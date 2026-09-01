@@ -193,6 +193,10 @@ func (m *mockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, 
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
 	return fmt.Errorf("not implemented")
 }

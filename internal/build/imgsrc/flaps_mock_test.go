@@ -335,6 +335,20 @@ func (mr *MockFlapsClientMockRecorder) DeleteIPAssignment(ctx, appName, ip any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIPAssignment", reflect.TypeOf((*MockFlapsClient)(nil).DeleteIPAssignment), ctx, appName, ip)
 }
 
+// DeleteManagedPostgresAttachment mocks base method.
+func (m *MockFlapsClient) DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteManagedPostgresAttachment", ctx, id, appName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteManagedPostgresAttachment indicates an expected call of DeleteManagedPostgresAttachment.
+func (mr *MockFlapsClientMockRecorder) DeleteManagedPostgresAttachment(ctx, id, appName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteManagedPostgresAttachment", reflect.TypeOf((*MockFlapsClient)(nil).DeleteManagedPostgresAttachment), ctx, id, appName)
+}
+
 // DeleteManagedPostgresCluster mocks base method.
 func (m *MockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()

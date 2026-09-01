@@ -76,6 +76,10 @@ func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, host
 	panic("TODO")
 }
 
+func (m *FlapsClient) DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error {
+	panic("TODO")
+}
+
 func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
 	panic("TODO")
 }

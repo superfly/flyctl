@@ -29,6 +29,7 @@ type FlapsClient interface {
 	DeleteACMECertificate(ctx context.Context, appName, hostname string) error
 	DeleteCertificate(ctx context.Context, appName, hostname string) error
 	DeleteCustomCertificate(ctx context.Context, appName, hostname string) error
+	DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error
 	DeleteManagedPostgresCluster(ctx context.Context, id string) error
 	DeleteManagedPostgresUser(ctx context.Context, id, username string) error
 	DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error
