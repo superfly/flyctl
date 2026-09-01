@@ -1,13 +1,6 @@
 name: CI - Dev
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
-  # push:
   workflow_dispatch:
 
 concurrency:
@@ -16,8 +9,6 @@ concurrency:
 
 jobs:
   test:
-    # Temporarily disabled while diagnosing TestDeployNodeApp in preflight.
-    if: ${{ false }}
     uses: ./.github/workflows/test.yml
 
   # create a dev tag for every branch except master
