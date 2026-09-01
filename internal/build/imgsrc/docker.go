@@ -128,6 +128,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 			// transport in *otelhttp.Transport, which moby's WithHost
 			// rejects (only *http.Transport is accepted).
 			finalHost := dc.DaemonHost()
+			terminal.Debugf("Remote builder client: preparing Pack Moby client host=%s\n", finalHost)
 			wg := connectOverWireguard
 			f.mobyBuildFn = func(ctx context.Context) (*mobyclient.Client, error) {
 				var (
@@ -143,7 +144,19 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					return nil, optsErr
 				}
 
-				return mobyclient.New(opts...)
+				// Keep the host as the final option. The Moby client starts with
+				// its local Unix-socket default, and the Pack client uses the
+				// resulting client's host for builder-image pulls.
+				opts = append(opts, mobyclient.WithHost(finalHost))
+				client, err := mobyclient.New(opts...)
+				if err != nil {
+					return nil, err
+				}
+				if client.DaemonHost() != finalHost {
+					return nil, fmt.Errorf("moby client host mismatch: got %q, want %q", client.DaemonHost(), finalHost)
+				}
+
+				return client, nil
 			}
 
 			return dc, nil
