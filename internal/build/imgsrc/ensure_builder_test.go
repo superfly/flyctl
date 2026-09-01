@@ -203,13 +203,6 @@ func TestCreateBuilder(t *testing.T) {
 		DeleteAppFunc: func(ctx context.Context, appName string) error {
 			return nil
 		},
-		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
-			if allocateIPAddressShouldFail {
-				return nil, errors.New("allocate ip address failed")
-			}
-
-			return &fly.IPAddress{}, nil
-		},
 	}
 
 	waitForAppShouldFail := false
@@ -228,6 +221,13 @@ func TestCreateBuilder(t *testing.T) {
 			return &flaps.App{
 				Name: req.Name,
 			}, nil
+		},
+		AssignIPFunc: func(ctx context.Context, appName string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+			if allocateIPAddressShouldFail {
+				return nil, errors.New("allocate ip address failed")
+			}
+
+			return &flaps.AssignIPResponse{}, nil
 		},
 		WaitForAppFunc: func(ctx context.Context, name string) error {
 			if waitForAppShouldFail {

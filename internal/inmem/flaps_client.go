@@ -32,7 +32,7 @@ func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, 
 	panic("TODO")
 }
 
-func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.AssignIPResponse, err error) {
 	panic("TODO")
 }
 

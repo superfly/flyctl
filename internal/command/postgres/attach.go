@@ -109,17 +109,9 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	flycast, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
-	}
-
-	var flycast *string
-
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
-		}
+		return err
 	}
 
 	return machineAttachCluster(ctx, params, flycast)
@@ -154,20 +146,29 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	flycast, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
-	}
-
-	var flycast *string
-
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
-		}
+		return err
 	}
 
 	return machineAttachCluster(ctx, params, flycast)
+}
+
+// flycastAddress returns the postgres app's Flycast (private IPv6) address, if it has one.
+func flycastAddress(ctx context.Context, pgAppName string) (*string, error) {
+	res, err := flapsutil.ClientFromContext(ctx).GetIPAssignments(ctx, pgAppName)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
+	}
+
+	var flycast *string
+	for _, ip := range res.IPs {
+		if ip.IsFlycast() {
+			flycast = &ip.IP
+		}
+	}
+
+	return flycast, nil
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
