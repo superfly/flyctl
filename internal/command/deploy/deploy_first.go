@@ -96,6 +96,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
 			Type:         "private_v6",
 			Organization: org,
+			Network:      md.app.Network,
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
