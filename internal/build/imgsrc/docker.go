@@ -650,6 +650,7 @@ func buildWireguardlessMobyOpts(ctx context.Context, host, appName string) ([]mo
 // hostname over TLS, retrying with backoff on failure. A brand new Fly app
 // hostname can take a little while to become DNS-resolvable everywhere.
 func dialBuilderWithDNSRetry(ctx context.Context, hostname string) (net.Conn, error) {
+	tlsDialer := &tls.Dialer{Config: &tls.Config{}}
 	b := &backoff.Backoff{
 		Min:    2 * time.Second,
 		Max:    30 * time.Second,
@@ -661,9 +662,16 @@ func dialBuilderWithDNSRetry(ctx context.Context, hostname string) (net.Conn, er
 	var conn net.Conn
 	var err error
 	for attempt := range maxRetries {
-		conn, err = tls.Dial("tcp", net.JoinHostPort(hostname, "443"), &tls.Config{})
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		conn, err = tlsDialer.DialContext(ctx, "tcp", net.JoinHostPort(hostname, "443"))
 		if err == nil {
 			return conn, nil
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
 		}
 
 		if attempt < maxRetries-1 {
