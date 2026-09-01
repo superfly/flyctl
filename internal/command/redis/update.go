@@ -232,10 +232,10 @@ func runUpdate(ctx context.Context) (err error) {
 
 	fmt.Fprintf(out, "\nYour Upstash Redis database %s was updated.\n", addOn.Name)
 	fmt.Fprintf(out, "  Plan:         %s\n", selectedPlan.DisplayName)
-	fmt.Fprintf(out, "  Eviction:     %s\n", optionState(options, "eviction"))
+	fmt.Fprintf(out, "  Eviction:     %t\n", optionEnabled(options, "eviction"))
 
 	if selectedPlanIsFixed {
-		fmt.Fprintf(out, "  Auto-upgrade: %s\n", optionState(options, "auto_upgrade"))
+		fmt.Fprintf(out, "  Auto-upgrade: %t\n", optionEnabled(options, "auto_upgrade"))
 	} else {
 		fmt.Fprintf(out, "  Auto-upgrade: not available on this plan\n")
 	}
@@ -243,37 +243,29 @@ func runUpdate(ctx context.Context) (err error) {
 	if selectedPlanIsLegacy {
 		fmt.Fprintf(out, "  ProdPack:     not available on legacy plans\n")
 	} else {
-		fmt.Fprintf(out, "  ProdPack:     %s\n", prodPackState(prodPack, storedProdPack))
+		fmt.Fprintf(out, "  ProdPack:     %t\n", prodPackEnabled(prodPack, storedProdPack))
 	}
 
 	return
 }
 
-// optionState reports the state a boolean option is left in. A key is only
+// optionEnabled reports the state a boolean option is left in. A key is only
 // dropped from the payload after the user declined to enable it, so an absent
 // key means the setting stays off.
-func optionState(options map[string]any, key string) string {
+func optionEnabled(options map[string]any, key string) bool {
 	on, _ := options[key].(bool)
 
-	return enabledOrDisabled(on)
+	return on
 }
 
-// prodPackState reports the state ProdPack is left in, falling back to the
+// prodPackEnabled reports the state ProdPack is left in, falling back to the
 // stored value when the user made no decision this invocation.
-func prodPackState(decision *bool, stored bool) string {
+func prodPackEnabled(decision *bool, stored bool) bool {
 	if decision == nil {
-		return enabledOrDisabled(stored)
+		return stored
 	}
 
-	return enabledOrDisabled(*decision)
-}
-
-func enabledOrDisabled(on bool) string {
-	if on {
-		return "enabled"
-	}
-
-	return "disabled"
+	return *decision
 }
 
 // resolveProdPack determines the user's explicit ProdPack decision for this
