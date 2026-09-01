@@ -134,8 +134,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	// Pack passes DockerHost to lifecycle containers. An empty value makes pack
 	// mount the local Unix socket, which is unavailable when the daemon is
-	// remote. Use the ready client's host unless the user supplied an explicit
-	// override.
+	// remote. Use the ready client's host unless there's an override.
 	buildpacksDockerHost := opts.BuildpacksDockerHost
 	if buildpacksDockerHost == "" && dockerFactory.IsRemote() {
 		buildpacksDockerHost = docker.DaemonHost()
