@@ -31,11 +31,11 @@ func newUpdate() (cmd *cobra.Command) {
 		flag.ReplicaRegions(),
 		flag.Bool{
 			Name:        "enable-prodpack",
-			Description: "Enable ProdPack add-on for additional features ($200/mo)",
+			Description: "Enable ProdPack add-on for additional features ($200/mo), skipping the prompt",
 		},
 		flag.Bool{
 			Name:        "disable-prodpack",
-			Description: "Disable the ProdPack add-on",
+			Description: "Disable the ProdPack add-on, skipping the prompt",
 		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -151,6 +151,8 @@ func runUpdate(ctx context.Context) (err error) {
 			currentAutoUpgrade, _ = options["auto_upgrade"].(bool)
 		}
 
+		fmt.Fprint(out, autoUpgradeDescription)
+
 		if currentAutoUpgrade {
 			disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?")
 			if err != nil {
@@ -160,7 +162,7 @@ func runUpdate(ctx context.Context) (err error) {
 				options["auto_upgrade"] = false
 			}
 		} else {
-			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade? \n   The Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your\n   bandwidth or storage limits, ensuring uninterrupted service.\n   https://fly.io/docs/upstash/redis/#auto-upgrade")
+			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
 			if err != nil {
 				return err
 			}
@@ -177,7 +179,9 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
-	// ProdPack available for both pay-as-you-go and fixed plans (but not legacy).
+	// ProdPack available for both pay-as-you-go and fixed plans (but not
+	// legacy), and can be toggled on its own — the provider does not require a
+	// plan change to go with it.
 	//
 	// The locally stored prod_pack option can be stale in either direction, so
 	// the update payload only ever carries a value the user chose in this
@@ -190,22 +194,25 @@ func runUpdate(ctx context.Context) (err error) {
 		options["prod_pack"],
 		selectedPlanIsLegacy,
 		func() (bool, error) {
+			fmt.Fprint(out, prodPackDescription)
+
 			return prompt.Confirm(ctx, "Would you like to disable ProdPack?")
 		},
 		func() (bool, error) {
-			return prompt.Confirm(ctx, "Would you like to enable ProdPack?\n   ProdPack adds enhanced features for production workloads at $200/mo.\n   This setting can be changed later.\n   For more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.")
+			fmt.Fprint(out, prodPackDescription)
+
+			return prompt.Confirm(ctx, "Would you like to enable ProdPack?")
 		},
 	)
 	if err != nil {
 		return
 	}
 
-    prevProdPack := options["prod_pack"].(bool)
-	stripProdPack(options)
+	// Read the stored value before it is stripped: it is the only state we
+	// have to fall back on for the summary when the user made no decision.
+	storedProdPack, _ := options["prod_pack"].(bool)
 
-	if prodPack == nil && !selectedPlanIsLegacy {
-		fmt.Fprintf(out, "ProdPack: unchanged (use --enable-prodpack or --disable-prodpack to change it)\n")
-	}
+	stripProdPack(options)
 
 	if currentPlanIsLegacy && selectedPlanIsLegacy {
 		fmt.Fprintf(out, "\nNote: Auto-upgrade and ProdPack are not available for legacy plans.\nTo access these features, please upgrade to a current plan.\n\n")
@@ -223,15 +230,42 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	// Display the selected plan and prodPack status
-	// We assume update was successful if no error triggers
-	prodPackEnabled := prevProdPack
-	if prodPack != nil {
-		prodPackEnabled = *prodPack
+	fmt.Fprintf(out, "\nYour Upstash Redis database %s was updated.\n", addOn.Name)
+	fmt.Fprintf(out, "  Plan:         %s\n", selectedPlan.DisplayName)
+	fmt.Fprintf(out, "  Eviction:     %t\n", optionEnabled(options, "eviction"))
+
+	if selectedPlanIsFixed {
+		fmt.Fprintf(out, "  Auto-upgrade: %t\n", optionEnabled(options, "auto_upgrade"))
+	} else {
+		fmt.Fprintf(out, "  Auto-upgrade: not available on this plan\n")
 	}
-	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n   Plan: %s\n   ProdPack: %t\n", addOn.Name, selectedPlan.DisplayName, prodPackEnabled )
+
+	if selectedPlanIsLegacy {
+		fmt.Fprintf(out, "  ProdPack:     not available on legacy plans\n")
+	} else {
+		fmt.Fprintf(out, "  ProdPack:     %t\n", prodPackEnabled(prodPack, storedProdPack))
+	}
 
 	return
+}
+
+// optionEnabled reports the state a boolean option is left in. A key is only
+// dropped from the payload after the user declined to enable it, so an absent
+// key means the setting stays off.
+func optionEnabled(options map[string]any, key string) bool {
+	on, _ := options[key].(bool)
+
+	return on
+}
+
+// prodPackEnabled reports the state ProdPack is left in, falling back to the
+// stored value when the user made no decision this invocation.
+func prodPackEnabled(decision *bool, stored bool) bool {
+	if decision == nil {
+		return stored
+	}
+
+	return *decision
 }
 
 // resolveProdPack determines the user's explicit ProdPack decision for this
@@ -239,9 +273,11 @@ func runUpdate(ctx context.Context) (err error) {
 // must be omitted from the update payload.
 //
 // The stored option is intentionally never echoed back as the sent value: it
-// is only used to decide whether offering the disable prompt makes sense. A
-// non-interactive session makes no decision rather than defaulting to disable.
-func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLegacy bool, confirmDisable func() (bool, error), confirmEnable func() (bool, error)) (*bool, error) {
+// only decides which of the two prompts is offered. Declining means "leave it
+// alone" rather than "set the opposite", so a stale stored copy can never flip
+// a setting the user did not ask to change. A non-interactive session makes no
+// decision at all unless a flag was passed.
+func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLegacy bool, confirmDisable, confirmEnable func() (bool, error)) (*bool, error) {
 	if enableFlag && disableFlag {
 		return nil, fmt.Errorf("--enable-prodpack and --disable-prodpack are mutually exclusive")
 	}
@@ -264,34 +300,26 @@ func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLeg
 		return boolPtr(false), nil
 	}
 
-	// Only offer the disable prompt when the stored copy claims ProdPack is
-	// on. Never prompt to enable: a default/accidental answer previously
-	// became an explicit disable for databases whose stored option was stale.
-	if storedOn, _ := stored.(bool); storedOn {
-		disable, err := confirmDisable()
-		switch {
-		case prompt.IsNonInteractive(err):
-			return nil, nil
-		case err != nil:
-			return nil, err
-		case disable:
-			return boolPtr(false), nil
-		}
-	}else{
-	// No stored prodpack means it is not enabled
-	// Always prompt to enable if not enabled, unless non interactive
-		enable, err := confirmEnable()
-		switch {
-		case prompt.IsNonInteractive(err):
-			return nil, nil
-		case err != nil:
-			return nil, err
-		case enable:
-			return boolPtr(true), nil
-		}
+	// The stored copy only picks the question. Whichever one is asked, "no"
+	// means "leave ProdPack alone", never "set it to the opposite".
+	storedOn, _ := stored.(bool)
+
+	confirm, decision := confirmEnable, true
+	if storedOn {
+		confirm, decision = confirmDisable, false
 	}
 
-	return nil, nil
+	answer, err := confirm()
+	switch {
+	case prompt.IsNonInteractive(err):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case !answer:
+		return nil, nil
+	}
+
+	return boolPtr(decision), nil
 }
 
 // stripProdPack removes the legacy ProdPack option from the options blob.
@@ -303,12 +331,4 @@ func stripProdPack(options map[string]any) {
 
 func boolPtr(v bool) *bool {
 	return &v
-}
-
-func validateProdPackPlanChange(decision *bool, currentPlanID, selectedPlanID string) error {
-	if decision != nil && currentPlanID == selectedPlanID {
-		return fmt.Errorf("ProdPack can only be changed together with a plan change; pick a different plan or drop the flag")
-	}
-
-	return nil
 }

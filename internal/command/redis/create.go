@@ -25,6 +25,13 @@ const (
 	redisPlanPayAsYouGo = "ekQ85Yjkw155ohQ5ALYq0M"
 )
 
+// Descriptions shown before the corresponding prompt, shared by create and
+// update so both paths explain a setting the same way.
+const (
+	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#auto-upgrade.\n\n"
+	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.\n\n"
+)
+
 // Legacy plans that are no longer available for new databases
 // but existing databases can remain on them
 // These match the normalized display names (lowercase, spaces replaced with underscores)
@@ -164,7 +171,7 @@ func runCreate(ctx context.Context) (err error) {
 		if flag.IsSpecified(ctx, "enable-auto-upgrade") {
 			enableAutoUpgrade = flag.GetBool(ctx, "enable-auto-upgrade")
 		} else {
-			fmt.Fprintf(io.Out, "\nAuto-upgrade automatically switches to a higher plan when you hit resource limits.\nThis setting can be changed later.\n\n")
+			fmt.Fprint(io.Out, autoUpgradeDescription)
 			enableAutoUpgrade, err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
 			if err != nil {
 				return
@@ -179,7 +186,7 @@ func runCreate(ctx context.Context) (err error) {
 	if flag.IsSpecified(ctx, "enable-prodpack") {
 		enableProdpack = flag.GetBool(ctx, "enable-prodpack")
 	} else {
-		fmt.Fprintf(io.Out, "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.\n\n")
+		fmt.Fprint(io.Out, prodPackDescription)
 		enableProdpack, err = prompt.Confirm(ctx, "Would you like to enable ProdPack?")
 		if err != nil {
 			return
