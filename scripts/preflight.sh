@@ -61,6 +61,9 @@ if [[ -n "$group" ]]; then
             # they do not consume the shared deploy package timeout.
             test_skip_pattern="^Test(Deploy$|FlyDeploy_BlueGreen)"
             ;;
+        deploy-node)
+            test_pattern="^TestDeployNodeApp$"
+            ;;
         deploy-fixtures)
             test_pattern="^TestDeploy$"
             ;;
@@ -105,7 +108,7 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-node, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
             exit 1
             ;;
     esac

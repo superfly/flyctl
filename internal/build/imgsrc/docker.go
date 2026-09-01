@@ -619,7 +619,7 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
 		}),
 		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
+			return dialBuilderWithDNSRetry(ctx, parsedHostUrl.Hostname())
 		}),
 	}
 
@@ -641,9 +641,53 @@ func buildWireguardlessMobyOpts(ctx context.Context, host, appName string) ([]mo
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
 		}),
 		mobyclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
+			return dialBuilderWithDNSRetry(ctx, parsedHostUrl.Hostname())
 		}),
 	}, nil
+}
+
+// dialBuilderWithDNSRetry dials a freshly created builder app's .fly.dev
+// hostname over TLS, retrying DNS resolution failures with backoff. A brand
+// new Fly app hostname can take a little while to become DNS-resolvable
+// everywhere.
+func dialBuilderWithDNSRetry(ctx context.Context, hostname string) (net.Conn, error) {
+	tlsDialer := &tls.Dialer{Config: &tls.Config{}}
+	b := &backoff.Backoff{
+		Min:    2 * time.Second,
+		Max:    30 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+
+	maxRetries := 10 // Up to ~5 minutes total with backoff, matching the initial compatibility check.
+	var conn net.Conn
+	var err error
+	for attempt := range maxRetries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		conn, err = tlsDialer.DialContext(ctx, "tcp", net.JoinHostPort(hostname, "443"))
+		if err == nil {
+			return conn, nil
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		// Only retry DNS errors.
+		var dnsErr *net.DNSError
+		if !errors.As(err, &dnsErr) {
+			return nil, err
+		}
+
+		if attempt < maxRetries-1 {
+			dur := b.Duration()
+			terminal.Debugf("Builder dial to %s failed (attempt %d/%d), retrying in %s (err: %v)\n", hostname, attempt+1, maxRetries, dur, err)
+			pause.For(ctx, dur)
+		}
+	}
+
+	return nil, err
 }
 
 // buildRemoteMobyOpts mirrors buildRemoteClientOpts for the moby client type.
