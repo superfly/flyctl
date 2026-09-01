@@ -619,7 +619,7 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
 		}),
 		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
+			return dialBuilderWithDNSRetry(ctx, parsedHostUrl.Hostname())
 		}),
 	}
 
@@ -641,9 +641,39 @@ func buildWireguardlessMobyOpts(ctx context.Context, host, appName string) ([]mo
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
 		}),
 		mobyclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return tls.Dial("tcp", net.JoinHostPort(parsedHostUrl.Hostname(), "443"), &tls.Config{})
+			return dialBuilderWithDNSRetry(ctx, parsedHostUrl.Hostname())
 		}),
 	}, nil
+}
+
+// dialBuilderWithDNSRetry dials a freshly created builder app's .fly.dev
+// hostname over TLS, retrying with backoff on failure. A brand new Fly app
+// hostname can take a little while to become DNS-resolvable everywhere.
+func dialBuilderWithDNSRetry(ctx context.Context, hostname string) (net.Conn, error) {
+	b := &backoff.Backoff{
+		Min:    2 * time.Second,
+		Max:    30 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+
+	maxRetries := 10 // Up to ~5 minutes total with backoff, matching the initial compatibility check.
+	var conn net.Conn
+	var err error
+	for attempt := range maxRetries {
+		conn, err = tls.Dial("tcp", net.JoinHostPort(hostname, "443"), &tls.Config{})
+		if err == nil {
+			return conn, nil
+		}
+
+		if attempt < maxRetries-1 {
+			dur := b.Duration()
+			terminal.Debugf("Builder dial to %s failed (attempt %d/%d), retrying in %s (err: %v)\n", hostname, attempt+1, maxRetries, dur, err)
+			pause.For(ctx, dur)
+		}
+	}
+
+	return nil, err
 }
 
 // buildRemoteMobyOpts mirrors buildRemoteClientOpts for the moby client type.
