@@ -647,8 +647,9 @@ func buildWireguardlessMobyOpts(ctx context.Context, host, appName string) ([]mo
 }
 
 // dialBuilderWithDNSRetry dials a freshly created builder app's .fly.dev
-// hostname over TLS, retrying with backoff on failure. A brand new Fly app
-// hostname can take a little while to become DNS-resolvable everywhere.
+// hostname over TLS, retrying DNS resolution failures with backoff. A brand
+// new Fly app hostname can take a little while to become DNS-resolvable
+// everywhere.
 func dialBuilderWithDNSRetry(ctx context.Context, hostname string) (net.Conn, error) {
 	tlsDialer := &tls.Dialer{Config: &tls.Config{}}
 	b := &backoff.Backoff{
@@ -672,6 +673,11 @@ func dialBuilderWithDNSRetry(ctx context.Context, hostname string) (net.Conn, er
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
+		}
+		// Only retry DNS errors.
+		var dnsErr *net.DNSError
+		if !errors.As(err, &dnsErr) {
+			return nil, err
 		}
 
 		if attempt < maxRetries-1 {
