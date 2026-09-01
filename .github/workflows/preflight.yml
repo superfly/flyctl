@@ -12,28 +12,16 @@ on:
 
 jobs:
   preflight-tests:
-    name: "preflight-tests (${{ matrix.group }})"
+    name: "TestDeploy/Buildpack (attempt ${{ matrix.attempt }})"
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Remote builders are shared by organization. Run sequentially so one
+      # attempt cannot recreate the builder while another attempt is using it.
+      max-parallel: 1
       matrix:
-        group:
-          - apps
-          - deploy
-          - deploy-fixtures
-          - bluegreen
-          - launch
-          - scale
-          - volume
-          - console
-          - logs
-          - machine
-          - postgres
-          - postgres-flex-failover
-          - tokens
-          - wireguard
-          - misc
+        attempt: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7
@@ -45,7 +33,7 @@ jobs:
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
-          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-buildpack-${{ matrix.attempt }}" >> "$GITHUB_ENV"
       # If this workflow is triggered by code changes (eg PRs), download the binary to save time.
       - uses: actions/download-artifact@v8
         id: download-flyctl
@@ -63,7 +51,7 @@ jobs:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN || secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
-          FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: 'true'
+          FLY_PREFLIGHT_TEST_LOG_LEVEL: debug
           FLY_FORCE_TRACE: 'true'
         run: |
           mkdir -p bin
@@ -71,7 +59,7 @@ jobs:
           chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
-          ./scripts/preflight.sh -r "${{ github.ref }}" -g "${{ matrix.group }}" -o $GITHUB_OUTPUT
+          ./scripts/preflight.sh -r "${{ github.ref }}" -g deploy-buildpack -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d

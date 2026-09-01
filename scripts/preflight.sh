@@ -36,6 +36,7 @@ done
 shift $(($OPTIND - 1))
 
 test_opts=
+test_timeout=15m
 if [[ "$ref" != "refs/heads/master" ]]; then
     test_opts=-short
 fi
@@ -63,6 +64,13 @@ if [[ -n "$group" ]]; then
             ;;
         deploy-fixtures)
             test_pattern="^TestDeploy$"
+            ;;
+        deploy-buildpack)
+            test_pattern="^TestDeploy$/^Buildpack$"
+            # This test deliberately provisions a fresh remote builder and is
+            # skipped by its normal short-mode guard.
+            test_opts=
+            test_timeout=25m
             ;;
         bluegreen)
             test_pattern="^TestFlyDeploy_BlueGreen"
@@ -105,12 +113,12 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-fixtures, deploy-buildpack, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
             exit 1
             ;;
     esac
 
-    go_test_args=(-tags=integration -v -timeout=15m)
+    go_test_args=(-tags=integration -v -timeout="$test_timeout")
     if [[ -n "$test_opts" ]]; then
         go_test_args+=("$test_opts")
     fi

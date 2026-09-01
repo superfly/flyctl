@@ -1,13 +1,6 @@
 name: CI - Dev
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
-  # push:
   workflow_dispatch:
 
 concurrency:

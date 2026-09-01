@@ -4,10 +4,13 @@
 package preflight
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -460,11 +463,16 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 
 	var result *testlib.FlyctlResult
 	if builderFlag != "" {
-		result = f.Fly("deploy %s --app %s %s", builderFlag, app, appDir)
+		result = f.FlyAllowExitFailure("deploy %s --app %s %s", builderFlag, app, appDir)
 	} else {
-		result = f.Fly("deploy --app %s %s", app, appDir)
+		result = f.FlyAllowExitFailure("deploy --app %s %s", app, appDir)
 	}
-	t.Log(result.StdOutString())
+	t.Logf("deploy stdout:\n%s", result.StdOutString())
+	t.Logf("deploy stderr:\n%s", result.StdErrString())
+	if result.ExitCode() != 0 {
+		logRemoteBuilderDiagnostics(t, f, result)
+		result.AssertSuccessfulExit()
+	}
 
 	var resp *http.Response
 	require.Eventually(t, func() bool {
@@ -479,6 +487,43 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 	assert.Equal(t, "Hello World!\n", string(buf))
 }
 
+var remoteBuilderNamePattern = regexp.MustCompile(`fly-builder-[a-z0-9-]+`)
+
+func logRemoteBuilderDiagnostics(t *testing.T, f *testlib.FlyctlTestEnv, deployResult *testlib.FlyctlResult) {
+	t.Helper()
+
+	output := deployResult.StdOutString() + "\n" + deployResult.StdErrString()
+	seen := make(map[string]struct{})
+	for _, builderName := range remoteBuilderNamePattern.FindAllString(output, -1) {
+		if _, ok := seen[builderName]; ok {
+			continue
+		}
+		seen[builderName] = struct{}{}
+
+		hostname := builderName + ".fly.dev"
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		addresses, lookupErr := net.DefaultResolver.LookupHost(ctx, hostname)
+		cancel()
+		t.Logf("builder DNS lookup: hostname=%s addresses=%v err=%v", hostname, addresses, lookupErr)
+
+		commands := []string{
+			"status --app %s --json",
+			"machines list --app %s --json",
+			"ips list --app %s --json",
+			"logs --app %s --no-tail",
+		}
+		for _, command := range commands {
+			result := f.FlyAllowExitFailure(command, builderName)
+			t.Logf("builder diagnostic: command=%q exit=%d stdout=%q stderr=%q",
+				result.CmdString(), result.ExitCode(), result.StdOutString(), result.StdErrString())
+		}
+	}
+
+	if len(seen) == 0 {
+		t.Log("could not find a remote builder name in deploy output")
+	}
+}
+
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		if testing.Short() {
@@ -486,7 +531,7 @@ func TestDeploy(t *testing.T) {
 		}
 		t.Parallel()
 		// Buildpacks cannot use BuildKit, so they use Depot (which falls back to remote builders)
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot --recreate-builder")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		if testing.Short() {

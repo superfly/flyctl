@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -360,6 +361,7 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 
 func (p *Provisioner) createBuilder(ctx context.Context, region, builderName string) (app *flaps.App, mach *fly.Machine, retErr error) {
 	buildkit := p.UseBuildkit()
+	startedAt := time.Now()
 
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
@@ -376,6 +378,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 		return nil, nil, retErr
 	}
+	terminal.Debugf("Remote builder provisioning: builder=%s app created elapsed=%s\n", builderName, time.Since(startedAt))
 
 	defer func() {
 		if retErr != nil {
@@ -415,6 +418,7 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 		return nil, nil, fmt.Errorf("waiting for app %s: %w", app.Name, retErr)
 	}
+	terminal.Debugf("Remote builder provisioning: builder=%s app ready elapsed=%s\n", builderName, time.Since(startedAt))
 
 	config := &fly.MachineConfig{
 		Env: map[string]string{
@@ -539,6 +543,10 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 		return nil, nil, retErr
 	}
+	terminal.Debugf(
+		"Remote builder provisioning: builder=%s machine=%s private_ip=%s launched elapsed=%s\n",
+		builderName, mach.ID, mach.PrivateIP, time.Since(startedAt),
+	)
 
 	retErr = flapsClient.Wait(ctx, builderName, mach.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(180*time.Second)) // 3 minutes for machine start + DNS propagation
 	if retErr != nil {
@@ -546,6 +554,10 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 		return nil, nil, retErr
 	}
+	terminal.Debugf(
+		"Remote builder provisioning: builder=%s machine=%s started elapsed=%s\n",
+		builderName, mach.ID, time.Since(startedAt),
+	)
 
 	return
 }

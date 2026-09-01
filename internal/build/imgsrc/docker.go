@@ -328,6 +328,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 	defer span.End()
 	if cachedClient != nil {
 		span.AddEvent("using cached docker client")
+		terminal.Debugf("Remote builder client: using cached client host=%s\n", cachedClient.DaemonHost())
 
 		return cachedClient, nil
 	}
@@ -348,6 +349,15 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 		return nil, err
 	}
+
+	connectionMode := "wireguard"
+	if !connectOverWireguard {
+		connectionMode = "wireguardless"
+	}
+	terminal.Debugf(
+		"Remote builder client: mode=%s builder=%s machine=%s private_ip=%s\n",
+		connectionMode, app.Name, machine.ID, machine.PrivateIP,
+	)
 
 	if !connectOverWireguard && !wglessCompatible {
 		client := &http.Client{
@@ -384,14 +394,27 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 		}
 		maxRetries := 10 // Up to ~5 minutes total with backoff
 		for attempt := range maxRetries {
+			attemptStartedAt := time.Now()
+			terminal.Debugf(
+				"Remote builder compatibility check: builder=%s attempt=%d/%d starting\n",
+				app.Name, attempt+1, maxRetries,
+			)
 			res, err = client.Do(req)
 			if err == nil {
+				terminal.Debugf(
+					"Remote builder compatibility check: builder=%s attempt=%d/%d status=%s elapsed=%s\n",
+					app.Name, attempt+1, maxRetries, res.Status, time.Since(attemptStartedAt),
+				)
 				break
 			}
+			terminal.Debugf(
+				"Remote builder compatibility check: builder=%s attempt=%d/%d elapsed=%s err=%v\n",
+				app.Name, attempt+1, maxRetries, time.Since(attemptStartedAt), err,
+			)
 
 			if attempt < maxRetries-1 {
 				dur := b.Duration()
-				terminal.Debugf("Remote builder compatibility check failed (attempt %d/%d), retrying in %s (err: %v)\n", attempt+1, maxRetries, dur, err)
+				terminal.Debugf("Remote builder compatibility check: retrying in %s\n", dur)
 				pause.For(ctx, dur)
 			}
 		}
@@ -481,6 +504,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 			attribute.String("builder.host", host),
 		)
 	}
+	terminal.Debugf(
+		"Remote builder client: mode=%s builder=%s daemon_host=%s waiting_for_daemon elapsed=%s\n",
+		connectionMode, remoteBuilderAppName, host, time.Since(startedAt),
+	)
 
 	span.SetAttributes(
 		attribute.String("builder.name", remoteBuilderAppName),
@@ -581,6 +608,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 		return nil, err
 	default:
+		terminal.Debugf(
+			"Remote builder client: mode=%s builder=%s daemon ready elapsed=%s\n",
+			connectionMode, remoteBuilderAppName, time.Since(startedAt),
+		)
 		if msg := fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName); streams.IsInteractive() {
 			streams.StopProgressIndicatorMsg(msg)
 		} else {
