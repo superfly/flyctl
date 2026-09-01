@@ -8,7 +8,6 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -24,14 +23,17 @@ type appScopedEgressIpsRegionCounters struct {
 func SanityCheckAppScopedEgressIps(ctx context.Context, regionFilter map[string]any, ips map[string][]fly.EgressIPAddress, machines []*fly.Machine, deploymentStrategy string) {
 	var err error
 
-	client := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	errOut := iostreams.FromContext(ctx).ErrOut
 	appName := appconfig.NameFromContext(ctx)
 
 	if ips == nil {
-		ips, err = client.GetAppScopedEgressIPAddresses(ctx, appName)
-		if err != nil || len(ips) == 0 {
+		res, err := flapsClient.GetIPAssignments(ctx, appName)
+		if err != nil {
+			return
+		}
+		ips = egressIPAddressesByRegion(res.IPs)
+		if len(ips) == 0 {
 			return
 		}
 	}
