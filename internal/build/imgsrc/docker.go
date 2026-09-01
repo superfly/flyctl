@@ -144,19 +144,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					return nil, optsErr
 				}
 
-				// Keep the host as the final option. The Moby client starts with
-				// its local Unix-socket default, and the Pack client uses the
-				// resulting client's host for builder-image pulls.
-				opts = append(opts, mobyclient.WithHost(finalHost))
-				client, err := mobyclient.New(opts...)
-				if err != nil {
-					return nil, err
-				}
-				if client.DaemonHost() != finalHost {
-					return nil, fmt.Errorf("moby client host mismatch: got %q, want %q", client.DaemonHost(), finalHost)
-				}
-
-				return client, nil
+				return mobyclient.New(opts...)
 			}
 
 			return dc, nil
@@ -659,6 +647,7 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 
 	opts := []dockerclient.Opt{
 		dockerclient.WithAPIVersionNegotiation(),
+		dockerclient.WithHost(host),
 		dockerclient.WithHTTPHeaders(map[string]string{
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
 		}),
