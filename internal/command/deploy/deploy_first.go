@@ -40,8 +40,6 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		return nil
 	}
 
-	region, network := "", ""
-
 	switch md.appConfig.DetermineIPType(ipType) {
 	case "dedicated":
 		hasUdpService := md.appConfig.HasUdpService()
@@ -54,10 +52,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 		if confirmDedicatedIp && err == nil {
 			v4Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-				Type:         "v4",
-				Region:       region,
-				Organization: org,
-				Network:      network,
+				Type: "v4",
 			})
 			if err != nil {
 				return err
@@ -66,10 +61,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 
 			if !hasUdpService {
 				v6Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-					Type:         "v6",
-					Region:       region,
-					Organization: org,
-					Network:      network,
+					Type: "v6",
 				})
 				if err != nil {
 					return err
@@ -81,10 +73,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 	case "shared":
 		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
 		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type:         "v6",
-			Region:       region,
-			Organization: org,
-			Network:      network,
+			Type: "v6",
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
@@ -92,10 +81,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(v6Addr.IP))
 
 		v4Shared, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type:         "shared_v4",
-			Region:       region,
-			Organization: org,
-			Network:      network,
+			Type: "shared_v4",
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
@@ -105,11 +91,11 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 
 	case "private":
 		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))
+		// Unlike public IPs, private_v6 is organization-scoped and requires
+		// org_slug to select the private network for the allocation.
 		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
 			Type:         "private_v6",
-			Region:       region,
 			Organization: org,
-			Network:      network,
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
