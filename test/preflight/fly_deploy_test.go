@@ -527,11 +527,12 @@ func logRemoteBuilderDiagnostics(t *testing.T, f *testlib.FlyctlTestEnv, deployR
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		if testing.Short() {
-			t.Skip("Skipping buildpack test in CI: buildpacks require wireguard connectivity which is not available in CI environment")
+			t.Skip("Skipping buildpack test in short mode")
 		}
 		t.Parallel()
-		// Buildpacks cannot use BuildKit, so they use Depot (which falls back to remote builders)
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot --recreate-builder")
+		// Buildpacks cannot use BuildKit, so they use Depot with a remote builder.
+		// Force the wireguardless path to exercise the builder's public DNS endpoint.
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot --recreate-builder --wg=false")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		if testing.Short() {
