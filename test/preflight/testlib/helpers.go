@@ -212,6 +212,15 @@ func tryToStopAgentsFromPastPreflightTests(t testing.TB, flyctlBin string) {
 // RunHealthcheck verifies if an app was deployed successfully.
 // It runs the checks 10 times with some backoff.
 func RunHealthCheck(url string) (string, error) {
+	return runHealthCheck(url, nil)
+}
+
+// RunHealthCheckWithLogger is RunHealthCheck with per-attempt diagnostics.
+func RunHealthCheckWithLogger(url string, logf func(string, ...any)) (string, error) {
+	return runHealthCheck(url, logf)
+}
+
+func runHealthCheck(url string, logf func(string, ...any)) (string, error) {
 	var (
 		resp *http.Response
 		err  error
@@ -226,15 +235,35 @@ func RunHealthCheck(url string) (string, error) {
 	}
 
 	for i := 0; i < attempts; i++ {
+		startedAt := time.Now()
 		resp, err = http.Get(url)
 		if err == nil {
 			lastStatusCode = resp.StatusCode
 		}
+
+		if logf != nil {
+			if err != nil {
+				logf("health check attempt %d/%d failed after %s: %v", i+1, attempts, time.Since(startedAt), err)
+			} else {
+				logf("health check attempt %d/%d returned %s after %s", i+1, attempts, resp.Status, time.Since(startedAt))
+			}
+		}
+
 		if lastStatusCode == http.StatusOK {
 			break
 		}
 
-		time.Sleep(b.Duration())
+		if i < attempts-1 {
+			if resp != nil {
+				resp.Body.Close()
+				resp = nil
+			}
+			delay := b.Duration()
+			if logf != nil {
+				logf("retrying health check in %s", delay)
+			}
+			time.Sleep(delay)
+		}
 	}
 
 	if err != nil {
@@ -242,6 +271,7 @@ func RunHealthCheck(url string) (string, error) {
 	}
 
 	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		return "", err
 	}

@@ -4,8 +4,10 @@
 package preflight
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"runtime"
@@ -270,10 +272,7 @@ func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
 	t.Logf("deploy %s again", appName)
 	f.Fly("deploy --remote-only --strategy immediate")
 
-	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
-	require.NoError(t, err)
-
-	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+	verifyDeployNodeApp(t, f, appName)
 }
 
 func testDeployNodeAppWithBuildKitRemoteBuilder(tt *testing.T) {
@@ -302,10 +301,43 @@ func testDeployNodeAppWithBuildKitRemoteBuilder(tt *testing.T) {
 	t.Logf("deploy %s again with BuildKit", appName)
 	f.Fly("deploy --buildkit --remote-only --strategy immediate")
 
-	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
-	require.NoError(t, err)
+	verifyDeployNodeApp(t, f, appName)
+}
 
-	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+func verifyDeployNodeApp(t testLogger, f *testlib.FlyctlTestEnv, appName string) {
+	t.Helper()
+
+	hostname := appName + ".fly.dev"
+	body, err := testlib.RunHealthCheckWithLogger("https://"+hostname, t.Logf)
+	expected := fmt.Sprintf("Hello, World! %s", f.ID())
+	if err != nil || !strings.Contains(body, expected) {
+		logDeployNodeDiagnostics(t, f, appName, hostname)
+		f.DebugPrintHistory()
+	}
+
+	require.NoError(t, err)
+	require.Contains(t, body, expected)
+}
+
+func logDeployNodeDiagnostics(t testLogger, f *testlib.FlyctlTestEnv, appName, hostname string) {
+	t.Helper()
+	t.Logf("health check failed; collecting diagnostics for %s", appName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	addresses, err := net.DefaultResolver.LookupHost(ctx, hostname)
+	t.Logf("DNS lookup for %s: addresses=%v err=%v", hostname, addresses, err)
+
+	commands := []string{
+		"status --app %s --json",
+		"machines list --app %s --json",
+		"ips list --app %s --json",
+	}
+	for _, command := range commands {
+		result := f.FlyAllowExitFailure(command, appName)
+		t.Logf("diagnostic command %q: exit=%d stdout=%q stderr=%q",
+			result.CmdString(), result.ExitCode(), result.StdOutString(), result.StdErrString())
+	}
 }
 
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
