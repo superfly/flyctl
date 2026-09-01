@@ -2,10 +2,10 @@ package ips
 
 import (
 	"context"
-	"net"
 	"strings"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -46,6 +46,22 @@ func renderListTable(ctx context.Context, ipAddresses []fly.IPAddress) {
 	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Created At")
 }
 
+// renderAssignedIP renders a single newly-assigned (non egress-pair) IP address.
+func renderAssignedIP(ctx context.Context, res *flaps.AssignIPResponse) {
+	if res.IP == nil {
+		return
+	}
+
+	renderListTable(ctx, ipAssignmentsToIPAddresses([]flaps.IPAssignment{{
+		IP:          *res.IP,
+		Region:      res.Region,
+		ServiceName: res.ServiceName,
+		Shared:      res.Shared,
+		CreatedAt:   res.CreatedAt,
+		Egress:      res.Egress,
+	}}))
+}
+
 func renderPrivateTableMachines(ctx context.Context, machines []*fly.Machine) {
 	rows := make([][]string, 0, len(machines))
 
@@ -55,13 +71,4 @@ func renderPrivateTableMachines(ctx context.Context, machines []*fly.Machine) {
 
 	out := iostreams.FromContext(ctx).Out
 	render.Table(out, "", rows, "ID", "Region", "IP")
-}
-
-func renderSharedTable(ctx context.Context, ip net.IP) {
-	rows := make([][]string, 0, 1)
-
-	rows = append(rows, []string{"v4", ip.String(), "shared", "global"})
-
-	out := iostreams.FromContext(ctx).Out
-	render.Table(out, "", rows, "Version", "IP", "Type", "Region")
 }

@@ -13,10 +13,12 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -106,15 +108,16 @@ func (ac *AppChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
+func (ac *AppChecker) checkIpsAllocated() []flaps.IPAssignment {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
-	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
+	res, err := flapsutil.ClientFromContext(ac.ctx).GetIPAssignments(ac.ctx, ac.app.Name)
 	if err != nil {
 		ac.lprint(nil, "API error listing IP addresses for app %s: %v\n", ac.app.Name, err)
 
 		return nil
 	}
+	ipAddresses := res.IPs
 
 	if len(ipAddresses) > 0 {
 		ac.checks["appHasIps"] = "ok"
@@ -131,19 +134,19 @@ func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	return ipAddresses
 }
 
-func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []flaps.IPAssignment) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
-		switch ip.Type {
-		case "v4", "shared_v4":
-			v4s[ip.Address] = true
-		case "v6":
-			v6s[ip.Address] = true
-		case "private_v6":
-			// This is a valid type, but not of interest here.
+		switch ip.Type() {
+		case flaps.IPAssignmentTypeV4, flaps.IPAssignmentTypeSharedV4:
+			v4s[ip.IP] = true
+		case flaps.IPAssignmentTypeV6:
+			v6s[ip.IP] = true
+		case flaps.IPAssignmentTypePrivateV6, flaps.IPAssignmentTypeEgressV4, flaps.IPAssignmentTypeEgressV6:
+			// These are valid types, but not of interest here.
 		default:
-			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.Address, ip.Type)
+			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.IP, ip.Type())
 		}
 	}
 	if len(v4s) == 0 && len(v6s) == 0 {
