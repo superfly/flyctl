@@ -30,6 +30,7 @@ type FlapsClient struct {
 	DeleteACMECertificateFunc             func(ctx context.Context, appName, hostname string) error
 	DeleteCertificateFunc                 func(ctx context.Context, appName, hostname string) error
 	DeleteCustomCertificateFunc           func(ctx context.Context, appName, hostname string) error
+	DeleteManagedPostgresAttachmentFunc   func(ctx context.Context, id, appName string) error
 	DeleteManagedPostgresClusterFunc      func(ctx context.Context, id string) error
 	DeleteManagedPostgresUserFunc         func(ctx context.Context, id, username string) error
 	DisableManagedPostgresExtensionFunc   func(ctx context.Context, id, database, name string, force bool) error
@@ -167,6 +168,10 @@ func (m *FlapsClient) DeleteCertificate(ctx context.Context, appName, hostname s
 
 func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, hostname string) error {
 	return m.DeleteCustomCertificateFunc(ctx, appName, hostname)
+}
+
+func (m *FlapsClient) DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error {
+	return m.DeleteManagedPostgresAttachmentFunc(ctx, id, appName)
 }
 
 func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
