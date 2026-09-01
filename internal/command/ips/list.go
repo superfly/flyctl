@@ -56,7 +56,7 @@ func runIPAddressesList(ctx context.Context) error {
 		return render.JSON(out, ipAddresses)
 	}
 
-	renderListTable(ctx, ipAddresses)
+	renderListTable(ctx, appName, ipAddresses)
 	SanityCheckAppScopedEgressIps(ctx, nil, egressIPAddressesByRegion(res.IPs), nil, "")
 	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/networking/services/")
 
@@ -68,13 +68,23 @@ func runIPAddressesList(ctx context.Context) error {
 func ipAssignmentsToIPAddresses(assignments []flaps.IPAssignment) []fly.IPAddress {
 	ipAddresses := make([]fly.IPAddress, 0, len(assignments))
 	for _, ip := range assignments {
-		ipAddresses = append(ipAddresses, fly.IPAddress{
+		addr := fly.IPAddress{
 			Address:     ip.IP,
 			Type:        string(ip.Type()),
 			Region:      ip.Region,
 			CreatedAt:   ip.CreatedAt,
 			ServiceName: ip.ServiceName,
-		})
+		}
+		if ip.Network != nil {
+			addr.Network = &struct {
+				Name         string
+				Organization *struct{ Slug string }
+			}{
+				Name:         ip.Network.Name,
+				Organization: &struct{ Slug string }{Slug: ip.Network.OrgSlug},
+			}
+		}
+		ipAddresses = append(ipAddresses, addr)
 	}
 
 	return ipAddresses
