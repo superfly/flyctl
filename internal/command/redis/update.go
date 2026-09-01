@@ -208,6 +208,10 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
+	// Read the stored value before it is stripped: it is the only state we
+	// have to fall back on for the summary when the user made no decision.
+	storedProdPack, _ := options["prod_pack"].(bool)
+
 	stripProdPack(options)
 
 	if currentPlanIsLegacy && selectedPlanIsLegacy {
@@ -239,28 +243,26 @@ func runUpdate(ctx context.Context) (err error) {
 	if selectedPlanIsLegacy {
 		fmt.Fprintf(out, "  ProdPack:     not available on legacy plans\n")
 	} else {
-		fmt.Fprintf(out, "  ProdPack:     %s\n", prodPackState(prodPack))
+		fmt.Fprintf(out, "  ProdPack:     %s\n", prodPackState(prodPack, storedProdPack))
 	}
 
 	return
 }
 
-// optionState describes what the update did to a boolean option. An absent key
-// means no value was sent, so the provider kept whatever it had.
+// optionState reports the state a boolean option is left in. A key is only
+// dropped from the payload after the user declined to enable it, so an absent
+// key means the setting stays off.
 func optionState(options map[string]any, key string) string {
-	value, ok := options[key]
-	if !ok {
-		return "unchanged"
-	}
-
-	on, _ := value.(bool)
+	on, _ := options[key].(bool)
 
 	return enabledOrDisabled(on)
 }
 
-func prodPackState(decision *bool) string {
+// prodPackState reports the state ProdPack is left in, falling back to the
+// stored value when the user made no decision this invocation.
+func prodPackState(decision *bool, stored bool) string {
 	if decision == nil {
-		return "unchanged"
+		return enabledOrDisabled(stored)
 	}
 
 	return enabledOrDisabled(*decision)

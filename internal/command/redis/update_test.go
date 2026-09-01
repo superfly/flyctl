@@ -213,16 +213,17 @@ func TestResolveProdPackIsIndependentOfPlanChange(t *testing.T) {
 }
 
 func TestOptionState(t *testing.T) {
-	assert.Equal(t, "unchanged", optionState(map[string]any{}, "eviction"))
+	assert.Equal(t, "disabled", optionState(map[string]any{}, "eviction"), "absent key means the user declined to enable it")
 	assert.Equal(t, "enabled", optionState(map[string]any{"eviction": true}, "eviction"))
 	assert.Equal(t, "disabled", optionState(map[string]any{"eviction": false}, "eviction"))
-	assert.Equal(t, "disabled", optionState(map[string]any{"eviction": "yes"}, "eviction"))
+	assert.Equal(t, "disabled", optionState(map[string]any{"eviction": "yes"}, "eviction"), "garbage must not panic")
 }
 
 func TestProdPackState(t *testing.T) {
-	assert.Equal(t, "unchanged", prodPackState(nil))
-	assert.Equal(t, "enabled", prodPackState(boolPtr(true)))
-	assert.Equal(t, "disabled", prodPackState(boolPtr(false)))
+	assert.Equal(t, "enabled", prodPackState(boolPtr(true), false))
+	assert.Equal(t, "disabled", prodPackState(boolPtr(false), true))
+	assert.Equal(t, "enabled", prodPackState(nil, true), "no decision falls back to the stored value")
+	assert.Equal(t, "disabled", prodPackState(nil, false))
 }
 
 func TestStripProdPack(t *testing.T) {
