@@ -162,6 +162,21 @@ func (mr *MockFlapsClientMockRecorder) CreateCustomCertificate(ctx, appName, req
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCustomCertificate", reflect.TypeOf((*MockFlapsClient)(nil).CreateCustomCertificate), ctx, appName, req)
 }
 
+// CreateManagedPostgresAttachment mocks base method.
+func (m *MockFlapsClient) CreateManagedPostgresAttachment(ctx context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateManagedPostgresAttachment", ctx, id, req)
+	ret0, _ := ret[0].(flaps.ManagedPostgresAttachment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateManagedPostgresAttachment indicates an expected call of CreateManagedPostgresAttachment.
+func (mr *MockFlapsClientMockRecorder) CreateManagedPostgresAttachment(ctx, id, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateManagedPostgresAttachment", reflect.TypeOf((*MockFlapsClient)(nil).CreateManagedPostgresAttachment), ctx, id, req)
+}
+
 // CreateManagedPostgresBackup mocks base method.
 func (m *MockFlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
 	m.ctrl.T.Helper()
