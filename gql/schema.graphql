@@ -10149,7 +10149,7 @@ input UpdateAddOnInput {
   planId: ID
 
   """
-  Explicit ProdPack intent for Upstash Redis. Requires a plan change; when absent, ProdPack is left untouched.
+  Explicit ProdPack intent for Upstash Redis. Can be sent with or without a plan change; when absent, ProdPack is left untouched.
   """
   prodPack: Boolean
 
