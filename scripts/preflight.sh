@@ -57,12 +57,15 @@ if [[ -n "$group" ]]; then
             ;;
         deploy)
             test_pattern="^Test(FlyDeploy|Deploy)"
-            # Slow fixture and bluegreen tests have independent matrix jobs so
-            # they do not consume the shared deploy package timeout.
-            test_skip_pattern="^Test(Deploy$|FlyDeploy_BlueGreen)"
+            # Slow fixture, manifest, and bluegreen tests have independent
+            # matrix jobs so they do not consume the shared deploy timeout.
+            test_skip_pattern="^Test(Deploy($|Manifest$)|FlyDeploy_BlueGreen)"
             ;;
         deploy-fixtures)
             test_pattern="^TestDeploy$"
+            ;;
+        deploy-manifest)
+            test_pattern="^TestDeployManifest$"
             ;;
         bluegreen)
             test_pattern="^TestFlyDeploy_BlueGreen"
@@ -105,7 +108,7 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-fixtures, deploy-manifest, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
             exit 1
             ;;
     esac
