@@ -23,6 +23,7 @@ type FlapsClient struct {
 	CreateManagedPostgresDatabaseFunc     func(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error)
 	CreateManagedPostgresUserFunc         func(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error)
 	CreateManagedPostgresBackupFunc       func(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error
+	CreateManagedPostgresAttachmentFunc   func(ctx context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error)
 	EnableManagedPostgresExtensionFunc    func(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error
 	CreateVolumeFunc                      func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshotFunc              func(ctx context.Context, appName, volumeId string) error
@@ -136,6 +137,10 @@ func (m *FlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, 
 
 func (m *FlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
 	return m.CreateManagedPostgresBackupFunc(ctx, id, req)
+}
+
+func (m *FlapsClient) CreateManagedPostgresAttachment(ctx context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+	return m.CreateManagedPostgresAttachmentFunc(ctx, id, req)
 }
 
 func (m *FlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
