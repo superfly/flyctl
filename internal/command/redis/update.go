@@ -69,7 +69,9 @@ func runUpdate(ctx context.Context) (err error) {
 	// flags the caller passed explicitly are still honoured.
 	prodPackOnly := flag.GetBool(ctx, "enable-prodpack") || flag.GetBool(ctx, "disable-prodpack")
 
-	readRegionCodes := addOn.ReadRegions
+	// Copy rather than alias: a database with no replicas has a nil slice, and
+	// the mutation's readRegions is [String!]!, which rejects null.
+	readRegionCodes := append([]string{}, addOn.ReadRegions...)
 
 	if !prodPackOnly || flag.IsSpecified(ctx, "replica-regions") {
 		excludedRegions, err := GetExcludedRegions(ctx)
