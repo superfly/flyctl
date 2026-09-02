@@ -6,6 +6,7 @@ package testlib
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -236,6 +237,10 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	cmd.Stdin = testIostreams.In
 	cmd.Stdout = testIostreams.Out
 	cmd.Stderr = testIostreams.ErrOut
+	if os.Getenv("FLY_PREFLIGHT_STREAM_COMMAND_OUTPUT") == "true" {
+		cmd.Stdout = io.MultiWriter(testIostreams.Out, os.Stdout)
+		cmd.Stderr = io.MultiWriter(testIostreams.ErrOut, os.Stderr)
+	}
 	err = cmd.Start()
 	if err != nil {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
