@@ -112,14 +112,13 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		config.ImageRef = imageRef
 	}
 
-	var addr *fly.IPAddress
+	var addr *flaps.AssignIPResponse
 
 	if config.Manager == ReplicationManager {
-		orgID := ""
-		if config.Organization != nil {
-			orgID = config.Organization.ID
-		}
-		addr, err = l.client.AllocateIPAddress(ctx, config.AppName, "private_v6", config.Region, orgID, "")
+		// not sure this is right (should we support network/organization?)
+		addr, err = flapsutil.ClientFromContext(ctx).AssignIP(ctx, config.AppName, flaps.AssignIPRequest{
+			Type: flaps.IPAssignmentTypePrivateV6,
+		})
 		if err != nil {
 			return err
 		}
@@ -293,8 +292,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintf(io.Out, "  Username:    postgres\n")
 	fmt.Fprintf(io.Out, "  Password:    %s\n", secrets["OPERATOR_PASSWORD"])
 	fmt.Fprintf(io.Out, "  Hostname:    %s.internal\n", config.AppName)
-	if addr != nil {
-		fmt.Fprintf(io.Out, "  Flycast:     %s\n", addr.Address)
+	if addr != nil && addr.IP != nil {
+		fmt.Fprintf(io.Out, "  Flycast:     %s\n", *addr.IP)
 	}
 	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
 	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")

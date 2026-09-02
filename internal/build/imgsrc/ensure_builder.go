@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -21,7 +20,6 @@ import (
 )
 
 type Provisioner struct {
-	orgID                 string
 	orgSlug               string
 	orgTrial              bool
 	orgPaidPlan           bool
@@ -33,7 +31,6 @@ type Provisioner struct {
 
 func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
-		orgID:                 org.ID,
 		orgSlug:               org.Slug,
 		orgTrial:              org.BillingStatus == uiex.BillingStatusTrialActive,
 		orgPaidPlan:           org.PaidPlan,
@@ -44,7 +41,6 @@ func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 
 func NewBuildkitProvisioner(org *uiex.Organization, addr, image string) *Provisioner {
 	return &Provisioner{
-		orgID:                 org.ID,
 		orgSlug:               org.Slug,
 		orgPaidPlan:           org.PaidPlan,
 		orgRemoteBuilderImage: org.RemoteBuilderImage,
@@ -126,7 +122,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 			case err != nil:
 				tracing.RecordError(span, err, "error restarting builder machine")
 
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to restart builder machine %s: %w", builderMachine.ID, err)
 			default:
 				return builderMachine, builderApp, nil
 
@@ -368,7 +364,6 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
-	client := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	app, retErr = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
@@ -390,20 +385,15 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		}
 	}()
 
+	ipType := flaps.IPAssignmentTypeSharedV4
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", p.orgID, "")
-		if retErr != nil {
-			tracing.RecordError(span, retErr, "error allocating ip address")
+		ipType = flaps.IPAssignmentTypePrivateV6
+	}
+	_, retErr = flapsClient.AssignIP(ctx, app.Name, flaps.AssignIPRequest{Type: ipType})
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error allocating ip address")
 
-			return nil, nil, retErr
-		}
-	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", p.orgID, "")
-		if retErr != nil {
-			tracing.RecordError(span, retErr, "error allocating ip address")
-
-			return nil, nil, retErr
-		}
+		return nil, nil, retErr
 	}
 
 	guest := fly.MachineGuest{
@@ -547,14 +537,14 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error launching builder machine")
 
-		return nil, nil, retErr
+		return nil, nil, fmt.Errorf("launching builder machine for %s: %w", builderName, retErr)
 	}
 
 	retErr = flapsClient.Wait(ctx, builderName, mach.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(180*time.Second)) // 3 minutes for machine start + DNS propagation
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
 
-		return nil, nil, retErr
+		return nil, nil, fmt.Errorf("waiting for builder machine %s to start: %w", mach.ID, retErr)
 	}
 
 	return
@@ -608,7 +598,7 @@ func restartBuilderMachine(ctx context.Context, appName string, builderMachine *
 	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil { // 3 minutes for restart + DNS propagation
 		tracing.RecordError(span, err, "error waiting for builder machine to start")
 
-		return err
+		return fmt.Errorf("waiting for builder machine %s to start after restart: %w", builderMachine.ID, err)
 	}
 
 	return nil

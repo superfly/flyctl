@@ -6,11 +6,11 @@ import (
 	"reflect"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -79,7 +79,7 @@ func determineIPTypeFromDeployedServices(ctx context.Context, appName string) (r
 }
 
 func runAllocateInteractive(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
@@ -106,29 +106,29 @@ func runAllocateInteractive(ctx context.Context) error {
 		}
 	}
 
-	existingIPs, err := client.GetIPAddresses(ctx, appName)
+	existingRes, err := flapsClient.GetIPAssignments(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get existing IP addresses: %w", err)
 	}
+	existingIPs := existingRes.IPs
 
 	hasV4 := false
 	hasSharedV4 := false
 	hasV6 := false
 	for _, ip := range existingIPs {
-		if ip.Type == "v4" {
+		switch ip.Type() {
+		case flaps.IPAssignmentTypeV4:
 			hasV4 = true
-		}
-		if ip.Type == "shared_v4" {
+		case flaps.IPAssignmentTypeSharedV4:
 			hasSharedV4 = true
-		}
-		if ip.Type == "v6" {
+		case flaps.IPAssignmentTypeV6:
 			hasV6 = true
 		}
 	}
 
 	if len(existingIPs) > 0 {
 		fmt.Fprint(io.Out, "Your app already has the following IP addresses:\n\n")
-		renderListTable(ctx, existingIPs)
+		renderListTable(ctx, appName, ipAssignmentsToIPAddresses(existingIPs))
 	}
 
 	recommendDedicated := requiresDedicated && hasSharedV4 && !hasV4
@@ -226,38 +226,36 @@ Would you like to allocate the following address?
 	}
 	fmt.Fprintln(io.Out, "")
 
-	if allocateSharedV4 {
-		fmt.Fprintln(io.Out, "Allocating shared IPv4...")
-		ipAddress, err := client.AllocateSharedIPAddress(ctx, appName)
+	allocate := func(addrType flaps.IPAssignmentType) error {
+		res, err := flapsClient.AssignIP(ctx, appName, flaps.AssignIPRequest{Type: addrType, Region: regionForIPType(ctx, addrType)})
 		if err != nil {
 			return err
 		}
 
-		renderSharedTable(ctx, ipAddress)
+		renderAssignedIP(ctx, appName, res)
+
+		return nil
+	}
+
+	if allocateSharedV4 {
+		fmt.Fprintln(io.Out, "Allocating shared IPv4...")
+		if err := allocate(flaps.IPAssignmentTypeSharedV4); err != nil {
+			return fmt.Errorf("failed to allocate shared IPv4: %w", err)
+		}
 	}
 
 	if allocateDedicatedV4 {
 		fmt.Fprintln(io.Out, "Allocating dedicated IPv4...")
-		region := flag.GetRegion(ctx)
-		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v4", region, "", "")
-		if err != nil {
+		if err := allocate(flaps.IPAssignmentTypeV4); err != nil {
 			return fmt.Errorf("failed to allocate dedicated IPv4: %w", err)
 		}
-
-		ipAddresses := []fly.IPAddress{*ipAddress}
-		renderListTable(ctx, ipAddresses)
 	}
 
 	if allocateV6 {
 		fmt.Fprintln(io.Out, "Allocating IPv6...")
-		region := flag.GetRegion(ctx)
-		ipAddress, err := client.AllocateIPAddress(ctx, appName, "v6", region, "", "")
-		if err != nil {
+		if err := allocate(flaps.IPAssignmentTypeV6); err != nil {
 			return fmt.Errorf("failed to allocate IPv6: %w", err)
 		}
-
-		ipAddresses := []fly.IPAddress{*ipAddress}
-		renderListTable(ctx, ipAddresses)
 	}
 
 	if allocateSharedV4 && !hasV4 {
