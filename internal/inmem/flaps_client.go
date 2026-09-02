@@ -181,6 +181,10 @@ func (m *FlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string
 	panic("TODO")
 }
 
+func (m *FlapsClient) CreateManagedPostgresAttachment(ctx context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
 	panic("TODO")
 }
