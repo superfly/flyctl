@@ -614,6 +614,7 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 	}
 
 	opts := []dockerclient.Opt{
+		dockerclient.WithHost(host),
 		dockerclient.WithAPIVersionNegotiation(),
 		dockerclient.WithHTTPHeaders(map[string]string{
 			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),

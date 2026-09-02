@@ -2,11 +2,14 @@ package cmdv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -15,14 +18,32 @@ import (
 func RunBackupList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
-	mpgClient := mpgv2.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	backups, err := mpgClient.ListClusterBackups(ctx, clusterID)
-	if err != nil {
+	var backups []mpgv2.ClusterBackup
+	publicBackups, err := flapsClient.ListManagedPostgresBackups(ctx, clusterID)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		response, legacyErr := mpgv2.ClientFromContext(ctx).ListClusterBackups(ctx, clusterID)
+		if legacyErr != nil {
+			return fmt.Errorf("failed to list backups for cluster %s: %w", clusterID, legacyErr)
+		}
+		backups = response.Data
+	} else if err != nil {
 		return fmt.Errorf("failed to list backups for cluster %s: %w", clusterID, err)
+	} else {
+		backups = make([]mpgv2.ClusterBackup, 0, len(publicBackups))
+		for _, backup := range publicBackups {
+			backups = append(backups, mpgv2.ClusterBackup{
+				Id:     backup.ID,
+				Status: backup.Status,
+				Type:   backup.Type,
+				Start:  backup.StartedAt,
+				Stop:   backup.FinishedAt,
+			})
+		}
 	}
 
-	if len(backups.Data) == 0 {
+	if len(backups) == 0 {
 		fmt.Fprintf(out, "No backups found for cluster %s\n", clusterID)
 
 		return nil
@@ -33,11 +54,11 @@ func RunBackupList(ctx context.Context, clusterID string) error {
 	showAll := flag.GetBool(ctx, "all")
 
 	if showAll {
-		filteredBackups = backups.Data
+		filteredBackups = backups
 	} else {
 		// Filter to last 24 hours
 		cutoff := time.Now().Add(-24 * time.Hour)
-		for _, backup := range backups.Data {
+		for _, backup := range backups {
 			startTime, err := time.Parse(time.RFC3339, backup.Start)
 			if err != nil {
 				// If we can't parse the time, include the backup
@@ -76,7 +97,7 @@ func RunBackupList(ctx context.Context, clusterID string) error {
 
 func RunBackupCreate(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
-	mpgClient := mpgv2.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	backupType := flag.GetString(ctx, "type")
 	if backupType != "full" && backupType != "incr" {
@@ -85,11 +106,10 @@ func RunBackupCreate(ctx context.Context, clusterID string) error {
 
 	fmt.Fprintf(out, "Creating %s backup for cluster %s...\n", backupType, clusterID)
 
-	input := mpgv2.CreateClusterBackupInput{
-		Type: backupType,
+	err := flapsClient.CreateManagedPostgresBackup(ctx, clusterID, flaps.CreateManagedPostgresBackupRequest{Type: backupType})
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		err = mpgv2.ClientFromContext(ctx).CreateClusterBackup(ctx, clusterID, mpgv2.CreateClusterBackupInput{Type: backupType})
 	}
-
-	err := mpgClient.CreateClusterBackup(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}

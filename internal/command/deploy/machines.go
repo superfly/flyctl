@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
@@ -131,7 +133,7 @@ type machineDeployment struct {
 	// machineSet is this application's machines.
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
-	volumes               map[string][]fly.Volume
+	availableVolumeCounts map[string]map[string]int
 	strategy              string
 	releaseId             string
 	releaseVersion        int
@@ -543,24 +545,36 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 		return v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
 	})
 
-	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
-		return v.Name
-	})
+	md.availableVolumeCounts = lo.MapValues(
+		lo.GroupBy(unattached, func(v fly.Volume) string {
+			return v.Name
+		}),
+		func(volumes []fly.Volume, _ string) map[string]int {
+			return lo.CountValuesBy(volumes, func(v fly.Volume) string {
+				return v.Region
+			})
+		},
+	)
 
 	return nil
 }
 
-func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
-	volumes := md.volumes[name]
-	for idx, v := range volumes {
-		if region == "" || region == v.Region {
-			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
+func cloneAvailableVolumeCounts(counts map[string]map[string]int) map[string]map[string]int {
+	return lo.MapValues(counts, func(regions map[string]int, _ string) map[string]int {
+		return maps.Clone(regions)
+	})
+}
 
-			return &v
-		}
+// consumeAvailableVolumeCount subtracts up to requested volumes from the
+// available count for name and region. It returns the number consumed.
+func consumeAvailableVolumeCount(counts map[string]map[string]int, name, region string, requested int) int {
+	available := counts[name][region]
+	taken := min(available, requested)
+	if taken > 0 {
+		counts[name][region] -= taken
 	}
 
-	return nil
+	return taken
 }
 
 func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
@@ -571,6 +585,7 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 		func(m *fly.Machine) string {
 			return m.ProcessGroup()
 		})
+	rolloutVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
 
 	for _, groupName := range md.ProcessNames() {
 		groupConfig, err := md.appConfig.Flatten(groupName)
@@ -628,15 +643,19 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 			}
 
 			// Compute the volume differences per region
-			for volSrc, regions := range needsVol {
-				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v fly.Volume) string { return v.Region })
+			volumeSources := lo.Keys(needsVol)
+			slices.Sort(volumeSources)
+			for _, volSrc := range volumeSources {
+				regions := needsVol[volSrc]
 				needsPerRegion := lo.CountValues(regions)
 
 				var missing []string
-				for rn, rc := range needsPerRegion {
-					diff := rc - currentPerRegion[rn]
-					if diff > 0 {
-						missing = append(missing, fmt.Sprintf("%s=%d", rn, diff))
+				regionNames := lo.Keys(needsPerRegion)
+				slices.Sort(regionNames)
+				for _, rn := range regionNames {
+					requested := needsPerRegion[rn]
+					if count := requested - consumeAvailableVolumeCount(rolloutVolumes, volSrc, rn, requested); count > 0 {
+						missing = append(missing, fmt.Sprintf("%s=%d", rn, count))
 					}
 				}
 				if len(missing) > 0 {
@@ -652,10 +671,11 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 		case false:
 			// Check if there are unattached volumes for new groups with mounts
 			for _, m := range groupConfig.Mounts {
-				if vs := md.volumes[m.Source]; len(vs) == 0 {
+				region := md.appConfig.PrimaryRegion
+				if consumeAvailableVolumeCount(rolloutVolumes, m.Source, region, 1) == 0 {
 					return fmt.Errorf(
-						"creating a new machine in group '%s' requires an unattached '%s' volume. Create it with `fly volume create %s`",
-						groupName, m.Source, m.Source)
+						"creating a new machine in group '%s' requires an unattached '%s' volume in region '%s'. Create it with `fly volume create %s --region %s`",
+						groupName, m.Source, region, m.Source, region)
 				}
 			}
 		}
@@ -714,6 +734,15 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
+const (
+	// releaseStatusRetryAttempts bounds how many times a release status update is
+	// attempted before the deploy gives up.
+	releaseStatusRetryAttempts = 3
+	// releaseStatusRetryDelay is the delay before the first retry; it doubles on
+	// each subsequent attempt.
+	releaseStatusRetryDelay = 500 * time.Millisecond
+)
+
 func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
@@ -721,7 +750,30 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	))
 	defer span.End()
 
-	_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+	// Setting a release's status is idempotent, so a transient failure is safe to
+	// retry. Without this, a single blip anywhere between flyctl and api.fly.io
+	// aborts an otherwise healthy deploy after the image has already been built
+	// and pushed -- the user's only recourse being to run the whole deploy again.
+	attempts := 0
+	err := retry.Do(
+		func() error {
+			attempts++
+			_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+
+			return err
+		},
+		retry.Context(ctx),
+		retry.Attempts(releaseStatusRetryAttempts),
+		retry.Delay(releaseStatusRetryDelay),
+		retry.DelayType(retry.BackOffDelay),
+		retry.RetryIf(isRetryableReleaseStatusError),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Debugf("retrying release status update to %q (attempt %d/%d): %v\n",
+				status, n+2, releaseStatusRetryAttempts, err)
+		}),
+	)
+	span.SetAttributes(attribute.Int("attempts", attempts))
 
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
@@ -730,6 +782,39 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	}
 
 	return nil
+}
+
+// isRetryableReleaseStatusError reports whether a failed release status update is
+// worth another attempt.
+//
+// A *uiex.StatusError means the server did answer, so the status code decides:
+// 5xx is transient, and notably includes the 504 served by the proxy in front of
+// api.fly.io when it gives up waiting on the backend, while 4xx means the request
+// itself is wrong and will fail the same way next time.
+//
+// Any other error -- a connection reset, a TLS handshake failure, a response body
+// that could not be read or decoded -- carries no status code to judge, so we
+// cannot tell a transient fault from a permanent one. Setting a release status is
+// idempotent and the retry budget is small and bounded, so the default is to try
+// again rather than fail a deploy that might well have succeeded. Context
+// cancellation and deadline expiry are the exceptions: both are explicit
+// instructions to stop.
+func isRetryableReleaseStatusError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// The user interrupted us, or a deadline expired. Retrying would ignore that.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var statusErr *uiex.StatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.Retryable()
+	}
+
+	return true
 }
 
 func (md *machineDeployment) logClearLinesAbove(count int) {

@@ -313,11 +313,6 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
-			// we need to refresh information about the state of unattached volumes in the app
-			err = md.setVolumes(ctx)
-			if err != nil {
-				return err
-			}
 			err = md.updateMachinesWRecovery(ctx, originalAppState, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,
@@ -610,11 +605,18 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
-		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
+		state, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
 		if err != nil {
 			span.RecordError(err)
 
 			return err
+		}
+		if state == fly.MachineStateStopped && oldMachine != nil &&
+			supportsPreservedStoppedUpdate(md.strategy, oldMachine.State) &&
+			md.readPreservedStoppedUpdate(ctx, machine.ID, machine.InstanceID) {
+			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s was updated and left stopped", machine.ID))
+
+			return nil
 		}
 	}
 

@@ -10,7 +10,6 @@ var _ mpgv1.ClientV1 = (*MpgV1Client)(nil)
 
 // MpgV1Client implements the mpgv1.ClientV1 interface for testing
 type MpgV1Client struct {
-	ListMPGRegionsFunc              func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error)
 	ListManagedClustersFunc         func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error)
 	GetManagedClusterFunc           func(ctx context.Context, orgSlug string, id string) (mpgv1.GetManagedClusterResponse, error)
 	GetManagedClusterByIdFunc       func(ctx context.Context, id string) (mpgv1.GetManagedClusterResponse, error)
@@ -22,7 +21,6 @@ type MpgV1Client struct {
 	ListUsersFunc                   func(ctx context.Context, id string) (mpgv1.ListUsersResponse, error)
 	ListDatabasesFunc               func(ctx context.Context, id string) (mpgv1.ListDatabasesResponse, error)
 	CreateDatabaseFunc              func(ctx context.Context, id string, input mpgv1.CreateDatabaseInput) (mpgv1.CreateDatabaseResponse, error)
-	CreateClusterFunc               func(ctx context.Context, input mpgv1.CreateClusterInput) (mpgv1.CreateClusterResponse, error)
 	DestroyClusterFunc              func(ctx context.Context, orgSlug string, id string) error
 	ListManagedClusterBackupsFunc   func(ctx context.Context, clusterID string) (mpgv1.ListManagedClusterBackupsResponse, error)
 	CreateManagedClusterBackupFunc  func(ctx context.Context, clusterID string, input mpgv1.CreateManagedClusterBackupInput) (mpgv1.CreateManagedClusterBackupResponse, error)
@@ -32,14 +30,6 @@ type MpgV1Client struct {
 	ListExtensionsFunc              func(ctx context.Context, id, database string) (mpgv1.ListExtensionsResponse, error)
 	EnableExtensionFunc             func(ctx context.Context, id, database string, input mpgv1.EnableExtensionInput) error
 	DisableExtensionFunc            func(ctx context.Context, id, database, name string, force bool) error
-}
-
-func (m *MpgV1Client) ListMPGRegions(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-	if m.ListMPGRegionsFunc != nil {
-		return m.ListMPGRegionsFunc(ctx, orgSlug)
-	}
-
-	return mpgv1.ListMPGRegionsResponse{}, nil
 }
 
 func (m *MpgV1Client) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
@@ -128,14 +118,6 @@ func (m *MpgV1Client) CreateDatabase(ctx context.Context, id string, input mpgv1
 	}
 
 	return mpgv1.CreateDatabaseResponse{}, nil
-}
-
-func (m *MpgV1Client) CreateCluster(ctx context.Context, input mpgv1.CreateClusterInput) (mpgv1.CreateClusterResponse, error) {
-	if m.CreateClusterFunc != nil {
-		return m.CreateClusterFunc(ctx, input)
-	}
-
-	return mpgv1.CreateClusterResponse{}, nil
 }
 
 func (m *MpgV1Client) DestroyCluster(ctx context.Context, orgSlug string, id string) error {

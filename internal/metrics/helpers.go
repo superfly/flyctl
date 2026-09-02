@@ -66,6 +66,8 @@ type LaunchStatusPayload struct {
 
 	AppName          string `json:"app"`
 	OrgSlug          string `json:"org"`
+	AppID            string `json:"app_id,omitempty"`
+	OrgID            string `json:"org_id,omitempty"`
 	Region           string `json:"region"`
 	HighAvailability bool   `json:"ha"`
 
@@ -111,6 +113,8 @@ type DeployStatusPayload struct {
 
 	AppName       string `json:"app"`
 	OrgSlug       string `json:"org"`
+	AppID         string `json:"app_id,omitempty"`
+	OrgID         string `json:"org_id,omitempty"`
 	PrimaryRegion string `json:"primary_region"`
 	Image         string `json:"image"`
 	Strategy      string `json:"strategy"`

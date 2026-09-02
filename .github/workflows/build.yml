@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: '21 */2 * * *'
   push:
+    branches:
+      - master
   pull_request:
 
 concurrency:
@@ -13,7 +15,7 @@ jobs:
   test_build:
     runs-on: ubuntu-latest-m
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v7

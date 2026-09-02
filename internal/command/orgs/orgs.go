@@ -132,9 +132,9 @@ func OrgFromSlug(ctx context.Context, slug string) (*fly.Organization, error) {
 
 func printOrg(w io.Writer, org *fly.Organization, headers bool) {
 	if headers {
-		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Name", "Slug", "Type")
-		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")
+		fmt.Fprintln(w, "Name\tSlug\tType")
+		fmt.Fprintln(w, "----\t----\t----")
 	}
 
-	fmt.Fprintf(w, "%-20s %-20s %-10s\n", org.Name, org.Slug, org.Type)
+	fmt.Fprintf(w, "%s\t%s\t%s\n", org.Name, org.Slug, org.Type)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -25,16 +26,80 @@ type mockFlapsClient struct {
 	breakList        bool
 	breakDestroy     bool
 	breakLease       bool
+	breakGet         bool
+	// unhealthyGet, when true, makes Get return a Machine whose health check
+	// status is Critical. Used to simulate an app that starts but whose
+	// checks fail — e.g. because the new config changed the internal_port
+	// or introduced a Phoenix force_ssl redirect that traps the probe.
+	unhealthyGet bool
+	launchInputs []fly.LaunchMachineInput
+
+	// GetFunc, when set, overrides the default Get behaviour. Useful for tests
+	// that need fine-grained control over per-machine responses (e.g. to simulate
+	// an unreachable host returning an empty ImageRef).
+	GetFunc func(ctx context.Context, appName, machineID string) (*fly.Machine, error)
+
+	// GetProcessesFunc, when set, overrides the default GetProcesses behaviour.
+	// Useful for tests that simulate an app slowly binding to its listening
+	// sockets (see warnAboutIncorrectListenAddress).
+	GetProcessesFunc func(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error)
 
 	// uncordonTransientFailures causes Uncordon to fail this many times before
 	// succeeding, simulating transient API errors for retry tests.
 	uncordonTransientFailures int
+
+	// setMetadataTransientFailures causes SetMetadata to fail this many times
+	// before succeeding, simulating transient flaps 408/5xx errors for retry
+	// tests of the checkpointing step.
+	setMetadataTransientFailures int
+
+	// launchPreRequestTransientFailures causes Launch to fail this many times
+	// with a pre-request network error before succeeding, simulating a
+	// connection reset before the request reaches flaps.
+	launchPreRequestTransientFailures int
+
+	// launchSilentSuccessFailures makes Launch return a 408 while still
+	// registering the machine in the mock's internal state, simulating the
+	// case where flaps' upstream call to flyd committed the create but the
+	// response was lost. This lets tests exercise the client-side
+	// idempotency lookup path in launchGreenMachineWithRetry.
+	launchSilentSuccessFailures int
+
+	// launchTransient408Failures makes Launch return a 408 without
+	// committing anything on the mock side, exercising the retry path where
+	// the lookup finds no matching machine and we must launch again.
+	launchTransient408Failures int
+
+	// cordonTransientFailures / stopTransientFailures / destroyTransientFailures
+	// each make the corresponding endpoint fail this many times with a
+	// retryable 408 before succeeding. They let tests exercise the retry
+	// loops added to the blue-machine teardown stages of a bluegreen deploy.
+	cordonTransientFailures  int
+	stopTransientFailures    int
+	destroyTransientFailures int
+
+	// updateTransientFailures makes Update return a 408 this many times
+	// before succeeding, exercising the in-place update retry loop used by
+	// the rolling / immediate deploy strategies.
+	updateTransientFailures int
+
+	// updateCalls counts every Update invocation (including failed ones) so
+	// tests can assert how many attempts were made.
+	updateCalls int
 
 	// mu to protect the members below.
 	mu            sync.Mutex
 	machines      []*fly.Machine
 	leases        map[string]struct{}
 	nextMachineID int
+	destroyCalls  []destroyCall
+}
+
+// destroyCall records one Destroy invocation so tests can assert how a
+// machine was destroyed (force/kill and which lease nonce was sent).
+type destroyCall struct {
+	input fly.RemoveMachineInput
+	nonce string
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID string, ttl *int) (*fly.MachineLease, error) {
@@ -43,7 +108,11 @@ func (m *mockFlapsClient) AcquireLease(ctx context.Context, appName, machineID s
 	return m.RefreshLease(ctx, appName, machineID, ttl, nonce)
 }
 
-func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+func (m *mockFlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	return false, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.AssignIPResponse, err error) {
 	return nil, fmt.Errorf("failed to assign IP to %s", appName)
 }
 
@@ -52,7 +121,20 @@ func (m *mockFlapsClient) CheckCertificate(ctx context.Context, appName, hostnam
 }
 
 func (m *mockFlapsClient) Cordon(ctx context.Context, appName, machineID string, nonce string) (err error) {
-	return fmt.Errorf("failed to cordon %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.cordonTransientFailures > 0 {
+		m.cordonTransientFailures--
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error cordoning %s", machineID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
+	return nil
 }
 
 func (m *mockFlapsClient) CreateACMECertificate(ctx context.Context, appName string, req fly.CreateCertificateRequest) (*fly.CertificateDetailResponse, error) {
@@ -65,6 +147,26 @@ func (m *mockFlapsClient) CreateApp(ctx context.Context, req flaps.CreateAppRequ
 
 func (m *mockFlapsClient) CreateCustomCertificate(ctx context.Context, appName string, req fly.ImportCertificateRequest) (*fly.CertificateDetailResponse, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to create managed postgres cluster")
+}
+
+func (m *mockFlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+	return flaps.ManagedPostgresDatabase{}, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
+	return flaps.ManagedPostgresUser{}, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
+	return fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -91,6 +193,22 @@ func (m *mockFlapsClient) DeleteCustomCertificate(ctx context.Context, appName, 
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
+	return fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	return fmt.Errorf("failed to delete metadata %s", key)
 }
@@ -112,6 +230,20 @@ func (m *mockFlapsClient) DeleteVolume(ctx context.Context, appName, volumeId st
 }
 
 func (m *mockFlapsClient) Destroy(ctx context.Context, appName string, input fly.RemoveMachineInput, nonce string) (err error) {
+	m.mu.Lock()
+	m.destroyCalls = append(m.destroyCalls, destroyCall{input: input, nonce: nonce})
+	if m.destroyTransientFailures > 0 {
+		m.destroyTransientFailures--
+		m.mu.Unlock()
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error destroying %s", input.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+	m.mu.Unlock()
+
 	if m.breakDestroy {
 		return fmt.Errorf("failed to destroy %s", input.ID)
 	}
@@ -137,7 +269,35 @@ func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, 
 }
 
 func (m *mockFlapsClient) Get(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
-	return nil, fmt.Errorf("failed to get %s", machineID)
+	m.mu.Lock()
+	getFn := m.GetFunc
+	breakGet := m.breakGet
+	m.mu.Unlock()
+
+	if getFn != nil {
+		return getFn(ctx, appName, machineID)
+	}
+	if breakGet {
+		return nil, fmt.Errorf("failed to get %s", machineID)
+	}
+	status := fly.Passing
+	if m.unhealthyGet {
+		status = fly.Critical
+	}
+	// Return a machine with a single check whose status is controlled by
+	// unhealthyGet. Health-check loops exit on all-passing; setting Critical
+	// keeps them polling until the strategy's timeout fires.
+	return &fly.Machine{
+		ID: machineID,
+		Checks: []*fly.MachineCheckStatus{
+			{Name: "check1", Status: status},
+		},
+		Config: &fly.MachineConfig{
+			Checks: map[string]fly.MachineCheck{
+				"check1": {},
+			},
+		},
+	}, nil
 }
 
 func (m *mockFlapsClient) GetApp(ctx context.Context, name string) (*flaps.App, error) {
@@ -156,6 +316,14 @@ func (m *mockFlapsClient) GetIPAssignments(ctx context.Context, appName string) 
 	return nil, fmt.Errorf("failed to get IP assignments for %s", appName)
 }
 
+func (m *mockFlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to get managed postgres cluster")
+}
+
+func (m *mockFlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+	return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("failed to get managed postgres user credentials")
+}
+
 func (m *mockFlapsClient) GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error) {
 	return nil, fmt.Errorf("failed to get machines")
 }
@@ -169,6 +337,13 @@ func (m *mockFlapsClient) GetPlacements(ctx context.Context, req *flaps.GetPlace
 }
 
 func (m *mockFlapsClient) GetProcesses(ctx context.Context, appName, machineID string) (fly.MachinePsResponse, error) {
+	m.mu.Lock()
+	fn := m.GetProcessesFunc
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, appName, machineID)
+	}
+
 	return nil, fmt.Errorf("failed to get processes for %s", machineID)
 }
 
@@ -196,23 +371,88 @@ func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fl
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.launchPreRequestTransientFailures > 0 {
+		m.launchPreRequestTransientFailures--
+
+		return nil, fmt.Errorf("dial tcp: connection refused")
+	}
+
+	if m.launchTransient408Failures > 0 {
+		m.launchTransient408Failures--
+
+		return nil, &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("upstream timeout launching %s", builder.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
 	if m.breakLaunch {
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
 	m.nextMachineID += 1
+	m.launchInputs = append(m.launchInputs, builder)
 
-	return &fly.Machine{
+	shortDuration := fly.Duration{Duration: 10 * time.Millisecond}
+
+	// Copy the builder's metadata onto the created machine so that
+	// List-based idempotency lookups can find it (matching real flaps
+	// behaviour: the metadata we sent in the launch input is persisted
+	// and returned by subsequent List/Get calls).
+	metadata := map[string]string{}
+	if builder.Config != nil && builder.Config.Metadata != nil {
+		for k, v := range builder.Config.Metadata {
+			metadata[k] = v
+		}
+	}
+
+	created := &fly.Machine{
 		ID:         fmt.Sprintf("%x", m.nextMachineID),
 		LeaseNonce: fmt.Sprintf("%x-launch-lease", m.nextMachineID),
-	}, nil
+		Config: &fly.MachineConfig{
+			Metadata: metadata,
+			// Use a near-zero grace period and interval so that health-check
+			// goroutines poll almost immediately in tests without real timing.
+			Checks: map[string]fly.MachineCheck{
+				"check1": {
+					GracePeriod: &shortDuration,
+					Interval:    &shortDuration,
+				},
+			},
+		},
+	}
+	m.machines = append(m.machines, created)
+
+	if m.launchSilentSuccessFailures > 0 {
+		m.launchSilentSuccessFailures--
+
+		// Simulate a 408: the machine was committed on the mock side but the
+		// caller sees a transient error. The idempotency lookup should find
+		// this machine by its launch-id metadata on the next attempt.
+		return nil, &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("upstream timeout after commit"),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout after commit"),
+		}
+	}
+
+	return created, nil
 }
 
 func (m *mockFlapsClient) List(ctx context.Context, appName, state string) ([]*fly.Machine, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.breakList {
 		return nil, fmt.Errorf("failed to list machines")
 	}
 
-	return m.machines, nil
+	// Defensive copy so callers holding the slice can't race with future
+	// mutations under m.mu.
+	out := make([]*fly.Machine, len(m.machines))
+	copy(out, m.machines)
+
+	return out, nil
 }
 
 func (m *mockFlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Machine, error) {
@@ -229,6 +469,26 @@ func (m *mockFlapsClient) ListCertificates(ctx context.Context, appName string, 
 
 func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
 	return nil, nil, fmt.Errorf("failed to list fly apps machines")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
@@ -275,11 +535,28 @@ func (m *mockFlapsClient) ReleaseLease(ctx context.Context, appName, machineID, 
 	return nil
 }
 
+func (m *mockFlapsClient) RestoreManagedPostgresCluster(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("not implemented")
+}
+
 func (m *mockFlapsClient) Restart(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) (err error) {
 	return fmt.Errorf("failed to restart %s", in.ID)
 }
 
 func (m *mockFlapsClient) SetMetadata(ctx context.Context, appName, machineID, key, value string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.setMetadataTransientFailures > 0 {
+		m.setMetadataTransientFailures--
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error setting metadata for %s", machineID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("transient upstream timeout"),
+		}
+	}
+
 	if m.breakSetMetadata {
 		return fmt.Errorf("failed to set metadata for %s", machineID)
 	}
@@ -300,7 +577,20 @@ func (m *mockFlapsClient) Start(ctx context.Context, appName, machineID string, 
 }
 
 func (m *mockFlapsClient) Stop(ctx context.Context, appName string, in fly.StopMachineInput, nonce string) (err error) {
-	return fmt.Errorf("failed to stop %s", in.ID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.stopTransientFailures > 0 {
+		m.stopTransientFailures--
+
+		return &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error stopping %s", in.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
+	return nil
 }
 
 func (m *mockFlapsClient) Suspend(ctx context.Context, appName, machineID, nonce string) (err error) {
@@ -325,11 +615,30 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 }
 
 func (m *mockFlapsClient) Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
-	return nil, fmt.Errorf("failed to update %s", builder.ID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.updateCalls++
+
+	if m.updateTransientFailures > 0 {
+		m.updateTransientFailures--
+
+		return nil, &flaps.FlapsError{
+			OriginalError:      fmt.Errorf("transient error updating %s", builder.ID),
+			ResponseStatusCode: http.StatusRequestTimeout,
+			ResponseBody:       []byte("upstream timeout"),
+		}
+	}
+
+	return &fly.Machine{ID: builder.ID, Config: builder.Config}, nil
 }
 
 func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
 	return nil, fmt.Errorf("failed to update app secret %v", values)
+}
+
+func (m *mockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
+	return fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {

@@ -21,6 +21,8 @@ jobs:
         group:
           - apps
           - deploy
+          - deploy-fixtures
+          - bluegreen
           - launch
           - scale
           - volume
@@ -28,11 +30,12 @@ jobs:
           - logs
           - machine
           - postgres
+          - postgres-flex-failover
           - tokens
           - wireguard
           - misc
     steps:
-      - uses: actions/checkout@v7.0.0
+      - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'

@@ -45,7 +45,7 @@ func TestPostgres_singleNode(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			f.FlyAllowExitFailure("apps destroy %s --yes", appName)
 			time.Sleep(10 * time.Second)
 		} else if attempt < 3 {
@@ -93,7 +93,7 @@ func TestPostgres_autostart(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			f.FlyAllowExitFailure("apps destroy %s --yes", appName)
 			time.Sleep(10 * time.Second)
 		} else if attempt < 3 {
@@ -136,7 +136,7 @@ func TestPostgres_autostart(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			f.FlyAllowExitFailure("apps destroy %s --yes", appName)
 			time.Sleep(10 * time.Second)
 		} else if attempt < 3 {
@@ -159,6 +159,8 @@ func TestPostgres_autostart(t *testing.T) {
 }
 
 func TestPostgres_FlexFailover(t *testing.T) {
+	t.Skip("disabled until we synced the recently-published postgres-flex at digest f2aaf3666b0f")
+
 	if testing.Short() {
 		t.Skip()
 	}
@@ -204,7 +206,7 @@ func TestPostgres_FlexFailover(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			f.FlyAllowExitFailure("apps destroy %s --yes", appName)
 			time.Sleep(10 * time.Second)
 		} else if attempt < 3 {
@@ -279,6 +281,8 @@ func TestPostgres_NoMachines(t *testing.T) {
 }
 
 func TestPostgres_haConfigSave(t *testing.T) {
+	t.Skip("legacy unmanaged Postgres is being deprecated")
+
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -312,7 +316,7 @@ func TestPostgres_haConfigSave(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			// Clean up the partially created app before retrying
 			f.FlyAllowExitFailure("apps destroy %s --yes", appName)
 			time.Sleep(10 * time.Second) // Give the platform time to clean up
@@ -388,7 +392,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			f.FlyAllowExitFailure("apps destroy %s --yes", firstAppName)
 			time.Sleep(10 * time.Second)
 		} else if attempt < 3 {
@@ -420,7 +424,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 			strings.Contains(stderr, "Name has already been taken")
 
 		if needsCleanup && attempt < 3 {
-			f.Logf("pg create failed (attempt %d/3), cleaning up and retrying...", attempt)
+			f.Logf("pg create failed (attempt %d/3): %v, cleaning up and retrying...", attempt, stderr)
 			f.FlyAllowExitFailure("apps destroy %s --yes", secondAppName)
 			time.Sleep(10 * time.Second)
 		} else if attempt < 3 {

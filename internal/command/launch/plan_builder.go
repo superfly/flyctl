@@ -660,8 +660,13 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 	return appName, cause, nil
 }
 
+// appNameTaken reports whether name is already in use, over the Machines API.
+//
+// A name held by an app in an organization the user cannot see counts as
+// taken: app names are one global namespace, and the API says so rather than
+// pretending the name is free.
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := flyutil.ClientFromContext(ctx)
+	client := flapsutil.ClientFromContext(ctx)
 
 	available, err := client.AppNameAvailable(ctx, name)
 	if err != nil {

@@ -10,19 +10,18 @@ import (
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/pflag"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex"
-	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // mockUIEXClient implements uiexutil.Client for testing
-type mockUIEXClient struct {
-	mpgRegions []mpgv1.MPGRegion
-}
+type mockUIEXClient struct{}
 
 func (m *mockUIEXClient) BaseURL() *url.URL {
 	return nil
@@ -173,24 +172,24 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 			flagSet.String("db", tt.dbFlag, "")
 			ctx = flagctx.NewContext(ctx, flagSet)
 
-			// Set up mock UIEX client for MPG regions
-			var mpgRegions []mpgv1.MPGRegion
+			// Set up mock flaps client for MPG region availability
+			var mpgRegions []fly.Region
 			if tt.mpgRegionsWithIAD {
-				mpgRegions = []mpgv1.MPGRegion{
-					{Code: "iad", Available: true},
-					{Code: "lax", Available: true},
+				mpgRegions = []fly.Region{
+					{Code: "iad", MPGAvailable: true},
+					{Code: "lax", MPGAvailable: true},
 				}
 			} else {
-				mpgRegions = []mpgv1.MPGRegion{
-					{Code: "lax", Available: true},
-					{Code: "fra", Available: true},
+				mpgRegions = []fly.Region{
+					{Code: "lax", MPGAvailable: true},
+					{Code: "fra", MPGAvailable: true},
 					// iad is not in the list, so it's not available
 				}
 			}
 
-			ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
-				ListMPGRegionsFunc: func(ctx context.Context, orgSlug string) (mpgv1.ListMPGRegionsResponse, error) {
-					return mpgv1.ListMPGRegionsResponse{Data: mpgRegions}, nil
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetRegionsFunc: func(ctx context.Context) (*flaps.RegionData, error) {
+					return &flaps.RegionData{Regions: mpgRegions}, nil
 				},
 			})
 
@@ -267,13 +266,7 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 		flagSet.String("db", "true", "")
 		ctx = flagctx.NewContext(ctx, flagSet)
 
-		// Set up mock UIEX client where iad doesn't support MPG but lax does
-		mpgRegions := []mpgv1.MPGRegion{
-			{Code: "lax", Available: true},
-			{Code: "fra", Available: true},
-			// iad is not in the list, so it's not available
-		}
-		mockUIEX := &mockUIEXClient{mpgRegions: mpgRegions}
+		mockUIEX := &mockUIEXClient{}
 		ctx = uiexutil.NewContextWithClient(ctx, mockUIEX)
 
 		// Set up mock API client for platform regions

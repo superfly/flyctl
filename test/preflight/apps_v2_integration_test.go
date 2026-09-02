@@ -502,27 +502,16 @@ func TestErrOutput(t *testing.T) {
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
-	// This should fail on GPU machines because they're performance VMs.
-	if f.IsGpuMachine() {
-		res = f.FlyAllowExitFailure("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "memory size for config is too low")
-	} else {
-		f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
-	}
+	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
 
-	// Not applicable for GPU machines since this size is too small.
-	if !f.IsGpuMachine() {
-		res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "memory size for config is too low")
-	}
+	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "memory size for config is too low")
 
-	if !f.IsGpuMachine() {
-		res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "memory size for config is too high")
+	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "memory size for config is too high")
 
-		res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
-	}
+	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
 }
 
 func TestImageLabel(t *testing.T) {

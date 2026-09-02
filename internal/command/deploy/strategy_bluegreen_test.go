@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -24,9 +25,17 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	var machines []*machineUpdateEntry
 	ios, _, _, _ := iostreams.Test()
 
-	for range numberOfExistingMachines {
+	// testImageRef is a stable ImageRef used by test helpers. All machines in
+	// a test share the same image so DetectMultipleImageVersions passes without
+	// needing to exercise the image-check logic in every test.
+	testImageRef := fly.MachineImageRef{Repository: "test-app", Tag: "test"}
+	for i := range numberOfExistingMachines {
 		machines = append(machines, &machineUpdateEntry{
-			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{
+				ID:         fmt.Sprintf("%x", i+1),
+				ImageRef:   testImageRef,
+				HostStatus: fly.HostStatusOk,
+			}, false),
 			launchInput: &fly.LaunchMachineInput{
 				Config: &fly.MachineConfig{
 					Metadata: map[string]string{},
@@ -39,15 +48,16 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 		})
 	}
 	strategy := &blueGreen{
-		apiClient:     &mockWebClient{},
-		flaps:         client,
-		maxConcurrent: 10,
-		appConfig:     &appconfig.Config{},
-		io:            ios,
-		colorize:      ios.ColorScheme(),
-		timeout:       1 * time.Second,
-		blueMachines:  machines,
-		app:           &flaps.App{Name: "test-app"},
+		apiClient:       &mockWebClient{},
+		flaps:           client,
+		maxConcurrent:   10,
+		appConfig:       &appconfig.Config{},
+		io:              ios,
+		colorize:        ios.ColorScheme(),
+		clearLinesAbove: func(int) {}, // no-op; avoids nil-panic in render loop
+		timeout:         5 * time.Second,
+		blueMachines:    machines,
+		app:             &flaps.App{Name: "test-app"},
 	}
 	strategy.initialize()
 
@@ -55,6 +65,11 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 	strategy.waitBeforeStop = 0
 	strategy.waitBeforeCordon = 0
 	strategy.uncordonRetryDelay = 0
+	strategy.tagRetryDelay = 0
+	strategy.launchRetryDelay = 0
+	strategy.launchLookupDelay = 0
+	strategy.imageRefRetryDelay = 0
+	strategy.teardownRetryDelay = 0
 
 	return strategy
 }
@@ -96,6 +111,37 @@ func TestDeploy(t *testing.T) {
 
 		err := strategy.Deploy(ctx)
 		assert.ErrorContains(t, err, "failed to create green machines")
+	})
+
+	// A blue machine on a non-ok host must not block the deploy at any stage:
+	// it is skipped by the image check and the cordon/stop/wait teardown, and
+	// force-destroyed at the end through the flaps API (kill=true, no lease
+	// nonce — the same call as `fly machine destroy --force`).
+	t.Run("non-ok blue machine is skipped and force-destroyed", func(t *testing.T) {
+		client := &mockFlapsClient{}
+		ctx := flapsutil.NewContextWithClient(context.Background(), client)
+		strategy := newBlueGreenStrategy(client, 2)
+		unreachable := strategy.blueMachines[1].leasableMachine.Machine()
+		unreachable.HostStatus = fly.HostStatusUnreachable
+		unreachable.ImageRef = fly.MachineImageRef{}
+
+		err := strategy.Deploy(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		calls := client.destroyCalls
+		client.mu.Unlock()
+
+		destroyed := false
+		for _, c := range calls {
+			if c.input.ID != unreachable.ID {
+				continue
+			}
+			destroyed = true
+			assert.True(t, c.input.Kill, "non-ok machine must be force-destroyed (kill=true)")
+			assert.Empty(t, c.nonce, "no lease nonce must be sent when destroying a machine on a non-ok host")
+		}
+		assert.True(t, destroyed, "the non-ok blue machine must be destroyed via the flaps API")
 	})
 }
 
@@ -170,4 +216,857 @@ func FuzzDeploy(f *testing.F) {
 		// At least, Deploy must not panic.
 		strategy.Deploy(ctx)
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Tests for the SkipLaunch / health-check fixes
+// ---------------------------------------------------------------------------
+
+// TestMachineHasConfiguredChecks verifies the helper that decides whether a
+// machine config carries any health-check definitions.
+func TestMachineHasConfiguredChecks(t *testing.T) {
+	t.Run("no checks at all", func(t *testing.T) {
+		cfg := &fly.MachineConfig{}
+		assert.False(t, machineHasConfiguredChecks(cfg))
+	})
+
+	t.Run("top-level check", func(t *testing.T) {
+		cfg := &fly.MachineConfig{
+			Checks: map[string]fly.MachineCheck{"alive": {}},
+		}
+		assert.True(t, machineHasConfiguredChecks(cfg))
+	})
+
+	t.Run("service-level check only", func(t *testing.T) {
+		cfg := &fly.MachineConfig{
+			Services: []fly.MachineService{
+				{Checks: []fly.MachineServiceCheck{{}}},
+			},
+		}
+		assert.True(t, machineHasConfiguredChecks(cfg))
+	})
+
+	t.Run("service with no checks", func(t *testing.T) {
+		cfg := &fly.MachineConfig{
+			Services: []fly.MachineService{
+				{Checks: nil},
+			},
+		}
+		assert.False(t, machineHasConfiguredChecks(cfg))
+	})
+}
+
+// newBlueGreenStrategyWithState is like newBlueGreenStrategy but lets the
+// caller specify the state of each blue machine and its SkipLaunch value.
+// This is used to simulate machines that have been auto-stopped.
+func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState string, skipLaunch bool) *blueGreen {
+	ios, _, _, _ := iostreams.Test()
+
+	testImageRef := fly.MachineImageRef{Repository: "test-app", Tag: "test"}
+	machines := []*machineUpdateEntry{
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{
+				State:      machineState,
+				ImageRef:   testImageRef,
+				HostStatus: fly.HostStatusOk,
+				Config: &fly.MachineConfig{
+					Metadata: map[string]string{},
+					Checks: map[string]fly.MachineCheck{
+						"check1": {},
+					},
+				},
+			}, false),
+			launchInput: &fly.LaunchMachineInput{
+				SkipLaunch: skipLaunch,
+				Config: &fly.MachineConfig{
+					Metadata: map[string]string{},
+					Checks: map[string]fly.MachineCheck{
+						"check1": {},
+					},
+				},
+				MinSecretsVersion: nil,
+			},
+		},
+	}
+
+	strategy := &blueGreen{
+		apiClient:       &mockWebClient{},
+		flaps:           client,
+		maxConcurrent:   10,
+		appConfig:       &appconfig.Config{},
+		io:              ios,
+		colorize:        ios.ColorScheme(),
+		clearLinesAbove: func(int) {},
+		timeout:         5 * time.Second,
+		blueMachines:    machines,
+		app:             &flaps.App{Name: "test-app"},
+	}
+	strategy.initialize()
+	strategy.waitBeforeStop = 0
+	strategy.waitBeforeCordon = 0
+	strategy.uncordonRetryDelay = 0
+	strategy.tagRetryDelay = 0
+	strategy.launchRetryDelay = 0
+	strategy.launchLookupDelay = 0
+	strategy.imageRefRetryDelay = 0
+	strategy.teardownRetryDelay = 0
+
+	return strategy
+}
+
+// TestCreateGreenMachinesForceStartsRepresentative verifies that when the
+// only blue machine in a process group with configured health checks would
+// stay stopped (SkipLaunch=true), its green replacement is promoted to
+// SkipLaunch=false so that at least one machine gets health-verified.
+func TestCreateGreenMachinesForceStartsRepresentative(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+
+	// Simulate a stopped blue machine: SkipLaunch=true. It has configured
+	// checks, so its green replacement must be force-started as the group's
+	// health-check representative.
+	strategy := newBlueGreenStrategyWithState(client, fly.MachineStateStopped, true)
+
+	err := strategy.CreateGreenMachines(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, strategy.greenMachines, 1, "expected one green machine to be created")
+
+	client.mu.Lock()
+	inputs := client.launchInputs
+	client.mu.Unlock()
+
+	assert.Len(t, inputs, 1, "expected one Launch call")
+	assert.False(t, inputs[0].SkipLaunch,
+		"green machine must be launched with SkipLaunch=false as the process group's health-check representative")
+}
+
+// makeMachineEntry constructs a machineUpdateEntry with just enough state to
+// exercise forceStartRepresentatives: a process-group tag, a SkipLaunch value,
+// and optional configured checks.
+func makeMachineEntry(processGroup string, skipLaunch, hasChecks bool) *machineUpdateEntry {
+	checks := map[string]fly.MachineCheck{}
+	if hasChecks {
+		checks["check1"] = fly.MachineCheck{}
+	}
+
+	return &machineUpdateEntry{
+		launchInput: &fly.LaunchMachineInput{
+			SkipLaunch: skipLaunch,
+			Config: &fly.MachineConfig{
+				Metadata: map[string]string{
+					fly.MachineConfigMetadataKeyFlyProcessGroup: processGroup,
+				},
+				Checks: checks,
+			},
+		},
+	}
+}
+
+// TestForceStartRepresentatives exercises the per-process-group selection
+// logic that decides which green machines must be launched even when their
+// blue counterparts were stopped.
+func TestForceStartRepresentatives(t *testing.T) {
+	t.Run("stopped group with checks forces the first machine", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),
+		}}
+
+		assert.Equal(t, map[int]bool{0: true}, bg.forceStartRepresentatives())
+	})
+
+	t.Run("stopped group without checks is left alone", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("worker", true, false),
+		}}
+
+		assert.Empty(t, bg.forceStartRepresentatives(),
+			"no checks means no representative needed; green should mirror blue's stopped state")
+	})
+
+	t.Run("group with a natural starter needs no forcing", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),  // stopped
+			makeMachineEntry("app", false, true), // already going to start
+		}}
+
+		assert.Empty(t, bg.forceStartRepresentatives(),
+			"a machine that already starts satisfies the invariant")
+	})
+
+	t.Run("multiple stopped in same group forces exactly one", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("app", true, true),
+		}}
+
+		assert.Equal(t, map[int]bool{0: true}, bg.forceStartRepresentatives(),
+			"only the first stopped machine in the group should be promoted")
+	})
+
+	t.Run("multiple stopped groups get one representative each", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("worker", true, true),
+			makeMachineEntry("app", true, true),
+			makeMachineEntry("worker", true, true),
+		}}
+
+		assert.Equal(t, map[int]bool{0: true, 1: true}, bg.forceStartRepresentatives(),
+			"each process group with checks needs its own representative")
+	})
+
+	t.Run("only groups with checks get a representative", func(t *testing.T) {
+		bg := &blueGreen{blueMachines: []*machineUpdateEntry{
+			makeMachineEntry("app", true, true),     // has checks -> force
+			makeMachineEntry("worker", true, false), // no checks -> mirror blue
+		}}
+
+		assert.Equal(t, map[int]bool{0: true}, bg.forceStartRepresentatives())
+	})
+}
+
+// TestCreateGreenMachinesMirrorsBlueSkipLaunchForNonRepresentatives verifies
+// that, given multiple stopped blue machines in a process group with checks,
+// exactly one green is force-started and the rest inherit SkipLaunch=true
+// (so they mirror the pre-deploy stopped state).
+func TestCreateGreenMachinesMirrorsBlueSkipLaunchForNonRepresentatives(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+
+	ios, _, _, _ := iostreams.Test()
+	blues := []*machineUpdateEntry{
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			launchInput:     makeMachineEntry("app", true, true).launchInput,
+		},
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			launchInput:     makeMachineEntry("app", true, true).launchInput,
+		},
+		{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{}, false),
+			launchInput:     makeMachineEntry("app", true, true).launchInput,
+		},
+	}
+
+	strategy := &blueGreen{
+		apiClient:       &mockWebClient{},
+		flaps:           client,
+		maxConcurrent:   10,
+		appConfig:       &appconfig.Config{},
+		io:              ios,
+		colorize:        ios.ColorScheme(),
+		clearLinesAbove: func(int) {},
+		timeout:         5 * time.Second,
+		blueMachines:    blues,
+		app:             &flaps.App{Name: "test-app"},
+	}
+	strategy.initialize()
+	strategy.waitBeforeStop = 0
+	strategy.waitBeforeCordon = 0
+	strategy.uncordonRetryDelay = 0
+
+	err := strategy.CreateGreenMachines(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, strategy.greenMachines, 3)
+
+	client.mu.Lock()
+	inputs := client.launchInputs
+	client.mu.Unlock()
+
+	require.Len(t, inputs, 3)
+	started := 0
+	for _, in := range inputs {
+		if !in.SkipLaunch {
+			started++
+		}
+	}
+	assert.Equal(t, 1, started,
+		"exactly one green machine in the group must be force-started; the rest mirror blue's stopped state")
+}
+
+// TestDeployWithStoppedBlueMachinesEnforcesHealthChecks verifies the full
+// deploy pipeline when blue machines have SkipLaunch=true (auto-stopped).
+//
+// Before the fix, the deploy would silently succeed: green machines were
+// never started and their health was faked as "1/1 passing".
+//
+// After the fix, the deploy must attempt real health checks and only succeed
+// when they pass, or fail/roll back when they don't.
+func TestDeployWithStoppedBlueMachinesEnforcesHealthChecks(t *testing.T) {
+	t.Run("fails when health checks cannot be verified", func(t *testing.T) {
+		// breakGet=true simulates the platform being unreachable for health polls.
+		client := &mockFlapsClient{breakGet: true}
+		ctx := context.Background()
+		ctx = flapsutil.NewContextWithClient(ctx, client)
+
+		strategy := newBlueGreenStrategyWithState(client, fly.MachineStateStopped, true)
+		// Short timeout so the test doesn't hang.
+		strategy.timeout = 500 * time.Millisecond
+
+		err := strategy.Deploy(ctx)
+		assert.Error(t, err,
+			"deploy must fail when health checks cannot be verified, not silently succeed")
+	})
+
+	t.Run("succeeds when health checks pass", func(t *testing.T) {
+		// Default mockFlapsClient.Get returns a passing machine.
+		client := &mockFlapsClient{}
+		ctx := context.Background()
+		ctx = flapsutil.NewContextWithClient(ctx, client)
+
+		strategy := newBlueGreenStrategyWithState(client, fly.MachineStateStopped, true)
+
+		err := strategy.Deploy(ctx)
+		assert.NoError(t, err, "deploy must succeed when health checks pass")
+	})
+}
+
+// TestBlueGreenAbortsWhenGreenChecksFailAfterConfigChange exercises the
+// primary value of the fix: catching an app-level misconfiguration that
+// silently breaks health checks on the new deploy.
+//
+// Concrete real-world regressions this protects against:
+//
+//   - The new config changes `internal_port` (or the app now listens on a
+//     different port), so the health probe can't reach the process at all.
+//   - The app adds `force_ssl` (e.g. Phoenix's default) or another redirect
+//     rule that traps the health probe with a 3xx, so `/` never returns 200.
+//   - Any other startup-time regression that keeps the machine "running" but
+//     makes the configured HTTP check fail.
+//
+// Pre-fix behaviour with auto-stopped blue machines: green machines were
+// silently marked "1/1 passing" without ever running the check, blues were
+// destroyed, and traffic hit a broken app. The representative-force-start
+// fix ensures at least one green in each check-having group actually starts
+// and gets polled — which is exactly what surfaces these regressions.
+func TestBlueGreenAbortsWhenGreenChecksFailAfterConfigChange(t *testing.T) {
+	// unhealthyGet=true makes the mock return a Machine whose one configured
+	// check reports Critical, mimicking any of the misconfiguration modes
+	// listed above from the poller's point of view.
+	client := &mockFlapsClient{unhealthyGet: true}
+	ctx := context.Background()
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+
+	// Every blue is stopped (auto_stop_machines scenario). Without the fix,
+	// all greens would inherit SkipLaunch=true and skip health polling
+	// entirely — the misconfiguration would slip through undetected.
+	strategy := newBlueGreenStrategyWithState(client, fly.MachineStateStopped, true)
+	strategy.timeout = 500 * time.Millisecond // don't let the test hang
+
+	err := strategy.Deploy(ctx)
+	assert.Error(t, err,
+		"deploy must abort when the representative green machine's health checks fail, "+
+			"even though blue machines were all auto-stopped "+
+			"(config regressions like a bad internal_port or force_ssl redirect must be caught)")
+}
+
+// ---------------------------------------------------------------------------
+// Tests for DetectMultipleImageVersions / image-ref lookup robustness
+// ---------------------------------------------------------------------------
+
+// newStrategyWithImages builds a blueGreen whose blue machines each carry a
+// specific ImageRef so DetectMultipleImageVersions can be exercised without
+// reaching the rest of the deploy pipeline.
+func newStrategyWithImages(client flapsutil.FlapsClient, images ...fly.MachineImageRef) *blueGreen {
+	ios, _, _, _ := iostreams.Test()
+	var machines []*machineUpdateEntry
+	for _, img := range images {
+		machines = append(machines, &machineUpdateEntry{
+			leasableMachine: machine.NewLeasableMachine(client, ios, "", &fly.Machine{
+				ID: func() string {
+					if img.Tag != "" {
+						return "m-" + img.Tag
+					}
+
+					return fmt.Sprintf("m-unreachable-%d", len(machines))
+				}(),
+				ImageRef:   img,
+				HostStatus: fly.HostStatusOk,
+				Config:     &fly.MachineConfig{Metadata: map[string]string{}},
+			}, false),
+			launchInput: &fly.LaunchMachineInput{
+				Config: &fly.MachineConfig{Metadata: map[string]string{}},
+			},
+		})
+	}
+	strategy := &blueGreen{
+		apiClient:     &mockWebClient{},
+		flaps:         client,
+		maxConcurrent: 10,
+		appConfig:     &appconfig.Config{AppName: "test-app"},
+		io:            ios,
+		colorize:      ios.ColorScheme(),
+		timeout:       5 * time.Second,
+		blueMachines:  machines,
+		app:           &flaps.App{Name: "test-app"},
+	}
+	strategy.initialize()
+	strategy.imageRefRetryDelay = 0
+
+	return strategy
+}
+
+// TestDetectMultipleImageVersions_SingleImage verifies the happy path:
+// all machines on the same image passes the check.
+func TestDetectMultipleImageVersions_SingleImage(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+
+	sameImage := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-01"}
+	strategy := newStrategyWithImages(client, sameImage, sameImage, sameImage)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err)
+}
+
+// TestDetectMultipleImageVersions_DifferentImages verifies that genuinely
+// different image versions across blue machines are still caught.
+func TestDetectMultipleImageVersions_DifferentImages(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := context.Background()
+
+	imgA := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-01"}
+	imgB := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-02"}
+	strategy := newStrategyWithImages(client, imgA, imgA, imgB)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.ErrorIs(t, err, ErrMultipleImageVersions)
+}
+
+// TestDetectMultipleImageVersions_EmptyImageRefRefreshSucceeds verifies that
+// when one machine's ImageRef comes back empty from the list API, a fresh Get
+// returning real image data allows the check to proceed.
+func TestDetectMultipleImageVersions_EmptyImageRefRefreshSucceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/myapp", Tag: "deployment-01"}
+
+	// The mock Get returns a machine on a healthy host with a real ImageRef.
+	client := &mockFlapsClient{
+		GetFunc: func(_ context.Context, _ string, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{ID: machineID, ImageRef: realImage, HostStatus: fly.HostStatusOk}, nil
+		},
+	}
+	ctx := context.Background()
+
+	// One machine has the correct image; one has an empty ImageRef (simulates
+	// the list API returning incomplete data for an unreachable host).
+	strategy := newStrategyWithImages(client,
+		realImage,
+		fly.MachineImageRef{}, // empty — should be refreshed via Get
+	)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err, "deploy should succeed when the refreshed machine carries the same image")
+}
+
+// TestDetectMultipleImageVersions_UnreachableHostStatus_Proceeds verifies the
+// primary detection path: the list API itself reports host_status=unreachable.
+// The machine must be excluded from the image tally without any Get lookups,
+// and the deploy proceeds (the machine gets replaced on a healthy host).
+func TestDetectMultipleImageVersions_UnreachableHostStatus_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+
+	// breakGet guards the "no Get lookups" claim: if the code wrongly fell
+	// back to a Get here, the refresh loop would burn retries; the outcome
+	// stays the same but the explicit HostStatus must short-circuit first.
+	client := &mockFlapsClient{breakGet: true}
+	ctx := context.Background()
+
+	strategy := newStrategyWithImages(client, realImage, realImage, fly.MachineImageRef{})
+	strategy.blueMachines[2].leasableMachine.Machine().HostStatus = fly.HostStatusUnreachable
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"a machine on an unreachable host must not block the deploy — it gets replaced")
+}
+
+// TestDetectMultipleImageVersions_UnknownHostStatus_Proceeds verifies that any
+// host status other than "ok" — not just "unreachable" — excludes the machine
+// from image verification: an unknown host can't be trusted to respond either.
+func TestDetectMultipleImageVersions_UnknownHostStatus_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+
+	client := &mockFlapsClient{breakGet: true}
+	ctx := context.Background()
+
+	strategy := newStrategyWithImages(client, realImage, realImage, fly.MachineImageRef{})
+	strategy.blueMachines[2].leasableMachine.Machine().HostStatus = fly.HostStatusUnknown
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"a machine on an unknown host must not block the deploy — it gets replaced")
+}
+
+// TestDetectMultipleImageVersions_UnreachableHost_Proceeds verifies the
+// reported production scenario: 36 ok machines + 1 whose refreshed data comes
+// back with host_status=unreachable. The deploy must proceed (replacing the
+// unreachable machine), not fail with a misleading "different images" error.
+func TestDetectMultipleImageVersions_UnreachableHost_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+
+	client := &mockFlapsClient{
+		GetFunc: func(_ context.Context, _ string, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{
+				ID:         machineID,
+				HostStatus: fly.HostStatusUnreachable,
+				ImageRef:   fly.MachineImageRef{},
+			}, nil
+		},
+	}
+	ctx := context.Background()
+
+	images := make([]fly.MachineImageRef, 36)
+	for i := range images {
+		images[i] = realImage
+	}
+	images = append(images, fly.MachineImageRef{}) // 1 unreachable
+	strategy := newStrategyWithImages(client, images...)
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"unreachable machines must not block the deploy — they get replaced")
+}
+
+// TestDetectMultipleImageVersions_RealConflictStillBlocks ensures that
+// skipping unreachable machines does not bypass a genuine image-version
+// conflict among the reachable machines.
+func TestDetectMultipleImageVersions_RealConflictStillBlocks(t *testing.T) {
+	imgA := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+	imgB := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-02"}
+
+	// Get returns the unreachable machine with empty ImageRef.
+	client := &mockFlapsClient{
+		GetFunc: func(_ context.Context, _ string, machineID string) (*fly.Machine, error) {
+			return &fly.Machine{ID: machineID, HostStatus: fly.HostStatusUnreachable}, nil
+		},
+	}
+	ctx := context.Background()
+
+	// Two machines with different real images + 1 unreachable.
+	strategy := newStrategyWithImages(client, imgA, imgB, fly.MachineImageRef{})
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.ErrorIs(t, err, ErrMultipleImageVersions,
+		"unreachable machines must not mask a genuine image-version conflict")
+}
+
+// TestDetectMultipleImageVersions_GetError_Proceeds verifies that a hard Get
+// failure (API error) after all retries is treated like an unreachable host:
+// the machine is skipped and replaced, not reported as a version conflict.
+func TestDetectMultipleImageVersions_GetError_Proceeds(t *testing.T) {
+	realImage := fly.MachineImageRef{Repository: "registry.fly.io/test-app", Tag: "deployment-01"}
+	client := &mockFlapsClient{breakGet: true}
+	ctx := context.Background()
+
+	strategy := newStrategyWithImages(client,
+		realImage,
+		fly.MachineImageRef{},
+	)
+	strategy.imageRefRetryAttempts = 1
+
+	err := strategy.DetectMultipleImageVersions(ctx)
+	assert.NoError(t, err,
+		"a machine whose image cannot be verified must be replaced, not block the deploy")
+}
+
+// TestFormatDestroyCommand verifies the destroy-command formatter produces
+// copy-paste-ready output for both single and multi-machine cases.
+func TestFormatDestroyCommand(t *testing.T) {
+	t.Run("single machine", func(t *testing.T) {
+		cmd := formatDestroyCommand("my-app", []string{"abc123"})
+		assert.Equal(t, "fly machine destroy --force -a my-app abc123", cmd)
+	})
+
+	t.Run("multiple machines uses backslash continuation", func(t *testing.T) {
+		cmd := formatDestroyCommand("my-app", []string{"aaa111", "bbb222", "ccc333"})
+		assert.Contains(t, cmd, "fly machine destroy --force -a my-app")
+		assert.Contains(t, cmd, "aaa111")
+		assert.Contains(t, cmd, "bbb222")
+		assert.Contains(t, cmd, "ccc333")
+		// Must have backslash continuations so each ID is on its own line.
+		assert.Contains(t, cmd, " \\\n", "expected backslash continuation for multi-machine command")
+	})
+}
+
+// TestTagBlueMachinesAsSafeForDeletion covers the checkpointing step's
+// resilience guarantees. The tag is best-effort metadata used by operators
+// to identify hanging blue machines; a transient flaps failure here must
+// never abort the deployment (or we'd leave blue and green versions serving
+// traffic side-by-side).
+func TestTagBlueMachinesAsSafeForDeletion(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("succeeds immediately when no errors occur", func(t *testing.T) {
+		client := &mockFlapsClient{}
+		bg := newBlueGreenStrategy(client, 3)
+
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("succeeds after transient 408s are retried", func(t *testing.T) {
+		client := &mockFlapsClient{setMetadataTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.setMetadataTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+	})
+
+	t.Run("returns nil when retries are exhausted (non-fatal)", func(t *testing.T) {
+		// setMetadataTransientFailures greater than the attempt budget forces
+		// the retry loop to give up. The deployment must still proceed.
+		client := &mockFlapsClient{setMetadataTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 2)
+		bg.tagRetryAttempts = 3
+
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		assert.NoError(t, err, "tag failures must be non-fatal so both blue+green don't stay live")
+	})
+
+	t.Run("does not retry non-transient errors", func(t *testing.T) {
+		client := &mockFlapsClient{breakSetMetadata: true}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.tagRetryAttempts = 5
+
+		start := time.Now()
+		err := bg.TagBlueMachinesAsSafeForDeletion(ctx)
+		elapsed := time.Since(start)
+
+		assert.NoError(t, err)
+		// Non-transient errors bail out on the first attempt, so this must
+		// finish quickly — no exponential back-off between 5 retries.
+		assert.Less(t, elapsed, 500*time.Millisecond, "non-transient failures should not incur retry delay")
+	})
+}
+
+// TestDeployContinuesWhenCheckpointFails guards against a regression where a
+// transient failure of the safe-to-destroy tagging step (SetMetadata against
+// blue machines) aborts the deployment after green machines have already
+// been made ready for traffic. In that state the previous behaviour left
+// both blue and green machines serving traffic side-by-side; the deployment
+// must instead complete end-to-end even when SetMetadata never succeeds.
+func TestDeployContinuesWhenCheckpointFails(t *testing.T) {
+	client := &mockFlapsClient{setMetadataTransientFailures: 999}
+	ctx := flapsutil.NewContextWithClient(context.Background(), client)
+	strategy := newBlueGreenStrategy(client, 2)
+	strategy.tagRetryAttempts = 2
+
+	err := strategy.Deploy(ctx)
+	assert.NoError(t, err, "a persistent SetMetadata failure must not abort the deploy")
+
+	// All blue machines must have been destroyed; leaving any of them alive
+	// alongside green would be the exact bug this test protects against.
+	client.mu.Lock()
+	destroyed := len(client.destroyCalls)
+	client.mu.Unlock()
+	assert.Equal(t, 2, destroyed, "both blue machines should be destroyed at the end of the deploy")
+}
+
+// TestCreateGreenMachinesRetriesLaunchTransients verifies the client-side
+// pseudo-idempotency logic wrapped around flaps.Launch:
+//
+//   - a pre-request transport failure (guaranteed the request never reached
+//     flaps) is retried and eventually succeeds without creating extras;
+//   - an ambiguous 408 that was actually a silent success on the flaps side
+//     is deduplicated via the launch-id metadata lookup so we never end up
+//     with a duplicate green machine;
+//   - an ambiguous 408 that truly failed (no machine committed) is retried
+//     until Launch succeeds;
+//   - a non-transient error (e.g. a 4xx validation error) still fails fast.
+func TestCreateGreenMachinesRetriesLaunchTransients(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("succeeds after transient pre-request failures", func(t *testing.T) {
+		client := &mockFlapsClient{launchPreRequestTransientFailures: 2}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 3
+
+		err := bg.CreateGreenMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.launchPreRequestTransientFailures
+		launched := len(client.launchInputs)
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "transient failures should be consumed by retries")
+		assert.Equal(t, 1, launched, "a truly-failed launch should only produce one committed machine")
+	})
+
+	t.Run("deduplicates silent-success 408 via launch-id lookup", func(t *testing.T) {
+		// The mock commits the machine internally but returns 408. The retry
+		// loop must see the committed machine via List and reuse it instead
+		// of launching again.
+		client := &mockFlapsClient{launchSilentSuccessFailures: 1}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 3
+
+		err := bg.CreateGreenMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		committedMachines := len(client.machines)
+		launchCalls := len(client.launchInputs)
+		client.mu.Unlock()
+
+		assert.Equal(t, 1, committedMachines, "exactly one green machine must exist — the silent-success one")
+		assert.Equal(t, 1, launchCalls, "idempotency lookup must skip the second Launch call")
+		assert.Len(t, bg.greenMachines, 1, "the tracked green machine set must not contain duplicates")
+	})
+
+	t.Run("retries transient 408 that truly failed", func(t *testing.T) {
+		// The mock returns 408 without committing anything. The idempotency
+		// lookup finds nothing, so Launch must be retried until it succeeds.
+		client := &mockFlapsClient{launchTransient408Failures: 2}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 4
+
+		err := bg.CreateGreenMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.launchTransient408Failures
+		committedMachines := len(client.machines)
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all 408s should have been consumed by retries")
+		assert.Equal(t, 1, committedMachines, "only the eventually-successful Launch commits a machine")
+	})
+
+	t.Run("does not retry non-transient errors", func(t *testing.T) {
+		client := &mockFlapsClient{breakLaunch: true}
+		ctx := flapsutil.NewContextWithClient(ctx, client)
+		bg := newBlueGreenStrategy(client, 1)
+		bg.launchRetryAttempts = 5
+
+		start := time.Now()
+		err := bg.CreateGreenMachines(ctx)
+		elapsed := time.Since(start)
+
+		assert.Error(t, err)
+		assert.Less(t, elapsed, 500*time.Millisecond, "non-retryable errors must fail fast")
+	})
+}
+
+// TestBlueTeardownRetriesTransientFailures covers the Cordon/Stop/Destroy
+// retries added to the bluegreen teardown stages. All three are idempotent,
+// so transient flaps failures (typically 408 propagated from flyd) must not
+// leave blue machines cordoned-but-not-stopped or hanging around after
+// destroy — the observable pain point behind the resilience work.
+func TestBlueTeardownRetriesTransientFailures(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Cordon retries transient failures", func(t *testing.T) {
+		client := &mockFlapsClient{cordonTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 5
+
+		err := bg.CordonBlueMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.cordonTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+	})
+
+	t.Run("Stop retries transient failures", func(t *testing.T) {
+		client := &mockFlapsClient{stopTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 5
+
+		err := bg.StopBlueMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.stopTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+	})
+
+	t.Run("Destroy retries transient failures", func(t *testing.T) {
+		client := &mockFlapsClient{destroyTransientFailures: 2}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 5
+
+		err := bg.DestroyBlueMachines(ctx)
+		assert.NoError(t, err)
+
+		client.mu.Lock()
+		remaining := client.destroyTransientFailures
+		client.mu.Unlock()
+		assert.Equal(t, 0, remaining, "all transient failures should be consumed by retries")
+		assert.Empty(t, bg.hangingBlueMachines,
+			"blue machines that were successfully destroyed on retry must NOT be reported as hanging")
+	})
+
+	t.Run("Destroy is non-fatal when retries exhaust", func(t *testing.T) {
+		// Force way more failures than the retry budget: destroy must fail
+		// gracefully (adding the machine to hangingBlueMachines), NOT abort
+		// the deploy.
+		client := &mockFlapsClient{destroyTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 3
+
+		err := bg.DestroyBlueMachines(ctx)
+		assert.NoError(t, err, "destroy failure must not abort the pool")
+		assert.Len(t, bg.hangingBlueMachines, 1,
+			"a machine that couldn't be destroyed must be reported to the user for manual cleanup")
+	})
+
+	t.Run("Cordon warns but continues when retries exhaust", func(t *testing.T) {
+		client := &mockFlapsClient{cordonTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 2
+
+		err := bg.CordonBlueMachines(ctx)
+		assert.NoError(t, err, "cordon exhaustion must not fail the deploy")
+	})
+
+	t.Run("Stop warns but continues when retries exhaust", func(t *testing.T) {
+		client := &mockFlapsClient{stopTransientFailures: 100}
+		bg := newBlueGreenStrategy(client, 1)
+		bg.teardownRetryAttempts = 2
+
+		err := bg.StopBlueMachines(ctx)
+		assert.NoError(t, err, "stop exhaustion must not fail the deploy — destroy will force-kill")
+	})
+}
+
+// TestCreateGreenMachinesStampsLaunchID verifies that every green machine
+// launched during a bluegreen deployment carries a unique idempotency tag
+// in its config metadata. Without this tag the retry loop couldn't detect
+// silent-success 408s from flaps.
+func TestCreateGreenMachinesStampsLaunchID(t *testing.T) {
+	client := &mockFlapsClient{}
+	ctx := flapsutil.NewContextWithClient(context.Background(), client)
+	bg := newBlueGreenStrategy(client, 3)
+
+	err := bg.CreateGreenMachines(ctx)
+	require.NoError(t, err)
+
+	client.mu.Lock()
+	inputs := append([]fly.LaunchMachineInput(nil), client.launchInputs...)
+	client.mu.Unlock()
+
+	require.Len(t, inputs, 3, "one launch per blue machine")
+
+	seen := map[string]struct{}{}
+	for _, in := range inputs {
+		require.NotNil(t, in.Config)
+		id := in.Config.Metadata[flyctlBGLaunchIDMetadataKey]
+		assert.NotEmpty(t, id, "every launched green machine must carry a launch-id idempotency tag")
+		_, dup := seen[id]
+		assert.False(t, dup, "launch-id must be unique per intended green machine, got a duplicate: %s", id)
+		seen[id] = struct{}{}
+	}
 }

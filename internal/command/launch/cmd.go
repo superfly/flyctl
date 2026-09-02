@@ -167,7 +167,7 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "command",
-			Description: "The command to override the Docker CND.",
+			Description: "The command to override the Docker CMD.",
 		},
 		flag.StringSlice{
 			Name:        "volume",
@@ -592,6 +592,8 @@ func run(ctx context.Context) (err error) {
 	}
 
 	err = state.Launch(ctx)
+	status.AppID = state.appID
+	status.OrgID = state.orgID
 	if err != nil {
 		return err
 	}

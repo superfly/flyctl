@@ -1,10 +1,197 @@
 package scale
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/iostreams"
 )
+
+type launchMachineFlapsClient struct {
+	flapsutil.FlapsClient
+	createRequests []fly.CreateVolumeRequest
+	createdVolume  *fly.Volume
+	createErr      error
+	launchInput    fly.LaunchMachineInput
+	launchCalls    int
+	launchErr      error
+}
+
+func (c *launchMachineFlapsClient) CreateVolume(_ context.Context, _ string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+	c.createRequests = append(c.createRequests, req)
+
+	return c.createdVolume, c.createErr
+}
+
+func (c *launchMachineFlapsClient) Launch(_ context.Context, _ string, input fly.LaunchMachineInput) (*fly.Machine, error) {
+	c.launchInput = input
+	c.launchCalls++
+	if c.launchErr != nil {
+		return nil, c.launchErr
+	}
+
+	return &fly.Machine{Config: input.Config}, nil
+}
+
+func TestLaunchMachineVolumeSelection(t *testing.T) {
+	newContext := func(client *launchMachineFlapsClient) context.Context {
+		ctx := flapsutil.NewContextWithClient(context.Background(), client)
+
+		return iostreams.NewContext(ctx, &iostreams.IOStreams{Out: io.Discard, ErrOut: io.Discard})
+	}
+	newAction := func() *planItem {
+		return &planItem{
+			LaunchMachineInput: &fly.LaunchMachineInput{
+				Config: &fly.MachineConfig{
+					Mounts: []fly.MachineMount{{Name: "data", Path: "/data"}},
+				},
+			},
+		}
+	}
+
+	t.Run("existing volume is selected by name", func(t *testing.T) {
+		client := &launchMachineFlapsClient{}
+		action := newAction()
+		action.AvailableVolumeCount = 1
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.NoError(t, err)
+		require.Empty(t, client.createRequests)
+		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+
+	t.Run("newly created volume joins the named pool", func(t *testing.T) {
+		client := &launchMachineFlapsClient{createdVolume: &fly.Volume{ID: "vol_created"}}
+		action := newAction()
+		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.NoError(t, err)
+		require.Len(t, client.createRequests, 1)
+		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+
+	t.Run("with-new-volumes selects the newly created volume by ID", func(t *testing.T) {
+		client := &launchMachineFlapsClient{createdVolume: &fly.Volume{ID: "vol_created"}}
+		action := newAction()
+		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+		action.WithNewVolumes = true
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.NoError(t, err)
+		require.Len(t, client.createRequests, 1)
+		require.Equal(t, "vol_created", client.launchInput.Config.Mounts[0].Volume)
+	})
+
+	t.Run("missing volume source fails before launch", func(t *testing.T) {
+		client := &launchMachineFlapsClient{}
+
+		_, err := launchMachine(newContext(client), "app", newAction(), 0)
+		require.ErrorContains(t, err, "there is no volume to attach or create")
+		require.Zero(t, client.launchCalls)
+	})
+
+	t.Run("volume creation failure is returned before launch", func(t *testing.T) {
+		client := &launchMachineFlapsClient{createErr: errors.New("volume create failed")}
+		action := newAction()
+		action.CreateVolumeRequest = &fly.CreateVolumeRequest{Name: "data", Region: "qmx"}
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.ErrorIs(t, err, client.createErr)
+		require.Len(t, client.createRequests, 1)
+		require.Zero(t, client.launchCalls)
+	})
+
+	t.Run("launch failure after name selection is returned", func(t *testing.T) {
+		client := &launchMachineFlapsClient{launchErr: errors.New("machine launch failed")}
+		action := newAction()
+		action.AvailableVolumeCount = 1
+
+		_, err := launchMachine(newContext(client), "app", action, 0)
+		require.ErrorIs(t, err, client.launchErr)
+		require.Equal(t, 1, client.launchCalls)
+		require.Equal(t, "data", client.launchInput.Config.Mounts[0].Volume)
+	})
+}
+
+func TestVolumePlacementCapacitySuggestion(t *testing.T) {
+	placementErr := &flaps.FlapsError{
+		OriginalError: errors.New("failed_precondition: insufficient resources for volumes"),
+		ResponseBody:  []byte(`{"status":"volume_placement_capacity"}`),
+		FlyRequestId:  "request-id",
+	}
+
+	t.Run("adds scale advice and preserves Flaps metadata", func(t *testing.T) {
+		err := withVolumePlacementCapacitySuggestion(fmt.Errorf("failed to launch VM: %w", placementErr))
+
+		require.ErrorIs(t, err, placementErr)
+		require.Equal(t, "request-id", flaps.GetErrorRequestID(err))
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "--with-new-volumes")
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "empty volumes")
+	})
+
+	t.Run("finds the status after another joined Flaps error", func(t *testing.T) {
+		otherErr := &flaps.FlapsError{
+			OriginalError: errors.New("another failure"),
+			ResponseBody:  []byte(`{"status":"unknown"}`),
+		}
+		err := withVolumePlacementCapacitySuggestion(errors.Join(otherErr, placementErr))
+
+		require.Contains(t, flyerr.GetErrorSuggestion(err), "--with-new-volumes")
+	})
+
+	t.Run("leaves unrelated errors unchanged", func(t *testing.T) {
+		err := errors.New("machine launch failed")
+
+		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
+	})
+}
+
+func TestConsumeAvailableVolumeCount(t *testing.T) {
+	defaults := &defaultValues{
+		availableVolumeCounts: map[string]map[string]int{"data": {"qmx": 2}},
+	}
+	config := &fly.MachineConfig{Mounts: []fly.MachineMount{{Name: "data"}}}
+
+	require.Equal(t, 2, defaults.consumeAvailableVolumeCount(config, "qmx", 3))
+	require.Equal(t, 0, defaults.consumeAvailableVolumeCount(config, "qmx", 1))
+	require.Equal(t, 0, (&defaultValues{}).consumeAvailableVolumeCount(config, "qmx", 1))
+}
+
+func TestNewDefaultsOnlyCountsReusableVolumes(t *testing.T) {
+	attachedMachine := "machine-id"
+	attachedAllocation := "allocation-id"
+	volumes := []fly.Volume{
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "syd", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "unreachable"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedMachine: &attachedMachine},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedAllocation: &attachedAllocation},
+		{Name: "other", Region: "qmx", State: "created", HostStatus: "ok"},
+	}
+
+	defaults := newDefaults(&appconfig.Config{}, fly.Release{}, nil, volumes, "", false, nil)
+	require.Equal(t, map[string]map[string]int{
+		"data":  {"qmx": 2, "syd": 1},
+		"other": {"qmx": 1},
+	}, defaults.availableVolumeCounts)
+
+	createOnly := newDefaults(&appconfig.Config{}, fly.Release{}, nil, volumes, "", true, nil)
+	require.Nil(t, createOnly.availableVolumeCounts)
+	require.True(t, createOnly.withNewVolumes)
+}
 
 func Test_convergeGroupCounts(t *testing.T) {
 	testcases := []struct {
@@ -135,5 +322,22 @@ func Test_convergeGroupCounts_maxPerRegion(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, got)
 		})
+	}
+}
+
+func Test_convergeGroupCounts_duplicateRegions(t *testing.T) {
+	errCh := make(chan error, 1)
+	go func() {
+		// Pass a duplicate region. This is a regression test because the function
+		// would choke on duplicates.
+		_, err := convergeGroupCounts(20, nil, []string{"dfw", "sjc", "lhr", "lax", "cdg", "ams", "dfw", "gru", "arn", "sin"}, 2)
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		assert.ErrorIs(t, err, ErrMaxPerRegion)
+	case <-time.After(time.Second):
+		t.Fatal("convergeGroupCounts did not return when regions contained a duplicate")
 	}
 }

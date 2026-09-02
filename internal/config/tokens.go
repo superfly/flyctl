@@ -7,7 +7,6 @@ import (
 	"maps"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
+	"github.com/superfly/macaroon/tp"
 )
 
 // UserURLCallback is a function that opens a URL in the user's browser. This is
@@ -184,23 +184,62 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 //
 // Don't call this when other goroutines might also be accessing it.
 func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback, advancePrune time.Duration) (bool, error) {
+	return doRefreshDischargeTokens(ctx, t, uucb, advancePrune, nonInteractiveDischargeTimeout, interactiveDischargeTimeout)
+}
+
+const (
+	// nonInteractiveDischargeTimeout bounds a discharge pass that has no
+	// UserURLCallback attached. A third party asking for the user fails
+	// immediately in that pass, so everything it can still do is a server round
+	// trip and it has no reason to hold the interactive budget.
+	nonInteractiveDischargeTimeout = 30 * time.Second
+
+	// interactiveDischargeTimeout bounds the retry that can send the user to
+	// their browser. It is sized for a person working through an identity
+	// provider, which is where the whole cost of that pass is.
+	interactiveDischargeTimeout = 90 * time.Second
+)
+
+func doRefreshDischargeTokens(
+	ctx context.Context,
+	t *tokens.Tokens,
+	uucb UserURLCallback,
+	advancePrune time.Duration,
+	nonInteractiveTimeout time.Duration,
+	interactiveTimeout time.Duration,
+) (bool, error) {
 	updateOpts := []tokens.UpdateOption{
 		tokens.WithDebugger(logger.FromContext(ctx)),
 		tokens.WithAdvancePrune(advancePrune),
+		tokens.WithDischargeTimeout(nonInteractiveTimeout),
 	}
+
+	// tokens discharged by the first pass have to be reported even if the
+	// second one fails: our callers decide whether to persist the tokens from
+	// this return value, and dropping it means re-fetching those discharges on
+	// every command.
+	var updatedParallel bool
 
 	if uucb != nil {
 		// Update without UserURLCallback to fetch tokens in parallel.
 		updated, err := t.Update(ctx, updateOpts...)
-		if err == nil || !strings.Contains(err.Error(), "missing user-url callback") {
+		if err == nil || !errors.Is(err, tp.ErrMissingUserURLCallback) {
 			return updated, err
 		}
+		updatedParallel = updated
 
-		// Retry with UserURLCallback if we received a 'missing user-url callback' error.
-		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
+		// Retry with UserURLCallback if a third party wants to send the user to
+		// their browser. This is the pass with a person in it, and the only one
+		// that needs the longer budget; the later option wins.
+		updateOpts = append(updateOpts,
+			tokens.WithUserURLCallback(uucb),
+			tokens.WithDischargeTimeout(interactiveTimeout),
+		)
 	}
 
-	return t.Update(ctx, updateOpts...)
+	updated, err := t.Update(ctx, updateOpts...)
+
+	return updated || updatedParallel, err
 }
 
 // fetchOrgTokens checks that we macaroons for all orgs the user is a member of.
@@ -371,4 +410,64 @@ func defaultTokenMinter(ctx context.Context, c flyutil.Client, id string) (strin
 	}
 
 	return resp.CreateLimitedAccessToken.GetLimitedAccessToken().TokenHeader, nil
+}
+
+// ScopedIDs returns the internal numeric IDs of the organization and app that t
+// is scoped to, or zero for either one that can't be determined. It only reads
+// the caveats of the tokens we already hold, so it costs nothing and works even
+// for commands that never look an app up.
+//
+// Tokens hold one macaroon per organization the user belongs to (see
+// fetchOrgTokens), so an organization is only reported when every permission
+// macaroon agrees on the same one. In practice that means single-org tokens --
+// CI and deploy tokens, and users who belong to a single organization -- report
+// an org, and a token spanning several organizations reports none rather than
+// guessing. Apps are only reported by tokens narrowed to exactly one app.
+func ScopedIDs(t *tokens.Tokens) (orgID, appID uint64) {
+	if t == nil {
+		return 0, 0
+	}
+
+	orgIDs := map[uint64]struct{}{}
+	appIDs := map[uint64]struct{}{}
+
+	for _, tok := range t.GetMacaroonTokens() {
+		parsed, err := macaroon.Parse(tok)
+		if err != nil {
+			continue
+		}
+
+		// Discharge tokens carry no permissions, and a bundle covering several
+		// orgs can't be attributed to one, so both yield no permission macaroon
+		// to read here.
+		permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(parsed, flyio.LocationPermission)
+		if err != nil || len(permMacs) != 1 {
+			continue
+		}
+
+		if oid, err := flyio.OrganizationScope(&permMacs[0].UnsafeCaveats); err == nil {
+			orgIDs[oid] = struct{}{}
+		}
+
+		// AppScope returns nil when the token is valid for every app, so a
+		// non-empty result always names specific apps.
+		for _, aid := range flyio.AppScope(&permMacs[0].UnsafeCaveats) {
+			appIDs[aid] = struct{}{}
+		}
+	}
+
+	return onlyID(orgIDs), onlyID(appIDs)
+}
+
+// onlyID returns the single ID in ids, or zero if it holds anything else.
+func onlyID(ids map[uint64]struct{}) uint64 {
+	if len(ids) != 1 {
+		return 0
+	}
+
+	for id := range ids {
+		return id
+	}
+
+	return 0
 }

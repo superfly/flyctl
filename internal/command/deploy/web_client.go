@@ -2,7 +2,6 @@ package deploy
 
 import (
 	"context"
-	"net"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/logs"
@@ -11,9 +10,6 @@ import (
 // webClient is a subset of web API that is needed for the deploy package.
 type webClient interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error)
-	GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error)
-	AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error)
 
 	LatestImage(ctx context.Context, appName string) (string, error)
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -467,99 +466,6 @@ func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateData
 	}
 }
 
-func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (CreateClusterResponse, error) {
-	var response CreateClusterResponse
-	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.BaseURL(), input.OrgSlug)
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(input); err != nil {
-		return response, fmt.Errorf("failed to encode request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
-	if err != nil {
-		return response, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
-	req.Header.Add("Content-Type", "application/json")
-
-	res, err := c.HTTPClient().Do(req)
-	if err != nil {
-		return response, err
-	}
-	defer res.Body.Close()
-
-	// Read the response body to get error details
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return response, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	switch res.StatusCode {
-	case http.StatusCreated:
-		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response: %w", err)
-		}
-
-		return response, nil
-	case http.StatusNotFound:
-		return response, fmt.Errorf("organization %s not found", input.OrgSlug)
-	case http.StatusForbidden:
-		if err = json.Unmarshal(body, &response); err == nil {
-			if response.Errors.Detail != "" {
-				return response, errors.New(response.Errors.Detail)
-			}
-		}
-
-		return response, fmt.Errorf("failed to create cluster (status %d): %s", res.StatusCode, string(body))
-	case http.StatusInternalServerError:
-		return response, fmt.Errorf("server error: %s", string(body))
-	default:
-		return response, fmt.Errorf("failed to create cluster (status %d): %s", res.StatusCode, string(body))
-	}
-}
-
-// ListMPGRegions returns the list of regions available for Managed Postgres
-// TODO: Implement the actual API endpoint on the backend
-func (c *Client) ListMPGRegions(ctx context.Context, orgSlug string) (ListMPGRegionsResponse, error) {
-	var response ListMPGRegionsResponse
-	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/regions", c.BaseURL(), orgSlug)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return response, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
-	req.Header.Add("Content-Type", "application/json")
-
-	res, err := c.HTTPClient().Do(req)
-	if err != nil {
-		return response, err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return response, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	switch res.StatusCode {
-	case http.StatusOK:
-		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
-		}
-
-		return response, nil
-	default:
-		return response, fmt.Errorf("failed to list MPG regions (status %d): %s", res.StatusCode, string(body))
-	}
-
-}
-
 // ListManagedClusterBackups returns the list of backups for a managed Postgres cluster
 func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string) (ListManagedClusterBackupsResponse, error) {
 	var response ListManagedClusterBackupsResponse
@@ -689,7 +595,7 @@ func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID stri
 	case http.StatusForbidden:
 		return response, fmt.Errorf("access denied: you don't have permission to restore cluster %s", clusterID)
 	default:
-		return response, fmt.Errorf("failed to restore backup (status %d): %s", res.StatusCode, string(body))
+		return response, fmt.Errorf("failed to restore cluster (status %d): %s", res.StatusCode, string(body))
 	}
 }
 

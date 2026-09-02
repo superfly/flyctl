@@ -29,6 +29,14 @@ func newUpdate() (cmd *cobra.Command) {
 		flag.Org(),
 		flag.Region(),
 		flag.ReplicaRegions(),
+		flag.Bool{
+			Name:        "enable-prodpack",
+			Description: "Enable ProdPack add-on for additional features ($200/mo)",
+		},
+		flag.Bool{
+			Name:        "disable-prodpack",
+			Description: "Disable the ProdPack add-on",
+		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -114,15 +122,26 @@ func runUpdate(ctx context.Context) (err error) {
 
 	// Eviction prompt (always available)
 	if options["eviction"] != nil && options["eviction"].(bool) {
-		if disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?"); disableEviction || err != nil {
+		disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?")
+		if err != nil {
+			return err
+		}
+		if disableEviction {
 			options["eviction"] = false
 		}
 	} else {
-		options["eviction"], err = prompt.Confirm(ctx, "Would you like to enable eviction?")
-	}
-
-	if err != nil {
-		return
+		enableEviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
+		if err != nil {
+			return err
+		}
+		if enableEviction {
+			options["eviction"] = true
+		} else {
+			// Declining to enable must not send an explicit false: if the
+			// add-on metadata is stale, that would disable a feature that is
+			// actually enabled. Omit the key so the server keeps its state.
+			delete(options, "eviction")
+		}
 	}
 
 	// Auto-upgrade only available for fixed plans (not pay-as-you-go or legacy)
@@ -133,15 +152,23 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 
 		if currentAutoUpgrade {
-			if disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?"); disableAutoUpgrade || err != nil {
+			disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if disableAutoUpgrade {
 				options["auto_upgrade"] = false
 			}
 		} else {
-			options["auto_upgrade"], err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
-		}
-
-		if err != nil {
-			return
+			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if enableAutoUpgrade {
+				options["auto_upgrade"] = true
+			} else {
+				delete(options, "auto_upgrade")
+			}
 		}
 	} else if !selectedPlanIsLegacy {
 		// Pay-as-you-go plan - auto-upgrade not available but we should clear it if it was set
@@ -150,25 +177,37 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
-	// ProdPack available for both pay-as-you-go and fixed plans (but not legacy)
-	if !selectedPlanIsLegacy {
-		currentProdPack := false
-		if options["prod_pack"] != nil {
-			currentProdPack, _ = options["prod_pack"].(bool)
-		}
+	// ProdPack available for both pay-as-you-go and fixed plans (but not legacy).
+	//
+	// The locally stored prod_pack option can be stale in either direction, so
+	// the update payload only ever carries a value the user chose in this
+	// invocation; otherwise the key is omitted and the provider preserves the
+	// database's current state. Deriving the sent value from the stored copy is
+	// what allowed an ordinary plan change to disable an active ProdPack.
+	prodPack, err := resolveProdPack(
+		flag.GetBool(ctx, "enable-prodpack"),
+		flag.GetBool(ctx, "disable-prodpack"),
+		options["prod_pack"],
+		selectedPlanIsLegacy,
+		func() (bool, error) {
+			return prompt.Confirm(ctx, "Would you like to disable ProdPack?")
+		},
+	)
+	if err != nil {
+		return
+	}
 
-		if currentProdPack {
-			if disableProdPack, err := prompt.Confirm(ctx, "Would you like to disable ProdPack?"); disableProdPack || err != nil {
-				options["prod_pack"] = false
-			}
-		} else {
-			options["prod_pack"], err = prompt.Confirm(ctx, "Would you like to enable ProdPack ($200/mo)?")
-		}
+	if err = validateProdPackPlanChange(prodPack, addOn.AddOnPlan.Id, selectedPlan.Id); err != nil {
+		return
+	}
 
-		if err != nil {
-			return
-		}
-	} else if currentPlanIsLegacy {
+	stripProdPack(options)
+
+	if prodPack == nil && !selectedPlanIsLegacy {
+		fmt.Fprintf(out, "ProdPack: unchanged (use --enable-prodpack or --disable-prodpack to change it)\n")
+	}
+
+	if currentPlanIsLegacy && selectedPlanIsLegacy {
 		fmt.Fprintf(out, "\nNote: Auto-upgrade and ProdPack are not available for legacy plans.\nTo access these features, please upgrade to a current plan.\n\n")
 	}
 
@@ -178,7 +217,7 @@ func runUpdate(ctx context.Context) (err error) {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, selectedPlan.Id, readRegionCodes, options, metadata)
+	_, err = gql.UpdateRedisAddOn(ctx, client, addOn.Id, selectedPlan.Id, readRegionCodes, options, metadata, prodPack)
 
 	if err != nil {
 		return
@@ -187,4 +226,71 @@ func runUpdate(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n", addOn.Name)
 
 	return
+}
+
+// resolveProdPack determines the user's explicit ProdPack decision for this
+// invocation. A nil result means no decision was made and the prod_pack key
+// must be omitted from the update payload.
+//
+// The stored option is intentionally never echoed back as the sent value: it
+// is only used to decide whether offering the disable prompt makes sense. A
+// non-interactive session makes no decision rather than defaulting to disable.
+func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLegacy bool, confirmDisable func() (bool, error)) (*bool, error) {
+	if enableFlag && disableFlag {
+		return nil, fmt.Errorf("--enable-prodpack and --disable-prodpack are mutually exclusive")
+	}
+
+	if selectedPlanIsLegacy {
+		if enableFlag {
+			return nil, fmt.Errorf("ProdPack is not available for legacy plans")
+		}
+		if disableFlag {
+			return boolPtr(false), nil
+		}
+
+		return nil, nil
+	}
+
+	if enableFlag {
+		return boolPtr(true), nil
+	}
+	if disableFlag {
+		return boolPtr(false), nil
+	}
+
+	// Only offer the disable prompt when the stored copy claims ProdPack is
+	// on. Never prompt to enable: a default/accidental answer previously
+	// became an explicit disable for databases whose stored option was stale.
+	if storedOn, _ := stored.(bool); storedOn {
+		disable, err := confirmDisable()
+		switch {
+		case prompt.IsNonInteractive(err):
+			return nil, nil
+		case err != nil:
+			return nil, err
+		case disable:
+			return boolPtr(false), nil
+		}
+	}
+
+	return nil, nil
+}
+
+// stripProdPack removes the legacy ProdPack option from the options blob.
+// ProdPack intent travels only through the typed prodPack GraphQL argument;
+// the provider must never receive it in the legacy options map.
+func stripProdPack(options map[string]any) {
+	delete(options, "prod_pack")
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+func validateProdPackPlanChange(decision *bool, currentPlanID, selectedPlanID string) error {
+	if decision != nil && currentPlanID == selectedPlanID {
+		return fmt.Errorf("ProdPack can only be changed together with a plan change; pick a different plan or drop the flag")
+	}
+
+	return nil
 }
