@@ -60,15 +60,13 @@ func GetMpgProxyParams(
 // GetMpgConnectParams builds proxy connection parameters and resolves the
 // database credentials needed by fly mpg connect.
 //
-// The returned useLegacy bool mirrors the useLegacy value computed inside
-// getCluster: it is true when the cluster lookup fell back to the legacy
-// ui-ex client (the public Machines API returned a classified 404) and
-// false when the public API succeeded. RunConnect uses this to gate the
-// pre-migration "Cluster is not in ready state" stderr warning, which is
-// meaningful only on the legacy path — the public path's
-// connectStatusRefusal already refuses non-ready statuses outright, so
-// adding the warning there would either be dead code or double-warn
-// against the deliberate refusal message.
+// The returned useLegacy bool mirrors the value computed inside getCluster
+// (true when the public Machines API returned a classified 404 and we fell
+// back to the legacy ui-ex client; false when the public API succeeded).
+// RunConnect uses it to gate the pre-migration "Cluster is not in ready
+// state" stderr warning, which is meaningful only on the legacy path —
+// see connectStatusRefusal's doc comment for why the public path does not
+// need it.
 func GetMpgConnectParams(
 	ctx context.Context,
 	localProxyPort string,
@@ -160,47 +158,23 @@ func publicToLegacyClusterResponse(c flaps.ManagedPostgresCluster) (mpgv1.GetMan
 }
 
 // resolveConnectCredentials returns the credentials used by RunConnect.
-// When useLegacy is true the function uses the legacy ui-ex client. When
-// useLegacy is false the function calls the public Machines API's
+// useLegacy=true routes through the legacy ui-ex client; useLegacy=false
+// routes through the public Machines API's
 // GetManagedPostgresUserCredentials. The default user (no --user flag)
-// resolves to the literal "fly-user"; explicit users pass the flag value
-// straight through. On the public path there is no envelope-level DBName,
-// so the explicit-user branch falls back to defaultMPGDatabase ("fly-db")
-// the same way the default-user branch does; this is what run_connect.go
-// uses to construct the psql URL when neither --database nor an interactive
-// prompt supplies one.
+// resolves to defaultMPGUser ("fly-user"); explicit users pass the flag
+// value straight through. The public path has no envelope-level DBName,
+// so both public branches fall back to defaultMPGDatabase ("fly-db") —
+// which run_connect.go's buildConnectURL uses to land on the plan-required
+// default when neither --database nor an interactive prompt supplies one.
 //
-// Status gating is intentionally split across the two lookup paths because
-// their status vocabularies are different:
-//
-//   - PUBLIC PATH (useLegacy == false): connectStatusRefusal runs BEFORE
-//     any public credential call and gates response.Data.Status against
-//     the public API's 7-value status enum
-//     (ready/standby_ready/creating/deleting/failed/deleted/initializing),
-//     failing closed on unknown statuses with a deliberate, status-
-//     specific message. This replaces what would otherwise be either a
-//     raw credentials-lookup error or — worse — a successful connect on
-//     stale credentials from a cluster that is not actually ready.
-//
-//   - LEGACY PATH (useLegacy == true): the classifier is NOT applied.
-//     Legacy ui-ex has a different status vocabulary than the public API
-//     (e.g. "error" is a real legacy status value but not a public one),
-//     and the legacy credentials envelope carries its OWN Status field
-//     (credentials.Status, populated only after a successful legacy
-//     credential fetch) that is semantically distinct from
-//     response.Data.Status. The pre-migration legacy code checked
-//     credentials.Status for "initializing"/"error" plus credentials.Password
-//     == "" as the empty-password fallback, with the original error
-//     messages; that logic is restored verbatim below. Applying the
-//     public-only classifier to legacy responses would mis-handle
-//     legacy-only statuses as "unrecognized state" and silently drop
-//     the credentials.Status check, which is the regression this split
-//     exists to avoid.
-//
-// After the credentials call, the public path keeps just the
-// empty-password fallback (the public API has no envelope-level Status to
-// inspect post-fetch); the legacy path runs the full original
-// credentials.Status + credentials.Password sequence.
+// Status gating is split across the two paths because their vocabularies
+// differ; see connectStatusRefusal's doc comment for the full rationale.
+// Briefly: the public path consults response.Data.Status BEFORE any
+// credentials call (a 7-value enum + fail-closed default); the legacy
+// path keeps the pre-migration post-fetch credentials.Status +
+// credentials.Password check ("error" is a real legacy value but not a
+// public one, and the legacy envelope's Status field is semantically
+// distinct from cluster status).
 func resolveConnectCredentials(
 	ctx context.Context,
 	response *mpgv1.GetManagedClusterResponse,
@@ -208,10 +182,10 @@ func resolveConnectCredentials(
 	username string,
 ) (*mpgv1.GetManagedClusterCredentialsResponse, error) {
 	// Status classifier runs BEFORE any credentials call on the public
-	// path only. See the function-level comment for why this is NOT
-	// applied to the legacy path. response.Data.Status is populated on
-	// the public path via publicToLegacyClusterResponse (from c.Status);
-	// it is intentionally NOT consulted on the legacy path.
+	// path only — see connectStatusRefusal's doc comment for the
+	// legacy/public split. response.Data.Status is populated on the public
+	// path via publicToLegacyClusterResponse (from c.Status); it is
+	// intentionally NOT consulted on the legacy path.
 	if !useLegacy {
 		if err := connectStatusRefusal(response.Data.Name, response.Data.Status); err != nil {
 			return nil, err
@@ -263,16 +237,12 @@ func resolveConnectCredentials(
 
 	if useLegacy {
 		// ORIGINAL pre-migration legacy status/password checks,
-		// restored verbatim. The legacy credentials envelope carries
-		// its own Status field, populated only after a successful
-		// legacy credential fetch, that is semantically distinct from
-		// response.Data.Status (cluster status). The public classifier
-		// above is intentionally NOT applied to the legacy path: the
-		// legacy status vocabulary differs from the public API's and
-		// the original legacy code understood it natively.
-		// credentials.Status is only checked on the default-user path
-		// because the explicit-user legacy GetUserCredentials response
-		// does not populate that field (only User/Password/DBName).
+		// restored verbatim. credentials.Status is only checked on the
+		// default-user path because the explicit-user legacy
+		// GetUserCredentials response does not populate that field
+		// (only User/Password/DBName). See connectStatusRefusal's doc
+		// comment for why this path is intentionally distinct from the
+		// public classifier.
 		if username == "" {
 			if credentials.Status == "initializing" {
 				return nil, fmt.Errorf("cluster is still initializing, wait a bit more")

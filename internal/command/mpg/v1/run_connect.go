@@ -83,29 +83,14 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 		return err
 	}
 
-	// Note: cluster.Status is classified inside GetMpgConnectParams (via
-	// connectStatusRefusal in run_proxy.go) BEFORE any credential
-	// resolution on the public path. Non-ready public statuses return a
-	// deliberate, status-specific refusal error from there rather than
-	// arriving here. The previous "Cluster is not in ready state" warning
-	// was removed because it would either be dead code (every non-ready
-	// public status is now refused upfront) or it would double-warn
-	// against the deliberate refusal message. The legacy path
-	// (useLegacy == true) intentionally does NOT apply
-	// connectStatusRefusal — its original pre-migration credentials.Status
-	// / credentials.Password checks fire post-fetch in
-	// resolveConnectCredentials, and a non-ready-but-not-refused legacy
-	// cluster (e.g. response.Data.Status == "creating" with valid
-	// credentials — there is an existing "creating cluster with ready
-	// credentials proceeds" test case proving this happens) reaches this
-	// point the same way it did before the public-only classifier was
-	// introduced. The pre-migration legacy warning is therefore restored
-	// below, gated on useLegacy, so a non-ready legacy cluster connects
-	// with a stderr warning instead of completely silently. The public
-	// path (useLegacy == false) is intentionally silent: it refuses
-	// non-ready statuses upfront, so by construction no non-ready cluster
-	// reaches this point on the public path and the warning would only
-	// ever fire for a "ready" status (i.e. never).
+	// See connectStatusRefusal's doc comment for the legacy/public
+	// status-split rationale. Briefly: the public path (useLegacy==false)
+	// refuses non-ready clusters upstream, so the public branch of this
+	// call is dead code — only the legacy path (useLegacy==true) ever
+	// fires the warning, restoring the pre-migration stderr message for
+	// non-ready legacy clusters (e.g. a "creating" legacy cluster with
+	// valid credentials, pinned by the "creating cluster with ready
+	// credentials proceeds" regression test).
 	maybeWarnLegacyNotReady(io.ErrOut, useLegacy, cluster)
 
 	psqlPath, err := exec.LookPath("psql")
@@ -203,24 +188,16 @@ func buildConnectURL(credentials *mpgv1.GetManagedClusterCredentialsResponse, db
 	return fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", credentials.User, credentials.Password, localProxyPort, db)
 }
 
-// maybeWarnLegacyNotReady restores the ORIGINAL pre-migration legacy-path
-// stderr warning that was removed when connectStatusRefusal was introduced:
-// when the cluster lookup fell back to the legacy ui-ex client and that
-// legacy response carries a non-ready cluster status, write a single
-// yellow "WARN Cluster is not in ready state, currently: <status>" line to
-// errOut and continue. On the public path the status classifier refuses
-// non-ready statuses outright, so useLegacy == false short-circuits
-// here — the warning is dead code on the public path and is gated at
-// the call site so the regression surface (a non-ready cluster
-// connecting completely silently on the legacy path) is explicitly
-// closed.
-//
-// The warning format is preserved verbatim from the pre-migration code
-// (commit 81f75427b^): aurora.Yellow wraps the literal "WARN", the
-// status is interpolated after "currently: ", and the line ends with
-// "\n". The function is intentionally a thin side-effecting helper so
-// it can be unit-tested with a bytes.Buffer without involving the
-// agent/establish code path or RunConnect's exec/psql machinery.
+// maybeWarnLegacyNotReady restores the pre-migration legacy-path "Cluster
+// is not in ready state" stderr warning. It is gated on useLegacy so the
+// public path (which already refuses non-ready clusters via
+// connectStatusRefusal) stays silent — see connectStatusRefusal's doc
+// comment for the legacy/public status-split rationale. The warning
+// format is preserved verbatim from the pre-migration code
+// (commit 81f75427b^): aurora.Yellow("WARN") + " Cluster is not in ready
+// state, currently: <status>\n". The function is a thin side-effecting
+// helper so it can be unit-tested with a bytes.Buffer without involving
+// the agent/establish code path or RunConnect's exec/psql machinery.
 func maybeWarnLegacyNotReady(errOut io.Writer, useLegacy bool, cluster *mpgv1.ManagedCluster) {
 	if !useLegacy || cluster == nil || cluster.Status == "ready" {
 		return

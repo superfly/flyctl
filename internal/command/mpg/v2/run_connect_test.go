@@ -56,36 +56,19 @@ func TestBuildConnectURLEmptyDBNameFallsThrough(t *testing.T) {
 }
 
 // TestMaybeWarnLegacyNotReady pins the restored pre-migration legacy-path
-// warning. It exercises both the useLegacy gate (the public path must
+// warning. It exercises both gates — useLegacy (the public path must
 // never warn, since connectStatusRefusal refuses non-ready public-path
-// clusters upfront) and the status gate (a "ready" legacy cluster must
-// never warn, even when useLegacy == true). For every other combination
-// — useLegacy == true with any non-ready status, including the legacy-
-// only "error" status — it asserts the exact pre-migration warning text
-// is written to the errOut buffer.
-//
-// The pre-migration text (commit 81f75427b^) is:
-//
-//	"%s Cluster is not in ready state, currently: %s\n"
-//
-// with the first %s being aurora.Yellow("WARN") — which renders as the
-// literal string "WARN" when stdout is not a TTY (the test harness case),
-// and a yellow-colored "WARN" when it is. We match on substrings
-// ("WARN" and "currently: <status>") so the assertion is robust to the
-// color-escape difference without changing the user-visible text.
-//
-// Capturing the output via a bytes.Buffer is feasible here because
-// maybeWarnLegacyNotReady is a pure side-effecting helper that takes
-// the writer as a parameter — there is no iostreams.FromContext lookup,
-// no exec.LookPath("psql") call, and no agent/wireguard involvement.
-// That decoupling is the whole reason the warning was extracted into a
-// helper, instead of inlined in RunConnect where it would not be
-// testable without a full end-to-end RunConnect mock (the existing
-// test harness does not exercise RunConnect end-to-end because
-// RunConnect calls exec.LookPath("psql") and proxy.Start, neither of
-// which can run in a unit test without significant scaffolding). This
-// proves useLegacy is correctly threaded and that the warning text
-// matches the pre-migration version byte-for-byte.
+// clusters upstream) and status (a "ready" legacy cluster must never
+// warn, even when useLegacy == true) — and for every other combination
+// it asserts the exact pre-migration warning text. See
+// connectStatusRefusal's doc comment for the legacy/public status-split
+// rationale. The warning format is preserved verbatim from the
+// pre-migration code (commit 81f75427b^): aurora.Yellow("WARN") +
+// " Cluster is not in ready state, currently: <status>\n", with
+// substring matching for color-escape robustness. Capturing via a
+// bytes.Buffer is feasible because maybeWarnLegacyNotReady is a pure
+// side-effecting helper (no iostreams, no exec, no agent), which is the
+// reason the warning was extracted from RunConnect in the first place.
 func TestMaybeWarnLegacyNotReady(t *testing.T) {
 	const name = "test-cluster"
 	tests := []struct {
@@ -94,19 +77,15 @@ func TestMaybeWarnLegacyNotReady(t *testing.T) {
 		status    string
 		wantWarn  bool
 	}{
-		// Public path (useLegacy == false). connectStatusRefusal already
-		// refuses non-ready clusters upfront, so by construction no
-		// non-ready public-path cluster reaches the warning site. The
-		// helper must therefore be silent for every status on the public
-		// path, including "ready" (where the gate above already
-		// short-circuits) and the legacy-only "error" status (which is
-		// rejected by the public classifier's default arm but never
-		// reaches this helper on the public path).
+		// Public path (useLegacy == false). Once useLegacy == false,
+		// status is never read by this helper — connectStatusRefusal
+		// already refuses non-ready public-path clusters upstream, so by
+		// construction no non-ready cluster reaches the warning site.
+		// public+ready exercises the status gate (it short-circuits on
+		// "ready" even when useLegacy is true), and public+creating
+		// exercises the useLegacy gate (any non-ready status is silent).
 		{name: "public+ready silent", useLegacy: false, status: "ready", wantWarn: false},
 		{name: "public+creating silent", useLegacy: false, status: "creating", wantWarn: false},
-		{name: "public+failed silent", useLegacy: false, status: "failed", wantWarn: false},
-		{name: "public+initializing silent", useLegacy: false, status: "initializing", wantWarn: false},
-		{name: "public+error silent", useLegacy: false, status: "error", wantWarn: false},
 
 		// Legacy path (useLegacy == true). The "ready" status is silent
 		// (the gate above short-circuits before the fprintf). Every
@@ -118,12 +97,6 @@ func TestMaybeWarnLegacyNotReady(t *testing.T) {
 		{name: "legacy+creating warns", useLegacy: true, status: "creating", wantWarn: true},
 		{name: "legacy+failed warns", useLegacy: true, status: "failed", wantWarn: true},
 		{name: "legacy+initializing warns", useLegacy: true, status: "initializing", wantWarn: true},
-		// Mirror of the existing "creating cluster with ready credentials
-		// proceeds" regression scenario: a legacy cluster with
-		// response.Data.Status="creating" and valid credentials reaches
-		// the warning site. This test pins that the warning fires for
-		// exactly that case (the one this fix exists to handle).
-		{name: "legacy+creating+ready_credentials warns", useLegacy: true, status: "creating", wantWarn: true},
 		// legacy-only status value that the public classifier rejects as
 		// "unrecognized" — on the legacy path it is a legitimate status
 		// and must still warn.

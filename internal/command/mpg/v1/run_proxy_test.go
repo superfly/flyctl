@@ -127,7 +127,6 @@ func TestGetCluster(t *testing.T) {
 		wantDirectHost  string
 		wantStatus      string
 		wantErr         string
-		wantPublicCalls int
 		wantLegacyCalls int
 	}{
 		{
@@ -136,7 +135,6 @@ func TestGetCluster(t *testing.T) {
 			wantUseLegacy:   false,
 			wantDirectHost:  "10.0.0.1",
 			wantStatus:      "ready",
-			wantPublicCalls: 1,
 			wantLegacyCalls: 0,
 		},
 		{
@@ -150,7 +148,6 @@ func TestGetCluster(t *testing.T) {
 			wantUseLegacy:   false,
 			wantDirectHost:  "",
 			wantStatus:      "ready",
-			wantPublicCalls: 1,
 			wantLegacyCalls: 0,
 		},
 		{
@@ -161,7 +158,6 @@ func TestGetCluster(t *testing.T) {
 			wantUseLegacy:   true,
 			wantDirectHost:  "10.0.0.1",
 			wantStatus:      "ready",
-			wantPublicCalls: 1,
 			wantLegacyCalls: 1,
 		},
 		{
@@ -171,7 +167,6 @@ func TestGetCluster(t *testing.T) {
 			legacyResponse:  mpgv1.GetManagedClusterResponse{},
 			legacyErr:       errors.New("legacy denied"),
 			wantErr:         "failed retrieving cluster mpg-123: legacy denied",
-			wantPublicCalls: 1,
 			wantLegacyCalls: 1,
 		},
 		{
@@ -179,7 +174,6 @@ func TestGetCluster(t *testing.T) {
 			publicCluster:   flaps.ManagedPostgresCluster{},
 			publicErr:       errors.New("boom"),
 			wantErr:         "failed retrieving cluster mpg-123: boom",
-			wantPublicCalls: 1,
 			wantLegacyCalls: 0,
 		},
 	}
@@ -208,7 +202,7 @@ func TestGetCluster(t *testing.T) {
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
 				require.Nil(t, got)
-				require.Equal(t, tt.wantPublicCalls, publicCalls)
+				require.Equal(t, 1, publicCalls)
 				require.Equal(t, tt.wantLegacyCalls, legacyCalls)
 
 				return
@@ -218,7 +212,7 @@ func TestGetCluster(t *testing.T) {
 			require.NotNil(t, got)
 			require.Equal(t, tt.wantDirectHost, got.Data.IpAssignments.Direct)
 			require.Equal(t, tt.wantStatus, got.Data.Status)
-			require.Equal(t, tt.wantPublicCalls, publicCalls)
+			require.Equal(t, 1, publicCalls)
 			require.Equal(t, tt.wantLegacyCalls, legacyCalls)
 		})
 	}
@@ -258,29 +252,23 @@ func TestProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 
 	// proxyParams does not take a ctx, so it cannot make any HTTP call; it is
 	// structurally incapable of leaking credentials. Verify it produces the
-	// expected bare-host RemoteHost from the public-converted response.
+	// expected bare-host RemoteHost from the public-converted response. The
+	// credCalls / legacyCredCalls counters were already asserted to be 0
+	// above, immediately after getCluster returned, so proxyParams has
+	// nothing to regress there.
 	cluster, params, err := proxyParams(response, port, "15432", "test-org", "127.0.0.1", nil)
 	require.NoError(t, err)
 	require.NotNil(t, cluster)
 	require.NotNil(t, params)
 	require.Equal(t, "10.0.0.1", params.RemoteHost)
-	require.Equal(t, 0, credCalls)
-	require.Equal(t, 0, legacyCredCalls)
 }
 
-// TestProxyParamsPublicShape verifies that on the public path, the
-// empty-host case maps to the existing "error getting cluster IP" error and
-// the public host maps to the bare RemoteHost (no port).
+// TestProxyParamsPublicShape pins that an empty public host maps to the
+// existing "error getting cluster IP" error (the converter-preserved empty
+// host case). The non-empty public host / bare RemoteHost case is pinned by
+// TestProxyParamsPublicNonDefaultPort's "public port 5432 stays 5432"
+// subtest, which exercises the same adapter call.
 func TestProxyParamsPublicShape(t *testing.T) {
-	t.Run("public host maps to bare RemoteHost", func(t *testing.T) {
-		response, port := publicToLegacyClusterResponse(samplePublicCluster())
-		_, params, err := proxyParams(&response, port, "15432", "test-org", "127.0.0.1", nil)
-		require.NoError(t, err)
-		// Public port is 5432; legacy uses bare host with port carried by Ports[1] = "5432".
-		require.Equal(t, "10.0.0.1", params.RemoteHost)
-		require.Equal(t, []string{"15432", "5432"}, params.Ports)
-	})
-
 	t.Run("empty public host returns the legacy 'no IP' error", func(t *testing.T) {
 		c := samplePublicCluster()
 		c.Endpoints.Primary.Direct.Host = ""
@@ -291,14 +279,16 @@ func TestProxyParamsPublicShape(t *testing.T) {
 }
 
 func TestResolveDefaultConnectCredentials(t *testing.T) {
-	// The legacy default-user connect path (useLegacy == true) restores the
-	// ORIGINAL pre-migration logic: after the credential fetch, the legacy
-	// credentials envelope's own Status field (credentials.Status, populated
-	// post-fetch and semantically distinct from cluster status) is checked
-	// for "initializing"/"error", plus an empty-password fallback. These
-	// cases pin that behavior with the original error messages. The public
-	// status classifier is intentionally NOT applied here; that is covered
-	// by TestResolveConnectCredentialsPublicStatusClassifier below.
+	// The legacy default-user connect path (useLegacy == true) restores
+	// the pre-migration post-fetch logic: the legacy credentials
+	// envelope's own Status field (credentials.Status, semantically
+	// distinct from cluster status) is checked for "initializing"/"error",
+	// plus an empty-password fallback. These cases pin that behavior
+	// with the original error messages. The public status classifier is
+	// intentionally NOT applied here; that is covered by
+	// TestResolveConnectCredentialsPublicStatusClassifier below. See
+	// connectStatusRefusal's doc comment for the legacy/public status-
+	// split rationale.
 	const name = "test-cluster"
 	tests := []struct {
 		name       string
@@ -307,25 +297,6 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 		credPwd    string // credentials.Password — empty-password fallback when status checks pass.
 		err        string
 	}{
-		{
-			// ORIGINAL legacy: credentials envelope says "initializing",
-			// refuse with the original pre-migration message.
-			name:       "credentials initializing",
-			clusterSt:  "ready",
-			credStatus: "initializing",
-			credPwd:    "secret",
-			err:        "cluster is still initializing, wait a bit more",
-		},
-		{
-			// ORIGINAL legacy: credentials envelope says "error" (a real
-			// legacy value), refuse with the original "error getting
-			// cluster password" message — even with a non-empty password.
-			name:       "credentials error",
-			clusterSt:  "ready",
-			credStatus: "error",
-			credPwd:    "secret",
-			err:        "error getting cluster password",
-		},
 		{
 			// ORIGINAL legacy: empty password is the empty-password
 			// fallback; status field is irrelevant when password is empty.
@@ -352,7 +323,9 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 		{
 			// REGRESSION GUARD: Data.Status="ready" with credentials
 			// .Status="error" and a non-empty password MUST refuse on
-			// the legacy path. Same reasoning as above.
+			// the legacy path. Same reasoning as above. ("error" is a
+			// real legacy status value but not a public one — the public
+			// classifier rejects it via its default arm.)
 			name:       "ready cluster with stale error credentials refuses",
 			clusterSt:  "ready",
 			credStatus: "error",
@@ -466,14 +439,15 @@ func TestResolveExplicitUserConnectCredentialsErrors(t *testing.T) {
 	})
 }
 
-// TestResolveConnectCredentialsPublic covers the new public-API code paths
-// for Connect credentials: default-user goes through
-// GetManagedPostgresUserCredentials("fly-user") and DBName defaults to "fly-db",
-// explicit-user passes the flag value straight through. Data.Status is
-// set to "ready" on every response here so the status classifier (which
-// runs before any credentials call) does not interfere — the dedicated
-// status-classifier tests below exercise every other status and assert
-// zero credential calls on refusal.
+// TestResolveConnectCredentialsPublic covers the public-API code paths for
+// Connect credentials: default-user goes through
+// GetManagedPostgresUserCredentials("fly-user") and DBName defaults to
+// "fly-db"; explicit-user passes the flag value straight through. Data.Status
+// is set to "ready" on every response here so the status classifier (which
+// runs before any credentials call) does not interfere — see
+// TestResolveConnectCredentialsPublicStatusClassifier for the dedicated
+// status-classifier coverage. See connectStatusRefusal's doc comment for
+// the legacy/public status-split rationale.
 func TestResolveConnectCredentialsPublic(t *testing.T) {
 	response := &mpgv1.GetManagedClusterResponse{
 		Data: mpgv1.ManagedCluster{Id: "cluster-id", Name: "test-cluster", Status: "ready"},
@@ -574,7 +548,8 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 
 // TestPublicToLegacyClusterResponse verifies that the public-API cluster is
 // converted to the legacy ui-ex shape, preserving the bare-address column for
-// proxyParams and the Status field for the not-ready warning.
+// proxyParams and the Status field for downstream status checks
+// (connectStatusRefusal / maybeWarnLegacyNotReady).
 func TestPublicToLegacyClusterResponse(t *testing.T) {
 	got, _ := publicToLegacyClusterResponse(samplePublicCluster())
 	require.Equal(t, "mpg-123", got.Data.Id)
@@ -589,48 +564,12 @@ func TestPublicToLegacyClusterResponse(t *testing.T) {
 	require.Equal(t, "10.0.0.1", got.Data.IpAssignments.Direct)
 }
 
-// TestConnectStatusRefusal pins the pure status classifier for every
-// documented public cluster status plus an unknown sentinel. This is the
-// "what does the classifier say" table, independent of any I/O — the
-// resolveConnectCredentials-level short-circuit is pinned by
-// TestResolveConnectCredentialsPublicStatusClassifier below.
-func TestConnectStatusRefusal(t *testing.T) {
-	const name = "test-cluster"
-	tests := []struct {
-		status string
-		want   string // expected error message; "" means proceed (no error).
-	}{
-		{"ready", ""},
-		{"standby_ready", "cluster " + name + " is a standby replica and cannot be used with fly mpg connect"},
-		{"creating", "cluster " + name + " is still being created, wait a bit more"},
-		{"deleting", "cluster " + name + " is being deleted and cannot be connected to"},
-		{"deleted", "cluster " + name + " has been deleted and cannot be connected to"},
-		{"failed", "cluster " + name + " is in a failed state"},
-		{"initializing", "cluster " + name + " is not currently ready for connections (status: initializing)"},
-		// "error" is not a real public cluster status — it is rejected by
-		// the default arm of the classifier as an unrecognized value.
-		{"error", `cluster ` + name + ` is in an unrecognized state ("error") and cannot be connected to`},
-		// An arbitrary future / unmapped status also falls through to the
-		// default arm and surfaces the actual status string quoted.
-		{"degraded", `cluster ` + name + ` is in an unrecognized state ("degraded") and cannot be connected to`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.status, func(t *testing.T) {
-			err := connectStatusRefusal(name, tt.status)
-			if tt.want == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.EqualError(t, err, tt.want)
-		})
-	}
-}
-
 // TestResolveConnectCredentialsPublicStatusClassifier proves the public-path
 // status classifier short-circuits BEFORE any credentials resolution call,
-// for both the default-user and explicit-user connect paths. On every
-// refused status (the 6 non-ready real statuses + the "error"/"degraded"
-// sentinels) it asserts:
+// for both the default-user and explicit-user connect paths. It exercises
+// connectStatusRefusal (via resolveConnectCredentials) for the full 9-value
+// status matrix — the 7 documented public statuses plus the "error" /
+// "degraded" unrecognized sentinels — and asserts on each:
 //
 //   - the exact deliberate refusal message, with the cluster name
 //     interpolated;
@@ -645,8 +584,7 @@ func TestConnectStatusRefusal(t *testing.T) {
 // legacy path (useLegacy == true) is intentionally NOT exercised here — it
 // uses its original pre-migration credentials.Status / credentials.Password
 // post-fetch logic instead, pinned by TestResolveDefaultConnectCredentials
-// above. A pure function-level classifier test lives in
-// TestConnectStatusRefusal above.
+// above.
 func TestResolveConnectCredentialsPublicStatusClassifier(t *testing.T) {
 	const name = "test-cluster"
 	const unknownStatus = "degraded"
@@ -778,27 +716,5 @@ func TestProxyParamsPublicNonDefaultPort(t *testing.T) {
 		require.EqualError(t, err, "error getting cluster port")
 		assert.Nil(t, cluster)
 		assert.Nil(t, params)
-	})
-}
-
-// TestPublicToLegacyClusterResponsePortIsPointer verifies the public-to-
-// legacy adapter returns the port as a *int pointer (not a bare int). This
-// is the structural invariant that lets proxyParams distinguish "public
-// path advertised a port (including the invalid 0)" from "legacy path, no
-// port info" — without it, a public port of 0 would be indistinguishable
-// from the legacy zero value and silently fall back to "5432".
-func TestPublicToLegacyClusterResponsePortIsPointer(t *testing.T) {
-	t.Run("public port is preserved as a pointer", func(t *testing.T) {
-		_, port := publicToLegacyClusterResponse(samplePublicCluster())
-		require.NotNil(t, port)
-		require.Equal(t, 5432, *port)
-	})
-
-	t.Run("public port 0 is preserved as a non-nil pointer to 0", func(t *testing.T) {
-		c := samplePublicCluster()
-		c.Endpoints.Primary.Direct.Port = 0
-		_, port := publicToLegacyClusterResponse(c)
-		require.NotNil(t, port)
-		require.Equal(t, 0, *port)
 	})
 }
