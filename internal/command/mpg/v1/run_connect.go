@@ -83,14 +83,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 		return err
 	}
 
-	// See connectStatusRefusal's doc comment for the legacy/public
-	// status-split rationale. Briefly: the public path (useLegacy==false)
-	// refuses non-ready clusters upstream, so the public branch of this
-	// call is dead code — only the legacy path (useLegacy==true) ever
-	// fires the warning, restoring the pre-migration stderr message for
-	// non-ready legacy clusters (e.g. a "creating" legacy cluster with
-	// valid credentials, pinned by the "creating cluster with ready
-	// credentials proceeds" regression test).
+	// Gated on useLegacy; see maybeWarnLegacyNotReady's doc comment for why.
 	maybeWarnLegacyNotReady(io.ErrOut, useLegacy, cluster)
 
 	psqlPath, err := exec.LookPath("psql")

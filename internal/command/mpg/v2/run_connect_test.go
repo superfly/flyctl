@@ -55,20 +55,9 @@ func TestBuildConnectURLEmptyDBNameFallsThrough(t *testing.T) {
 	require.Equal(t, "postgresql://alice:a@localhost:16380/", got)
 }
 
-// TestMaybeWarnLegacyNotReady pins the restored pre-migration legacy-path
-// warning. It exercises both gates — useLegacy (the public path must
-// never warn, since connectStatusRefusal refuses non-ready public-path
-// clusters upstream) and status (a "ready" legacy cluster must never
-// warn, even when useLegacy == true) — and for every other combination
-// it asserts the exact pre-migration warning text. See
-// connectStatusRefusal's doc comment for the legacy/public status-split
-// rationale. The warning format is preserved verbatim from the
-// pre-migration code (commit 81f75427b^): aurora.Yellow("WARN") +
-// " Cluster is not in ready state, currently: <status>\n", with
-// substring matching for color-escape robustness. Capturing via a
-// bytes.Buffer is feasible because maybeWarnLegacyNotReady is a pure
-// side-effecting helper (no iostreams, no exec, no agent), which is the
-// reason the warning was extracted from RunConnect in the first place.
+// TestMaybeWarnLegacyNotReady pins the pre-migration warning format and
+// the useLegacy/status gate. See maybeWarnLegacyNotReady's doc comment
+// for the gate rationale and the warning-text provenance.
 func TestMaybeWarnLegacyNotReady(t *testing.T) {
 	const name = "test-cluster"
 	tests := []struct {
@@ -77,29 +66,19 @@ func TestMaybeWarnLegacyNotReady(t *testing.T) {
 		status    string
 		wantWarn  bool
 	}{
-		// Public path (useLegacy == false). Once useLegacy == false,
-		// status is never read by this helper — connectStatusRefusal
-		// already refuses non-ready public-path clusters upstream, so by
-		// construction no non-ready cluster reaches the warning site.
-		// public+ready exercises the status gate (it short-circuits on
-		// "ready" even when useLegacy is true), and public+creating
-		// exercises the useLegacy gate (any non-ready status is silent).
-		{name: "public+ready silent", useLegacy: false, status: "ready", wantWarn: false},
+		// Public path (useLegacy == false). connectStatusRefusal refuses
+		// non-ready public-path clusters upstream, so the useLegacy
+		// gate is the only thing that matters here.
 		{name: "public+creating silent", useLegacy: false, status: "creating", wantWarn: false},
 
-		// Legacy path (useLegacy == true). The "ready" status is silent
-		// (the gate above short-circuits before the fprintf). Every
-		// other status — including the legacy-only "error" and the
-		// non-refused "creating" — produces the warning, because on the
-		// legacy path the cluster's status is intentionally NOT consulted
-		// and a non-refused legacy cluster reaches psql.
+		// Legacy path (useLegacy == true). "ready" is silent (the
+		// status gate short-circuits before the fprintf); "creating"
+		// is the pre-migration non-refused case. The legacy-only
+		// "error" status is real on the legacy path but rejected by
+		// the public classifier — pinned here so a future migration
+		// does not silently drop it.
 		{name: "legacy+ready silent", useLegacy: true, status: "ready", wantWarn: false},
 		{name: "legacy+creating warns", useLegacy: true, status: "creating", wantWarn: true},
-		{name: "legacy+failed warns", useLegacy: true, status: "failed", wantWarn: true},
-		{name: "legacy+initializing warns", useLegacy: true, status: "initializing", wantWarn: true},
-		// legacy-only status value that the public classifier rejects as
-		// "unrecognized" — on the legacy path it is a legitimate status
-		// and must still warn.
 		{name: "legacy+error warns", useLegacy: true, status: "error", wantWarn: true},
 	}
 

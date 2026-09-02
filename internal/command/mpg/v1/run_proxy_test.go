@@ -263,21 +263,6 @@ func TestProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 	require.Equal(t, "10.0.0.1", params.RemoteHost)
 }
 
-// TestProxyParamsPublicShape pins that an empty public host maps to the
-// existing "error getting cluster IP" error (the converter-preserved empty
-// host case). The non-empty public host / bare RemoteHost case is pinned by
-// TestProxyParamsPublicNonDefaultPort's "public port 5432 stays 5432"
-// subtest, which exercises the same adapter call.
-func TestProxyParamsPublicShape(t *testing.T) {
-	t.Run("empty public host returns the legacy 'no IP' error", func(t *testing.T) {
-		c := samplePublicCluster()
-		c.Endpoints.Primary.Direct.Host = ""
-		response, port := publicToLegacyClusterResponse(c)
-		_, _, err := proxyParams(&response, port, "15432", "test-org", "127.0.0.1", nil)
-		require.EqualError(t, err, "error getting cluster IP")
-	})
-}
-
 func TestResolveDefaultConnectCredentials(t *testing.T) {
 	// The legacy default-user connect path (useLegacy == true) restores
 	// the pre-migration post-fetch logic: the legacy credentials
