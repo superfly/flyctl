@@ -172,7 +172,9 @@ ENV PREFLIGHT_TEST=true`)
 // warning is emitted while the app is still binding.
 func TestFlyDeploy_SlowBind_NoFalseListenWarning(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.Setenv("LOG_LEVEL", "debug")
 	appName := f.CreateRandomAppName()
+	t.Logf("slow-bind: app=%s setup started", appName)
 
 	// The sleep is chosen to be well within listenAddressCheckTimeout (15s) so
 	// the polling loop has a chance to observe the bind. It's also long enough
@@ -185,7 +187,9 @@ CMD ["/start.sh"]
 
 	// Launch without --now: we want to write a fly.toml with no http_service
 	// checks (matching the issue reporter's config) before the first deploy.
+	started := time.Now()
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --no-deploy", f.OrgSlug(), appName, f.PrimaryRegion())
+	t.Logf("slow-bind: launch finished in %s", time.Since(started))
 
 	f.WriteFlyToml(`app = %q
 primary_region = %q
@@ -202,7 +206,10 @@ primary_region = %q
   processes = ["app"]
 `, appName, f.PrimaryRegion())
 
+	t.Logf("slow-bind: deploy started")
+	started = time.Now()
 	deployRes := f.Fly("deploy --buildkit --remote-only")
+	t.Logf("slow-bind: deploy finished in %s with exit=%d", time.Since(started), deployRes.ExitCode())
 	output := deployRes.StdErrString() + deployRes.StdOutString()
 
 	require.NotContains(f, output, "not listening on the expected address",

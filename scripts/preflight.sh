@@ -64,6 +64,9 @@ if [[ -n "$group" ]]; then
         deploy-fixtures)
             test_pattern="^TestDeploy$"
             ;;
+        deploy-slow)
+            test_pattern="^TestFlyDeploy_SlowBind_NoFalseListenWarning$"
+            ;;
         bluegreen)
             test_pattern="^TestFlyDeploy_BlueGreen"
             ;;
@@ -105,7 +108,7 @@ if [[ -n "$group" ]]; then
             ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, deploy-fixtures, bluegreen, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
+            echo "Available groups: deploy-slow"
             exit 1
             ;;
     esac
