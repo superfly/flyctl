@@ -115,7 +115,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			err := restartBuilderMachine(ctx, builderApp.Name, builderMachine)
+			err := startOrRestartBuilderMachine(ctx, builderApp.Name, builderMachine)
 			switch {
 			case errors.Is(err, ShouldReplaceBuilderMachine):
 				span.AddEvent("recreating builder due to resource reservation error")
@@ -574,15 +574,21 @@ func createFlyManagedBuilder(ctx context.Context, orgSlug string, region string)
 	return builderApp, machine, nil
 }
 
-func restartBuilderMachine(ctx context.Context, appName string, builderMachine *fly.Machine) error {
+func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMachine *fly.Machine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
-		ID: builderMachine.ID,
-	}, ""); err != nil {
+	var err error
+	if builderMachine.State == "stopped" {
+		_, err = flapsClient.Start(ctx, appName, builderMachine.ID, "")
+	} else {
+		err = flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
+			ID: builderMachine.ID,
+		}, "")
+	}
+	if err != nil {
 		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
 			strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
 			span.RecordError(err)
