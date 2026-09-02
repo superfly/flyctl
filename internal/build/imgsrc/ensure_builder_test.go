@@ -309,12 +309,17 @@ func TestCreateBuilder(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestRestartBuilderMachine(t *testing.T) {
+func TestStartOrRestartBuilderMachine(t *testing.T) {
 	t.Parallel()
 	ctx := testingContext(t)
 
 	couldNotReserveResources := false
+	started := false
 	flapsClient := mock.FlapsClient{
+		StartFunc: func(ctx context.Context, appName, machineID string, nonce string) (*fly.MachineStartResponse, error) {
+			started = true
+			return nil, nil
+		},
 		RestartFunc: func(ctx context.Context, appName string, input fly.RestartMachineInput, nonce string) error {
 			if couldNotReserveResources {
 				return &flaps.FlapsError{
@@ -330,11 +335,14 @@ func TestRestartBuilderMachine(t *testing.T) {
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
-	err := restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
+	err := startOrRestartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.NoError(t, err)
+	err = startOrRestartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine", State: "stopped"})
+	assert.NoError(t, err)
+	assert.True(t, started)
 
 	couldNotReserveResources = true
-	err = restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
+	err = startOrRestartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
 }
