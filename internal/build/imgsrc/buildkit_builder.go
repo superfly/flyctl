@@ -137,7 +137,7 @@ func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, app
 			ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder,
 		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to ensure BuildKit builder: %w", err)
 		}
 		r.addr = fmt.Sprintf("%s.flycast:%d", app.Name, buildkitGRPCPort)
 		ensureBuilder = true
