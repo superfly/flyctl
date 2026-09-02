@@ -131,9 +131,10 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, appName string) (*client.Client, error) {
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 	ensureBuilder := false
+	var err error
 	if r.addr == "" || recreateBuilder {
 		updateProgress(ctx, "Updating remote builder...")
-		_, app, err := r.provisioner.EnsureBuilder(
+		_, app, err = r.provisioner.EnsureBuilder(
 			ctx, os.Getenv("FLY_REMOTE_BUILDER_REGION"), recreateBuilder,
 		)
 		if err != nil {
