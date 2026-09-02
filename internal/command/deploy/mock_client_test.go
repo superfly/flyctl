@@ -165,6 +165,10 @@ func (m *mockFlapsClient) CreateManagedPostgresBackup(ctx context.Context, id st
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) CreateManagedPostgresAttachment(ctx context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+	return flaps.ManagedPostgresAttachment{}, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
 	return fmt.Errorf("not implemented")
 }
