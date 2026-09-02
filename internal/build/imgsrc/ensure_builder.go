@@ -122,7 +122,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 			case err != nil:
 				tracing.RecordError(span, err, "error restarting builder machine")
 
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("failed to restart builder machine %s: %w", builderMachine.ID, err)
 			default:
 				return builderMachine, builderApp, nil
 
@@ -537,14 +537,14 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error launching builder machine")
 
-		return nil, nil, retErr
+		return nil, nil, fmt.Errorf("launching builder machine for %s: %w", builderName, retErr)
 	}
 
 	retErr = flapsClient.Wait(ctx, builderName, mach.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(180*time.Second)) // 3 minutes for machine start + DNS propagation
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
 
-		return nil, nil, retErr
+		return nil, nil, fmt.Errorf("waiting for builder machine %s to start: %w", mach.ID, retErr)
 	}
 
 	return
@@ -598,7 +598,7 @@ func restartBuilderMachine(ctx context.Context, appName string, builderMachine *
 	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil { // 3 minutes for restart + DNS propagation
 		tracing.RecordError(span, err, "error waiting for builder machine to start")
 
-		return err
+		return fmt.Errorf("waiting for builder machine %s to start after restart: %w", builderMachine.ID, err)
 	}
 
 	return nil
