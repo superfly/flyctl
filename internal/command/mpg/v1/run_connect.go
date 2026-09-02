@@ -3,6 +3,7 @@ package cmdv1
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -77,14 +78,13 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 		}
 	}
 
-	cluster, params, credentials, err := GetMpgConnectParams(ctx, localProxyPort, username, clusterID, resolvedOrgSlug)
+	cluster, useLegacy, params, credentials, err := GetMpgConnectParams(ctx, localProxyPort, username, clusterID, resolvedOrgSlug)
 	if err != nil {
 		return err
 	}
 
-	if cluster.Status != "ready" {
-		fmt.Fprintf(io.ErrOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
-	}
+	// Gated on useLegacy; see maybeWarnLegacyNotReady's doc comment for why.
+	maybeWarnLegacyNotReady(io.ErrOut, useLegacy, cluster)
 
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
@@ -103,15 +103,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 		return err
 	}
 
-	user := credentials.User
-	password := credentials.Password
-
-	// Use selected database or fall back to default from credentials
-	if db == "" {
-		db = credentials.DBName
-	}
-
-	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
+	connectUrl := buildConnectURL(credentials, db, localProxyPort)
 
 	// Allow Ctrl+C signals to hit psql
 	psqlCtx, psqlCancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -173,4 +165,36 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 	}
 
 	return err
+}
+
+// buildConnectURL composes the psql connection URL from resolved credentials
+// and the proxy port. db follows the priority used by RunConnect: an explicit
+// --database value (or interactive prompt result) wins over credentials.DBName.
+// credentials.DBName is the plan-required default ("fly-db") on both the
+// public default-user and public explicit-user paths, so a non-interactive
+// `fly mpg connect <cluster> --user alice` lands on postgresql://.../fly-db.
+func buildConnectURL(credentials *mpgv1.GetManagedClusterCredentialsResponse, db string, localProxyPort string) string {
+	if db == "" {
+		db = credentials.DBName
+	}
+
+	return fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", credentials.User, credentials.Password, localProxyPort, db)
+}
+
+// maybeWarnLegacyNotReady restores the pre-migration legacy-path "Cluster
+// is not in ready state" stderr warning. It is gated on useLegacy so the
+// public path (which already refuses non-ready clusters via
+// connectStatusRefusal) stays silent — see connectStatusRefusal's doc
+// comment for the legacy/public status-split rationale. The warning
+// format is preserved verbatim from the pre-migration code
+// (commit 81f75427b^): aurora.Yellow("WARN") + " Cluster is not in ready
+// state, currently: <status>\n". The function is a thin side-effecting
+// helper so it can be unit-tested with a bytes.Buffer without involving
+// the agent/establish code path or RunConnect's exec/psql machinery.
+func maybeWarnLegacyNotReady(errOut io.Writer, useLegacy bool, cluster *mpgv1.ManagedCluster) {
+	if !useLegacy || cluster == nil || cluster.Status == "ready" {
+		return
+	}
+
+	fmt.Fprintf(errOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
 }
