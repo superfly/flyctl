@@ -3,7 +3,9 @@ package redis
 import (
 	"context"
 	"fmt"
+	"io"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
@@ -31,11 +33,11 @@ func newUpdate() (cmd *cobra.Command) {
 		flag.ReplicaRegions(),
 		flag.Bool{
 			Name:        "enable-prodpack",
-			Description: "Enable ProdPack add-on for additional features ($200/mo), skipping the prompt",
+			Description: "Enable ProdPack add-on for additional features ($200/mo), leaving every other setting untouched",
 		},
 		flag.Bool{
 			Name:        "disable-prodpack",
-			Description: "Disable the ProdPack add-on, skipping the prompt",
+			Description: "Disable the ProdPack add-on, leaving every other setting untouched",
 		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -61,52 +63,42 @@ func runUpdate(ctx context.Context) (err error) {
 	// Check if current plan is a legacy plan
 	currentPlanIsLegacy := isLegacyPlan(addOn.AddOnPlan.DisplayName)
 
-	excludedRegions, err := GetExcludedRegions(ctx)
-	if err != nil {
-		return err
-	}
-	excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
+	// A ProdPack flag means "change ProdPack, leave the rest alone": nothing is
+	// asked about replica regions, plan, eviction or auto-upgrade, and nothing
+	// but ProdPack is sent as a change, so the command runs unattended. Other
+	// flags the caller passed explicitly are still honoured.
+	prodPackOnly := flag.GetBool(ctx, "enable-prodpack") || flag.GetBool(ctx, "disable-prodpack")
 
-	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", false, addOn.ReadRegions, excludedRegions, "replica-regions")
-	if err != nil {
-		return
-	}
+	readRegionCodes := addOn.ReadRegions
 
-	var index int
-	var promptOptions []string
-	var promptDefault string
-	var filteredPlans []gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
+	if !prodPackOnly || flag.IsSpecified(ctx, "replica-regions") {
+		excludedRegions, err := GetExcludedRegions(ctx)
+		if err != nil {
+			return err
+		}
+		excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
 
-	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
-	if err != nil {
-		return
-	}
+		readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", false, addOn.ReadRegions, excludedRegions, "replica-regions")
+		if err != nil {
+			return err
+		}
 
-	// Filter plans based on current plan type
-	for _, plan := range result.AddOnPlans.Nodes {
-		isLegacy := isLegacyPlan(plan.DisplayName)
-
-		// Include plan if:
-		// 1. It's not a legacy plan (always include new plans), OR
-		// 2. It's the current plan (so user can stay on their legacy plan)
-		if !isLegacy || addOn.AddOnPlan.Id == plan.Id {
-			filteredPlans = append(filteredPlans, plan)
-			promptOptions = append(promptOptions, fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description))
-			if addOn.AddOnPlan.Id == plan.Id {
-				promptDefault = fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description)
-			}
+		readRegionCodes = []string{}
+		for _, region := range *readRegions {
+			readRegionCodes = append(readRegionCodes, region.Code)
 		}
 	}
 
-	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", promptDefault, promptOptions...)
+	selectedPlanID, selectedPlanName := addOn.AddOnPlan.Id, addOn.AddOnPlan.DisplayName
 
-	if err != nil {
-		return fmt.Errorf("failed to select a plan: %w", err)
+	if !prodPackOnly {
+		if selectedPlanID, selectedPlanName, err = selectPlan(ctx, client, addOn); err != nil {
+			return err
+		}
 	}
 
-	selectedPlan := filteredPlans[index]
-	selectedPlanIsLegacy := isLegacyPlan(selectedPlan.DisplayName)
-	selectedPlanIsFixed := isFixedPlan(selectedPlan.DisplayName)
+	selectedPlanIsLegacy := isLegacyPlan(selectedPlanName)
+	selectedPlanIsFixed := isFixedPlan(selectedPlanName)
 
 	options, _ := addOn.Options.(map[string]any)
 
@@ -120,62 +112,9 @@ func runUpdate(ctx context.Context) (err error) {
 		metadata = make(map[string]any)
 	}
 
-	// Eviction prompt (always available)
-	if options["eviction"] != nil && options["eviction"].(bool) {
-		disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?")
-		if err != nil {
+	if !prodPackOnly {
+		if err = promptOptionChanges(ctx, out, options, selectedPlanIsFixed, selectedPlanIsLegacy); err != nil {
 			return err
-		}
-		if disableEviction {
-			options["eviction"] = false
-		}
-	} else {
-		enableEviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
-		if err != nil {
-			return err
-		}
-		if enableEviction {
-			options["eviction"] = true
-		} else {
-			// Declining to enable must not send an explicit false: if the
-			// add-on metadata is stale, that would disable a feature that is
-			// actually enabled. Omit the key so the server keeps its state.
-			delete(options, "eviction")
-		}
-	}
-
-	// Auto-upgrade only available for fixed plans (not pay-as-you-go or legacy)
-	if selectedPlanIsFixed {
-		currentAutoUpgrade := false
-		if options["auto_upgrade"] != nil {
-			currentAutoUpgrade, _ = options["auto_upgrade"].(bool)
-		}
-
-		fmt.Fprint(out, autoUpgradeDescription)
-
-		if currentAutoUpgrade {
-			disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?")
-			if err != nil {
-				return err
-			}
-			if disableAutoUpgrade {
-				options["auto_upgrade"] = false
-			}
-		} else {
-			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
-			if err != nil {
-				return err
-			}
-			if enableAutoUpgrade {
-				options["auto_upgrade"] = true
-			} else {
-				delete(options, "auto_upgrade")
-			}
-		}
-	} else if !selectedPlanIsLegacy {
-		// Pay-as-you-go plan - auto-upgrade not available but we should clear it if it was set
-		if options["auto_upgrade"] != nil {
-			delete(options, "auto_upgrade")
 		}
 	}
 
@@ -218,20 +157,14 @@ func runUpdate(ctx context.Context) (err error) {
 		fmt.Fprintf(out, "\nNote: Auto-upgrade and ProdPack are not available for legacy plans.\nTo access these features, please upgrade to a current plan.\n\n")
 	}
 
-	readRegionCodes := []string{}
-
-	for _, region := range *readRegions {
-		readRegionCodes = append(readRegionCodes, region.Code)
-	}
-
-	_, err = gql.UpdateRedisAddOn(ctx, client, addOn.Id, selectedPlan.Id, readRegionCodes, options, metadata, prodPack)
+	_, err = gql.UpdateRedisAddOn(ctx, client, addOn.Id, selectedPlanID, readRegionCodes, options, metadata, prodPack)
 
 	if err != nil {
 		return
 	}
 
 	fmt.Fprintf(out, "\nYour Upstash Redis database %s was updated.\n", addOn.Name)
-	fmt.Fprintf(out, "  Plan:         %s\n", selectedPlan.DisplayName)
+	fmt.Fprintf(out, "  Plan:         %s\n", selectedPlanName)
 	fmt.Fprintf(out, "  Eviction:     %s\n", optionState(options, "eviction"))
 
 	if selectedPlanIsFixed {
@@ -339,4 +272,109 @@ func stripProdPack(options map[string]any) {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+// selectPlan asks which plan the database should end up on, returning the
+// chosen plan's id and display name. Legacy plans are offered only when the
+// database is already on one, so its owner can update without being forced to
+// migrate.
+func selectPlan(ctx context.Context, client graphql.Client, addOn gql.GetAddOnAddOn) (id string, displayName string, err error) {
+	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
+	if err != nil {
+		return "", "", err
+	}
+
+	var (
+		index         int
+		promptOptions []string
+		promptDefault string
+		filteredPlans []gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
+	)
+
+	for _, plan := range result.AddOnPlans.Nodes {
+		if isLegacyPlan(plan.DisplayName) && addOn.AddOnPlan.Id != plan.Id {
+			continue
+		}
+
+		filteredPlans = append(filteredPlans, plan)
+		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description))
+
+		if addOn.AddOnPlan.Id == plan.Id {
+			promptDefault = fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description)
+		}
+	}
+
+	if err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", promptDefault, promptOptions...); err != nil {
+		return "", "", fmt.Errorf("failed to select a plan: %w", err)
+	}
+
+	selected := filteredPlans[index]
+
+	return selected.Id, selected.DisplayName, nil
+}
+
+// promptOptionChanges asks about eviction and auto-upgrade, recording answers
+// in the options blob that will be sent. Declining to enable a setting deletes
+// its key rather than sending an explicit false: the stored copy can be stale,
+// and an explicit false would turn off a feature that is actually on.
+func promptOptionChanges(ctx context.Context, out io.Writer, options map[string]any, selectedPlanIsFixed, selectedPlanIsLegacy bool) error {
+	if options["eviction"] != nil && options["eviction"].(bool) {
+		disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?")
+		if err != nil {
+			return err
+		}
+		if disableEviction {
+			options["eviction"] = false
+		}
+	} else {
+		enableEviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
+		if err != nil {
+			return err
+		}
+		if enableEviction {
+			options["eviction"] = true
+		} else {
+			// Declining to enable must not send an explicit false: if the
+			// add-on metadata is stale, that would disable a feature that is
+			// actually enabled. Omit the key so the server keeps its state.
+			delete(options, "eviction")
+		}
+	}
+
+	// Auto-upgrade only available for fixed plans (not pay-as-you-go or legacy)
+	if selectedPlanIsFixed {
+		currentAutoUpgrade := false
+		if options["auto_upgrade"] != nil {
+			currentAutoUpgrade, _ = options["auto_upgrade"].(bool)
+		}
+
+		fmt.Fprint(out, autoUpgradeDescription)
+
+		if currentAutoUpgrade {
+			disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if disableAutoUpgrade {
+				options["auto_upgrade"] = false
+			}
+		} else {
+			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if enableAutoUpgrade {
+				options["auto_upgrade"] = true
+			} else {
+				delete(options, "auto_upgrade")
+			}
+		}
+	} else if !selectedPlanIsLegacy {
+		// Pay-as-you-go plan - auto-upgrade not available but we should clear it if it was set
+		if options["auto_upgrade"] != nil {
+			delete(options, "auto_upgrade")
+		}
+	}
+
+	return nil
 }
