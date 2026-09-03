@@ -20,17 +20,19 @@ func newRestart() *cobra.Command {
 	const (
 		long  = `Restart an application. Perform a rolling restart against all running Machines.`
 		short = "Restart an application."
-		usage = "restart <app name>"
+		usage = "restart [name]"
 	)
 
 	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
-		command.LoadAppNameIfPresentNoFlag,
+		command.RequireAppName,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	// Note -
 	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "force-stop",
 			Description: "Performs a force stop against the target Machine",
