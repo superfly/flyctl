@@ -46,8 +46,15 @@ func TestFlyDeployHA(t *testing.T) {
 	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
 	// Create two volumes because fly launch will start 2 machines because of HA setup
-	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
-	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.SecondaryRegion())
+	for _, region := range []string{f.PrimaryRegion(), f.SecondaryRegion()} {
+		var volume *fly.Volume
+		result := f.Fly("volume create -a %s -r %s -s 1 data -y --json", appName, region)
+		result.StdOutJSON(&volume)
+
+		require.Eventually(t, func() bool {
+			return f.FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode() == 0
+		}, time.Minute, 2*time.Second, "volume %s never became readable", volume.ID)
+	}
 	f.Fly("deploy --buildkit --remote-only")
 }
 
@@ -75,7 +82,12 @@ func TestFlyDeploy_AddNewMount(t *testing.T) {
 	x := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
-	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
+	var volume *fly.Volume
+	result := f.Fly("volume create -a %s -r %s -s 1 data -y --json", appName, f.PrimaryRegion())
+	result.StdOutJSON(&volume)
+	require.Eventually(t, func() bool {
+		return f.FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode() == 0
+	}, time.Minute, 2*time.Second, "volume %s never became readable", volume.ID)
 	f.Fly("deploy --buildkit --remote-only")
 }
 
