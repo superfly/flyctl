@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -117,6 +118,16 @@ primary_region = "%s"
 
 	// Extend the volume because if not found, scaling will default to 1GB.
 	f.Fly("volume extend %s --size 4 --app %s", ml[0].Config.Mounts[0].Volume, appName)
+	require.Eventually(t, func() bool {
+		result := f.FlyAllowExitFailure("volume show %s --app %s --json", ml[0].Config.Mounts[0].Volume, appName)
+		if result.ExitCode() != 0 {
+			return false
+		}
+
+		var volume fly.Volume
+		result.StdOutJSON(&volume)
+		return volume.SizeGb == 4
+	}, time.Minute, 2*time.Second, "volume %s never reached 4 GB", ml[0].Config.Mounts[0].Volume)
 
 	f.Fly("scale count -y 2")
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
