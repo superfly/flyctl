@@ -198,7 +198,7 @@ func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(f.t.Context(), defaultFlyctlCommandTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultFlyctlCommandTimeout)
 	defer cancel()
 
 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
@@ -207,7 +207,7 @@ func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult
 // FlyAllowExitFailure runs flyctl command and returns the result.
 // It does not fail the test even if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
-	ctx, cancel := context.WithTimeout(f.t.Context(), defaultFlyctlCommandTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultFlyctlCommandTimeout)
 	defer cancel()
 
 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
