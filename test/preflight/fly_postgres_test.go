@@ -159,8 +159,6 @@ func TestPostgres_autostart(t *testing.T) {
 }
 
 func TestPostgres_FlexFailover(t *testing.T) {
-	t.Skip("disabled until we synced the recently-published postgres-flex at digest f2aaf3666b0f")
-
 	if testing.Short() {
 		t.Skip()
 	}
