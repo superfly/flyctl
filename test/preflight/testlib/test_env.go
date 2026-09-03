@@ -36,6 +36,11 @@ type FlyctlTestEnv struct {
 	VMSize              string
 }
 
+// Preflight flyctl commands are not supposed to take more than five minutes.
+// If they do take more time, we cancel them, to give the remaining tests more
+// time against the 15m Go package test timeout.
+const defaultFlyctlCommandTimeout = 5 * time.Minute
+
 func (f *FlyctlTestEnv) OrgSlug() string {
 	return f.orgSlug
 }
@@ -193,13 +198,19 @@ func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult
 		}
 	}
 
-	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
+	ctx, cancel := context.WithTimeout(f.t.Context(), defaultFlyctlCommandTimeout)
+	defer cancel()
+
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
 // FlyAllowExitFailure runs flyctl command and returns the result.
 // It does not fail the test even if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
-	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
+	ctx, cancel := context.WithTimeout(f.t.Context(), defaultFlyctlCommandTimeout)
+	defer cancel()
+
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
 
 type FlyCmdConfig struct {
@@ -241,6 +252,9 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
 	err = cmd.Wait()
+	if err != nil && ctx.Err() != nil {
+		f.Fatalf("command exceeded its deadline: %s [context error]: %v [stdout]: %s [stderr]: %s", res.cmdStr, ctx.Err(), res.stdOut.String(), res.stdErr.String())
+	}
 	if err == nil {
 		res.exitCode = 0
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
