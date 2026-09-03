@@ -318,6 +318,7 @@ func TestStartOrRestartBuilderMachine(t *testing.T) {
 	flapsClient := mock.FlapsClient{
 		StartFunc: func(ctx context.Context, appName, machineID string, nonce string) (*fly.MachineStartResponse, error) {
 			started = true
+
 			return nil, nil
 		},
 		RestartFunc: func(ctx context.Context, appName string, input fly.RestartMachineInput, nonce string) error {
