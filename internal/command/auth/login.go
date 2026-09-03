@@ -98,6 +98,12 @@ func loginTokenOverrideWarning() string {
 		if token == "" {
 			return ""
 		}
+		if apiToken := os.Getenv(config.APITokenEnvKey); apiToken != "" {
+			return fmt.Sprintf(
+				"Environment variables %s and %s are set. flyctl will continue using these instead of the credentials just saved. Unset both variables to use the new credentials.",
+				config.AccessTokenEnvKey, config.APITokenEnvKey,
+			)
+		}
 
 		return warnFor(config.AccessTokenEnvKey)
 	}
