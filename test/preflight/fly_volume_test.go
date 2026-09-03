@@ -94,6 +94,9 @@ func testVolumeLs(t *testing.T) {
 	var destroyed *fly.Volume
 	j = f.Fly("volume create test_destroy --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	j.StdOutJSON(&destroyed)
+	require.Eventually(t, func() bool {
+		return f.FlyAllowExitFailure("volume show %s --app %s --json", destroyed.ID, appName).ExitCode() == 0
+	}, time.Minute, 2*time.Second, "volume %s never became readable", destroyed.ID)
 
 	// Now destroy a volume (remembering to specify the app name)
 	f.Fly("volume destroy %s --yes --app %s", destroyed.ID, appName)
@@ -132,6 +135,9 @@ func testVolumeFork(t *testing.T) {
 	var original *fly.Volume
 	j := f.Fly("volume create foobar --json --app %s --region %s --yes", appName, f.PrimaryRegion())
 	j.StdOutJSON(&original)
+	require.Eventually(t, func() bool {
+		return f.FlyAllowExitFailure("volume show %s --app %s --json", original.ID, appName).ExitCode() == 0
+	}, time.Minute, 2*time.Second, "volume %s never became readable", original.ID)
 
 	var fork *fly.Volume
 	j = f.Fly("volume fork --json --app %s --region %s %s", appName, f.PrimaryRegion(), original.ID)
@@ -148,6 +154,9 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	createRes := f.Fly("volume create test_destroy --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	var vol *fly.Volume
 	createRes.StdOutJSON(&vol)
+	require.Eventually(t, func() bool {
+		return f.FlyAllowExitFailure("volume show %s --app %s --json", vol.ID, appName).ExitCode() == 0
+	}, time.Minute, 2*time.Second, "volume %s never became readable", vol.ID)
 	t.Logf("Start a machine under app %s", appName)
 	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
 	machine := f.MachinesList(appName)[0]
