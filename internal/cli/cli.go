@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
@@ -93,6 +94,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cs := io.ColorScheme()
 
 	cmd, err = cmd.ExecuteContextC(ctx)
+	err = withAuthTokenOverrideSuggestion(cmd, err)
 
 	if cmd != nil {
 		metrics.RecordCommandFinish(cmd, err != nil)
@@ -190,6 +192,50 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 			fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
 		}
 	}
+}
+
+func withAuthTokenOverrideSuggestion(cmd *cobra.Command, err error) error {
+	var gqlErr *graphql.GraphQLError
+	if !errors.As(err, &gqlErr) || gqlErr.Extensions.Code != "UNAUTHORIZED" {
+		return err
+	}
+
+	var suggestion string
+	if cmd != nil {
+		if f := cmd.Flags().Lookup(flagnames.AccessToken); f != nil && f.Changed {
+			suggestion = "The token provided by --access-token was rejected for this request. " +
+				"This flag overrides credentials saved by `fly auth login`; check or remove it and try again."
+		}
+	}
+
+	if suggestion == "" {
+		// Match config.applyEnv's first-present-variable precedence. In particular,
+		// an explicitly empty FLY_ACCESS_TOKEN prevents FLY_API_TOKEN from applying.
+		if token, ok := os.LookupEnv(config.AccessTokenEnvKey); ok {
+			if token != "" {
+				suggestion = authTokenEnvSuggestion(config.AccessTokenEnvKey)
+			}
+		} else if os.Getenv(config.APITokenEnvKey) != "" {
+			suggestion = authTokenEnvSuggestion(config.APITokenEnvKey)
+		}
+	}
+
+	if suggestion == "" {
+		return err
+	}
+
+	if existing := flyerr.GetErrorSuggestion(err); existing != "" {
+		suggestion += "\n\n" + existing
+	}
+
+	return flyerr.WithSuggestion(err, suggestion)
+}
+
+func authTokenEnvSuggestion(name string) string {
+	return fmt.Sprintf(
+		"The token provided by %s was rejected for this request. This environment variable overrides credentials saved by `fly auth login`; check its value and permissions, or unset it and try again.",
+		name,
+	)
 }
 
 func printGHAErrorAnnotation(cmd *cobra.Command, err error) {
