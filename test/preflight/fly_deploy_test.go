@@ -482,18 +482,21 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		if testing.Short() {
-			t.Skip("Skipping buildpack test in CI: buildpacks require wireguard connectivity which is not available in CI environment")
+			t.Skip("Skipping in short mode: buildpack test is covered by full preflight runs")
 		}
 		t.Parallel()
-		// Buildpacks cannot use BuildKit, so they use Depot (which falls back to remote builders)
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--depot")
+		// Buildpacks are built using the pack tool, which requires a Docker API.
+		// Use the CI runner's Docker daemon so this test does not share the
+		// organization's remote builder with the BuildKit test because they are
+		// API-incompatible.
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"), "--local-only")
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		if testing.Short() {
-			t.Skip("Skipping in short mode: test suite approaches 15m timeout with this test included")
+			t.Skip("Skipping in short mode: buildkit test is covered by full preflight runs")
 		}
 		t.Parallel()
-		// Dockerfiles explicitly use BuildKit with remote building
+		// Explicitly use flyctl's remote BuildKit builder app for the Dockerfile.
 		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"), "--buildkit --remote-only")
 	})
 }
