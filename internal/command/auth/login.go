@@ -98,6 +98,7 @@ func loginTokenOverrideWarning() string {
 		if token == "" {
 			return ""
 		}
+
 		return warnFor(config.AccessTokenEnvKey)
 	}
 
