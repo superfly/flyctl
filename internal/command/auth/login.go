@@ -3,14 +3,17 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newLogin() *cobra.Command {
@@ -68,7 +71,42 @@ func runLogin(ctx context.Context) error {
 		return err
 	}
 
-	return webauth.SaveToken(ctx, token)
+	if err := webauth.SaveToken(ctx, token); err != nil {
+		return err
+	}
+
+	if warning := loginTokenOverrideWarning(); warning != "" {
+		io := iostreams.FromContext(ctx)
+		colorize := io.ColorScheme()
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "\n%s %s\n", colorize.WarningIcon(), colorize.Yellow(warning))
+	}
+
+	return nil
+}
+
+func loginTokenOverrideWarning() string {
+	warnFor := func(envVar string) string {
+		return fmt.Sprintf(
+			"Environment variable %s is set, so flyctl will continue using it instead of the credentials just saved. Unset %s to use the new credentials.",
+			envVar, envVar,
+		)
+	}
+
+	// Keep this precedence in sync with config.applyEnv. An explicitly empty
+	// FLY_ACCESS_TOKEN prevents FLY_API_TOKEN from being selected.
+	if token, ok := os.LookupEnv(config.AccessTokenEnvKey); ok {
+		if token == "" {
+			return ""
+		}
+
+		return warnFor(config.AccessTokenEnvKey)
+	}
+
+	if token := os.Getenv(config.APITokenEnvKey); token != "" {
+		return warnFor(config.APITokenEnvKey)
+	}
+
+	return ""
 }
 
 type requiredWhenNonInteractive string
