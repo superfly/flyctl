@@ -3,15 +3,20 @@ package cmdv1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"strconv"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/wg"
@@ -56,7 +61,7 @@ func TestProxyParamsIgnoreCredentials(t *testing.T) {
 			}
 			dialer := &testDialer{}
 
-			cluster, params, err := proxyParams(&response, nil, "15432", "test-org", "127.0.0.2", dialer)
+			cluster, params, err := proxyParams(&response, mpgutil.DefaultPort, "15432", "test-org", "127.0.0.2", dialer)
 			require.NoError(t, err)
 			assert.Same(t, &response.Data, cluster)
 			assert.Equal(t, []string{"15432", "5432"}, params.Ports)
@@ -69,14 +74,13 @@ func TestProxyParamsIgnoreCredentials(t *testing.T) {
 }
 
 func TestProxyParamsRequireDirectIP(t *testing.T) {
-	cluster, params, err := proxyParams(&mpgv1.GetManagedClusterResponse{}, nil, "15432", "test-org", "127.0.0.1", nil)
+	cluster, params, err := proxyParams(&mpgv1.GetManagedClusterResponse{}, 0, "15432", "test-org", "127.0.0.1", nil)
 
 	require.EqualError(t, err, "error getting cluster IP")
 	assert.Nil(t, cluster)
 	assert.Nil(t, params)
 }
 
-// samplePublicCluster is a representative public Machines API cluster payload.
 func samplePublicCluster() flaps.ManagedPostgresCluster {
 	return flaps.ManagedPostgresCluster{
 		ID:           "mpg-123",
@@ -99,8 +103,6 @@ func samplePublicCluster() flaps.ManagedPostgresCluster {
 	}
 }
 
-// sampleLegacyCluster is a representative legacy MPGv1 cluster payload.
-// Direct is a bare address (no port) — the historical shape of this column.
 func sampleLegacyCluster() mpgv1.GetManagedClusterResponse {
 	return mpgv1.GetManagedClusterResponse{
 		Data: mpgv1.ManagedCluster{
@@ -151,9 +153,12 @@ func TestGetCluster(t *testing.T) {
 			wantLegacyCalls: 0,
 		},
 		{
-			name:            "classified 404 falls back to legacy",
-			publicCluster:   flaps.ManagedPostgresCluster{},
-			publicErr:       flaps.ErrFlapsNotFound,
+			name:          "classified 404 falls back to legacy",
+			publicCluster: flaps.ManagedPostgresCluster{},
+			publicErr: fmt.Errorf("wrapped: %w", &flaps.FlapsError{
+				ResponseStatusCode: 404,
+				OriginalError:      errors.New("not found"),
+			}),
 			legacyResponse:  sampleLegacyCluster(),
 			wantUseLegacy:   true,
 			wantDirectHost:  "10.0.0.1",
@@ -161,19 +166,29 @@ func TestGetCluster(t *testing.T) {
 			wantLegacyCalls: 1,
 		},
 		{
-			name:            "classified 404 with legacy failure propagates legacy error",
-			publicCluster:   flaps.ManagedPostgresCluster{},
-			publicErr:       flaps.ErrFlapsNotFound,
+			name:          "classified 404 with legacy failure propagates legacy error",
+			publicCluster: flaps.ManagedPostgresCluster{},
+			publicErr: fmt.Errorf("wrapped: %w", &flaps.FlapsError{
+				ResponseStatusCode: 404,
+				OriginalError:      errors.New("not found"),
+			}),
 			legacyResponse:  mpgv1.GetManagedClusterResponse{},
 			legacyErr:       errors.New("legacy denied"),
 			wantErr:         "failed retrieving cluster mpg-123: legacy denied",
 			wantLegacyCalls: 1,
 		},
 		{
-			name:            "non-404 public error returns without fallback",
+			name:            "403 public error returns without fallback",
 			publicCluster:   flaps.ManagedPostgresCluster{},
-			publicErr:       errors.New("boom"),
-			wantErr:         "failed retrieving cluster mpg-123: boom",
+			publicErr:       &flaps.FlapsError{ResponseStatusCode: 403, OriginalError: errors.New("denied")},
+			wantErr:         "failed retrieving cluster mpg-123: denied",
+			wantLegacyCalls: 0,
+		},
+		{
+			name:            "410 public error returns without fallback",
+			publicCluster:   flaps.ManagedPostgresCluster{},
+			publicErr:       &flaps.FlapsError{ResponseStatusCode: 410, OriginalError: errors.New("gone")},
+			wantErr:         "failed retrieving cluster mpg-123: gone",
 			wantLegacyCalls: 0,
 		},
 	}
@@ -198,7 +213,7 @@ func TestGetCluster(t *testing.T) {
 				},
 			})
 
-			got, useLegacy, _, err := getCluster(ctx, "mpg-123")
+			got, useLegacy, port, err := getCluster(ctx, "mpg-123")
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
 				require.Nil(t, got)
@@ -214,20 +229,26 @@ func TestGetCluster(t *testing.T) {
 			require.Equal(t, tt.wantStatus, got.Data.Status)
 			require.Equal(t, 1, publicCalls)
 			require.Equal(t, tt.wantLegacyCalls, legacyCalls)
+			require.Equal(t, 5432, port)
+			if tt.wantUseLegacy {
+				_, params, err := proxyParams(got, port, "16380", "test-org", "127.0.0.1", nil)
+				require.NoError(t, err)
+				require.Equal(t, []string{"16380", "5432"}, params.Ports)
+			}
 		})
 	}
 }
 
-// TestProxyParamsPublicNeverTouchesCredentials verifies the invariant that
-// the proxy code path never resolves credentials: getCluster must only hit
-// the cluster lookup endpoint, not the credentials endpoint, on the public-
-// success branch. This pins RunProxy against accidentally growing a
-// credentials dependency.
-func TestProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
+func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 	credCalls, legacyCredCalls := 0, 0
-	ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+	ctx := flag.NewContext(context.Background(), pflag.NewFlagSet("test", pflag.ContinueOnError))
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
-			return samplePublicCluster(), nil
+			cluster := samplePublicCluster()
+			cluster.Status = "creating"
+			cluster.Endpoints.Primary.Direct.Host = ""
+
+			return cluster, nil
 		},
 		GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 			credCalls++
@@ -243,37 +264,33 @@ func TestProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 		},
 	})
 
-	response, useLegacy, port, err := getCluster(ctx, "mpg-123")
-	require.NoError(t, err)
-	require.NotNil(t, response)
-	require.False(t, useLegacy)
-	require.Equal(t, 0, credCalls, "getCluster (public-success path) must never resolve credentials")
-	require.Equal(t, 0, legacyCredCalls, "getCluster must never reach the legacy client on public success")
+	cluster, params, err := GetMpgProxyParams(ctx, "15432", "mpg-123", "test-org")
+	require.EqualError(t, err, "error getting cluster IP")
+	require.Nil(t, cluster)
+	require.Nil(t, params)
+	require.Zero(t, credCalls)
+	require.Zero(t, legacyCredCalls)
+}
 
-	// proxyParams does not take a ctx, so it cannot make any HTTP call; it is
-	// structurally incapable of leaking credentials. Verify it produces the
-	// expected bare-host RemoteHost from the public-converted response. The
-	// credCalls / legacyCredCalls counters were already asserted to be 0
-	// above, immediately after getCluster returned, so proxyParams has
-	// nothing to regress there.
-	cluster, params, err := proxyParams(response, port, "15432", "test-org", "127.0.0.1", nil)
-	require.NoError(t, err)
-	require.NotNil(t, cluster)
-	require.NotNil(t, params)
-	require.Equal(t, "10.0.0.1", params.RemoteHost)
+func TestGetMpgConnectParamsResolvesCredentialsBeforeTunnel(t *testing.T) {
+	ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+			return samplePublicCluster(), nil
+		},
+		GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+			return flaps.ManagedPostgresUserCredentials{Username: mpgutil.DefaultUsername}, nil
+		},
+	})
+
+	cluster, params, credentials, err := GetMpgConnectParams(ctx, "15432", "", "mpg-123", "test-org")
+	require.EqualError(t, err, "error getting cluster password")
+	require.Nil(t, cluster)
+	require.Nil(t, params)
+	require.Nil(t, credentials)
 }
 
 func TestResolveDefaultConnectCredentials(t *testing.T) {
-	// The legacy default-user connect path (useLegacy == true) restores
-	// the pre-migration post-fetch logic: the legacy credentials
-	// envelope's own Status field (credentials.Status, semantically
-	// distinct from cluster status) is checked for "initializing"/"error",
-	// plus an empty-password fallback. These cases pin that behavior
-	// with the original error messages. The public status classifier is
-	// intentionally NOT applied here; that is covered by
-	// TestResolveConnectCredentialsPublicStatusClassifier below. See
-	// connectStatusRefusal's doc comment for the legacy/public status-
-	// split rationale.
+	// Legacy readiness comes from the credential envelope, not cluster status.
 	const name = "test-cluster"
 	tests := []struct {
 		name       string
@@ -283,8 +300,6 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 		err        string
 	}{
 		{
-			// ORIGINAL legacy: empty password is the empty-password
-			// fallback; status field is irrelevant when password is empty.
 			name:       "empty password",
 			clusterSt:  "ready",
 			credStatus: "ready",
@@ -292,13 +307,6 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 			err:        "error getting cluster password",
 		},
 		{
-			// REGRESSION GUARD: Data.Status="ready" with credentials
-			// .Status="initializing" and a non-empty password MUST refuse
-			// on the legacy path. Applying the public-only 7-value
-			// status classifier to the legacy path (where it does not
-			// belong) would silently drop the credentials.Status check
-			// and let this case proceed to psql with possibly-invalid
-			// credentials. This is the regression this test pins.
 			name:       "ready cluster with stale initializing credentials refuses",
 			clusterSt:  "ready",
 			credStatus: "initializing",
@@ -306,11 +314,6 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 			err:        "cluster is still initializing, wait a bit more",
 		},
 		{
-			// REGRESSION GUARD: Data.Status="ready" with credentials
-			// .Status="error" and a non-empty password MUST refuse on
-			// the legacy path. Same reasoning as above. ("error" is a
-			// real legacy status value but not a public one — the public
-			// classifier rejects it via its default arm.)
 			name:       "ready cluster with stale error credentials refuses",
 			clusterSt:  "ready",
 			credStatus: "error",
@@ -318,11 +321,6 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 			err:        "error getting cluster password",
 		},
 		{
-			// The cluster status alone ("creating", "failed", etc.) is
-			// NOT consulted on the legacy path — only credentials.Status
-			// and credentials.Password are. So a "ready"-credentials
-			// envelope with a non-empty password proceeds regardless of
-			// the cluster status field.
 			name:       "creating cluster with ready credentials proceeds",
 			clusterSt:  "creating",
 			credStatus: "ready",
@@ -346,6 +344,7 @@ func TestResolveDefaultConnectCredentials(t *testing.T) {
 			if tt.err == "" {
 				require.NoError(t, err)
 				require.NotNil(t, credentials)
+
 				return
 			}
 			require.EqualError(t, err, tt.err)
@@ -362,6 +361,7 @@ func TestResolveExplicitUserConnectCredentials(t *testing.T) {
 			Status: "ready",
 		},
 		Credentials: mpgv1.GetManagedClusterCredentialsResponse{
+			Status: "initializing",
 			DBName: "default-db",
 		},
 	}
@@ -424,15 +424,6 @@ func TestResolveExplicitUserConnectCredentialsErrors(t *testing.T) {
 	})
 }
 
-// TestResolveConnectCredentialsPublic covers the public-API code paths for
-// Connect credentials: default-user goes through
-// GetManagedPostgresUserCredentials("fly-user") and DBName defaults to
-// "fly-db"; explicit-user passes the flag value straight through. Data.Status
-// is set to "ready" on every response here so the status classifier (which
-// runs before any credentials call) does not interfere — see
-// TestResolveConnectCredentialsPublicStatusClassifier for the dedicated
-// status-classifier coverage. See connectStatusRefusal's doc comment for
-// the legacy/public status-split rationale.
 func TestResolveConnectCredentialsPublic(t *testing.T) {
 	response := &mpgv1.GetManagedClusterResponse{
 		Data: mpgv1.ManagedCluster{Id: "cluster-id", Name: "test-cluster", Status: "ready"},
@@ -475,11 +466,9 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 		require.Equal(t, 1, credCalls)
 		require.Equal(t, "alice", credentials.User)
 		require.Equal(t, "a", credentials.Password)
-		// The public path has no envelope DBName; explicit users fall back to
-		// defaultMPGDatabase ("fly-db") so that run_connect.go's psql URL
-		// construction lands on the plan-required default when neither
-		// --database nor an interactive prompt supplies one.
 		require.Equal(t, "fly-db", credentials.DBName)
+		require.Equal(t, "postgresql://alice:a@localhost:16380/fly-db", buildConnectURL(credentials, "", "16380"))
+		require.Equal(t, "postgresql://alice:a@localhost:16380/app-db", buildConnectURL(credentials, "app-db", "16380"))
 	})
 
 	t.Run("default user empty password mirrors legacy error", func(t *testing.T) {
@@ -518,77 +507,38 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 		assert.Nil(t, credentials)
 	})
 
-	t.Run("explicit user public credentials error propagates", func(t *testing.T) {
+	t.Run("default user 404 preserves initializing error", func(t *testing.T) {
 		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
-				return flaps.ManagedPostgresUserCredentials{}, errors.New("missing user")
+				return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("wrapped: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("not found")})
+			},
+		})
+
+		credentials, err := resolveConnectCredentials(ctx, response, false, "")
+		require.EqualError(t, err, "cluster is still initializing, wait a bit more")
+		assert.Nil(t, credentials)
+	})
+
+	t.Run("explicit user 404 remains a user error", func(t *testing.T) {
+		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+				return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("wrapped: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("missing user")})
 			},
 		})
 
 		credentials, err := resolveConnectCredentials(ctx, response, false, "alice")
-		require.EqualError(t, err, "failed retrieving credentials for user alice: missing user")
+		require.EqualError(t, err, "failed retrieving credentials for user alice: wrapped: missing user")
 		assert.Nil(t, credentials)
 	})
 }
 
-// TestPublicToLegacyClusterResponse verifies that the public-API cluster is
-// converted to the legacy ui-ex shape, preserving the bare-address column for
-// proxyParams and the Status field for downstream status checks
-// (connectStatusRefusal / maybeWarnLegacyNotReady).
-func TestPublicToLegacyClusterResponse(t *testing.T) {
-	got, _ := publicToLegacyClusterResponse(samplePublicCluster())
-	require.Equal(t, "mpg-123", got.Data.Id)
-	require.Equal(t, "test-cluster", got.Data.Name)
-	require.Equal(t, "ready", got.Data.Status)
-	require.Equal(t, "ord", got.Data.Region)
-	require.Equal(t, "development", got.Data.Plan)
-	require.Equal(t, 10, got.Data.Disk)
-	require.Equal(t, 1, got.Data.Replicas)
-	require.Equal(t, "Test Org", got.Data.Organization.Name)
-	require.Equal(t, "test-org", got.Data.Organization.Slug)
-	require.Equal(t, "10.0.0.1", got.Data.IpAssignments.Direct)
-}
-
-// TestResolveConnectCredentialsPublicStatusClassifier proves the public-path
-// status classifier short-circuits BEFORE any credentials resolution call,
-// for both the default-user and explicit-user connect paths. It exercises
-// connectStatusRefusal (via resolveConnectCredentials) for the full 9-value
-// status matrix — the 7 documented public statuses plus the "error" /
-// "degraded" unrecognized sentinels — and asserts on each:
-//
-//   - the exact deliberate refusal message, with the cluster name
-//     interpolated;
-//   - the credentials endpoint is never called (credCalls == 0).
-//
-// On the proceed status ("ready") it asserts:
-//
-//   - no refusal error;
-//   - the credentials endpoint IS called exactly once (credCalls == 1).
-//
-// The classifier applies ONLY to the public path (useLegacy == false). The
-// legacy path (useLegacy == true) is intentionally NOT exercised here — it
-// uses its original pre-migration credentials.Status / credentials.Password
-// post-fetch logic instead, pinned by TestResolveDefaultConnectCredentials
-// above.
-func TestResolveConnectCredentialsPublicStatusClassifier(t *testing.T) {
+func TestResolveConnectCredentialsPublicNonReady(t *testing.T) {
 	const name = "test-cluster"
-	const unknownStatus = "degraded"
 	tests := []struct {
-		status  string
-		wantErr string // expected refusal error message; "" means proceed.
+		status string
 	}{
-		{"ready", ""},
-		{"standby_ready", "cluster " + name + " is a standby replica and cannot be used with fly mpg connect"},
-		{"creating", "cluster " + name + " is still being created, wait a bit more"},
-		{"deleting", "cluster " + name + " is being deleted and cannot be connected to"},
-		{"deleted", "cluster " + name + " has been deleted and cannot be connected to"},
-		{"failed", "cluster " + name + " is in a failed state"},
-		{"initializing", "cluster " + name + " is not currently ready for connections (status: initializing)"},
-		// Sentinel: "error" is NOT a real public cluster status — it is
-		// rejected by the default arm of the classifier.
-		{"error", `cluster ` + name + ` is in an unrecognized state ("error") and cannot be connected to`},
-		// Sentinel: an arbitrary future / unmapped status also fails closed.
-		{unknownStatus, `cluster ` + name + ` is in an unrecognized state ("` + unknownStatus + `") and cannot be connected to`},
+		{"creating"},
+		{"degraded"},
 	}
 
 	for _, tt := range tests {
@@ -608,15 +558,8 @@ func TestResolveConnectCredentialsPublicStatusClassifier(t *testing.T) {
 			})
 
 			credentials, err := resolveConnectCredentials(ctx, &response, false, "")
-			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
-				assert.Nil(t, credentials)
-				require.Equal(t, 0, credCalls, "refusal must short-circuit before any credentials call (default user, public path)")
-
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, 1, credCalls, "proceed must hit the credentials endpoint exactly once")
+			require.NoError(t, err, "non-ready cluster must proceed to credential resolution")
+			require.Equal(t, 1, credCalls, "must hit the credentials endpoint exactly once")
 			require.NotNil(t, credentials)
 		})
 
@@ -636,70 +579,44 @@ func TestResolveConnectCredentialsPublicStatusClassifier(t *testing.T) {
 			})
 
 			credentials, err := resolveConnectCredentials(ctx, &response, false, "alice")
-			if tt.wantErr != "" {
-				require.EqualError(t, err, tt.wantErr)
-				assert.Nil(t, credentials)
-				require.Equal(t, 0, credCalls, "refusal must short-circuit before any credentials call (explicit user, public path)")
-
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, 1, credCalls, "proceed must hit the credentials endpoint exactly once")
+			require.NoError(t, err, "non-ready cluster must proceed to credential resolution")
+			require.Equal(t, 1, credCalls, "must hit the credentials endpoint exactly once")
 			require.NotNil(t, credentials)
 		})
 	}
 }
 
-// TestProxyParamsPublicNonDefaultPort proves that the public path dials the
-// actual advertised port from Endpoints.Primary.Direct.Port instead of the
-// legacy hardcoded 5432. The legacy path is also pinned to 5432 here so the
-// regression surface is locked down on both sides. The public-zero case is
-// pinned to an error so a genuinely-advertised port 0 cannot be silently
-// treated like the legacy "no port field" default.
-func TestProxyParamsPublicNonDefaultPort(t *testing.T) {
-	t.Run("public port 5433 dials 5433, not 5432", func(t *testing.T) {
-		c := samplePublicCluster()
-		c.Endpoints.Primary.Direct.Port = 5433
-		response, port := publicToLegacyClusterResponse(c)
+func TestProxyParamsPublicPorts(t *testing.T) {
+	for _, port := range []int{1, 5433, 65535} {
+		t.Run(strconv.Itoa(port), func(t *testing.T) {
+			c := samplePublicCluster()
+			c.Endpoints.Primary.Direct.Port = port
+			response, advertisedPort := publicToLegacyClusterResponse(c)
 
-		_, params, err := proxyParams(&response, port, "16380", "test-org", "127.0.0.1", nil)
-		require.NoError(t, err)
-		require.Equal(t, "10.0.0.1", params.RemoteHost)
-		require.Equal(t, []string{"16380", "5433"}, params.Ports)
-	})
+			_, params, err := proxyParams(&response, advertisedPort, "0", "test-org", "127.0.0.1", nil)
+			require.NoError(t, err)
+			require.Equal(t, "10.0.0.1", params.RemoteHost)
+			require.Equal(t, []string{"0", strconv.Itoa(port)}, params.Ports)
+		})
+	}
+}
 
-	t.Run("public port 5432 stays 5432 (no-op for the default)", func(t *testing.T) {
-		c := samplePublicCluster()
-		c.Endpoints.Primary.Direct.Port = 5432
-		response, port := publicToLegacyClusterResponse(c)
-
-		_, params, err := proxyParams(&response, port, "16380", "test-org", "127.0.0.1", nil)
-		require.NoError(t, err)
-		require.Equal(t, []string{"16380", "5432"}, params.Ports)
-	})
-
-	t.Run("legacy port stays hardcoded 5432", func(t *testing.T) {
-		response := sampleLegacyCluster()
-		// legacy path never calls publicToLegacyClusterResponse, so its port
-		// value is always nil — the proxyParams fallback kicks in and "5432"
-		// is used exactly as before.
-		_, params, err := proxyParams(&response, nil, "16380", "test-org", "127.0.0.1", nil)
-		require.NoError(t, err)
-		require.Equal(t, []string{"16380", "5432"}, params.Ports)
-	})
-
-	t.Run("public port 0 surfaces as an error instead of silently dialing 5432", func(t *testing.T) {
-		c := samplePublicCluster()
-		c.Endpoints.Primary.Direct.Port = 0
-		response, port := publicToLegacyClusterResponse(c)
-		// Sanity check: the adapter still produces a non-nil pointer (so the
-		// public-vs-legacy distinction is preserved).
-		require.NotNil(t, port)
-		require.Equal(t, 0, *port)
-
-		cluster, params, err := proxyParams(&response, port, "16380", "test-org", "127.0.0.1", nil)
-		require.EqualError(t, err, "error getting cluster port")
-		assert.Nil(t, cluster)
-		assert.Nil(t, params)
-	})
+func TestGetMpgProxyParamsRejectsInvalidPublicPort(t *testing.T) {
+	for _, port := range []int{0, -1, 65536} {
+		t.Run(strconv.Itoa(port), func(t *testing.T) {
+			c := samplePublicCluster()
+			c.Endpoints.Primary.Direct.Port = port
+			ctx := flag.NewContext(context.Background(), pflag.NewFlagSet("test", pflag.ContinueOnError))
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+					return c, nil
+				},
+			})
+			// No legacy or tunnel client: invalid public endpoints must stop before either.
+			cluster, params, err := GetMpgProxyParams(ctx, "0", "mpg-123", "test-org")
+			require.EqualError(t, err, fmt.Sprintf("invalid cluster port %d: must be between 1 and 65535", c.Endpoints.Primary.Direct.Port))
+			require.Nil(t, cluster)
+			require.Nil(t, params)
+		})
+	}
 }
