@@ -21,7 +21,9 @@ jobs:
         group:
           - apps
           - deploy
+          - deploy-detach
           - deploy-fixtures
+          - deploy-machine-checks
           - bluegreen
           - launch
           - scale
