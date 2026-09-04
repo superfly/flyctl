@@ -34,6 +34,8 @@ linters:
             - github.com/superfly/flyctl/render.Printf
             - github.com/superfly/flyctl/render.Detailf
             - github.com/superfly/flyctl/render.Donef
+    nlreturn:
+      block-size: 5
     staticcheck:
       checks:
         - all
