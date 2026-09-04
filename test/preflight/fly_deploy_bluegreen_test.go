@@ -18,7 +18,7 @@ import (
 // integration test doesn't depend on the internal package.
 const flyctlBGLaunchIDMetadataKey = "fly_flyctl_bluegreen_launch_id"
 
-func TestFlyDeployBluegreenImplicitAppProcessGroup(t *testing.T) {
+func TestFlyDeploy_BlueGreen_ImplicitAppProcessGroup(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
