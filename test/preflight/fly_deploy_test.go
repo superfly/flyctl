@@ -581,7 +581,7 @@ func TestFlyDeploy_BlueGreen_StoppedMachines(t *testing.T) {
 `
 		f.WriteFlyToml("%s", appConfig)
 
-		deployRes := f.FlyAllowExitFailure("deploy --remote-only --strategy bluegreen")
+		deployRes := f.FlyAllowExitFailure("deploy --remote-only --strategy bluegreen --wait-timeout 1m")
 		require.NotEqual(t, 0, deployRes.ExitCode(),
 			"bluegreen deploy must fail when the app crashes, not silently report success;\nstdout:\n%s\nstderr:\n%s",
 			deployRes.StdOutString(), deployRes.StdErrString())
