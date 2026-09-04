@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/google/shlex"
@@ -58,8 +61,9 @@ func run() error {
 				return err
 			}
 			cmd := exec.CommandContext(ctx, flyctlBin, cmdParts[1:]...)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
+			cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 			cmd.Env = append(cmd.Env, os.Environ()...)
 			cmd.Env = append(cmd.Env, fmt.Sprintf("FLY_API_TOKEN=%s", os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN")))
 			fmt.Fprintln(os.Stderr, cmdStr)
@@ -69,10 +73,19 @@ func run() error {
 			}
 			err = cmd.Wait()
 			if err != nil {
+				if isAppNotFound(stdout.String(), stderr.String()) {
+					fmt.Fprintf(os.Stderr, "app %s is already gone; continuing cleanup\n", app.Id)
+					continue
+				}
 				return err
 			}
 		}
 	}
 
 	return nil
+}
+
+func isAppNotFound(stdout, stderr string) bool {
+	output := strings.ToLower(stdout + "\n" + stderr)
+	return strings.Contains(output, "app not found")
 }
