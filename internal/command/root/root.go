@@ -50,6 +50,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ping"
 	"github.com/superfly/flyctl/internal/command/platform"
 	"github.com/superfly/flyctl/internal/command/postgres"
+	"github.com/superfly/flyctl/internal/command/profile"
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/regions"
@@ -71,6 +72,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/wireguard"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
+	profilelib "github.com/superfly/flyctl/internal/profile"
 )
 
 // New initializes and returns a reference to a new root command.
@@ -100,6 +102,7 @@ func New() *cobra.Command {
 	_ = fs.StringP(flagnames.AccessToken, "t", "", "Fly API Access Token")
 	_ = fs.BoolP(flagnames.Verbose, "", false, "Verbose output")
 	_ = fs.BoolP(flagnames.Debug, "", false, "Print additional logs and traces")
+	_ = fs.String(profilelib.FlagName, "", "Credential profile to run this command against")
 
 	flyctl.InitConfig()
 
@@ -109,6 +112,7 @@ func New() *cobra.Command {
 		version.New(),
 		group(orgs.New(), "acl"),
 		group(auth.New(), "acl"),
+		group(profile.New(), "acl"),
 		group(platform.New(), "more_help"),
 		group(docs.New(), "more_help"),
 		group(releases.New(), "upkeep"),
