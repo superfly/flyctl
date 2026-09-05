@@ -87,6 +87,9 @@ type ManagedCluster struct {
 	Organization  fly.Organization                `json:"organization"`
 	IpAssignments mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
 	AttachedApps  []mpg.AttachedApp               `json:"attached_apps"`
+
+	// nil when the server did not return it (only the get-cluster endpoint does)
+	EligibleForV2Migration *bool `json:"eligible_for_v2_migration"`
 }
 
 type ListManagedClustersResponse struct {

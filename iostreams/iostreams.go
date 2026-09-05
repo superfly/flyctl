@@ -341,6 +341,17 @@ func (s *IOStreams) CreateLink(text string, url string) string {
 	}
 }
 
+// CreateLinkURL renders url as a clickable hyperlink where supported. Unlike
+// CreateLink it uses the URL itself as the link text, so unsupported
+// terminals print the URL once rather than twice.
+func (s *IOStreams) CreateLinkURL(url string) string {
+	if isTextClickable() {
+		return "\x1b]8;;" + url + "\x07" + url + "\x1b]8;;\x07"
+	}
+
+	return url
+}
+
 // writerWithFd implements a [terminal.FileWriter]
 type writerWithFd struct {
 	io.Writer

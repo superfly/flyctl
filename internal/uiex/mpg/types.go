@@ -24,6 +24,8 @@ type Cluster struct {
 	IpAssignments ManagedClusterIpAssignments
 	AttachedApps  []AttachedApp
 	Version       Version
+
+	EligibleForV2Migration *bool // nil when the API did not report it
 }
 
 type ManagedClusterIpAssignments struct {
