@@ -3,6 +3,7 @@ package cmdv2
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -82,9 +83,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 		return err
 	}
 
-	if cluster.Status != "ready" {
-		fmt.Fprintf(io.ErrOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
-	}
+	maybeWarnNotReady(io.ErrOut, cluster)
 
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
@@ -103,15 +102,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 		return err
 	}
 
-	user := credentials.User
-	password := credentials.Password
-
-	// Use selected database or fall back to default from credentials
-	if db == "" {
-		db = credentials.DBName
-	}
-
-	connectUrl := fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", user, password, localProxyPort, db)
+	connectUrl := buildConnectURL(credentials, db, localProxyPort)
 
 	// Allow Ctrl+C signals to hit psql
 	psqlCtx, psqlCancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -173,4 +164,22 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 	}
 
 	return err
+}
+
+// buildConnectURL prefers the selected database over the credential default.
+func buildConnectURL(credentials *mpgv2.GetClusterCredentialsResponse, db string, localProxyPort string) string {
+	if db == "" {
+		db = credentials.DBName
+	}
+
+	return fmt.Sprintf("postgresql://%s:%s@localhost:%s/%s", credentials.User, credentials.Password, localProxyPort, db)
+}
+
+// maybeWarnNotReady warns when a cluster is not in ready state.
+func maybeWarnNotReady(errOut io.Writer, cluster *mpgv2.ManagedCluster) {
+	if cluster == nil || cluster.Status == "ready" {
+		return
+	}
+
+	fmt.Fprintf(errOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
 }
