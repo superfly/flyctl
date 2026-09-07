@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -93,12 +94,13 @@ func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	regions, err := cacheGrab(state.cache, "regions", func() ([]fly.Region, error) {
-		regions, _, err := apiClient.PlatformRegions(ctx)
+		regionData, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return nil, err
 		}
+		regions := regionData.Regions
 		// Filter out deprecated regions
 		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
