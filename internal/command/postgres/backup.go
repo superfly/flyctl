@@ -289,7 +289,6 @@ func runBackupEnable(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -340,14 +339,10 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return err
-	}
-
+	// CreateTigrisBucket provisions against the app, so the organization is
+	// resolved server-side from AppName and is not needed here.
 	pgInput := &flypg.CreateClusterInput{
 		AppName:        appName,
-		Organization:   org,
 		BackupsEnabled: true,
 	}
 

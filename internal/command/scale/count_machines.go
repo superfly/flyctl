@@ -17,9 +17,10 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -29,7 +30,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
-	apiClient := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
@@ -40,14 +41,15 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return m.Config != nil
 	})
 
-	var latestCompleteRelease fly.Release
-	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
-	case err != nil:
+	releases, err := uiexClient.ListReleases(ctx, appName, 25)
+	if err != nil {
 		return err
-	case len(releases) == 0:
+	}
+	var latestCompleteRelease fly.Release
+	if latest, ok := lo.Find(releases, func(r uiex.Release) bool { return r.Status == "complete" }); ok {
+		latestCompleteRelease = fly.Release{ID: latest.ID, Version: latest.Version, ImageRef: latest.ImageRef}
+	} else {
 		return fmt.Errorf("this app has no complete releases. Run `fly deploy` to create one and rerun this command")
-	default:
-		latestCompleteRelease = releases[0]
 	}
 
 	var regions []string
