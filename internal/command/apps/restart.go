@@ -70,7 +70,7 @@ func runRestart(ctx context.Context) error {
 		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
 	}
 
-	ctx, err = BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+	ctx, err = BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}

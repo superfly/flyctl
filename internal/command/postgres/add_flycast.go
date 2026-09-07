@@ -54,7 +54,7 @@ func runAddFlycast(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
