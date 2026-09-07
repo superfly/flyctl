@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 )
@@ -77,8 +78,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if orgSlug != "" {
-		_, err := client.GetOrganizationBySlug(ctx, orgSlug)
-		if err != nil {
+		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
 			return err
 		}
 	}

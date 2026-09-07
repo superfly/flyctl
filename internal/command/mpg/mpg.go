@@ -15,8 +15,10 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func New() *cobra.Command {
@@ -252,7 +254,7 @@ func attachedAppsFromMachinesAPI(apps []flaps.ManagedPostgresAttachedApp) []mpg.
 	return result
 }
 
-func organizationSlugMatches(org *fly.OrganizationBasic, slug string) bool {
+func organizationSlugMatches(org *uiex.Organization, slug string) bool {
 	return org != nil && (slug == org.RawSlug || slug == org.Slug)
 }
 
@@ -305,7 +307,7 @@ func AliasedOrganizationSlug(ctx context.Context, inputSlug string) (string, err
 }
 
 // ResolveOrganizationSlug resolves organization slug aliases to the canonical slug
-// using GraphQL. This handles cases where users use aliases that map to different
+// using the ui-ex API. This handles cases where users use aliases that map to different
 // canonical organization slugs.
 //
 // Example:
@@ -331,17 +333,13 @@ func AliasedOrganizationSlug(ctx context.Context, inputSlug string) (string, err
 //	    }
 //	}
 func ResolveOrganizationSlug(ctx context.Context, inputSlug string) (string, error) {
-	client := flyutil.ClientFromContext(ctx)
-	genqClient := client.GenqClient()
-
-	// Query the GraphQL API to resolve the organization slug
-	resp, err := gql.GetOrganization(ctx, genqClient, inputSlug)
+	org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, inputSlug)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve organization slug %q: %w", inputSlug, err)
 	}
 
 	// Return the canonical slug from the API response
-	return resp.Organization.RawSlug, nil
+	return org.RawSlug, nil
 }
 
 // requireMacaroonToken is a preparer that validates token compatibility for MPG commands.
