@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/proxy"
 )
 
@@ -47,8 +48,7 @@ func runMachineProxy(ctx context.Context) error {
 	}
 
 	if orgSlug != "" {
-		_, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
-		if err != nil {
+		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
 			return err
 		}
 	}

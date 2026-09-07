@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -135,7 +136,7 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *fly.Or
 
 	if oldStaticsBucket != nil {
 		releaseVersion := 0
-		if release, err := client.GetAppCurrentReleaseMachines(ctx, app.Name); err != nil {
+		if release, err := uiexutil.ClientFromContext(ctx).GetCurrentRelease(ctx, app.Name); err != nil {
 			return fmt.Errorf("failed to find app's current release: %w", err)
 		} else if release != nil {
 			releaseVersion = release.Version

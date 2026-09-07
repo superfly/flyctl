@@ -688,11 +688,14 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
 		return nil
 	}
-	latestImg, err := md.apiClient.LatestImage(ctx, md.app.Name)
-	if err == nil {
-		md.img = latestImg
+	release, err := md.uiexClient.GetCurrentRelease(ctx, md.app.Name)
+	if err == nil && release != nil && release.ImageRef != "" {
+		md.img = release.ImageRef
 
 		return nil
+	}
+	if err == nil {
+		err = errors.New("app has no current release")
 	}
 	if !md.machineSet.IsEmpty() {
 		md.img = md.machineSet.GetMachines()[0].Machine().Config.Image
