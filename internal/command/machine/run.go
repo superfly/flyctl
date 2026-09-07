@@ -381,10 +381,11 @@ func runMachineRun(ctx context.Context) error {
 		}
 	}
 
-	network, err := client.GetAppNetwork(ctx, app.Name)
+	flapsApp, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, app.Name)
 	if err != nil {
 		return err
 	}
+	network := flapsApp.Network
 
 	machineConf := &fly.MachineConfig{
 		AutoDestroy: destroy,
@@ -478,7 +479,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		_, dialer, err := agent.BringUpAgent(ctx, client, app, *network, false)
+		_, dialer, err := agent.BringUpAgent(ctx, client, app, network, false)
 		if err != nil {
 			return err
 		}
