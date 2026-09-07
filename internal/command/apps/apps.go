@@ -8,8 +8,10 @@ import (
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -47,8 +49,14 @@ func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, er
 	return BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
 }
 
+// BuildContextForApp is BuildContext for an app fetched through Flaps.
+func BuildContextForApp(ctx context.Context, app *flaps.App) (context.Context, error) {
+	return BuildContextForNetwork(ctx, app.Organization.Slug, flapsutil.NetworkName(app))
+}
+
 // BuildContextForNetwork establishes an agent tunnel into the given org network
-// and stores the resulting dialer in the context.
+// and stores the resulting dialer in the context. network is the name the web
+// API uses for the network, which is empty for the org's default network.
 func BuildContextForNetwork(ctx context.Context, orgSlug, network string) (context.Context, error) {
 	client := flyutil.ClientFromContext(ctx)
 
