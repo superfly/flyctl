@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -75,16 +74,19 @@ func runPlace(ctx context.Context) error {
 	orgSlug := flag.GetOrg(ctx)
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
-		var org *fly.Organization
 		if appName == "" {
-			org, err = orgs.OrgFromFlagOrSelect(ctx)
+			org, err := orgs.OrgFromFlagOrSelect(ctx)
+			if err != nil {
+				return err
+			}
+			orgSlug = org.Slug
 		} else {
-			org, err = flyutil.ClientFromContext(ctx).GetOrganizationByApp(ctx, appName)
+			app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
+			if err != nil {
+				return err
+			}
+			orgSlug = app.Organization.Slug
 		}
-		if err != nil {
-			return err
-		}
-		orgSlug = org.Slug
 	}
 
 	weights, err := getWeights(ctx)
