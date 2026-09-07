@@ -173,36 +173,29 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 			ctx = flagctx.NewContext(ctx, flagSet)
 
 			// Set up mock flaps client for MPG region availability
-			var mpgRegions []fly.Region
+			// Platform regions come from Flaps; MPGAvailable marks MPG region support.
+			var regions []fly.Region
 			if tt.mpgRegionsWithIAD {
-				mpgRegions = []fly.Region{
-					{Code: "iad", MPGAvailable: true},
-					{Code: "lax", MPGAvailable: true},
+				regions = []fly.Region{
+					{Code: "iad", Name: "Ashburn, Virginia (US)", MPGAvailable: true},
+					{Code: "lax", Name: "Los Angeles, California (US)", MPGAvailable: true},
+					{Code: "fra", Name: "Frankfurt, Germany"},
 				}
 			} else {
-				mpgRegions = []fly.Region{
-					{Code: "lax", MPGAvailable: true},
-					{Code: "fra", MPGAvailable: true},
-					// iad is not in the list, so it's not available
+				regions = []fly.Region{
+					{Code: "iad", Name: "Ashburn, Virginia (US)"}, // iad is not MPG-available
+					{Code: "lax", Name: "Los Angeles, California (US)", MPGAvailable: true},
+					{Code: "fra", Name: "Frankfurt, Germany", MPGAvailable: true},
 				}
 			}
 
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				GetRegionsFunc: func(ctx context.Context) (*flaps.RegionData, error) {
-					return &flaps.RegionData{Regions: mpgRegions}, nil
+					return &flaps.RegionData{Regions: regions, Nearest: "iad"}, nil
 				},
 			})
 
-			// Set up mock API client for platform regions
 			mockClient := &mock.Client{
-				PlatformRegionsFunc: func(ctx context.Context) ([]fly.Region, *fly.Region, error) {
-					// Return some mock regions for testing
-					return []fly.Region{
-						{Code: "iad", Name: "Ashburn, Virginia (US)"},
-						{Code: "lax", Name: "Los Angeles, California (US)"},
-						{Code: "fra", Name: "Frankfurt, Germany"},
-					}, &fly.Region{Code: "iad", Name: "Ashburn, Virginia (US)"}, nil
-				},
 				GenqClientFunc: func() genq.Client {
 					return &mockGenqClient{}
 				},
@@ -269,15 +262,17 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 		mockUIEX := &mockUIEXClient{}
 		ctx = uiexutil.NewContextWithClient(ctx, mockUIEX)
 
-		// Set up mock API client for platform regions
-		mockClient := &mock.Client{
-			PlatformRegionsFunc: func(ctx context.Context) ([]fly.Region, *fly.Region, error) {
-				return []fly.Region{
+		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+			GetRegionsFunc: func(ctx context.Context) (*flaps.RegionData, error) {
+				return &flaps.RegionData{Regions: []fly.Region{
 					{Code: "iad", Name: "Ashburn, Virginia (US)"},
-					{Code: "lax", Name: "Los Angeles, California (US)"},
-					{Code: "fra", Name: "Frankfurt, Germany"},
-				}, &fly.Region{Code: "iad", Name: "Ashburn, Virginia (US)"}, nil
+					{Code: "lax", Name: "Los Angeles, California (US)", MPGAvailable: true},
+					{Code: "fra", Name: "Frankfurt, Germany", MPGAvailable: true},
+				}, Nearest: "iad"}, nil
 			},
+		})
+
+		mockClient := &mock.Client{
 			GenqClientFunc: func() genq.Client {
 				return &mockGenqClient{}
 			},

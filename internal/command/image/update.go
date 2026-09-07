@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func newUpdate() *cobra.Command {
@@ -49,20 +49,19 @@ The update will perform a rolling restart against each Machine, which may result
 func runUpdate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	ctx, err = apps.BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
 	if err != nil {
 		return err
 	}
 
-	if app.IsPostgresApp() {
+	if flapsutil.IsPostgresApp(app) {
 		return updatePostgresOnMachines(ctx, app)
 	}
 

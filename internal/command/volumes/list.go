@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -46,16 +45,15 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	apiClient := flyutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppBasic(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	_, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var volumes []fly.Volume
 	if flag.GetBool(ctx, "all") {
@@ -73,5 +71,5 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, volumes)
 	}
 
-	return renderTable(ctx, volumes, app, out, true)
+	return renderTable(ctx, volumes, out, true)
 }

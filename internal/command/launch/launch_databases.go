@@ -77,9 +77,8 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
-		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = flyutil.ClientFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
+		pgPlan = state.Plan.Postgres.FlyPostgres
+		io     = iostreams.FromContext(ctx)
 	)
 
 	attachToExisting := false
@@ -88,12 +87,8 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		pgPlan.AppName = fmt.Sprintf("%s-db", state.appConfig.AppName)
 	}
 
-	if apps, err := apiClient.GetApps(ctx, nil); err == nil {
-		for _, app := range apps {
-			if app.Name == pgPlan.AppName {
-				attachToExisting = true
-			}
-		}
+	if _, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, pgPlan.AppName); err == nil {
+		attachToExisting = true
 	}
 
 	if attachToExisting {
@@ -486,11 +481,12 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 
 	var readReplicaRegions []fly.Region
 	{
-		client := flyutil.ClientFromContext(ctx)
-		regions, _, err := client.PlatformRegions(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		regionData, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return err
 		}
+		regions := regionData.Regions
 		// Filter out deprecated regions
 		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
