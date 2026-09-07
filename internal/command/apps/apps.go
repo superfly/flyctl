@@ -44,6 +44,12 @@ func New() *cobra.Command {
 
 // BuildContext is a helper that builds out commonly required context requirements
 func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, error) {
+	return BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+}
+
+// BuildContextForNetwork establishes an agent tunnel into the given org network
+// and stores the resulting dialer in the context.
+func BuildContextForNetwork(ctx context.Context, orgSlug, network string) (context.Context, error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -51,9 +57,9 @@ func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, er
 		return nil, fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, app.Network)
+	dialer, err := agentclient.Dialer(ctx, orgSlug, network)
 	if err != nil {
-		return nil, fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
+		return nil, fmt.Errorf("can't build tunnel for %s: %s", orgSlug, err)
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
