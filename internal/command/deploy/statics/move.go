@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -21,8 +22,9 @@ func MoveBucket(
 	ctx context.Context,
 	prevBucket *gql.StaticsAddOn,
 	prevOrg *fly.Organization,
-	app *fly.App,
+	app *flaps.App,
 	targetOrg *fly.Organization,
+	releaseVersion int,
 	machines []*fly.Machine,
 ) error {
 
@@ -45,7 +47,7 @@ func MoveBucket(
 
 	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
 
-	deployer := Deployer(appConfig, app, targetOrg, app.CurrentRelease.Version)
+	deployer := Deployer(appConfig, app, targetOrg, releaseVersion)
 	err = deployer.Configure(ctx)
 	if err != nil {
 		return err
