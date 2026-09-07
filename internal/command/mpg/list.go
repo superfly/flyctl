@@ -6,12 +6,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	"github.com/superfly/flyctl/iostreams"
@@ -53,16 +51,9 @@ func runList(ctx context.Context) error {
 	}
 	orgSlug := org.Slug
 
-	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
-
-	// For ui-ex request we need the real org slug
-	fullOrg, err := gql.GetOrganization(ctx, genqClient, orgSlug)
-	if err != nil {
-		return fmt.Errorf("failed fetching org: %w", err)
-	}
-
 	deleted := flag.GetBool(ctx, "deleted")
-	clusters, err := listManagedClusters(ctx, fullOrg.Organization.RawSlug, deleted)
+	// For ui-ex request we need the real org slug
+	clusters, err := listManagedClusters(ctx, org.RawSlug, deleted)
 	if err != nil {
 		return fmt.Errorf("failed to list postgres clusters for organization %s: %w", orgSlug, err)
 	}
