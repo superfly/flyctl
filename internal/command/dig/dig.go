@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -74,7 +75,7 @@ func run(ctx context.Context) error {
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
 
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}
