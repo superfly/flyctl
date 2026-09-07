@@ -8,11 +8,12 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -75,14 +76,13 @@ func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T
 	return val, nil
 }
 
-func (state *launchState) orgCompact(ctx context.Context) (*gql.GetOrganizationOrganization, error) {
-	client := flyutil.ClientFromContext(ctx).GenqClient()
-	res, err := gql.GetOrganization(ctx, client, state.Plan.OrgSlug)
+func (state *launchState) orgCompact(ctx context.Context) (*uiex.Organization, error) {
+	org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, state.Plan.OrgSlug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
 	}
 
-	return &res.Organization, nil
+	return org, nil
 }
 
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
