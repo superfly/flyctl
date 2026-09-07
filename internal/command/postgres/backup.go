@@ -292,14 +292,14 @@ func runBackupEnable(ctx context.Context) error {
 		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 

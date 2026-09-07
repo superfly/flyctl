@@ -104,10 +104,10 @@ func newCreate() *cobra.Command {
 // be safely passed through from other commands.
 func run(ctx context.Context) (err error) {
 	var (
-		appName  = flag.GetString(ctx, "name")
-		client   = flyutil.ClientFromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		appName     = flag.GetString(ctx, "name")
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 	)
 
 	// pre-fetch platform regions for later use
@@ -170,17 +170,17 @@ func run(ctx context.Context) (err error) {
 		}
 
 		// Resolve specified fork-from app
-		forkApp, err := client.GetAppCompact(ctx, forkSlice[0])
+		forkApp, err := flapsClient.GetApp(ctx, forkSlice[0])
 		if err != nil {
 			return fmt.Errorf("Failed to resolve the specified fork-from app %s: %w", forkSlice[0], err)
 		}
 
 		// Confirm fork-app is a postgres app
-		if !forkApp.IsPostgresApp() {
+		if !flapsutil.IsPostgresApp(forkApp) {
 			return fmt.Errorf("The fork-from app %q must be a postgres app", forkApp.Name)
 		}
 
-		ctx, err := apps.BuildContext(ctx, forkApp)
+		ctx, err := apps.BuildContextForApp(ctx, forkApp)
 		if err != nil {
 			return err
 		}
