@@ -234,7 +234,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) error {
 	out := iostreams.FromContext(ctx).Out
 
-	currentRelease, err := uiexutil.ClientFromContext(ctx).GetCurrentRelease(ctx, app.Name)
+	currentRelease, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name)
 	if err != nil {
 		return fmt.Errorf("could not get current release for app '%s': %w", app.Name, err)
 	}

@@ -136,7 +136,7 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *fly.Or
 
 	if oldStaticsBucket != nil {
 		releaseVersion := 0
-		if release, err := uiexutil.ClientFromContext(ctx).GetCurrentRelease(ctx, app.Name); err != nil {
+		if release, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name); err != nil {
 			return fmt.Errorf("failed to find app's current release: %w", err)
 		} else if release != nil {
 			releaseVersion = release.Version
