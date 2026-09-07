@@ -98,7 +98,7 @@ func run(ctx context.Context) (err error) {
 			return err
 		}
 		orgSlug = app.Organization.Slug
-		network = app.Network
+		network = flapsutil.NetworkName(app)
 	}
 
 	agentclient, err := agent.Establish(ctx, client)

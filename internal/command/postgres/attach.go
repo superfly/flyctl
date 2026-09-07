@@ -94,7 +94,7 @@ func runAttach(ctx context.Context) error {
 	}
 
 	// Build context around the postgres app
-	ctx, err = apps.BuildContextForNetwork(ctx, pgApp.Organization.Slug, pgApp.Network)
+	ctx, err = apps.BuildContextForApp(ctx, pgApp)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		return fmt.Errorf("app %s is not a postgres app", pgAppName)
 	}
 
-	ctx, err = apps.BuildContextForNetwork(ctx, pgApp.Organization.Slug, pgApp.Network)
+	ctx, err = apps.BuildContextForApp(ctx, pgApp)
 	if err != nil {
 		return err
 	}

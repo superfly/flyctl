@@ -184,7 +184,7 @@ func runConsole(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get app network: %w", err)
 	}
-	network := flapsApp.Network
+	network := flapsutil.NetworkName(flapsApp)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {

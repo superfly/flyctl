@@ -56,7 +56,7 @@ func runUpdate(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	ctx, err = apps.BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}

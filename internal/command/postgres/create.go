@@ -180,7 +180,7 @@ func run(ctx context.Context) (err error) {
 			return fmt.Errorf("The fork-from app %q must be a postgres app", forkApp.Name)
 		}
 
-		ctx, err := apps.BuildContextForNetwork(ctx, forkApp.Organization.Slug, forkApp.Network)
+		ctx, err := apps.BuildContextForApp(ctx, forkApp)
 		if err != nil {
 			return err
 		}
