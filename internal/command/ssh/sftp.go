@@ -143,7 +143,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, fmt.Errorf("get app network: %w", err)
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, flapsApp.Network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, flapsutil.NetworkName(flapsApp), quiet(ctx))
 	if err != nil {
 		return nil, err
 	}

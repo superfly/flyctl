@@ -385,7 +385,7 @@ func runMachineRun(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	network := flapsApp.Network
+	network := flapsutil.NetworkName(flapsApp)
 
 	machineConf := &fly.MachineConfig{
 		AutoDestroy: destroy,

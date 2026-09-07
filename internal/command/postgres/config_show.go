@@ -56,7 +56,7 @@ func runConfigShow(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func runMachineConfigShow(ctx context.Context, app *flaps.App) (err error) {
 		MinPostgresFlexVersion       = "0.0.3"
 	)
 
-	ctx, err = apps.BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}

@@ -81,8 +81,10 @@ func runList(ctx context.Context) (err error) {
 				return fmt.Errorf("failed retrieving org %w", err)
 			}
 
-			// Throw an error if app's org slug does not match --org slug
-			if app.Organization.Slug != org.Slug {
+			// Throw an error if app's org slug does not match --org slug.
+			// Flaps reports the raw org slug, while the selected org may carry
+			// the "personal" alias.
+			if app.Organization.Slug != org.RawSlug && app.Organization.Slug != org.Slug {
 				return fmt.Errorf("failed to retrieve tokens, selected application \"%s\" does not belong to selected organization \"%s\"", appName, org.Slug)
 			}
 		}
