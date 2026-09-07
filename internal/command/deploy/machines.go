@@ -688,7 +688,7 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
 		return nil
 	}
-	release, err := md.uiexClient.GetCurrentRelease(ctx, md.app.Name)
+	release, err := uiexutil.LatestRelease(ctx, md.uiexClient, md.app.Name)
 	if err == nil && release != nil && release.ImageRef != "" {
 		md.img = release.ImageRef
 

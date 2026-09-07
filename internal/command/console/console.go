@@ -318,7 +318,7 @@ func getMachineByID(ctx context.Context, appName string) (*fly.Machine, func(), 
 }
 
 func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
-	currentRelease, err := uiexutil.ClientFromContext(ctx).GetCurrentRelease(ctx, app.Name)
+	currentRelease, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name)
 	if err != nil {
 		return nil, nil, err
 	}
