@@ -18,10 +18,10 @@ import (
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -183,19 +183,10 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return err
 	}
 
-	var slug string
+	// For ui-ex request we need the real org slug
+	slug := org.Slug
 	if org.Slug == "personal" {
-		genqClient := flyutil.ClientFromContext(ctx).GenqClient()
-
-		// For ui-ex request we need the real org slug
-		var fullOrg *gql.GetOrganizationResponse
-		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
-			return fmt.Errorf("failed fetching org: %w", err)
-		}
-
-		slug = fullOrg.Organization.RawSlug
-	} else {
-		slug = org.Slug
+		slug = org.RawSlug
 	}
 
 	// Create the cluster with retry logic for network errors.
@@ -360,7 +351,6 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	var (
 		io        = iostreams.FromContext(ctx)
 		mpgClient = mpgv1.ClientFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
 	)
 
 	// Get cluster details to verify it exists and get credentials
@@ -387,13 +377,18 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	}
 
 	// Verify the cluster and app are in the same organization
-	app, err := client.GetAppBasic(ctx, state.Plan.AppName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, state.Plan.AppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", state.Plan.AppName, err)
 	}
 
+	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("failed retrieving organization for app %s: %w", state.Plan.AppName, err)
+	}
+
 	clusterOrgSlug := cluster.Data.Organization.Slug
-	appOrgSlug := app.Organization.RawSlug
+	appOrgSlug := appOrg.RawSlug
 
 	if appOrgSlug != clusterOrgSlug {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
