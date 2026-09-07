@@ -72,7 +72,9 @@ func RunMove(ctx context.Context) error {
 		return err
 	}
 
-	if app.Organization.Slug == org.Slug {
+	// Flaps reports the raw org slug, while the org picked by the user may
+	// carry the "personal" alias.
+	if app.Organization.Slug == org.RawSlug || app.Organization.Slug == org.Slug {
 		fmt.Fprintln(io.Out, "No changes to apply")
 
 		return nil
@@ -106,7 +108,7 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *fly.Or
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	ctx, err := BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
+	ctx, err := BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
