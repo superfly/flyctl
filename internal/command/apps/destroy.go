@@ -73,7 +73,7 @@ func RunDestroy(ctx context.Context) error {
 			}
 		}
 
-		app, err := client.GetApp(ctx, appName)
+		app, err := flapsClient.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}

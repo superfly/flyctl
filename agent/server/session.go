@@ -205,9 +205,13 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 		return nil, err
 	}
 
+	// The personal org is "personal" by Slug and its real name by RawSlug;
+	// clients may send either. Tunnels are keyed by Slug, so remember the
+	// alias for later lookups that only carry the slug the client used.
 	for _, org := range orgs {
-		if org.Slug == slug {
+		if org.Slug == slug || org.RawSlug == slug {
 			no := org // copy
+			s.srv.rememberSlug(slug, org.Slug)
 
 			return &no, nil
 		}

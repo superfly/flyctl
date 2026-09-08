@@ -54,16 +54,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	//                the app's services (if one exists).
 	if md.staticsUseTigris(ctx) {
 
-		fullApp, err := md.apiClient.GetApp(ctx, md.app.Name)
-		if err != nil {
-			return err
-		}
 		fullOrg, err := md.apiClient.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
 		if err != nil {
 			return err
 		}
 
-		md.tigrisStatics = statics.Deployer(md.appConfig, fullApp, fullOrg, md.releaseVersion)
+		md.tigrisStatics = statics.Deployer(md.appConfig, md.app, fullOrg, md.releaseVersion)
 		if err := md.tigrisStatics.Configure(ctx); err != nil {
 			return err
 		}
