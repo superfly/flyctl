@@ -117,3 +117,16 @@ func (c *Client) GetOrganization(ctx context.Context, orgSlug string) (*Organiza
 		return nil, fmt.Errorf("failed to get organization %s (status %d): %s", orgSlug, res.StatusCode, string(body))
 	}
 }
+
+// GetID returns the organization's GraphQL global ID. Together with GetSlug it
+// lets an Organization stand in wherever an org is needed for GraphQL
+// mutations such as SSH certificate issuance.
+func (o *Organization) GetID() string {
+	return o.ID
+}
+
+// GetSlug returns the organization's slug as the API reports it to this user,
+// which is "personal" for their personal organization.
+func (o *Organization) GetSlug() string {
+	return o.Slug
+}

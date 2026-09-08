@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -44,25 +45,23 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
-		client = flyutil.ClientFromContext(ctx)
-
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	appFlapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := appFlapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	appFlapsClient := flapsutil.ClientFromContext(ctx)
-
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	pgApp, err := appFlapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("get postgres app: %w", err)
 	}
 
-	ctx, err = apps.BuildContext(ctx, pgApp)
+	ctx, err = apps.BuildContextForApp(ctx, pgApp)
 	if err != nil {
 		return err
 	}
@@ -70,7 +69,7 @@ func runDetach(ctx context.Context) error {
 	return runMachineDetach(ctx, appFlapsClient, app, pgApp)
 }
 
-func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient, app *fly.AppCompact, pgApp *fly.AppCompact) error {
+func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient, app *flaps.App, pgApp *flaps.App) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -99,14 +98,15 @@ func runMachineDetach(ctx context.Context, appFlapsClient flapsutil.FlapsClient,
 }
 
 // TODO - This process needs to be re-written to suppport non-interactive terminals.
-func detachAppFromPostgres(ctx context.Context, leaderIP string, appFlapsClient flapsutil.FlapsClient, app *fly.AppCompact, pgApp *fly.AppCompact) error {
+func detachAppFromPostgres(ctx context.Context, leaderIP string, appFlapsClient flapsutil.FlapsClient, app *flaps.App, pgApp *flaps.App) error {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 
-	attachments, err := client.ListPostgresClusterAttachments(ctx, app.ID, pgApp.ID)
+	// The GraphQL app ID is the app name.
+	attachments, err := client.ListPostgresClusterAttachments(ctx, app.Name, pgApp.Name)
 	if err != nil {
 		return err
 	}
