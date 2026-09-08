@@ -81,7 +81,7 @@ func TestProxyParamsRequireDirectIP(t *testing.T) {
 	assert.Nil(t, params)
 }
 
-func samplePublicCluster() flaps.ManagedPostgresCluster {
+func sampleProxyPublicCluster() flaps.ManagedPostgresCluster {
 	return flaps.ManagedPostgresCluster{
 		ID:           "mpg-123",
 		Name:         "test-cluster",
@@ -103,7 +103,7 @@ func samplePublicCluster() flaps.ManagedPostgresCluster {
 	}
 }
 
-func sampleLegacyCluster() mpgv2.GetClusterResponse {
+func sampleProxyLegacyCluster() mpgv2.GetClusterResponse {
 	return mpgv2.GetClusterResponse{
 		Data: mpgv2.ManagedCluster{
 			Id: "mpg-123", Name: "test-cluster", Region: "ord", Status: "ready",
@@ -133,7 +133,7 @@ func TestGetCluster(t *testing.T) {
 	}{
 		{
 			name:            "public success maps to legacy shape",
-			publicCluster:   samplePublicCluster(),
+			publicCluster:   sampleProxyPublicCluster(),
 			wantUseLegacy:   false,
 			wantDirectHost:  "10.0.0.1",
 			wantStatus:      "ready",
@@ -142,7 +142,7 @@ func TestGetCluster(t *testing.T) {
 		{
 			name: "public success with empty host preserves empty",
 			publicCluster: func() flaps.ManagedPostgresCluster {
-				c := samplePublicCluster()
+				c := sampleProxyPublicCluster()
 				c.Endpoints.Primary.Direct.Host = ""
 
 				return c
@@ -159,7 +159,7 @@ func TestGetCluster(t *testing.T) {
 				ResponseStatusCode: 404,
 				OriginalError:      errors.New("not found"),
 			}),
-			legacyResponse:  sampleLegacyCluster(),
+			legacyResponse:  sampleProxyLegacyCluster(),
 			wantUseLegacy:   true,
 			wantDirectHost:  "10.0.0.1",
 			wantStatus:      "ready",
@@ -244,7 +244,7 @@ func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 	ctx := flag.NewContext(context.Background(), pflag.NewFlagSet("test", pflag.ContinueOnError))
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
-			cluster := samplePublicCluster()
+			cluster := sampleProxyPublicCluster()
 			cluster.Status = "creating"
 			cluster.Endpoints.Primary.Direct.Host = ""
 
@@ -275,7 +275,7 @@ func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 func TestGetMpgConnectParamsResolvesCredentialsBeforeTunnel(t *testing.T) {
 	ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
 		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
-			return samplePublicCluster(), nil
+			return sampleProxyPublicCluster(), nil
 		},
 		GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 			return flaps.ManagedPostgresUserCredentials{Username: mpgutil.DefaultUsername}, nil
@@ -543,7 +543,7 @@ func TestResolveConnectCredentialsPublicNonReady(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.status+"/default_user_public", func(t *testing.T) {
-			c := samplePublicCluster()
+			c := sampleProxyPublicCluster()
 			c.Status = tt.status
 			c.Name = name
 			response, _ := publicToLegacyClusterResponse(c)
@@ -564,7 +564,7 @@ func TestResolveConnectCredentialsPublicNonReady(t *testing.T) {
 		})
 
 		t.Run(tt.status+"/explicit_user_public", func(t *testing.T) {
-			c := samplePublicCluster()
+			c := sampleProxyPublicCluster()
 			c.Status = tt.status
 			c.Name = name
 			response, _ := publicToLegacyClusterResponse(c)
@@ -589,7 +589,7 @@ func TestResolveConnectCredentialsPublicNonReady(t *testing.T) {
 func TestProxyParamsPublicPorts(t *testing.T) {
 	for _, port := range []int{1, 5433, 65535} {
 		t.Run(strconv.Itoa(port), func(t *testing.T) {
-			c := samplePublicCluster()
+			c := sampleProxyPublicCluster()
 			c.Endpoints.Primary.Direct.Port = port
 			response, advertisedPort := publicToLegacyClusterResponse(c)
 
@@ -604,7 +604,7 @@ func TestProxyParamsPublicPorts(t *testing.T) {
 func TestGetMpgProxyParamsRejectsInvalidPublicPort(t *testing.T) {
 	for _, port := range []int{0, -1, 65536} {
 		t.Run(strconv.Itoa(port), func(t *testing.T) {
-			c := samplePublicCluster()
+			c := sampleProxyPublicCluster()
 			c.Endpoints.Primary.Direct.Port = port
 			ctx := flag.NewContext(context.Background(), pflag.NewFlagSet("test", pflag.ContinueOnError))
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
