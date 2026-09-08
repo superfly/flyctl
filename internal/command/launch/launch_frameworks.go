@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -48,19 +49,24 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 			expiry := "999999h"
 
-			app, err := apiClient.GetAppCompact(ctx, appName)
+			app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 			if err != nil {
 				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			}
+
+			org, err := uiexutil.AppOrganization(ctx, app)
+			if err != nil {
+				return err
 			}
 
 			resp, err := gql.CreateLimitedAccessToken(
 				ctx,
 				apiClient.GenqClient(),
 				appName,
-				app.Organization.ID,
+				org.ID,
 				"deploy",
 				&gql.LimitedAccessTokenOptions{
-					"app_id": app.ID,
+					"app_id": app.Name,
 				},
 				expiry,
 			)

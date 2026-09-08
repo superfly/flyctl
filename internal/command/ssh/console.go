@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
 	"github.com/superfly/flyctl/ssh"
@@ -88,7 +89,7 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, container string, err error) {
+func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, container string, err error) {
 	selectedMachine, err := selectMachine(ctx, app)
 	if err != nil {
 		return "", "", err
@@ -142,7 +143,7 @@ func newConsole() *cobra.Command {
 // SessionTarget selects where a session runs on the remote machine.
 type SessionTarget = ssh.SessionTarget
 
-func captureError(ctx context.Context, err error, app *fly.AppCompact) {
+func captureError(ctx context.Context, err error, app *flaps.App) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -170,17 +171,17 @@ func runConsole(ctx context.Context) error {
 		terminal.Debugf("Retrieving app info for %s\n", appName)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	flapsApp, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, app.Name)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return fmt.Errorf("get app network: %w", err)
+		return err
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, flapsutil.NetworkName(flapsApp), quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgentOrgSlug(ctx, client, app.Organization.Slug, flapsutil.NetworkName(app), quiet(ctx))
 	if err != nil {
 		return err
 	}
@@ -203,7 +204,7 @@ func runConsole(ctx context.Context) error {
 
 	params := &ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		Org:            org,
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),
@@ -258,7 +259,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 	return err
 }
 
-func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machine, err error) {
+func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient := flapsutil.ClientFromContext(ctx)
 

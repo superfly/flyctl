@@ -10,6 +10,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/uiexutil"
 
@@ -176,16 +177,15 @@ func runConsole(ctx context.Context) error {
 		apiClient = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	flapsApp, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, app.Name)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return fmt.Errorf("failed to get app network: %w", err)
+		return err
 	}
-	network := flapsutil.NetworkName(flapsApp)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
@@ -210,14 +210,14 @@ func runConsole(ctx context.Context) error {
 		defer cleanup()
 	}
 
-	_, dialer, err := agent.BringUpAgent(ctx, apiClient, app, network, false)
+	_, dialer, err := agent.BringUpAgentOrgSlug(ctx, apiClient, app.Organization.Slug, flapsutil.NetworkName(app), false)
 	if err != nil {
 		return err
 	}
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		Org:            org,
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
@@ -238,7 +238,7 @@ func runConsole(ctx context.Context) error {
 	return ssh.Console(ctx, sshClient, consoleCommand, true, ssh.SessionTarget{Container: params.Container})
 }
 
-func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
+func selectMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.GetBool(ctx, "select") {
 		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
@@ -253,7 +253,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfi
 	}
 }
 
-func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
+func promptForMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "machine") {
 		return nil, nil, errors.New("--machine can't be used with -s/--select")
 	}
@@ -317,7 +317,7 @@ func getMachineByID(ctx context.Context, appName string) (*fly.Machine, func(), 
 	return machine, nil, nil
 }
 
-func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
+func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
 	currentRelease, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name)
 	if err != nil {
 		return nil, nil, err
