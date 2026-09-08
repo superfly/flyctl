@@ -190,20 +190,7 @@ func TestCreateBuilder(t *testing.T) {
 
 	createAppShouldFail := false
 	allocateIPAddressShouldFail := false
-	apiClient := mock.Client{
-		CreateAppFunc: func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error) {
-			if createAppShouldFail {
-				return nil, errors.New("create app failed")
-			}
-
-			return &fly.App{
-				Name: input.Name,
-			}, nil
-		},
-		DeleteAppFunc: func(ctx context.Context, appName string) error {
-			return nil
-		},
-	}
+	apiClient := mock.Client{}
 
 	waitForAppShouldFail := false
 	launchShouldFail := false

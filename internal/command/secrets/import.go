@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newImport() (cmd *cobra.Command) {
@@ -33,13 +32,12 @@ func newImport() (cmd *cobra.Command) {
 func runImport(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := parseSecrets(os.Stdin)
 	if err != nil {

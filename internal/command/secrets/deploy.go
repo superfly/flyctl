@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newDeploy() (cmd *cobra.Command) {
@@ -38,20 +37,19 @@ func newDeploy() (cmd *cobra.Command) {
 func runDeploy(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	if !app.Deployed || len(machines) <= 0 {
+	if !app.Deployed() || len(machines) <= 0 {
 		return flyerr.GenericErr{
 			Err:      "no machines available to deploy",
 			Descript: "'fly secrets deploy' will only work if the app has been deployed and there are machines available",
@@ -59,7 +57,7 @@ func runDeploy(ctx context.Context) (err error) {
 		}
 	}
 
-	return DeploySecrets(ctx, app, DeploymentArgs{
+	return DeploySecrets(ctx, app.Name, DeploymentArgs{
 		Stage:    false,
 		Detach:   flag.GetBool(ctx, "detach"),
 		CheckDNS: flag.GetBool(ctx, "dns-checks"),

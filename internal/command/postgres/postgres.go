@@ -9,10 +9,12 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -211,7 +213,7 @@ func hasRequiredMemoryForBackup(machine fly.Machine) bool {
 	return machine.Config.Guest.MemoryMB >= 512
 }
 
-func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) error {
+func UnregisterMember(ctx context.Context, app *flaps.App, org *uiex.Organization, machine *fly.Machine) error {
 	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return err
@@ -222,7 +224,7 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	cmd, err := flypg.NewCommand(ctx, app)
+	cmd, err := flypg.NewCommand(ctx, app, org)
 	if err != nil {
 		return err
 	}
