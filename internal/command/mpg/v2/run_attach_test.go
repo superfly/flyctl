@@ -164,14 +164,10 @@ func TestRunAttach_usernameUsesClusterDatabase(t *testing.T) {
 	ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
 
 	require.NoError(t, RunAttach(ctx, "mpg-123"))
-	// Default DB name comes from mpgutil.DefaultDatabase on the public path.
 	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", "postgres://alice:alice-pass@pooler.fly.dev:5432/fly-db"), stdout.String())
 	require.Empty(t, stderr.String())
 }
 
-// TestRunAttach_noUsernameDefaultCredentials verifies that when no username is provided,
-// the cluster default credentials (fly-user from mpgutil.DefaultUsername, password
-// from the public Machines API) are used
 func TestRunAttach_noUsernameDefaultCredentials(t *testing.T) {
 	ctx, stdout, stderr, flags := attachTestContext(t)
 	addAttachFlags(flags)
@@ -575,7 +571,6 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 	}
 }
 
-// TestGetClusterConnectionInfoPublicFirst exercises the extracted helper directly
 func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 	publicCluster := flaps.ManagedPostgresCluster{
 		ID: "mpg-123",
