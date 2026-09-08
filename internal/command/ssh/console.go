@@ -175,12 +175,12 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	network, err := client.GetAppNetwork(ctx, app.Name)
+	flapsApp, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("get app network: %w", err)
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, flapsutil.NetworkName(flapsApp), quiet(ctx))
 	if err != nil {
 		return err
 	}

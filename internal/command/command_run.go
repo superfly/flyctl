@@ -416,15 +416,14 @@ func DetermineMounts(ctx context.Context, appName string, mounts []fly.MachineMo
 }
 
 func getUnattachedVolumes(ctx context.Context, appName, regionCode string) (map[string][]fly.Volume, error) {
-	apiclient := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if regionCode == "" {
-		region, err := apiclient.GetNearestRegion(ctx)
+		regionData, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return nil, err
 		}
-		regionCode = region.Code
+		regionCode = regionData.Nearest
 	}
 
 	volumes, err := flapsClient.GetVolumes(ctx, appName)
