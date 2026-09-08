@@ -90,7 +90,7 @@ func countVolumesMatchingName(ctx context.Context, appName string, volumeName st
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showHostStatus bool) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, out io.Writer, showHostStatus bool) error {
 	rows := make([][]string, 0, len(volumes))
 	unreachableVolumes := false
 	for _, volume := range volumes {
@@ -129,19 +129,19 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	return nil
 }
 
-func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppBasic) (*fly.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}
-	volumes, err := flapsClient.GetVolumes(ctx, app.Name)
+	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
 	if len(volumes) == 0 {
-		return nil, fmt.Errorf("no volumes found in app '%s'", app.Name)
+		return nil, fmt.Errorf("no volumes found in app '%s'", appName)
 	}
 	out := new(bytes.Buffer)
-	err = renderTable(ctx, volumes, app, out, false)
+	err = renderTable(ctx, volumes, out, false)
 	if err != nil {
 		return nil, err
 	}

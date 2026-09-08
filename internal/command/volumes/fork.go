@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -68,7 +67,6 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -78,12 +76,10 @@ func runFork(ctx context.Context) error {
 		err error
 	)
 	if volID == "" {
-		var app *fly.AppBasic
-		app, err = client.GetAppBasic(ctx, appName)
-		if err != nil {
+		if _, err = flapsClient.GetApp(ctx, appName); err != nil {
 			return err
 		}
-		vol, err = selectVolume(ctx, flapsClient, app)
+		vol, err = selectVolume(ctx, flapsClient, appName)
 		if err != nil {
 			return err
 		}

@@ -18,6 +18,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
@@ -324,10 +325,18 @@ var (
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := flyutil.ClientFromContext(ctx)
-			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			regionData, err := flapsClient.GetRegions(ctx)
 			if err != nil {
 				return RegionInfo{}, err
+			}
+			regions := regionData.Regions
+
+			var defaultRegion *fly.Region
+			if regionData.Nearest != "" {
+				if nearest, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == regionData.Nearest }); ok {
+					defaultRegion = &nearest
+				}
 			}
 
 			// Filter out deprecated regions

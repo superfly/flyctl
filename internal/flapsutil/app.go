@@ -2,6 +2,14 @@ package flapsutil
 
 import "github.com/superfly/fly-go/flaps"
 
+// PostgresAppRole is the app role Flaps reports for Fly Postgres clusters.
+const PostgresAppRole = "postgres_cluster"
+
+// IsPostgresApp reports whether app is a Fly Postgres cluster.
+func IsPostgresApp(app *flaps.App) bool {
+	return app != nil && app.AppRole == PostgresAppRole
+}
+
 // DefaultNetwork is the name Flaps reports for an organization's default
 // network. The web API and WireGuard tunnels identify that network by an
 // empty name instead.
