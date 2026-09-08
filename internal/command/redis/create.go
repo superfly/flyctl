@@ -11,6 +11,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -198,7 +199,7 @@ func runCreate(ctx context.Context) (err error) {
 	return err
 }
 
-func Create(ctx context.Context, org *fly.Organization, name string, region *fly.Region, plan *gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, disallowReplicas bool, enableEviction bool, enableAutoUpgrade bool, enableProdpack bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
+func Create(ctx context.Context, org *uiex.Organization, name string, region *fly.Region, plan *gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, disallowReplicas bool, enableEviction bool, enableAutoUpgrade bool, enableProdpack bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -270,7 +271,7 @@ type RedisConfiguration struct {
 	ProdPack      bool
 }
 
-func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
+func ProvisionDatabase(ctx context.Context, org *uiex.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	var readRegionCodes []string

@@ -22,10 +22,10 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -677,30 +677,31 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
-	client := flyutil.ClientFromContext(ctx)
+func determineOrg(ctx context.Context, config *appconfig.Config) (*uiex.Organization, string, error) {
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
-		org, err := client.GetOrganizationByApp(ctx, config.AppName)
-		if err == nil {
-			return org, fmt.Sprintf("from %s app", config.AppName), nil
+		if app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, config.AppName); err == nil {
+			if org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug); err == nil {
+				return org, fmt.Sprintf("from %s app", config.AppName), nil
+			}
 		}
 	}
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := uiexClient.ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, "", err
 	}
 
-	bySlug := make(map[string]fly.Organization, len(orgs))
+	bySlug := make(map[string]uiex.Organization, len(orgs))
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
-	byRawSlug := make(map[string]fly.Organization, len(orgs))
+	byRawSlug := make(map[string]uiex.Organization, len(orgs))
 	for _, o := range orgs {
 		byRawSlug[o.RawSlug] = o
 	}
-	byName := make(map[string]fly.Organization, len(orgs))
+	byName := make(map[string]uiex.Organization, len(orgs))
 	for _, o := range orgs {
 		byName[o.Name] = o
 	}

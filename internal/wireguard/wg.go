@@ -12,7 +12,6 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -46,8 +45,10 @@ func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, er
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
-	state, err := getWireGuardStateForOrg(org.Slug, network)
+// StateForOrg returns the WireGuard state for the org identified by its
+// GraphQL ID and slug, creating a peer when none is cached.
+func StateForOrg(ctx context.Context, apiClient flyutil.Client, orgID, orgSlug string, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
+	state, err := getWireGuardStateForOrg(orgSlug, network)
 	if err != nil {
 		return nil, err
 	}
@@ -57,19 +58,19 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organiz
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	stateb, err := Create(apiClient, org, regionCode, name, network, "interactive")
+	stateb, err := Create(apiClient, orgID, orgSlug, regionCode, name, network, "interactive")
 	if err != nil {
 		return nil, err
 	}
 
-	if err := setWireGuardStateForOrg(ctx, org.Slug, network, stateb); err != nil {
+	if err := setWireGuardStateForOrg(ctx, orgSlug, network, stateb); err != nil {
 		return nil, err
 	}
 
 	return stateb, nil
 }
 
-func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
+func Create(apiClient flyutil.Client, orgID, orgSlug, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -101,11 +102,11 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 		return nil, errors.New("name must consist solely of letters, numbers, and the dash character")
 	}
 
-	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, regionCode, org.Slug)
+	fmt.Printf("Creating WireGuard peer \"%s\" in region \"%s\" for organization %s\n", name, regionCode, orgSlug)
 
 	pubkey, privatekey := C25519pair()
 
-	data, err := apiClient.CreateWireGuardPeer(ctx, org.ID, regionCode, name, pubkey, network)
+	data, err := apiClient.CreateWireGuardPeer(ctx, orgID, regionCode, name, pubkey, network)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 	return &wg.WireGuardState{
 		Name:         name,
 		Region:       regionCode,
-		Org:          org.Slug,
+		Org:          orgSlug,
 		LocalPublic:  pubkey,
 		LocalPrivate: privatekey,
 		Peer:         *data,
