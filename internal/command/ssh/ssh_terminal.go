@@ -96,7 +96,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		defer endSpin()
 	}
 
-	if err := sshClient.Connect(context.Background()); err != nil {
+	if err := sshClient.Connect(p.Ctx); err != nil {
 		return errors.Wrap(err, "error connecting to SSH server")
 	}
 	defer sshClient.Close()
@@ -115,7 +115,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		TermEnv:  "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd, ssh.SessionTarget{}); err != nil {
+	if err := sshClient.Shell(p.Ctx, sessIO, p.Cmd, ssh.SessionTarget{}); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
