@@ -66,6 +66,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 		runCtx:                ctx,
 		currentChange:         latestChangeAt,
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
+		slugAliases:           make(map[string]string),
 		tokens:                toks,
 		cancelTokenMonitoring: cancelMonitor,
 	}).serve(ctx, l)
@@ -124,10 +125,14 @@ type server struct {
 
 	listener net.Listener
 
-	runCtx                context.Context
-	mu                    sync.Mutex
-	currentChange         time.Time
-	tunnels               map[tunnelKey]*wg.Tunnel
+	runCtx        context.Context
+	mu            sync.Mutex
+	currentChange time.Time
+	tunnels       map[tunnelKey]*wg.Tunnel
+	// slugAliases maps every slug a client has used for an organization to
+	// the slug tunnels are keyed by. Clients may name the personal org by
+	// its raw slug (as Flaps does) or by the "personal" alias (as web does).
+	slugAliases           map[string]string
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
 }
@@ -314,11 +319,30 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	return ret, nil
 }
 
+// rememberSlug records that slug names the organization whose tunnels are
+// keyed by canonical.
+func (s *server) rememberSlug(slug, canonical string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.slugAliases[slug] = canonical
+}
+
+// canonicalSlugUnlocked returns the slug tunnels are keyed by for a slug a
+// client sent. Callers must hold s.mu.
+func (s *server) canonicalSlugUnlocked(slug string) string {
+	if canonical, ok := s.slugAliases[slug]; ok {
+		return canonical
+	}
+
+	return slug
+}
+
 func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tk := tunnelKey{orgSlug: slug, networkName: network}
+	tk := tunnelKey{orgSlug: s.canonicalSlugUnlocked(slug), networkName: network}
 
 	return s.tunnels[tk]
 }
