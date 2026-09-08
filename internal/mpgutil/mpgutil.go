@@ -15,6 +15,14 @@ const (
 	DefaultPGMajorVersion = "16"
 )
 
+// PoolerEndpointReady reports whether a cluster's pooler endpoint has been
+// fully populated. A cluster can report status "ready" while its pooler
+// host/port are still propagating — treat a zero host or port as not-yet-
+// usable rather than building a broken connection string.
+func PoolerEndpointReady(endpoint flaps.ManagedPostgresEndpoint) bool {
+	return endpoint.Host != "" && endpoint.Port != 0
+}
+
 // ConnectionURI builds a libpq connection string for the cluster's default user
 // and database via the pooler endpoint, using the given password. The API
 // returns no connection string, so flyctl assembles it client-side.
