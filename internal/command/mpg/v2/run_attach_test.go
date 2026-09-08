@@ -52,6 +52,19 @@ func addAttachFlags(fs *pflag.FlagSet) {
 // specific Func fields as needed.
 func minimalAttachFlapsClient() *mock.FlapsClient {
 	return &mock.FlapsClient{
+		GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{
+				ID: id,
+				Endpoints: flaps.ManagedPostgresEndpoints{
+					Primary: struct {
+						Direct flaps.ManagedPostgresEndpoint `json:"direct"`
+						Pooler flaps.ManagedPostgresEndpoint `json:"pooler"`
+					}{
+						Pooler: flaps.ManagedPostgresEndpoint{Host: "pooler.fly.dev", Port: 5432},
+					},
+				},
+			}, nil
+		},
 		ListManagedPostgresUsersFunc: func(_ context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
 			return []flaps.ManagedPostgresUser{{Username: "alice", Role: flaps.ManagedPostgresUserRoleWriter}}, nil
 		},
@@ -151,26 +164,29 @@ func TestRunAttach_usernameUsesClusterDatabase(t *testing.T) {
 	ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
 
 	require.NoError(t, RunAttach(ctx, "mpg-123"))
-	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", "postgres://alice:alice-pass@pooler.fly.dev:5432/default_db"), stdout.String())
+	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", "postgres://alice:alice-pass@pooler.fly.dev:5432/fly-db"), stdout.String())
 	require.Empty(t, stderr.String())
 }
 
-// TestRunAttach_noUsernameDefaultCredentials verifies that when no username is provided,
-// the legacy cluster credentials are used directly
 func TestRunAttach_noUsernameDefaultCredentials(t *testing.T) {
 	ctx, stdout, stderr, flags := attachTestContext(t)
 	addAttachFlags(flags)
 	// No username or database flags set.
 
 	flapsClient := minimalAttachFlapsClient()
+	flapsClient.GetManagedPostgresUserCredentialsFunc = func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+		require.Equal(t, "fly-user", username, "default credentials path uses mpgutil.DefaultUsername")
+
+		return flaps.ManagedPostgresUserCredentials{Username: username, Password: "default-pass"}, nil
+	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
 
 	err := RunAttach(ctx, "mpg-123")
 	require.NoError(t, err)
 
-	// Default credentials used; database defaults to default_db.
-	wantUri := "postgres://default_user:default-pass@pooler.fly.dev:5432/default_db"
+	// Default credentials used; database defaults to fly-db.
+	wantUri := "postgres://fly-user:default-pass@pooler.fly.dev:5432/fly-db"
 	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", wantUri), stdout.String())
 	require.Empty(t, stderr.String())
 }
@@ -194,7 +210,7 @@ func TestRunAttach_customVariableName(t *testing.T) {
 	err := RunAttach(ctx, "mpg-123")
 	require.NoError(t, err)
 
-	wantUri := "postgres://default_user:default-pass@pooler.fly.dev:5432/default_db"
+	wantUri := "postgres://fly-user:alice-pass@pooler.fly.dev:5432/fly-db"
 	require.Equal(t, wantSecretOutput("my-app", "MY_PG_URL", wantUri), stdout.String())
 	require.Empty(t, stderr.String())
 }
@@ -224,6 +240,9 @@ func TestRunAttach_invalidConnectionUriError(t *testing.T) {
 	// No username.
 
 	flapsClient := minimalAttachFlapsClient()
+	flapsClient.GetManagedPostgresClusterFunc = func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+		return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
 		GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
@@ -240,7 +259,7 @@ func TestRunAttach_invalidConnectionUriError(t *testing.T) {
 
 	err := RunAttach(ctx, "mpg-123")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "connection URI is empty")
+	require.Contains(t, err.Error(), "cluster is not ready")
 }
 
 // TestRunAttach_attachmentWarningOnly verifies that a failed attachment creation produces
@@ -548,6 +567,230 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 			}
 			require.Equal(t, 1, publicCalls)
 			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
+		})
+	}
+}
+
+func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
+	publicCluster := flaps.ManagedPostgresCluster{
+		ID: "mpg-123",
+		Endpoints: flaps.ManagedPostgresEndpoints{
+			Primary: struct {
+				Direct flaps.ManagedPostgresEndpoint `json:"direct"`
+				Pooler flaps.ManagedPostgresEndpoint `json:"pooler"`
+			}{
+				Pooler: flaps.ManagedPostgresEndpoint{Host: "pooler.fly.dev", Port: 5432},
+			},
+		},
+	}
+	publicCreds := flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "public-pass"}
+
+	legacyResp := mpgv2.GetClusterResponse{
+		Credentials: mpgv2.GetClusterCredentialsResponse{
+			User:          "legacy_user",
+			Password:      "legacy-pass",
+			DBName:        "legacy_db",
+			ConnectionUri: "postgres://legacy_user:legacy-pass@legacy.host:5432/legacy_db",
+		},
+	}
+
+	tests := []struct {
+		name               string
+		publicCluster      flaps.ManagedPostgresCluster
+		publicClusterErr   error
+		publicCreds        flaps.ManagedPostgresUserCredentials
+		publicCredsErr     error
+		legacyResp         mpgv2.GetClusterResponse
+		legacyErr          error
+		wantClusterCalls   int
+		wantCredsCalls     int
+		wantLegacyCalls    int
+		wantInfo           clusterConnectionInfo
+		wantErr            string
+		wantClusterCallReq string
+		wantCredsCallReq   string
+	}{
+		{
+			name:               "uses Machines API for cluster and default creds",
+			publicCluster:      publicCluster,
+			publicCreds:        publicCreds,
+			wantClusterCalls:   1,
+			wantCredsCalls:     1,
+			wantLegacyCalls:    0,
+			wantClusterCallReq: "mpg-123",
+			wantCredsCallReq:   "fly-user",
+			wantInfo: clusterConnectionInfo{
+				BaseURI:         "postgres://pooler.fly.dev:5432/fly-db",
+				DefaultUser:     "fly-user",
+				DefaultPassword: "public-pass",
+				DefaultDBName:   "fly-db",
+			},
+		},
+		{
+			name: "empty pooler host (not-ready cluster) yields empty BaseURI without legacy fallback",
+			publicCluster: func() flaps.ManagedPostgresCluster {
+				c := publicCluster
+				c.Endpoints.Primary.Pooler.Host = ""
+
+				return c
+			}(),
+			publicCreds:        publicCreds,
+			wantClusterCalls:   1,
+			wantCredsCalls:     0,
+			wantLegacyCalls:    0,
+			wantClusterCallReq: "mpg-123",
+			wantInfo:           clusterConnectionInfo{},
+		},
+		{
+			name: "empty pooler host combined with credentials-endpoint 404 does not fall back to legacy",
+			publicCluster: func() flaps.ManagedPostgresCluster {
+				c := publicCluster
+				c.Endpoints.Primary.Pooler.Host = ""
+
+				return c
+			}(),
+			publicCredsErr:     flaps.ErrFlapsNotFound,
+			wantClusterCalls:   1,
+			wantCredsCalls:     0,
+			wantLegacyCalls:    0,
+			wantClusterCallReq: "mpg-123",
+			wantInfo:           clusterConnectionInfo{},
+		},
+		{
+			name: "zero port falls back to mpgutil.DefaultPort",
+			publicCluster: func() flaps.ManagedPostgresCluster {
+				c := publicCluster
+				c.Endpoints.Primary.Pooler.Port = 0
+
+				return c
+			}(),
+			publicCreds:        publicCreds,
+			wantClusterCalls:   1,
+			wantCredsCalls:     1,
+			wantLegacyCalls:    0,
+			wantClusterCallReq: "mpg-123",
+			wantCredsCallReq:   "fly-user",
+			wantInfo: clusterConnectionInfo{
+				BaseURI:         "postgres://pooler.fly.dev:5432/fly-db",
+				DefaultUser:     "fly-user",
+				DefaultPassword: "public-pass",
+				DefaultDBName:   "fly-db",
+			},
+		},
+		{
+			name:               "falls back to legacy bundle on cluster 404",
+			publicClusterErr:   flaps.ErrFlapsNotFound,
+			legacyResp:         legacyResp,
+			wantClusterCalls:   1,
+			wantCredsCalls:     0,
+			wantLegacyCalls:    1,
+			wantClusterCallReq: "mpg-123",
+			wantInfo: clusterConnectionInfo{
+				BaseURI:         "postgres://legacy_user:legacy-pass@legacy.host:5432/legacy_db",
+				DefaultUser:     "legacy_user",
+				DefaultPassword: "legacy-pass",
+				DefaultDBName:   "legacy_db",
+			},
+		},
+		{
+			name:               "falls back to legacy bundle on default-creds 404",
+			publicCluster:      publicCluster,
+			publicCredsErr:     flaps.ErrFlapsNotFound,
+			legacyResp:         legacyResp,
+			wantClusterCalls:   1,
+			wantCredsCalls:     1,
+			wantLegacyCalls:    1,
+			wantClusterCallReq: "mpg-123",
+			wantCredsCallReq:   "fly-user",
+			wantInfo: clusterConnectionInfo{
+				BaseURI:         "postgres://legacy_user:legacy-pass@legacy.host:5432/legacy_db",
+				DefaultUser:     "legacy_user",
+				DefaultPassword: "legacy-pass",
+				DefaultDBName:   "legacy_db",
+			},
+		},
+		{
+			name:             "propagates non-404 public cluster error without fallback",
+			publicClusterErr: errors.New("internal server error"),
+			wantClusterCalls: 1,
+			wantCredsCalls:   0,
+			wantLegacyCalls:  0,
+			wantErr:          "internal server error",
+		},
+		{
+			name:             "propagates non-404 public creds error without fallback",
+			publicCluster:    publicCluster,
+			publicCredsErr:   errors.New("conflict: default user unavailable"),
+			wantClusterCalls: 1,
+			wantCredsCalls:   1,
+			wantLegacyCalls:  0,
+			wantErr:          "conflict: default user unavailable",
+		},
+		{
+			name:               "propagates legacy error after cluster 404 fallback",
+			publicClusterErr:   flaps.ErrFlapsNotFound,
+			legacyErr:          errors.New("legacy boom"),
+			wantClusterCalls:   1,
+			wantCredsCalls:     0,
+			wantLegacyCalls:    1,
+			wantClusterCallReq: "mpg-123",
+			wantErr:            "legacy boom",
+		},
+		{
+			name:               "propagates legacy error after default-creds 404 fallback",
+			publicCluster:      publicCluster,
+			publicCredsErr:     flaps.ErrFlapsNotFound,
+			legacyErr:          errors.New("legacy boom"),
+			wantClusterCalls:   1,
+			wantCredsCalls:     1,
+			wantLegacyCalls:    1,
+			wantClusterCallReq: "mpg-123",
+			wantCredsCallReq:   "fly-user",
+			wantErr:            "legacy boom",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			clusterCalls, credsCalls, legacyCalls := 0, 0, 0
+			flapsClient := &mock.FlapsClient{
+				GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+					clusterCalls++
+					if tt.wantClusterCallReq != "" {
+						require.Equal(t, tt.wantClusterCallReq, id)
+					}
+
+					return tt.publicCluster, tt.publicClusterErr
+				},
+				GetManagedPostgresUserCredentialsFunc: func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+					credsCalls++
+					if tt.wantCredsCallReq != "" {
+						require.Equal(t, tt.wantCredsCallReq, username)
+					}
+
+					return tt.publicCreds, tt.publicCredsErr
+				},
+			}
+			legacyClient := &mock.MpgV2Client{
+				GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
+					legacyCalls++
+
+					return tt.legacyResp, tt.legacyErr
+				},
+			}
+
+			info, err := getClusterConnectionInfoPublicFirst(ctx, flapsClient, legacyClient, "mpg-123")
+			require.Equal(t, tt.wantClusterCalls, clusterCalls)
+			require.Equal(t, tt.wantCredsCalls, credsCalls)
+			require.Equal(t, tt.wantLegacyCalls, legacyCalls)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantInfo, info)
+			}
 		})
 	}
 }
