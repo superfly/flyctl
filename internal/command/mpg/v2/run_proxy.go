@@ -2,11 +2,18 @@ package cmdv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/mpgutil"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/proxy"
 )
@@ -29,12 +36,12 @@ func GetMpgProxyParams(
 	clusterID string,
 	resolvedOrgSlug string,
 ) (*mpgv2.ManagedCluster, *proxy.ConnectParams, error) {
-	response, err := getCluster(ctx, clusterID)
+	response, _, port, err := getCluster(ctx, clusterID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	cluster, params, err := buildProxyParams(ctx, response, localProxyPort, resolvedOrgSlug)
+	cluster, params, err := buildProxyParams(ctx, response, port, localProxyPort, resolvedOrgSlug)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -42,8 +49,7 @@ func GetMpgProxyParams(
 	return cluster, params, nil
 }
 
-// GetMpgConnectParams builds proxy connection parameters and resolves the
-// database credentials needed by fly mpg connect.
+// GetMpgConnectParams resolves credentials and proxy parameters.
 func GetMpgConnectParams(
 	ctx context.Context,
 	localProxyPort string,
@@ -51,17 +57,17 @@ func GetMpgConnectParams(
 	clusterID string,
 	resolvedOrgSlug string,
 ) (*mpgv2.ManagedCluster, *proxy.ConnectParams, *mpgv2.GetClusterCredentialsResponse, error) {
-	response, err := getCluster(ctx, clusterID)
+	response, useLegacy, port, err := getCluster(ctx, clusterID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	credentials, err := resolveConnectCredentials(ctx, response, username)
+	credentials, err := resolveConnectCredentials(ctx, response, useLegacy, username)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	cluster, params, err := buildProxyParams(ctx, response, localProxyPort, resolvedOrgSlug)
+	cluster, params, err := buildProxyParams(ctx, response, port, localProxyPort, resolvedOrgSlug)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -69,23 +75,62 @@ func GetMpgConnectParams(
 	return cluster, params, credentials, nil
 }
 
-func getCluster(ctx context.Context, clusterID string) (*mpgv2.GetClusterResponse, error) {
-	mpgClient := mpgv2.ClientFromContext(ctx)
-	response, err := mpgClient.GetClusterById(ctx, clusterID)
-	if err != nil {
-		return nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+// getCluster tries the public API, falling back to the legacy client only on 404.
+// It returns the credential source and direct endpoint port (5432 for legacy).
+func getCluster(ctx context.Context, clusterID string) (*mpgv2.GetClusterResponse, bool, int, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	publicCluster, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
+	if err == nil {
+		response, port := publicToLegacyClusterResponse(publicCluster)
+
+		return &response, false, port, nil
 	}
 
-	return &response, nil
+	if !errors.Is(err, flaps.ErrFlapsNotFound) {
+		return nil, false, 0, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+	}
+
+	legacyClient := mpgv2.ClientFromContext(ctx)
+	response, err := legacyClient.GetClusterById(ctx, clusterID)
+	if err != nil {
+		return nil, true, 0, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+	}
+
+	return &response, true, mpgutil.DefaultPort, nil
 }
 
+// publicToLegacyClusterResponse adapts the public cluster to the legacy shape.
+// The advertised direct port is returned unchanged for validation.
+func publicToLegacyClusterResponse(c flaps.ManagedPostgresCluster) (mpgv2.GetClusterResponse, int) {
+	port := c.Endpoints.Primary.Direct.Port
+
+	return mpgv2.GetClusterResponse{
+		Data: mpgv2.ManagedCluster{
+			Id:            c.ID,
+			Name:          c.Name,
+			Status:        c.Status,
+			Region:        c.Region,
+			Plan:          c.Plan,
+			Disk:          c.DiskSizeGB,
+			Replicas:      c.Replicas,
+			Organization:  fly.Organization{Name: c.Organization.Name, Slug: c.Organization.Slug},
+			IpAssignments: mpg.ManagedClusterIpAssignments{Direct: c.Endpoints.Primary.Direct.Host},
+		},
+	}, port
+}
+
+// resolveConnectCredentials uses the same API as the cluster lookup.
+// Public credentials default to fly-user and fly-db.
 func resolveConnectCredentials(
 	ctx context.Context,
 	response *mpgv2.GetClusterResponse,
+	useLegacy bool,
 	username string,
 ) (*mpgv2.GetClusterCredentialsResponse, error) {
 	var credentials mpgv2.GetClusterCredentialsResponse
-	if username != "" {
+
+	switch {
+	case username != "" && useLegacy:
 		mpgClient := mpgv2.ClientFromContext(ctx)
 		userCreds, err := mpgClient.GetUserCredentials(ctx, response.Data.Id, username)
 		if err != nil {
@@ -97,19 +142,56 @@ func resolveConnectCredentials(
 			Password: userCreds.Data.Password,
 			DBName:   response.Credentials.DBName,
 		}
-	} else {
+	case username != "":
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		userCreds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, response.Data.Id, username)
+		if err != nil {
+			return nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
+		}
+
+		credentials = mpgv2.GetClusterCredentialsResponse{
+			User:     userCreds.Username,
+			Password: userCreds.Password,
+			DBName:   mpgutil.DefaultDatabase,
+		}
+	case useLegacy:
 		credentials = response.Credentials
+	default:
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		userCreds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, response.Data.Id, mpgutil.DefaultUsername)
+		if err != nil {
+			if errors.Is(err, flaps.ErrFlapsNotFound) {
+				return nil, fmt.Errorf("cluster is still initializing, wait a bit more")
+			}
+
+			return nil, fmt.Errorf("failed retrieving credentials for user %s: %w", mpgutil.DefaultUsername, err)
+		}
+
+		credentials = mpgv2.GetClusterCredentialsResponse{
+			User:     userCreds.Username,
+			Password: userCreds.Password,
+			DBName:   mpgutil.DefaultDatabase,
+		}
 	}
 
-	if username == "" {
-		if credentials.Status == "initializing" {
-			return nil, fmt.Errorf("cluster is still initializing, wait a bit more")
-		}
+	if useLegacy {
+		// Only legacy default-user credentials include a status.
+		if username == "" {
+			if credentials.Status == "initializing" {
+				return nil, fmt.Errorf("cluster is still initializing, wait a bit more")
+			}
 
-		if credentials.Status == "error" || credentials.Password == "" {
-			return nil, fmt.Errorf("error getting cluster password")
+			if credentials.Status == "error" || credentials.Password == "" {
+				return nil, fmt.Errorf("error getting cluster password")
+			}
+		} else if credentials.Password == "" {
+			return nil, fmt.Errorf("error getting user password")
 		}
 	} else if credentials.Password == "" {
+		if username == "" {
+			return nil, fmt.Errorf("error getting cluster password")
+		}
+
 		return nil, fmt.Errorf("error getting user password")
 	}
 
@@ -119,10 +201,11 @@ func resolveConnectCredentials(
 func buildProxyParams(
 	ctx context.Context,
 	response *mpgv2.GetClusterResponse,
+	port int,
 	localProxyPort string,
 	resolvedOrgSlug string,
 ) (*mpgv2.ManagedCluster, *proxy.ConnectParams, error) {
-	cluster, params, err := proxyParams(response, localProxyPort, resolvedOrgSlug, flag.GetBindAddr(ctx), nil)
+	cluster, params, err := proxyParams(response, port, localProxyPort, resolvedOrgSlug, flag.GetBindAddr(ctx), nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -147,6 +230,7 @@ func buildProxyParams(
 
 func proxyParams(
 	response *mpgv2.GetClusterResponse,
+	port int,
 	localProxyPort string,
 	resolvedOrgSlug string,
 	bindAddr string,
@@ -157,8 +241,12 @@ func proxyParams(
 		return nil, nil, fmt.Errorf("error getting cluster IP")
 	}
 
+	if port < 1 || port > 65535 {
+		return nil, nil, fmt.Errorf("invalid cluster port %d: must be between 1 and 65535", port)
+	}
+
 	return cluster, &proxy.ConnectParams{
-		Ports:            []string{localProxyPort, "5432"},
+		Ports:            []string{localProxyPort, strconv.Itoa(port)},
 		OrganizationSlug: resolvedOrgSlug,
 		Dialer:           dialer,
 		BindAddr:         bindAddr,
