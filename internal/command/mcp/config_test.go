@@ -1,7 +1,14 @@
 package mcp
 
 import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
+
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 func TestUnmarshalJSONC(t *testing.T) {
@@ -99,4 +106,68 @@ func TestUnmarshalJSONC(t *testing.T) {
 			t.Fatal("expected error for malformed input, got nil")
 		}
 	})
+}
+
+func TestUpdateConfig_writesConfigAt0600_freshFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not meaningful on windows")
+	}
+	path := filepath.Join(t.TempDir(), "client", "mcp.json")
+
+	if err := UpdateConfig(context.Background(), path, "", "flyctl", "flyctl", []string{"mcp", "server"}); err != nil {
+		t.Fatalf("UpdateConfig: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat config: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("config mode = %o, want %o", got, want)
+	}
+}
+
+func TestUpdateConfig_appliesPermsToExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not meaningful on windows")
+	}
+	path := filepath.Join(t.TempDir(), "mcp.json")
+	if err := os.WriteFile(path, []byte(`{"mcpServers": {}}`), 0o644); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	if err := UpdateConfig(context.Background(), path, "", "flyctl", "flyctl", []string{"mcp", "server"}); err != nil {
+		t.Fatalf("UpdateConfig: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat config: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("config mode = %o, want %o", got, want)
+	}
+}
+
+func TestRemoveConfig_appliesPermsToExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not meaningful on windows")
+	}
+	path := filepath.Join(t.TempDir(), "mcp.json")
+	if err := os.WriteFile(path, []byte(`{"mcpServers": {"flyctl": {"command": "flyctl"}}}`), 0o644); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	ctx := logger.NewContext(context.Background(), logger.New(io.Discard, logger.Error, false))
+
+	if err := removeConfig(ctx, path, "mcpServers", "flyctl"); err != nil {
+		t.Fatalf("removeConfig: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat config: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf("config mode = %o, want %o", got, want)
+	}
 }
