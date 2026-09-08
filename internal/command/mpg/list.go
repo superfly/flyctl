@@ -77,6 +77,16 @@ func runList(ctx context.Context) error {
 		return nil
 	}
 
+	if !deleted {
+		for _, cluster := range clusters {
+			if cluster.Version != 2 {
+				printV2MigrationNotice(ctx)
+
+				break
+			}
+		}
+	}
+
 	if cfg.JSONOutput {
 		return render.JSON(out, clusters)
 	}
