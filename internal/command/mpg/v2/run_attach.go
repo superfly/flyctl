@@ -347,7 +347,7 @@ func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsu
 	}
 
 	if cluster.Status == flaps.ManagedPostgresStatusFailed || cluster.Status == flaps.ManagedPostgresStatusError {
-		return clusterConnectionInfo{}, fmt.Errorf("cluster %s is in a failed state (status: %s); cannot attach", clusterID, cluster.Status)
+		return clusterConnectionInfo{}, fmt.Errorf("cluster is in a failed state (status: %s); cannot attach", cluster.Status)
 	}
 
 	// Check before credentials so a credentials 404 cannot bypass the host check.
