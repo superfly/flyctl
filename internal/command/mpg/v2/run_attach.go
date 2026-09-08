@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -131,17 +132,12 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		}
 	}
 
-	// Get cluster details and credentials. The public Machines API cluster show does
-	// not expose credentials, so we always use the legacy client for the connection
-	// URI and default DB name. This preserves the existing behavior.
-	clusterResp, err := legacyClient.GetClusterById(ctx, clusterID)
+	info, err := getClusterConnectionInfoPublicFirst(ctx, flapsClient, legacyClient, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
-
-	baseUri := clusterResp.Credentials.ConnectionUri
-	if baseUri == "" {
-		return fmt.Errorf("connection URI is empty; cannot attach without valid credentials")
+	if info.BaseURI == "" {
+		return fmt.Errorf("cluster is not ready; cannot attach without valid connection information")
 	}
 
 	var connectionUri string
@@ -155,14 +151,14 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		user = creds.User
 		password = creds.Password
 	} else {
-		user = clusterResp.Credentials.User
-		password = clusterResp.Credentials.Password
+		user = info.DefaultUser
+		password = info.DefaultPassword
 	}
 
 	if db == "" {
-		db = clusterResp.Credentials.DBName
+		db = info.DefaultDBName
 	}
-	connectionUri, err = buildConnectionUri(baseUri, user, password, db)
+	connectionUri, err = buildConnectionUri(info.BaseURI, user, password, db)
 	if err != nil {
 		return fmt.Errorf("failed to build connection URI: %w", err)
 	}
@@ -330,4 +326,70 @@ func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.Flap
 	}
 
 	return nil
+}
+
+// clusterConnectionInfo holds the base URI and default credentials for attach.
+type clusterConnectionInfo struct {
+	BaseURI         string
+	DefaultUser     string
+	DefaultPassword string
+	DefaultDBName   string
+}
+
+// getClusterConnectionInfoPublicFirst falls back on cluster or credential 404s.
+func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string) (clusterConnectionInfo, error) {
+	cluster, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+	}
+	if err != nil {
+		return clusterConnectionInfo{}, err
+	}
+
+	if cluster.Status == flaps.ManagedPostgresStatusFailed || cluster.Status == flaps.ManagedPostgresStatusError {
+		return clusterConnectionInfo{}, fmt.Errorf("cluster is in a failed state (status: %s); cannot attach", cluster.Status)
+	}
+
+	// Check before credentials so a credentials 404 cannot bypass the host check.
+	if !mpgutil.PoolerEndpointReady(cluster.Endpoints.Primary.Pooler) {
+		return clusterConnectionInfo{}, nil
+	}
+
+	creds, credsErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgutil.DefaultUsername)
+	if errors.Is(credsErr, flaps.ErrFlapsNotFound) {
+		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+	}
+	if credsErr != nil {
+		return clusterConnectionInfo{}, credsErr
+	}
+
+	return clusterConnectionInfo{
+		BaseURI:         buildBaseURIFromPublicCluster(cluster),
+		DefaultUser:     creds.Username,
+		DefaultPassword: creds.Password,
+		DefaultDBName:   mpgutil.DefaultDatabase,
+	}, nil
+}
+
+func getClusterConnectionInfoLegacy(ctx context.Context, legacyClient mpgv2.ClientV2, clusterID string) (clusterConnectionInfo, error) {
+	clusterResp, err := legacyClient.GetClusterById(ctx, clusterID)
+	if err != nil {
+		return clusterConnectionInfo{}, err
+	}
+
+	return clusterConnectionInfo{
+		BaseURI:         clusterResp.Credentials.ConnectionUri,
+		DefaultUser:     clusterResp.Credentials.User,
+		DefaultPassword: clusterResp.Credentials.Password,
+		DefaultDBName:   clusterResp.Credentials.DBName,
+	}, nil
+}
+
+// buildBaseURIFromPublicCluster returns a connection URI for the cluster's
+// pooler endpoint. The caller is responsible for ensuring the endpoint is
+// usable (see mpgutil.PoolerEndpointReady).
+func buildBaseURIFromPublicCluster(cluster flaps.ManagedPostgresCluster) string {
+	pooler := cluster.Endpoints.Primary.Pooler
+
+	return fmt.Sprintf("postgres://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase)
 }
