@@ -1,19 +1,25 @@
 package apps
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/sort"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -49,17 +55,7 @@ Apps on a non-default network also show the network name.
 func runList(ctx context.Context) (err error) {
 	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
-	org, err := getOrg(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting organization: %w", err)
-	}
-
-	var orgID *string
-	if org != nil {
-		orgID = &org.ID
-	}
-
-	apps, err := getApps(ctx, orgID)
+	apps, err := getApps(ctx, flag.GetOrg(ctx))
 	if err != nil {
 		return
 	}
@@ -129,75 +125,70 @@ func runList(ctx context.Context) (err error) {
 	return
 }
 
-// getApps mirrors fly-go's GetApps/GetAppsForOrganization but also requests
-// the network field, which those queries omit.
-func getApps(ctx context.Context, orgID *string) ([]fly.App, error) {
-	client := flyutil.ClientFromContext(ctx)
+// getApps lists the apps the user can see, or only those in orgSlug when it
+// is set, through Flaps. The latest deploy time comes from the ui-ex
+// current-release timestamps, which cover every app in one request.
+func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	query := `
-		query($org: ID, $after: String) {
-			apps(type: "container", first: 200, after: $after, organizationId: $org) {
-				pageInfo {
-					hasNextPage
-					endCursor
-				}
-				nodes {
-					id
-					name
-					deployed
-					hostname
-					platformVersion
-					network
-					organization {
-						slug
-						name
-					}
-					currentRelease {
-						createdAt
-						status
-					}
-					status
-				}
-			}
+	// Flaps reports raw org slugs; show the slug the user knows the org by,
+	// which is "personal" for their personal org, as the GraphQL listing did.
+	var orgs []uiex.Organization
+	if orgSlug == "" {
+		var err error
+		if orgs, err = uiexClient.ListOrganizations(ctx, false); err != nil {
+			return nil, err
 		}
-	`
-
-	apps := []fly.App{}
-	var after *string
-
-	for {
-		req := client.NewRequest(query)
-		if orgID != nil {
-			req.Var("org", *orgID)
-		}
-		if after != nil {
-			req.Var("after", *after)
-		}
-
-		data, err := client.RunWithContext(ctx, req)
+	} else {
+		org, err := uiexClient.GetOrganization(ctx, orgSlug)
 		if err != nil {
 			return nil, err
 		}
+		orgs = []uiex.Organization{*org}
+	}
+	// The GraphQL listing grouped apps by org, personal org first, and
+	// sorted by name within each org; keep that order.
+	sort.OrganizationsByTypeAndName(orgs)
+	slugByRawSlug := make(map[string]string, len(orgs))
+	for _, org := range orgs {
+		slugByRawSlug[org.RawSlug] = org.Slug
+	}
 
-		apps = append(apps, data.Apps.Nodes...)
+	releaseTimes, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-		if !data.Apps.PageInfo.HasNextPage {
-			break
+	apps := []fly.App{}
+	for _, org := range orgs {
+		flapsApps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{OrgSlug: org.Slug})
+		if err != nil {
+			return nil, err
 		}
-		after = &data.Apps.PageInfo.EndCursor
+		slices.SortFunc(flapsApps, func(a, b flaps.App) int { return cmp.Compare(a.Name, b.Name) })
+
+		for _, app := range flapsApps {
+			// The GraphQL app ID is the app name.
+			out := fly.App{
+				ID:       app.Name,
+				Name:     app.Name,
+				Deployed: app.Deployed(),
+				Status:   app.Status,
+				Network:  flapsutil.NetworkName(&app),
+				Organization: fly.Organization{
+					Slug: cmp.Or(slugByRawSlug[app.Organization.Slug], app.Organization.Slug),
+					Name: app.Organization.Name,
+				},
+			}
+			if releaseTimes != nil {
+				if createdAt, ok := (*releaseTimes)[app.Name]; ok && !createdAt.IsZero() {
+					out.CurrentRelease = &fly.Release{CreatedAt: createdAt}
+				}
+			}
+			apps = append(apps, out)
+		}
 	}
 
 	return apps, nil
-}
-
-func getOrg(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
-
-	orgName := flag.GetOrg(ctx)
-
-	if orgName == "" {
-		return nil, nil
-	}
-
-	return client.GetOrganizationBySlug(ctx, orgName)
 }

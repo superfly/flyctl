@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -52,7 +51,7 @@ func newCrossNetworkReplaysStatus() *cobra.Command {
 func runCrossNetworkReplaysStatus(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 
-	org, err := OrgFromFlagOrSelect(ctx, fly.AdminOnly)
+	org, err := OrgFromFlagOrSelect(ctx, AdminOnly)
 	if err != nil {
 		return err
 	}
@@ -95,7 +94,7 @@ func newCrossNetworkReplaysEnable() *cobra.Command {
 }
 
 func runCrossNetworkReplaysEnable(ctx context.Context) error {
-	org, err := OrgFromFlagOrSelect(ctx, fly.AdminOnly)
+	org, err := OrgFromFlagOrSelect(ctx, AdminOnly)
 	if err != nil {
 		return err
 	}
@@ -146,7 +145,7 @@ func newCrossNetworkReplaysDisable() *cobra.Command {
 }
 
 func runCrossNetworkReplaysDisable(ctx context.Context) error {
-	org, err := OrgFromFlagOrSelect(ctx, fly.AdminOnly)
+	org, err := OrgFromFlagOrSelect(ctx, AdminOnly)
 	if err != nil {
 		return err
 	}

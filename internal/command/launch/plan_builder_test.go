@@ -8,12 +8,12 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -71,25 +71,24 @@ func TestAppNameTaken(t *testing.T) {
 }
 
 func TestDetermineOrg(t *testing.T) {
-	personalOrg := fly.Organization{
-		ID:      "org-id-personal",
-		Slug:    "personal",
-		RawSlug: "lubien-org-339",
-		Name:    "Lubien Org",
-		Type:    "PERSONAL",
+	personalOrg := uiex.Organization{
+		ID:       "org-id-personal",
+		Slug:     "personal",
+		RawSlug:  "lubien-org-339",
+		Name:     "Lubien Org",
+		Personal: true,
 	}
-	teamOrg := fly.Organization{
+	teamOrg := uiex.Organization{
 		ID:      "org-id-team",
 		Slug:    "my-team",
 		RawSlug: "my-team",
 		Name:    "My Team",
-		Type:    "SHARED",
 	}
-	orgs := []fly.Organization{personalOrg, teamOrg}
+	orgs := []uiex.Organization{personalOrg, teamOrg}
 
-	makeClient := func() *mock.Client {
-		return &mock.Client{
-			GetOrganizationsFunc: func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
+	makeClient := func() *mock.UiexClient {
+		return &mock.UiexClient{
+			ListOrganizationsFunc: func(ctx context.Context, admin bool) ([]uiex.Organization, error) {
 				return orgs, nil
 			},
 		}
@@ -97,7 +96,7 @@ func TestDetermineOrg(t *testing.T) {
 
 	t.Run("no org flag defaults to personal", func(t *testing.T) {
 		ctx := newDetermineOrgCtx(t, "")
-		ctx = flyutil.NewContextWithClient(ctx, makeClient())
+		ctx = uiexutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
@@ -107,7 +106,7 @@ func TestDetermineOrg(t *testing.T) {
 
 	t.Run("canonical personal slug", func(t *testing.T) {
 		ctx := newDetermineOrgCtx(t, "personal")
-		ctx = flyutil.NewContextWithClient(ctx, makeClient())
+		ctx = uiexutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
@@ -117,7 +116,7 @@ func TestDetermineOrg(t *testing.T) {
 
 	t.Run("real raw slug of personal org", func(t *testing.T) {
 		ctx := newDetermineOrgCtx(t, "lubien-org-339")
-		ctx = flyutil.NewContextWithClient(ctx, makeClient())
+		ctx = uiexutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
@@ -127,7 +126,7 @@ func TestDetermineOrg(t *testing.T) {
 
 	t.Run("team org by slug", func(t *testing.T) {
 		ctx := newDetermineOrgCtx(t, "my-team")
-		ctx = flyutil.NewContextWithClient(ctx, makeClient())
+		ctx = uiexutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
@@ -136,7 +135,7 @@ func TestDetermineOrg(t *testing.T) {
 
 	t.Run("org by display name", func(t *testing.T) {
 		ctx := newDetermineOrgCtx(t, "My Team")
-		ctx = flyutil.NewContextWithClient(ctx, makeClient())
+		ctx = uiexutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		require.NoError(t, err)
@@ -145,7 +144,7 @@ func TestDetermineOrg(t *testing.T) {
 
 	t.Run("unknown org returns error and falls back to personal", func(t *testing.T) {
 		ctx := newDetermineOrgCtx(t, "does-not-exist")
-		ctx = flyutil.NewContextWithClient(ctx, makeClient())
+		ctx = uiexutil.NewContextWithClient(ctx, makeClient())
 
 		org, _, err := determineOrg(ctx, nil)
 		assert.Error(t, err)

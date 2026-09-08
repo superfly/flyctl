@@ -141,7 +141,7 @@ func runWireguardCreate(ctx context.Context) error {
 
 	network := flag.GetString(ctx, "network")
 
-	state, err := wireguard.Create(apiClient, org, region, name, network, "static")
+	state, err := wireguard.Create(apiClient, org.ID, org.Slug, region, name, network, "static")
 	if err != nil {
 		return err
 	}

@@ -54,7 +54,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	//                the app's services (if one exists).
 	if md.staticsUseTigris(ctx) {
 
-		fullOrg, err := md.apiClient.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
+		fullOrg, err := md.uiexClient.GetOrganization(ctx, md.app.Organization.Slug)
 		if err != nil {
 			return err
 		}

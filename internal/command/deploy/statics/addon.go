@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	extensions "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon/flyio"
 	"github.com/superfly/macaroon/resset"
@@ -22,7 +22,7 @@ import (
 
 // FindBucket finds the tigris statics bucket for the given app and org.
 // Returns nil, nil if no bucket is found.
-func FindBucket(ctx context.Context, app *flaps.App, org *fly.Organization) (*gql.StaticsAddOn, error) {
+func FindBucket(ctx context.Context, app *flaps.App, org *uiex.Organization) (*gql.StaticsAddOn, error) {
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()
 
@@ -151,10 +151,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 
 func (deployer *DeployerState) tokenizeTigrisSecrets(secrets map[string]any) (string, error) {
 
-	orgId, err := strconv.ParseUint(deployer.org.InternalNumericID, 10, 64)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode org ID for %s: %w", deployer.org.Slug, err)
-	}
+	orgId := deployer.org.InternalNumericID
 
 	secret := &tokenizer.Secret{
 		AuthConfig: &tokenizer.FlyioMacaroonAuthConfig{Access: flyio.Access{
