@@ -241,7 +241,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	}
 
 	var state *wg.WireGuardState
-	if state, err = wireguard.StateForOrg(ctx, client, org, os.Getenv("FLY_AGENT_WG_REGION"), "", reestablish, network); err != nil {
+	if state, err = wireguard.StateForOrg(ctx, client, org.ID, org.Slug, os.Getenv("FLY_AGENT_WG_REGION"), "", reestablish, network); err != nil {
 		return
 	}
 

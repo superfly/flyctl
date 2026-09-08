@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -35,7 +34,7 @@ func newReplaySourcesList() *cobra.Command {
 func runReplaySourcesList(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 
-	org, err := OrgFromFlagOrSelect(ctx, fly.AdminOnly)
+	org, err := OrgFromFlagOrSelect(ctx, AdminOnly)
 	if err != nil {
 		return err
 	}

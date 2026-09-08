@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -21,9 +22,9 @@ import (
 func MoveBucket(
 	ctx context.Context,
 	prevBucket *gql.StaticsAddOn,
-	prevOrg *fly.Organization,
+	prevOrg *uiex.Organization,
 	app *flaps.App,
-	targetOrg *fly.Organization,
+	targetOrg *uiex.Organization,
 	releaseVersion int,
 	machines []*fly.Machine,
 ) error {

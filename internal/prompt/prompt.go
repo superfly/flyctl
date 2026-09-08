@@ -19,9 +19,10 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -246,12 +247,12 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
-func Org(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
+func Org(ctx context.Context) (*uiex.Organization, error) {
+	client := uiexutil.ClientFromContext(ctx)
 
 	slug := config.FromContext(ctx).Organization
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := client.ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -260,9 +261,8 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	io := iostreams.FromContext(ctx)
 
 	switch {
-	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":
-		fmt.Fprintf(io.ErrOut, "automatically selected %s organization: %s\n",
-			strings.ToLower(orgs[0].Type), orgs[0].Name)
+	case slug == "" && len(orgs) == 1 && orgs[0].Personal:
+		fmt.Fprintf(io.ErrOut, "automatically selected personal organization: %s\n", orgs[0].Name)
 
 		return &orgs[0], nil
 	case slug != "":
@@ -285,11 +285,11 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	}
 }
 
-func SelectOrg(ctx context.Context, orgs []fly.Organization) (org *fly.Organization, err error) {
+func SelectOrg(ctx context.Context, orgs []uiex.Organization) (org *uiex.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
 		personalCallout := ""
-		if org.Type == "PERSONAL" && org.Slug != "personal" {
+		if org.Personal && org.Slug != "personal" {
 			personalCallout = " [personal]"
 		}
 		options = append(options, fmt.Sprintf("%s (%s)%s", org.Name, org.Slug, personalCallout))
