@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -14,7 +14,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newSet() (cmd *cobra.Command) {
@@ -38,13 +37,12 @@ func newSet() (cmd *cobra.Command) {
 func runSet(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secrets, err := cmdutil.ParseKVStringsToMap(flag.Args(ctx))
 	if err != nil {
@@ -75,10 +73,10 @@ func runSet(ctx context.Context) (err error) {
 	})
 }
 
-func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets map[string]string, args DeploymentArgs) error {
+func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets map[string]string, args DeploymentArgs) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
 		return fmt.Errorf("update secrets: %w", err)
 	}
 
-	return DeploySecrets(ctx, app, args)
+	return DeploySecrets(ctx, app.Name, args)
 }

@@ -5,13 +5,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newUnset() (cmd *cobra.Command) {
@@ -35,13 +34,12 @@ func newUnset() (cmd *cobra.Command) {
 func runUnset(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	return UnsetSecretsAndDeploy(ctx, flapsClient, app, flag.Args(ctx), DeploymentArgs{
 		Stage:    flag.GetBool(ctx, "stage"),
@@ -50,10 +48,10 @@ func runUnset(ctx context.Context) (err error) {
 	})
 }
 
-func UnsetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact, secrets []string, args DeploymentArgs) error {
+func UnsetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets []string, args DeploymentArgs) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, nil, secrets); err != nil {
 		return fmt.Errorf("update secrets: %w", err)
 	}
 
-	return DeploySecrets(ctx, app, args)
+	return DeploySecrets(ctx, app.Name, args)
 }

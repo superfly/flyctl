@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -325,7 +327,7 @@ func runMachineRun(ctx context.Context) error {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		err      error
-		app      *fly.AppCompact
+		app      *flaps.App
 		isCreate = false
 		interact = false
 		shell    = flag.GetBool(ctx, "shell")
@@ -343,19 +345,19 @@ func runMachineRun(ctx context.Context) error {
 
 	switch {
 	case interact && appName != "":
-		app, err = client.GetAppCompact(ctx, appName)
+		app, err = flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
 
 	case interact && appName == "":
-		app, err = getOrCreateEphemeralShellApp(ctx, client)
+		app, err = getOrCreateEphemeralShellApp(ctx)
 		if err != nil {
 			return err
 		}
 
 	case appName == "":
-		app, err = createApp(ctx, "Running a Machine without specifying an app will create one for you, is this what you want?", "", client)
+		app, err = createApp(ctx, "Running a Machine without specifying an app will create one for you, is this what you want?", "")
 		if err != nil {
 			return err
 		}
@@ -365,9 +367,10 @@ func runMachineRun(ctx context.Context) error {
 		}
 
 	default:
-		app, err = client.GetAppCompact(ctx, appName)
-		if err != nil && strings.Contains(err.Error(), "Could not find App") {
-			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
+		app, err = flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
+		var notFound *flaps.FlapsError
+		if errors.As(err, &notFound) && notFound.ResponseStatusCode == http.StatusNotFound {
+			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName)
 			if err != nil {
 				return err
 			}
@@ -381,11 +384,7 @@ func runMachineRun(ctx context.Context) error {
 		}
 	}
 
-	flapsApp, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, app.Name)
-	if err != nil {
-		return err
-	}
-	network := flapsutil.NetworkName(flapsApp)
+	network := flapsutil.NetworkName(app)
 
 	machineConf := &fly.MachineConfig{
 		AutoDestroy: destroy,
@@ -479,21 +478,19 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		_, dialer, err := agent.BringUpAgent(ctx, client, app, network, false)
+		_, dialer, err := agent.BringUpAgentOrgSlug(ctx, client, app.Organization.Slug, network, false)
 		if err != nil {
 			return err
 		}
 
-		// the app handle we have from creating a new app, presuming that's what
-		// we did, doesn't have the ID set.
-		app, err = client.GetAppCompact(ctx, app.Name)
+		org, err := uiexutil.AppOrganization(ctx, app)
 		if err != nil {
-			return fmt.Errorf("failed to load app info for %s: %w", app.Name, err)
+			return err
 		}
 
 		sshClient, err := ssh.Connect(&ssh.ConnectParams{
 			Ctx:            ctx,
-			Org:            app.Organization,
+			Org:            org,
 			Dialer:         dialer,
 			Username:       flag.GetString(ctx, "user"),
 			DisableSpinner: false,
@@ -536,7 +533,7 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*fly.AppCompact, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context) (*flaps.App, error) {
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
@@ -578,16 +575,12 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 		appc = createdApp
 	}
 
-	// this app handle won't have all the metadata attached, so grab it
-	app, err := client.GetAppCompact(ctx, appc.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	return app, nil
+	// The app handle from creation lacks the organization and network, so
+	// fetch the full record.
+	return flapsClient.GetApp(ctx, appc.Name)
 }
 
-func createApp(ctx context.Context, message, name string, client flyutil.Client) (*fly.AppCompact, error) {
+func createApp(ctx context.Context, message, name string) (*flaps.App, error) {
 	confirm, err := prompt.Confirm(ctx, message)
 	if err != nil {
 		return nil, err
@@ -622,15 +615,8 @@ func createApp(ctx context.Context, message, name string, client flyutil.Client)
 		return nil, err
 	}
 
-	return &fly.AppCompact{
-		ID:     app.ID,
-		Name:   app.Name,
-		Status: app.Status,
-		Organization: &fly.OrganizationBasic{
-			ID:   org.ID,
-			Slug: org.Slug,
-		},
-	}, nil
+	// The handle from creation lacks the organization and network.
+	return flapsClient.GetApp(ctx, app.Name)
 }
 
 func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {
