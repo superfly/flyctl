@@ -198,7 +198,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 // this check, the function would silently return a broken URI such as
 // "postgres://fly-user:secret@:0/fly-db" with a nil error.
 func buildConnectionURI(endpoint flaps.ManagedPostgresEndpoint, username, password, dbName string) (string, error) {
-	if endpoint.Host == "" || endpoint.Port == 0 {
+	if !mpgutil.PoolerEndpointReady(endpoint) {
 		return "", fmt.Errorf("cluster ready but pooler endpoint not yet available")
 	}
 
