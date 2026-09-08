@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -77,19 +76,17 @@ func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T
 }
 
 func (state *launchState) orgCompact(ctx context.Context) (*uiex.Organization, error) {
-	org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, state.Plan.OrgSlug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
-	}
-
-	return org, nil
+	return state.Org(ctx)
 }
 
-func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
+func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
+	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
+		org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, state.Plan.OrgSlug)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
+		}
 
-	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
-		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
+		return org, nil
 	})
 }
 

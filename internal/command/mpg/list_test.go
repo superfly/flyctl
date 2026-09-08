@@ -5,36 +5,18 @@ import (
 	"encoding/json"
 	"testing"
 
-	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
-
-type organizationGraphQLClient struct{}
-
-func (organizationGraphQLClient) MakeRequest(_ context.Context, _ *genq.Request, response *genq.Response) error {
-	data := response.Data.(*gql.GetOrganizationResponse)
-	data.Organization.OrganizationData = gql.OrganizationData{
-		Id:       "org-id",
-		Slug:     "personal",
-		RawSlug:  "raw-personal",
-		PaidPlan: true,
-		Name:     "Personal",
-		Billable: true,
-	}
-
-	return nil
-}
 
 func TestRunListUsesMergedMachinesAndLegacyResults(t *testing.T) {
 	io, _, stdout, _ := iostreams.Test()
@@ -45,14 +27,11 @@ func TestRunListUsesMergedMachinesAndLegacyResults(t *testing.T) {
 	flags.Bool("deleted", false, "")
 	ctx = flagctx.NewContext(ctx, flags)
 
-	ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
-		GetOrganizationBySlugFunc: func(_ context.Context, slug string) (*fly.Organization, error) {
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
 			require.Equal(t, "personal", slug)
 
-			return &fly.Organization{Slug: slug, RawSlug: "raw-personal"}, nil
-		},
-		GenqClientFunc: func() genq.Client {
-			return organizationGraphQLClient{}
+			return &uiex.Organization{Slug: slug, RawSlug: "raw-personal"}, nil
 		},
 	})
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
