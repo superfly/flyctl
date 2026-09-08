@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/ssh"
 
 	fly "github.com/superfly/fly-go"
@@ -46,7 +47,7 @@ type CreateClusterInput struct {
 	ConsulURL          string
 	ImageRef           string
 	InitialClusterSize int
-	Organization       *fly.Organization
+	Organization       *uiex.Organization
 	Password           string
 	Region             string
 	VolumeSize         *int

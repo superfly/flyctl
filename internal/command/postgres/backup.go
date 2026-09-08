@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -143,7 +144,11 @@ func runBackupRestore(ctx context.Context) error {
 	restoreSecret += resolveRestoreTarget(ctx)
 
 	// Resolve organization
-	org, err := client.GetOrganizationByApp(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
+	if err != nil {
+		return err
+	}
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
 		return err
 	}
