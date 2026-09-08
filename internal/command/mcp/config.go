@@ -567,8 +567,7 @@ func UpdateConfig(ctx context.Context, path string, configKey string, server str
 		return fmt.Errorf("failed to marshal updated configuration: %w", err)
 	}
 
-	err = os.WriteFile(path, updatedData, 0644)
-	if err != nil {
+	if err := writeConfigFile(path, updatedData); err != nil {
 		return fmt.Errorf("Failed to write updated configuration to %s: %v", path, err)
 	}
 
@@ -597,6 +596,17 @@ func runRemove(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// writeConfigFile writes an MCP client configuration readable only by its
+// owner, since the configuration can carry a Fly API token.
+func writeConfigFile(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	// os.WriteFile only applies perm on file creation; Chmod explicitly so
+	// the mode is applied on rewrite as well.
+	return os.Chmod(path, 0o600)
 }
 
 // removeConfig removes the MCP server from the configuration at the specified path
@@ -654,8 +664,7 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 		return fmt.Errorf("failed to marshal updated configuration: %w", err)
 	}
 
-	err = os.WriteFile(path, updatedData, 0644)
-	if err != nil {
+	if err := writeConfigFile(path, updatedData); err != nil {
 		return fmt.Errorf("Failed to write updated configuration to %s: %v", path, err)
 	}
 
