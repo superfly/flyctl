@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -16,7 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func newConnect() *cobra.Command {
@@ -58,29 +59,31 @@ func newConnect() *cobra.Command {
 }
 
 func runConnect(ctx context.Context) error {
-	var (
-		client  = flyutil.ClientFromContext(ctx)
-		appName = appconfig.NameFromContext(ctx)
-	)
+	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	return runMachineConnect(ctx, app)
+	ctx, err = apps.BuildContextForApp(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	return runMachineConnect(ctx, app, org)
 }
 
-func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
+func runMachineConnect(ctx context.Context, app *flaps.App, org *uiex.Organization) error {
 	var (
 		MinPostgresHaVersion         = "0.0.9"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -109,7 +112,7 @@ func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 
 	return ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		Org:      org,
 		Dialer:   agent.DialerFromContext(ctx),
 		App:      app.Name,
 		Username: ssh.DefaultSshUsername,

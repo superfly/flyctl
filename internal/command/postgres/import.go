@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func newImport() *cobra.Command {
@@ -77,7 +78,6 @@ func newImport() *cobra.Command {
 
 func runImport(ctx context.Context) error {
 	var (
-		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 
 		sourceURI = flag.FirstArg(ctx)
@@ -88,16 +88,20 @@ func runImport(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("The target app must be a Postgres app")
+	}
+
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
 	}
 
 	machines, err := flapsClient.ListActive(ctx, appName)
@@ -115,7 +119,7 @@ func runImport(ctx context.Context) error {
 	machineID := leader.ID
 
 	// Resolve region
-	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
+	region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region to deploy the migration machine:",
 	})
 	if err != nil {
@@ -135,7 +139,7 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to set secrets: %s", err)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return fmt.Errorf("failed to build context: %s", err)
 	}
@@ -161,7 +165,7 @@ func runImport(ctx context.Context) error {
 
 	// If a custom migration image is not specified, resolve latest managed image.
 	if imageRef == "" {
-		imageRef, err = client.GetLatestImageTag(ctx, "flyio/postgres-importer", nil)
+		imageRef, err = flyutil.ClientFromContext(ctx).GetLatestImageTag(ctx, "flyio/postgres-importer", nil)
 		if err != nil {
 			return err
 		}
@@ -192,7 +196,7 @@ func runImport(ctx context.Context) error {
 	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		Org:      org,
 		Dialer:   agent.DialerFromContext(ctx),
 		App:      app.Name,
 		Username: ssh.DefaultSshUsername,

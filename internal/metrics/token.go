@@ -10,6 +10,8 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -22,7 +24,14 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 		Tokens: cfg.Tokens,
 	})
 
-	personal, err := apiClient.GetOrganizationBySlug(ctx, "personal")
+	uiexClient, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+		Tokens: cfg.Tokens,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	personal, err := uiexClient.GetOrganization(ctx, "personal")
 	if err != nil {
 		return "", err
 	}
