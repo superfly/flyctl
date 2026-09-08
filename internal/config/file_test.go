@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,9 +20,12 @@ func TestWriteFileAtomicallyReplacesContent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "access_token: new\n", string(got))
 
-	info, err := os.Stat(path)
-	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	if runtime.GOOS != "windows" {
+		// Windows has no Unix permission bits; Go reports 0666 for every file.
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	}
 
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -29,6 +33,9 @@ func TestWriteFileAtomicallyReplacesContent(t *testing.T) {
 }
 
 func TestWriteFileAtomicallyKeepsOldContentOnFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not block file creation on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
