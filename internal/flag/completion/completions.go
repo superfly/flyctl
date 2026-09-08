@@ -13,6 +13,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func CompleteApps(
@@ -76,13 +78,11 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := flyutil.ClientFromContext(ctx)
-
-	format := func(org fly.Organization) string {
+	format := func(org uiex.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := uiexutil.ClientFromContext(ctx).ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}

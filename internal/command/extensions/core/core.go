@@ -13,13 +13,13 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -32,7 +32,7 @@ type Extension struct {
 
 type ExtensionParams struct {
 	AppName              string
-	Organization         *fly.Organization
+	Organization         *uiex.Organization
 	Provider             string
 	PlanID               string
 	OrganizationPlanID   string

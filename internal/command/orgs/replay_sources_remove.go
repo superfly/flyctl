@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -42,12 +42,12 @@ func runReplaySourcesRemove(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
-	org, err := OrgFromFlagOrSelect(ctx, fly.AdminOnly)
+	org, err := OrgFromFlagOrSelect(ctx, AdminOnly)
 	if err != nil {
 		return err
 	}
 
-	userOrgs, err := client.GetOrganizations(ctx)
+	userOrgs, err := uiexutil.ClientFromContext(ctx).ListOrganizations(ctx, false)
 	if err != nil {
 		return fmt.Errorf("failed to get user organizations: %w", err)
 	}

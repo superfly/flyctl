@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -34,9 +34,7 @@ func newList() *cobra.Command {
 }
 
 func runList(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
-
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := uiexutil.ClientFromContext(ctx).ListOrganizations(ctx, false)
 	if err != nil {
 		return err
 	}
