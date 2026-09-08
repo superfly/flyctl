@@ -695,6 +695,9 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
+		// Fetch organization tokens and discharge any third-party caveats
+		config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+
 		return ctx, nil
 	} else {
 		return nil, fly.ErrNoAuthToken
