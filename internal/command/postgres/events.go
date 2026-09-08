@@ -11,8 +11,9 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func newEvents() *cobra.Command {
@@ -87,21 +88,23 @@ func newListEvents() *cobra.Command {
 }
 
 func runListEvents(ctx context.Context) error {
-	var (
-		client  = flyutil.ClientFromContext(ctx)
-		appName = appconfig.NameFromContext(ctx)
-	)
+	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -127,7 +130,7 @@ func runListEvents(ctx context.Context) error {
 
 	flagsName := flag.GetFlagsName(ctx, ignoreFlags)
 
-	cmd, err := flypg.NewCommand(ctx, app)
+	cmd, err := flypg.NewCommand(ctx, app, org)
 	if err != nil {
 		return err
 	}

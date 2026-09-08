@@ -47,12 +47,12 @@ func runAttach(ctx context.Context) error {
 		secretName = flag.GetString(ctx, "variable-name")
 	)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	consulPayload, err := apiClient.EnablePostgresConsul(ctx, appName)
 	if err != nil {

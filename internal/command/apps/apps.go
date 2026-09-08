@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
@@ -42,11 +41,6 @@ func New() *cobra.Command {
 	)
 
 	return apps
-}
-
-// BuildContext is a helper that builds out commonly required context requirements
-func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, error) {
-	return BuildContextForNetwork(ctx, app.Organization.Slug, app.Network)
 }
 
 // BuildContextForApp is BuildContext for an app fetched through Flaps.

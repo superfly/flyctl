@@ -12,7 +12,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -29,7 +28,7 @@ type AppChecker struct {
 	checks     map[string]string
 	color      *iostreams.ColorScheme
 	ctx        context.Context
-	app        *fly.AppCompact
+	app        *flaps.App
 	workDir    string
 	appConfig  *appconfig.Config
 	apiClient  flyutil.Client
@@ -46,11 +45,11 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	}
 
 	apiClient := flyutil.ClientFromContext(ctx)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
-	ctx, err = apps.BuildContext(ctx, appCompact)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +65,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		appConfig:  nil,
 	}
 
-	ac.app = appCompact
+	ac.app = app
 	ac.appConfig = appconfig.ConfigFromContext(ctx)
 
 	if ac.appConfig == nil {
@@ -155,7 +154,8 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []flaps.IPAssignment) {
 		return
 	}
 
-	appHostname := ac.app.Hostname
+	// The API derives an app's hostname from its name.
+	appHostname := ac.app.Name + ".fly.dev"
 	appFqdn := dns.Fqdn(appHostname)
 	dnsClient := &dns.Client{}
 	ns, err := getFirstFlyDevNameserver(dnsClient)

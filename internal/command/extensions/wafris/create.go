@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -43,7 +42,7 @@ func runCreate(ctx context.Context) (err error) {
 	})
 
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+		err = secrets.DeploySecrets(ctx, extension.App.Name, secrets.DeploymentArgs{
 			Stage:    false,
 			Detach:   false,
 			CheckDNS: true,

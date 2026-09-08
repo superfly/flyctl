@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newDetach() *cobra.Command {
@@ -42,13 +41,12 @@ func runDetach(ctx context.Context) error {
 		secretName = flag.GetString(ctx, "variable-name")
 	)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
-
-	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	secretsToUnset := []string{secretName}
 	err = secrets.UnsetSecretsAndDeploy(ctx, flapsClient, app, secretsToUnset, secrets.DeploymentArgs{
