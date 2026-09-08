@@ -657,7 +657,7 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 			wantInfo:           clusterConnectionInfo{},
 		},
 		{
-			name: "zero port falls back to mpgutil.DefaultPort",
+			name: "zero port is treated as not-ready (not substituted with DefaultPort)",
 			publicCluster: func() flaps.ManagedPostgresCluster {
 				c := publicCluster
 				c.Endpoints.Primary.Pooler.Port = 0
@@ -666,16 +666,10 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 			}(),
 			publicCreds:        publicCreds,
 			wantClusterCalls:   1,
-			wantCredsCalls:     1,
+			wantCredsCalls:     0,
 			wantLegacyCalls:    0,
 			wantClusterCallReq: "mpg-123",
-			wantCredsCallReq:   "fly-user",
-			wantInfo: clusterConnectionInfo{
-				BaseURI:         "postgres://pooler.fly.dev:5432/fly-db",
-				DefaultUser:     "fly-user",
-				DefaultPassword: "public-pass",
-				DefaultDBName:   "fly-db",
-			},
+			wantInfo:           clusterConnectionInfo{},
 		},
 		{
 			name:               "falls back to legacy bundle on cluster 404",
@@ -747,6 +741,36 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 			wantClusterCallReq: "mpg-123",
 			wantCredsCallReq:   "fly-user",
 			wantErr:            "legacy boom",
+		},
+		{
+			name: "cluster in failed state returns distinct error",
+			publicCluster: func() flaps.ManagedPostgresCluster {
+				c := publicCluster
+				c.Status = flaps.ManagedPostgresStatusFailed
+
+				return c
+			}(),
+			publicCreds:        publicCreds,
+			wantClusterCalls:   1,
+			wantCredsCalls:     0,
+			wantLegacyCalls:    0,
+			wantClusterCallReq: "mpg-123",
+			wantErr:            "is in a failed state",
+		},
+		{
+			name: "cluster in error state returns distinct error",
+			publicCluster: func() flaps.ManagedPostgresCluster {
+				c := publicCluster
+				c.Status = flaps.ManagedPostgresStatusError
+
+				return c
+			}(),
+			publicCreds:        publicCreds,
+			wantClusterCalls:   1,
+			wantCredsCalls:     0,
+			wantLegacyCalls:    0,
+			wantClusterCallReq: "mpg-123",
+			wantErr:            "is in a failed state",
 		},
 	}
 

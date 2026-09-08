@@ -346,8 +346,12 @@ func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsu
 		return clusterConnectionInfo{}, err
 	}
 
+	if cluster.Status == flaps.ManagedPostgresStatusFailed || cluster.Status == flaps.ManagedPostgresStatusError {
+		return clusterConnectionInfo{}, fmt.Errorf("cluster %s is in a failed state (status: %s); cannot attach", clusterID, cluster.Status)
+	}
+
 	// Check before credentials so a credentials 404 cannot bypass the host check.
-	if cluster.Endpoints.Primary.Pooler.Host == "" {
+	if !mpgutil.PoolerEndpointReady(cluster.Endpoints.Primary.Pooler) {
 		return clusterConnectionInfo{}, nil
 	}
 
@@ -381,16 +385,11 @@ func getClusterConnectionInfoLegacy(ctx context.Context, legacyClient mpgv2.Clie
 	}, nil
 }
 
-// buildBaseURIFromPublicCluster returns an empty URI when the pooler host is missing.
+// buildBaseURIFromPublicCluster returns a connection URI for the cluster's
+// pooler endpoint. The caller is responsible for ensuring the endpoint is
+// usable (see mpgutil.PoolerEndpointReady).
 func buildBaseURIFromPublicCluster(cluster flaps.ManagedPostgresCluster) string {
-	host := cluster.Endpoints.Primary.Pooler.Host
-	if host == "" {
-		return ""
-	}
-	port := cluster.Endpoints.Primary.Pooler.Port
-	if port == 0 {
-		port = mpgutil.DefaultPort
-	}
+	pooler := cluster.Endpoints.Primary.Pooler
 
-	return fmt.Sprintf("postgres://%s:%d/%s", host, port, mpgutil.DefaultDatabase)
+	return fmt.Sprintf("postgres://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase)
 }
