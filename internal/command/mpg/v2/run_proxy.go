@@ -12,7 +12,7 @@ import (
 )
 
 func RunProxy(ctx context.Context, clusterID string, resolvedOrgSlug string, proxyPort string) error {
-	_, params, _, err := GetMpgProxyParams(ctx, proxyPort, "", clusterID, resolvedOrgSlug)
+	_, params, err := GetMpgProxyParams(ctx, proxyPort, clusterID, resolvedOrgSlug)
 	if err != nil {
 		return err
 	}
@@ -20,76 +20,148 @@ func RunProxy(ctx context.Context, clusterID string, resolvedOrgSlug string, pro
 	return proxy.Connect(ctx, params)
 }
 
-// GetMpgProxyParams builds proxy connection parameters for a given cluster.
+// GetMpgProxyParams builds proxy connection parameters for a given cluster
+// without requiring database credentials.
 // resolvedOrgSlug should already be the aliased slug suitable for wireguard tunnels.
 func GetMpgProxyParams(
+	ctx context.Context,
+	localProxyPort string,
+	clusterID string,
+	resolvedOrgSlug string,
+) (*mpgv2.ManagedCluster, *proxy.ConnectParams, error) {
+	response, err := getCluster(ctx, clusterID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cluster, params, err := buildProxyParams(ctx, response, localProxyPort, resolvedOrgSlug)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cluster, params, nil
+}
+
+// GetMpgConnectParams builds proxy connection parameters and resolves the
+// database credentials needed by fly mpg connect.
+func GetMpgConnectParams(
 	ctx context.Context,
 	localProxyPort string,
 	username string,
 	clusterID string,
 	resolvedOrgSlug string,
 ) (*mpgv2.ManagedCluster, *proxy.ConnectParams, *mpgv2.GetClusterCredentialsResponse, error) {
-	client := flyutil.ClientFromContext(ctx)
-	mpgClient := mpgv2.ClientFromContext(ctx)
-
-	// Get cluster details
-	response, err := mpgClient.GetClusterById(ctx, clusterID)
+	response, err := getCluster(ctx, clusterID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+		return nil, nil, nil, err
 	}
 
-	cluster := &response.Data
+	credentials, err := resolveConnectCredentials(ctx, response, username)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
-	// Get credentials - use user-specific endpoint if username provided, otherwise use default
+	cluster, params, err := buildProxyParams(ctx, response, localProxyPort, resolvedOrgSlug)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return cluster, params, credentials, nil
+}
+
+func getCluster(ctx context.Context, clusterID string) (*mpgv2.GetClusterResponse, error) {
+	mpgClient := mpgv2.ClientFromContext(ctx)
+	response, err := mpgClient.GetClusterById(ctx, clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+	}
+
+	return &response, nil
+}
+
+func resolveConnectCredentials(
+	ctx context.Context,
+	response *mpgv2.GetClusterResponse,
+	username string,
+) (*mpgv2.GetClusterCredentialsResponse, error) {
 	var credentials mpgv2.GetClusterCredentialsResponse
 	if username != "" {
-		userCreds, err := mpgClient.GetUserCredentials(ctx, cluster.Id, username)
+		mpgClient := mpgv2.ClientFromContext(ctx)
+		userCreds, err := mpgClient.GetUserCredentials(ctx, response.Data.Id, username)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
+			return nil, fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
-		// Convert user credentials to the standard format
+
 		credentials = mpgv2.GetClusterCredentialsResponse{
 			User:     userCreds.Data.User,
 			Password: userCreds.Data.Password,
-			DBName:   response.Credentials.DBName, // Use default DB name from cluster credentials
+			DBName:   response.Credentials.DBName,
 		}
 	} else {
 		credentials = response.Credentials
 	}
 
-	// Validate cluster state (only for default credentials, user credentials don't have status)
 	if username == "" {
 		if credentials.Status == "initializing" {
-			return nil, nil, nil, fmt.Errorf("cluster is still initializing, wait a bit more")
+			return nil, fmt.Errorf("cluster is still initializing, wait a bit more")
 		}
 
 		if credentials.Status == "error" || credentials.Password == "" {
-			return nil, nil, nil, fmt.Errorf("error getting cluster password")
+			return nil, fmt.Errorf("error getting cluster password")
 		}
 	} else if credentials.Password == "" {
-		return nil, nil, nil, fmt.Errorf("error getting user password")
+		return nil, fmt.Errorf("error getting user password")
 	}
 
-	if cluster.IpAssignments.Direct == "" {
-		return nil, nil, nil, fmt.Errorf("error getting cluster IP")
+	return &credentials, nil
+}
+
+func buildProxyParams(
+	ctx context.Context,
+	response *mpgv2.GetClusterResponse,
+	localProxyPort string,
+	resolvedOrgSlug string,
+) (*mpgv2.ManagedCluster, *proxy.ConnectParams, error) {
+	cluster, params, err := proxyParams(response, localProxyPort, resolvedOrgSlug, flag.GetBindAddr(ctx), nil)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	// Establish wireguard tunnel
+	client := flyutil.ClientFromContext(ctx)
+
+	// Establish wireguard tunnel after validating all prerequisites.
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	dialer, err := agentclient.ConnectToTunnel(ctx, resolvedOrgSlug, "", false)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
+	}
+
+	params.Dialer = dialer
+
+	return cluster, params, nil
+}
+
+func proxyParams(
+	response *mpgv2.GetClusterResponse,
+	localProxyPort string,
+	resolvedOrgSlug string,
+	bindAddr string,
+	dialer agent.Dialer,
+) (*mpgv2.ManagedCluster, *proxy.ConnectParams, error) {
+	cluster := &response.Data
+	if cluster.IpAssignments.Direct == "" {
+		return nil, nil, fmt.Errorf("error getting cluster IP")
 	}
 
 	return cluster, &proxy.ConnectParams{
 		Ports:            []string{localProxyPort, "5432"},
 		OrganizationSlug: resolvedOrgSlug,
 		Dialer:           dialer,
-		BindAddr:         flag.GetBindAddr(ctx),
+		BindAddr:         bindAddr,
 		RemoteHost:       cluster.IpAssignments.Direct,
-	}, &credentials, nil
+	}, nil
 }
