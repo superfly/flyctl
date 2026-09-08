@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -50,8 +50,8 @@ func newRestart() *cobra.Command {
 
 func runRestart(ctx context.Context) error {
 	var (
-		appName = flag.FirstArg(ctx)
-		client  = flyutil.ClientFromContext(ctx)
+		appName     = flag.FirstArg(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	if appName == "" {
@@ -61,16 +61,16 @@ func runRestart(ctx context.Context) error {
 		}
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	if app.IsPostgresApp() {
+	if flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
 	}
 
-	ctx, err = BuildContext(ctx, app)
+	ctx, err = BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func runRestart(ctx context.Context) error {
 	return runMachinesRestart(ctx, app)
 }
 
-func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
+func runMachinesRestart(ctx context.Context, app *flaps.App) error {
 	input := &fly.RestartMachineInput{
 		ForceStop:        flag.GetBool(ctx, "force-stop"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),

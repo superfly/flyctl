@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -69,7 +70,7 @@ func runList(ctx context.Context) (err error) {
 		// --org passed must match the selected app's org
 		if orgFlag != "" {
 			// Get app details, so we can identify its organization slug
-			app, err := apiClient.GetAppCompact(ctx, appName)
+			app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 			if err != nil {
 				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 			}
@@ -80,8 +81,10 @@ func runList(ctx context.Context) (err error) {
 				return fmt.Errorf("failed retrieving org %w", err)
 			}
 
-			// Throw an error if app's org slug does not match --org slug
-			if app.Organization.Slug != org.Slug {
+			// Throw an error if app's org slug does not match --org slug.
+			// Flaps reports the raw org slug, while the selected org may carry
+			// the "personal" alias.
+			if app.Organization.Slug != org.RawSlug && app.Organization.Slug != org.Slug {
 				return fmt.Errorf("failed to retrieve tokens, selected application \"%s\" does not belong to selected organization \"%s\"", appName, org.Slug)
 			}
 		}
