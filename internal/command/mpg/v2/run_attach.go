@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -131,17 +132,17 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		}
 	}
 
-	// Get cluster details and credentials. The public Machines API cluster show does
-	// not expose credentials, so we always use the legacy client for the connection
-	// URI and default DB name. This preserves the existing behavior.
-	clusterResp, err := legacyClient.GetClusterById(ctx, clusterID)
+	// Get cluster details and default credentials. The public Machines API
+	// cluster show does not bundle credentials the way the legacy
+	// GetClusterById response does, so we assemble the equivalent here from
+	// the pooler endpoint plus a public default-user credentials call. Falls
+	// back to the legacy client only on a classified 404.
+	info, err := getClusterConnectionInfoPublicFirst(ctx, flapsClient, legacyClient, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
-
-	baseUri := clusterResp.Credentials.ConnectionUri
-	if baseUri == "" {
-		return fmt.Errorf("connection URI is empty; cannot attach without valid credentials")
+	if info.BaseURI == "" {
+		return fmt.Errorf("cluster is not ready; cannot attach without valid connection information")
 	}
 
 	var connectionUri string
@@ -155,14 +156,14 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		user = creds.User
 		password = creds.Password
 	} else {
-		user = clusterResp.Credentials.User
-		password = clusterResp.Credentials.Password
+		user = info.DefaultUser
+		password = info.DefaultPassword
 	}
 
 	if db == "" {
-		db = clusterResp.Credentials.DBName
+		db = info.DefaultDBName
 	}
-	connectionUri, err = buildConnectionUri(baseUri, user, password, db)
+	connectionUri, err = buildConnectionUri(info.BaseURI, user, password, db)
 	if err != nil {
 		return fmt.Errorf("failed to build connection URI: %w", err)
 	}
@@ -330,4 +331,103 @@ func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.Flap
 	}
 
 	return nil
+}
+
+// clusterConnectionInfo is the assembled view of what RunAttach needs from
+// the cluster before building its DATABASE_URL: the base URI to substitute
+// credentials into, plus the default user/password and the default database
+// name to use when the caller did not specify --username / --database.
+type clusterConnectionInfo struct {
+	// BaseURI is the URI shape (scheme + host + port + default path) the
+	// final connection URI is built from. Same shape as the legacy
+	// Credentials.ConnectionUri, so buildConnectionUri can rewrite its
+	// user and path components.
+	BaseURI string
+	// DefaultUser and DefaultPassword are the cluster's default credentials,
+	// used only when the caller did not specify --username.
+	DefaultUser     string
+	DefaultPassword string
+	// DefaultDBName is the cluster's default database name, used only when
+	// the caller did not specify --database.
+	DefaultDBName string
+}
+
+// getClusterConnectionInfoPublicFirst assembles the base URI and default
+// credentials RunAttach uses to build DATABASE_URL. It tries the public
+// Machines API first (cluster show + default-user credentials) and falls
+// back to the legacy MPGv2 client only on a classified 404. This is the
+// public-first equivalent of the unconditional legacy GetClusterById call
+// that the attach flow used to rely on for the bundled Credentials bundle.
+func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string) (clusterConnectionInfo, error) {
+	cluster, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
+	if errors.Is(err, flaps.ErrFlapsNotFound) {
+		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+	}
+	if err != nil {
+		return clusterConnectionInfo{}, err
+	}
+
+	// A missing pooler host cannot produce a usable URI. Stop before the
+	// credentials lookup so a credentials 404 cannot bypass this guard.
+	// Assigned endpoints may be available during initializing or creating;
+	// endpoint presence does not establish cluster readiness.
+	if cluster.Endpoints.Primary.Pooler.Host == "" {
+		return clusterConnectionInfo{}, nil
+	}
+
+	creds, credsErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgutil.DefaultUsername)
+	if errors.Is(credsErr, flaps.ErrFlapsNotFound) {
+		// Public default-credentials endpoint missing; fall back to the
+		// legacy bundle, which carries the base URI and default creds
+		// together. Re-fetching the cluster here is wasteful but rare.
+		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+	}
+	if credsErr != nil {
+		return clusterConnectionInfo{}, credsErr
+	}
+
+	return clusterConnectionInfo{
+		BaseURI:         buildBaseURIFromPublicCluster(cluster),
+		DefaultUser:     creds.Username,
+		DefaultPassword: creds.Password,
+		DefaultDBName:   mpgutil.DefaultDatabase,
+	}, nil
+}
+
+// getClusterConnectionInfoLegacy is the fallback path for
+// getClusterConnectionInfoPublicFirst. It pulls the base URI and default
+// credentials out of the legacy GetClusterById bundle.
+func getClusterConnectionInfoLegacy(ctx context.Context, legacyClient mpgv2.ClientV2, clusterID string) (clusterConnectionInfo, error) {
+	clusterResp, err := legacyClient.GetClusterById(ctx, clusterID)
+	if err != nil {
+		return clusterConnectionInfo{}, err
+	}
+
+	return clusterConnectionInfo{
+		BaseURI:         clusterResp.Credentials.ConnectionUri,
+		DefaultUser:     clusterResp.Credentials.User,
+		DefaultPassword: clusterResp.Credentials.Password,
+		DefaultDBName:   clusterResp.Credentials.DBName,
+	}, nil
+}
+
+// buildBaseURIFromPublicCluster assembles a libpq connection URI from the
+// public cluster's pooler endpoint and the established default database
+// name, matching the shape of the legacy Credentials.ConnectionUri so
+// buildConnectionUri can rewrite its user and path components.
+//
+// Returns an empty string when the pooler host is missing. This lets the
+// caller reject incomplete connection information before writing a secret.
+// Assigned endpoints can exist before the cluster reaches ready status.
+func buildBaseURIFromPublicCluster(cluster flaps.ManagedPostgresCluster) string {
+	host := cluster.Endpoints.Primary.Pooler.Host
+	if host == "" {
+		return ""
+	}
+	port := cluster.Endpoints.Primary.Pooler.Port
+	if port == 0 {
+		port = mpgutil.DefaultPort
+	}
+
+	return fmt.Sprintf("postgres://%s:%d/%s", host, port, mpgutil.DefaultDatabase)
 }
