@@ -194,6 +194,7 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 					return &flaps.RegionData{Regions: regions, Nearest: "iad"}, nil
 				},
 			})
+			ctx = uiexutil.NewContextWithClient(ctx, &mockUIEXClient{})
 
 			mockClient := &mock.Client{
 				GenqClientFunc: func() genq.Client {

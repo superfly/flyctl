@@ -7,12 +7,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -146,19 +144,10 @@ func runCreate(ctx context.Context) error {
 		}
 	}
 
-	var slug string
+	// For ui-ex request we need the real org slug
+	slug := org.Slug
 	if org.Slug == "personal" {
-		genqClient := flyutil.ClientFromContext(ctx).GenqClient()
-
-		// For ui-ex request we need the real org slug
-		var fullOrg *gql.GetOrganizationResponse
-		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
-			return fmt.Errorf("failed fetching org: %w", err)
-		}
-
-		slug = fullOrg.Organization.RawSlug
-	} else {
-		slug = org.Slug
+		slug = org.RawSlug
 	}
 
 	params := &cmdv2.CreateClusterParams{
