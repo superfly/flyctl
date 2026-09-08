@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -16,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
-	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -37,20 +35,12 @@ func TestRunDatabasesList(t *testing.T) {
 		{Name: "app"},
 		{Name: "metrics"},
 	}
-	legacyDatabases := []mpgv2.Database{
-		{Name: "app"},
-		{Name: "metrics"},
-	}
-
 	tests := []struct {
 		name                string
 		jsonOutput          bool
 		publicDatabases     []flaps.ManagedPostgresDatabase
 		publicListErr       error
-		legacyDatabases     []mpgv2.Database
-		legacyListErr       error
 		wantPublicCalled    bool
-		wantLegacyCalled    bool
 		wantErr             string
 		wantOutputContains  []string
 		wantJSONOutputShape string
@@ -75,30 +65,10 @@ func TestRunDatabasesList(t *testing.T) {
 			wantOutputContains: []string{"No databases found for cluster mpg-123"},
 		},
 		{
-			name:       "renders legacy JSON after wrapped Machines 404",
-			jsonOutput: true,
-			publicListErr: fmt.Errorf("list Managed Postgres databases: %w", &flaps.FlapsError{
-				ResponseStatusCode: 404,
-				OriginalError:      errors.New("not found"),
-			}),
-			legacyDatabases:     legacyDatabases,
-			wantPublicCalled:    true,
-			wantLegacyCalled:    true,
-			wantJSONOutputShape: `[{"name":"app"},{"name":"metrics"}]`,
-		},
-		{
 			name:             "returns non-404 Machines API error without falling back",
 			publicListErr:    errors.New("boom"),
 			wantPublicCalled: true,
 			wantErr:          "failed to list databases for cluster mpg-123: boom",
-		},
-		{
-			name:             "returns legacy error when fallback fails",
-			publicListErr:    flaps.ErrFlapsNotFound,
-			legacyListErr:    errors.New("legacy boom"),
-			wantPublicCalled: true,
-			wantLegacyCalled: true,
-			wantErr:          "failed to list databases for cluster mpg-123: legacy boom",
 		},
 	}
 
@@ -115,16 +85,6 @@ func TestRunDatabasesList(t *testing.T) {
 				},
 			})
 
-			legacyCalled := false
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				ListDatabasesFunc: func(_ context.Context, id string) (mpgv2.ListDatabasesResponse, error) {
-					legacyCalled = true
-					require.Equal(t, "mpg-123", id)
-
-					return mpgv2.ListDatabasesResponse{Data: test.legacyDatabases}, test.legacyListErr
-				},
-			})
-
 			err := RunDatabasesList(ctx, "mpg-123")
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -132,7 +92,6 @@ func TestRunDatabasesList(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, test.wantPublicCalled, publicCalled)
-			require.Equal(t, test.wantLegacyCalled, legacyCalled)
 
 			if test.wantJSONOutputShape != "" {
 				var got []map[string]any
@@ -156,9 +115,7 @@ func TestRunDatabasesCreate(t *testing.T) {
 		nameFlag            string
 		publicCreated       flaps.ManagedPostgresDatabase
 		publicCreateErr     error
-		legacyCreateErr     error
 		wantPublicCalled    bool
-		wantLegacyCalled    bool
 		wantPublicNameField string
 		wantErr             string
 		wantOutputContains  []string
@@ -172,28 +129,11 @@ func TestRunDatabasesCreate(t *testing.T) {
 			wantOutputContains:  []string{"Creating database reports in cluster mpg-123...", "Database created successfully!", "Name: reports-created"},
 		},
 		{
-			name:               "falls back to legacy API on public not found",
-			nameFlag:           "reports",
-			publicCreateErr:    flaps.ErrFlapsNotFound,
-			wantPublicCalled:   true,
-			wantLegacyCalled:   true,
-			wantOutputContains: []string{"Creating database reports in cluster mpg-123...", "Database created successfully!", "Name: reports"},
-		},
-		{
 			name:             "returns non-404 Machines API error without falling back",
 			nameFlag:         "reports",
 			publicCreateErr:  errors.New("boom"),
 			wantPublicCalled: true,
 			wantErr:          "failed to create database: boom",
-		},
-		{
-			name:             "returns legacy error when fallback fails",
-			nameFlag:         "reports",
-			publicCreateErr:  flaps.ErrFlapsNotFound,
-			legacyCreateErr:  errors.New("legacy boom"),
-			wantPublicCalled: true,
-			wantLegacyCalled: true,
-			wantErr:          "failed to create database: legacy boom",
 		},
 		{
 			name:    "requires --name when not interactive",
@@ -221,19 +161,6 @@ func TestRunDatabasesCreate(t *testing.T) {
 				},
 			})
 
-			legacyCalled := false
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				CreateDatabaseFunc: func(_ context.Context, id string, input mpgv2.CreateDatabaseInput) error {
-					legacyCalled = true
-					require.Equal(t, "mpg-123", id)
-					if test.nameFlag != "" {
-						require.Equal(t, test.nameFlag, input.Name)
-					}
-
-					return test.legacyCreateErr
-				},
-			})
-
 			err := RunDatabasesCreate(ctx, "mpg-123")
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -241,10 +168,22 @@ func TestRunDatabasesCreate(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, test.wantPublicCalled, publicCalled)
-			require.Equal(t, test.wantLegacyCalled, legacyCalled)
 			for _, want := range test.wantOutputContains {
 				require.Contains(t, stdout.String(), want)
 			}
 		})
 	}
+}
+
+func TestRunDatabasesListReturnsPublic404(t *testing.T) {
+	ctx, _ := databasesTestContext(t, false)
+	publicErr := &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("cluster not found")}
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresDatabasesFunc: func(context.Context, string) ([]flaps.ManagedPostgresDatabase, error) {
+			return nil, publicErr
+		},
+	})
+	err := RunDatabasesList(ctx, "mpg-123")
+	require.ErrorIs(t, err, publicErr)
+	require.ErrorContains(t, err, "failed to list databases for cluster mpg-123: cluster not found")
 }
