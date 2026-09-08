@@ -11,6 +11,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -317,8 +318,7 @@ func getMachineByID(ctx context.Context, appName string) (*fly.Machine, func(), 
 }
 
 func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
+	currentRelease, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name)
 	if err != nil {
 		return nil, nil, err
 	}

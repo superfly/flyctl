@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -253,7 +254,7 @@ func TestClusterFromArgOrSelectByID(t *testing.T) {
 }
 
 func TestOrganizationSlugMatchesRawOrAliasedSlug(t *testing.T) {
-	org := &fly.OrganizationBasic{RawSlug: "user-org", Slug: "personal"}
+	org := &uiex.Organization{RawSlug: "user-org", Slug: "personal"}
 
 	require.True(t, organizationSlugMatches(org, "user-org"))
 	require.True(t, organizationSlugMatches(org, "personal"))

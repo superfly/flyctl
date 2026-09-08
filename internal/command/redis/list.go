@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -55,7 +56,7 @@ func runList(ctx context.Context) (err error) {
 	}
 
 	if orgSlug != "" {
-		if _, err := apiClient.GetOrganizationBySlug(ctx, orgSlug); err != nil {
+		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
 			return err
 		}
 

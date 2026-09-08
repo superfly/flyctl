@@ -10,8 +10,9 @@ import (
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -43,17 +44,21 @@ func runDetach(ctx context.Context) error {
 	var (
 		clusterId = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	appOrgSlug := app.Organization.RawSlug
+	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("failed retrieving organization for app %s: %w", appName, err)
+	}
+
+	appOrgSlug := appOrg.RawSlug
 	if appOrgSlug != "" && clusterId == "" {
 		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
 	}
@@ -67,7 +72,7 @@ func runDetach(ctx context.Context) error {
 	clusterOrgSlug := cluster.Organization.Slug
 
 	// Verify that the app and cluster are in the same organization
-	if !organizationSlugMatches(app.Organization, clusterOrgSlug) {
+	if !organizationSlugMatches(appOrg, clusterOrgSlug) {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization",
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
