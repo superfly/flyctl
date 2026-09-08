@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -231,29 +232,15 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 }
 
 func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) error {
-	var (
-		out    = iostreams.FromContext(ctx).Out
-		client = flyutil.ClientFromContext(ctx)
-	)
+	out := iostreams.FromContext(ctx).Out
 
-	versionQuery := `
-		query ($appName: String!) {
-			app(name:$appName) {
-				currentRelease:currentReleaseUnprocessed {
-					version
-				}
-			}
-		}
-	`
-	req := client.NewRequest(versionQuery)
-	req.Var("appName", app.Name)
-	resp, err := client.RunWithContext(ctx, req)
+	currentRelease, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name)
 	if err != nil {
 		return fmt.Errorf("could not get current release for app '%s': %w", app.Name, err)
 	}
 	version := 0
-	if resp.App.CurrentRelease != nil {
-		version = resp.App.CurrentRelease.Version
+	if currentRelease != nil {
+		version = currentRelease.Version
 	}
 
 	machinesToShow := []*fly.Machine{}
