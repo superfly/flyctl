@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	"github.com/chzyer/readline"
 	"github.com/google/shlex"
@@ -133,17 +134,17 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("get app: %w", err)
 	}
 
-	flapsApp, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return nil, fmt.Errorf("get app network: %w", err)
+		return nil, err
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, flapsutil.NetworkName(flapsApp), quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgentOrgSlug(ctx, client, app.Organization.Slug, flapsutil.NetworkName(app), quiet(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +156,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 
 	params := &ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		Org:            org,
 		Dialer:         dialer,
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,

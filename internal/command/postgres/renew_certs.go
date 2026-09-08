@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -49,27 +51,31 @@ func runRefreshSSHCerts(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	return refreshSSHCerts(ctx, flapsClient, app)
+	ctx, err = apps.BuildContextForApp(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	return refreshSSHCerts(ctx, flapsClient, app, org)
 }
 
-func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppCompact) error {
+func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, org *uiex.Organization) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = flyutil.ClientFromContext(ctx)
@@ -98,7 +104,7 @@ func refreshSSHCerts(ctx context.Context, flapsClient flapsutil.FlapsClient, app
 	}
 
 	validHours := validDays * 24
-	cert, err := client.IssueSSHCertificate(ctx, app.Organization.GetID(), []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
+	cert, err := client.IssueSSHCertificate(ctx, org.ID, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 	if err != nil {
 		return fmt.Errorf("failed to issue ssh certificate: %w", err)
 	}

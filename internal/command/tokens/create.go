@@ -10,8 +10,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
@@ -309,14 +311,19 @@ func runSSH(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	// start with app deploy token and then pare it down.
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -478,13 +485,18 @@ func runDeploy(ctx context.Context) (err error) {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -513,13 +525,18 @@ func runMachineExec(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
