@@ -127,6 +127,14 @@ func TestRunAttach_publicSuccess(t *testing.T) {
 	require.NoError(t, flags.Set("database", "appdb"))
 
 	flapsClient := minimalAttachFlapsClient()
+	var writtenURI string
+	flapsClient.UpdateAppSecretsFunc = func(_ context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+		require.Equal(t, "my-app", appName)
+		require.NotNil(t, values["DATABASE_URL"])
+		writtenURI = *values["DATABASE_URL"]
+
+		return &fly.UpdateAppSecretsResp{Version: 1}, nil
+	}
 	flapsClient.CreateManagedPostgresAttachmentFunc = func(_ context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
 		require.Equal(t, "mpg-123", id)
 		require.Equal(t, "my-app", req.AppName)
@@ -140,7 +148,8 @@ func TestRunAttach_publicSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	// URI: alice's credentials substituted from the public endpoint, path set to appdb.
-	wantUri := "postgres://alice:alice-pass@pooler.fly.dev:5432/appdb"
+	wantUri := "postgresql://alice:alice-pass@pooler.fly.dev:5432/appdb"
+	require.Equal(t, wantUri, writtenURI)
 	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", wantUri), stdout.String())
 	require.Empty(t, stderr.String())
 }
@@ -166,7 +175,7 @@ func TestRunAttach_explicitUsernameSkipsDefaultCredentials(t *testing.T) {
 
 	require.NoError(t, RunAttach(ctx, "mpg-123"))
 	require.Equal(t, []string{"alice"}, requestedUsers)
-	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", "postgres://alice:alice-pass@pooler.fly.dev:5432/fly-db"), stdout.String())
+	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", "postgresql://alice:alice-pass@pooler.fly.dev:5432/fly-db"), stdout.String())
 	require.Empty(t, stderr.String())
 }
 
@@ -188,7 +197,7 @@ func TestRunAttach_noUsernameDefaultCredentials(t *testing.T) {
 	require.NoError(t, err)
 
 	// Default credentials used; database defaults to fly-db.
-	wantUri := "postgres://fly-user:default-pass@pooler.fly.dev:5432/fly-db"
+	wantUri := "postgresql://fly-user:default-pass@pooler.fly.dev:5432/fly-db"
 	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", wantUri), stdout.String())
 	require.Empty(t, stderr.String())
 }
@@ -212,7 +221,7 @@ func TestRunAttach_customVariableName(t *testing.T) {
 	err := RunAttach(ctx, "mpg-123")
 	require.NoError(t, err)
 
-	wantUri := "postgres://fly-user:alice-pass@pooler.fly.dev:5432/fly-db"
+	wantUri := "postgresql://fly-user:alice-pass@pooler.fly.dev:5432/fly-db"
 	require.Equal(t, wantSecretOutput("my-app", "MY_PG_URL", wantUri), stdout.String())
 	require.Empty(t, stderr.String())
 }
@@ -351,7 +360,7 @@ func TestRunAttach_userCredentialsFallback(t *testing.T) {
 	require.True(t, legacyCalled, "legacy GetUserCredentials should be called after public 404")
 
 	// Verify the legacy password was used in the URI.
-	wantUri := "postgres://alice:legacy-alice-pass@pooler.fly.dev:5432/appdb"
+	wantUri := "postgresql://alice:legacy-alice-pass@pooler.fly.dev:5432/appdb"
 	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", wantUri), stdout.String())
 	require.Empty(t, stderr.String())
 }
@@ -609,7 +618,7 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 			name:           "uses Machines API for cluster and default creds",
 			wantCredsCalls: 1,
 			wantInfo: clusterConnectionInfo{
-				BaseURI:         "postgres://pooler.fly.dev:5432/fly-db",
+				BaseURI:         "postgresql://pooler.fly.dev:5432/fly-db",
 				DefaultUser:     "fly-user",
 				DefaultPassword: "public-pass",
 				DefaultDBName:   "fly-db",

@@ -357,7 +357,7 @@ func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsu
 	}
 
 	info := clusterConnectionInfo{
-		BaseURI:       fmt.Sprintf("postgres://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase),
+		BaseURI:       fmt.Sprintf("postgresql://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase),
 		DefaultDBName: mpgutil.DefaultDatabase,
 	}
 	if !needDefaultCredentials {
