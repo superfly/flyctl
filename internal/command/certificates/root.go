@@ -653,7 +653,13 @@ func printCertificateDetail(ctx context.Context, resp *fly.CertificateDetailResp
 		if flyCert != nil {
 			printCertSection(colorize, myprnt, resp.Hostname, flyCert, "")
 		} else {
-			myprnt("Status", colorize.Yellow("Not verified"))
+			// No certificate rows yet. If validation already passed the
+			// server is issuing; only an unconfigured hostname is "Not verified".
+			if resp.Configured {
+				myprnt("Status", colorize.Yellow("Issuing..."))
+			} else {
+				myprnt("Status", colorize.Yellow("Not verified"))
+			}
 			myprnt("Hostname", resp.Hostname)
 		}
 
@@ -781,9 +787,11 @@ func printCertificates(ctx context.Context, certs []fly.CertificateSummary) erro
 			} else {
 				status = "Not verified"
 			}
-		} else if v.Configured {
+		} else if v.Configured && v.HasFlyCertificate {
 			status = "Issued"
-		} else if v.AcmeDNSConfigured || v.AcmeALPNConfigured || v.AcmeHTTPConfigured {
+		} else if v.Configured || v.AcmeDNSConfigured || v.AcmeALPNConfigured || v.AcmeHTTPConfigured {
+			// Validation passed (or a validation method is in place) but no
+			// certificate has been issued yet.
 			status = "Issuing..."
 		} else {
 			status = "Not verified"
