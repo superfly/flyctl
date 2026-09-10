@@ -270,6 +270,7 @@ func findRequestedMachine(ctx context.Context, appName, machineID string, machin
 		if m.State != "started" {
 			return nil, fmt.Errorf("machine %s is not started", machineID)
 		}
+
 		return m, nil
 	}
 
