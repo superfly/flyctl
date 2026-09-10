@@ -259,6 +259,35 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 	return err
 }
 
+// findRequestedMachine resolves the --machine flag against the app's active
+// machines. When the machine can't be used it returns an error that says why:
+// not started, in a different app, or not found.
+func findRequestedMachine(ctx context.Context, appName, machineID string, machines []*fly.Machine) (*fly.Machine, error) {
+	for _, m := range machines {
+		if m.ID != machineID {
+			continue
+		}
+		if m.State != "started" {
+			return nil, fmt.Errorf("machine %s is not started", machineID)
+		}
+
+		return m, nil
+	}
+
+	// Not in this app's active machines. Ask the API whether it belongs to a
+	// different app. Anything else (including a destroyed machine in this app)
+	// is reported as not found.
+	gqlMachine, err := flyutil.ClientFromContext(ctx).GetMachine(ctx, machineID)
+	if err == nil && gqlMachine != nil && gqlMachine.App != nil && gqlMachine.App.Name != "" && gqlMachine.App.Name != appName {
+		return nil, fmt.Errorf("machine %s belongs to app %s, not selected app %s", machineID, gqlMachine.App.Name, appName)
+	}
+	if err != nil {
+		terminal.Debugf("looking up machine %s: %v\n", machineID, err)
+	}
+
+	return nil, fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+}
+
 func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -266,6 +295,16 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return nil, err
+	}
+
+	machineID := flag.GetString(ctx, "machine")
+	var selectedMachine *fly.Machine
+
+	if machineID != "" {
+		selectedMachine, err = findRequestedMachine(ctx, app.Name, machineID, machines)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
@@ -283,6 +322,9 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 		if len(machines) < 1 {
 			return nil, fmt.Errorf("app %s has no VMs in region %s", app.Name, region)
 		}
+		if selectedMachine != nil && selectedMachine.Region != region {
+			return nil, fmt.Errorf("machine %s is in region %s, not selected region %s", machineID, selectedMachine.Region, region)
+		}
 	}
 
 	if group := flag.GetProcessGroup(ctx); group != "" {
@@ -292,18 +334,18 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 		if len(machines) < 1 {
 			return nil, fmt.Errorf("app %s has no VMs in process group %s", app.Name, group)
 		}
+		if selectedMachine != nil && selectedMachine.ProcessGroup() != group {
+			if selectedMachine.ProcessGroup() == "" {
+				return nil, fmt.Errorf("machine %s has no process group, not selected process group %s", machineID, group)
+			}
+			return nil, fmt.Errorf("machine %s is in process group %s, not selected process group %s", machineID, selectedMachine.ProcessGroup(), group)
+		}
 	}
 
 	var namesWithRegion []string
-	machineID := flag.GetString(ctx, "machine")
-	var selectedMachine *fly.Machine
 	multipleGroups := len(lo.UniqBy(machines, func(m *fly.Machine) string { return m.ProcessGroup() })) > 1
 
 	for _, machine := range machines {
-		if machine.ID == machineID {
-			selectedMachine = machine
-		}
-
 		nameWithRegion := fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name)
 
 		role := ""
@@ -325,10 +367,6 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 			nameWithRegion += fmt.Sprintf(" (%s)", machine.ProcessGroup())
 		}
 		namesWithRegion = append(namesWithRegion, nameWithRegion)
-	}
-
-	if machineID != "" && selectedMachine == nil {
-		return nil, fmt.Errorf("--machine=%q not found/started", machineID)
 	}
 
 	if flag.GetBool(ctx, "select") {
