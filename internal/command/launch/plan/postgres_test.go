@@ -74,7 +74,7 @@ func (m *mockUIEXClient) CreateFlyManagedBuilder(ctx context.Context, orgSlug st
 	return uiex.CreateFlyManagedBuilderResponse{}, nil
 }
 
-func (m *mockUIEXClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (*map[string]time.Time, error) {
+func (m *mockUIEXClient) GetAllAppsCurrentReleaseTimestamps(ctx context.Context, orgSlug string) (*map[string]time.Time, error) {
 	return &map[string]time.Time{}, nil
 }
 
