@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -127,14 +128,19 @@ func runList(ctx context.Context) (err error) {
 
 // getApps lists the apps the user can see, or only those in orgSlug when it
 // is set, through Flaps. The latest deploy time comes from the ui-ex
-// current-release timestamps, which cover every app in one request.
+// current-release timestamps, one request for every app in the listed orgs.
 func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	// Flaps reports raw org slugs; show the slug the user knows the org by,
 	// which is "personal" for their personal org, as the GraphQL listing did.
+	//
+	// releaseOrgSlug narrows the current-release timestamps request to one
+	// org. It stays empty when listing every org. It is the org's raw slug
+	// because "personal" is a flyctl alias, not a slug the API knows.
 	var orgs []uiex.Organization
+	var releaseOrgSlug string
 	if orgSlug == "" {
 		var err error
 		if orgs, err = uiexClient.ListOrganizations(ctx, false); err != nil {
@@ -146,6 +152,7 @@ func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 			return nil, err
 		}
 		orgs = []uiex.Organization{*org}
+		releaseOrgSlug = org.RawSlug
 	}
 	// The GraphQL listing grouped apps by org, personal org first, and
 	// sorted by name within each org; keep that order.
@@ -155,9 +162,15 @@ func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 		slugByRawSlug[org.RawSlug] = org.Slug
 	}
 
-	releaseTimes, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx)
+	// Without the org filter the server computes timestamps for every app on
+	// the token, which for a member of a very large org can take longer than
+	// the API's request timeout. The timestamps only fill the "Latest Deploy"
+	// column, so if the request fails anyway, warn and list the apps without
+	// it rather than fail.
+	releaseTimes, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx, releaseOrgSlug)
 	if err != nil {
-		return nil, err
+		terminal.Warnf("Could not fetch latest deploy times: %v\n", err)
+		releaseTimes = nil
 	}
 
 	apps := []fly.App{}
