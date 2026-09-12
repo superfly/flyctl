@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"github.com/superfly/flyctl/internal/config"
@@ -75,9 +76,12 @@ type CreateReleaseRequest struct {
 	Strategy   DeploymentStrategy `json:"strategy"`
 }
 
-func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *map[string]time.Time, err error) {
+func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context, orgSlug string) (out *map[string]time.Time, err error) {
 	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/releases/all_current", c.baseUrl)
+	if orgSlug != "" {
+		url += "?org=" + neturl.QueryEscape(orgSlug)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
