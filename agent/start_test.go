@@ -33,6 +33,12 @@ func TestSetupLogDirectoryPrunesLogs(t *testing.T) {
 		}
 	}
 
+	// Create a non-log file in logDir
+	nonLogPath := filepath.Join(logDir, "README.txt")
+	if err := os.WriteFile(nonLogPath, []byte("preserve me"), 0o600); err != nil {
+		t.Fatalf("failed creating non-log file: %v", err)
+	}
+
 	dir, err := setupLogDirectory()
 	if err != nil {
 		t.Fatalf("setupLogDirectory failed: %v", err)
@@ -43,7 +49,12 @@ func TestSetupLogDirectoryPrunesLogs(t *testing.T) {
 		t.Fatalf("failed reading logDir: %v", err)
 	}
 
-	if len(entries) > 10 {
-		t.Fatalf("expected at most 10 log files retained, got %d", len(entries))
+	// 10 log files + 1 non-log file = 11 total entries
+	if len(entries) != 11 {
+		t.Fatalf("expected 11 entries (10 retained log files + 1 non-log file), got %d", len(entries))
+	}
+
+	if _, err := os.Stat(nonLogPath); os.IsNotExist(err) {
+		t.Fatalf("non-log file was improperly pruned: %v", nonLogPath)
 	}
 }

@@ -214,7 +214,7 @@ func setupLogDirectory() (dir string, err error) {
 
 	for _, entry := range entries {
 		inf, e := entry.Info()
-		if e != nil || !inf.Mode().IsRegular() {
+		if e != nil || !inf.Mode().IsRegular() || !strings.HasSuffix(inf.Name(), ".log") {
 			continue
 		}
 		p := filepath.Join(dir, inf.Name())
