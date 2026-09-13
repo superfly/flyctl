@@ -12,7 +12,7 @@ import (
 func TestSetupLogDirectoryPrunesLogs(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("FLY_CONFIG_DIR", tempDir)
-	flyctl.SetClientConfigDir(tempDir)
+	flyctl.InitConfig()
 
 	logDir := filepath.Join(tempDir, "agent-logs")
 	if err := os.MkdirAll(logDir, 0o700); err != nil {
