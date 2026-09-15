@@ -270,7 +270,9 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		tp.Shutdown(shutdownCtx)
 	}()
 
-	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy",
+		trace.WithAttributes(attribute.Bool("deploy.build_only", flag.GetBuildOnly(ctx))),
+	)
 	defer span.End()
 
 	defer func() {
