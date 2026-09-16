@@ -79,18 +79,20 @@ func ClientFromContext(ctx context.Context) ClientV2 {
 }
 
 type ManagedCluster struct {
-	Id            string                          `json:"id"`
-	Name          string                          `json:"name"`
-	Status        string                          `json:"status"`
-	Engine        string                          `json:"engine"`
-	Plan          string                          `json:"plan"`
-	Region        string                          `json:"region"`
-	Organization  fly.Organization                `json:"organization"`
-	MpgdClusterId string                          `json:"mpgd_cluster_id"`
-	Disk          int                             `json:"disk"`
-	Replicas      int                             `json:"replicas"`
-	IpAssignments mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
-	AttachedApps  []mpg.AttachedApp               `json:"attached_apps"`
+	Id                      string                          `json:"id"`
+	Name                    string                          `json:"name"`
+	Status                  string                          `json:"status"`
+	Engine                  string                          `json:"engine"`
+	Plan                    string                          `json:"plan"`
+	Region                  string                          `json:"region"`
+	Organization            fly.Organization                `json:"organization"`
+	MpgdClusterId           string                          `json:"mpgd_cluster_id"`
+	Disk                    int                             `json:"disk"`
+	StorageUsedBytes        *int64                          `json:"storage_used_bytes"`
+	StorageProvisionedBytes *int64                          `json:"storage_provisioned_bytes"`
+	Replicas                int                             `json:"replicas"`
+	IpAssignments           mpg.ManagedClusterIpAssignments `json:"ip_assignments"`
+	AttachedApps            []mpg.AttachedApp               `json:"attached_apps"`
 }
 
 type GetClusterCredentialsResponse struct {
