@@ -44,6 +44,7 @@ type Launcher struct {
 
 type CreateClusterInput struct {
 	AppName            string
+	Network            string
 	ConsulURL          string
 	ImageRef           string
 	InitialClusterSize int
@@ -116,9 +117,9 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var addr *flaps.AssignIPResponse
 
 	if config.Manager == ReplicationManager {
-		// not sure this is right (should we support network/organization?)
 		addr, err = flapsutil.ClientFromContext(ctx).AssignIP(ctx, config.AppName, flaps.AssignIPRequest{
-			Type: flaps.IPAssignmentTypePrivateV6,
+			Type:    flaps.IPAssignmentTypePrivateV6,
+			Network: config.Network,
 		})
 		if err != nil {
 			return err
@@ -394,6 +395,7 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
 		Org:       config.Organization.Slug,
 		Name:      config.AppName,
+		Network:   config.Network,
 		AppRoleID: "postgres_cluster",
 	})
 	if err != nil {
