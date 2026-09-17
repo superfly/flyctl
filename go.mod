@@ -76,18 +76,18 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/superfly/client-signals/go v0.4.4
-	github.com/superfly/fly-go v0.9.15
+	github.com/superfly/fly-go v0.10.1-0.20260916214104-dae440ebb5eb
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/macaroon v0.3.2
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
 	github.com/vektah/gqlparser/v2 v2.5.36
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
-	go.opentelemetry.io/otel v1.45.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
+	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.45.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.45.0
-	go.opentelemetry.io/otel/sdk v1.45.0
-	go.opentelemetry.io/otel/trace v1.45.0
+	go.opentelemetry.io/otel/sdk v1.46.0
+	go.opentelemetry.io/otel/trace v1.46.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.55.0
 	golang.org/x/mod v0.40.0
@@ -278,7 +278,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.69.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 // indirect
-	go.opentelemetry.io/otel/metric v1.45.0 // indirect
+	go.opentelemetry.io/otel/metric v1.46.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
