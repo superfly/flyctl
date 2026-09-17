@@ -119,7 +119,7 @@ func gbString(bytes *int64) string {
 	if bytes == nil {
 		return ""
 	}
-	gb := math.Round(float64(*bytes)/(1<<30)*10) / 10
+	gb := math.Round(float64(*bytes)/(1<<30)*100) / 100
 
 	return strconv.FormatFloat(gb, 'f', -1, 64)
 }
