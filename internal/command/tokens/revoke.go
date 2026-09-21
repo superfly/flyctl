@@ -21,6 +21,7 @@ func newRevoke() *cobra.Command {
 	cmd := command.New(usage, short, long, runRevoke,
 		command.RequireSession,
 	)
+	cmd.AddCommand(newRevokeSupplied())
 
 	return cmd
 }
