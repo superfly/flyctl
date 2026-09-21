@@ -33,7 +33,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/getsentry/sentry-go v0.48.0
 	github.com/go-logr/logr v1.4.4
-	github.com/gofrs/flock v0.13.0
+	github.com/gofrs/flock v0.13.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
