@@ -136,7 +136,7 @@ func logoutTokenOverrideWarning() string {
 		}
 		if apiToken := os.Getenv(config.APITokenEnvKey); apiToken != "" {
 			return fmt.Sprintf(
-				"Environment variables %s and %s remain set. Neither token was revoked or removed, and flyctl will continue using them. Unset both variables to stop using them; use `fly tokens revoke supplied` to revoke them.",
+				"Environment variables %s and %s remain set. Neither token was revoked or removed, and flyctl will continue using them. Unset both variables to stop using them or use `fly tokens revoke supplied` to revoke them, one at a time.",
 				config.AccessTokenEnvKey, config.APITokenEnvKey,
 			)
 		}
