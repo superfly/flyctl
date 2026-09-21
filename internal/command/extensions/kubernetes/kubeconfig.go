@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
@@ -51,16 +50,6 @@ func runSaveKubeconfig(ctx context.Context) error {
 	if outFilename == "" {
 		outFilename = fmt.Sprintf("%s.kubeconfig.yml", resp.AddOn.Name)
 	}
-	f, err := os.Create(outFilename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 
-	_, err = f.Write([]byte(kubeconfig))
-	if err != nil {
-		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", outFilename, err)
-	}
-
-	return nil
+	return writeKubeconfig(outFilename, kubeconfig)
 }

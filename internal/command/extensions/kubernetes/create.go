@@ -3,7 +3,6 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
@@ -75,16 +74,11 @@ func runK8sCreate(ctx context.Context) (err error) {
 	if outFilename == "" {
 		outFilename = fmt.Sprintf("%s.kubeconfig.yml", resp.AddOn.Name)
 	}
-	f, err := os.Create(outFilename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 
 	metadata := resp.AddOn.Metadata.(map[string]any)
 	kubeconfig := metadata["kubeconfig"].(string)
-	if _, err := f.Write([]byte(kubeconfig)); err != nil {
-		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", outFilename, err)
+	if err := writeKubeconfig(outFilename, kubeconfig); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(io.Out, "Wrote kubeconfig to file %s. Use it to connect to your cluster", outFilename)
