@@ -87,7 +87,7 @@ func runLogin(ctx context.Context) error {
 func loginTokenOverrideWarning() string {
 	warnFor := func(envVar string) string {
 		return fmt.Sprintf(
-			"Environment variable %s is set, so flyctl will continue using it instead of the credentials just saved. Unset %s to use the new credentials.",
+			"Environment variable %s is set, so flyctl will continue using it instead of the access token just saved. Unset %s to use the new access token.",
 			envVar, envVar,
 		)
 	}
@@ -100,7 +100,7 @@ func loginTokenOverrideWarning() string {
 		}
 		if apiToken := os.Getenv(config.APITokenEnvKey); apiToken != "" {
 			return fmt.Sprintf(
-				"Environment variables %s and %s are set. flyctl will continue using these instead of the credentials just saved. Unset both variables to use the new credentials.",
+				"Environment variables %s and %s are set. flyctl will continue using these instead of the access token just saved. Unset both variables to use the new access token.",
 				config.AccessTokenEnvKey, config.APITokenEnvKey,
 			)
 		}
