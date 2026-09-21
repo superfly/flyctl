@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -27,36 +28,52 @@ To continue interacting with Fly, the user will need to log in again.
 		short = "Logs out the currently logged in user"
 	)
 
-	return command.New("logout", short, long, runLogout)
+	cmd := command.New("logout", short, long, runLogout)
+
+	flag.Add(cmd,
+		flag.Bool{
+			Name:        "force",
+			Description: "Remove the saved access token even if it could not be revoked",
+		},
+	)
+
+	return cmd
 }
 
-func runLogout(ctx context.Context) (err error) {
+func runLogout(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	path := state.ConfigFile(ctx)
 
 	// Log out the local access token that `fly auth login` manages, rather than an
 	// externally supplied token that happened to take precedence for this run.
 	revoked, revokeErr := revokeSavedToken(ctx, path)
-	if revokeErr != nil {
-		return fmt.Errorf("failed to revoke saved token: %w", revokeErr)
+	if revokeErr != nil && !flag.GetBool(ctx, "force") {
+		return fmt.Errorf("failed to revoke saved token: %w\n"+
+			"The token is still saved locally, so you can retry. "+
+			"Run `fly auth logout --force` to remove it anyway and revoke it in the dashboard", revokeErr)
 	}
 
-	var ac *agent.Client
-	if ac, err = agent.DefaultClient(ctx); err == nil {
-		if err = ac.Kill(ctx); err != nil {
-			err = fmt.Errorf("failed stopping agent: %w", err)
+	// Clear the saved token before doing anything else that can fail. A token that
+	// has been revoked but left on disk wedges every future logout, because
+	// revoking it again keeps failing.
+	if err := config.Clear(path); err != nil {
+		return fmt.Errorf("failed clearing config file at %s: %w", path, err)
+	}
 
-			return
+	if ac, err := agent.DefaultClient(ctx); err == nil {
+		if err := ac.Kill(ctx); err != nil {
+			// Not fatal: the saved token is already gone.
+			warn(io, fmt.Sprintf("Failed stopping agent: %v", err))
 		}
 	}
 
-	if err = config.Clear(path); err != nil {
-		err = fmt.Errorf("failed clearing config file at %s: %w\n", path, err)
-
-		return
-	}
-
 	switch {
+	case revokeErr != nil:
+		fmt.Fprintln(io.Out, "removed local access token without revoking it")
+		warn(io, fmt.Sprintf(
+			"The saved access token could not be revoked (%v), so it remains valid. Revoke it in the dashboard.",
+			revokeErr,
+		))
 	case revoked:
 		fmt.Fprintln(io.Out, "logged out successfully")
 	default:
@@ -64,10 +81,15 @@ func runLogout(ctx context.Context) (err error) {
 	}
 
 	if warning := logoutTokenOverrideWarning(); warning != "" {
-		fmt.Fprintf(io.ErrOut, "\n%s %s\n", io.ColorScheme().WarningIcon(), io.ColorScheme().Yellow(warning))
+		warn(io, warning)
 	}
 
-	return
+	return nil
+}
+
+func warn(io *iostreams.IOStreams, msg string) {
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.ErrOut, "\n%s %s\n", colorize.WarningIcon(), colorize.Yellow(msg))
 }
 
 func revokeSavedToken(ctx context.Context, path string) (bool, error) {
