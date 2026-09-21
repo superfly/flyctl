@@ -3,8 +3,24 @@ package kubernetes
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
+
+func requireOwnerOnly(t *testing.T, path string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("kubeconfig mode = %o, want 600", got)
+	}
+}
 
 func TestWriteKubeconfigIsOwnerOnly(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cluster.kubeconfig.yml")
@@ -13,13 +29,7 @@ func TestWriteKubeconfigIsOwnerOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Errorf("new kubeconfig mode = %o, want 600", got)
-	}
+	requireOwnerOnly(t, path)
 	if data, _ := os.ReadFile(path); string(data) != "apiVersion: v1\n" {
 		t.Errorf("unexpected contents %q", data)
 	}
@@ -35,13 +45,7 @@ func TestWriteKubeconfigNarrowsExistingFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := info.Mode().Perm(); got != 0o600 {
-		t.Errorf("existing kubeconfig mode = %o, want 600", got)
-	}
+	requireOwnerOnly(t, path)
 	if data, _ := os.ReadFile(path); string(data) != "new\n" {
 		t.Errorf("file not truncated, contents %q", data)
 	}
