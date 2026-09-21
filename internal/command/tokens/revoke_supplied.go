@@ -25,6 +25,7 @@ Use 'fly auth logout' to revoke the access token saved by 'fly auth login'.
 
 Does not clear local configuration or unset environment variables.`, runRevokeSupplied)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -65,6 +66,7 @@ func runRevokeSupplied(ctx context.Context) error {
 		colorize := io.ColorScheme()
 		fmt.Fprintf(io.ErrOut, "\n%s %s\n", colorize.WarningIcon(), colorize.Yellow(warning))
 	}
+
 	return nil
 }
 
@@ -80,5 +82,6 @@ func suppliedTokenSource(ctx context.Context) string {
 	} else if os.Getenv(config.APITokenEnvKey) != "" {
 		return config.APITokenEnvKey
 	}
+
 	return ""
 }

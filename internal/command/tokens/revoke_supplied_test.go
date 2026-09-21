@@ -80,6 +80,7 @@ func TestRevokeSupplied(t *testing.T) {
 					if tc.body == "" {
 						return nil, errors.New("connection failed")
 					}
+
 					return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(tc.body))}, nil
 				})},
 			})
