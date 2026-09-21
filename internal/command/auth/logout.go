@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -32,7 +31,6 @@ To continue interacting with Fly, the user will need to log in again.
 }
 
 func runLogout(ctx context.Context) (err error) {
-	log := logger.FromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	path := state.ConfigFile(ctx)
 
@@ -40,7 +38,7 @@ func runLogout(ctx context.Context) (err error) {
 	// externally supplied token that happened to take precedence for this run.
 	revoked, revokeErr := revokeSavedToken(ctx, path)
 	if revokeErr != nil {
-		log.Warnf("Unable to revoke saved token: %s\n", revokeErr)
+		return fmt.Errorf("failed to revoke saved token: %w", revokeErr)
 	}
 
 	var ac *agent.Client
@@ -59,10 +57,8 @@ func runLogout(ctx context.Context) (err error) {
 	}
 
 	switch {
-	case revokeErr != nil:
-		fmt.Fprintln(io.Out, "cleared local access token but failed to revoke it; try revoking it in the Fly.io dashboard")
 	case revoked:
-		fmt.Fprintln(io.Out, "successfully logged out")
+		fmt.Fprintln(io.Out, "logged out successfully")
 	default:
 		fmt.Fprintln(io.Out, "no local access token found")
 	}
