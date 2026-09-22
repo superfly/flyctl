@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 
@@ -70,7 +69,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			fmt.Fprintf(io.Out, "Creating user %s with role %s...\n", userInput, role)
 
-			user, err := createUserPublicFirst(ctx, flapsClient, legacyClient, clusterID, userInput, role)
+			user, err := createUser(ctx, flapsClient, clusterID, userInput, role)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
@@ -88,7 +87,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	db := flag.GetString(ctx, "database")
 	if db == "" && io.IsInteractive() {
 		// Prompt for database selection
-		databases, err := listDatabasesPublicFirst(ctx, flapsClient, legacyClient, clusterID)
+		databases, err := listDatabases(ctx, flapsClient, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
@@ -119,7 +118,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			fmt.Fprintf(io.Out, "Creating database %s...\n", dbName)
 
-			err = createDatabasePublicFirst(ctx, flapsClient, legacyClient, clusterID, dbName)
+			err = createDatabase(ctx, flapsClient, clusterID, dbName)
 			if err != nil {
 				return fmt.Errorf("failed to create database: %w", err)
 			}
@@ -148,7 +147,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	var user, password string
 
 	if username != "" {
-		creds, err := getUserCredentialsPublicFirst(ctx, flapsClient, legacyClient, clusterID, username)
+		creds, err := getUserCredentials(ctx, flapsClient, clusterID, username)
 		if err != nil {
 			return fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
@@ -196,7 +195,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	attachInput := mpgv2.CreateAttachmentInput{
 		AppName: appName,
 	}
-	err = createAttachmentPublicFirst(ctx, flapsClient, legacyClient, clusterID, attachInput)
+	err = createAttachment(ctx, flapsClient, clusterID, attachInput)
 	if err != nil {
 		// Attachment is warning-only; the secret was set successfully.
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
@@ -208,27 +207,14 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	return nil
 }
 
-// createUserPublicFirst tries the public Machines API for user creation and
-// falls back to the legacy MPGv2 client on a classified 404.
-func createUserPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID, username, role string) (mpgv2.User, error) {
+// createUser creates a user through the public Machines API.
+func createUser(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, username, role string) (mpgv2.User, error) {
 	req := flaps.CreateManagedPostgresUserRequest{
 		Username: username,
 		Role:     role,
 	}
 
 	created, err := flapsClient.CreateManagedPostgresUser(ctx, clusterID, req)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		input := mpgv2.CreateUserWithRoleInput{
-			Username: username,
-			Role:     role,
-		}
-		response, legacyErr := legacyClient.CreateUserWithRole(ctx, clusterID, input)
-		if legacyErr != nil {
-			return mpgv2.User{}, legacyErr
-		}
-
-		return mpgv2.User{Name: response.Data.Name, Role: response.Data.Role}, nil
-	}
 	if err != nil {
 		return mpgv2.User{}, err
 	}
@@ -243,18 +229,9 @@ type userCredentials struct {
 	Password string
 }
 
-// getUserCredentialsPublicFirst tries the public Machines API for user
-// credentials and falls back to the legacy MPGv2 client on a classified 404.
-func getUserCredentialsPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID, username string) (userCredentials, error) {
+// getUserCredentials gets credentials through the public Machines API.
+func getUserCredentials(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, username string) (userCredentials, error) {
 	creds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, username)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		response, legacyErr := legacyClient.GetUserCredentials(ctx, clusterID, username)
-		if legacyErr != nil {
-			return userCredentials{}, legacyErr
-		}
-
-		return userCredentials{User: response.Data.User, Password: response.Data.Password}, nil
-	}
 	if err != nil {
 		return userCredentials{}, err
 	}
@@ -262,18 +239,9 @@ func getUserCredentialsPublicFirst(ctx context.Context, flapsClient flapsutil.Fl
 	return userCredentials{User: creds.Username, Password: creds.Password}, nil
 }
 
-// listDatabasesPublicFirst tries the public Machines API for database listing
-// and falls back to the legacy MPGv2 client on a classified 404.
-func listDatabasesPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string) ([]mpgv2.Database, error) {
+// listDatabases lists databases through the public Machines API.
+func listDatabases(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID string) ([]mpgv2.Database, error) {
 	databases, err := flapsClient.ListManagedPostgresDatabases(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		response, legacyErr := legacyClient.ListDatabases(ctx, clusterID)
-		if legacyErr != nil {
-			return nil, legacyErr
-		}
-
-		return response.Data, nil
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -286,15 +254,11 @@ func listDatabasesPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsCl
 	return dbs, nil
 }
 
-// createDatabasePublicFirst tries the public Machines API for database
-// creation and falls back to the legacy MPGv2 client on a classified 404.
-func createDatabasePublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID, dbName string) error {
+// createDatabase creates a database through the public Machines API.
+func createDatabase(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, dbName string) error {
 	req := flaps.CreateManagedPostgresDatabaseRequest{Name: dbName}
 
 	_, err := flapsClient.CreateManagedPostgresDatabase(ctx, clusterID, req)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		return legacyClient.CreateDatabase(ctx, clusterID, mpgv2.CreateDatabaseInput{Name: dbName})
-	}
 
 	return err
 }
@@ -312,22 +276,13 @@ func buildConnectionUri(baseUri, user, password, db string) (string, error) {
 	return parsedURI.String(), nil
 }
 
-// createAttachmentPublicFirst tries the public Machines API for attachment
-// creation and falls back to the legacy MPGv2 client on a classified 404.
-func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string, input mpgv2.CreateAttachmentInput) error {
+// createAttachment creates an attachment through the public Machines API.
+func createAttachment(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID string, input mpgv2.CreateAttachmentInput) error {
 	req := flaps.CreateManagedPostgresAttachmentRequest{
 		AppName: input.AppName,
 	}
 
 	_, err := flapsClient.CreateManagedPostgresAttachment(ctx, clusterID, req)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		_, err := legacyClient.CreateAttachment(ctx, clusterID, input)
 
-		return err
-	}
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

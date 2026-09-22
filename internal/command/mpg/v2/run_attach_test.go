@@ -243,6 +243,39 @@ func TestRunAttach_invalidConnectionUriError(t *testing.T) {
 	require.Contains(t, err.Error(), "connection URI is empty")
 }
 
+// TestRunAttach_userCredentials404Propagated verifies that a flaps 404 on
+// the public user-credentials lookup surfaces to the caller as-is (the
+// underlying "not found" reason is preserved) and that RunAttach does not
+// fall back to the legacy client's GetUserCredentials for it — matching the
+// 404-propagation pattern used by TestRunUsersList ("404 propagated") and
+// TestRunDestroy ("404 propagated on delete").
+func TestRunAttach_userCredentials404Propagated(t *testing.T) {
+	ctx, _, _, flags := attachTestContext(t)
+	addAttachFlags(flags)
+	require.NoError(t, flags.Set("username", "alice"))
+	require.NoError(t, flags.Set("database", "appdb"))
+
+	flapsClient := minimalAttachFlapsClient()
+	flapsClient.GetManagedPostgresUserCredentialsFunc = func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+		require.Equal(t, "mpg-123", id)
+		require.Equal(t, "alice", username)
+
+		return flaps.ManagedPostgresUserCredentials{}, &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("user not found")}
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+	legacyClient := minimalAttachLegacyClient()
+	legacyClient.GetUserCredentialsFunc = func(context.Context, string, string) (mpgv2.GetUserCredentialsResponse, error) {
+		t.Fatal("legacy GetUserCredentials must not be called: the public user-credentials lookup no longer falls back to legacy")
+
+		return mpgv2.GetUserCredentialsResponse{}, nil
+	}
+	ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
+
+	err := RunAttach(ctx, "mpg-123")
+	require.ErrorContains(t, err, "failed retrieving credentials for user alice: user not found")
+}
+
 // TestRunAttach_attachmentWarningOnly verifies that a failed attachment creation produces
 // a warning but does not fail the overall attach
 func TestRunAttach_attachmentWarningOnly(t *testing.T) {
@@ -263,87 +296,12 @@ func TestRunAttach_attachmentWarningOnly(t *testing.T) {
 	require.Contains(t, stderr.String(), "Warning: failed to create attachment record")
 }
 
-// TestRunAttach_attachmentFallbackOnNotFound verifies that a classified 404 from the public
-// attachment API falls back to the legacy client
-func TestRunAttach_attachmentFallbackOnNotFound(t *testing.T) {
-	ctx, _, stderr, flags := attachTestContext(t)
-	addAttachFlags(flags)
-	require.NoError(t, flags.Set("username", "alice"))
-	require.NoError(t, flags.Set("database", "appdb"))
-
-	flapsClient := minimalAttachFlapsClient()
-	flapsClient.CreateManagedPostgresAttachmentFunc = func(_ context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
-		return flaps.ManagedPostgresAttachment{}, flaps.ErrFlapsNotFound
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	legacyCalled := false
-	legacyClient := minimalAttachLegacyClient()
-	legacyClient.CreateAttachmentFunc = func(_ context.Context, clusterID string, input mpgv2.CreateAttachmentInput) (mpgv2.CreateAttachmentResponse, error) {
-		legacyCalled = true
-		require.Equal(t, "mpg-123", clusterID)
-		require.Equal(t, "my-app", input.AppName)
-
-		return mpgv2.CreateAttachmentResponse{}, nil
-	}
-	ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
-
-	err := RunAttach(ctx, "mpg-123")
-	require.NoError(t, err)
-	require.True(t, legacyCalled, "legacy CreateAttachment should be called after public 404")
-	require.Empty(t, stderr.String(), "no warning on successful fallback")
-}
-
-// TestRunAttach_userCredentialsFallback verifies that GetUserCredentials falls back to the
-// legacy client on a classified 404. This exercises the full RunAttach flow with the
-// username flag set
-func TestRunAttach_userCredentialsFallback(t *testing.T) {
-	ctx, stdout, stderr, flags := attachTestContext(t)
-	addAttachFlags(flags)
-	require.NoError(t, flags.Set("username", "alice"))
-	require.NoError(t, flags.Set("database", "appdb"))
-
-	flapsClient := minimalAttachFlapsClient()
-	flapsClient.GetManagedPostgresUserCredentialsFunc = func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
-		return flaps.ManagedPostgresUserCredentials{}, flaps.ErrFlapsNotFound
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	legacyCalled := false
-	legacyClient := minimalAttachLegacyClient()
-	legacyClient.GetUserCredentialsFunc = func(_ context.Context, id, username string) (mpgv2.GetUserCredentialsResponse, error) {
-		legacyCalled = true
-		require.Equal(t, "mpg-123", id)
-		require.Equal(t, "alice", username)
-
-		return mpgv2.GetUserCredentialsResponse{
-			Data: struct {
-				User     string `json:"username"`
-				Password string `json:"password"`
-			}{User: "alice", Password: "legacy-alice-pass"},
-		}, nil
-	}
-	ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
-
-	err := RunAttach(ctx, "mpg-123")
-	require.NoError(t, err)
-	require.True(t, legacyCalled, "legacy GetUserCredentials should be called after public 404")
-
-	// Verify the legacy password was used in the URI.
-	wantUri := "postgres://alice:legacy-alice-pass@pooler.fly.dev:5432/appdb"
-	require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", wantUri), stdout.String())
-	require.Empty(t, stderr.String())
-}
-
-// TestListDatabasesPublicFirst exercises the extracted helper directly
-func TestListDatabasesPublicFirst(t *testing.T) {
+// TestListDatabases exercises the extracted helper directly
+func TestListDatabases(t *testing.T) {
 	tests := []struct {
 		name            string
 		publicDatabases []flaps.ManagedPostgresDatabase
 		publicErr       error
-		legacyDatabases []mpgv2.Database
-		legacyErr       error
-		wantLegacy      bool
 		wantDatabases   []mpgv2.Database
 		wantErr         string
 	}{
@@ -353,30 +311,16 @@ func TestListDatabasesPublicFirst(t *testing.T) {
 			wantDatabases:   []mpgv2.Database{{Name: "appdb"}},
 		},
 		{
-			name:            "falls back to legacy on public 404",
-			publicErr:       flaps.ErrFlapsNotFound,
-			legacyDatabases: []mpgv2.Database{{Name: "legacy_db"}},
-			wantLegacy:      true,
-			wantDatabases:   []mpgv2.Database{{Name: "legacy_db"}},
-		},
-		{
 			name:      "propagates non-404 public error without fallback",
 			publicErr: errors.New("internal server error"),
 			wantErr:   "internal server error",
-		},
-		{
-			name:       "propagates legacy error after public 404 fallback",
-			publicErr:  flaps.ErrFlapsNotFound,
-			legacyErr:  errors.New("legacy boom"),
-			wantLegacy: true,
-			wantErr:    "legacy boom",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			publicCalls, legacyCalls := 0, 0
+			publicCalls := 0
 			flapsClient := &mock.FlapsClient{
 				ListManagedPostgresDatabasesFunc: func(_ context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
 					publicCalls++
@@ -385,16 +329,7 @@ func TestListDatabasesPublicFirst(t *testing.T) {
 					return tt.publicDatabases, tt.publicErr
 				},
 			}
-			legacyClient := &mock.MpgV2Client{
-				ListDatabasesFunc: func(_ context.Context, id string) (mpgv2.ListDatabasesResponse, error) {
-					legacyCalls++
-					require.Equal(t, "mpg-123", id)
-
-					return mpgv2.ListDatabasesResponse{Data: tt.legacyDatabases}, tt.legacyErr
-				},
-			}
-
-			databases, err := listDatabasesPublicFirst(ctx, flapsClient, legacyClient, "mpg-123")
+			databases, err := listDatabases(ctx, flapsClient, "mpg-123")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
@@ -403,20 +338,16 @@ func TestListDatabasesPublicFirst(t *testing.T) {
 				require.Equal(t, tt.wantDatabases, databases)
 			}
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
 		})
 	}
 }
 
-// TestCreateUserPublicFirst exercises the extracted helper directly
-func TestCreateUserPublicFirst(t *testing.T) {
+// TestCreateUser exercises the extracted helper directly
+func TestCreateUser(t *testing.T) {
 	tests := []struct {
 		name       string
 		publicUser flaps.ManagedPostgresUser
 		publicErr  error
-		legacyUser mpgv2.User
-		legacyErr  error
-		wantLegacy bool
 		wantUser   mpgv2.User
 		wantErr    string
 	}{
@@ -426,30 +357,16 @@ func TestCreateUserPublicFirst(t *testing.T) {
 			wantUser:   mpgv2.User{Name: "newuser", Role: "writer"},
 		},
 		{
-			name:       "falls back to legacy on public 404",
-			publicErr:  flaps.ErrFlapsNotFound,
-			legacyUser: mpgv2.User{Name: "newuser", Role: "reader"},
-			wantLegacy: true,
-			wantUser:   mpgv2.User{Name: "newuser", Role: "reader"},
-		},
-		{
 			name:      "propagates non-404 public error without fallback",
 			publicErr: errors.New("conflict: user already exists"),
 			wantErr:   "conflict: user already exists",
-		},
-		{
-			name:       "propagates legacy error after public 404 fallback",
-			publicErr:  flaps.ErrFlapsNotFound,
-			legacyErr:  errors.New("legacy boom"),
-			wantLegacy: true,
-			wantErr:    "legacy boom",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			publicCalls, legacyCalls := 0, 0
+			publicCalls := 0
 			flapsClient := &mock.FlapsClient{
 				CreateManagedPostgresUserFunc: func(_ context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
 					publicCalls++
@@ -460,18 +377,7 @@ func TestCreateUserPublicFirst(t *testing.T) {
 					return tt.publicUser, tt.publicErr
 				},
 			}
-			legacyClient := &mock.MpgV2Client{
-				CreateUserWithRoleFunc: func(_ context.Context, id string, input mpgv2.CreateUserWithRoleInput) (mpgv2.CreateUserWithRoleResponse, error) {
-					legacyCalls++
-					require.Equal(t, "mpg-123", id)
-					require.Equal(t, "newuser", input.Username)
-					require.Equal(t, "writer", input.Role)
-
-					return mpgv2.CreateUserWithRoleResponse{Data: tt.legacyUser}, tt.legacyErr
-				},
-			}
-
-			user, err := createUserPublicFirst(ctx, flapsClient, legacyClient, "mpg-123", "newuser", "writer")
+			user, err := createUser(ctx, flapsClient, "mpg-123", "newuser", "writer")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
@@ -480,46 +386,31 @@ func TestCreateUserPublicFirst(t *testing.T) {
 				require.Equal(t, tt.wantUser, user)
 			}
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
 		})
 	}
 }
 
-// TestCreateDatabasePublicFirst exercises the extracted helper directly
-func TestCreateDatabasePublicFirst(t *testing.T) {
+// TestCreateDatabase exercises the extracted helper directly
+func TestCreateDatabase(t *testing.T) {
 	tests := []struct {
-		name       string
-		publicErr  error
-		legacyErr  error
-		wantLegacy bool
-		wantErr    string
+		name      string
+		publicErr error
+		wantErr   string
 	}{
 		{
 			name: "uses Machines API",
-		},
-		{
-			name:       "falls back to legacy on public 404",
-			publicErr:  flaps.ErrFlapsNotFound,
-			wantLegacy: true,
 		},
 		{
 			name:      "propagates non-404 public error without fallback",
 			publicErr: errors.New("conflict: database already exists"),
 			wantErr:   "conflict: database already exists",
 		},
-		{
-			name:       "propagates legacy error after public 404 fallback",
-			publicErr:  flaps.ErrFlapsNotFound,
-			legacyErr:  errors.New("legacy boom"),
-			wantLegacy: true,
-			wantErr:    "legacy boom",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			publicCalls, legacyCalls := 0, 0
+			publicCalls := 0
 			flapsClient := &mock.FlapsClient{
 				CreateManagedPostgresDatabaseFunc: func(_ context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
 					publicCalls++
@@ -529,17 +420,7 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 					return flaps.ManagedPostgresDatabase{Name: "newdb"}, tt.publicErr
 				},
 			}
-			legacyClient := &mock.MpgV2Client{
-				CreateDatabaseFunc: func(_ context.Context, id string, input mpgv2.CreateDatabaseInput) error {
-					legacyCalls++
-					require.Equal(t, "mpg-123", id)
-					require.Equal(t, "newdb", input.Name)
-
-					return tt.legacyErr
-				},
-			}
-
-			err := createDatabasePublicFirst(ctx, flapsClient, legacyClient, "mpg-123", "newdb")
+			err := createDatabase(ctx, flapsClient, "mpg-123", "newdb")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
@@ -547,7 +428,6 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
 		})
 	}
 }
