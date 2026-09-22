@@ -151,6 +151,8 @@ func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 		return err
 	}
 
+	recordDeployIdentity(ctx, app)
+
 	ctx = appconfig.WithConfig(ctx, manifest.Config)
 
 	args := argsFromManifest(manifest, app)
