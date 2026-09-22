@@ -36,15 +36,20 @@ func columnLineRegex(col, value string) *regexp.Regexp {
 
 // samplePublicCluster is a representative public Machines API cluster payload.
 func samplePublicCluster() flaps.ManagedPostgresCluster {
+	used := int64(1288490188)
+	provisioned := int64(21474836480)
+
 	return flaps.ManagedPostgresCluster{
-		ID:           "mpg-123",
-		Name:         "test-cluster",
-		Status:       "ready",
-		Region:       "ord",
-		Plan:         "development",
-		DiskSizeGB:   10,
-		Replicas:     1,
-		Organization: flaps.ManagedPostgresOrganization{Name: "Test Org", Slug: "test-org"},
+		ID:                      "mpg-123",
+		Name:                    "test-cluster",
+		Status:                  "ready",
+		Region:                  "ord",
+		Plan:                    "development",
+		DiskSizeGB:              10,
+		StorageUsedBytes:        &used,
+		StorageProvisionedBytes: &provisioned,
+		Replicas:                1,
+		Organization:            flaps.ManagedPostgresOrganization{Name: "Test Org", Slug: "test-org"},
 		Endpoints: flaps.ManagedPostgresEndpoints{
 			Primary: struct {
 				Direct flaps.ManagedPostgresEndpoint `json:"direct"`
@@ -60,10 +65,14 @@ func samplePublicCluster() flaps.ManagedPostgresCluster {
 // sampleLegacyCluster is a representative legacy MPGv2 cluster payload.
 // Direct is a bare address (no port) — the historical shape of this column.
 func sampleLegacyCluster() mpgv2.GetClusterResponse {
+	used := int64(1288490188)
+	provisioned := int64(21474836480)
+
 	return mpgv2.GetClusterResponse{
 		Data: mpgv2.ManagedCluster{
 			Id: "mpg-123", Name: "test-cluster", Region: "ord", Status: "ready",
 			Plan: "development", Disk: 10, Replicas: 1,
+			StorageUsedBytes: &used, StorageProvisionedBytes: &provisioned,
 			Organization:  fly.Organization{Name: "Test Org", Slug: "test-org"},
 			IpAssignments: mpg.ManagedClusterIpAssignments{Direct: "10.0.0.1"},
 		},
@@ -78,7 +87,8 @@ func TestRunStatusHuman(t *testing.T) {
 	// IPv4 port exclusion proves JoinHostPort is not leaking ports; IPv6 test omitted.
 	wantPublicColumns := map[string]string{
 		"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org",
-		"Region": "ord", "Status": "ready", "Allocated Disk (GB)": "10",
+		"Region": "ord", "Status": "ready",
+		"Used Storage (GB)": "1.2", "Allocated Storage (GB)": "20.0",
 		"Replicas": "1", "Direct IP": "10.0.0.1",
 	}
 	wantPublicExcludes := []string{"10.0.0.1:5432", ":5432"}
@@ -105,7 +115,7 @@ func TestRunStatusHuman(t *testing.T) {
 		}(), nil, mpgv2.GetClusterResponse{}, nil, map[string]string{"ID": "mpg-123", "Direct IP": ""}, []string{":5432", "5432"}, "", false, "", 0},
 		{"classified 404 falls back to legacy with full mapping",
 			flaps.ManagedPostgresCluster{}, fmt.Errorf("get Managed Postgres cluster: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("not found")}),
-			sampleLegacyCluster(), nil, map[string]string{"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org", "Region": "ord", "Status": "ready", "Allocated Disk (GB)": "10", "Replicas": "1", "Direct IP": "10.0.0.1"}, wantPublicExcludes, "", true, "", 1},
+			sampleLegacyCluster(), nil, map[string]string{"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org", "Region": "ord", "Status": "ready", "Used Storage (GB)": "1.2", "Allocated Storage (GB)": "20.0", "Replicas": "1", "Direct IP": "10.0.0.1"}, wantPublicExcludes, "", true, "", 1},
 		{"404 with legacy failure preserves error",
 			flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound,
 			mpgv2.GetClusterResponse{}, errors.New("legacy denied"),
@@ -228,6 +238,31 @@ func TestRunStatusJSON(t *testing.T) {
 			if test.wantCreds {
 				wantCredentials(t, got)
 			}
+		})
+	}
+}
+
+func TestGbString(t *testing.T) {
+	const gib = int64(1 << 30)
+	i64 := func(v int64) *int64 { return &v }
+
+	cases := []struct {
+		name  string
+		bytes *int64
+		want  string
+	}{
+		{"nil is blank, not 0", nil, ""},
+		{"whole GiB keeps one decimal", i64(20 * gib), "20.0"},
+		{"exact fraction", i64(1288490188), "1.2"},
+		{"divides by 1024^3, not 10^9", i64(10_000_000_000), "9.3"},
+		{"rounds down below .x5", i64(65970697666), "61.4"},
+		{"rounds up above .x5", i64(65992172503), "61.5"},
+		{"small values do not collapse to 0", i64(64424509), "0.1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, gbString(tc.bytes))
 		})
 	}
 }
