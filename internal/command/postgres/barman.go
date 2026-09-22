@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 var (
@@ -396,8 +397,9 @@ func newBarmanRecover() *cobra.Command {
 }
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// ignore cancelled errors
-	if errors.Is(err, context.Canceled) {
+	// A remote command failure is not a failure of the SSH client.
+	var exitErr *gossh.ExitError
+	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
 		return
 	}
 
