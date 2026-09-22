@@ -233,11 +233,10 @@ func runConsole(ctx context.Context) error {
 }
 
 func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) error {
-	cleanup, err := setupConsole()
-	if err != nil {
-		return fmt.Errorf("set up console: %w", err)
+	cleanup, setupErr := setupConsole()
+	if cleanup != nil {
+		defer cleanup()
 	}
-	defer cleanup()
 
 	sessIO := &ssh.SessionIO{
 		Stdin: os.Stdin,
@@ -255,7 +254,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		return errors.Wrap(err, "ssh shell")
 	}
 
-	return nil
+	return setupErr
 }
 
 // findRequestedMachine resolves the --machine flag against the app's active
