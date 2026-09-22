@@ -84,41 +84,33 @@ func TestRunStatusHuman(t *testing.T) {
 	wantPublicExcludes := []string{"10.0.0.1:5432", ":5432"}
 
 	tests := []struct {
-		name            string
-		publicCluster   flaps.ManagedPostgresCluster
-		publicErr       error
-		legacyResponse  mpgv2.GetClusterResponse
-		legacyErr       error
-		wantColumns     map[string]string
-		wantExcludes    []string
-		wantErr         string
-		fallback        bool // true when 404 triggers legacy fallback
-		wantPublicErr   string
-		wantLegacyCalls int
+		name          string
+		publicCluster flaps.ManagedPostgresCluster
+		publicErr     error
+		wantColumns   map[string]string
+		wantExcludes  []string
+		wantErr       string
+		wantPublicErr string
 	}{
-		{"public success with full 8-column mapping", samplePublicCluster(), nil, mpgv2.GetClusterResponse{}, nil, wantPublicColumns, wantPublicExcludes, "", false, "", 0},
+		{"public success with full 8-column mapping", samplePublicCluster(), nil, wantPublicColumns, wantPublicExcludes, "", ""},
 		{"empty public host renders blank", func() flaps.ManagedPostgresCluster {
 			c := samplePublicCluster()
 			c.Endpoints.Primary.Direct.Host = ""
 
 			return c
-		}(), nil, mpgv2.GetClusterResponse{}, nil, map[string]string{"ID": "mpg-123", "Direct IP": ""}, []string{":5432", "5432"}, "", false, "", 0},
-		{"classified 404 falls back to legacy with full mapping",
+		}(), nil, map[string]string{"ID": "mpg-123", "Direct IP": ""}, []string{":5432", "5432"}, "", ""},
+		{"classified 404 is returned",
 			flaps.ManagedPostgresCluster{}, fmt.Errorf("get Managed Postgres cluster: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("not found")}),
-			sampleLegacyCluster(), nil, map[string]string{"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org", "Region": "ord", "Status": "ready", "Allocated Disk (GB)": "10", "Replicas": "1", "Direct IP": "10.0.0.1"}, wantPublicExcludes, "", true, "", 1},
-		{"404 with legacy failure preserves error",
-			flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound,
-			mpgv2.GetClusterResponse{}, errors.New("legacy denied"),
-			nil, nil, "failed retrieving details for cluster mpg-123: legacy denied", false, "", 1},
-		{"typed 500 is authoritative, no fallback",
+			nil, nil, "failed retrieving details for cluster mpg-123", "not found"},
+		{"typed 500 is returned",
 			flaps.ManagedPostgresCluster{}, &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("oops")},
-			mpgv2.GetClusterResponse{}, nil, nil, nil, "failed retrieving details for cluster mpg-123", false, "oops", 0},
+			nil, nil, "failed retrieving details for cluster mpg-123", "oops"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, stdout := statusTestContext(t, false)
-			publicCalls, legacyCalls := 0, 0
+			publicCalls := 0
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
 					publicCalls++
@@ -127,32 +119,18 @@ func TestRunStatusHuman(t *testing.T) {
 					return test.publicCluster, test.publicErr
 				},
 			})
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
-					legacyCalls++
-					require.Equal(t, "mpg-123", id)
-
-					return test.legacyResponse, test.legacyErr
-				},
-			})
-
 			err := RunStatus(ctx, "mpg-123")
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Equal(t, 1, publicCalls)
-				if test.legacyErr != nil {
-					require.Equal(t, 1, legacyCalls)
-				}
 				if test.wantPublicErr != "" {
 					require.ErrorContains(t, err, test.wantPublicErr)
 				}
-				require.Equal(t, test.wantLegacyCalls, legacyCalls)
 
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, map[bool]int{true: 1, false: 0}[test.fallback], legacyCalls)
 
 			out := stdout.String()
 			for col, val := range test.wantColumns {

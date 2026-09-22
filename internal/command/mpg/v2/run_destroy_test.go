@@ -8,12 +8,10 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
-	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -37,24 +35,13 @@ func TestRunDestroy(t *testing.T) {
 			Slug: "example-org",
 		},
 	}
-	legacyCluster := mpgv2.ManagedCluster{
-		Id:   "mpg-123",
-		Name: "example",
-		Organization: fly.Organization{
-			Name: "Example Org",
-			Slug: "example-org",
-		},
-	}
-
 	tests := []struct {
 		name             string
 		yes              bool
 		publicCluster    flaps.ManagedPostgresCluster
 		publicLookupErr  error
 		publicDeleteErr  error
-		legacyCluster    mpgv2.ManagedCluster
 		wantPublicDelete bool
-		wantLegacy       bool
 		wantErr          string
 		wantOutput       string
 	}{
@@ -80,12 +67,12 @@ func TestRunDestroy(t *testing.T) {
 			wantErr:         "failed retrieving cluster mpg-123: lookup failed",
 		},
 		{
-			name:            "falls back to legacy API on public not found",
-			yes:             true,
-			publicLookupErr: flaps.ErrFlapsNotFound,
-			legacyCluster:   legacyCluster,
-			wantLegacy:      true,
-			wantOutput:      "Managed Postgres cluster example (mpg-123) scheduled to be destroyed",
+			name:             "404 propagated on delete",
+			yes:              true,
+			publicCluster:    publicCluster,
+			publicDeleteErr:  &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("cluster not found")},
+			wantPublicDelete: true,
+			wantErr:          "failed to destroy cluster mpg-123: cluster not found",
 		},
 		{
 			name:          "requires yes when non-interactive",
@@ -112,23 +99,6 @@ func TestRunDestroy(t *testing.T) {
 				},
 			})
 
-			legacyCalled := false
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
-					legacyCalled = true
-					require.Equal(t, "mpg-123", id)
-
-					return mpgv2.GetClusterResponse{Data: test.legacyCluster}, nil
-				},
-				DestroyClusterFunc: func(_ context.Context, orgSlug, id string) error {
-					legacyCalled = true
-					require.Equal(t, "example-org", orgSlug)
-					require.Equal(t, "mpg-123", id)
-
-					return nil
-				},
-			})
-
 			err := RunDestroy(ctx, "mpg-123")
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -136,7 +106,6 @@ func TestRunDestroy(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, test.wantPublicDelete, publicDeleteCalled)
-			require.Equal(t, test.wantLegacy, legacyCalled)
 			if test.wantOutput != "" {
 				require.Contains(t, stdout.String(), test.wantOutput)
 			}

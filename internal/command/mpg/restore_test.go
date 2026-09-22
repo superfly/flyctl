@@ -215,26 +215,20 @@ func TestRunRestoreV2Serialization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := setupTestContext()
+			var capturedInput flaps.RestoreManagedPostgresClusterRequest
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-				RestoreManagedPostgresClusterFunc: func(context.Context, string, flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
-					return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
-				},
-			})
-			var capturedInput mpgv2.RestoreClusterBackupInput
-			client := &mock.MpgV2Client{
-				RestoreClusterBackupFunc: func(_ context.Context, gotClusterID string, input mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
+				RestoreManagedPostgresClusterFunc: func(_ context.Context, gotClusterID string, input flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
 					assert.Equal(t, clusterID, gotClusterID)
 					capturedInput = input
 
-					return mpgv2.RestoreClusterBackupResponse{}, nil
+					return flaps.ManagedPostgresCluster{}, nil
 				},
-			}
-			ctx = mpgv2.NewContextWithClient(ctx, client)
+			})
 
 			require.NoError(t, cmdv2.RunRestore(ctx, clusterID, tt.backupID, tt.restoreName, tt.pitrTime))
-			assert.Equal(t, tt.backupID, capturedInput.BackupId)
+			assert.Equal(t, tt.backupID, capturedInput.BackupID)
 			assert.Equal(t, tt.restoreName, capturedInput.Name)
-			assert.Equal(t, tt.pitrTime, capturedInput.PitrTime)
+			assert.Equal(t, tt.pitrTime, capturedInput.PITRTime)
 
 			body, err := json.Marshal(capturedInput)
 			require.NoError(t, err)
