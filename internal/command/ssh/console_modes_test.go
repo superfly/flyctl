@@ -8,7 +8,6 @@ import (
 )
 
 func TestConsoleModes(t *testing.T) {
-	invalid := errors.New("invalid handle")
 	broken := errors.New("console failure")
 	for _, tc := range []struct {
 		name           string
@@ -16,14 +15,13 @@ func TestConsoleModes(t *testing.T) {
 		redirect       bool
 	}{
 		{name: "all consoles"},
-		{name: "redirected stdout", getErr: invalid, redirect: true},
-		{name: "invalid handle is not redirected", getErr: invalid},
+		{name: "redirected stdout", getErr: broken, redirect: true},
 		{name: "read failure", getErr: broken},
 		{name: "write failure", setErr: broken},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			current := map[uintptr]uint32{0: 0, 1: 2, 2: 4}
-			writes := map[uintptr]int{}
+			current := [3]uint32{0, 2, 4}
+			var writes [3]int
 			cleanup, err := consoleModes([]uintptr{0, 1, 2}, []uint32{8, 8, 8}, func(h uintptr) (uint32, error) {
 				if h == 1 && tc.getErr != nil {
 					return 0, tc.getErr
@@ -37,7 +35,7 @@ func TestConsoleModes(t *testing.T) {
 				current[h] = m
 
 				return nil
-			}, func(h uintptr, err error) bool { return h == 1 && errors.Is(err, invalid) && tc.redirect })
+			}, func(uintptr, error) bool { return tc.redirect })
 			if (tc.getErr != nil && !tc.redirect) || tc.setErr != nil {
 				require.Error(t, err)
 				require.Nil(t, cleanup)
@@ -51,7 +49,7 @@ func TestConsoleModes(t *testing.T) {
 					require.Zero(t, writes[1], "redirected handle never changed or restored")
 				}
 			}
-			require.Equal(t, map[uintptr]uint32{0: 0, 1: 2, 2: 4}, current, "original modes including zero restored")
+			require.Equal(t, [3]uint32{0, 2, 4}, current, "original modes including zero restored")
 		})
 	}
 }

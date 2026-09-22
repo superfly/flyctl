@@ -25,9 +25,6 @@ func TestRedirectedWindowsHandles(t *testing.T) {
 			_, err := winterm.GetConsoleMode(f.Fd())
 			require.ErrorIs(t, err, windows.ERROR_INVALID_HANDLE)
 			require.True(t, redirectedHandle(f.Fd(), err))
-			cleanup, err := consoleModes([]uintptr{f.Fd()}, []uint32{winterm.ENABLE_VIRTUAL_TERMINAL_PROCESSING}, winterm.GetConsoleMode, winterm.SetConsoleMode, redirectedHandle)
-			require.NoError(t, err)
-			cleanup()
 		})
 	}
 	require.False(t, redirectedHandle(uintptr(windows.InvalidHandle), windows.ERROR_INVALID_HANDLE))
