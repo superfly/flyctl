@@ -73,6 +73,9 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 
 			return cluster, cluster.Organization.Slug, nil
 		} else if !errors.Is(err, flaps.ErrFlapsNotFound) {
+			// Deliberately status-only, unlike flapsutil.IsFlapsRouteMissing:
+			// flaps answers {"error":"Cluster not found"} for v1 clusters, and
+			// that JSON 404 is what routes them to the v1 client below.
 			return nil, orgSlug, fmt.Errorf("failed retrieving managed postgres cluster %q: %w", clusterID, err)
 		}
 
@@ -156,6 +159,9 @@ func listManagedClusters(ctx context.Context, orgSlug string, deleted bool) ([]m
 		OrgSlug:        orgSlug,
 		IncludeDeleted: deleted,
 	})
+	// Status-only on purpose: this merges v1 and v2 listings rather than
+	// falling back to the v2 legacy client, so it stays out of
+	// flapsutil.IsFlapsRouteMissing's scope.
 	publicUnavailable := errors.Is(err, flaps.ErrFlapsNotFound)
 	if err != nil && !publicUnavailable {
 		return nil, err

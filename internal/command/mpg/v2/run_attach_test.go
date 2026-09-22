@@ -294,6 +294,38 @@ func TestRunAttach_attachmentFallbackOnNotFound(t *testing.T) {
 	require.Empty(t, stderr.String(), "no warning on successful fallback")
 }
 
+// TestRunAttach_attachmentResource404DoesNotFallBack verifies that a resource
+// 404 (a JSON body from ui-ex identifying a missing resource) from the public
+// attachment API is authoritative and does not fall back to the legacy
+// client. Attachment creation is warning-only, so the resource error surfaces
+// as a warning rather than failing the command.
+func TestRunAttach_attachmentResource404DoesNotFallBack(t *testing.T) {
+	ctx, _, stderr, flags := attachTestContext(t)
+	addAttachFlags(flags)
+	require.NoError(t, flags.Set("username", "alice"))
+	require.NoError(t, flags.Set("database", "appdb"))
+
+	flapsClient := minimalAttachFlapsClient()
+	flapsClient.CreateManagedPostgresAttachmentFunc = func(_ context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+		return flaps.ManagedPostgresAttachment{}, resourceNotFound("Cluster not found")
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+	legacyCalled := false
+	legacyClient := minimalAttachLegacyClient()
+	legacyClient.CreateAttachmentFunc = func(_ context.Context, clusterID string, input mpgv2.CreateAttachmentInput) (mpgv2.CreateAttachmentResponse, error) {
+		legacyCalled = true
+
+		return mpgv2.CreateAttachmentResponse{}, nil
+	}
+	ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
+
+	err := RunAttach(ctx, "mpg-123")
+	require.NoError(t, err, "attachment failure is warning-only")
+	require.False(t, legacyCalled, "legacy CreateAttachment must not be called for a resource 404")
+	require.Contains(t, stderr.String(), "Cluster not found")
+}
+
 // TestRunAttach_userCredentialsFallback verifies that GetUserCredentials falls back to the
 // legacy client on a classified 404. This exercises the full RunAttach flow with the
 // username flag set
@@ -335,6 +367,35 @@ func TestRunAttach_userCredentialsFallback(t *testing.T) {
 	require.Empty(t, stderr.String())
 }
 
+// TestRunAttach_userCredentialsResource404DoesNotFallBack verifies that a
+// resource 404 from the public user credentials API is authoritative and
+// does not fall back to the legacy client.
+func TestRunAttach_userCredentialsResource404DoesNotFallBack(t *testing.T) {
+	ctx, _, _, flags := attachTestContext(t)
+	addAttachFlags(flags)
+	require.NoError(t, flags.Set("username", "alice"))
+	require.NoError(t, flags.Set("database", "appdb"))
+
+	flapsClient := minimalAttachFlapsClient()
+	flapsClient.GetManagedPostgresUserCredentialsFunc = func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+		return flaps.ManagedPostgresUserCredentials{}, resourceNotFound("User not found")
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+	legacyCalled := false
+	legacyClient := minimalAttachLegacyClient()
+	legacyClient.GetUserCredentialsFunc = func(_ context.Context, id, username string) (mpgv2.GetUserCredentialsResponse, error) {
+		legacyCalled = true
+
+		return mpgv2.GetUserCredentialsResponse{}, nil
+	}
+	ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
+
+	err := RunAttach(ctx, "mpg-123")
+	require.ErrorContains(t, err, "User not found")
+	require.False(t, legacyCalled, "legacy GetUserCredentials must not be called for a resource 404")
+}
+
 // TestListDatabasesPublicFirst exercises the extracted helper directly
 func TestListDatabasesPublicFirst(t *testing.T) {
 	tests := []struct {
@@ -370,6 +431,11 @@ func TestListDatabasesPublicFirst(t *testing.T) {
 			legacyErr:  errors.New("legacy boom"),
 			wantLegacy: true,
 			wantErr:    "legacy boom",
+		},
+		{
+			name:      "resource 404 is authoritative",
+			publicErr: resourceNotFound("Cluster not found"),
+			wantErr:   "Cluster not found",
 		},
 	}
 
@@ -444,6 +510,11 @@ func TestCreateUserPublicFirst(t *testing.T) {
 			wantLegacy: true,
 			wantErr:    "legacy boom",
 		},
+		{
+			name:      "resource 404 is authoritative",
+			publicErr: resourceNotFound("Cluster not found"),
+			wantErr:   "Cluster not found",
+		},
 	}
 
 	for _, tt := range tests {
@@ -513,6 +584,11 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 			legacyErr:  errors.New("legacy boom"),
 			wantLegacy: true,
 			wantErr:    "legacy boom",
+		},
+		{
+			name:      "resource 404 is authoritative",
+			publicErr: resourceNotFound("Cluster not found"),
+			wantErr:   "Cluster not found",
 		},
 	}
 
