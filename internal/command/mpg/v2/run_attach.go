@@ -283,5 +283,6 @@ func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.Flap
 	}
 
 	_, err := flapsClient.CreateManagedPostgresAttachment(ctx, clusterID, req)
+
 	return err
 }
