@@ -613,7 +613,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		}
 		if state == fly.MachineStateStopped && oldMachine != nil &&
 			supportsPreservedStoppedUpdate(md.strategy, oldMachine.State) &&
-			md.readPreservedStoppedUpdate(ctx, machine.ID, machine.InstanceID) {
+			md.readPreservedStoppedUpdate(ctx, machine.ID, machine.Version) {
 			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s was updated and left stopped", machine.ID))
 
 			return nil
