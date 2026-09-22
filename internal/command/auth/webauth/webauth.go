@@ -29,6 +29,12 @@ func errHeadlessNoListener(command string) error {
 	return fmt.Errorf("fly auth %s needs either an interactive terminal or a free loopback port for the browser to call back on, and has neither. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
 }
 
+// errHeadlessLegacyServer describes a server that predates PKCE: the only
+// login flow it offers is unsafe to run without someone watching.
+func errHeadlessLegacyServer(command string) error {
+	return fmt.Errorf("fly auth %s needs an interactive terminal against this server. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
+}
+
 // headlessNotice explains, to whoever is reading a non-interactive run, why
 // the command might appear to hang: the browser has to be on this machine.
 func headlessNotice(command string) string {
@@ -122,6 +128,14 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		return "", err
 	}
 
+	// The pre-PKCE flow hands the token to whoever polls with the session
+	// id, so never run it unattended.
+	if headless && !auth.PKCE {
+		pkce.close()
+
+		return "", errHeadlessLegacyServer(command)
+	}
+
 	colorize := io.ColorScheme()
 	if err := open.Run(auth.URL); err != nil {
 		fmt.Fprintf(io.ErrOut,
@@ -132,7 +146,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
 	}
 
-	if headless && auth.PKCE {
+	if headless {
 		fmt.Fprint(io.ErrOut, headlessNotice(command))
 	}
 
