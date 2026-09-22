@@ -2,6 +2,7 @@ package statuslogger
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -82,8 +83,8 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 	logger := Create(ctx, len(items), true)
 	defer logger.Destroy(clearAfter)
 
-	cancelableCtx, done := context.WithCancel(ctx)
-	defer done()
+	cancelableCtx, done := context.WithCancelCause(ctx)
+	defer done(fmt.Errorf("status iteration finished: %w", context.Canceled))
 
 	firstErr := make(chan error, 1)
 	asyncIter(cancelableCtx, logger, clearAfter, items, func(ctx context.Context, i int, item T) {

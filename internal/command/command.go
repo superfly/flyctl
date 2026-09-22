@@ -288,7 +288,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	queryRelease := func(parent context.Context) {
 		logger.Debug("started querying for new release")
 
-		ctx, cancel := context.WithTimeout(parent, time.Second)
+		ctx, cancel := context.WithTimeoutCause(parent, time.Second, fmt.Errorf("checking for a new flyctl release: %w", context.DeadlineExceeded))
 		defer cancel()
 
 		switch r, err := update.LatestRelease(ctx, channel); {

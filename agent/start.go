@@ -155,7 +155,7 @@ func (se *startError) Description() string {
 }
 
 func waitForClient(ctx context.Context) (*Client, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Second, fmt.Errorf("waiting for agent client: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	for ctx.Err() == nil {
