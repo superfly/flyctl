@@ -54,7 +54,8 @@ func newPKCELogin(args map[string]any) (*pkceLogin, error) {
 	}
 
 	// Binding the loopback listener is best-effort: without it the login is
-	// paste-only, which is fine because the caller guarantees a TTY.
+	// paste-only, and the caller refuses to start when there is no terminal
+	// to paste into either.
 	if l, err := net.Listen("tcp", "127.0.0.1:0"); err == nil {
 		p.port = l.Addr().(*net.TCPAddr).Port
 		p.serve(l)
@@ -137,14 +138,20 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 	}
 }
 
-func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin) (string, error) {
+// waitForPKCEToken blocks until a completion code arrives and redeems it.
+// With acceptPaste the code may also be typed on stdin; without it (no
+// terminal) the loopback callback is the only source.
+func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin, acceptPaste bool) (string, error) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
 	defer cancel()
 	defer p.close()
 
-	prompt := "paste code here if prompted > "
-	fmt.Fprint(io.Out, prompt)
-	go p.readPastedCodes(ctx, io.In)
+	prompt := ""
+	if acceptPaste {
+		prompt = "paste code here if prompted > "
+		fmt.Fprint(io.Out, prompt)
+		go p.readPastedCodes(ctx, io.In)
+	}
 
 	for {
 		select {
@@ -154,7 +161,7 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 			// An HTTP-delivered code leaves the cursor on the prompt line;
 			// erase it so the flow's output starts clean. Pasted codes ended
 			// with the user's Enter and remain visible above.
-			if attempt.fromHTTP {
+			if attempt.fromHTTP && acceptPaste {
 				fmt.Fprint(io.Out, "\r\x1b[K")
 			}
 
