@@ -243,6 +243,39 @@ func TestRunAttach_invalidConnectionUriError(t *testing.T) {
 	require.Contains(t, err.Error(), "connection URI is empty")
 }
 
+// TestRunAttach_userCredentials404Propagated verifies that a flaps 404 on
+// the public user-credentials lookup surfaces to the caller as-is (the
+// underlying "not found" reason is preserved) and that RunAttach does not
+// fall back to the legacy client's GetUserCredentials for it — matching the
+// 404-propagation pattern used by TestRunUsersList ("404 propagated") and
+// TestRunDestroy ("404 propagated on delete").
+func TestRunAttach_userCredentials404Propagated(t *testing.T) {
+	ctx, _, _, flags := attachTestContext(t)
+	addAttachFlags(flags)
+	require.NoError(t, flags.Set("username", "alice"))
+	require.NoError(t, flags.Set("database", "appdb"))
+
+	flapsClient := minimalAttachFlapsClient()
+	flapsClient.GetManagedPostgresUserCredentialsFunc = func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+		require.Equal(t, "mpg-123", id)
+		require.Equal(t, "alice", username)
+
+		return flaps.ManagedPostgresUserCredentials{}, &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("user not found")}
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+	legacyClient := minimalAttachLegacyClient()
+	legacyClient.GetUserCredentialsFunc = func(context.Context, string, string) (mpgv2.GetUserCredentialsResponse, error) {
+		t.Fatal("legacy GetUserCredentials must not be called: the public user-credentials lookup no longer falls back to legacy")
+
+		return mpgv2.GetUserCredentialsResponse{}, nil
+	}
+	ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
+
+	err := RunAttach(ctx, "mpg-123")
+	require.ErrorContains(t, err, "failed retrieving credentials for user alice: user not found")
+}
+
 // TestRunAttach_attachmentWarningOnly verifies that a failed attachment creation produces
 // a warning but does not fail the overall attach
 func TestRunAttach_attachmentWarningOnly(t *testing.T) {
@@ -263,8 +296,8 @@ func TestRunAttach_attachmentWarningOnly(t *testing.T) {
 	require.Contains(t, stderr.String(), "Warning: failed to create attachment record")
 }
 
-// TestListDatabasesPublicFirst exercises the extracted helper directly
-func TestListDatabasesPublicFirst(t *testing.T) {
+// TestListDatabases exercises the extracted helper directly
+func TestListDatabases(t *testing.T) {
 	tests := []struct {
 		name            string
 		publicDatabases []flaps.ManagedPostgresDatabase
@@ -296,7 +329,7 @@ func TestListDatabasesPublicFirst(t *testing.T) {
 					return tt.publicDatabases, tt.publicErr
 				},
 			}
-			databases, err := listDatabasesPublicFirst(ctx, flapsClient, "mpg-123")
+			databases, err := listDatabases(ctx, flapsClient, "mpg-123")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
@@ -309,8 +342,8 @@ func TestListDatabasesPublicFirst(t *testing.T) {
 	}
 }
 
-// TestCreateUserPublicFirst exercises the extracted helper directly
-func TestCreateUserPublicFirst(t *testing.T) {
+// TestCreateUser exercises the extracted helper directly
+func TestCreateUser(t *testing.T) {
 	tests := []struct {
 		name       string
 		publicUser flaps.ManagedPostgresUser
@@ -344,7 +377,7 @@ func TestCreateUserPublicFirst(t *testing.T) {
 					return tt.publicUser, tt.publicErr
 				},
 			}
-			user, err := createUserPublicFirst(ctx, flapsClient, "mpg-123", "newuser", "writer")
+			user, err := createUser(ctx, flapsClient, "mpg-123", "newuser", "writer")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)
@@ -357,8 +390,8 @@ func TestCreateUserPublicFirst(t *testing.T) {
 	}
 }
 
-// TestCreateDatabasePublicFirst exercises the extracted helper directly
-func TestCreateDatabasePublicFirst(t *testing.T) {
+// TestCreateDatabase exercises the extracted helper directly
+func TestCreateDatabase(t *testing.T) {
 	tests := []struct {
 		name      string
 		publicErr error
@@ -387,7 +420,7 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 					return flaps.ManagedPostgresDatabase{Name: "newdb"}, tt.publicErr
 				},
 			}
-			err := createDatabasePublicFirst(ctx, flapsClient, "mpg-123", "newdb")
+			err := createDatabase(ctx, flapsClient, "mpg-123", "newdb")
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErr)

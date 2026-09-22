@@ -69,7 +69,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			fmt.Fprintf(io.Out, "Creating user %s with role %s...\n", userInput, role)
 
-			user, err := createUserPublicFirst(ctx, flapsClient, clusterID, userInput, role)
+			user, err := createUser(ctx, flapsClient, clusterID, userInput, role)
 			if err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
@@ -87,7 +87,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	db := flag.GetString(ctx, "database")
 	if db == "" && io.IsInteractive() {
 		// Prompt for database selection
-		databases, err := listDatabasesPublicFirst(ctx, flapsClient, clusterID)
+		databases, err := listDatabases(ctx, flapsClient, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
@@ -118,7 +118,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			fmt.Fprintf(io.Out, "Creating database %s...\n", dbName)
 
-			err = createDatabasePublicFirst(ctx, flapsClient, clusterID, dbName)
+			err = createDatabase(ctx, flapsClient, clusterID, dbName)
 			if err != nil {
 				return fmt.Errorf("failed to create database: %w", err)
 			}
@@ -147,7 +147,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	var user, password string
 
 	if username != "" {
-		creds, err := getUserCredentialsPublicFirst(ctx, flapsClient, clusterID, username)
+		creds, err := getUserCredentials(ctx, flapsClient, clusterID, username)
 		if err != nil {
 			return fmt.Errorf("failed retrieving credentials for user %s: %w", username, err)
 		}
@@ -195,7 +195,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	attachInput := mpgv2.CreateAttachmentInput{
 		AppName: appName,
 	}
-	err = createAttachmentPublicFirst(ctx, flapsClient, clusterID, attachInput)
+	err = createAttachment(ctx, flapsClient, clusterID, attachInput)
 	if err != nil {
 		// Attachment is warning-only; the secret was set successfully.
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
@@ -207,8 +207,8 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	return nil
 }
 
-// createUserPublicFirst creates a user through the public Machines API.
-func createUserPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, username, role string) (mpgv2.User, error) {
+// createUser creates a user through the public Machines API.
+func createUser(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, username, role string) (mpgv2.User, error) {
 	req := flaps.CreateManagedPostgresUserRequest{
 		Username: username,
 		Role:     role,
@@ -229,8 +229,8 @@ type userCredentials struct {
 	Password string
 }
 
-// getUserCredentialsPublicFirst gets credentials through the public Machines API.
-func getUserCredentialsPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, username string) (userCredentials, error) {
+// getUserCredentials gets credentials through the public Machines API.
+func getUserCredentials(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, username string) (userCredentials, error) {
 	creds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, username)
 	if err != nil {
 		return userCredentials{}, err
@@ -239,8 +239,8 @@ func getUserCredentialsPublicFirst(ctx context.Context, flapsClient flapsutil.Fl
 	return userCredentials{User: creds.Username, Password: creds.Password}, nil
 }
 
-// listDatabasesPublicFirst lists databases through the public Machines API.
-func listDatabasesPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID string) ([]mpgv2.Database, error) {
+// listDatabases lists databases through the public Machines API.
+func listDatabases(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID string) ([]mpgv2.Database, error) {
 	databases, err := flapsClient.ListManagedPostgresDatabases(ctx, clusterID)
 	if err != nil {
 		return nil, err
@@ -254,8 +254,8 @@ func listDatabasesPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsCl
 	return dbs, nil
 }
 
-// createDatabasePublicFirst creates a database through the public Machines API.
-func createDatabasePublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, dbName string) error {
+// createDatabase creates a database through the public Machines API.
+func createDatabase(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID, dbName string) error {
 	req := flaps.CreateManagedPostgresDatabaseRequest{Name: dbName}
 
 	_, err := flapsClient.CreateManagedPostgresDatabase(ctx, clusterID, req)
@@ -276,8 +276,8 @@ func buildConnectionUri(baseUri, user, password, db string) (string, error) {
 	return parsedURI.String(), nil
 }
 
-// createAttachmentPublicFirst creates an attachment through the public Machines API.
-func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID string, input mpgv2.CreateAttachmentInput) error {
+// createAttachment creates an attachment through the public Machines API.
+func createAttachment(ctx context.Context, flapsClient flapsutil.FlapsClient, clusterID string, input mpgv2.CreateAttachmentInput) error {
 	req := flaps.CreateManagedPostgresAttachmentRequest{
 		AppName: input.AppName,
 	}
