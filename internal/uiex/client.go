@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type Client struct {
@@ -59,7 +60,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		baseUrl = uiexUrl
 	}
 
-	var transport = httptracing.NewTransport(http.DefaultTransport)
+	var transport = httptracing.NewTransport(otelhttp.NewTransport(http.DefaultTransport))
 	if opts.ClientSignals != nil {
 		transport = opts.ClientSignals.WrapTransport(transport)
 	}
