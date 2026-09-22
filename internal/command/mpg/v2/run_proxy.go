@@ -62,6 +62,22 @@ func GetMpgConnectParams(
 		return nil, nil, nil, err
 	}
 
+	return connectParamsFromCluster(ctx, response, useLegacy, port, localProxyPort, username, resolvedOrgSlug)
+}
+
+// connectParamsFromCluster resolves credentials and proxy parameters from an
+// already-resolved cluster lookup, so callers that need to inspect the
+// cluster before building params (e.g. to pick a public/legacy listing
+// source) don't have to call getCluster twice.
+func connectParamsFromCluster(
+	ctx context.Context,
+	response *mpgv2.GetClusterResponse,
+	useLegacy bool,
+	port int,
+	localProxyPort string,
+	username string,
+	resolvedOrgSlug string,
+) (*mpgv2.ManagedCluster, *proxy.ConnectParams, *mpgv2.GetClusterCredentialsResponse, error) {
 	credentials, err := resolveConnectCredentials(ctx, response, useLegacy, username)
 	if err != nil {
 		return nil, nil, nil, err
