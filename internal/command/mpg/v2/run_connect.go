@@ -12,6 +12,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -23,19 +24,28 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 
 	localProxyPort := proxyPort
 
+	// Resolve the cluster once, up front, so the interactive pickers below
+	// and connectParamsFromCluster agree on whether this cluster only exists in
+	// the legacy API (useLegacy) or was resolved through the public
+	// Machines API. This mirrors getCluster's own fallback decision instead
+	// of introducing a second, independent 404 check.
+	response, useLegacy, port, err := getCluster(ctx, clusterID)
+	if err != nil {
+		return err
+	}
+
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
 	if username == "" && io.IsInteractive() {
 		// Prompt for user selection
-		mpgClient := mpgv2.ClientFromContext(ctx)
-		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
+		users, err := listConnectUsers(ctx, useLegacy, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list users: %w", err)
 		}
 
-		if len(usersResponse.Data) > 0 {
+		if len(users) > 0 {
 			var userOptions []string
-			for _, user := range usersResponse.Data {
+			for _, user := range users {
 				userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
 			}
 
@@ -45,7 +55,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 				return err
 			}
 
-			username = usersResponse.Data[userIndex].Name
+			username = users[userIndex].Name
 		}
 		// If no users found, username remains empty and will use default credentials
 	}
@@ -56,15 +66,14 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 		db = database
 	} else if io.IsInteractive() {
 		// Prompt for database selection
-		mpgClient := mpgv2.ClientFromContext(ctx)
-		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
+		databases, err := listConnectDatabases(ctx, useLegacy, clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to list databases: %w", err)
 		}
 
-		if len(databasesResponse.Data) > 0 {
+		if len(databases) > 0 {
 			var dbOptions []string
-			for _, database := range databasesResponse.Data {
+			for _, database := range databases {
 				dbOptions = append(dbOptions, database.Name)
 			}
 
@@ -74,11 +83,11 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 				return err
 			}
 
-			db = databasesResponse.Data[dbIndex].Name
+			db = databases[dbIndex].Name
 		}
 	}
 
-	cluster, params, credentials, err := GetMpgConnectParams(ctx, localProxyPort, username, clusterID, resolvedOrgSlug)
+	cluster, params, credentials, err := connectParamsFromCluster(ctx, response, useLegacy, port, localProxyPort, username, resolvedOrgSlug)
 	if err != nil {
 		return err
 	}
@@ -182,4 +191,40 @@ func maybeWarnNotReady(errOut io.Writer, cluster *mpgv2.ManagedCluster) {
 	}
 
 	fmt.Fprintf(errOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
+}
+
+// listConnectUsers lists users for the connect picker, using the same
+// public/legacy source as getCluster resolved the cluster from. useLegacy
+// is only true when the cluster could not be found through the public
+// Machines API and was resolved via the legacy client instead.
+func listConnectUsers(ctx context.Context, useLegacy bool, clusterID string) ([]mpgv2.User, error) {
+	if useLegacy {
+		mpgClient := mpgv2.ClientFromContext(ctx)
+
+		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
+		if err != nil {
+			return nil, err
+		}
+
+		return usersResponse.Data, nil
+	}
+
+	return listUsers(ctx, clusterID)
+}
+
+// listConnectDatabases lists databases for the connect picker, using the
+// same public/legacy source as getCluster resolved the cluster from.
+func listConnectDatabases(ctx context.Context, useLegacy bool, clusterID string) ([]mpgv2.Database, error) {
+	if useLegacy {
+		mpgClient := mpgv2.ClientFromContext(ctx)
+
+		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
+		if err != nil {
+			return nil, err
+		}
+
+		return databasesResponse.Data, nil
+	}
+
+	return listDatabases(ctx, flapsutil.ClientFromContext(ctx), clusterID)
 }
