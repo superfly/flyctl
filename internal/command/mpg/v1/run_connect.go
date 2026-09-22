@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/superfly/flyctl/internal/contextutil"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -94,7 +96,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 
 	// We want to handle cancels ourselves, since they can pass through
 	// as query cancellations to psql without killing the proxy.
-	proxyCtx, proxyCancel := context.WithCancel(context.WithoutCancel(ctx))
+	proxyCtx, proxyCancel := contextutil.WithCancel(context.WithoutCancel(ctx), "Postgres proxy stopped")
 	defer proxyCancel()
 
 	err = proxy.Start(proxyCtx, params)
@@ -105,8 +107,8 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 	connectUrl := buildConnectURL(credentials, db, localProxyPort)
 
 	// Allow Ctrl+C signals to hit psql
-	psqlCtx, psqlCancel := context.WithCancel(context.WithoutCancel(ctx))
-	defer psqlCancel()
+	psqlCtx, psqlCancel := context.WithCancelCause(context.WithoutCancel(ctx))
+	defer psqlCancel(contextutil.CleanupCause("psql session finished"))
 
 	cmd := exec.CommandContext(psqlCtx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
@@ -137,7 +139,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string) (
 					// Double Ctrl+C — kill the process
 					if !lastSigTime.IsZero() && now.Sub(lastSigTime) < 2*time.Second {
 						cmd.Process.Kill()
-						psqlCancel()
+						psqlCancel(ctrlc.AbortedByUser)
 
 						return
 					}

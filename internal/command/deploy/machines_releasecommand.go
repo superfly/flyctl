@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/machine"
@@ -50,7 +51,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	ctx, span := tracing.GetTracer().Start(ctx, "run_"+commandType+"_cmd")
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to run "+commandType+"_cmd")
+			tracing.RecordError(ctx, span, err, "failed to run "+commandType+"_cmd")
 		}
 		span.End()
 	}()
@@ -85,7 +86,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	eg.Go(func() error {
 		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to create "+commandType+" cmd machine")
+			tracing.RecordError(ctx, span, err, "failed to create "+commandType+" cmd machine")
 
 			return fmt.Errorf("error running %s_command machine: %w", commandType, err)
 		}
@@ -93,7 +94,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		return nil
 	})
 	eg.Go(func() error {
-		ctx, cancel := context.WithTimeout(ctx, natsConnectTimeout)
+		ctx, cancel := context.WithTimeoutCause(ctx, natsConnectTimeout, fmt.Errorf("connecting release command log stream: %w", context.DeadlineExceeded))
 		defer cancel()
 
 		stream, err = logs.NewNatsStream(ctx, md.apiClient, md.flapsClient, logOpts)
@@ -111,7 +112,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
 	logOpts.VMID = releaseCmdMachine.Machine().ID
-	logsCtx, cancelLogs := context.WithCancel(ctx)
+	logsCtx, cancelLogs := contextutil.WithCancel(ctx, "release command log streaming stopped")
 	defer cancelLogs()
 	var buf *ring.Ring
 	if !flag.GetBool(ctx, "verbose") {
@@ -153,7 +154,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for "+commandType+" cmd machine")
+		tracing.RecordError(ctx, span, err, "failed to wait for "+commandType+" cmd machine")
 
 		return err
 	}
@@ -247,7 +248,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 			})
 		}
 		if err := mPool.Wait(); err != nil {
-			tracing.RecordError(span, err, "failed to destroy old release_command machine")
+			tracing.RecordError(ctx, span, err, "failed to destroy old release_command machine")
 		}
 	}
 
@@ -265,7 +266,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to get ip addresses")
+		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
 
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}

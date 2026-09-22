@@ -3,10 +3,12 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -72,7 +74,7 @@ func (*manager) pkg() {}
 func (m *manager) Start(ctx context.Context) {
 	log := logger.FromContext(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := contextutil.WithCancel(ctx, "task manager stopped")
 
 	started := m.started.Swap(true)
 	if started {
@@ -121,7 +123,7 @@ func (m *manager) Shutdown() {
 }
 
 func (m *manager) ShutdownWithTimeout(timeout time.Duration) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeoutCause(context.Background(), timeout, fmt.Errorf("shutting down background tasks: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	done := make(chan struct{}, 1)

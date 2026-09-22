@@ -13,6 +13,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
@@ -98,7 +99,7 @@ func singleUseSSHCertificate(ctx context.Context, org OrganizationImpl, appNames
 }
 
 func spin(in, out string) context.CancelFunc {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := contextutil.WithCancel(context.Background(), "SSH progress spinner stopped")
 
 	if !helpers.IsTerminal() {
 		fmt.Fprintln(os.Stderr, in)

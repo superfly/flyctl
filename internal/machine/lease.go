@@ -69,7 +69,7 @@ func releaseLease(ctx context.Context, appName string, machine *fly.Machine) {
 	// remove the cancel from ctx so we can still releases leases if the command was aborted
 	if ctx.Err() != nil {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		ctx, cancel = context.WithTimeoutCause(context.WithoutCancel(ctx), 5*time.Second, fmt.Errorf("releasing machine lease during cleanup: %w", context.DeadlineExceeded))
 		defer cancel()
 
 		fmt.Fprintf(io.Out, "Releasing lease for machine %s...\n", machine.ID)

@@ -50,7 +50,7 @@ func QueryStatuspageIncidents(ctx context.Context) {
 	logger.Debug("started querying for statuspage incidents")
 
 	statusCh := make(chan *StatusPageApiResponse, 1)
-	statusCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	statusCtx, cancel := context.WithTimeoutCause(context.Background(), time.Second, fmt.Errorf("querying status page incidents: %w", context.DeadlineExceeded))
 	go func() {
 		defer cancel()
 		defer close(statusCh)
@@ -77,7 +77,7 @@ func QueryStatuspageIncidents(ctx context.Context) {
 }
 
 func StatuspageIncidentsRequest(ctx context.Context) (*StatusPageApiResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("requesting status page incidents: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", getStatuspageUnresolvedIncidentsUrl(), http.NoBody)

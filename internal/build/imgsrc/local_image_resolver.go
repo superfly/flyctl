@@ -72,7 +72,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	img, err := findImageWithDocker(ctx, docker, opts.ImageRef)
 	if err != nil {
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to find image with docker")
+		tracing.RecordError(ctx, span, err, "failed to find image with docker")
 
 		return nil, "", err
 	}
@@ -93,7 +93,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		err = docker.ImageTag(ctx, img.ID, opts.Tag)
 		if err != nil {
 			build.PushFinish()
-			tracing.RecordError(span, err, "failed to tag image")
+			tracing.RecordError(ctx, span, err, "failed to tag image")
 
 			return nil, "", errors.Wrap(err, "error tagging image")
 		}
@@ -130,7 +130,7 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 
 	ref, err := dockerparser.Parse(imageName)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to parse image")
+		tracing.RecordError(ctx, span, err, "failed to parse image")
 
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 
 	images, err := d.ImageList(ctx, image.ListOptions{})
 	if err != nil {
-		tracing.RecordError(span, err, "failed to list images")
+		tracing.RecordError(ctx, span, err, "failed to list images")
 
 		return nil, err
 	}

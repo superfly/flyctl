@@ -12,6 +12,7 @@ import (
 	"github.com/jpillora/backoff"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/statuslogger"
@@ -211,7 +212,7 @@ func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfi
 	}
 	if timeout != 0 {
 		// If we have a timeout, put it on the context.
-		waitCtx, cancel := context.WithTimeout(ctx, timeout)
+		waitCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine state: %w", context.DeadlineExceeded))
 
 		return waitCtx, cancel, timeout
 	} else {
@@ -231,6 +232,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, options.allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
+	defer func() { tracing.RecordCancellation(waitCtx, trace.SpanFromContext(waitCtx)) }()
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
 		Max:    2 * time.Second,
@@ -315,7 +317,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_smoke_checks")
 	defer span.End()
 
-	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, 10*time.Second))
+	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("observing machine smoke checks: %w", context.DeadlineExceeded)))
 	defer cancel()
 
 	b := &backoff.Backoff{
@@ -333,8 +335,10 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
+			tracing.RecordCancellation(waitCtx, span)
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			tracing.RecordCancellation(waitCtx, span)
 			return nil
 		case err != nil && flapsutil.IsTransientFlapsError(err):
 			// A transient Get failure (typically a 5xx or a 408 from flaps'
@@ -348,7 +352,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 
 			continue
 		case err != nil:
-			span.RecordError(err)
+			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
@@ -363,7 +367,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 			return nil
 		case lm.isConstantlyRestarting(machine):
 			err := fmt.Errorf("the app appears to be crashing")
-			span.RecordError(err)
+			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return err
 		default:
@@ -392,7 +396,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	if configuredChecks == 0 {
 		return nil
 	}
-	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
+	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine health checks: %w", context.DeadlineExceeded)))
 	defer cancel()
 
 	b := &backoff.Backoff{
@@ -406,11 +410,11 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
-			span.RecordError(err)
+			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			span.RecordError(err)
+			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
 		case err != nil && flapsutil.IsTransientFlapsError(err):
@@ -424,7 +428,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 
 			continue
 		case err != nil:
-			span.RecordError(err)
+			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
@@ -593,7 +597,7 @@ func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Durat
 }
 
 func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leaseDuration time.Duration, delayBetween time.Duration) {
-	ctx, lm.leaseRefreshCancelFunc = context.WithCancel(ctx)
+	ctx, lm.leaseRefreshCancelFunc = contextutil.WithCancel(ctx, "background lease refresh stopped")
 	go lm.refreshLeaseUntilCanceled(ctx, leaseDuration, delayBetween)
 }
 
@@ -640,7 +644,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 	if contextWasAlreadyCanceled {
 		var cancel context.CancelFunc
 		cancelTimeout := 500 * time.Millisecond
-		ctx, cancel = context.WithTimeout(ctx, cancelTimeout)
+		ctx, cancel = context.WithTimeoutCause(ctx, cancelTimeout, fmt.Errorf("releasing machine lease: %w", context.DeadlineExceeded))
 		terminal.Infof("detected canceled context and allowing %s to release machine %s lease\n", cancelTimeout, lm.FormattedMachineId())
 		defer cancel()
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -55,7 +56,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 	toks := config.Tokens(ctx)
 
-	monitorCtx, cancelMonitor := context.WithCancel(ctx)
+	monitorCtx, cancelMonitor := contextutil.WithCancel(ctx, "agent token monitoring stopped")
 	config.MonitorTokens(monitorCtx, toks, nil)
 
 	synthetics.StartSyntheticsMonitoringAgent(ctx)
@@ -274,7 +275,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 }
 
 func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app string) (*agent.Instances, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 30*time.Second, fmt.Errorf("fetching agent instances: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
@@ -357,7 +358,7 @@ func (s *server) probeTunnel(ctx context.Context, slug, network string) (err err
 
 	s.printf("probing %q ...", slug)
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Second, fmt.Errorf("probing WireGuard tunnel: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	var results []net.IP
@@ -455,7 +456,7 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 
 	s.cancelTokenMonitoring()
 
-	monitorCtx, cancelMonitor := context.WithCancel(s.runCtx)
+	monitorCtx, cancelMonitor := contextutil.WithCancel(s.runCtx, "agent token monitoring replaced")
 	config.MonitorTokens(monitorCtx, t, nil)
 
 	s.tokens = t
