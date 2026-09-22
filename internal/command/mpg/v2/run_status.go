@@ -94,8 +94,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 		"Organization",
 		"Region",
 		"Status",
-		"Used Storage (GiB)",
-		"Allocated Storage (GiB)",
+		"Used Storage (GB)",
+		"Allocated Storage (GB)",
 		"Replicas",
 		"Direct IP",
 	)
