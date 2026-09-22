@@ -12,7 +12,6 @@ import (
 	"github.com/jpillora/backoff"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/statuslogger"
@@ -597,7 +596,10 @@ func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Durat
 }
 
 func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leaseDuration time.Duration, delayBetween time.Duration) {
-	ctx, lm.leaseRefreshCancelFunc = contextutil.WithCancel(ctx, "background lease refresh stopped")
+	ctx, cancel := context.WithCancelCause(ctx)
+	lm.leaseRefreshCancelFunc = func() {
+		cancel(fmt.Errorf("background lease refresh stopped: %w", context.Canceled))
+	}
 	go lm.refreshLeaseUntilCanceled(ctx, leaseDuration, delayBetween)
 }
 

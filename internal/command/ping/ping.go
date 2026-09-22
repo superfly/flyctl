@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -141,8 +140,8 @@ func run(ctx context.Context) error {
 	}
 	mu.Unlock()
 
-	ctx, cancel := contextutil.WithCancel(ctx, "ping finished")
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("ping finished: %w", context.Canceled))
 
 	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
 		// look up names in the background because I was too

@@ -2,8 +2,8 @@ package ctrlc
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -54,7 +54,7 @@ func HookCancelableContext(ctx context.Context, cancelFn context.CancelFunc) (co
 
 	return newCtx, func() {
 		handle.Done()
-		cancelCause(contextutil.CleanupCause("Ctrl+C hook released"))
+		cancelCause(fmt.Errorf("Ctrl+C hook released: %w", context.Canceled))
 		cancelFn()
 	}
 }

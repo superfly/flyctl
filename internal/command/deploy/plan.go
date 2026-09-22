@@ -13,7 +13,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
@@ -121,7 +120,8 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 		trace.WithAttributes(attribute.Bool("skip_smoke_checks", settings.skipSmokeChecks)),
 	)
 	defer span.End()
-	ctx, cancel := contextutil.WithCancel(ctx, "machine updates finished")
+	ctx, cancelCause := context.WithCancelCause(ctx)
+	cancel := func() { cancelCause(fmt.Errorf("machine updates finished: %w", context.Canceled)) }
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
 

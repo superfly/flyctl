@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/tokenizer"
@@ -37,7 +36,7 @@ func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) fun
 
 	return func() error {
 
-		defer cancel(contextutil.CleanupCause("statics workers finished"))
+		defer cancel(fmt.Errorf("statics workers finished: %w", context.Canceled))
 		wg.Wait()
 
 		// Check if any of the workers failed.

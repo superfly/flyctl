@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/machine"
@@ -112,14 +111,14 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
 	logOpts.VMID = releaseCmdMachine.Machine().ID
-	logsCtx, cancelLogs := contextutil.WithCancel(ctx, "release command log streaming stopped")
-	defer cancelLogs()
+	logsCtx, cancelLogs := context.WithCancelCause(ctx)
+	defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 	var buf *ring.Ring
 	if !flag.GetBool(ctx, "verbose") {
 		buf = ring.New(100)
 	}
 	go func() {
-		defer cancelLogs()
+		defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 		if stream == nil {
 			return
 		}

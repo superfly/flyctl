@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/superfly/flyctl/internal/contextutil"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -39,9 +38,9 @@ func TestRecordErrorCause(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "cleanup":
-				var cancel context.CancelFunc
-				ctx, cancel = contextutil.WithCancel(parent, "log stream stopped")
-				cancel()
+				var cancel context.CancelCauseFunc
+				ctx, cancel = context.WithCancelCause(parent)
+				cancel(fmt.Errorf("log stream stopped: %w", context.Canceled))
 				cause = context.Cause(ctx)
 			default:
 				ctx = parent
@@ -73,8 +72,8 @@ func TestCleanupDoesNotFailSpan(t *testing.T) {
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	defer provider.Shutdown(context.Background())
 	parent, span := provider.Tracer("test").Start(context.Background(), "operation")
-	ctx, cancel := contextutil.WithCancel(parent, "operation finished")
-	cancel()
+	ctx, cancel := context.WithCancelCause(parent)
+	cancel(fmt.Errorf("operation finished: %w", context.Canceled))
 	RecordCancellation(ctx, span)
 	RecordError(ctx, span, nil, "must not fail")
 	span.End()
@@ -82,8 +81,8 @@ func TestCleanupDoesNotFailSpan(t *testing.T) {
 	if got.Status().Code != codes.Unset || len(got.Events()) != 0 {
 		t.Fatalf("cleanup recorded a failure: status=%v events=%v", got.Status(), got.Events())
 	}
-	if attrValue(got.Attributes(), "context.cause.type") != "cleanup" {
-		t.Fatalf("cleanup classification missing: %v", got.Attributes())
+	if attrValue(got.Attributes(), "context.cause.type") != "canceled" {
+		t.Fatalf("cancellation classification missing: %v", got.Attributes())
 	}
 }
 

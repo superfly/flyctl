@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -74,18 +73,18 @@ func (*manager) pkg() {}
 func (m *manager) Start(ctx context.Context) {
 	log := logger.FromContext(ctx)
 
-	ctx, cancel := contextutil.WithCancel(ctx, "task manager stopped")
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	started := m.started.Swap(true)
 	if started {
-		cancel()
+		cancel(fmt.Errorf("task manager stopped: %w", context.Canceled))
 		log.Debug("Task manager has already started; not starting again")
 
 		return
 	}
 
 	go func() {
-		defer cancel()
+		defer cancel(fmt.Errorf("task manager stopped: %w", context.Canceled))
 
 		log.Debug("Starting task manager")
 

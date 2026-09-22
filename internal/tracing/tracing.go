@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/superfly/flyctl/internal/contextutil"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -226,10 +225,7 @@ func RecordCancellation(ctx context.Context, span trace.Span) []attribute.KeyVal
 		return nil
 	}
 	kind := "failure"
-	var cleanup contextutil.CleanupCause
 	switch {
-	case errors.As(cause, &cleanup):
-		kind = "cleanup"
 	case errors.Is(cause, context.DeadlineExceeded):
 		kind = "deadline"
 	case errors.Is(cause, context.Canceled):

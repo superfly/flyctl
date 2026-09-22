@@ -26,7 +26,6 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
@@ -878,7 +877,7 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 
 	startIdx := 0
 	groupsCtx, cancelGroups := context.WithCancelCause(parentCtx)
-	defer cancelGroups(contextutil.CleanupCause("rolling update groups finished"))
+	defer cancelGroups(fmt.Errorf("rolling update groups finished: %w", context.Canceled))
 	groupsPool := pool.New().
 		WithErrors().
 		WithMaxGoroutines(rollingStrategyMaxConcurrentGroups).
@@ -956,7 +955,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 	defer span.End()
 
 	poolCtx, cancelUpdates := context.WithCancelCause(parentCtx)
-	defer cancelUpdates(contextutil.CleanupCause("process group updates finished"))
+	defer cancelUpdates(fmt.Errorf("process group updates finished: %w", context.Canceled))
 	updatePool := pool.New().
 		WithErrors().
 		WithMaxGoroutines(poolSize).

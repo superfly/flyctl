@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -56,7 +55,9 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 	toks := config.Tokens(ctx)
 
-	monitorCtx, cancelMonitor := contextutil.WithCancel(ctx, "agent token monitoring stopped")
+	monitorCtx, cancelMonitorCause := context.WithCancelCause(ctx)
+
+	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring stopped: %w", context.Canceled)) }
 	config.MonitorTokens(monitorCtx, toks, nil)
 
 	synthetics.StartSyntheticsMonitoringAgent(ctx)
@@ -456,7 +457,9 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 
 	s.cancelTokenMonitoring()
 
-	monitorCtx, cancelMonitor := contextutil.WithCancel(s.runCtx, "agent token monitoring replaced")
+	monitorCtx, cancelMonitorCause := context.WithCancelCause(s.runCtx)
+
+	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring replaced: %w", context.Canceled)) }
 	config.MonitorTokens(monitorCtx, t, nil)
 
 	s.tokens = t

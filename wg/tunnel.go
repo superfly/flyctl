@@ -10,7 +10,6 @@ import (
 	"net/netip"
 
 	"github.com/miekg/dns"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -74,8 +73,8 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 
 	var wscancel context.CancelFunc
 	if wswg {
-		var lifetimeCtx context.Context
-		lifetimeCtx, wscancel = contextutil.WithCancel(context.Background(), "WireGuard websocket tunnel closed")
+		lifetimeCtx, cancel := context.WithCancelCause(context.Background())
+		wscancel = func() { cancel(fmt.Errorf("WireGuard websocket tunnel closed: %w", context.Canceled)) }
 		port, err := websocketConnect(ctx, lifetimeCtx, endpointHost)
 		if err != nil {
 			wscancel()

@@ -10,7 +10,6 @@ import (
 
 	"github.com/azazeal/pause"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/contextutil"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -109,7 +108,8 @@ func run(ctx context.Context) error {
 			poll(ctx, eg, client, opts),
 		}
 	} else {
-		pollingCtx, cancelPolling := contextutil.WithCancel(ctx, "log polling replaced by streaming")
+		pollingCtx, cancelPollingCause := context.WithCancelCause(ctx)
+		cancelPolling := func() { cancelPollingCause(fmt.Errorf("log polling replaced by streaming: %w", context.Canceled)) }
 		streams = []<-chan logs.LogEntry{
 			poll(pollingCtx, eg, client, opts),
 			nats(ctx, eg, client, flapsClient, opts, cancelPolling),
