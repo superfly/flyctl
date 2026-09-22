@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
@@ -21,6 +22,12 @@ import (
 )
 
 const tokensHelpURL = "https://fly.io/docs/security/tokens/"
+
+// errCI is returned on CI, where nobody will ever approve a browser login:
+// fail at once rather than wait out the timeout.
+func errCI(command string) error {
+	return fmt.Errorf("fly auth %s cannot run on CI. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
+}
 
 // errHeadlessNoListener describes a run where neither delivery path for the
 // completion code is available: no terminal to paste it into and no
@@ -108,13 +115,17 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		command = "signup"
 	}
 
+	headless := !io.IsStdinTTY()
+	if headless && env.IsCI() {
+		return "", errCI(command)
+	}
+
 	pkce, err := newPKCELogin(args)
 	if err != nil {
 		return "", err
 	}
 
 	// No terminal means no pasting, so the loopback callback must be available.
-	headless := !io.IsStdinTTY()
 	if headless && pkce.port == 0 {
 		pkce.close()
 
