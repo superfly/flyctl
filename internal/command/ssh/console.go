@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/ip"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func stdArgsSSH(cmd *cobra.Command) {
@@ -144,8 +145,9 @@ func newConsole() *cobra.Command {
 type SessionTarget = ssh.SessionTarget
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// ignore cancelled errors
-	if errors.Is(err, context.Canceled) {
+	// A remote command failure is not a failure of the SSH client.
+	var exitErr *gossh.ExitError
+	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
 		return
 	}
 
