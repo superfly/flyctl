@@ -161,7 +161,7 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 			// An HTTP-delivered code leaves the cursor on the prompt line;
 			// erase it so the flow's output starts clean. Pasted codes ended
 			// with the user's Enter and remain visible above.
-			if attempt.fromHTTP && prompt != "" {
+			if attempt.fromHTTP && acceptPaste {
 				fmt.Fprint(io.Out, "\r\x1b[K")
 			}
 
