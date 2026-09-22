@@ -16,7 +16,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
-	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,7 +39,6 @@ func TestRunBackupListUsesPublicAPIAndLegacyJSONShape(t *testing.T) {
 		StartedAt: "2026-08-26T12:00:00Z", FinishedAt: "2026-08-26T12:05:00Z",
 	}}
 	publicCalled := false
-	legacyCalled := false
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		ListManagedPostgresBackupsFunc: func(_ context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
 			publicCalled = true
@@ -49,17 +47,8 @@ func TestRunBackupListUsesPublicAPIAndLegacyJSONShape(t *testing.T) {
 			return public, nil
 		},
 	})
-	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-		ListClusterBackupsFunc: func(_ context.Context, _ string) (mpgv2.ListClusterBackupsResponse, error) {
-			legacyCalled = true
-
-			return mpgv2.ListClusterBackupsResponse{}, nil
-		},
-	})
-
 	require.NoError(t, RunBackupList(ctx, "mpg-123"))
 	require.True(t, publicCalled)
-	require.False(t, legacyCalled)
 	var got []map[string]any
 	require.NoError(t, json.Unmarshal(stdout.Bytes(), &got))
 	require.Equal(t, []map[string]any{{
@@ -79,8 +68,6 @@ func TestRunBackupListFiltersPublicStartTimestamp(t *testing.T) {
 			return public, nil
 		},
 	})
-	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
-
 	require.NoError(t, RunBackupList(ctx, "mpg-123"))
 	require.Contains(t, stdout.String(), "new")
 	require.NotContains(t, stdout.String(), "old")
@@ -88,57 +75,33 @@ func TestRunBackupListFiltersPublicStartTimestamp(t *testing.T) {
 
 func TestRunBackupListEmptyPublicResult(t *testing.T) {
 	ctx, stdout := backupTestContext(t, false, true)
-	legacyCalled := false
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		ListManagedPostgresBackupsFunc: func(context.Context, string) ([]flaps.ManagedPostgresBackup, error) {
 			return []flaps.ManagedPostgresBackup{}, nil
 		},
 	})
-	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-		ListClusterBackupsFunc: func(context.Context, string) (mpgv2.ListClusterBackupsResponse, error) {
-			legacyCalled = true
-
-			return mpgv2.ListClusterBackupsResponse{}, nil
-		},
-	})
-
 	require.NoError(t, RunBackupList(ctx, "mpg-123"))
-	require.False(t, legacyCalled)
 	require.Contains(t, stdout.String(), "No backups found for cluster mpg-123")
 }
 
-func TestRunBackupListFallsBackOnlyOnPublic404(t *testing.T) {
+func TestRunBackupListReturnsPublicError(t *testing.T) {
 	tests := []struct {
 		name             string
 		publicErr        error
-		legacyErr        error
-		wantLegacyCalled bool
 		wantErr          string
 		wantPublicStatus int
-		wantOutput       string
 	}{
-		{name: "404", publicErr: flaps.ErrFlapsNotFound, wantLegacyCalled: true, wantOutput: "legacy"},
 		{name: "non-404", publicErr: &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("public boom")}, wantErr: "failed to list backups for cluster mpg-123: public boom", wantPublicStatus: 500},
-		{name: "legacy failure", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy boom"), wantLegacyCalled: true, wantErr: "failed to list backups for cluster mpg-123: legacy boom"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, stdout := backupTestContext(t, false, true)
-			legacyCalled := false
+			ctx, _ := backupTestContext(t, false, true)
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				ListManagedPostgresBackupsFunc: func(context.Context, string) ([]flaps.ManagedPostgresBackup, error) {
 					return nil, test.publicErr
 				},
 			})
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				ListClusterBackupsFunc: func(context.Context, string) (mpgv2.ListClusterBackupsResponse, error) {
-					legacyCalled = true
-
-					return mpgv2.ListClusterBackupsResponse{Data: []mpgv2.ClusterBackup{{Id: "legacy"}}}, test.legacyErr
-				},
-			})
 			err := RunBackupList(ctx, "mpg-123")
-			require.Equal(t, test.wantLegacyCalled, legacyCalled)
 			if test.wantPublicStatus != 0 {
 				var publicErr *flaps.FlapsError
 				require.True(t, errors.As(err, &publicErr))
@@ -149,33 +112,38 @@ func TestRunBackupListFallsBackOnlyOnPublic404(t *testing.T) {
 			} else {
 				require.ErrorContains(t, err, test.wantErr)
 			}
-			if test.wantOutput != "" {
-				require.Contains(t, stdout.String(), test.wantOutput)
-			}
 		})
 	}
 }
 
-func TestRunBackupCreateUsesPublicAPIAndFallsBackOn404(t *testing.T) {
+func TestRunBackupListReturnsPublic404(t *testing.T) {
+	ctx, _ := backupTestContext(t, false, true)
+	publicErr := &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("cluster not found")}
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresBackupsFunc: func(context.Context, string) ([]flaps.ManagedPostgresBackup, error) {
+			return nil, publicErr
+		},
+	})
+	err := RunBackupList(ctx, "mpg-123")
+	require.ErrorIs(t, err, publicErr)
+	require.ErrorContains(t, err, "failed to list backups for cluster mpg-123: cluster not found")
+}
+
+func TestRunBackupCreateUsesPublicAPI(t *testing.T) {
 	tests := []struct {
 		name             string
 		publicErr        error
-		legacyErr        error
-		wantLegacyCalled bool
 		wantErr          string
 		wantPublicStatus int
 	}{
 		{name: "public", wantErr: ""},
-		{name: "404 fallback", publicErr: flaps.ErrFlapsNotFound, wantLegacyCalled: true},
 		{name: "non-404", publicErr: errors.New("public boom"), wantErr: "failed to create backup: public boom"},
 		{name: "concurrent backup 409", publicErr: &flaps.FlapsError{ResponseStatusCode: 409, OriginalError: errors.New("backup already in progress")}, wantErr: "failed to create backup: backup already in progress", wantPublicStatus: 409},
-		{name: "legacy failure", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy boom"), wantLegacyCalled: true, wantErr: "failed to create backup: legacy boom"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, _ := backupTestContext(t, false, false)
 			require.NoError(t, flag.SetString(ctx, "type", "incr"))
-			legacyCalled := false
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				CreateManagedPostgresBackupFunc: func(_ context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
 					require.Equal(t, "mpg-123", id)
@@ -184,17 +152,7 @@ func TestRunBackupCreateUsesPublicAPIAndFallsBackOn404(t *testing.T) {
 					return test.publicErr
 				},
 			})
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				CreateClusterBackupFunc: func(_ context.Context, id string, input mpgv2.CreateClusterBackupInput) error {
-					legacyCalled = true
-					require.Equal(t, "mpg-123", id)
-					require.Equal(t, "incr", input.Type)
-
-					return test.legacyErr
-				},
-			})
 			err := RunBackupCreate(ctx, "mpg-123")
-			require.Equal(t, test.wantLegacyCalled, legacyCalled)
 			if test.wantPublicStatus != 0 {
 				var publicErr *flaps.FlapsError
 				require.True(t, errors.As(err, &publicErr))
@@ -213,6 +171,5 @@ func TestRunBackupCreateRejectsOtherTypes(t *testing.T) {
 	ctx, _ := backupTestContext(t, false, false)
 	require.NoError(t, flag.SetString(ctx, "type", "diff"))
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{})
-	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
 	require.EqualError(t, RunBackupCreate(ctx, "mpg-123"), "--type must be either 'full' or 'incr'")
 }

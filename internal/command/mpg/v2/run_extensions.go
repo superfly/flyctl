@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/fly-go/flaps"
@@ -24,20 +23,12 @@ func RunExtensionsList(ctx context.Context, clusterID, database string) error {
 	}
 
 	extensions, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresExtensions(ctx, clusterID, database)
-	var outputExtensions []mpgv2.Extension
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		resp, legacyErr := mpgv2.ClientFromContext(ctx).ListExtensions(ctx, clusterID, database)
-		if legacyErr != nil {
-			return fmt.Errorf("failed to list extensions for database %s: %w", database, legacyErr)
-		}
-		outputExtensions = resp.Data
-	} else if err != nil {
+	if err != nil {
 		return fmt.Errorf("failed to list extensions for database %s: %w", database, err)
-	} else {
-		outputExtensions = make([]mpgv2.Extension, 0, len(extensions))
-		for _, ext := range extensions {
-			outputExtensions = append(outputExtensions, extensionForOutput(ext))
-		}
+	}
+	outputExtensions := make([]mpgv2.Extension, 0, len(extensions))
+	for _, ext := range extensions {
+		outputExtensions = append(outputExtensions, extensionForOutput(ext))
 	}
 
 	if cfg.JSONOutput {
@@ -89,13 +80,6 @@ func RunExtensionsEnable(ctx context.Context, clusterID, database, name, schema 
 	}
 
 	err = flapsutil.ClientFromContext(ctx).EnableManagedPostgresExtension(ctx, clusterID, database, input)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		err = mpgv2.ClientFromContext(ctx).EnableExtension(ctx, clusterID, database, mpgv2.EnableExtensionInput{
-			Name:                 name,
-			Schema:               schema,
-			CreateSchemaIfNeeded: createSchema,
-		})
-	}
 	if err != nil {
 		return err
 	}
@@ -114,9 +98,6 @@ func RunExtensionsDisable(ctx context.Context, clusterID, database, name string,
 	}
 
 	err = flapsutil.ClientFromContext(ctx).DisableManagedPostgresExtension(ctx, clusterID, database, name, force)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		err = mpgv2.ClientFromContext(ctx).DisableExtension(ctx, clusterID, database, name, force)
-	}
 	if err != nil {
 		return err
 	}
@@ -161,16 +142,7 @@ func resolveDatabase(ctx context.Context, clusterID, database string) (string, e
 	}
 
 	databases, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresDatabases(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		response, legacyErr := mpgv2.ClientFromContext(ctx).ListDatabases(ctx, clusterID)
-		if legacyErr != nil {
-			return "", fmt.Errorf("failed to list databases: %w", legacyErr)
-		}
-		databases = make([]flaps.ManagedPostgresDatabase, 0, len(response.Data))
-		for _, database := range response.Data {
-			databases = append(databases, flaps.ManagedPostgresDatabase{Name: database.Name})
-		}
-	} else if err != nil {
+	if err != nil {
 		return "", fmt.Errorf("failed to list databases: %w", err)
 	}
 

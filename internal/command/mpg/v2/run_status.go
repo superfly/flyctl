@@ -2,11 +2,9 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
@@ -16,9 +14,7 @@ import (
 
 // RunStatus shows cluster status.
 //
-// Human output prefers the public Machines API; the legacy MPGv2 client is
-// used only as a fallback when the public API returns a classified 404.
-// Other public API errors are propagated without falling back.
+// Human output uses the public Machines API.
 //
 // --json skips the public API because the legacy response envelope carries
 // private credentials the public API does not expose; reusing the legacy
@@ -37,51 +33,21 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
 
 	cluster, err := flapsutil.ClientFromContext(ctx).GetManagedPostgresCluster(ctx, clusterID)
-	useLegacy := errors.Is(err, flaps.ErrFlapsNotFound)
-	if err != nil && !useLegacy {
+	if err != nil {
 		return fmt.Errorf("failed retrieving details for cluster %s: %w", clusterID, err)
 	}
 
-	var (
-		id, name, org, region, statusVal, directIP string
-		diskGB, replicas                           int
-	)
-
-	if useLegacy {
-		legacyResp, legacyErr := mpgv2.ClientFromContext(ctx).GetClusterById(ctx, clusterID)
-		if legacyErr != nil {
-			return fmt.Errorf("failed retrieving details for cluster %s: %w", clusterID, legacyErr)
-		}
-		id = legacyResp.Data.Id
-		name = legacyResp.Data.Name
-		org = legacyResp.Data.Organization.Slug
-		region = legacyResp.Data.Region
-		statusVal = legacyResp.Data.Status
-		diskGB = legacyResp.Data.Disk
-		replicas = legacyResp.Data.Replicas
-		directIP = legacyResp.Data.IpAssignments.Direct
-	} else {
-		id = cluster.ID
-		name = cluster.Name
-		org = cluster.Organization.Slug
-		region = cluster.Region
-		statusVal = cluster.Status
-		diskGB = cluster.DiskSizeGB
-		replicas = cluster.Replicas
+	rows := [][]string{{
+		cluster.ID,
+		cluster.Name,
+		cluster.Organization.Slug,
+		cluster.Region,
+		cluster.Status,
+		strconv.Itoa(cluster.DiskSizeGB),
+		strconv.Itoa(cluster.Replicas),
 		// Render the public endpoint host only to preserve the legacy Direct
 		// column's bare-address and empty-host behavior.
-		directIP = cluster.Endpoints.Primary.Direct.Host
-	}
-
-	rows := [][]string{{
-		id,
-		name,
-		org,
-		region,
-		statusVal,
-		strconv.Itoa(diskGB),
-		strconv.Itoa(replicas),
-		directIP,
+		cluster.Endpoints.Primary.Direct.Host,
 	}}
 
 	return render.VerticalTable(out, "Cluster Status", rows,

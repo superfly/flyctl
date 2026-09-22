@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
-	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -33,20 +31,12 @@ func TestRunExtensionsList(t *testing.T) {
 		{Name: "plpgsql", Description: stringPointer("PL/pgSQL"), DefaultVersion: stringPointer("1.0"), System: true, Installed: &flaps.ManagedPostgresInstalledExtension{Version: "1.0", Schema: "pg_catalog"}},
 	}
 	nullMetadataExtensions := []flaps.ManagedPostgresExtension{{Name: "hstore"}}
-	legacyExtensions := []mpgv2.Extension{
-		{Name: "pg_trgm", Description: "text similarity", DocsURL: "https://example.test/pg_trgm", DefaultVersion: "1.6"},
-		{Name: "plpgsql", Description: "PL/pgSQL", DefaultVersion: "1.0", IsSystem: true, Installed: &mpgv2.InstalledExtension{Version: "1.0", Schema: "pg_catalog"}},
-	}
-
 	tests := []struct {
 		name             string
 		jsonOutput       bool
 		nullMetadata     bool
 		publicExtensions []flaps.ManagedPostgresExtension
 		publicErr        error
-		legacyExtensions []mpgv2.Extension
-		legacyErr        error
-		wantLegacyCalls  int
 		wantErr          string
 		wantOutput       []string
 	}{
@@ -72,27 +62,6 @@ func TestRunExtensionsList(t *testing.T) {
 			publicExtensions: nullMetadataExtensions,
 		},
 		{
-			name:             "classified 404 falls back",
-			publicErr:        fmt.Errorf("wrapped: %w", flaps.ErrFlapsNotFound),
-			legacyExtensions: legacyExtensions,
-			wantLegacyCalls:  1,
-			wantOutput:       []string{"pg_trgm", "plpgsql", "yes", "pg_catalog"},
-		},
-		{
-			name:             "classified 404 preserves legacy JSON fields",
-			jsonOutput:       true,
-			publicErr:        flaps.ErrFlapsNotFound,
-			legacyExtensions: legacyExtensions,
-			wantLegacyCalls:  1,
-		},
-		{
-			name:            "fallback preserves legacy error",
-			publicErr:       flaps.ErrFlapsNotFound,
-			legacyErr:       errors.New("legacy denied"),
-			wantLegacyCalls: 1,
-			wantErr:         "failed to list extensions for database app: legacy denied",
-		},
-		{
 			name:      "non-404 public error is authoritative",
 			publicErr: errors.New("public unavailable"),
 			wantErr:   "failed to list extensions for database app: public unavailable",
@@ -112,17 +81,6 @@ func TestRunExtensionsList(t *testing.T) {
 					return test.publicExtensions, test.publicErr
 				},
 			})
-			legacyCalls := 0
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				ListExtensionsFunc: func(_ context.Context, id, database string) (mpgv2.ListExtensionsResponse, error) {
-					legacyCalls++
-					require.Equal(t, "mpg-123", id)
-					require.Equal(t, "app", database)
-
-					return mpgv2.ListExtensionsResponse{Data: test.legacyExtensions}, test.legacyErr
-				},
-			})
-
 			err := RunExtensionsList(ctx, "mpg-123", "app")
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -130,7 +88,6 @@ func TestRunExtensionsList(t *testing.T) {
 				require.NoError(t, err)
 			}
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, test.wantLegacyCalls, legacyCalls)
 
 			if test.jsonOutput {
 				var got []map[string]any
@@ -142,12 +99,8 @@ func TestRunExtensionsList(t *testing.T) {
 
 					return
 				}
-				docsURL := ""
-				if test.wantLegacyCalls == 1 {
-					docsURL = "https://example.test/pg_trgm"
-				}
 				require.Equal(t, []map[string]any{
-					{"name": "pg_trgm", "description": "text similarity", "docs_url": docsURL, "default_version": "1.6", "is_system": false, "installed": nil},
+					{"name": "pg_trgm", "description": "text similarity", "docs_url": "", "default_version": "1.6", "is_system": false, "installed": nil},
 					{"name": "plpgsql", "description": "PL/pgSQL", "docs_url": "", "default_version": "1.0", "is_system": true, "installed": map[string]any{"version": "1.0", "schema": "pg_catalog"}},
 				}, got)
 			}
@@ -164,20 +117,16 @@ func stringPointer(value string) *string {
 
 func TestRunExtensionsEnable(t *testing.T) {
 	tests := []struct {
-		name            string
-		extension       string
-		schema          string
-		createSchema    bool
-		publicErr       error
-		legacyErr       error
-		wantPublicReq   flaps.EnableManagedPostgresExtensionRequest
-		wantLegacyCalls int
-		wantErr         string
+		name          string
+		extension     string
+		schema        string
+		createSchema  bool
+		publicErr     error
+		wantPublicReq flaps.EnableManagedPostgresExtensionRequest
+		wantErr       string
 	}{
 		{name: "maps public request options", extension: "hstore", schema: "addons", createSchema: true, wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore", Schema: "addons", CreateSchema: true}},
 		{name: "defaults postgis topology schema", extension: "postgis_topology", wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "postgis_topology", Schema: "topology", CreateSchema: true}},
-		{name: "classified 404 falls back with legacy request mapping", extension: "hstore", schema: "addons", createSchema: true, publicErr: flaps.ErrFlapsNotFound, wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore", Schema: "addons", CreateSchema: true}, wantLegacyCalls: 1},
-		{name: "fallback returns legacy error", extension: "hstore", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy denied"), wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore"}, wantLegacyCalls: 1, wantErr: "legacy denied"},
 		{name: "non-404 public error is authoritative", extension: "hstore", publicErr: errors.New("public denied"), wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore"}, wantErr: "public denied"},
 	}
 
@@ -195,18 +144,6 @@ func TestRunExtensionsEnable(t *testing.T) {
 					return test.publicErr
 				},
 			})
-			legacyCalls := 0
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				EnableExtensionFunc: func(_ context.Context, id, database string, input mpgv2.EnableExtensionInput) error {
-					legacyCalls++
-					require.Equal(t, test.wantPublicReq.Name, input.Name)
-					require.Equal(t, test.wantPublicReq.Schema, input.Schema)
-					require.Equal(t, test.wantPublicReq.CreateSchema, input.CreateSchemaIfNeeded)
-
-					return test.legacyErr
-				},
-			})
-
 			err := RunExtensionsEnable(ctx, "mpg-123", "app", test.extension, test.schema, test.createSchema)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -215,23 +152,18 @@ func TestRunExtensionsEnable(t *testing.T) {
 				require.Contains(t, stdout.String(), "Extension "+test.extension+" enabled on database app.")
 			}
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, test.wantLegacyCalls, legacyCalls)
 		})
 	}
 }
 
 func TestRunExtensionsDisable(t *testing.T) {
 	tests := []struct {
-		name            string
-		force           bool
-		publicErr       error
-		legacyErr       error
-		wantLegacyCalls int
-		wantErr         string
+		name      string
+		force     bool
+		publicErr error
+		wantErr   string
 	}{
 		{name: "public success maps force", force: true},
-		{name: "classified 404 falls back", force: true, publicErr: flaps.ErrFlapsNotFound, wantLegacyCalls: 1},
-		{name: "fallback returns legacy error", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy denied"), wantLegacyCalls: 1, wantErr: "legacy denied"},
 		{name: "non-404 public error is authoritative", publicErr: errors.New("public denied"), wantErr: "public denied"},
 	}
 
@@ -250,16 +182,6 @@ func TestRunExtensionsDisable(t *testing.T) {
 					return test.publicErr
 				},
 			})
-			legacyCalls := 0
-			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-				DisableExtensionFunc: func(_ context.Context, id, database, name string, force bool) error {
-					legacyCalls++
-					require.Equal(t, test.force, force)
-
-					return test.legacyErr
-				},
-			})
-
 			err := RunExtensionsDisable(ctx, "mpg-123", "app", "hstore", test.force)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
@@ -268,12 +190,11 @@ func TestRunExtensionsDisable(t *testing.T) {
 				require.Contains(t, stdout.String(), "Extension hstore disabled on database app.")
 			}
 			require.Equal(t, 1, publicCalls)
-			require.Equal(t, test.wantLegacyCalls, legacyCalls)
 		})
 	}
 }
 
-func TestResolveDatabaseUsesPublicAPIWithLegacyFallback(t *testing.T) {
+func TestResolveDatabaseUsesPublicAPI(t *testing.T) {
 	t.Run("explicit database skips resolution", func(t *testing.T) {
 		ctx, _ := extensionsTestContext(t, false)
 		database, err := resolveDatabase(ctx, "mpg-123", "explicit-db")
@@ -295,28 +216,6 @@ func TestResolveDatabaseUsesPublicAPIWithLegacyFallback(t *testing.T) {
 		require.Equal(t, "only-db", database)
 	})
 
-	t.Run("classified 404 falls back", func(t *testing.T) {
-		ctx, _ := extensionsTestContext(t, false)
-		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-			ListManagedPostgresDatabasesFunc: func(context.Context, string) ([]flaps.ManagedPostgresDatabase, error) {
-				return nil, flaps.ErrFlapsNotFound
-			},
-		})
-		legacyCalls := 0
-		ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
-			ListDatabasesFunc: func(_ context.Context, id string) (mpgv2.ListDatabasesResponse, error) {
-				legacyCalls++
-				require.Equal(t, "mpg-123", id)
-
-				return mpgv2.ListDatabasesResponse{Data: []mpgv2.Database{{Name: "legacy-db"}}}, nil
-			},
-		})
-		database, err := resolveDatabase(ctx, "mpg-123", "")
-		require.NoError(t, err)
-		require.Equal(t, "legacy-db", database)
-		require.Equal(t, 1, legacyCalls)
-	})
-
 	t.Run("non-404 public error is authoritative", func(t *testing.T) {
 		ctx, _ := extensionsTestContext(t, false)
 		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
@@ -327,4 +226,17 @@ func TestResolveDatabaseUsesPublicAPIWithLegacyFallback(t *testing.T) {
 		_, err := resolveDatabase(ctx, "mpg-123", "")
 		require.ErrorContains(t, err, "failed to list databases: public denied")
 	})
+}
+
+func TestRunExtensionsListReturnsPublic404(t *testing.T) {
+	ctx, _ := extensionsTestContext(t, false)
+	publicErr := &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("cluster not found")}
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ListManagedPostgresExtensionsFunc: func(context.Context, string, string) ([]flaps.ManagedPostgresExtension, error) {
+			return nil, publicErr
+		},
+	})
+	err := RunExtensionsList(ctx, "mpg-123", "app")
+	require.ErrorIs(t, err, publicErr)
+	require.ErrorContains(t, err, "failed to list extensions for database app: cluster not found")
 }
