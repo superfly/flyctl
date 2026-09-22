@@ -88,7 +88,7 @@ func TestRunStatusHuman(t *testing.T) {
 	wantPublicColumns := map[string]string{
 		"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org",
 		"Region": "ord", "Status": "ready",
-		"Used Storage (GB)": "1.2", "Allocated Storage (GB)": "20",
+		"Used Storage (GiB)": "1.2", "Allocated Storage (GiB)": "20.0",
 		"Replicas": "1", "Direct IP": "10.0.0.1",
 	}
 	wantPublicExcludes := []string{"10.0.0.1:5432", ":5432"}
@@ -115,7 +115,7 @@ func TestRunStatusHuman(t *testing.T) {
 		}(), nil, mpgv2.GetClusterResponse{}, nil, map[string]string{"ID": "mpg-123", "Direct IP": ""}, []string{":5432", "5432"}, "", false, "", 0},
 		{"classified 404 falls back to legacy with full mapping",
 			flaps.ManagedPostgresCluster{}, fmt.Errorf("get Managed Postgres cluster: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("not found")}),
-			sampleLegacyCluster(), nil, map[string]string{"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org", "Region": "ord", "Status": "ready", "Used Storage (GB)": "1.2", "Allocated Storage (GB)": "20", "Replicas": "1", "Direct IP": "10.0.0.1"}, wantPublicExcludes, "", true, "", 1},
+			sampleLegacyCluster(), nil, map[string]string{"ID": "mpg-123", "Name": "test-cluster", "Organization": "test-org", "Region": "ord", "Status": "ready", "Used Storage (GiB)": "1.2", "Allocated Storage (GiB)": "20.0", "Replicas": "1", "Direct IP": "10.0.0.1"}, wantPublicExcludes, "", true, "", 1},
 		{"404 with legacy failure preserves error",
 			flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound,
 			mpgv2.GetClusterResponse{}, errors.New("legacy denied"),
