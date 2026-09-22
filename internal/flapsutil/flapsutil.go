@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/tracing"
 )
 
 func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps.Client, error) {
@@ -23,6 +24,8 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 	if v := logger.MaybeFromContext(ctx); v != nil {
 		opts.Logger = v
 	}
+
+	opts.Transport = tracing.NewTransport(opts.Transport)
 
 	return flaps.NewWithOptions(ctx, opts)
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -49,7 +50,7 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 		return false, lm.WaitForState(ctx, fly.MachineStateStarted, timeout, machine.WithJustCreated())
 	}
 
-	waitCtx, cancel := context.WithCancel(ctx)
+	waitCtx, cancel := contextutil.WithCancel(ctx, "machine update outcome determined")
 	defer cancel()
 
 	startedResult := make(chan error, 1)

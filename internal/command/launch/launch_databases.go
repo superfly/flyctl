@@ -236,7 +236,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	s := spinner.Run(io, colorize.Yellow("Provisioning your Managed Postgres cluster..."))
 
 	// Create a separate context for the wait loop with 15 minute timeout
-	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, 15*time.Minute, fmt.Errorf("waiting for managed Postgres creation: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	// Poll until the cluster is ready, capturing it for its endpoints, with a

@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -140,7 +141,7 @@ func run(ctx context.Context) error {
 	}
 	mu.Unlock()
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := contextutil.WithCancel(ctx, "ping finished")
 	defer cancel()
 
 	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {

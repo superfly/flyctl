@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/internal/dockerfileurl"
+	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -122,8 +124,9 @@ func (m *DockerfileMaterializer) Close() error {
 }
 
 func downloadDockerfile(ctx context.Context, dockerfileURL string, timeout time.Duration, maxBytes int64) (path string, cleanup func() error, err error) {
-	downloadCtx, cancel := context.WithTimeout(ctx, timeout)
+	downloadCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("downloading Dockerfile: %w", context.DeadlineExceeded))
 	defer cancel()
+	defer func() { tracing.RecordCancellation(downloadCtx, trace.SpanFromContext(downloadCtx)) }()
 
 	req, err := http.NewRequestWithContext(downloadCtx, http.MethodGet, dockerfileURL, http.NoBody)
 	if err != nil {

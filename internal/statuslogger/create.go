@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -82,7 +83,7 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 	logger := Create(ctx, len(items), true)
 	defer logger.Destroy(clearAfter)
 
-	cancelableCtx, done := context.WithCancel(ctx)
+	cancelableCtx, done := contextutil.WithCancel(ctx, "status iteration finished")
 	defer done()
 
 	firstErr := make(chan error, 1)

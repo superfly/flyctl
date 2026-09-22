@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -50,7 +51,7 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := contextutil.WithCancel(ctx, "agent session closed")
 	defer cancel()
 
 	wg.Go(func() {
@@ -393,9 +394,9 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	var dialContext context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		dialContext, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
+		dialContext, cancel = context.WithTimeoutCause(ctx, time.Duration(timeout)*time.Millisecond, fmt.Errorf("dialing agent connection: %w", context.DeadlineExceeded))
 	} else {
-		dialContext, cancel = context.WithCancel(ctx)
+		dialContext, cancel = contextutil.WithCancel(ctx, "agent dialing finished")
 	}
 	defer cancel()
 
@@ -470,7 +471,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	// a background thread watches for incoming ICMP messages on
 	// the ICMP "socket" we get from wireguard-go. Each received
@@ -526,7 +527,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 			s.logger.Printf("ping6: socket read error: %s", err)
 		}
 
-		cancel()
+		cancel(err)
 
 		return false
 	}

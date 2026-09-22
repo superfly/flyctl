@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/task"
@@ -55,7 +56,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 	}
 
 	task.FromContext(monitorCtx).Run(func(taskCtx context.Context) {
-		taskCtx, cancelTask := context.WithCancel(taskCtx)
+		taskCtx, cancelTask := contextutil.WithCancel(taskCtx, "token monitoring stopped")
 
 		var m sync.Mutex
 		var wg sync.WaitGroup

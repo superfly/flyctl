@@ -11,32 +11,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/contextutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/tokenizer"
 )
 
 func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) func() error {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	workerErr := make(chan error, 1)
+	var firstFailure sync.Once
 
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {
 			if err := f(ctx); err != nil {
-				cancel()
-				select {
-				case workerErr <- err:
-				default:
-				}
+				firstFailure.Do(func() {
+					workerErr <- err
+					cancel(err)
+				})
 			}
 		})
 	}
 
 	return func() error {
 
-		defer cancel()
+		defer cancel(contextutil.CleanupCause("statics workers finished"))
 		wg.Wait()
 
 		// Check if any of the workers failed.
