@@ -75,7 +75,8 @@ func GetMpgConnectParams(
 	return cluster, params, credentials, nil
 }
 
-// getCluster tries the public API, falling back to the legacy client only on 404.
+// getCluster tries the public API, falling back to the legacy client only
+// when the flaps route is missing.
 // It returns the credential source and direct endpoint port (5432 for legacy).
 func getCluster(ctx context.Context, clusterID string) (*mpgv2.GetClusterResponse, bool, int, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -86,7 +87,7 @@ func getCluster(ctx context.Context, clusterID string) (*mpgv2.GetClusterRespons
 		return &response, false, port, nil
 	}
 
-	if !errors.Is(err, flaps.ErrFlapsNotFound) {
+	if !flapsutil.IsFlapsRouteMissing(err) {
 		return nil, false, 0, fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
 
@@ -160,6 +161,8 @@ func resolveConnectCredentials(
 		flapsClient := flapsutil.ClientFromContext(ctx)
 		userCreds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, response.Data.Id, mpgutil.DefaultUsername)
 		if err != nil {
+			// Not a legacy fallback: any 404 here, including ui-ex's JSON
+			// "User not found", means the default user hasn't been created yet.
 			if errors.Is(err, flaps.ErrFlapsNotFound) {
 				return nil, fmt.Errorf("cluster is still initializing, wait a bit more")
 			}
