@@ -344,6 +344,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		return err
 	}
 
+	recordDeployIdentity(ctx, app)
+
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
 		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
