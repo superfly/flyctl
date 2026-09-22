@@ -23,8 +23,7 @@ func TestUpdateReleaseHTTPTracing(t *testing.T) {
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	previousProvider := otel.GetTracerProvider()
 	previousPropagator := otel.GetTextMapPropagator()
-	otel.SetTracerProvider(provider)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
 	t.Cleanup(func() {
 		otel.SetTracerProvider(previousProvider)
 		otel.SetTextMapPropagator(previousPropagator)
@@ -44,10 +43,13 @@ func TestUpdateReleaseHTTPTracing(t *testing.T) {
 	baseURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
 	ctx := config.NewContext(context.Background(), &config.Config{Tokens: &tokens.Tokens{}})
-	ctx, parent := provider.Tracer("test").Start(ctx, "update_release_in_backend")
-	defer parent.End()
 	client, err := NewWithOptions(ctx, NewClientOpts{BaseURL: baseURL})
 	require.NoError(t, err)
+	// Auth preparers construct the client before deploy initializes tracing.
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	ctx, parent := provider.Tracer("test").Start(ctx, "update_release_in_backend")
+	defer parent.End()
 	_, err = client.UpdateRelease(ctx, "rel_test", "running", nil)
 	require.NoError(t, err)
 
