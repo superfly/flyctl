@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 
 	"github.com/superfly/fly-go/flaps"
@@ -115,11 +114,12 @@ func runStatusLegacy(ctx context.Context, clusterID string) error {
 	return render.JSON(out, clusterDetails)
 }
 
+// One decimal, matching the dashboard's format_storage/1, so the same cluster
+// does not read 61.0 GB there and 61 here.
 func gbString(bytes *int64) string {
 	if bytes == nil {
 		return ""
 	}
-	gb := math.Round(float64(*bytes)/(1<<30)*100) / 100
 
-	return strconv.FormatFloat(gb, 'f', -1, 64)
+	return strconv.FormatFloat(float64(*bytes)/(1<<30), 'f', 1, 64)
 }
