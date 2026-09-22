@@ -20,6 +20,23 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const tokensHelpURL = "https://fly.io/docs/security/tokens/"
+
+// errHeadlessNoListener describes a run where neither delivery path for the
+// completion code is available: no terminal to paste it into and no
+// loopback listener for the browser to post it to.
+func errHeadlessNoListener(command string) error {
+	return fmt.Errorf("fly auth %s needs either an interactive terminal or a free loopback port for the browser to call back on, and has neither. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
+}
+
+// headlessNotice explains, to whoever is reading a non-interactive run, why
+// the command might appear to hang: the browser has to be on this machine.
+func headlessNotice(command string) string {
+	return "This terminal is not interactive, so the code cannot be pasted here.\n" +
+		"The " + command + " will complete on its own once approved in a browser on this machine.\n" +
+		"From another machine, set FLY_API_TOKEN to a token instead: " + tokensHelpURL + "\n\n"
+}
+
 func SaveToken(ctx context.Context, token string) error {
 
 	if ac, err := agent.DefaultClient(ctx); err == nil {
@@ -80,13 +97,22 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	io := iostreams.FromContext(ctx)
 	logger := logger.FromContext(ctx)
 
-	if !io.IsStdinTTY() {
-		return "", errors.New("fly auth login requires an interactive terminal. In headless environments, set FLY_API_TOKEN to a token created with `fly tokens create`")
+	command := "login"
+	if signup {
+		command = "signup"
 	}
 
 	pkce, err := newPKCELogin(args)
 	if err != nil {
 		return "", err
+	}
+
+	// No terminal means no pasting, so the loopback callback must be available.
+	headless := !io.IsStdinTTY()
+	if headless && pkce.port == 0 {
+		pkce.close()
+
+		return "", errHeadlessNoListener(command)
 	}
 
 	auth, err := fly.StartCLISession(state.Hostname(ctx), args)
@@ -106,9 +132,13 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
 	}
 
+	if headless && auth.PKCE {
+		fmt.Fprint(io.ErrOut, headlessNotice(command))
+	}
+
 	var token string
 	if auth.PKCE {
-		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce)
+		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless)
 	} else {
 		// Server predates the PKCE flow
 		pkce.close()
