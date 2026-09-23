@@ -129,7 +129,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 
 // TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (token string, err error) {
-	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for CLI login: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)

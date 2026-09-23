@@ -133,7 +133,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
-		tracing.RecordError(span, err, "failed to fetch image ref")
+		tracing.RecordError(ctx, span, err, "failed to fetch image ref")
 
 		return
 	}
@@ -151,7 +151,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		span.SetAttributes(opts.ToSpanAttributes()...)
 		img, err = resolver.ResolveReference(ctx, io, opts)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
+			tracing.RecordError(ctx, span, err, "failed to resolve reference for prebuilt docker image")
 			if trigger := os.Getenv("DEPLOY_TRIGGER"); trigger == "" {
 				return
 			} else {
@@ -202,7 +202,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	// https://docs.docker.com/engine/reference/commandline/buildx_build/#secret
 	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
-		tracing.RecordError(span, err, "failed to generate cliBuildSecrets")
+		tracing.RecordError(ctx, span, err, "failed to generate cliBuildSecrets")
 
 		return
 	}
@@ -214,7 +214,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	arrLabels := flag.GetStringArray(ctx, "label")
 	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to parse labels")
+		tracing.RecordError(ctx, span, err, "failed to parse labels")
 
 		return
 	}
@@ -230,7 +230,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
-		tracing.RecordError(span, err, "failed to merge build args")
+		tracing.RecordError(ctx, span, err, "failed to merge build args")
 
 		return
 	}
@@ -238,13 +238,13 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	opts.BuildArgs = buildArgs
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
-		tracing.RecordError(span, err, "failed to resolveDockerfilePath")
+		tracing.RecordError(ctx, span, err, "failed to resolveDockerfilePath")
 
 		return
 	}
 
 	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
-		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
+		tracing.RecordError(ctx, span, err, "failed to resolveIgnorefilePath")
 
 		return
 	}
@@ -261,7 +261,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
-		tracing.RecordError(span, err, "failed to start heartbeat")
+		tracing.RecordError(ctx, span, err, "failed to start heartbeat")
 
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
-		tracing.RecordError(span, err, "no image specified")
+		tracing.RecordError(ctx, span, err, "no image specified")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
 	if err == nil {

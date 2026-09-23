@@ -3,6 +3,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,18 +73,18 @@ func (*manager) pkg() {}
 func (m *manager) Start(ctx context.Context) {
 	log := logger.FromContext(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	started := m.started.Swap(true)
 	if started {
-		cancel()
+		cancel(fmt.Errorf("task manager stopped: %w", context.Canceled))
 		log.Debug("Task manager has already started; not starting again")
 
 		return
 	}
 
 	go func() {
-		defer cancel()
+		defer cancel(fmt.Errorf("task manager stopped: %w", context.Canceled))
 
 		log.Debug("Starting task manager")
 
@@ -121,7 +122,7 @@ func (m *manager) Shutdown() {
 }
 
 func (m *manager) ShutdownWithTimeout(timeout time.Duration) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeoutCause(context.Background(), timeout, fmt.Errorf("shutting down background tasks: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	done := make(chan struct{}, 1)

@@ -294,7 +294,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		shutdownCtx, cancel := context.WithTimeoutCause(context.Background(), 500*time.Millisecond, fmt.Errorf("flushing launch traces: %w", context.DeadlineExceeded))
 		defer cancel()
 		tp.Shutdown(shutdownCtx)
 	}()
@@ -312,7 +312,7 @@ func run(ctx context.Context) (err error) {
 	if !flag.GetBool(ctx, "no-create") {
 		defer func() {
 			if err != nil {
-				tracing.RecordError(span, err, "launch failed")
+				tracing.RecordError(ctx, span, err, "launch failed")
 				status.Error = err.Error()
 
 				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
