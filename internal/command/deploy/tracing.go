@@ -27,7 +27,7 @@ func recordDeployIdentity(ctx context.Context, app *flaps.App) {
 	}
 
 	// Identity enrichment must not prevent deployment or wait indefinitely.
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 2*time.Second, fmt.Errorf("fetching deployment trace identity: %w", context.DeadlineExceeded))
 	defer cancel()
 	user, err := client.GetCurrentUser(ctx)
 	if err != nil || user == nil {

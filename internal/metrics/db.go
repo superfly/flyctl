@@ -90,7 +90,7 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 	endpoint := baseURL + "/metrics_post"
 	userAgent := fmt.Sprintf("flyctl/%s", buildinfo.Info().Version)
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	timeoutCtx, cancel := context.WithTimeoutCause(context.Background(), 15*time.Second, fmt.Errorf("sending metrics: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	err = sendMetricsRequest(timeoutCtx, endpoint, metricsToken, userAgent, []byte(jsonData))

@@ -73,8 +73,8 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 
 	var wscancel context.CancelFunc
 	if wswg {
-		var lifetimeCtx context.Context
-		lifetimeCtx, wscancel = context.WithCancel(context.Background())
+		lifetimeCtx, cancel := context.WithCancelCause(context.Background())
+		wscancel = func() { cancel(fmt.Errorf("WireGuard websocket tunnel closed: %w", context.Canceled)) }
 		port, err := websocketConnect(ctx, lifetimeCtx, endpointHost)
 		if err != nil {
 			wscancel()
