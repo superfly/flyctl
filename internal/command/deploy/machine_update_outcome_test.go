@@ -29,85 +29,85 @@ func TestIsPreservedStoppedUpdate(t *testing.T) {
 	preserved := &fly.MachineEvent{Type: "update", Status: fly.MachineStateStopped, Source: "flyd"}
 
 	tests := []struct {
-		name     string
-		machine  *fly.Machine
-		instance string
-		want     bool
+		name    string
+		machine *fly.Machine
+		version string
+		want    bool
 	}{
 		{
 			name: "matching current update event",
 			machine: &fly.Machine{
-				State:      fly.MachineStateStopped,
-				InstanceID: "new-version",
-				Config:     &fly.MachineConfig{},
-				Events:     []*fly.MachineEvent{preserved},
+				State:   fly.MachineStateStopped,
+				Version: "new-version",
+				Config:  &fly.MachineConfig{},
+				Events:  []*fly.MachineEvent{preserved},
 			},
-			instance: "new-version",
-			want:     true,
+			version: "new-version",
+			want:    true,
 		},
 		{
-			name:     "missing machine declines",
-			instance: "new-version",
+			name:    "missing machine declines",
+			version: "new-version",
 		},
 		{
 			name: "missing config declines",
 			machine: &fly.Machine{
-				State:      fly.MachineStateStopped,
-				InstanceID: "new-version",
-				Events:     []*fly.MachineEvent{preserved},
+				State:   fly.MachineStateStopped,
+				Version: "new-version",
+				Events:  []*fly.MachineEvent{preserved},
 			},
-			instance: "new-version",
+			version: "new-version",
 		},
 		{
 			name: "scheduled update declines",
 			machine: &fly.Machine{
-				State:      fly.MachineStateStopped,
-				InstanceID: "new-version",
-				Config:     &fly.MachineConfig{Schedule: "daily"},
-				Events:     []*fly.MachineEvent{preserved},
+				State:   fly.MachineStateStopped,
+				Version: "new-version",
+				Config:  &fly.MachineConfig{Schedule: "daily"},
+				Events:  []*fly.MachineEvent{preserved},
 			},
-			instance: "new-version",
+			version: "new-version",
 		},
 		{
 			name: "newer lifecycle event declines",
 			machine: &fly.Machine{
-				State:      fly.MachineStateStopped,
-				InstanceID: "new-version",
-				Config:     &fly.MachineConfig{},
+				State:   fly.MachineStateStopped,
+				Version: "new-version",
+				Config:  &fly.MachineConfig{},
 				Events: []*fly.MachineEvent{
 					{Type: "exit", Status: fly.MachineStateStopped, Source: "flyd"},
 					preserved,
 				},
 			},
-			instance: "new-version",
+			version: "new-version",
 		},
 		{
 			name: "different version declines",
 			machine: &fly.Machine{
-				State:      fly.MachineStateStopped,
-				InstanceID: "other-version",
-				Config:     &fly.MachineConfig{},
-				Events:     []*fly.MachineEvent{preserved},
+				State:   fly.MachineStateStopped,
+				Version: "other-version",
+				Config:  &fly.MachineConfig{},
+				Events:  []*fly.MachineEvent{preserved},
 			},
-			instance: "new-version",
+			version: "new-version",
 		},
 		{
 			name: "non-flyd event declines",
 			machine: &fly.Machine{
-				State:      fly.MachineStateStopped,
-				InstanceID: "new-version",
-				Config:     &fly.MachineConfig{},
+				State:   fly.MachineStateStopped,
+				Version: "new-version",
+				Config:  &fly.MachineConfig{},
 				Events: []*fly.MachineEvent{
 					{Type: "update", Status: fly.MachineStateStopped, Source: "user"},
 				},
 			},
-			instance: "new-version",
+			version: "new-version",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, isPreservedStoppedUpdate(tc.machine, tc.instance))
+			require.Equal(t, tc.want, isPreservedStoppedUpdate(tc.machine, tc.version))
 		})
 	}
 }
@@ -123,7 +123,7 @@ func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
 	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
 
 	ios, _, _, _ := iostreams.Test()
-	const instanceID = "01G6R2TQGS41MBQTCA55X8ZCZW"
+	const version = "01G6R2TQGS41MBQTCA55X8ZCZW"
 	startedWaitObserved := make(chan struct{})
 	var sawMachineGet atomic.Bool
 	client, err := flaps.NewWithOptions(context.Background(), flaps.NewClientOpts{
@@ -147,14 +147,14 @@ func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
 
 			sawMachineGet.Store(true)
 
-			return machineResponse(req, `{"id":"machine-id","instance_id":"`+instanceID+`","state":"stopped","events":[{"type":"update","status":"stopped","source":"flyd"}],"config":{}}`), nil
+			return machineResponse(req, `{"id":"machine-id","version":"`+version+`","state":"stopped","events":[{"type":"update","status":"stopped","source":"flyd"}],"config":{}}`), nil
 		}),
 	})
 	require.NoError(t, err)
 	entry := &machineUpdateEntry{
 		leasableMachine: machine.NewLeasableMachine(client, ios, "app", &fly.Machine{
-			ID:         "machine-id",
-			InstanceID: instanceID,
+			ID:      "machine-id",
+			Version: version,
 		}, false),
 		launchInput: &fly.LaunchMachineInput{},
 	}
@@ -187,7 +187,7 @@ func TestWaitForStartedOrPreservedStoppedUpdateDeclinesNewerLifecycleEvent(t *te
 			case fly.MachineStateStopped:
 				return machineResponse(req, ""), nil
 			default:
-				return machineResponse(req, `{"id":"machine-id","instance_id":"new-version","state":"stopped","events":[{"type":"exit","status":"stopped","source":"flyd"},{"type":"update","status":"stopped","source":"flyd"}],"config":{}}`), nil
+				return machineResponse(req, `{"id":"machine-id","version":"new-version","state":"stopped","events":[{"type":"exit","status":"stopped","source":"flyd"},{"type":"update","status":"stopped","source":"flyd"}],"config":{}}`), nil
 			}
 		}),
 	})
@@ -198,8 +198,8 @@ func TestWaitForStartedOrPreservedStoppedUpdateDeclinesNewerLifecycleEvent(t *te
 		strategy:    "canary",
 	}
 	lm := machine.NewLeasableMachine(client, ios, "app", &fly.Machine{
-		ID:         "machine-id",
-		InstanceID: "new-version",
+		ID:      "machine-id",
+		Version: "new-version",
 	}, false)
 
 	preservedStopped, err := md.waitForStartedOrPreservedStoppedUpdate(
@@ -226,7 +226,7 @@ func testUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T, strateg
 
 	ios, _, _, _ := iostreams.Test()
 	ctx := iostreams.NewContext(context.Background(), ios)
-	const instanceID = "01G6R2TQGS41MBQTCA55X8ZCZW"
+	const version = "01G6R2TQGS41MBQTCA55X8ZCZW"
 	oldMachine := &fly.Machine{
 		ID:         "machine-id",
 		State:      fly.MachineStateStarted,
@@ -249,7 +249,7 @@ func testUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T, strateg
 				require.NoError(t, json.NewDecoder(req.Body).Decode(&input))
 				sawSkipLaunch.Store(input.SkipLaunch)
 
-				return machineResponse(req, `{"id":"machine-id","instance_id":"`+instanceID+`","state":"created","config":{"image":"image-v2"}}`), nil
+				return machineResponse(req, `{"id":"machine-id","version":"`+version+`","state":"created","config":{"image":"image-v2"}}`), nil
 			}
 
 			state := req.URL.Query().Get("state")
@@ -264,7 +264,7 @@ func testUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T, strateg
 
 			sawMachineGet.Store(true)
 
-			return machineResponse(req, `{"id":"machine-id","instance_id":"`+instanceID+`","state":"stopped","events":[{"type":"update","status":"stopped","source":"flyd"}],"config":{"image":"image-v2"}}`), nil
+			return machineResponse(req, `{"id":"machine-id","version":"`+version+`","state":"stopped","events":[{"type":"update","status":"stopped","source":"flyd"}],"config":{"image":"image-v2"}}`), nil
 		}),
 	})
 	require.NoError(t, err)

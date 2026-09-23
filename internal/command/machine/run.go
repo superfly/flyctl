@@ -446,7 +446,7 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
+	id, version, state, privateIP := machine.ID, machine.Version, machine.State, machine.PrivateIP
 
 	verb := "launched"
 	if isCreate {
@@ -457,7 +457,7 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 
 	if !interact {
-		fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
+		fmt.Fprintf(io.Out, " Version: %s\n", version)
 		fmt.Fprintf(io.Out, " State: %s\n", state)
 	}
 
