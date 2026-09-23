@@ -54,25 +54,42 @@ func runWireguardList(ctx context.Context) error {
 }
 
 func runWireguardWebsockets(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
+	return setAgentToggle(ctx, "websockets", flyctl.ConfigWireGuardWebsockets, config.SetWireGuardWebsocketsEnabled)
+}
 
-	var (
-		configPath = state.ConfigFile(ctx)
-		err        error
-	)
-	switch flag.FirstArg(ctx) {
+func runWireguardTokenMode(ctx context.Context) error {
+	return setAgentToggle(ctx, "token-mode", flyctl.ConfigWireGuardTokenMode, config.SetWireGuardTokenModeEnabled)
+}
+
+// setAgentToggle handles an (enable|disable) subcommand that changes how the
+// agent builds tunnels: it persists the setting and restarts the agent so
+// the change takes effect.
+func setAgentToggle(ctx context.Context, name, key string, save func(path string, enabled bool) error) error {
+	var enabled bool
+	switch arg := flag.FirstArg(ctx); arg {
 	case "enable":
-		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
-		err = config.SetWireGuardWebsocketsEnabled(configPath, true)
+		enabled = true
 	case "disable":
-		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
-		err = config.SetWireGuardWebsocketsEnabled(configPath, false)
+		enabled = false
 	default:
-		fmt.Fprintf(io.Out, "bad arg: flyctl wireguard websockets (enable|disable)\n")
+		return fmt.Errorf("bad arg %q: flyctl wireguard %s (enable|disable)", arg, name)
 	}
-	if err != nil {
+
+	viper.Set(key, enabled)
+	if err := save(state.ConfigFile(ctx), enabled); err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
+
+	restartAgentForConfigChange(ctx)
+
+	return nil
+}
+
+// restartAgentForConfigChange stops the running agent so the next command
+// starts one that picks up the new transport setting; if that fails it
+// prints manual instructions.
+func restartAgentForConfigChange(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
 
 	tryKillingAgent := func() error {
 		client, err := agent.DefaultClient(ctx)
@@ -85,13 +102,10 @@ func runWireguardWebsockets(ctx context.Context) error {
 		return client.Kill(ctx)
 	}
 
-	// kill the agent if necessary, if that fails print manual instructions
 	if err := tryKillingAgent(); err != nil {
 		terminal.Debugf("error stopping the agent: %s", err)
 		fmt.Fprintf(io.Out, "Run `flyctl agent restart` to make changes take effect.\n")
 	}
-
-	return nil
 }
 
 func runWireguardReset(ctx context.Context) error {

@@ -36,15 +36,30 @@ import (
 
 // Establish starts the daemon, if necessary, and returns a client to it.
 func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, error) {
-	if err := wireguard.PruneInvalidPeers(ctx, apiClient); err != nil {
-		return nil, err
-	}
-
 	c := newClient("unix", PathToSocket())
+
+	// Token-mode peers live at the gateway, not in the config file or the
+	// API: nothing to prune, no round-trip. A running agent's mode was fixed
+	// when it started, so ask it; one we're about to start gets ours.
+	prune := func() error {
+		return wireguard.PruneInvalidPeers(ctx, apiClient)
+	}
 
 	res, err := c.Ping(ctx)
 	if err != nil {
+		if !TokenModeEnabled() {
+			if err := prune(); err != nil {
+				return nil, err
+			}
+		}
+
 		return StartDaemon(ctx)
+	}
+
+	if !res.TokenMode {
+		if err := prune(); err != nil {
+			return nil, err
+		}
 	}
 
 	resVer, err := version.Parse(res.Version)
@@ -253,6 +268,9 @@ type PingResponse struct {
 	PID        int
 	Version    string
 	Background bool
+	// TokenMode reports whether the agent provisions peers at the token
+	// gateway; absent (false) from agents predating it.
+	TokenMode bool
 }
 
 type errInvalidResponse []byte
