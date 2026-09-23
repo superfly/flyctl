@@ -76,7 +76,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/superfly/client-signals/go v0.4.4
-	github.com/superfly/fly-go v0.11.0
+	github.com/superfly/fly-go v0.11.1
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/macaroon v0.3.2
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
