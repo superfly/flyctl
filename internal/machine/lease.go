@@ -114,7 +114,7 @@ func AcquireLease(ctx context.Context, appName string, machine *fly.Machine) (*f
 	machine.LeaseNonce = lease.Data.Nonce
 
 	// Return earlier if the lease's machine version matches the machine's version we have
-	if machine.InstanceID == lease.Data.Version {
+	if machine.Version == lease.Data.Version {
 		return machine, releaseFunc, nil
 	}
 

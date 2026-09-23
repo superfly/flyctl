@@ -17,9 +17,9 @@ func supportsPreservedStoppedUpdate(strategy, launchBasisState string) bool {
 	return launchBasisState == fly.MachineStateStarted || launchBasisState == "starting"
 }
 
-func isPreservedStoppedUpdate(current *fly.Machine, updatedInstanceID string) bool {
+func isPreservedStoppedUpdate(current *fly.Machine, updatedVersion string) bool {
 	if current == nil || current.Config == nil || current.Config.Schedule != "" ||
-		current.State != fly.MachineStateStopped || current.InstanceID != updatedInstanceID {
+		current.State != fly.MachineStateStopped || current.Version != updatedVersion {
 		return false
 	}
 
@@ -34,10 +34,10 @@ func isPreservedStoppedUpdate(current *fly.Machine, updatedInstanceID string) bo
 	return false
 }
 
-func (md *machineDeployment) readPreservedStoppedUpdate(ctx context.Context, machineID, updatedInstanceID string) bool {
+func (md *machineDeployment) readPreservedStoppedUpdate(ctx context.Context, machineID, updatedVersion string) bool {
 	current, err := md.flapsClient.Get(ctx, md.app.Name, machineID)
 
-	return err == nil && isPreservedStoppedUpdate(current, updatedInstanceID)
+	return err == nil && isPreservedStoppedUpdate(current, updatedVersion)
 }
 
 func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
@@ -78,7 +78,7 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 			}
 		case err := <-stoppedResult:
 			stoppedResult = nil
-			if err == nil && md.readPreservedStoppedUpdate(waitCtx, updated.ID, updated.InstanceID) {
+			if err == nil && md.readPreservedStoppedUpdate(waitCtx, updated.ID, updated.Version) {
 				return true, nil
 			}
 			if startedResult == nil {

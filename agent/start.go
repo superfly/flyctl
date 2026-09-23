@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -203,18 +204,34 @@ func setupLogDirectory() (dir string, err error) {
 		return
 	}
 
+	type agentLogFile struct {
+		path    string
+		modTime time.Time
+	}
+	var remaining []agentLogFile
+
 	cutoff := time.Now().AddDate(0, 0, -1)
 
 	for _, entry := range entries {
-		switch inf, e := entry.Info(); {
-		case e != nil:
+		inf, e := entry.Info()
+		if e != nil || !inf.Mode().IsRegular() || !strings.HasSuffix(inf.Name(), ".log") {
 			continue
-		case !inf.Mode().IsRegular():
-			continue
-		case inf.ModTime().Before(cutoff):
-			p := filepath.Join(dir, inf.Name())
-
+		}
+		p := filepath.Join(dir, inf.Name())
+		if inf.ModTime().Before(cutoff) {
 			_ = os.Remove(p)
+		} else {
+			remaining = append(remaining, agentLogFile{path: p, modTime: inf.ModTime()})
+		}
+	}
+
+	const maxKeep = 10
+	if len(remaining) > maxKeep {
+		sort.Slice(remaining, func(i, j int) bool {
+			return remaining[i].modTime.After(remaining[j].modTime)
+		})
+		for i := maxKeep; i < len(remaining); i++ {
+			_ = os.Remove(remaining[i].path)
 		}
 	}
 

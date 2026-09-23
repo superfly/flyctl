@@ -1584,7 +1584,7 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		switch {
 		case logErr == nil:
 			for _, l := range logs {
-				// Ideally we should use InstanceID here, but it's not available in the logs.
+				// Ideally we should use the machine version here, but it's not available in the logs.
 				if l.Timestamp >= lm.Machine().UpdatedAt {
 					smokeErr.logs += fmt.Sprintf("%s\n", l.Message)
 				}
