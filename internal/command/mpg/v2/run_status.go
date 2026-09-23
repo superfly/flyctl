@@ -94,8 +94,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 		"Organization",
 		"Region",
 		"Status",
-		"Used Storage (GB)",
-		"Allocated Storage (GB)",
+		"Total Used Storage (GB)",
+		"Total Allocated Storage (GB)",
 		"Replicas",
 		"Direct IP",
 	)
@@ -114,11 +114,10 @@ func runStatusLegacy(ctx context.Context, clusterID string) error {
 	return render.JSON(out, clusterDetails)
 }
 
-// One decimal, matching the dashboard's format_storage/1, so the same cluster
-// does not read 61.0 GB there and 61 here.
+// One decimal and N/A for the unmeasured case, matching the dashboard.
 func gbString(bytes *int64) string {
 	if bytes == nil {
-		return ""
+		return "N/A"
 	}
 
 	return strconv.FormatFloat(float64(*bytes)/(1<<30), 'f', 1, 64)
