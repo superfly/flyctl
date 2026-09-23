@@ -205,9 +205,10 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", err
 	}
 	if img == nil {
+		err := fmt.Errorf("no image found")
 		tracing.RecordError(ctx, span, err, "no image found")
 
-		return nil, "", fmt.Errorf("no image found")
+		return nil, "", err
 	}
 
 	di := DeploymentImage{
