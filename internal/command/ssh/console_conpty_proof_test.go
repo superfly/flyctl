@@ -116,6 +116,31 @@ func TestConsoleConPTYChild(t *testing.T) {
 	}
 	status, err := strconv.Atoi(statusText)
 	require.NoError(t, err)
+	// CI's inherited standard handles are pipes. Open this child's attached
+	// pseudoconsole explicitly before exercising the console path.
+	for i, device := range []string{"CONIN$", "CONOUT$", "CONOUT$"} {
+		name, err := windows.UTF16PtrFromString(device)
+		require.NoError(t, err)
+		h, err := windows.CreateFile(name, windows.GENERIC_READ|windows.GENERIC_WRITE,
+			windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, 0, 0)
+		require.NoError(t, err)
+		f := os.NewFile(uintptr(h), device)
+		defer f.Close()
+		switch i {
+		case 0:
+			os.Stdin = f
+			windows.Stdin = h
+			require.NoError(t, windows.SetStdHandle(windows.STD_INPUT_HANDLE, h))
+		case 1:
+			os.Stdout = f
+			windows.Stdout = h
+			require.NoError(t, windows.SetStdHandle(windows.STD_OUTPUT_HANDLE, h))
+		case 2:
+			os.Stderr = f
+			windows.Stderr = h
+			require.NoError(t, windows.SetStdHandle(windows.STD_ERROR_HANDLE, h))
+		}
+	}
 	handles := []windows.Handle{windows.Handle(os.Stdin.Fd()), windows.Handle(os.Stdout.Fd()), windows.Handle(os.Stderr.Fd())}
 	// Force setup to change modes, rather than merely restore already-enabled flags.
 	for i, h := range handles {
