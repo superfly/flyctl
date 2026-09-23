@@ -66,7 +66,7 @@ require (
 	github.com/pkg/sftp v1.13.11
 	github.com/prometheus/blackbox_exporter v0.28.0
 	github.com/prometheus/client_golang v1.24.1
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/r3labs/diff v1.1.0
 	github.com/samber/lo v1.53.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
