@@ -390,7 +390,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			if !ok {
 				err := fmt.Errorf("no health checks stored for machine")
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
-				tracing.RecordErrorEvent(ctx, span, err)
+				tracing.RecordErrorEvent(gCtx, span, err)
 
 				return fmt.Errorf("failed to update machine %s: %w", machineID, err)
 			}
@@ -399,7 +399,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
-				tracing.RecordErrorEvent(ctx, span, err)
+				tracing.RecordErrorEvent(gCtx, span, err)
 
 				return fmt.Errorf("failed to update machine %s: %w", machineID, err)
 			}
@@ -409,7 +409,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 	}
 
 	if err := group.Wait(); err != nil {
-		tracing.RecordErrorEvent(ctx, span, err)
+		tracing.RecordErrorEvent(gCtx, span, err)
 
 		return err
 	}
