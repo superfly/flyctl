@@ -87,6 +87,12 @@ func SetWireGuardWebsocketsEnabled(path string, enabled bool) error {
 	})
 }
 
+func SetWireGuardTokenModeEnabled(path string, enabled bool) error {
+	return set(path, map[string]any{
+		WireGuardTokenModeFileKey: enabled,
+	})
+}
+
 type AppSecretsMinvers map[string]uint64
 
 func SetAppSecretsMinvers(path string, minvers AppSecretsMinvers) error {
