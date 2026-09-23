@@ -125,7 +125,8 @@ func TestConsoleConPTYChild(t *testing.T) {
 			windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil, windows.OPEN_EXISTING, 0, 0)
 		require.NoError(t, err)
 		f := os.NewFile(uintptr(h), device)
-		defer f.Close()
+		// Process-owned standard handles: closing stdin here can wait on the
+		// pending console read. The child process releases them on exit.
 		switch i {
 		case 0:
 			os.Stdin = f
