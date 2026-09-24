@@ -57,6 +57,45 @@ func TestPathToSocketIsolated(t *testing.T) {
 	}
 }
 
+func TestRemoveSocketDir(t *testing.T) {
+	t.Setenv(IsolatedEnvKey, "")
+	os.Unsetenv(IsolatedEnvKey)
+
+	dir := t.TempDir()
+	socket := filepath.Join(dir, "agent.sock")
+	t.Setenv(SocketPathEnvKey, socket)
+	t.Setenv(SocketDirEnvKey, dir)
+
+	for _, f := range []string{socket, socket + ".lock", socket + ".start.lock"} {
+		if err := os.WriteFile(f, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := RemoveSocketDir(dir); err != nil {
+		t.Fatalf("RemoveSocketDir() = %v", err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Errorf("directory still exists (err %v)", err)
+	}
+
+	// a directory holding anything of someone else's is not ours to wipe
+	dir = t.TempDir()
+	socket = filepath.Join(dir, "agent.sock")
+	t.Setenv(SocketPathEnvKey, socket)
+	t.Setenv(SocketDirEnvKey, dir)
+	if err := os.WriteFile(filepath.Join(dir, "precious"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RemoveSocketDir(dir); err == nil {
+		t.Error("RemoveSocketDir() removed a directory with foreign files in it")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "precious")); err != nil {
+		t.Errorf("foreign file is gone: %v", err)
+	}
+}
+
 func TestSocketDirToRemoveRefusesForeignDir(t *testing.T) {
 	t.Setenv(IsolatedEnvKey, "")
 	os.Unsetenv(IsolatedEnvKey)

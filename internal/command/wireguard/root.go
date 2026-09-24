@@ -90,7 +90,7 @@ func newWireguardReset() *cobra.Command {
 func newWireguardTokenMode() *cobra.Command {
 	const (
 		short = "Enable or disable token-mode WireGuard peers"
-		long = "Enable or disable token-mode WireGuard peers"
+		long  = "Enable or disable token-mode WireGuard peers"
 	)
 	cmd := command.New("token-mode [enable|disable]", short, long, runWireguardTokenMode,
 		command.RequireSession,
