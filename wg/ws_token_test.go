@@ -38,17 +38,19 @@ func testKeypair(t *testing.T) (pub, priv string) {
 // an "ok" answer is followed by draining the relay until the gateway is
 // told to drop the connection or the test ends.
 type fakeTokenGateway struct {
-	t       *testing.T
-	srv     *httptest.Server
-	pubkeys []string
-	answers []tokenResult
-	silent  bool // accept, then never speak: a legacy gateway waiting for magic
+	t            *testing.T
+	srv          *httptest.Server
+	pubkeys      []string
+	answers      []tokenResult
+	silent       bool // accept, then never speak: a legacy gateway waiting for magic
+	noAuthHeader bool // hello doesn't advertise reading the Authorization header
 
-	mu    sync.Mutex
-	n     int
-	auths []tokenAuthPacket
-	drops []chan struct{}
-	ready chan struct{} // closed after each accepted connection
+	mu      sync.Mutex
+	n       int
+	auths   []tokenAuthPacket
+	headers []string // Authorization header of each accepted connection
+	drops   []chan struct{}
+	ready   chan struct{} // closed after each accepted connection
 }
 
 func newFakeTokenGateway(t *testing.T, pubkeys []string, answers []tokenResult) *fakeTokenGateway {
@@ -82,6 +84,7 @@ func (g *fakeTokenGateway) handle(w http.ResponseWriter, r *http.Request) {
 	g.n++
 	drop := make(chan struct{})
 	g.drops = append(g.drops, drop)
+	g.headers = append(g.headers, r.Header.Get("Authorization"))
 	g.mu.Unlock()
 
 	if g.silent {
@@ -94,7 +97,7 @@ func (g *fakeTokenGateway) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSONFrame(conn, &tokenHello{Version: tokenProtoVersion, Type: "hello", Pubkey: g.pubkeys[n]}); err != nil {
+	if err := writeJSONFrame(conn, &tokenHello{Version: tokenProtoVersion, Type: "hello", Pubkey: g.pubkeys[n], AuthHeader: !g.noAuthHeader}); err != nil {
 		return
 	}
 
@@ -144,13 +147,25 @@ func (g *fakeTokenGateway) authFor(n int) tokenAuthPacket {
 	return g.auths[n]
 }
 
+func (g *fakeTokenGateway) headerFor(n int) string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.headers[n]
+}
+
 // TestMain points every token-mode test at a plain-text local gateway and
 // shortens the proxy's timers. Set once, before any proxy goroutine exists,
 // so the race detector doesn't see per-test restores racing with goroutines
 // still winding down from a previous test.
 func TestMain(m *testing.M) {
-	dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool) (net.Conn, error) {
-		ws, _, err := websocket.Dial(dialCtx, "ws://"+endpoint+"/", nil) // nolint: bodyclose
+	dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
+		header := http.Header{}
+		if authorization != "" {
+			header.Set("Authorization", authorization)
+		}
+
+		ws, _, err := websocket.Dial(dialCtx, "ws://"+endpoint+"/", &websocket.DialOptions{HTTPHeader: header}) // nolint: bodyclose
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +229,10 @@ func TestConnectTokenReprovisionRebuildsTunnel(t *testing.T) {
 	assert.Equal(t, pub, auth.Pubkey)
 	assert.Equal(t, "test-org", auth.OrgSlug)
 	assert.Equal(t, "custom", auth.NetworkName)
-	assert.Equal(t, "FlyV1 fm2_test", auth.Token)
+	// the macaroon rides in the upgrade request, for proxies to act on; the
+	// gateway advertised reading it there, so the packet carries no copy
+	assert.Equal(t, "FlyV1 fm2_test", gateway.headerFor(0))
+	assert.Equal(t, "", auth.Token)
 
 	st, cfg := tunnel.StateAndConfig()
 	assert.Equal(t, peerA, st.Peer.Peerip)
@@ -350,7 +368,8 @@ func TestConnectTokenRefreshesBeforeExpiry(t *testing.T) {
 		t.Fatal("proxy did not re-present the token before expiry")
 	}
 
-	assert.Equal(t, "FlyV1 fm2_v2", gateway.authFor(1).Token)
+	assert.Equal(t, "FlyV1 fm2_v2", gateway.headerFor(1))
+	assert.Equal(t, "", gateway.authFor(1).Token)
 
 	waitFor(t, "provision update", func() bool {
 		return tunnel.Provision().ExpiresAt.After(time.Now().Add(30 * time.Minute))
@@ -513,4 +532,29 @@ func TestConnectTokenNoTokenOnReconnectKillsTunnel(t *testing.T) {
 	}
 
 	assert.ErrorIs(t, tunnel.Err(), ErrNoToken)
+}
+
+func TestConnectTokenPacketTokenForOlderGateway(t *testing.T) {
+	gw, _ := testKeypair(t)
+	gateway := newFakeTokenGateway(t, []string{gw}, []tokenResult{
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	})
+	gateway.noAuthHeader = true
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
+		Token:   func() string { return "FlyV1 fm2_test" },
+		OrgSlug: "test-org",
+	})
+	require.NoError(t, err)
+	defer tunnel.Close()
+
+	<-gateway.ready
+
+	// a gateway that doesn't read the header still gets the token, in the
+	// packet, and the header does no harm
+	assert.Equal(t, "FlyV1 fm2_test", gateway.authFor(0).Token)
+	assert.Equal(t, "FlyV1 fm2_test", gateway.headerFor(0))
 }

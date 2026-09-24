@@ -24,6 +24,13 @@ import (
 //
 // followed by the usual length-prefixed WireGuard frame relay. Control
 // packets use the same 4-byte big-endian length framing, with JSON payloads.
+//
+// The macaroon also travels in the websocket upgrade request's Authorization
+// header: a transparent proxy in front of the gateway can add or replace
+// the credential there without speaking the frame protocol. A gateway that
+// reads the header says so in its hello (auth_header), and then the auth
+// packet leaves the token out, since the gateway rejects a header and a
+// packet that disagree. Gateways predating that get it in the packet.
 
 const (
 	tokenProtoVersion = 1
@@ -109,15 +116,16 @@ func (p *TokenProvision) validate() error {
 }
 
 type tokenHello struct {
-	Version int    `json:"version"`
-	Type    string `json:"type"`
-	Pubkey  string `json:"pubkey"`
+	Version    int    `json:"version"`
+	Type       string `json:"type"`
+	Pubkey     string `json:"pubkey"`
+	AuthHeader bool   `json:"auth_header"`
 }
 
 type tokenAuthPacket struct {
 	Version     int    `json:"version"`
 	Type        string `json:"type"`
-	Token       string `json:"token"`
+	Token       string `json:"token,omitempty"`
 	Pubkey      string `json:"pubkey"`
 	OrgSlug     string `json:"org_slug"`
 	NetworkName string `json:"network_name,omitempty"`
@@ -146,6 +154,15 @@ func (e *GatewayError) Error() string {
 // pointless: the token was rejected or the request itself is invalid.
 func (e *GatewayError) Permanent() bool {
 	return e.Code == GatewayErrUnauthorized || e.Code == GatewayErrInvalidRequest
+}
+
+// currentToken returns the macaroon header to present, or "" if none.
+func (a *TokenAuth) currentToken() string {
+	if a == nil || a.Token == nil {
+		return ""
+	}
+
+	return a.Token()
 }
 
 // TokenPeerName mirrors the name wggwd gives an inline-provisioned peer
@@ -203,9 +220,14 @@ func readJSONFrame(r io.Reader, v any) error {
 	return json.Unmarshal(payload, v)
 }
 
-// tokenExchange authenticates a freshly-dialed websocket connection and
-// returns the peer the gateway provisioned for us.
-func tokenExchange(conn net.Conn, auth *TokenAuth) (*TokenProvision, error) {
+// tokenExchange authenticates a freshly-dialed websocket connection with
+// token (already sent as the dial's Authorization header) and returns the
+// peer the gateway provisioned for us.
+func tokenExchange(conn net.Conn, auth *TokenAuth, token string) (*TokenProvision, error) {
+	if token == "" {
+		return nil, ErrNoToken
+	}
+
 	start := time.Now()
 
 	if err := conn.SetDeadline(start.Add(tokenHelloTimeout)); err != nil {
@@ -231,18 +253,17 @@ func tokenExchange(conn net.Conn, auth *TokenAuth) (*TokenProvision, error) {
 		return nil, err
 	}
 
-	var token string
-	if auth.Token != nil {
-		token = auth.Token()
-	}
-	if token == "" {
-		return nil, ErrNoToken
+	// a gateway that took the token from the Authorization header must not
+	// get a second copy it would have to reconcile with a proxy's rewrite
+	packetToken := token
+	if hello.AuthHeader {
+		packetToken = ""
 	}
 
 	err := writeJSONFrame(conn, &tokenAuthPacket{
 		Version:     tokenProtoVersion,
 		Type:        "auth",
-		Token:       token,
+		Token:       packetToken,
 		Pubkey:      auth.Pubkey,
 		OrgSlug:     auth.OrgSlug,
 		NetworkName: auth.NetworkName,

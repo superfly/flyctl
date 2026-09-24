@@ -93,12 +93,20 @@ var (
 )
 
 // dialWebsocket dials the gateway's wswg endpoint and wraps it as a
-// net.Conn bound to lifetimeCtx. A variable so tests can point it at a
-// plain-text local server.
-var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool) (net.Conn, error) {
+// net.Conn bound to lifetimeCtx. A non-empty authorization goes out as the
+// upgrade request's Authorization header. A variable so tests can point it
+// at a plain-text local server.
+var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
 	rurl := websocketURL(endpoint)
 
 	log.Printf("(re-)connecting to %s", rurl)
+
+	header := http.Header{
+		"Origin": []string{rurl},
+	}
+	if authorization != "" {
+		header.Set("Authorization", authorization)
+	}
 
 	ws, _, err := websocket.Dial(dialCtx, rurl, &websocket.DialOptions{ // nolint: bodyclose
 		HTTPClient: &http.Client{
@@ -112,9 +120,7 @@ var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, 
 				},
 			},
 		},
-		HTTPHeader: http.Header{
-			"Origin": []string{rurl},
-		},
+		HTTPHeader: header,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("websocket: %w", err)
@@ -209,7 +215,18 @@ func (wswg *WsWgProxy) Port() (int, error) {
 }
 
 func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint string) error {
-	wsConn, err := dialWebsocket(dialCtx, lifetimeCtx, endpoint, wswg.auth != nil)
+	// one token per connection attempt: the same one goes in the upgrade
+	// request's Authorization header and the auth packet
+	token := wswg.auth.currentToken()
+	if wswg.auth != nil && token == "" {
+		if wswg.onFatal != nil {
+			wswg.onFatal(ErrNoToken)
+		}
+
+		return fmt.Errorf("token exchange: %w", ErrNoToken)
+	}
+
+	wsConn, err := dialWebsocket(dialCtx, lifetimeCtx, endpoint, wswg.auth != nil, token)
 	if err != nil {
 		return err
 	}
@@ -217,7 +234,7 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 	var reprovisioned *TokenProvision
 
 	if wswg.auth != nil {
-		prov, err := tokenExchange(wsConn, wswg.auth)
+		prov, err := tokenExchange(wsConn, wswg.auth, token)
 		if err != nil {
 			_ = wsConn.Close()
 
