@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,13 +12,14 @@ import (
 	"github.com/superfly/client-signals/go"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/profile"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -118,15 +120,43 @@ func InitClient(ctx context.Context) (context.Context, error) {
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {
-	dir, err := helpers.GetConfigDirectory()
+	var opts profile.ResolveOptions
+
+	// Flags are not in context on every path into this preparer (shell
+	// completion sets up its own, thinner context), so read them defensively.
+	if fs := flagctx.FromContextOrNil(ctx); fs != nil {
+		if v, err := fs.GetString(profile.FlagName); err == nil {
+			opts.Flag = v
+		}
+	}
+
+	// Resolved independently of state.WorkingDirectory, which the completion
+	// path never sets.
+	if wd, err := os.Getwd(); err == nil {
+		opts.WorkingDir = wd
+	}
+
+	res, err := profile.Resolve(opts)
 	if err != nil {
-		return ctx, err
+		// Most commands must stop here: reaching a different Fly.io account
+		// than the one asked for is worse than not running at all. The profile
+		// management commands are the exception, since they are how the user
+		// repairs a dangling profile reference in the first place.
+		if !command_context.HasAnnotation(ctx, profile.TolerateUnresolvedAnnotation) {
+			return ctx, err
+		}
+
+		if res, err = profile.Fallback(err); err != nil {
+			return ctx, err
+		}
 	}
 
 	logger.FromContext(ctx).
-		Debugf("determined config directory: %q", dir)
+		Debugf("determined config directory: %q (profile %q via %s)", res.Dir, res.Name, res.Source)
 
-	return state.WithConfigDirectory(ctx, dir), nil
+	ctx = profile.NewContext(ctx, res)
+
+	return state.WithConfigDirectory(ctx, res.Dir), nil
 }
 
 // ApplyAliases consolidates flags with aliases into a single source-of-truth flag.
