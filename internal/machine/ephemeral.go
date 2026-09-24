@@ -133,7 +133,7 @@ func makeCleanupFunc(ctx context.Context, appName string, machine *fly.Machine) 
 
 		// FIXME: is there a reason we *need* to use context.Background here, instead of the normal context
 		// As far as I can tell, this is the only place in the codebase that does this
-		stopCtx, cancel := context.WithTimeout(ctx, stopTimeout)
+		stopCtx, cancel := context.WithTimeoutCause(ctx, stopTimeout, fmt.Errorf("stopping ephemeral machine: %w", context.DeadlineExceeded))
 		stopCtx, cancel = ctrlc.HookCancelableContext(stopCtx, cancel)
 		defer cancel()
 

@@ -344,7 +344,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 	app := builderApp
 	machine := builderMachine
 	if err != nil {
-		tracing.RecordError(span, err, "failed to init remote builder machine")
+		tracing.RecordError(ctx, span, err, "failed to init remote builder machine")
 
 		return nil, err
 	}
@@ -364,7 +364,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to create remote builder request")
+			tracing.RecordError(ctx, span, err, "failed to create remote builder request")
 
 			return nil, err
 		}
@@ -396,7 +396,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 			}
 		}
 		if err != nil {
-			tracing.RecordError(span, err, "failed to get remote builder settings after retries")
+			tracing.RecordError(ctx, span, err, "failed to get remote builder settings after retries")
 
 			return nil, err
 		}
@@ -410,7 +410,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 			err := flapsClient.DeleteApp(ctx, app.Name)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
+				tracing.RecordError(ctx, span, err, "failed to destroy old incompatible remote builder")
 
 				return nil, err
 			}
@@ -420,7 +420,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
 			machine, app, err = remoteBuilderMachine(ctx, appName, false)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to init remote builder machine")
+				tracing.RecordError(ctx, span, err, "failed to init remote builder machine")
 
 				return nil, err
 			}
@@ -490,7 +490,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 	if host == "" {
 		err = errors.New("machine did not have a private IP")
-		tracing.RecordError(span, err, "failed to boot remote builder")
+		tracing.RecordError(ctx, span, err, "failed to boot remote builder")
 
 		return nil, err
 	}
@@ -529,7 +529,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 			err = fmt.Errorf("failed creating docker client: %w", err)
 			captureError(err)
-			tracing.RecordError(span, err, "failed to initialize remote client")
+			tracing.RecordError(ctx, span, err, "failed to initialize remote client")
 
 			return nil, err
 		}
@@ -552,7 +552,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 			err = fmt.Errorf("failed creating wgLessHttpClient: %w", err)
 			captureError(err)
-			tracing.RecordError(span, err, "failed to initialize wgLessHttpClient")
+			tracing.RecordError(ctx, span, err, "failed to initialize wgLessHttpClient")
 
 			return nil, err
 		}
@@ -565,7 +565,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 
 		err = fmt.Errorf("failed waiting for docker daemon: %w", err)
 		captureError(err)
-		tracing.RecordError(span, err, "failed to wait for docker daemon")
+		tracing.RecordError(ctx, span, err, "failed to wait for docker daemon")
 
 		if errors.Is(err, agent.ErrTunnelUnavailable) {
 			return nil, generateBrokenWGError(err)
@@ -577,7 +577,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 		err := errors.New("remote builder app unavailable")
 
 		terminal.Warnf("Remote builder did not start in time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
-		tracing.RecordError(span, err, "remote builder failed to start")
+		tracing.RecordError(ctx, span, err, "remote builder failed to start")
 
 		return nil, err
 	default:
@@ -692,7 +692,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 
 	url, err := dockerclient.ParseHostURL(host)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to parse remote builder host")
+		tracing.RecordError(ctx, span, err, "failed to parse remote builder host")
 
 		return nil, fmt.Errorf("failed to parse remote builder host: %w", err)
 	}
@@ -708,14 +708,14 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 	flapClient := flapsutil.ClientFromContext(ctx)
 	app, err := flapClient.GetApp(ctx, appName)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to get app")
+		tracing.RecordError(ctx, span, err, "failed to get app")
 
 		return nil, fmt.Errorf("failed to get app: %w", err)
 	}
 
 	_, dialer, err := agent.BringUpAgentOrgSlug(ctx, apiClient, app.Organization.Slug, app.Network, true)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to bring up agent")
+		tracing.RecordError(ctx, span, err, "failed to bring up agent")
 
 		return nil, err
 	}
@@ -726,8 +726,9 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 }
 
 func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool, err error) {
-	ctx, cancel := context.WithTimeout(parent, 5*time.Minute) // 5 minutes for daemon to become responsive (includes DNS propagation time)
+	ctx, cancel := context.WithTimeoutCause(parent, 5*time.Minute, fmt.Errorf("waiting for Docker daemon: %w", context.DeadlineExceeded)) // 5 minutes for daemon to become responsive (includes DNS propagation time)
 	defer cancel()
+	defer func() { tracing.RecordCancellation(ctx, trace.SpanFromContext(ctx)) }()
 
 	b := &backoff.Backoff{
 		Min:    50 * time.Millisecond,
@@ -785,8 +786,9 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 }
 
 func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
-	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+	ctx, cancel := context.WithTimeoutCause(parent, 3*time.Second, fmt.Errorf("pinging Docker daemon: %w", context.DeadlineExceeded))
 	defer cancel()
+	defer func() { tracing.RecordCancellation(ctx, trace.SpanFromContext(ctx)) }()
 
 	return client.Ping(ctx)
 }

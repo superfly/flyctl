@@ -51,7 +51,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	)
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to run test machine")
+			tracing.RecordError(ctx, span, err, "failed to run test machine")
 		}
 		span.End()
 	}()
@@ -95,14 +95,14 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		return m.err != nil
 	}); hasErr {
 		err := fmt.Errorf("error creating test machine: %w", m.err)
-		tracing.RecordError(span, err, "failed to create test machine")
+		tracing.RecordError(ctx, span, err, "failed to create test machine")
 
 		return err
 	}
 
 	machineSet := machine.NewMachineSet(flaps, io, md.app.Name, lo.FilterMap(machines, func(m createdTestMachine, _ int) (*fly.Machine, bool) {
 		if m.err != nil {
-			tracing.RecordError(span, m.err, "failed to create test machine")
+			tracing.RecordError(ctx, span, m.err, "failed to create test machine")
 			sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("failed to create test machine: %s", m.err))
 		}
 
@@ -112,7 +112,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the output
 	err = md.waitForTestMachinesToFinish(ctx, machineSet, sl)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for test cmd machine")
+		tracing.RecordError(ctx, span, err, "failed to wait for test cmd machine")
 
 		return err
 	}
@@ -188,7 +188,7 @@ func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconf
 	}
 	testMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to create test machines")
+		tracing.RecordError(ctx, span, err, "failed to create test machines")
 
 		return nil, fmt.Errorf("error creating a test machine: %w", err)
 	}

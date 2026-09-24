@@ -115,7 +115,7 @@ func (p *pkceLogin) serve(l net.Listener) {
 
 func (p *pkceLogin) close() {
 	if p.server != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeoutCause(context.Background(), time.Second, fmt.Errorf("shutting down login callback server: %w", context.DeadlineExceeded))
 		defer cancel()
 		_ = p.server.Shutdown(ctx)
 	}
@@ -138,7 +138,7 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 }
 
 func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin) (string, error) {
-	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for PKCE login: %w", context.DeadlineExceeded))
 	defer cancel()
 	defer p.close()
 

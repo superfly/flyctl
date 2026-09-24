@@ -180,7 +180,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to determine app config for machines")
+		tracing.RecordError(ctx, span, err, "failed to determine app config for machines")
 
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
 		fmt.Fprint(io.ErrOut, extraInfo)
-		tracing.RecordError(span, err, "failed to validate process groups")
+		tracing.RecordError(ctx, span, err, "failed to validate process groups")
 
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to split release command")
+			tracing.RecordError(ctx, span, err, "failed to split release command")
 
 			return nil, err
 		}
@@ -286,47 +286,47 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		builderID:             args.BuilderID,
 	}
 	if err := md.setStrategy(); err != nil {
-		tracing.RecordError(span, err, "failed to set strategy")
+		tracing.RecordError(ctx, span, err, "failed to set strategy")
 
 		return nil, err
 	}
 
 	if err := md.setMachinesForDeployment(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set machines for first deployemt")
+		tracing.RecordError(ctx, span, err, "failed to set machines for first deployemt")
 
 		return nil, err
 	}
 	if err := md.setVolumes(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set volumes")
+		tracing.RecordError(ctx, span, err, "failed to set volumes")
 
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set img")
+		tracing.RecordError(ctx, span, err, "failed to set img")
 
 		return nil, err
 	}
 	if err := md.setFirstDeploy(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set first depoyment")
+		tracing.RecordError(ctx, span, err, "failed to set first depoyment")
 
 		return nil, err
 	}
 
 	// Provisioning must come after setVolumes
 	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
-		tracing.RecordError(span, err, "failed to provision first depoloy")
+		tracing.RecordError(ctx, span, err, "failed to provision first depoloy")
 
 		return nil, err
 	}
 
 	// validations must happen after every else
 	if err := md.validateVolumeConfig(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to validate volume config")
+		tracing.RecordError(ctx, span, err, "failed to validate volume config")
 
 		return nil, err
 	}
 	if err = md.createReleaseInBackend(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to create release in backend")
+		tracing.RecordError(ctx, span, err, "failed to create release in backend")
 
 		return nil, err
 	}
@@ -352,7 +352,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to list machines")
+		tracing.RecordError(ctx, span, err, "failed to list machines")
 
 		return err
 	}
@@ -367,7 +367,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		var err error
 		activeMachines, err = md.flapsClient.ListActive(ctx, md.app.Name)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to list machines")
+			tracing.RecordError(ctx, span, err, "failed to list machines")
 
 			return err
 		}
@@ -395,7 +395,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 
 		if err := md.validateNoDetachedBluegreenMachines(activeMachines); err != nil {
-			tracing.RecordError(span, err, "failed to validate bluegreen machines")
+			tracing.RecordError(ctx, span, err, "failed to validate bluegreen machines")
 
 			return err
 		}
@@ -727,7 +727,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		BuildId:    md.buildID,
 	})
 	if err != nil {
-		tracing.RecordError(span, err, "failed to create machine release")
+		tracing.RecordError(ctx, span, err, "failed to create machine release")
 
 		return err
 	}
@@ -779,7 +779,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	span.SetAttributes(attribute.Int("attempts", attempts))
 
 	if err != nil {
-		tracing.RecordError(span, err, "failed to update machine release")
+		tracing.RecordError(ctx, span, err, "failed to update machine release")
 
 		return err
 	}

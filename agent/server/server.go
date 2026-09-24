@@ -55,7 +55,9 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 	toks := config.Tokens(ctx)
 
-	monitorCtx, cancelMonitor := context.WithCancel(ctx)
+	monitorCtx, cancelMonitorCause := context.WithCancelCause(ctx)
+
+	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring stopped: %w", context.Canceled)) }
 	config.MonitorTokens(monitorCtx, toks, nil)
 
 	synthetics.StartSyntheticsMonitoringAgent(ctx)
@@ -274,7 +276,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 }
 
 func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app string) (*agent.Instances, error) {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 30*time.Second, fmt.Errorf("fetching agent instances: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	regionsv, err := tunnel.LookupTXT(ctx, fmt.Sprintf("regions.%s.internal", app))
@@ -357,7 +359,7 @@ func (s *server) probeTunnel(ctx context.Context, slug, network string) (err err
 
 	s.printf("probing %q ...", slug)
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Second, fmt.Errorf("probing WireGuard tunnel: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	var results []net.IP
@@ -455,7 +457,9 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 
 	s.cancelTokenMonitoring()
 
-	monitorCtx, cancelMonitor := context.WithCancel(s.runCtx)
+	monitorCtx, cancelMonitorCause := context.WithCancelCause(s.runCtx)
+
+	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring replaced: %w", context.Canceled)) }
 	config.MonitorTokens(monitorCtx, t, nil)
 
 	s.tokens = t

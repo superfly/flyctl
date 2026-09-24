@@ -13,6 +13,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -27,7 +28,6 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -231,7 +231,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 	err = fmt.Errorf("could not find image %q", opts.ImageRef)
-	tracing.RecordError(span, err, "failed to resolve image")
+	tracing.RecordError(ctx, span, err, "failed to resolve image")
 
 	return nil, err
 }
@@ -254,7 +254,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	if !r.dockerFactory.mode.IsAvailable() {
 		err := errors.New("docker is unavailable to build the deployment image")
-		tracing.RecordError(span, err, "docker is unavailable to build the deployment image")
+		tracing.RecordError(ctx, span, err, "docker is unavailable to build the deployment image")
 
 		return nil, err
 	}
@@ -434,7 +434,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 			)
 		}
 		span.SetAttributes(attribute.Bool("is_app_not_found_error", isAppNotFoundErr))
-		tracing.RecordError(span, err, "failed to create build")
+		tracing.RecordError(ctx, span, err, "failed to create build")
 
 		return newFailedBuild(), err
 	}
@@ -675,12 +675,12 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	ctx, span := tracing.GetTracer().Start(ctx, "heartbeat")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("sending remote builder heartbeat: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	resp, err := client.HTTPClient().Do(req.Clone(ctx))
 	if err != nil {
-		tracing.RecordError(span, err, "failed to check heartbeat")
+		tracing.RecordError(ctx, span, err, "failed to check heartbeat")
 
 		return err
 	}
@@ -692,12 +692,12 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		tracing.RecordError(span, err, "no heartbeat endpoint")
+		tracing.RecordError(ctx, span, err, "no heartbeat endpoint")
 	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to read response body")
+		tracing.RecordError(ctx, span, err, "failed to read response body")
 
 		return &httpError{StatusCode: resp.StatusCode, Body: err.Error()}
 	}
@@ -729,7 +729,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		tracing.RecordError(span, err, "failed to get heartbeaturl")
+		tracing.RecordError(ctx, span, err, "failed to get heartbeaturl")
 
 		return nil, err
 	}
@@ -738,7 +738,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	heartbeatReq, err := http.NewRequestWithContext(ctx, http.MethodGet, heartbeatUrl, http.NoBody)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		tracing.RecordError(span, err, "failed to get http request")
+		tracing.RecordError(ctx, span, err, "failed to get http request")
 
 		return nil, err
 	}
@@ -762,7 +762,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		} else {
 			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		}
-		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
+		tracing.RecordError(ctx, span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
 
 		return nil, fmt.Errorf("failed to send first heartbeat: %w", err)
 	}
