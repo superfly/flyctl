@@ -15,6 +15,12 @@ import (
 var testGatewayPubkey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 
 func fakeGateway(t *testing.T, conn net.Conn, result *tokenResult) chan tokenAuthPacket {
+	return fakeGatewayHello(t, conn, result, false)
+}
+
+// fakeGatewayHello serves one exchange; authHeader is what the hello
+// advertises about reading the Authorization header.
+func fakeGatewayHello(t *testing.T, conn net.Conn, result *tokenResult, authHeader bool) chan tokenAuthPacket {
 	t.Helper()
 
 	got := make(chan tokenAuthPacket, 1)
@@ -23,9 +29,10 @@ func fakeGateway(t *testing.T, conn net.Conn, result *tokenResult) chan tokenAut
 		defer conn.Close()
 
 		if err := writeJSONFrame(conn, &tokenHello{
-			Version: tokenProtoVersion,
-			Type:    "hello",
-			Pubkey:  testGatewayPubkey,
+			Version:    tokenProtoVersion,
+			Type:       "hello",
+			Pubkey:     testGatewayPubkey,
+			AuthHeader: authHeader,
 		}); err != nil {
 			return
 		}
@@ -55,10 +62,9 @@ func TestTokenExchange(t *testing.T) {
 	})
 
 	prov, err := tokenExchange(client, &TokenAuth{
-		Token:   func() string { return "FlyV1 fm2_test" },
 		Pubkey:  "CLIENT_PUBKEY",
 		OrgSlug: "personal",
-	})
+	}, "FlyV1 fm2_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, testGatewayPubkey, prov.GatewayPubkey)
@@ -74,6 +80,23 @@ func TestTokenExchange(t *testing.T) {
 	assert.Equal(t, "personal", auth.OrgSlug)
 }
 
+func TestTokenExchangeOmitsPacketTokenForHeaderGateway(t *testing.T) {
+	client, gateway := net.Pipe()
+	defer client.Close()
+
+	got := fakeGatewayHello(t, gateway, &tokenResult{
+		Type:   "ok",
+		PeerIP: "fdaa:0:18:ac10:5:1234:5678:9a02",
+	}, true)
+
+	_, err := tokenExchange(client, &TokenAuth{Pubkey: "CLIENT_PUBKEY"}, "FlyV1 fm2_test")
+	require.NoError(t, err)
+
+	auth := <-got
+	assert.Equal(t, "", auth.Token, "gateway reads the header; the packet must not carry a copy")
+	assert.Equal(t, "CLIENT_PUBKEY", auth.Pubkey)
+}
+
 func TestTokenExchangeRejected(t *testing.T) {
 	client, gateway := net.Pipe()
 	defer client.Close()
@@ -84,7 +107,7 @@ func TestTokenExchangeRejected(t *testing.T) {
 		Error: "token not authorized for wireguard access",
 	})
 
-	_, err := tokenExchange(client, &TokenAuth{Token: func() string { return "FlyV1 fm2_bad" }})
+	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_bad")
 	require.Error(t, err)
 
 	var gwErr *GatewayError
@@ -107,7 +130,7 @@ func TestTokenExchangeMalformedReply(t *testing.T) {
 
 			fakeGateway(t, gateway, &res)
 
-			_, err := tokenExchange(client, &TokenAuth{Token: func() string { return "FlyV1 fm2_test" }})
+			_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
 			assert.ErrorIs(t, err, ErrMalformedReply)
 		})
 	}
@@ -124,9 +147,18 @@ func TestTokenExchangeMalformedReply(t *testing.T) {
 			_ = writeJSONFrame(gateway, &tokenResult{Type: "ok", PeerIP: "fdaa:0:18:ac10:5:1234:5678:9a02"})
 		}()
 
-		_, err := tokenExchange(client, &TokenAuth{Token: func() string { return "FlyV1 fm2_test" }})
+		_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
 		assert.ErrorIs(t, err, ErrMalformedReply)
 	})
+}
+
+func TestTokenExchangeNoToken(t *testing.T) {
+	client, gateway := net.Pipe()
+	defer client.Close()
+	defer gateway.Close()
+
+	_, err := tokenExchange(client, &TokenAuth{}, "")
+	assert.ErrorIs(t, err, ErrNoToken)
 }
 
 func TestTokenExchangeClosedBeforeHelloIsNotNoHello(t *testing.T) {
@@ -138,7 +170,7 @@ func TestTokenExchangeClosedBeforeHelloIsNotNoHello(t *testing.T) {
 		gateway.Close()
 	}()
 
-	_, err := tokenExchange(client, &TokenAuth{Token: func() string { return "FlyV1 fm2_test" }})
+	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrNoHello)
 }
@@ -160,7 +192,7 @@ func TestTokenExchangeHelloTimeout(t *testing.T) {
 	defer gateway.Close()
 
 	start := time.Now()
-	_, err := tokenExchange(client, &TokenAuth{Token: func() string { return "FlyV1 fm2_test" }})
+	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoHello)
 	assert.Less(t, time.Since(start), 10*time.Second)
