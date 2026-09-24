@@ -25,7 +25,7 @@ func MachinesChecks(ctx context.Context, appName string, machines []*fly.Machine
 	}
 
 	machineIDs := lo.Map(machines, func(m *fly.Machine, _ int) string { return m.ID })
-	ctx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 300*time.Second, fmt.Errorf("watching machine checks: %w", context.DeadlineExceeded))
 	defer cancel()
 	iteration := 0
 

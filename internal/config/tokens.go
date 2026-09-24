@@ -55,7 +55,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 	}
 
 	task.FromContext(monitorCtx).Run(func(taskCtx context.Context) {
-		taskCtx, cancelTask := context.WithCancel(taskCtx)
+		taskCtx, cancelTask := context.WithCancelCause(taskCtx)
 
 		var m sync.Mutex
 		var wg sync.WaitGroup
@@ -79,7 +79,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		}
 
 		log.Debug("done monitoring tokens")
-		cancelTask()
+		cancelTask(fmt.Errorf("token monitoring stopped: %w", context.Canceled))
 		wg.Wait()
 	})
 }

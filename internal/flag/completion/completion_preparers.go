@@ -2,6 +2,7 @@ package completion
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -55,7 +56,7 @@ func Adapt(
 			return nil, cobra.ShellCompDirectiveError
 		}
 
-		ctx, cancelFn := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancelFn := context.WithTimeoutCause(ctx, 5*time.Second, fmt.Errorf("preparing shell completion: %w", context.DeadlineExceeded))
 		defer cancelFn()
 
 		ctx, err = preparers.InitClient(ctx)

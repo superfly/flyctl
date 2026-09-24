@@ -439,7 +439,7 @@ func (c *Client) LookupTxt(ctx context.Context, slug, host string) (records []st
 // WaitForTunnel waits for a tunnel to the given org slug to become available
 // in the next four minutes.
 func (c *Client) WaitForTunnel(parent context.Context, slug, network string) (err error) {
-	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(parent, 4*time.Minute, fmt.Errorf("waiting for WireGuard tunnel: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	for {
@@ -464,7 +464,7 @@ func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug, host, n
 	if !flag.GetBool(parent, "quiet") {
 		io.StartProgressIndicatorMsg(fmt.Sprintf("Waiting for host %s", host))
 	}
-	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(parent, 4*time.Minute, fmt.Errorf("waiting for agent DNS: %w", context.DeadlineExceeded))
 	defer cancel()
 	if !flag.GetBool(parent, "quiet") {
 		io.StopProgressIndicator()

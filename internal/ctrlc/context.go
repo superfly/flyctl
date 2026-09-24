@@ -2,14 +2,13 @@ package ctrlc
 
 import (
 	"context"
-	"sync/atomic"
+	"fmt"
 
 	"github.com/superfly/flyctl/terminal"
 )
 
 type customCtx struct {
 	context.Context
-	signalTripped atomic.Bool
 }
 
 type abortedErr struct{}
@@ -18,7 +17,7 @@ func (abortedErr) Error() string { return "aborted by user" }
 func (abortedErr) Unwrap() error { return context.Canceled }
 
 func (c *customCtx) Err() error {
-	if c.signalTripped.Load() {
+	if context.Cause(c.Context) == AbortedByUser {
 		return AbortedByUser
 	}
 
@@ -31,27 +30,31 @@ var AbortedByUser = abortedErr{}
 // The context is canceled with AbortedByUser.
 // If you're wrapping a context that already has a cancel function, use HookCancelableContext instead.
 func HookContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	ctx, cancelFn := context.WithCancel(ctx)
-
-	return HookCancelableContext(ctx, cancelFn)
+	return HookCancelableContext(ctx, func() {})
 }
 
 // HookCancelableContext returns a context that is canceled when the user presses Ctrl+C.
 // The context is canceled with AbortedByUser.
 func HookCancelableContext(ctx context.Context, cancelFn context.CancelFunc) (context.Context, context.CancelFunc) {
-	var handle Handle
-
+	ctx, cancelCause := context.WithCancelCause(ctx)
 	newCtx := &customCtx{Context: ctx}
 
+	var handle Handle
+	// A signal may arrive before Hook returns its handle.
+	ready := make(chan struct{})
 	handle = Hook(func() {
+		<-ready
+		defer handle.Done()
 		terminal.Debugf("captured ctrl+c, canceling context")
-		newCtx.signalTripped.Store(true)
+		cancelCause(AbortedByUser)
 		cancelFn()
-		handle.Done()
 	})
+
+	close(ready)
 
 	return newCtx, func() {
 		handle.Done()
+		cancelCause(fmt.Errorf("Ctrl+C hook released: %w", context.Canceled))
 		cancelFn()
 	}
 }

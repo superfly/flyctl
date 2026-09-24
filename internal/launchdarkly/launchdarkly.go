@@ -70,7 +70,7 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 
 	ldClient := &Client{ldContext: launchDarklyContext, flagsMutex: sync.Mutex{}}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	timeoutCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("initializing user feature flags: %w", context.DeadlineExceeded))
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
 	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
@@ -93,7 +93,7 @@ func NewServiceClient() (*Client, error) {
 		ldContext: ldcontext.NewWithKind(ldcontext.Kind("service"), "flyctl"),
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	timeoutCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("initializing service feature flags: %w", context.DeadlineExceeded))
 	defer cancel()
 	// we don't really care if this errors or not, but it's good to at least try
 	if err := ldClient.updateFeatureFlags(timeoutCtx); err != nil {
@@ -154,14 +154,14 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 	url := fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(ctx, span, err)
 
 		return err
 	}
 
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(ctx, span, err)
 
 		return err
 	}
@@ -169,7 +169,7 @@ func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
 
 	var flags map[string]FeatureFlag
 	if err := json.NewDecoder(response.Body).Decode(&flags); err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(ctx, span, err)
 
 		return err
 	}
