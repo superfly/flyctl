@@ -96,18 +96,23 @@ func TestPKCELoginCallbackFlow(t *testing.T) {
 		t.Fatalf("expected 200 for valid callback, got %d", res.StatusCode)
 	}
 
-	io, _, _, _ := iostreams.Test()
+	// No terminal to paste into (a coding agent or CI): the callback alone
+	// must be enough, and nothing should prompt for a paste.
+	io, _, out, _ := iostreams.Test()
 	log := logger.New(io.ErrOut, logger.Info, false)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	token, err := waitForPKCEToken(ctx, io, log, "sess1", p)
+	token, err := waitForPKCEToken(ctx, io, log, "sess1", p, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if token != "tok123" {
 		t.Fatalf("expected tok123, got %q", token)
+	}
+	if out.String() != "" {
+		t.Fatalf("expected no paste prompt without a terminal, got: %q", out.String())
 	}
 }
 
@@ -135,7 +140,7 @@ func TestPKCELoginPastedCode(t *testing.T) {
 	io, _, _, errOut := iostreams.Test()
 	log := logger.New(io.ErrOut, logger.Info, false)
 
-	token, err := waitForPKCEToken(ctx, io, log, "sess2", p)
+	token, err := waitForPKCEToken(ctx, io, log, "sess2", p, true)
 	if err != nil {
 		t.Fatal(err)
 	}
