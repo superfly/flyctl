@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/server"
 	"github.com/superfly/flyctl/flyctl"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/wg"
 )
 
 func newRun() (cmd *cobra.Command) {
@@ -51,6 +53,17 @@ func run(ctx context.Context) error {
 	}
 	defer closeLogger()
 
+	// An isolated invocation's private socket directory goes away with us,
+	// whichever way we exit. Deferred before the lock is taken so it runs
+	// after the lock file in it is released.
+	if dir := agent.SocketDirToRemove(); dir != "" {
+		defer func() {
+			if err := agent.RemoveSocketDir(dir); err != nil {
+				logger.Printf("failed removing socket directory %s: %v", dir, err)
+			}
+		}()
+	}
+
 	if config.Tokens(ctx).GraphQL() == "" {
 		logger.Println(fly.ErrNoAuthToken)
 
@@ -63,12 +76,36 @@ func run(ctx context.Context) error {
 	}
 	defer unlock()
 
+	if agent.Isolated() && logPath != "" {
+		// We're a subprocess of the flyctl invocation that spawned us and it
+		// holds our stdin pipe open for as long as it runs: shut down when
+		// the pipe reports EOF.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+
+		go func() {
+			defer cancel()
+
+			_, _ = io.Copy(io.Discard, os.Stdin)
+
+			logger.Print("parent process exited; shutting down")
+		}()
+	}
+
+	tokenGateway := os.Getenv(agent.TokenGatewayEnvKey)
+	if tokenGateway == "" {
+		tokenGateway = wg.DefaultTokenGateway
+	}
+
 	opt := server.Options{
 		Socket:           socketPath(ctx),
 		Logger:           logger,
 		Background:       logPath != "",
 		ConfigFile:       state.ConfigFile(ctx),
 		ConfigWebsockets: viper.GetBool(flyctl.ConfigWireGuardWebsockets),
+		TokenMode:        agent.TokenModeEnabled(),
+		TokenGateway:     tokenGateway,
 	}
 
 	return server.Run(ctx, opt)
@@ -113,6 +150,12 @@ func (*dupInstanceError) Description() string {
 var errDupInstance = new(dupInstanceError)
 
 func lockPath() string {
+	// keep the lock next to the socket when an invocation-specific socket is
+	// in use so that concurrent isolated agents don't trip over each other
+	if socket := agent.SocketPathOverride(); socket != "" {
+		return socket + ".lock"
+	}
+
 	return filepath.Join(flyctl.ConfigDir(), "flyctl.agent.lock")
 }
 
