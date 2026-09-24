@@ -134,6 +134,23 @@ func SocketDirToRemove() string {
 	return dir
 }
 
+// RemoveSocketDir removes the private socket directory and the files we put
+// in it: the socket and the agent's and the launcher's lock files. Nothing
+// is removed recursively, so a directory we didn't create (an unexpected
+// FLY_AGENT_SOCKET_DIR) that holds anything else is left alone, with an
+// error saying so.
+func RemoveSocketDir(dir string) error {
+	socket := PathToSocket()
+
+	for _, f := range []string{socket, socket + ".lock", socket + ".start.lock"} {
+		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return os.Remove(dir)
+}
+
 type Instances struct {
 	Labels    []string
 	Addresses []string

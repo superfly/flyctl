@@ -58,7 +58,7 @@ func run(ctx context.Context) error {
 	// after the lock file in it is released.
 	if dir := agent.SocketDirToRemove(); dir != "" {
 		defer func() {
-			if err := os.RemoveAll(dir); err != nil {
+			if err := agent.RemoveSocketDir(dir); err != nil {
 				logger.Printf("failed removing socket directory %s: %v", dir, err)
 			}
 		}()

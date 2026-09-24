@@ -61,6 +61,10 @@ type WsWgProxy struct {
 	// with a refreshed token; zero when there's nothing to extend.
 	refreshAt time.Time
 
+	// sameTokenTriedFor is the session expiry for which the unchanged
+	// token has already been re-presented, so it's tried once per window.
+	sameTokenTriedFor time.Time
+
 	// onReprovision fires (from Connect, with lock held) when a reconnect
 	// landed us on a different peer address or gateway key, so the owner
 	// can rebuild the WireGuard device around the new addresses. onFatal
@@ -454,13 +458,22 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 				wswg.lock.RUnlock()
 
 				if !refreshAt.IsZero() && refreshAt.Before(now) && reconnectAt.IsZero() {
-					if wswg.auth.Token() == prov.token {
-						// nothing new to present yet; reconnecting would only
-						// get us the same expiry back
-						wswg.lock.Lock()
+					wswg.lock.Lock()
+					sameToken := wswg.auth.Token() == prov.token
+					triedAlready := sameToken && wswg.sameTokenTriedFor.Equal(prov.ExpiresAt)
+					if triedAlready {
+						// The unchanged token already got us this expiry:
+						// it's the token's own limit. Wait for a new one.
 						wswg.refreshAt = now.Add(tokenRefreshRetry)
-						wswg.lock.Unlock()
-					} else {
+					} else if sameToken {
+						// The expiry may be the gateway's session cap rather
+						// than the token's: re-presenting the same token
+						// then extends it. Try once per window.
+						wswg.sameTokenTriedFor = prov.ExpiresAt
+					}
+					wswg.lock.Unlock()
+
+					if !triedAlready {
 						log.Printf("re-presenting token to extend gateway session (expires %s)", prov.ExpiresAt.Format(time.RFC3339))
 
 						reconnectAt = now

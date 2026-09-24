@@ -387,11 +387,17 @@ func TestConnectTokenSilentGateway(t *testing.T) {
 	assert.Less(t, time.Since(start), 10*time.Second)
 }
 
-func TestConnectTokenNoRefreshWithoutNewToken(t *testing.T) {
+func TestConnectTokenSameTokenRefreshedOncePerWindow(t *testing.T) {
 	gw, _ := testKeypair(t)
-	gateway := newFakeTokenGateway(t, []string{gw, gw}, []tokenResult{
-		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: time.Now().Add(2 * time.Second).Unix()},
-		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	expiry := time.Now().Add(3 * time.Second).Truncate(time.Second)
+
+	// the expiry might be the gateway's session cap, so the unchanged token
+	// is re-presented once; when that yields the same expiry it's the
+	// token's own limit and there's nothing more to gain
+	gateway := newFakeTokenGateway(t, []string{gw, gw, gw}, []tokenResult{
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: expiry.Unix()},
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: expiry.Unix()},
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: expiry.Add(time.Hour).Unix()},
 	})
 
 	pub, priv := testKeypair(t)
@@ -406,11 +412,57 @@ func TestConnectTokenNoRefreshWithoutNewToken(t *testing.T) {
 
 	<-gateway.ready
 
-	// the token never changes: reconnecting would only get the same expiry
 	select {
 	case <-gateway.ready:
-		t.Fatal("proxy reconnected without a new token to present")
-	case <-time.After(2500 * time.Millisecond):
+	case <-time.After(5 * time.Second):
+		t.Fatal("proxy never re-presented the unchanged token")
+	}
+
+	select {
+	case <-gateway.ready:
+		t.Fatal("proxy re-presented the unchanged token again for the same expiry")
+	case <-time.After(2 * time.Second):
+	}
+}
+
+func TestConnectTokenSameTokenExtendsSessionCap(t *testing.T) {
+	gw, _ := testKeypair(t)
+	const peer = "fdaa:0:18:a7b:1:1111:2222:3302"
+
+	// a token with no validity window: every expiry is the gateway's
+	// session cap, and re-presenting the same token keeps extending it
+	gateway := newFakeTokenGateway(t, []string{gw, gw, gw}, []tokenResult{
+		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(2 * time.Second).Unix()},
+		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(4 * time.Second).Unix()},
+		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	})
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
+		Token:   func() string { return "FlyV1 fm2_same" },
+		OrgSlug: "test-org",
+	})
+	require.NoError(t, err)
+	defer tunnel.Close()
+
+	for i := 0; i < 3; i++ {
+		select {
+		case <-gateway.ready:
+		case <-time.After(6 * time.Second):
+			t.Fatalf("only %d of 3 sessions established", i)
+		}
+	}
+
+	waitFor(t, "extended expiry", func() bool {
+		return tunnel.Provision().ExpiresAt.After(time.Now().Add(30 * time.Minute))
+	})
+
+	select {
+	case <-tunnel.Done():
+		t.Fatalf("tunnel died: %v", tunnel.Err())
+	default:
 	}
 }
 
