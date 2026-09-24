@@ -48,6 +48,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
 	defer span.End()
 
+	// Keep the deployment cause when ctx is replaced for interruption cleanup.
+	deploymentCtx := ctx
 	onInterruptContext := context.WithoutCancel(ctx)
 
 	// TODO(allison): Ensure that if we *aren't* using tigris here, we remove the previously attached bucket from
@@ -131,7 +133,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	if err != nil {
-		tracing.RecordError(ctx, span, err, "failed to deploy machines")
+		tracing.RecordError(deploymentCtx, span, err, "failed to deploy machines")
 	}
 
 	// When FLY_EMIT_RELEASE_JSON is set, emit a JSON line to stdout with the
