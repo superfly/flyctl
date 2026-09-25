@@ -50,8 +50,8 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("agent session closed: %w", context.Canceled))
 
 	wg.Go(func() {
 
@@ -158,6 +158,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 		Version:    buildinfo.Version().String(),
 		PID:        os.Getpid(),
 		Background: s.srv.Background,
+		TokenMode:  s.srv.TokenMode,
 	})
 }
 
@@ -176,16 +177,18 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1], s.getClient(ctx))
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1], s.getClient(ctx), s.tokens)
 	if err != nil {
 		s.error(err)
 
 		return
 	}
 
+	state, cfg := tunnel.StateAndConfig()
+
 	_ = s.marshal(agent.EstablishResponse{
-		WireGuardState: tunnel.State,
-		TunnelConfig:   tunnel.Config,
+		WireGuardState: state,
+		TunnelConfig:   cfg,
 	})
 }
 
@@ -393,9 +396,11 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	var dialContext context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		dialContext, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
+		dialContext, cancel = context.WithTimeoutCause(ctx, time.Duration(timeout)*time.Millisecond, fmt.Errorf("dialing agent connection: %w", context.DeadlineExceeded))
 	} else {
-		dialContext, cancel = context.WithCancel(ctx)
+		var cancelCause context.CancelCauseFunc
+		dialContext, cancelCause = context.WithCancelCause(ctx)
+		cancel = func() { cancelCause(fmt.Errorf("agent dialing finished: %w", context.Canceled)) }
 	}
 	defer cancel()
 
@@ -470,7 +475,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	// a background thread watches for incoming ICMP messages on
 	// the ICMP "socket" we get from wireguard-go. Each received
@@ -526,7 +531,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 			s.logger.Printf("ping6: socket read error: %s", err)
 		}
 
-		cancel()
+		cancel(err)
 
 		return false
 	}
@@ -594,11 +599,12 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 // getClient returns an API client that uses any API tokens sent by the client.
 // If none have been sent, it falls back to using the server's tokens.
 func (s *session) getClient(ctx context.Context) flyutil.Client {
-	if s.tokens == nil {
-		return s.srv.GetClient(ctx)
-	}
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.getTokens()})
+}
 
-	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+// getTokens returns the tokens to act with; see server.tokensFor.
+func (s *session) getTokens() *tokens.Tokens {
+	return s.srv.tokensFor(s.tokens)
 }
 
 func (s *session) error(err error) bool {

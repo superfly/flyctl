@@ -697,3 +697,53 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		MinSecretsVersion: nil,
 	}, got)
 }
+
+func TestProvisionIpsOnFirstDeployPrivateNetwork(t *testing.T) {
+	tests := []struct {
+		name        string
+		appNetwork  string
+		wantNetwork string
+	}{
+		{name: "default network is sent by its empty name", appNetwork: flapsutil.DefaultNetwork, wantNetwork: ""},
+		{name: "unset network", appNetwork: "", wantNetwork: ""},
+		{name: "custom network", appNetwork: "preview", wantNetwork: "preview"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			md, err := stabMachineDeployment(&appconfig.Config{
+				AppName: "my-cool-app",
+				Services: []appconfig.Service{{
+					Protocol:     "tcp",
+					InternalPort: 8080,
+				}},
+			})
+			require.NoError(t, err)
+
+			var requests []flaps.AssignIPRequest
+			ios, _, _, _ := iostreams.Test()
+			md.io = ios
+			md.colorize = ios.ColorScheme()
+			md.isFirstDeploy = true
+			md.app.Network = tt.appNetwork
+			md.flapsClient = &mock.FlapsClient{
+				GetIPAssignmentsFunc: func(context.Context, string) (*flaps.ListIPAssignmentsResponse, error) {
+					return &flaps.ListIPAssignmentsResponse{}, nil
+				},
+				AssignIPFunc: func(_ context.Context, _ string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+					requests = append(requests, req)
+					ip := "fdaa:0:1::3"
+
+					return &flaps.AssignIPResponse{IP: &ip}, nil
+				},
+			}
+
+			require.NoError(t, md.provisionIpsOnFirstDeploy(context.Background(), "private", "my-org"))
+			require.Equal(t, []flaps.AssignIPRequest{{
+				Type:         flaps.IPAssignmentTypePrivateV6,
+				Organization: "my-org",
+				Network:      tt.wantNetwork,
+			}}, requests)
+		})
+	}
+}

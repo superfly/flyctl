@@ -111,7 +111,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
-	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
+	fmt.Fprintf(io.Out, "Version: %s\n", machine.Version)
 	fmt.Fprintf(io.Out, "State: %s\n", machine.State)
 	fmt.Fprintf(io.Out, "HostStatus: %s\n", machine.HostStatus)
 	fmt.Fprintf(io.Out, "\n")
@@ -119,7 +119,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 	obj := [][]string{
 		{
 			machine.ID,
-			machine.InstanceID,
+			machine.Version,
 			machine.State,
 			machine.ImageRefWithVersion(),
 			machine.Name,
@@ -136,7 +136,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		},
 	}
 
-	cols := []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
+	cols := []string{"ID", "Version", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
 
 	if len(mConfig.Mounts) > 0 {
 		cols = append(cols, "Volume")

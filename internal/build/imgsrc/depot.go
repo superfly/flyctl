@@ -73,7 +73,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	case opts.DockerfilePath != "" && !helpers.FileExists(opts.DockerfilePath):
 		build.BuildFinish()
 		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-		tracing.RecordError(span, err, "failed to find dockerfile")
+		tracing.RecordError(ctx, span, err, "failed to find dockerfile")
 
 		return nil, "", err
 	case opts.DockerfilePath != "":
@@ -95,7 +95,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		// pass the relative path to Dockerfile within the context
 		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to get relative dockerfile path")
+			tracing.RecordError(ctx, span, err, "failed to get relative dockerfile path")
 			build.BuildFinish()
 
 			return nil, "", err
@@ -113,7 +113,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		build.ImageBuildFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to build image")
+		tracing.RecordError(ctx, span, err, "failed to build image")
 
 		return nil, "", errors.Wrap(err, "error building")
 	}
@@ -132,7 +132,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	defer func() {
 		if retErr != nil {
 			streams.StopProgressIndicator()
-			span.RecordError(retErr)
+			tracing.RecordErrorEvent(ctx, span, retErr)
 		}
 		span.End()
 	}()
@@ -151,11 +151,12 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 
 	// Building a container image may take multiple minutes.
 	// So we can only have the provisoning part in this context.
-	provisionCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	provisionCtx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, fmt.Errorf("provisioning Depot builder: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	buildkit, build, buildErr := initBuilder(provisionCtx, buildState, opts.AppName, streams, scope)
 	if buildErr != nil {
+		tracing.RecordCancellation(provisionCtx, span)
 		return nil, buildErr
 	}
 	defer func() {
@@ -167,6 +168,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	var buildkitClient *client.Client
 	buildkitClient, buildErr = buildkit.Connect(provisionCtx)
 	if buildErr != nil {
+		tracing.RecordCancellation(provisionCtx, span)
 		return nil, buildErr
 	}
 
@@ -200,7 +202,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	defer func() {
 		if retErr != nil {
 			streams.StopProgressIndicator()
-			span.RecordError(retErr)
+			tracing.RecordErrorEvent(ctx, span, retErr)
 		}
 		buildState.BuilderInitFinish()
 		span.End()
@@ -318,7 +320,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(ctx, span, err)
 
 		return nil, err
 	}

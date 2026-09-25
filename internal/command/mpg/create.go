@@ -47,7 +47,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Int{
 			Name:        "volume-size",
-			Description: "The volume size in GB",
+			Description: "Initial volume size in GB",
 			Default:     10,
 		},
 		flag.Bool{

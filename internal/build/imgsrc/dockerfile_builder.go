@@ -123,7 +123,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if !helpers.FileExists(opts.DockerfilePath) {
 			build.BuildFinish()
 			err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-			tracing.RecordError(span, err, "failed to find dockerfile")
+			tracing.RecordError(ctx, span, err, "failed to find dockerfile")
 
 			return nil, "", err
 		}
@@ -145,7 +145,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// pass the relative path to Dockerfile within the context
 		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to get relative dockerfile path")
+			tracing.RecordError(ctx, span, err, "failed to get relative dockerfile path")
 
 			return nil, "", err
 		}
@@ -170,7 +170,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuildFinish()
 		build.BuilderInitFinish()
-		tracing.RecordError(span, err, "failed to check for buildkit support")
+		tracing.RecordError(ctx, span, err, "failed to check for buildkit support")
 
 		return nil, "", fmt.Errorf("error checking for buildkit support: %w", err)
 	}
@@ -198,7 +198,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if err != nil {
 			build.BuildFinish()
 			build.ContextBuildFinish()
-			tracing.RecordError(span, err, "failed to make build context")
+			tracing.RecordError(ctx, span, err, "failed to make build context")
 
 			return nil, "", err
 		}
@@ -221,10 +221,15 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ImageBuildStart()
 	terminal.Debug("fetching docker server info")
 	serverInfo, err := func() (system.Info, error) {
-		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		infoCtx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("fetching Docker server info: %w", context.DeadlineExceeded))
 		defer cancel()
 
-		return docker.Info(infoCtx)
+		info, err := docker.Info(infoCtx)
+		if err != nil {
+			tracing.RecordCancellation(infoCtx, span)
+		}
+
+		return info, err
 	}()
 	if err != nil {
 		if dockerFactory.IsRemote() {
@@ -232,7 +237,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to fetch docker server info")
+		tracing.RecordError(ctx, span, err, "failed to fetch docker server info")
 
 		return nil, "", errors.Wrap(err, "error fetching docker server info")
 	}
@@ -245,7 +250,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.ImageBuildFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to parse build args")
+		tracing.RecordError(ctx, span, err, "failed to parse build args")
 
 		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
@@ -259,7 +264,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
-			tracing.RecordError(span, err, "failed to build image")
+			tracing.RecordError(ctx, span, err, "failed to build image")
 
 			return nil, "", errors.Wrap(err, "error building")
 		}
@@ -271,7 +276,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
-			tracing.RecordError(span, err, "failed to build image")
+			tracing.RecordError(ctx, span, err, "failed to build image")
 
 			return nil, "", errors.Wrap(err, "error building")
 		}
@@ -482,7 +487,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to push to fly registry")
+			tracing.RecordError(ctx, span, err, "failed to push to fly registry")
 		}
 	}()
 

@@ -8,6 +8,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -92,11 +93,13 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 	case "private":
 		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))
 		// Unlike public IPs, private_v6 is organization-scoped and requires
-		// org_slug to select the private network for the allocation.
+		// org_slug to select the private network for the allocation. Flaps
+		// reports the default network as "default" but only resolves it by
+		// its empty name, so the app's network name must be normalized.
 		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
 			Type:         flaps.IPAssignmentTypePrivateV6,
 			Organization: org,
-			Network:      md.app.Network,
+			Network:      flapsutil.NetworkName(md.app),
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)

@@ -44,7 +44,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 
 	var (
 		id, name, org, region, statusVal, directIP string
-		diskGB, replicas                           int
+		usedStorage, allocatedStorage              string
+		replicas                                   int
 	)
 
 	if useLegacy {
@@ -57,7 +58,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 		org = legacyResp.Data.Organization.Slug
 		region = legacyResp.Data.Region
 		statusVal = legacyResp.Data.Status
-		diskGB = legacyResp.Data.Disk
+		usedStorage = gbString(legacyResp.Data.StorageUsedBytes)
+		allocatedStorage = gbString(legacyResp.Data.StorageProvisionedBytes)
 		replicas = legacyResp.Data.Replicas
 		directIP = legacyResp.Data.IpAssignments.Direct
 	} else {
@@ -66,7 +68,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 		org = cluster.Organization.Slug
 		region = cluster.Region
 		statusVal = cluster.Status
-		diskGB = cluster.DiskSizeGB
+		usedStorage = gbString(cluster.StorageUsedBytes)
+		allocatedStorage = gbString(cluster.StorageProvisionedBytes)
 		replicas = cluster.Replicas
 		// Render the public endpoint host only to preserve the legacy Direct
 		// column's bare-address and empty-host behavior.
@@ -79,7 +82,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 		org,
 		region,
 		statusVal,
-		strconv.Itoa(diskGB),
+		usedStorage,
+		allocatedStorage,
 		strconv.Itoa(replicas),
 		directIP,
 	}}
@@ -90,7 +94,8 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 		"Organization",
 		"Region",
 		"Status",
-		"Allocated Disk (GB)",
+		"Total Used Storage (GB)",
+		"Total Allocated Storage (GB)",
 		"Replicas",
 		"Direct IP",
 	)
@@ -107,4 +112,13 @@ func runStatusLegacy(ctx context.Context, clusterID string) error {
 	}
 
 	return render.JSON(out, clusterDetails)
+}
+
+// One decimal and N/A for the unmeasured case, matching the dashboard.
+func gbString(bytes *int64) string {
+	if bytes == nil {
+		return "N/A"
+	}
+
+	return strconv.FormatFloat(float64(*bytes)/(1<<30), 'f', 1, 64)
 }

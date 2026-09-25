@@ -180,7 +180,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
 	fmt.Fprintf(io.Out, "  Region: %s\n", cluster.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
-	fmt.Fprintf(io.Out, "  Disk: %dGB\n", cluster.DiskSizeGB)
+	fmt.Fprintf(io.Out, "  Volume Size: %dGB\n", cluster.DiskSizeGB)
 	fmt.Fprintf(io.Out, "  PostGIS: %t\n", cluster.PostGISEnabled)
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
 

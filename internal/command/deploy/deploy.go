@@ -265,7 +265,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		shutdownCtx, cancel := context.WithTimeoutCause(context.Background(), 500*time.Millisecond, fmt.Errorf("flushing deployment traces: %w", context.DeadlineExceeded))
 		defer cancel()
 		tp.Shutdown(shutdownCtx)
 	}()
@@ -277,7 +277,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "error deploying")
+			tracing.RecordError(ctx, span, err, "error deploying")
 		}
 	}()
 
@@ -343,6 +343,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	if err != nil {
 		return err
 	}
+
+	recordDeployIdentity(ctx, app)
 
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
@@ -741,7 +743,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
-			tracing.RecordError(span, err, "get config from remote")
+			tracing.RecordError(ctx, span, err, "get config from remote")
 
 			return nil, err
 		}
@@ -750,7 +752,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
 		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
 		if err != nil {
-			tracing.RecordError(span, err, "parse env")
+			tracing.RecordError(ctx, span, err, "parse env")
 
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
@@ -767,7 +769,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		fmt.Fprint(io.Out, extraInfo)
 	}
 	if err != nil {
-		tracing.RecordError(span, err, "validate config")
+		tracing.RecordError(ctx, span, err, "validate config")
 
 		return nil, err
 	}

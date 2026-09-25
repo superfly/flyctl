@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/ip"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func stdArgsSSH(cmd *cobra.Command) {
@@ -144,8 +145,9 @@ func newConsole() *cobra.Command {
 type SessionTarget = ssh.SessionTarget
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// ignore cancelled errors
-	if errors.Is(err, context.Canceled) {
+	// A remote command failure is not a failure of the SSH client.
+	var exitErr *gossh.ExitError
+	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
 		return
 	}
 
@@ -231,14 +233,10 @@ func runConsole(ctx context.Context) error {
 }
 
 func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) error {
-	currentStdin, currentStdout, currentStderr, err := setupConsole()
-	defer func() error {
-		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
-			return err
-		}
-
-		return nil
-	}()
+	cleanup, setupErr := setupConsole()
+	if cleanup != nil {
+		defer cleanup()
+	}
 
 	sessIO := &ssh.SessionIO{
 		Stdin: os.Stdin,
@@ -256,7 +254,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		return errors.Wrap(err, "ssh shell")
 	}
 
-	return err
+	return setupErr
 }
 
 // findRequestedMachine resolves the --machine flag against the app's active

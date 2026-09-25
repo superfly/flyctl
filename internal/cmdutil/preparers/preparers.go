@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -55,7 +56,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetBaseURL(cfg.APIBaseURL)
 	fly.SetErrorLog(cfg.LogGQLErrors)
 	fly.SetInstrumenter(instrument.ApiAdapter)
-	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
+	fly.SetTransport(otelhttp.NewTransport(tracing.NewTransport(http.DefaultTransport)))
 
 	s := clientsignals.DetectOnce()
 	signals := &s
