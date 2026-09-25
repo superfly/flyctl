@@ -198,6 +198,7 @@ func writeJSONFrame(w io.Writer, v any) error {
 	copy(buf[4:], payload)
 
 	_, err = w.Write(buf)
+
 	return err
 }
 
