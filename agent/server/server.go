@@ -33,6 +33,12 @@ type Options struct {
 	Background       bool
 	ConfigFile       string
 	ConfigWebsockets bool
+
+	// TokenMode makes the agent build tunnels by authenticating to
+	// TokenGateway with the session's macaroons instead of registering
+	// peers through the API.
+	TokenMode    bool
+	TokenGateway string
 }
 
 func Run(ctx context.Context, opt Options) (err error) {
@@ -80,7 +86,15 @@ type bindError struct{ error }
 
 func (be bindError) Unwrap() error { return be.error }
 
+// maxUnixSocketPath is the portable limit on unix socket paths (sun_path is
+// 108 bytes on Linux, 104 on the BSDs and macOS, NUL included).
+const maxUnixSocketPath = 103
+
 func bindUnixSocket(socket string) (net.Listener, error) {
+	if len(socket) > maxUnixSocketPath {
+		return nil, fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), maxUnixSocketPath, agent.SocketPathEnvKey)
+	}
+
 	l, err := net.Listen("unix", socket)
 	if err != nil {
 		return nil, fmt.Errorf("failed binding: %w", err)
@@ -122,6 +136,14 @@ type tunnelKey struct {
 	networkName string
 }
 
+func (tk tunnelKey) String() string {
+	if tk.networkName == "" {
+		return tk.orgSlug
+	}
+
+	return tk.orgSlug + "/" + tk.networkName
+}
+
 type server struct {
 	Options
 
@@ -134,7 +156,11 @@ type server struct {
 	// slugAliases maps every slug a client has used for an organization to
 	// the slug tunnels are keyed by. Clients may name the personal org by
 	// its raw slug (as Flaps does) or by the "personal" alias (as web does).
-	slugAliases           map[string]string
+	slugAliases map[string]string
+
+	// tokMu guards the two below, separately from mu so that code running
+	// under mu (tunnel construction, which presents tokens) can read them.
+	tokMu                 sync.RWMutex
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
 }
@@ -235,7 +261,9 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestablish bool, network string, client flyutil.Client) (tunnel *wg.Tunnel, err error) {
+// buildTunnel returns the tunnel for org/network, building it if needed.
+// sessionToks are the tokens the client sent, nil if none; see tokensFor.
+func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestablish bool, network string, client flyutil.Client, sessionToks *tokens.Tokens) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -247,22 +275,32 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 		return
 	}
 
-	var state *wg.WireGuardState
-	if state, err = wireguard.StateForOrg(ctx, client, org.ID, org.Slug, os.Getenv("FLY_AGENT_WG_REGION"), "", reestablish, network); err != nil {
-		return
-	}
+	var transport string
+	if s.TokenMode {
+		transport = "token"
 
-	// WIP: can't stay this way, need something more clever than this
-	transport := "udp"
-	if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
-		transport = "websocket"
+		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks); err != nil {
+			s.reportTokenFailure(tk, err, nil)
 
-		if tunnel, err = wg.ConnectWS(ctx, state); err != nil {
 			return
 		}
 	} else {
-		if tunnel, err = wg.Connect(ctx, state); err != nil {
+		var state *wg.WireGuardState
+		if state, err = wireguard.StateForOrg(ctx, client, org.ID, org.Slug, os.Getenv("FLY_AGENT_WG_REGION"), "", reestablish, network); err != nil {
 			return
+		}
+
+		transport = "udp"
+		if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
+			transport = "websocket"
+
+			if tunnel, err = wg.ConnectWS(ctx, state); err != nil {
+				return
+			}
+		} else {
+			if tunnel, err = wg.Connect(ctx, state); err != nil {
+				return
+			}
 		}
 	}
 
@@ -270,9 +308,123 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	// send completes
 	metrics.AgentWireGuardTransport(s.runCtx, transport)
 
+	if old := s.tunnels[tk]; old != nil {
+		s.printf("replacing tunnel for %s", tk)
+
+		if err := old.Close(); err != nil {
+			s.printf("failed closing replaced tunnel: %v", err)
+		}
+	}
+
 	s.tunnels[tk] = tunnel
 
+	if tunnel.Ephemeral() {
+		go s.watchTunnel(tk, tunnel)
+	}
+
 	return
+}
+
+// buildTokenTunnel connects to the token gateway with a fresh keypair. The
+// gateway allocates the peer inline and keeps it only as long as the token
+// verifies, so nothing is registered with the API or written to the config
+// file. Callers must hold s.mu.
+func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, network string, sessionToks *tokens.Tokens) (*wg.Tunnel, error) {
+	if s.tokensFor(sessionToks).MacaroonsOnly().Empty() {
+		return nil, errors.New("access token is too old, please reauthenticate")
+	}
+
+	// the gateway looks orgs up by their real slug; "personal" is an API alias
+	slug := org.RawSlug
+	if slug == "" {
+		slug = org.Slug
+	}
+
+	pubkey, privkey := wireguard.C25519pair()
+
+	state := &wg.WireGuardState{
+		Org:          org.Slug,
+		Name:         wg.TokenPeerName(pubkey),
+		LocalPublic:  pubkey,
+		LocalPrivate: privkey,
+	}
+
+	s.printf("connecting to token gateway %s for %s (network %q) as %s", s.TokenGateway, slug, network, state.Name)
+
+	tunnel, err := wg.ConnectToken(ctx, state, s.TokenGateway, &wg.TokenAuth{
+		// resolved on every (re-)connection, so the tunnel follows the
+		// agent's current, monitored tokens even after they're replaced
+		Token:       func() string { return s.tokensFor(sessionToks).MacaroonsOnly().FlapsHeader() },
+		OrgSlug:     slug,
+		NetworkName: network,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("token-mode WireGuard via %s: %w", s.TokenGateway, err)
+	}
+
+	if prov := tunnel.Provision(); prov != nil {
+		s.printf("token gateway provisioned %s: peer %s, dns %s, expires %s", state.Name, prov.PeerIP, prov.DNS, prov.ExpiresAt.Format(time.RFC3339))
+	}
+
+	return tunnel, nil
+}
+
+// reportTokenFailure records a token-mode establish failure or tunnel death
+// in metrics, and in Sentry when it's not an expected outcome.
+func (s *server) reportTokenFailure(tk tunnelKey, err error, prov *wg.TokenProvision) {
+	reason := failureReason(err)
+
+	// the agent's run context: the session's may be gone already
+	metrics.AgentWireGuardTransportFailure(s.runCtx, "token", reason)
+
+	if !unexpectedTokenFailure(reason, prov, time.Now()) {
+		return
+	}
+
+	opts := []sentry.CaptureOption{
+		sentry.WithTag("feature", "agent-wireguard-token"),
+		sentry.WithTag("gateway", s.TokenGateway),
+		sentry.WithTag("reason", reason),
+		sentry.WithContexts(map[string]sentry.Context{
+			"organization": map[string]any{
+				"slug":    tk.orgSlug,
+				"network": tk.networkName,
+			},
+		}),
+	}
+	if prov != nil {
+		opts = append(opts, sentry.WithContext("provision", map[string]any{
+			"peer_ip":    prov.PeerIP,
+			"expires_at": prov.ExpiresAt.Format(time.RFC3339),
+		}))
+	}
+
+	sentry.CaptureException(err, opts...)
+}
+
+// watchTunnel forgets a token-mode tunnel once the gateway has rejected it
+// for good (token expired or revoked), so the next establish builds a fresh
+// one instead of clients hanging on a dead tunnel.
+func (s *server) watchTunnel(tk tunnelKey, tunnel *wg.Tunnel) {
+	<-tunnel.Done()
+
+	err := tunnel.Err()
+	if err == nil {
+		return // closed by us
+	}
+
+	s.printf("tunnel for %s died: %v", tk, err)
+	s.reportTokenFailure(tk, err, tunnel.Provision())
+
+	s.mu.Lock()
+	if s.tunnels[tk] == tunnel {
+		delete(s.tunnels, tk)
+	}
+	s.mu.Unlock()
+
+	if err := tunnel.Close(); err != nil {
+		s.printf("failed closing dead tunnel: %v", err)
+	}
 }
 
 func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app string) (*agent.Instances, error) {
@@ -393,6 +545,11 @@ func (s *server) validateTunnelsUnlocked() error {
 	}
 
 	for slug, tunnel := range s.tunnels {
+		if tunnel.Ephemeral() {
+			// provisioned inline by the token gateway; not in the config file
+			continue
+		}
+
 		sk := slug.orgSlug
 		if slug.networkName != "" {
 			sk = fmt.Sprintf("%s-%s", sk, slug.networkName)
@@ -421,8 +578,11 @@ func (s *server) clean(ctx context.Context) {
 			break
 		}
 
-		if err := wireguard.PruneInvalidPeers(ctx, s.GetClient(ctx)); err != nil {
-			s.printf("failed pruning invalid peers: %v", err)
+		// token-mode peers aren't registered with the API; nothing to prune
+		if !s.TokenMode {
+			if err := wireguard.PruneInvalidPeers(ctx, s.GetClient(ctx)); err != nil {
+				s.printf("failed pruning invalid peers: %v", err)
+			}
 		}
 
 		if err := s.validateTunnels(); err != nil {
@@ -436,18 +596,44 @@ func (s *server) clean(ctx context.Context) {
 // GetClient returns an API client that uses the server's tokens. Sessions may
 // have their own tokens, so should use session.getClient instead.
 func (s *server) GetClient(ctx context.Context) flyutil.Client {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.GetTokens()})
+}
 
-	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+// GetTokens returns the server's tokens. Sessions may have their own, so
+// should use session.getTokens instead.
+func (s *server) GetTokens() *tokens.Tokens {
+	s.tokMu.RLock()
+	defer s.tokMu.RUnlock()
+
+	return s.tokens
+}
+
+// tokensFor returns the tokens to act with on behalf of a client that sent
+// sessionToks (nil if it sent none): the client's, except that a client
+// reading the same config file the server monitors gets the server's
+// current copy. The client's is a one-shot snapshot, while the server's is
+// kept fresh (refreshed discharges, new org tokens, replacement via
+// UpdateTokensFromClient) for as long as a tunnel built from it lives.
+func (s *server) tokensFor(sessionToks *tokens.Tokens) *tokens.Tokens {
+	cur := s.GetTokens()
+
+	if sessionToks == nil {
+		return cur
+	}
+
+	if file := sessionToks.FromFile(); file != "" && file == cur.FromFile() {
+		return cur
+	}
+
+	return sessionToks
 }
 
 // UpdateTokensFromClient replaces the server's tokens with those from the
 // client if the new ones seem better. Specifically, if the agent was started
 // with `FLY_API_TOKEN`, but a later client is using tokens form a config file.
 func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.tokMu.Lock()
+	defer s.tokMu.Unlock()
 
 	if s.tokens.FromFile() != "" || t.FromFile() == "" {
 		return

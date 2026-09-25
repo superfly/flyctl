@@ -158,6 +158,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 		Version:    buildinfo.Version().String(),
 		PID:        os.Getpid(),
 		Background: s.srv.Background,
+		TokenMode:  s.srv.TokenMode,
 	})
 }
 
@@ -176,16 +177,18 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1], s.getClient(ctx))
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1], s.getClient(ctx), s.tokens)
 	if err != nil {
 		s.error(err)
 
 		return
 	}
 
+	state, cfg := tunnel.StateAndConfig()
+
 	_ = s.marshal(agent.EstablishResponse{
-		WireGuardState: tunnel.State,
-		TunnelConfig:   tunnel.Config,
+		WireGuardState: state,
+		TunnelConfig:   cfg,
 	})
 }
 
@@ -596,11 +599,12 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 // getClient returns an API client that uses any API tokens sent by the client.
 // If none have been sent, it falls back to using the server's tokens.
 func (s *session) getClient(ctx context.Context) flyutil.Client {
-	if s.tokens == nil {
-		return s.srv.GetClient(ctx)
-	}
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.getTokens()})
+}
 
-	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+// getTokens returns the tokens to act with; see server.tokensFor.
+func (s *session) getTokens() *tokens.Tokens {
+	return s.srv.tokensFor(s.tokens)
 }
 
 func (s *session) error(err error) bool {
