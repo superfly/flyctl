@@ -110,3 +110,19 @@ func TestConfig_ValidateServices(t *testing.T) {
 	err, x = cfg.ValidateGroups(ctx, []string{"success"})
 	require.NoErrorf(t, err, x)
 }
+
+func TestConfig_ValidateKillSignal(t *testing.T) {
+	ctx := context.Background()
+
+	sig := "SIGUSR2"
+	cfg := &Config{KillSignal: &sig}
+	err, _ := cfg.Validate(ctx)
+	require.NoError(t, err)
+
+	invalidSig := "INVALID_SIG"
+	cfgInvalid := &Config{KillSignal: &invalidSig}
+	err, extraInfo := cfgInvalid.Validate(ctx)
+	require.Error(t, err)
+	assert.Contains(t, extraInfo, "invalid kill_signal 'INVALID_SIG'")
+}
+
