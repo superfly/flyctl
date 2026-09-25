@@ -51,15 +51,37 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.Tokens(ctx).All()))
 	}
 
+	// make sure the agent listens where we'll be dialing, whether the socket
+	// path was set explicitly or generated in isolated mode
+	if socket := SocketPathOverride(); socket != "" {
+		env = append(env, SocketPathEnvKey+"="+socket)
+	}
+
 	cmd.Env = env
 
-	cmdutil.SetSysProcAttributes(cmd)
+	if Isolated() {
+		// Run the agent as a plain child of this invocation instead of a
+		// detached daemon. It holds the read end of its stdin pipe: when this
+		// process exits, the OS closes the write end and the agent shuts
+		// itself down on EOF. The write end stays open until then because
+		// the reaping goroutine below keeps cmd (and its pipes) alive.
+		if _, err := cmd.StdinPipe(); err != nil {
+			return nil, fmt.Errorf("failed creating agent stdin pipe: %w", err)
+		}
+	} else {
+		cmdutil.SetSysProcAttributes(cmd)
+	}
 
 	if err := cmd.Start(); err != nil {
 		err = forkError{err}
 		sentry.CaptureException(err, sentry.WithTraceID(ctx))
 
 		return nil, fmt.Errorf("failed starting agent process: %w", err)
+	}
+
+	if Isolated() {
+		// reap the child if it exits before we do
+		go func() { _ = cmd.Wait() }()
 	}
 
 	if logger := logger.MaybeFromContext(ctx); logger != nil {
@@ -99,6 +121,13 @@ func (alreadyStartingError) Error() string {
 }
 
 func lockPath() string {
+	// keep the lock next to the socket when one invocation-specific socket is
+	// in use so that concurrent isolated invocations don't serialize on the
+	// shared lock
+	if socket := SocketPathOverride(); socket != "" {
+		return socket + ".start.lock"
+	}
+
 	return filepath.Join(flyctl.ConfigDir(), "flyctl.agent.start.lock")
 }
 
