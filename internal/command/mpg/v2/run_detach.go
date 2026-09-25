@@ -2,10 +2,8 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -19,11 +17,11 @@ func RunDetach(ctx context.Context, clusterID string, appName string) error {
 	)
 
 	// Delete the attachment record. Prefer the public Machines API;
-	// fall back to the legacy MPGv2 client only when it returns a
-	// classified 404, signaling the endpoint isn't available on this
-	// API surface. Any other error is authoritative and must propagate.
+	// fall back to the legacy MPGv2 client only when the flaps route is
+	// missing, signaling the endpoint isn't available on this API
+	// surface. Any other error is authoritative and must propagate.
 	err := mpgClient.DeleteManagedPostgresAttachment(ctx, clusterID, appName)
-	useLegacy := errors.Is(err, flaps.ErrFlapsNotFound)
+	useLegacy := flapsutil.IsFlapsRouteMissing(err)
 	if err != nil && !useLegacy {
 		return fmt.Errorf("failed to detach: %w", err)
 	}

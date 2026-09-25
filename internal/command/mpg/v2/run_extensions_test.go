@@ -17,6 +17,27 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+// dbNotFound is the resource 404 ui-ex returns (via flaps) for a missing
+// target database. It must surface to the user, not fall back to legacy.
+var dbNotFound = &flaps.FlapsError{
+	ResponseStatusCode: 404,
+	OriginalError:      errors.New(`database not found: database "app" does not exist`),
+	ResponseBody:       []byte(`{"error":"database not found: database \"app\" does not exist"}`),
+}
+
+// resourceNotFound builds a flaps 404 whose body is a JSON object with a
+// non-empty "error" field: the shape ui-ex returns (proxied through flaps)
+// for a missing resource, such as a cluster, database, user, or backup.
+// flapsutil.IsFlapsRouteMissing must treat this as authoritative and never
+// trigger the legacy mpgv2 fallback.
+func resourceNotFound(msg string) *flaps.FlapsError {
+	return &flaps.FlapsError{
+		ResponseStatusCode: 404,
+		OriginalError:      errors.New(msg),
+		ResponseBody:       []byte(fmt.Sprintf(`{"error":%q}`, msg)),
+	}
+}
+
 func extensionsTestContext(t *testing.T, jsonOutput bool) (context.Context, *bytes.Buffer) {
 	t.Helper()
 
@@ -91,6 +112,11 @@ func TestRunExtensionsList(t *testing.T) {
 			legacyErr:       errors.New("legacy denied"),
 			wantLegacyCalls: 1,
 			wantErr:         "failed to list extensions for database app: legacy denied",
+		},
+		{
+			name:      "resource 404 is authoritative",
+			publicErr: dbNotFound,
+			wantErr:   `failed to list extensions for database app: database not found: database "app" does not exist`,
 		},
 		{
 			name:      "non-404 public error is authoritative",
@@ -178,6 +204,7 @@ func TestRunExtensionsEnable(t *testing.T) {
 		{name: "defaults postgis topology schema", extension: "postgis_topology", wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "postgis_topology", Schema: "topology", CreateSchema: true}},
 		{name: "classified 404 falls back with legacy request mapping", extension: "hstore", schema: "addons", createSchema: true, publicErr: flaps.ErrFlapsNotFound, wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore", Schema: "addons", CreateSchema: true}, wantLegacyCalls: 1},
 		{name: "fallback returns legacy error", extension: "hstore", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy denied"), wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore"}, wantLegacyCalls: 1, wantErr: "legacy denied"},
+		{name: "resource 404 is authoritative", extension: "hstore", publicErr: dbNotFound, wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore"}, wantErr: "database not found"},
 		{name: "non-404 public error is authoritative", extension: "hstore", publicErr: errors.New("public denied"), wantPublicReq: flaps.EnableManagedPostgresExtensionRequest{Name: "hstore"}, wantErr: "public denied"},
 	}
 
@@ -232,6 +259,7 @@ func TestRunExtensionsDisable(t *testing.T) {
 		{name: "public success maps force", force: true},
 		{name: "classified 404 falls back", force: true, publicErr: flaps.ErrFlapsNotFound, wantLegacyCalls: 1},
 		{name: "fallback returns legacy error", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy denied"), wantLegacyCalls: 1, wantErr: "legacy denied"},
+		{name: "resource 404 is authoritative", publicErr: dbNotFound, wantErr: "database not found"},
 		{name: "non-404 public error is authoritative", publicErr: errors.New("public denied"), wantErr: "public denied"},
 	}
 
@@ -315,6 +343,26 @@ func TestResolveDatabaseUsesPublicAPIWithLegacyFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "legacy-db", database)
 		require.Equal(t, 1, legacyCalls)
+	})
+
+	t.Run("resource 404 is authoritative", func(t *testing.T) {
+		ctx, _ := extensionsTestContext(t, false)
+		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+			ListManagedPostgresDatabasesFunc: func(context.Context, string) ([]flaps.ManagedPostgresDatabase, error) {
+				return nil, resourceNotFound("Cluster not found")
+			},
+		})
+		legacyCalls := 0
+		ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
+			ListDatabasesFunc: func(context.Context, string) (mpgv2.ListDatabasesResponse, error) {
+				legacyCalls++
+
+				return mpgv2.ListDatabasesResponse{}, nil
+			},
+		})
+		_, err := resolveDatabase(ctx, "mpg-123", "")
+		require.ErrorContains(t, err, "failed to list databases: Cluster not found")
+		require.Equal(t, 0, legacyCalls)
 	})
 
 	t.Run("non-404 public error is authoritative", func(t *testing.T) {

@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/fly-go/flaps"
@@ -32,7 +31,7 @@ func publicUserToLegacy(u flaps.ManagedPostgresUser) mpgv2.User {
 
 func listUsers(ctx context.Context, clusterID string) ([]mpgv2.User, error) {
 	publicUsers, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresUsers(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		response, legacyErr := mpgv2.ClientFromContext(ctx).ListUsers(ctx, clusterID)
 		if legacyErr != nil {
 			return nil, legacyErr
@@ -131,7 +130,7 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 	}
 
 	response, err := flapsClient.CreateManagedPostgresUser(ctx, clusterID, input)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		legacyResponse, legacyErr := mpgv2.ClientFromContext(ctx).CreateUserWithRole(ctx, clusterID, mpgv2.CreateUserWithRoleInput(input))
 		if legacyErr != nil {
 			return fmt.Errorf("failed to create user: %w", legacyErr)
@@ -217,7 +216,7 @@ func RunUsersSetRole(ctx context.Context, clusterID string) error {
 	}
 
 	err := flapsClient.UpdateManagedPostgresUserRole(ctx, clusterID, username, input)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		err = mpgv2.ClientFromContext(ctx).UpdateUserRole(ctx, clusterID, username, mpgv2.UpdateUserRoleInput(input))
 	}
 	if err != nil {
@@ -287,7 +286,7 @@ func RunUsersDelete(ctx context.Context, clusterID string) error {
 	fmt.Fprintf(out, "Deleting user %s from cluster %s...\n", username, clusterID)
 
 	err := flapsClient.DeleteManagedPostgresUser(ctx, clusterID, username)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		err = mpgv2.ClientFromContext(ctx).DeleteUser(ctx, clusterID, username)
 	}
 	if err != nil {
