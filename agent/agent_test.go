@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -35,8 +36,12 @@ func TestPathToSocketIsolated(t *testing.T) {
 	if filepath.Dir(dir) != filepath.Clean(os.TempDir()) || !strings.HasPrefix(filepath.Base(dir), "fly-agent-") {
 		t.Errorf("PathToSocket() = %q, want it in a fly-agent-* directory under %q", got, os.TempDir())
 	}
-	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
-		t.Errorf("socket directory %s: mode %v, err %v; want 0700", dir, info.Mode().Perm(), err)
+	// Windows has no unix permission bits; os.Stat reports 0777 for any
+	// writable directory there, so the mode can only be checked elsewhere.
+	if runtime.GOOS != "windows" {
+		if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+			t.Errorf("socket directory %s: mode %v, err %v; want 0700", dir, info.Mode().Perm(), err)
+		}
 	}
 	if env := os.Getenv(SocketDirEnvKey); env != dir {
 		t.Errorf("%s = %q, want %q", SocketDirEnvKey, env, dir)
