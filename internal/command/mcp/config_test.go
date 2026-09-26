@@ -171,3 +171,33 @@ func TestRemoveConfig_appliesPermsToExistingFile(t *testing.T) {
 		t.Errorf("config mode = %o, want %o", got, want)
 	}
 }
+
+func TestResolveClaudeConfigPath(t *testing.T) {
+	tempHome := t.TempDir()
+	configDir := filepath.Join(tempHome, "AppData", "Roaming")
+
+	// Default fallback path
+	defaultPath := resolveClaudeConfigPath(tempHome, configDir)
+	if runtime.GOOS == "windows" {
+		expectedDefault := filepath.Join(configDir, "Claude", "claude_desktop_config.json")
+		if defaultPath != expectedDefault {
+			t.Errorf("got %q, want %q", defaultPath, expectedDefault)
+		}
+
+		// When MSIX packaged directory exists
+		msixDir := filepath.Join(tempHome, "AppData", "Local", "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude")
+		if err := os.MkdirAll(msixDir, 0755); err != nil {
+			t.Fatalf("failed to create mock MSIX dir: %v", err)
+		}
+		packagedPath := resolveClaudeConfigPath(tempHome, configDir)
+		expectedPackaged := filepath.Join(msixDir, "claude_desktop_config.json")
+		if packagedPath != expectedPackaged {
+			t.Errorf("got %q, want %q", packagedPath, expectedPackaged)
+		}
+	} else {
+		expected := filepath.Join(configDir, "Claude", "claude_desktop_config.json")
+		if defaultPath != expected {
+			t.Errorf("got %q, want %q", defaultPath, expected)
+		}
+	}
+}
