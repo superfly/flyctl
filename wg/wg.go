@@ -15,7 +15,6 @@ type Config struct {
 
 	RemotePublicKey PublicKey `toml:"remote_public_key"`
 	RemoteNetwork   *IPNet    `toml:"remote_network"`
-	RemoteNetworks  []IPNet   `toml:"remote_networks"`
 
 	Endpoint  string `toml:"endpoint"`
 	DNS       net.IP `toml:"dns"`

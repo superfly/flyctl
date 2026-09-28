@@ -53,19 +53,6 @@ func (s *WireGuardState) TunnelConfig() *Config {
 	// type, so we just hardcode.
 	_, rnet, _ := net.ParseCIDR(fmt.Sprintf("%s/48", raddr))
 
-	// static routes through the tunnel: Fly's anycast DNS and the rest of
-	// the private network space
-	var rnets []IPNet
-	// Also allow internal routing infra prefix, and fdaa::3 for DNS etc.
-	for _, s := range []string{"fdaf::/16", "fdaa::3/128"} {
-		_, n, err := net.ParseCIDR(s)
-		if err != nil {
-			panic(fmt.Sprintf("malformed static remote network, THIS IS A BUG %s: %s", s, err))
-		}
-
-		rnets = append(rnets, IPNet(*n))
-	}
-
 	raddr[15] = 3
 	dns := net.ParseIP(raddr.String())
 
@@ -87,7 +74,6 @@ func (s *WireGuardState) TunnelConfig() *Config {
 		LocalNetwork:    &wgl,
 		RemotePublicKey: pkey,
 		RemoteNetwork:   &wgr,
-		RemoteNetworks:  rnets,
 		Endpoint:        net.JoinHostPort(s.Peer.Endpointip, "51820"),
 		DNS:             dns,
 		LogLevel:        wgLogLevel,
