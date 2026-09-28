@@ -124,6 +124,15 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
+	} else if plan.GetPlanStep(ctx) == "" {
+		// Before determineRegion: placements fail for an org that can't run
+		// Machines, with an error that doesn't say why.
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			partial := &LaunchManifest{Plan: &plan.LaunchPlan{OrgSlug: org.Slug, FlyctlVersion: buildinfo.Info().Version}}
+
+			return partial, nil, err
+		}
 	}
 
 	httpServicePort := 8080
