@@ -118,7 +118,7 @@ func Stop(ctx context.Context, appName string, machine *fly.Machine, signal stri
 		if err != nil {
 			return fmt.Errorf("could not get machine %s to wait for stop: %w", machine.ID, err)
 		}
-		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitTimeout(waitTimeout))
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitVersion(machine.Version), flaps.WithWaitTimeout(waitTimeout))
 		if err != nil {
 			return fmt.Errorf("machine %s did not stop within the wait timeout: %w", machine.ID, err)
 		}

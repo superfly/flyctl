@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -88,7 +89,7 @@ func runMachineWait(ctx context.Context) error {
 			}
 		}
 
-		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(remainingTimeout))
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates(desiredState), flaps.WithWaitVersion(mach.WaitVersion(machine, desiredState)), flaps.WithWaitTimeout(remainingTimeout))
 		if err == nil {
 			break
 		}

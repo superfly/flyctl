@@ -258,7 +258,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *flaps.App, 
 	}
 
 	fmt.Println("Waiting 30 seconds for the old leader to stop...")
-	err = flapsClient.Wait(ctx, app.Name, oldLeader.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitTimeout(time.Second*30))
+	err = flapsClient.Wait(ctx, app.Name, oldLeader.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitVersion(oldLeader.Version), flaps.WithWaitTimeout(time.Second*30))
 	if err != nil {
 		return err
 	}

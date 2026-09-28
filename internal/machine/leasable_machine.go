@@ -242,7 +242,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		lm.logStatusWaiting(ctx, desiredState)
 	}
 	for {
-		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
+		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitVersion(WaitVersion(lm.Machine(), desiredState)), flaps.WithWaitTimeout(timeout))
 		notFoundResponse := false
 		if err != nil {
 			var flapsErr *flaps.FlapsError
