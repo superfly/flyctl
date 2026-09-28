@@ -341,6 +341,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 				return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, notFoundErr)
 			}
 			tracing.RecordCancellation(waitCtx, span)
+
 			return nil
 		case isNotFoundErr(err):
 			// Smoke checks run right after a machine is created, so it's
