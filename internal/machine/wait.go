@@ -61,7 +61,7 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitVersion(WaitVersion(machine, waitOnAction)), flaps.WithWaitTimeout(60*time.Second))
 		if err == nil {
 			return nil
 		}
@@ -86,6 +86,16 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			time.Sleep(b.Duration())
 		}
 	}
+}
+
+// WaitVersion returns the Machine version to send when waiting for state.
+// The Machines API requires the version when waiting for "stopped".
+func WaitVersion(machine *fly.Machine, state string) string {
+	if state != fly.MachineStateStopped {
+		return ""
+	}
+
+	return machine.Version
 }
 
 type WaitTimeoutErr struct {
