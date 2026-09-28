@@ -231,6 +231,9 @@ func startDevice(cfg *Config, endpointAddr string) (*device.Device, tun.Device, 
 	fmt.Fprintf(wgConf, "public_key=%s\n", cfg.RemotePublicKey.ToHex())
 	fmt.Fprintf(wgConf, "endpoint=%s\n", endpointAddr)
 	fmt.Fprintf(wgConf, "allowed_ip=%s\n", cfg.RemoteNetwork)
+	for _, n := range cfg.RemoteNetworks {
+		fmt.Fprintf(wgConf, "allowed_ip=%s\n", &n)
+	}
 	fmt.Fprintf(wgConf, "persistent_keepalive_interval=%d\n", cfg.KeepAlive)
 
 	if err := wgDev.IpcSetOperation(bufio.NewReader(wgConf)); err != nil {

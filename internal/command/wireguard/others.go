@@ -119,8 +119,8 @@ PersistentKeepalive = 15
 		addr[i] = 0
 	}
 
-	// BUG(tqbf): can't stay this way
-	data.Meta.AllowedIPs = fmt.Sprintf("%s/48", addr)
+	// Allow the user org's network prefix, internal routing infra prefix, and fdaa::3 for DNS etc.
+	data.Meta.AllowedIPs = fmt.Sprintf("%s/48, fdaf::/16, fdaa::3/128", addr)
 
 	addr[15] = 3
 
