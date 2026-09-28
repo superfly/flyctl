@@ -46,12 +46,16 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		hasUdpService := md.appConfig.HasUdpService()
 
 		ipStuffStr := "a dedicated ipv4 address"
+		allocateCmds := "fly ips allocate-v4"
 		if !hasUdpService {
 			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
+			allocateCmds = "fly ips allocate-v4 and fly ips allocate-v6"
 		}
 
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
-		if confirmDedicatedIp && err == nil {
+		if !confirmDedicatedIp || err != nil {
+			fmt.Fprintf(md.io.ErrOut, "No IP addresses allocated, so %s is not reachable from the internet yet. Its services need %s: run %s\n", md.app.Name, ipStuffStr, allocateCmds)
+		} else {
 			v4Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
 				Type: flaps.IPAssignmentTypeV4,
 			})

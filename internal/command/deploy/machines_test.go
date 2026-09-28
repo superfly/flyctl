@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -696,6 +697,43 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}, got)
+}
+
+// Services that need a dedicated IP (UDP, or TCP off 80/443) are allocated one
+// only if the user says yes. Without a terminal nobody can, and the deploy
+// used to finish with no IPs, no message and exit 0: an unreachable app.
+func TestProvisionIpsOnFirstDeployDedicatedNonInteractive(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName: "my-cool-app",
+		Services: []appconfig.Service{{
+			Protocol:     "udp",
+			InternalPort: 5000,
+			Ports:        []fly.MachinePort{{Port: new(5000)}},
+		}},
+	})
+	require.NoError(t, err)
+
+	ios, _, _, errOut := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.isFirstDeploy = true
+
+	assigned := 0
+	md.flapsClient = &mock.FlapsClient{
+		GetIPAssignmentsFunc: func(context.Context, string) (*flaps.ListIPAssignmentsResponse, error) {
+			return &flaps.ListIPAssignmentsResponse{}, nil
+		},
+		AssignIPFunc: func(context.Context, string, flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+			assigned++
+
+			return nil, errors.New("unexpected")
+		},
+	}
+
+	ctx := iostreams.NewContext(context.Background(), ios)
+	require.NoError(t, md.provisionIpsOnFirstDeploy(ctx, "", "my-org"))
+	require.Zero(t, assigned, "dedicated IPs cost money and need a yes")
+	require.Contains(t, errOut.String(), "fly ips allocate-v4")
 }
 
 func TestProvisionIpsOnFirstDeployPrivateNetwork(t *testing.T) {
