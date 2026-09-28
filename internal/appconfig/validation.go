@@ -20,6 +20,11 @@ import (
 var (
 	ErrInvalidApplicationConfig = errors.New("invalid app configuration")
 	MachinesDeployStrategies    = []string{"canary", "rolling", "immediate", "bluegreen"}
+	ValidKillSignals            = []string{
+		"SIGINT", "SIGTERM", "SIGQUIT", "SIGUSR1", "SIGUSR2", "SIGKILL",
+		"SIGSTOP", "SIGHUP", "SIGALRM", "SIGFPE", "SIGILL", "SIGPIPE",
+		"SIGSEGV", "SIGTRAP", "SIGABRT",
+	}
 )
 
 func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
@@ -38,6 +43,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateMounts,
 		c.validateRestartPolicy,
 		c.validateCompression,
+		c.validateKillSignal,
 	}
 
 	extra_info = fmt.Sprintf("Validating %s\n", c.ConfigFilePath())
@@ -387,3 +393,15 @@ func (c *Config) validateCompression() (extraInfo string, err error) {
 
 	return
 }
+
+func (c *Config) validateKillSignal() (extraInfo string, err error) {
+	if c.KillSignal != nil && *c.KillSignal != "" {
+		sig := strings.ToUpper(*c.KillSignal)
+		if !slices.Contains(ValidKillSignals, sig) {
+			extraInfo += fmt.Sprintf("invalid kill_signal '%s'; supported signals are: %s\n", *c.KillSignal, strings.Join(ValidKillSignals, ", "))
+			err = ErrInvalidApplicationConfig
+		}
+	}
+	return
+}
+
