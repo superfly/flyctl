@@ -243,13 +243,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	}
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
-		notFoundResponse := false
-		if err != nil {
-			var flapsErr *flaps.FlapsError
-			if errors.As(err, &flapsErr) {
-				notFoundResponse = flapsErr.ResponseStatusCode == http.StatusNotFound
-			}
-		}
+		notFoundResponse := isNotFoundErr(err)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
@@ -330,15 +324,35 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		statuslogger.Logf(ctx, "Checking that %s is up and running", lm.colorize.Bold(lm.FormattedMachineId()))
 	}
 
+	var notFoundErr error
 	for {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
+		if err == nil {
+			notFoundErr = nil
+		}
+
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			tracing.RecordCancellation(waitCtx, span)
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			if notFoundErr != nil {
+				tracing.RecordErrorEvent(waitCtx, span, notFoundErr)
+				return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, notFoundErr)
+			}
 			tracing.RecordCancellation(waitCtx, span)
 			return nil
+		case isNotFoundErr(err):
+			// Smoke checks run right after a machine is created, so it's
+			// possible for the machine to not be found yet; especially if we're
+			// checking across regions.
+			notFoundErr = err
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+
+			continue
 		case err != nil && flapsutil.IsTransientFlapsError(err):
 			// A transient Get failure (typically a 5xx or a 408 from flaps'
 			// call to flyd) shouldn't abort the whole wait loop — we're
@@ -376,6 +390,11 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func isNotFoundErr(err error) bool {
+	var flapsErr *flaps.FlapsError
+	return errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound
 }
 
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
