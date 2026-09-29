@@ -198,6 +198,13 @@ func marshalUnlocked(path string, v any) (err error) {
 // truncates first and writes second, so the same failure would leave an empty
 // file behind, and an empty config reads back as a logged-out flyctl.
 func writeFileAtomically(path string, data []byte, perm os.FileMode) (err error) {
+	// Replace the file the link points to, not the link itself, as os.WriteFile
+	// did. Users symlink the config file into place from a dotfiles repository
+	// or a secrets mount.
+	if resolved, e := filepath.EvalSymlinks(path); e == nil {
+		path = resolved
+	}
+
 	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
 	if err != nil {
 		return err
