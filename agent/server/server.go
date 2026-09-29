@@ -64,7 +64,9 @@ func Run(ctx context.Context, opt Options) (err error) {
 	monitorCtx, cancelMonitorCause := context.WithCancelCause(ctx)
 
 	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring stopped: %w", context.Canceled)) }
-	config.MonitorTokens(monitorCtx, toks, nil)
+	if monitorErr := config.MonitorTokens(monitorCtx, toks, nil); monitorErr != nil {
+		opt.Logger.Printf("token monitoring: %v", monitorErr)
+	}
 
 	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
@@ -646,7 +648,9 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	monitorCtx, cancelMonitorCause := context.WithCancelCause(s.runCtx)
 
 	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring replaced: %w", context.Canceled)) }
-	config.MonitorTokens(monitorCtx, t, nil)
+	if err := config.MonitorTokens(monitorCtx, t, nil); err != nil {
+		s.printf("token monitoring: %v", err)
+	}
 
 	s.tokens = t
 	s.cancelTokenMonitoring = cancelMonitor
