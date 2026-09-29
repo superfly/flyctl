@@ -110,3 +110,15 @@ func TestConfig_ValidateServices(t *testing.T) {
 	err, x = cfg.ValidateGroups(ctx, []string{"success"})
 	require.NoErrorf(t, err, x)
 }
+
+func TestConfig_ValidateMachineConversion(t *testing.T) {
+	cfg := &Config{
+		AppName: "foo",
+		Compute: []*Compute{{Memory: "not-a-size"}},
+	}
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	err, x := cfg.Validate(_getValidationContext(t))
+	require.Error(t, err, x)
+	require.Contains(t, x, "Converting to machine in process group 'app' will fail")
+}
