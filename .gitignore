@@ -47,3 +47,7 @@ release.json
 .fly
 CLAUDE.md
 .claude/settings.local.json
+
+# browser ssh client build output
+cmd/wasm/web/flyssh.wasm
+cmd/wasm/web/wasm_exec.js

@@ -2,54 +2,93 @@ package wg
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/coder/websocket"
-	"golang.org/x/time/rate"
+	"golang.zx2c4.com/wireguard/conn"
+	"golang.zx2c4.com/wireguard/device"
 )
+
+// WsBinarySubprotocol is the websocket subprotocol a client offers to get
+// WireGuard frames back as binary websocket messages. Gateways that
+// support it echo it; the frames themselves are unchanged. Browsers
+// enforce UTF-8 on text frames, so the browser client requires it.
+const WsBinarySubprotocol = "wswg-binary"
+
+// maxFrame bounds a single relayed WireGuard frame. The device's MTU is
+// well under this; anything bigger is a framing error.
+const maxFrame = device.MaxMessageSize
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
 	return doConnect(ctx, state, true)
 }
 
-func read(r io.Reader, rbuf []byte) ([]byte, error) {
+var errFrameTooLarge = errors.New("wswg frame exceeds maximum size")
+
+// readFrame reads one length-prefixed frame into buf and returns its
+// length. A zero-length frame is a keepalive.
+func readFrame(r io.Reader, buf []byte) (int, error) {
 	var lbuf [4]byte
 	if _, err := io.ReadFull(r, lbuf[:]); err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	plen := binary.BigEndian.Uint32(lbuf[:])
-	if plen >= uint32(len(rbuf)) {
-		rbuf = make([]byte, plen)
+	if plen > uint32(len(buf)) {
+		return 0, fmt.Errorf("%w: %d bytes", errFrameTooLarge, plen)
 	}
 
-	if _, err := io.ReadFull(r, rbuf[:plen]); err != nil {
-		return nil, err
+	if _, err := io.ReadFull(r, buf[:plen]); err != nil {
+		return 0, err
 	}
 
-	return rbuf[:plen], nil
+	return int(plen), nil
 }
 
+// WsWgProxy is the websocket link to a wswg gateway: it dials, (in token
+// mode) authenticates, reconnects when the connection drops, keeps the
+// session alive, and relays WireGuard frames for the device behind a
+// wsBind. The device sends through writePacket directly; incoming frames
+// are read by one goroutine into a channel the bind's receive function
+// drains, so a bind can be closed without waiting on a blocked read.
 type WsWgProxy struct {
-	wsConn       net.Conn
-	plugConn     *net.UDPConn
-	lastPlugAddr net.Addr
-	lock         sync.RWMutex
-	wrlock       sync.Mutex
-	atime        time.Time
-	reset        chan bool
-	limit        *rate.Limiter
+	// connMu guards the connection itself and the fields that follow it.
+	// It's held only briefly, never across a dial, so the packet paths can
+	// take it while the reconnect loop is busy.
+	connMu sync.RWMutex
+	wsConn net.Conn
+	// swapped is closed (and replaced) whenever wsConn is replaced, to wake
+	// the reader parked on a dead connection.
+	swapped chan struct{}
+	// dead is the connection a reset has already been requested for, so
+	// every failed read and write on it doesn't request another.
+	dead  net.Conn
+	atime time.Time
+
+	// wrlock serializes writes to the websocket. wbuf is the write
+	// scratch space it protects.
+	wrlock sync.Mutex
+	wbuf   []byte
+
+	// incoming carries frames from the reader to the bind. It's bounded;
+	// frames nobody is receiving are dropped, like UDP would.
+	incoming chan []byte
+	pool     sync.Pool
+	lifetime context.Context
+
+	reset chan struct{}
+
+	// lock guards the token-mode session state below.
+	lock sync.RWMutex
 
 	// token-authenticated mode: instead of the legacy magic, each
 	// (re-)connection authenticates with a macaroon and the gateway
@@ -92,46 +131,14 @@ var (
 	tokenRefreshRetry = 15 * time.Second
 )
 
-// dialWebsocket dials the gateway's wswg endpoint and wraps it as a
-// net.Conn bound to lifetimeCtx. A non-empty authorization goes out as the
-// upgrade request's Authorization header. A variable so tests can point it
-// at a plain-text local server.
-var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
-	rurl := websocketURL(endpoint)
-
-	log.Printf("(re-)connecting to %s", rurl)
-
-	header := http.Header{
-		"Origin": []string{rurl},
-	}
-	if authorization != "" {
-		header.Set("Authorization", authorization)
-	}
-
-	ws, _, err := websocket.Dial(dialCtx, rurl, &websocket.DialOptions{ // nolint: bodyclose
-		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				// Legacy gateways serve a self-signed cert; the tunnel traffic is
-				// WG-encrypted anyway. Token gateways have a real cert for their
-				// hostname and we hand them a macaroon, so verify those.
-				TLSClientConfig: &tls.Config{ // skipcq: GO-S1020
-					InsecureSkipVerify: !verifyTLS, // skipcq: GSC-G402
-				},
-			},
-		},
-		HTTPHeader: header,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("websocket: %w", err)
-	}
-
-	return websocket.NetConn(lifetimeCtx, ws, websocket.MessageText), nil
-}
-
 // websocketURL builds the gateway's wswg URL; endpoint is a hostname, or
-// host:port for gateways not on 443.
+// host:port for gateways not on 443, or a full ws:// or wss:// URL for
+// local testing.
 func websocketURL(endpoint string) string {
+	if strings.Contains(endpoint, "://") {
+		return endpoint
+	}
+
 	host := endpoint
 	if _, _, err := net.SplitHostPort(endpoint); err != nil {
 		host = net.JoinHostPort(endpoint, "443")
@@ -144,74 +151,86 @@ func websocketURL(endpoint string) string {
 	}).String()
 }
 
-// this is gross, but, keep the rest of the WireGuard code in
-// flyctl oblivious to the fact that we're potentially proxying
-// it over tcp.
-
-func NewWsWgProxy() (*WsWgProxy, error) {
-	laddr := net.UDPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: 0,
-	}
-
-	l, err := net.ListenUDP("udp", &laddr)
-	if err != nil {
-		return nil, fmt.Errorf("start wswg: %w", err)
-	}
-
+func NewWsWgProxy(lifetimeCtx context.Context) *WsWgProxy {
 	return &WsWgProxy{
 		atime:    time.Now(),
-		plugConn: l,
-		reset:    make(chan bool),
-		limit:    rate.NewLimiter(rate.Every(5*time.Second), 2),
-	}, nil
+		swapped:  make(chan struct{}),
+		wbuf:     make([]byte, 4+maxFrame),
+		incoming: make(chan []byte, 64),
+		pool:     sync.Pool{New: func() any { return make([]byte, maxFrame) }},
+		lifetime: lifetimeCtx,
+		reset:    make(chan struct{}, 1),
+	}
+}
+
+// bind returns a fresh conn.Bind for a device to send and receive through
+// this link.
+func (wswg *WsWgProxy) bind() *wsBind {
+	return newWsBind(wswg)
 }
 
 func (wswg *WsWgProxy) touch() {
-	wswg.lock.Lock()
+	wswg.connMu.Lock()
 	wswg.atime = time.Now()
-	wswg.lock.Unlock()
+	wswg.connMu.Unlock()
 }
 
 func (wswg *WsWgProxy) lastIo() time.Duration {
-	wswg.lock.RLock()
+	wswg.connMu.RLock()
 	s := time.Since(wswg.atime)
-	wswg.lock.RUnlock()
+	wswg.connMu.RUnlock()
 
 	return s
 }
 
+// current returns the live connection, the channel that closes when it's
+// replaced, and whether it's already known to be dead.
+func (wswg *WsWgProxy) current() (c net.Conn, swapped chan struct{}, dead bool) {
+	wswg.connMu.RLock()
+	defer wswg.connMu.RUnlock()
+
+	return wswg.wsConn, wswg.swapped, wswg.wsConn == wswg.dead
+}
+
+// resetConn asks the reconnect loop for a new connection because c failed
+// with err. Only the first failure of the live connection counts; later
+// ones (and failures of a connection that's already been replaced) are
+// ignored, and the reconnect loop paces the attempts.
 func (wswg *WsWgProxy) resetConn(ctx context.Context, c net.Conn, err error) {
-	wswg.lock.RLock()
-	cur := wswg.wsConn
-	wswg.lock.RUnlock()
-
-	if cur != c || ctx.Err() != nil {
+	if ctx.Err() != nil {
 		return
 	}
 
-	if err := wswg.limit.Wait(ctx); err != nil {
+	wswg.connMu.Lock()
+	if c != wswg.wsConn || c == wswg.dead {
+		wswg.connMu.Unlock()
+
 		return
 	}
+	wswg.dead = c
+	wswg.connMu.Unlock()
 
 	log.Printf("resetting connection due to error: %s", err)
 
 	select {
-	case wswg.reset <- true:
-	case <-ctx.Done():
+	case wswg.reset <- struct{}{}:
+	default:
 	}
 }
 
-func (wswg *WsWgProxy) Port() (int, error) {
-	bindAddr := wswg.plugConn.LocalAddr()
-	udpBindAddr, ok := bindAddr.(*net.UDPAddr)
-	if !ok {
-		return 0, fmt.Errorf("plugboard: can't recover UDP port")
+// swap installs c as the live connection and closes the old one.
+func (wswg *WsWgProxy) swap(c net.Conn) {
+	wswg.connMu.Lock()
+	old := wswg.wsConn
+	wswg.wsConn = c
+	wswg.dead = nil
+	close(wswg.swapped)
+	wswg.swapped = make(chan struct{})
+	wswg.connMu.Unlock()
+
+	if old != nil {
+		_ = old.Close()
 	}
-
-	log.Printf("returning port: %d", udpBindAddr.Port)
-
-	return udpBindAddr.Port, nil
 }
 
 func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint string) error {
@@ -234,7 +253,7 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 	var reprovisioned *TokenProvision
 
 	if wswg.auth != nil {
-		prov, err := tokenExchange(wsConn, wswg.auth, token)
+		prov, err := tokenExchange(wsConn, wswg.auth, token, wsAuthHeaders && token != "")
 		if err != nil {
 			_ = wsConn.Close()
 
@@ -247,13 +266,11 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 
 		if wswg.prov != nil && !wswg.prov.same(prov) {
 			// Anycast: the reconnect landed on another edge, which has its
-			// own key and allocated us a fresh address. Frames from the new
-			// peer must not be relayed to the old device, which the owner is
-			// about to replace.
+			// own key and allocated us a fresh address. The owner rebuilds
+			// the device around it once the new connection is in place.
 			log.Printf("gateway re-provisioned our peer (%s -> %s)", wswg.prov.PeerIP, prov.PeerIP)
 
 			reprovisioned = prov
-			wswg.lastPlugAddr = nil
 		} else if wswg.prov != nil {
 			log.Printf("gateway session re-authenticated: peer %s, expires %s", prov.PeerIP, prov.ExpiresAt.Format(time.RFC3339))
 		}
@@ -270,10 +287,7 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 		}
 	}
 
-	if wswg.wsConn != nil {
-		_ = wswg.wsConn.Close()
-	}
-	wswg.wsConn = wsConn
+	wswg.swap(wsConn)
 
 	if reprovisioned != nil && wswg.onReprovision != nil {
 		wswg.onReprovision(reprovisioned)
@@ -294,12 +308,15 @@ func permanentTokenFailure(err error) bool {
 		errors.Is(err, ErrMalformedReply)
 }
 
-// close releases the proxy's sockets; for a proxy that was never started.
+// close releases the proxy's connection; for a proxy that was never started.
 func (wswg *WsWgProxy) close() {
-	if wswg.wsConn != nil {
-		_ = wswg.wsConn.Close()
+	wswg.connMu.Lock()
+	c := wswg.wsConn
+	wswg.connMu.Unlock()
+
+	if c != nil {
+		_ = c.Close()
 	}
-	_ = wswg.plugConn.Close()
 }
 
 // scheduleRefresh arranges to re-present our token before the gateway's
@@ -347,6 +364,7 @@ func isTimeout(e error) bool {
 	return errors.As(e, &err) && err.Timeout()
 }
 
+// wsWrite writes one frame (already length-prefixed) to c.
 func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	wswg.wrlock.Lock()
 	defer wswg.wrlock.Unlock()
@@ -356,78 +374,109 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	return err
 }
 
-func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
-	pbuf := make([]byte, 2000)
+// writePacket sends one WireGuard packet to the gateway. A packet for a
+// connection that's known to be dead is dropped, as a UDP send into the
+// void would be; WireGuard retransmits what matters.
+func (wswg *WsWgProxy) writePacket(pkt []byte) error {
+	if len(pkt) > maxFrame {
+		return errFrameTooLarge
+	}
 
-	for ctx.Err() == nil {
-		wswg.lock.RLock()
-		c := wswg.wsConn
-		wswg.lock.RUnlock()
+	c, _, dead := wswg.current()
+	if c == nil || dead {
+		return nil
+	}
 
-		pkt, err := read(c, pbuf)
-		if err != nil {
-			wswg.resetConn(ctx, c, err)
+	wswg.wrlock.Lock()
+	binary.BigEndian.PutUint32(wswg.wbuf, uint32(len(pkt)))
+	n := copy(wswg.wbuf[4:], pkt)
+	_, err := c.Write(wswg.wbuf[:4+n])
+	wswg.wrlock.Unlock()
 
-			continue
-		}
+	if err != nil {
+		wswg.resetConn(wswg.lifetime, c, err)
 
-		wswg.touch()
+		return nil
+	}
 
-		wswg.lock.RLock()
-		addr := wswg.lastPlugAddr
-		wswg.lock.RUnlock()
+	wswg.touch()
 
-		// On token gateways the kernel peer exists (and sends keepalives)
-		// before our wg device has spoken, so frames can arrive before we
-		// know where to deliver them. Drop them; wg retransmits handshakes.
-		if addr == nil {
-			continue
-		}
+	return nil
+}
 
-		if _, err = wswg.plugConn.WriteTo(pkt, addr); err != nil {
-			wswg.resetConn(ctx, c, err)
-		}
+// receive hands the next incoming frame to a device, or reports
+// net.ErrClosed once closed (the bind's) or the link's lifetime ends.
+func (wswg *WsWgProxy) receive(closed <-chan struct{}, packets [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
+	select {
+	case frame := <-wswg.incoming:
+		n := copy(packets[0], frame)
+		sizes[0] = n
+		eps[0] = wsEndpoint{}
+		wswg.pool.Put(frame[:cap(frame)]) // nolint:staticcheck
+
+		return 1, nil
+	case <-closed:
+		return 0, net.ErrClosed
+	case <-wswg.lifetime.Done():
+		return 0, net.ErrClosed
 	}
 }
 
-func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
-	var buf [2000]byte
-
+// readLoop reads frames off whichever connection is live and queues them
+// for the bind, parking on a dead connection until the reconnect loop
+// replaces it.
+func (wswg *WsWgProxy) readLoop(ctx context.Context) {
 	for ctx.Err() == nil {
-		wswg.plugConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		n, a, err := wswg.plugConn.ReadFrom(buf[4:])
-		if err != nil {
-			if isTimeout(err) {
-				continue
+		c, swapped, dead := wswg.current()
+		if c == nil || dead {
+			select {
+			case <-swapped:
+			case <-ctx.Done():
 			}
 
-			// resetting won't do anything here
-			log.Printf("error reading from udp plugboard: %s", err)
+			continue
 		}
-		binary.BigEndian.PutUint32(buf[:], uint32(n))
 
-		wswg.lock.Lock()
-		wswg.lastPlugAddr = a
-		c := wswg.wsConn
-		wswg.lock.Unlock()
+		buf := wswg.pool.Get().([]byte)
 
-		if err = wswg.wsWrite(c, buf[:n+4]); err != nil {
+		n, err := readFrame(c, buf)
+		if err != nil {
+			wswg.pool.Put(buf) // nolint:staticcheck
 			wswg.resetConn(ctx, c, err)
+
+			continue
 		}
 
 		wswg.touch()
+
+		if n == 0 {
+			// keepalive
+			wswg.pool.Put(buf) // nolint:staticcheck
+
+			continue
+		}
+
+		select {
+		case wswg.incoming <- buf[:n]:
+		default:
+			// no device is draining (it's being rebuilt) or it's swamped:
+			// drop, as the network would
+			wswg.pool.Put(buf) // nolint:staticcheck
+		}
 	}
 }
 
-func websocketConnect(dialCtx, lifetimeCtx context.Context, endpoint string) (int, error) {
+// websocketConnect dials a legacy (magic-authenticated) gateway and starts
+// the link; the tunnel's device is expected to follow through bind().
+func websocketConnect(dialCtx, lifetimeCtx context.Context, endpoint string) (*WsWgProxy, error) {
 	wswg, err := websocketConnectAuth(dialCtx, lifetimeCtx, endpoint, nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	wswg.start(lifetimeCtx, endpoint)
 
-	return wswg.Port()
+	return wswg, nil
 }
 
 // websocketConnectAuth dials the gateway once, with optional token
@@ -435,27 +484,23 @@ func websocketConnect(dialCtx, lifetimeCtx context.Context, endpoint string) (in
 // token exchange; wswg.prov holds the latest provision). Nothing runs yet:
 // the caller inspects the proxy, installs callbacks, and then calls start.
 func websocketConnectAuth(dialCtx, lifetimeCtx context.Context, endpoint string, auth *TokenAuth) (*WsWgProxy, error) {
-	wswg, err := NewWsWgProxy()
-	if err != nil {
-		return nil, err
-	}
+	wswg := NewWsWgProxy(lifetimeCtx)
 	wswg.auth = auth
 
-	if err = wswg.Connect(dialCtx, lifetimeCtx, endpoint); err != nil {
-		wswg.plugConn.Close()
-
+	if err := wswg.Connect(dialCtx, lifetimeCtx, endpoint); err != nil {
 		return nil, err
 	}
 
 	return wswg, nil
 }
 
-// start runs the relay, reconnect and keepalive loops until lifetimeCtx is
+// start runs the reader, reconnect and keepalive loops until lifetimeCtx is
 // canceled.
 func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
+	go wswg.readLoop(lifetimeCtx)
+
 	go func() {
-		defer wswg.wsConn.Close()   // skipcq: GO-S2307
-		defer wswg.plugConn.Close() // skipcq: GO-S2307
+		defer wswg.close()
 
 		c := make(chan os.Signal, 1)
 		signalChannel(c)
@@ -498,22 +543,32 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 				}
 
 				if !reconnectAt.IsZero() && !reconnectAt.After(now) {
+					reconnectAt = time.Time{}
+
 					wswg.lock.Lock()
 					wswg.refreshAt = time.Time{}
 					if err := wswg.Connect(lifetimeCtx, lifetimeCtx, endpoint); err != nil {
-						// After a dropped connection the relay loops keep
-						// failing on the dead conn and ask for another reset.
-						// After a failed refresh the old conn is still fine;
-						// try again before the session expires.
 						log.Printf("reconnect failed: %s", err)
 
+						// After a failed refresh the old connection is still
+						// fine; try again before the session expires. After a
+						// dropped connection there's nothing to do but retry.
 						if wswg.prov != nil {
 							wswg.scheduleRefresh(wswg.prov)
 						}
+						if _, _, dead := wswg.current(); dead {
+							reconnectAt = now.Add(reconnectInterval)
+						}
+					} else {
+						// A token gateway drops the previous session once the
+						// new one authenticates, which the reader reports as a
+						// reset; that connection is already replaced.
+						select {
+						case <-wswg.reset:
+						default:
+						}
 					}
 					wswg.lock.Unlock()
-
-					reconnectAt = time.Time{}
 				}
 
 			case <-lifetimeCtx.Done():
@@ -533,18 +588,16 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 	}()
 
 	go func() {
-		go wswg.ws2wg(lifetimeCtx)
-		go wswg.wg2ws(lifetimeCtx)
-
 		zeroLenMsg := make([]byte, 4)
 
 		for lifetimeCtx.Err() == nil {
 			time.Sleep(1 * time.Second)
 
 			if wswg.lastIo() > (1 * time.Second) {
-				wswg.lock.RLock()
-				c := wswg.wsConn
-				wswg.lock.RUnlock()
+				c, _, dead := wswg.current()
+				if c == nil || dead {
+					continue
+				}
 
 				if err := wswg.wsWrite(c, zeroLenMsg); err != nil {
 					wswg.resetConn(lifetimeCtx, c, err)

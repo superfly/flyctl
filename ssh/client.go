@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -62,7 +61,7 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	signer, err := ssh.NewCertSigner(cert, keySigner)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("certificate does not match key: %w", err)
 	}
 
 	tcpConn, err := c.Dial(ctx, "tcp", c.Addr)

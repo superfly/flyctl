@@ -34,6 +34,18 @@ type SessionIO struct {
 
 	AllocPTY bool
 	TermEnv  string
+
+	// Window, when set, supplies the terminal size instead of probing
+	// Stdin for a console, and Resizes (optional) delivers later changes.
+	// It's how a terminal that isn't a file descriptor, like one in a
+	// browser, drives the remote pty.
+	Window  func() WindowSize
+	Resizes <-chan WindowSize
+}
+
+// WindowSize is a terminal's dimensions in cells.
+type WindowSize struct {
+	Width, Height int
 }
 
 func getFd(reader io.Reader) (fd int, ok bool) {
@@ -60,7 +72,12 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 			defer term.Restore(fd, state)
 		}
 
-		if w, h, err := s.getAndWatchSize(ctx, sess); err == nil {
+		if s.Window != nil {
+			size := s.Window()
+			width, height = size.Width, size.Height
+
+			go s.watchResizes(ctx, sess)
+		} else if w, h, err := s.getAndWatchSize(ctx, sess); err == nil {
 			width, height = w, h
 		}
 
@@ -91,6 +108,29 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 
 		return sess.Run(cmd)
 	})
+}
+
+// watchResizes forwards sizes arriving on Resizes to the session until ctx
+// ends or the channel closes.
+func (s *SessionIO) watchResizes(ctx context.Context, sess *ssh.Session) {
+	if s.Resizes == nil {
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case size, ok := <-s.Resizes:
+			if !ok {
+				return
+			}
+
+			if err := sess.WindowChange(size.Height, size.Width); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdout, stderr io.Reader, run func() error) error {

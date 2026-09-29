@@ -1,3 +1,5 @@
+//go:build !js
+
 package wg
 
 import (
@@ -44,6 +46,7 @@ type fakeTokenGateway struct {
 	answers      []tokenResult
 	silent       bool // accept, then never speak: a legacy gateway waiting for magic
 	noAuthHeader bool // hello doesn't advertise reading the Authorization header
+	echo         bool // relay frames back to the client instead of discarding them
 
 	mu      sync.Mutex
 	n       int
@@ -121,7 +124,11 @@ func (g *fakeTokenGateway) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		_, _ = io.Copy(io.Discard, conn)
+		if g.echo {
+			_, _ = io.Copy(conn, conn)
+		} else {
+			_, _ = io.Copy(io.Discard, conn)
+		}
 		cancel()
 	}()
 

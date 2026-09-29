@@ -5,8 +5,6 @@ import (
 	"net"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/terminal"
 	"golang.zx2c4.com/wireguard/device"
 )
 
@@ -21,6 +19,11 @@ type WireGuardState struct {
 }
 
 type States map[string]*WireGuardState
+
+// deviceLogLevel picks wireguard-go's log level for new devices. The CLI
+// build ties it to flyctl's log level (loglevel_cli.go); builds without a
+// terminal, like the browser one, log errors only.
+var deviceLogLevel = func() int { return device.LogLevelError }
 
 // BUG(tqbf): Obviously all this needs to go, and I should just
 // make my code conform to the marshal/unmarshal protocol wireguard-go
@@ -74,13 +77,7 @@ func (s *WireGuardState) TunnelConfig() *Config {
 	wgl := IPNet(*lnet)
 	wgr := IPNet(*rnet)
 
-	var wgLogLevel int
-	switch terminal.GetLogLevel() {
-	case logger.Debug:
-		wgLogLevel = device.LogLevelVerbose
-	case logger.Info | logger.Warn | logger.Error:
-		wgLogLevel = device.LogLevelError
-	}
+	wgLogLevel := deviceLogLevel()
 
 	return &Config{
 		LocalPrivateKey: skey,

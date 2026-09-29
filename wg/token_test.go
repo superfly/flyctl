@@ -64,7 +64,7 @@ func TestTokenExchange(t *testing.T) {
 	prov, err := tokenExchange(client, &TokenAuth{
 		Pubkey:  "CLIENT_PUBKEY",
 		OrgSlug: "personal",
-	}, "FlyV1 fm2_test")
+	}, "FlyV1 fm2_test", true)
 	require.NoError(t, err)
 
 	assert.Equal(t, testGatewayPubkey, prov.GatewayPubkey)
@@ -89,7 +89,7 @@ func TestTokenExchangeOmitsPacketTokenForHeaderGateway(t *testing.T) {
 		PeerIP: "fdaa:0:18:ac10:5:1234:5678:9a02",
 	}, true)
 
-	_, err := tokenExchange(client, &TokenAuth{Pubkey: "CLIENT_PUBKEY"}, "FlyV1 fm2_test")
+	_, err := tokenExchange(client, &TokenAuth{Pubkey: "CLIENT_PUBKEY"}, "FlyV1 fm2_test", true)
 	require.NoError(t, err)
 
 	auth := <-got
@@ -107,7 +107,7 @@ func TestTokenExchangeRejected(t *testing.T) {
 		Error: "token not authorized for wireguard access",
 	})
 
-	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_bad")
+	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_bad", true)
 	require.Error(t, err)
 
 	var gwErr *GatewayError
@@ -130,7 +130,7 @@ func TestTokenExchangeMalformedReply(t *testing.T) {
 
 			fakeGateway(t, gateway, &res)
 
-			_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
+			_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test", true)
 			assert.ErrorIs(t, err, ErrMalformedReply)
 		})
 	}
@@ -147,7 +147,7 @@ func TestTokenExchangeMalformedReply(t *testing.T) {
 			_ = writeJSONFrame(gateway, &tokenResult{Type: "ok", PeerIP: "fdaa:0:18:ac10:5:1234:5678:9a02"})
 		}()
 
-		_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
+		_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test", true)
 		assert.ErrorIs(t, err, ErrMalformedReply)
 	})
 }
@@ -157,7 +157,7 @@ func TestTokenExchangeNoToken(t *testing.T) {
 	defer client.Close()
 	defer gateway.Close()
 
-	_, err := tokenExchange(client, &TokenAuth{}, "")
+	_, err := tokenExchange(client, &TokenAuth{}, "", true)
 	assert.ErrorIs(t, err, ErrNoToken)
 }
 
@@ -170,7 +170,7 @@ func TestTokenExchangeClosedBeforeHelloIsNotNoHello(t *testing.T) {
 		gateway.Close()
 	}()
 
-	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
+	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test", true)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrNoHello)
 }
@@ -192,7 +192,7 @@ func TestTokenExchangeHelloTimeout(t *testing.T) {
 	defer gateway.Close()
 
 	start := time.Now()
-	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test")
+	_, err := tokenExchange(client, &TokenAuth{}, "FlyV1 fm2_test", true)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrNoHello)
 	assert.Less(t, time.Since(start), 10*time.Second)

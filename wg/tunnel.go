@@ -35,14 +35,18 @@ type Tunnel struct {
 	Config *Config
 
 	// endpointAddr is what the WireGuard device sends to: the gateway's
-	// UDP address, or the local websocket proxy's plugboard port.
+	// UDP address, or a placeholder for tunnels whose device sends through
+	// the websocket link instead.
 	endpointAddr string
 	wscancel     func()
 	resolv       *net.Resolver
 
+	// websocket tunnels: the link, and the current device's bind on it
+	wswg *WsWgProxy
+	bind *wsBind
+
 	// token mode
 	ephemeral bool
-	wswg      *WsWgProxy
 	done      chan struct{}
 	doneOnce  sync.Once
 	err       error
@@ -69,21 +73,24 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 	endpointIP := endpointIPs[rand.Intn(len(endpointIPs))]
 	endpointAddr := net.JoinHostPort(endpointIP.String(), endpointPort)
 
-	var wscancel context.CancelFunc
+	var (
+		wscancel context.CancelFunc
+		link     *WsWgProxy
+	)
 	if wswg {
 		lifetimeCtx, cancel := context.WithCancelCause(context.Background())
 		wscancel = func() { cancel(fmt.Errorf("WireGuard websocket tunnel closed: %w", context.Canceled)) }
-		port, err := websocketConnect(ctx, lifetimeCtx, endpointHost)
+		link, err = websocketConnect(ctx, lifetimeCtx, endpointHost)
 		if err != nil {
 			wscancel()
 
 			return nil, err
 		}
 
-		endpointAddr = fmt.Sprintf("127.0.0.1:%d", port)
+		endpointAddr = wsEndpointPlaceholder
 	}
 
-	tunnel, err := newTunnel(state, cfg, endpointAddr, wscancel)
+	tunnel, err := newTunnel(state, cfg, endpointAddr, wscancel, link)
 	if err != nil {
 		if wscancel != nil {
 			wscancel()
@@ -117,18 +124,10 @@ func ConnectToken(ctx context.Context, state *WireGuardState, endpoint string, a
 
 	// the proxy isn't running yet, so its state is ours to read and the
 	// callbacks are in place before any reconnect can happen
-	port, err := wswg.Port()
-	if err != nil {
-		wscancel()
-		wswg.close()
-
-		return nil, err
-	}
-
 	prov := wswg.prov
 	applyProvision(state, endpoint, prov)
 
-	tunnel, err := newTunnel(state, tokenTunnelConfig(state, prov), fmt.Sprintf("127.0.0.1:%d", port), wscancel)
+	tunnel, err := newTunnel(state, tokenTunnelConfig(state, prov), wsEndpointPlaceholder, wscancel, wswg)
 	if err != nil {
 		wscancel()
 		wswg.close()
@@ -137,7 +136,6 @@ func ConnectToken(ctx context.Context, state *WireGuardState, endpoint string, a
 	}
 
 	tunnel.ephemeral = true
-	tunnel.wswg = wswg
 
 	wswg.setCallbacks(tunnel.reprovision, tunnel.fail)
 	wswg.start(lifetimeCtx, endpoint)
@@ -166,8 +164,25 @@ func tokenTunnelConfig(state *WireGuardState, prov *TokenProvision) *Config {
 	return cfg
 }
 
-func newTunnel(state *WireGuardState, cfg *Config, endpointAddr string, wscancel context.CancelFunc) (*Tunnel, error) {
-	dev, tunDev, gNet, err := startDevice(cfg, endpointAddr)
+// wsEndpointPlaceholder is the endpoint a websocket tunnel's device is
+// configured with; its bind ignores it, since frames can only go to the
+// gateway at the other end of the link.
+const wsEndpointPlaceholder = "wswg"
+
+// newTunnel builds a tunnel around a new device. With a websocket link the
+// device sends and receives through it; without one it uses UDP to
+// endpointAddr.
+func newTunnel(state *WireGuardState, cfg *Config, endpointAddr string, wscancel context.CancelFunc, link *WsWgProxy) (*Tunnel, error) {
+	var (
+		bind    *wsBind
+		devBind conn.Bind
+	)
+	if link != nil {
+		bind = link.bind()
+		devBind = bind
+	}
+
+	dev, tunDev, gNet, err := startDevice(cfg, endpointAddr, devBind)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +196,8 @@ func newTunnel(state *WireGuardState, cfg *Config, endpointAddr string, wscancel
 		State:        state,
 		endpointAddr: endpointAddr,
 		wscancel:     wscancel,
+		wswg:         link,
+		bind:         bind,
 		done:         make(chan struct{}),
 	}
 
@@ -202,8 +219,9 @@ func newTunnel(state *WireGuardState, cfg *Config, endpointAddr string, wscancel
 }
 
 // startDevice builds a userspace WireGuard device (and the netstack behind
-// it) for cfg, pointed at endpointAddr, and brings it up.
-func startDevice(cfg *Config, endpointAddr string) (*device.Device, tun.Device, *netstack.Net, error) {
+// it) for cfg, pointed at endpointAddr, and brings it up. It sends through
+// bind, or plain UDP when bind is nil.
+func startDevice(cfg *Config, endpointAddr string, bind conn.Bind) (*device.Device, tun.Device, *netstack.Net, error) {
 	addr, ok := netip.AddrFromSlice(cfg.LocalNetwork.IP)
 	if !ok {
 		return nil, nil, nil, fmt.Errorf("could not generate local network addr from IP %s: ", cfg.LocalNetwork.IP)
@@ -224,7 +242,11 @@ func startDevice(cfg *Config, endpointAddr string) (*device.Device, tun.Device, 
 		return nil, nil, nil, err
 	}
 
-	wgDev := device.NewDevice(tunDev, conn.NewDefaultBind(), device.NewLogger(cfg.LogLevel, "(fly-ssh) "))
+	if bind == nil {
+		bind = conn.NewDefaultBind()
+	}
+
+	wgDev := device.NewDevice(tunDev, bind, device.NewLogger(cfg.LogLevel, "(fly-ssh) "))
 
 	wgConf := bytes.NewBuffer(nil)
 	fmt.Fprintf(wgConf, "private_key=%s\n", cfg.LocalPrivateKey.ToHex())
@@ -275,9 +297,8 @@ func (t *Tunnel) netstack() (*netstack.Net, net.IP, error) {
 }
 
 // reprovision rebuilds the WireGuard device around the address and gateway
-// key a reconnect got us, keeping the websocket proxy (and its plugboard
-// port) in place. Connections through the old device are lost: their
-// source address no longer exists.
+// key a reconnect got us, keeping the websocket link in place. Connections
+// through the old device are lost: their source address no longer exists.
 func (t *Tunnel) reprovision(prov *TokenProvision) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -290,7 +311,13 @@ func (t *Tunnel) reprovision(prov *TokenProvision) {
 	applyProvision(&state, state.Peer.Endpointip, prov)
 	cfg := tokenTunnelConfig(&state, prov)
 
-	dev, tunDev, gNet, err := startDevice(cfg, t.endpointAddr)
+	// stop the old device reading the link first, so the new peer's first
+	// frames reach the new device rather than one about to be discarded
+	t.bind.Close()
+
+	bind := t.wswg.bind()
+
+	dev, tunDev, gNet, err := startDevice(cfg, t.endpointAddr, bind)
 	if err != nil {
 		t.failLocked(&RebuildError{PeerIP: prov.PeerIP, Err: err})
 
@@ -299,6 +326,7 @@ func (t *Tunnel) reprovision(prov *TokenProvision) {
 
 	old := t.dev
 	t.dev, t.tun, t.net, t.dnsIP = dev, tunDev, gNet, cfg.DNS
+	t.bind = bind
 	t.State, t.Config = &state, cfg
 
 	old.Close()

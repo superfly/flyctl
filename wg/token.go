@@ -222,9 +222,9 @@ func readJSONFrame(r io.Reader, v any) error {
 }
 
 // tokenExchange authenticates a freshly-dialed websocket connection with
-// token (already sent as the dial's Authorization header) and returns the
-// peer the gateway provisioned for us.
-func tokenExchange(conn net.Conn, auth *TokenAuth, token string) (*TokenProvision, error) {
+// token (already sent as the dial's Authorization header when headerSent)
+// and returns the peer the gateway provisioned for us.
+func tokenExchange(conn net.Conn, auth *TokenAuth, token string, headerSent bool) (*TokenProvision, error) {
 	if token == "" {
 		return nil, ErrNoToken
 	}
@@ -255,9 +255,10 @@ func tokenExchange(conn net.Conn, auth *TokenAuth, token string) (*TokenProvisio
 	}
 
 	// a gateway that took the token from the Authorization header must not
-	// get a second copy it would have to reconcile with a proxy's rewrite
+	// get a second copy it would have to reconcile with a proxy's rewrite;
+	// a dial that couldn't send the header has to put it in the packet
 	packetToken := token
-	if hello.AuthHeader {
+	if hello.AuthHeader && headerSent {
 		packetToken = ""
 	}
 
