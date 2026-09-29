@@ -780,6 +780,21 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
 }
 
+func TestLoadYAMLAppConfigWithNonStringKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fly.yaml")
+	err := os.WriteFile(path, []byte("app: foo\nenv:\n  1: one\n  true: yes\n"), 0o600)
+	require.NoError(t, err)
+
+	require.NotPanics(t, func() {
+		_, err = LoadConfig(path)
+		assert.NoError(t, err)
+
+		_, err = LoadConfigAsMap(path)
+		assert.NoError(t, err)
+	})
+}
+
 //go:fix inline
 func UintPointer(v uint32) *uint32 {
 	return new(v)
