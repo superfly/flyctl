@@ -47,6 +47,7 @@ func TestConfirmOverwriteNonInteractive(t *testing.T) {
 
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
+	defer r.Close()
 
 	origIn, origOut := os.Stdin, os.Stdout
 	os.Stdin, os.Stdout = devNull, w
