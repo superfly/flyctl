@@ -3,6 +3,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -738,6 +739,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				var typeErr *json.UnmarshalTypeError
+				if strings.HasSuffix(path, ".json") && flag.FromContext(ctx).Lookup("machine-config") != nil &&
+					errors.As(err, &typeErr) && typeErr.Field == "restart" && typeErr.Value == "object" {
+					logger.Warn("--config expects app configuration; use --machine-config for Machine JSON.")
+				}
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
 
