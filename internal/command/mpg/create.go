@@ -1,8 +1,11 @@
 package mpg
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -110,9 +113,12 @@ func runCreate(ctx context.Context) error {
 	}
 
 	// Plan selection and validation
-	plan := flag.GetString(ctx, "plan")
-	plan = normalizePlan(plan)
-	if _, ok := MPGPlans[plan]; !ok {
+	plan, ok := planKey(flag.GetString(ctx, "plan"))
+	if !ok {
+		if !io.IsInteractive() && flag.IsSpecified(ctx, "plan") {
+			return fmt.Errorf("unknown plan %q; valid plans are %s", flag.GetString(ctx, "plan"), planNames())
+		}
+
 		if io.IsInteractive() {
 			// Prepare a sortable slice of plans
 			type planEntry struct {
@@ -169,7 +175,30 @@ func runCreate(ctx context.Context) error {
 	})
 }
 
-// normalizePlan lowercases and trims whitespace from the plan name for lookup
-func normalizePlan(plan string) string {
-	return strings.ToLower(strings.TrimSpace(plan))
+// planKey returns the MPGPlans key for a plan name given in any case. The keys
+// are what the API expects, so "performance" has to find "Performance" (#4612)
+// rather than be lowercased.
+func planKey(name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	for key := range MPGPlans {
+		if strings.EqualFold(key, name) {
+			return key, true
+		}
+	}
+
+	return "", false
+}
+
+// planNames lists the plans cheapest first, as --plan's help does.
+func planNames() string {
+	keys := slices.SortedFunc(maps.Keys(MPGPlans), func(a, b string) int {
+		return cmp.Compare(MPGPlans[a].PricePerMo, MPGPlans[b].PricePerMo)
+	})
+
+	names := make([]string, len(keys))
+	for i, key := range keys {
+		names[i] = MPGPlans[key].Name
+	}
+
+	return strings.Join(names, ", ")
 }
