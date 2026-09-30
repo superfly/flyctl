@@ -103,7 +103,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "machine-config",
-		Description: "Read machine config from json file or string",
+		Description: "Read Machine config from a JSON file or string (use --config for app configuration)",
 	},
 	flag.StringArray{
 		Name:        "kernel-arg",
