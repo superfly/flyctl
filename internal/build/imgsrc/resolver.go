@@ -140,7 +140,9 @@ func (di *DeploymentImage) String() string {
 		return di.Tag
 	}
 
-	return fmt.Sprintf("%s@%s", di.Tag, di.Digest)
+	tag, _, _ := strings.Cut(di.Tag, "@")
+
+	return fmt.Sprintf("%s@%s", tag, di.Digest)
 }
 
 func (di *DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
