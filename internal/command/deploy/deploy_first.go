@@ -46,15 +46,19 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		hasUdpService := md.appConfig.HasUdpService()
 
 		ipStuffStr := "a dedicated ipv4 address"
-		allocateCmds := "fly ips allocate-v4"
 		if !hasUdpService {
 			ipStuffStr = "dedicated ipv4 and ipv6 addresses"
-			allocateCmds = "fly ips allocate-v4 and fly ips allocate-v6"
 		}
 
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
 		if !confirmDedicatedIp || err != nil {
-			fmt.Fprintf(md.io.ErrOut, "No IP addresses allocated, so %s is not reachable from the internet yet. Its services need %s: run %s\n", md.app.Name, ipStuffStr, allocateCmds)
+			// allocate-v4 refuses to run without a terminal unless --yes
+			// accepts the charge, so say what --yes pays for.
+			fmt.Fprintf(md.io.ErrOut, "No IP addresses allocated, so %s is not reachable from the internet yet. Its services need %s:\n", md.app.Name, ipStuffStr)
+			if !hasUdpService {
+				fmt.Fprintf(md.io.ErrOut, "  fly ips allocate-v6 -a %s\n", md.app.Name)
+			}
+			fmt.Fprintf(md.io.ErrOut, "  fly ips allocate-v4 --yes -a %s   (a dedicated IPv4 costs $2/mo; --yes accepts the charge)\n", md.app.Name)
 		} else {
 			v4Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
 				Type: flaps.IPAssignmentTypeV4,
