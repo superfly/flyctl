@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/client"
@@ -23,6 +24,24 @@ func TestDeploymentImage(t *testing.T) {
 
 	image.Digest = ""
 	assert.Equal(t, "docker-hub-mirror.fly.io/flyio/postgres-flex:16", image.String())
+}
+
+func TestDeploymentImagePinned(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	image := &DeploymentImage{
+		Tag:    "haproxy@" + digest,
+		Digest: digest,
+	}
+	assert.Equal(t, image.Tag, image.String())
+
+	image.Tag = "haproxy:latest@" + digest
+	assert.Equal(t, image.Tag, image.String())
+
+	image.Digest = "sha256:" + strings.Repeat("b", 64)
+	assert.Equal(t, "haproxy:latest@"+image.Digest, image.String())
+
+	image.Digest = ""
+	assert.Equal(t, image.Tag, image.String())
 }
 
 func TestHeartbeat(t *testing.T) {
