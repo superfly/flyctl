@@ -21,3 +21,12 @@ func NewContext(ctx context.Context, fs *pflag.FlagSet) context.Context {
 func FromContext(ctx context.Context) *pflag.FlagSet {
 	return ctx.Value(contextKey{}).(*pflag.FlagSet)
 }
+
+// FromContextOrNil returns the FlagSet ctx carries, or nil in case ctx carries
+// none. It exists for callers that run before flags are guaranteed to be in
+// context, such as the preparer that determines the config directory.
+func FromContextOrNil(ctx context.Context) *pflag.FlagSet {
+	fs, _ := ctx.Value(contextKey{}).(*pflag.FlagSet)
+
+	return fs
+}
