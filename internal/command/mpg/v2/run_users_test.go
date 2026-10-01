@@ -64,6 +64,7 @@ func TestRunUsersList(t *testing.T) {
 		{name: "wrapped 404 fallback", publicErr: wrappedNotFound(), legacyUsers: []mpgv2.User{{Name: "legacy_user", Role: "schema_admin"}}, wantLegacy: true, wantContains: []string{"legacy_user", "schema_admin"}},
 		{name: "non-404 authoritative", publicErr: &flaps.FlapsError{ResponseStatusCode: 422, OriginalError: errors.New("invalid")}, wantErr: "failed to list users for cluster mpg-123", wantLegacy: false},
 		{name: "legacy failure", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy boom"), wantLegacy: true, wantErr: "failed to list users for cluster mpg-123: legacy boom"},
+		{name: "resource 404 is authoritative", publicErr: resourceNotFound("Cluster not found"), wantErr: "failed to list users for cluster mpg-123: Cluster not found", wantLegacy: false},
 	}
 
 	for _, tt := range tests {
@@ -121,6 +122,7 @@ func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 		{name: "public success", username: "new_user", role: "writer", wantPublic: true},
 		{name: "wrapped 404 fallback", username: "new_user", role: "reader", publicErr: wrappedNotFound(), wantPublic: true, wantLegacy: true},
 		{name: "conflict authoritative", username: "new_user", role: "writer", publicErr: &flaps.FlapsError{ResponseStatusCode: 409, OriginalError: errors.New("exists")}, wantPublic: true, wantErr: "failed to create user"},
+		{name: "resource 404 is authoritative", username: "new_user", role: "writer", publicErr: resourceNotFound("Cluster not found"), wantPublic: true, wantErr: "failed to create user: Cluster not found"},
 		{name: "username required first", role: "writer", wantErr: "username must be specified"},
 		{name: "role required", username: "new_user", wantErr: "user role must be specified"},
 		{name: "role validated before API", username: "new_user", role: "owner", wantErr: `invalid role "owner"`},
@@ -174,6 +176,7 @@ func TestRunUsersSetRoleRouting(t *testing.T) {
 		{name: "wrapped 404 fallback", publicErr: wrappedNotFound(), wantLegacy: true},
 		{name: "wrapped 404 legacy failure", publicErr: wrappedNotFound(), legacyErr: errors.New("legacy update boom"), wantLegacy: true, wantExactErr: "failed to update user role: legacy update boom"},
 		{name: "server error authoritative", publicErr: &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("boom")}, wantErr: "failed to update user role"},
+		{name: "resource 404 is authoritative", publicErr: resourceNotFound("User not found"), wantExactErr: "failed to update user role: User not found"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, stdout, _ := usersTestContext(t, false)
@@ -223,6 +226,7 @@ func TestRunUsersDeleteRoutingAndYes(t *testing.T) {
 		{name: "classified 404 fallback", publicErr: flaps.ErrFlapsNotFound, wantLegacy: true},
 		{name: "wrapped 404 legacy failure", publicErr: wrappedNotFound(), legacyErr: errors.New("legacy delete boom"), wantLegacy: true, wantExactErr: "failed to delete user: legacy delete boom"},
 		{name: "gone authoritative", publicErr: &flaps.FlapsError{ResponseStatusCode: 410, OriginalError: errors.New("gone")}, wantErr: "failed to delete user"},
+		{name: "resource 404 is authoritative", publicErr: resourceNotFound("User not found"), wantExactErr: "failed to delete user: User not found"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, stdout, stderr := usersTestContext(t, false)

@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/fly-go/flaps"
@@ -28,8 +27,7 @@ func RunRestore(ctx context.Context, clusterID string, backupID string, name str
 	}
 
 	response, err := flapsutil.ClientFromContext(ctx).RestoreManagedPostgresCluster(ctx, clusterID, request)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		publicErr := err
+	if flapsutil.IsFlapsRouteMissing(err) {
 		var legacyResponse mpgv2.RestoreClusterBackupResponse
 		legacyResponse, err = mpgClient.RestoreClusterBackup(ctx, clusterID, mpgv2.RestoreClusterBackupInput{
 			BackupId: backupID,
@@ -37,7 +35,7 @@ func RunRestore(ctx context.Context, clusterID string, backupID string, name str
 			PitrTime: pitrTime,
 		})
 		if err != nil {
-			return fmt.Errorf("failed to restore cluster: %w", publicErr)
+			return fmt.Errorf("failed to restore cluster: %w", err)
 		}
 
 		response = flaps.ManagedPostgresCluster{
