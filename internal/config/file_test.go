@@ -56,6 +56,29 @@ func TestWriteFileAtomicallyKeepsOldContentOnFailure(t *testing.T) {
 	require.Equal(t, "access_token: old\n", string(got), "a failed write must not touch the existing file")
 }
 
+func TestWriteFileAtomicallyFollowsSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("creating symlinks needs elevated privileges on Windows")
+	}
+
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.yml")
+	link := filepath.Join(dir, "config.yml")
+
+	require.NoError(t, os.WriteFile(target, []byte("access_token: old\n"), 0o600))
+	require.NoError(t, os.Symlink(target, link))
+
+	require.NoError(t, writeFileAtomically(link, []byte("access_token: new\n"), 0o600))
+
+	info, err := os.Lstat(link)
+	require.NoError(t, err)
+	require.NotZero(t, info.Mode()&os.ModeSymlink, "the symlink must not be replaced by a regular file")
+
+	got, err := os.ReadFile(target)
+	require.NoError(t, err)
+	require.Equal(t, "access_token: new\n", string(got))
+}
+
 func TestSetAccessTokenRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yml")
 
