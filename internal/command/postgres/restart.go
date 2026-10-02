@@ -123,9 +123,11 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 
 	// Don't attempt to failover unless we have in-region replicas
 	inRegionReplicas := 0
-	for _, replica := range replicas {
-		if replica.Region == leader.Region {
-			inRegionReplicas++
+	if leader != nil {
+		for _, replica := range replicas {
+			if replica.Region == leader.Region {
+				inRegionReplicas++
+			}
 		}
 	}
 
@@ -143,8 +145,11 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 		}
 	}
 
-	if err = mach.Restart(ctx, appName, leader, input, leader.LeaseNonce); err != nil {
-		return err
+	// There is no leader to restart when --force continued without one.
+	if leader != nil {
+		if err = mach.Restart(ctx, appName, leader, input, leader.LeaseNonce); err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster has been successfully restarted!\n")
