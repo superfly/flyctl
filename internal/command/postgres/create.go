@@ -65,6 +65,10 @@ func newCreate() *cobra.Command {
 			Description: "The volume size in GB",
 		},
 		flag.String{
+			Name:        "network",
+			Description: "Specify custom network id",
+		},
+		flag.String{
 			Name:        "consul-url",
 			Description: "Opt into using an existing consul as the backend store by specifying the target consul url.",
 		},
@@ -275,6 +279,7 @@ func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Regi
 
 	input := &flypg.CreateClusterInput{
 		AppName:        params.Name,
+		Network:        flag.GetString(ctx, "network"),
 		Organization:   org,
 		ImageRef:       params.ImageRef,
 		Region:         region.Code,
