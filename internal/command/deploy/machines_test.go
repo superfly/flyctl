@@ -2,17 +2,21 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -453,6 +457,47 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}, li)
 }
 
+// A machine with a volume that fly.toml no longer mounts is replaced only
+// once the user confirms. Without a terminal the error asked for --yes, but
+// --yes was never consulted, so a headless deploy had no way through.
+func TestValidateVolumeConfigVolumeNotInConfig(t *testing.T) {
+	run := func(t *testing.T, args ...string) error {
+		t.Helper()
+
+		md, err := stabMachineDeployment(&appconfig.Config{})
+		require.NoError(t, err)
+
+		ios, _, _, _ := iostreams.Test()
+		md.io = ios
+		md.colorize = ios.ColorScheme()
+		md.machineSet = machine.NewMachineSet(nil, ios, "", []*fly.Machine{{
+			ID:     "machine-with-volume",
+			Region: "qmx",
+			Config: &fly.MachineConfig{
+				Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"},
+				Mounts:   []fly.MachineMount{{Volume: "vol_data", Path: "/data"}},
+			},
+		}}, true)
+
+		flags := pflag.NewFlagSet("deploy", pflag.ContinueOnError)
+		flags.BoolP("yes", "y", false, "")
+		require.NoError(t, flags.Parse(args))
+		ctx := flagctx.NewContext(iostreams.NewContext(context.Background(), ios), flags)
+
+		return md.validateVolumeConfig(ctx)
+	}
+
+	t.Run("headless without --yes says how to fix it", func(t *testing.T) {
+		err := run(t)
+		require.ErrorIs(t, err, prompt.ErrNonInteractive)
+		require.ErrorContains(t, err, "[mounts]")
+	})
+
+	t.Run("--yes confirms", func(t *testing.T) {
+		require.NoError(t, run(t, "--yes"))
+	})
+}
+
 func TestValidateVolumeConfigNewGroupRequiresVolumeInPrimaryRegion(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		PrimaryRegion: "qmx",
@@ -696,6 +741,67 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}, got)
+}
+
+// Services that need a dedicated IP (UDP, or TCP off 80/443) are allocated one
+// only if the user says yes. Without a terminal nobody can, and the deploy
+// used to finish with no IPs, no message and exit 0: an unreachable app.
+func TestProvisionIpsOnFirstDeployDedicatedNonInteractive(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		service appconfig.Service
+		wantV6  bool
+	}{
+		{
+			name:    "udp needs a dedicated ipv4",
+			service: appconfig.Service{Protocol: "udp", InternalPort: 5000, Ports: []fly.MachinePort{{Port: new(5000)}}},
+		},
+		{
+			name:    "tcp off 80/443 needs dedicated ipv4 and ipv6",
+			service: appconfig.Service{Protocol: "tcp", InternalPort: 5432, Ports: []fly.MachinePort{{Port: new(5432)}}},
+			wantV6:  true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			md, err := stabMachineDeployment(&appconfig.Config{
+				AppName:  "my-cool-app",
+				Services: []appconfig.Service{tc.service},
+			})
+			require.NoError(t, err)
+
+			ios, _, _, errOut := iostreams.Test()
+			md.io = ios
+			md.colorize = ios.ColorScheme()
+			md.isFirstDeploy = true
+
+			assigned := 0
+			md.flapsClient = &mock.FlapsClient{
+				GetIPAssignmentsFunc: func(context.Context, string) (*flaps.ListIPAssignmentsResponse, error) {
+					return &flaps.ListIPAssignmentsResponse{}, nil
+				},
+				AssignIPFunc: func(context.Context, string, flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+					assigned++
+
+					return nil, errors.New("unexpected")
+				},
+			}
+
+			ctx := iostreams.NewContext(context.Background(), ios)
+			require.NoError(t, md.provisionIpsOnFirstDeploy(ctx, "", "my-org"))
+			require.Zero(t, assigned, "dedicated IPs cost money and need a yes")
+
+			// The commands have to work without a terminal too: allocate-v4
+			// refuses without --yes, and --yes is agreeing to a charge.
+			notice := errOut.String()
+			require.Contains(t, notice, "fly ips allocate-v4 --yes -a my-cool-app")
+			require.Contains(t, notice, "$2/mo")
+			if tc.wantV6 {
+				require.Contains(t, notice, "fly ips allocate-v6 -a my-cool-app")
+			} else {
+				require.NotContains(t, notice, "allocate-v6")
+			}
+		})
+	}
 }
 
 func TestProvisionIpsOnFirstDeployPrivateNetwork(t *testing.T) {

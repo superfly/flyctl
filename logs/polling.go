@@ -70,6 +70,10 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 
 		errorCount = 0
 		if len(entries) == 0 {
+			if opts.NoTail {
+				return nil
+			}
+
 			waitFor = backoff(minWait, maxWait)
 
 			continue

@@ -1,13 +1,48 @@
 package launch
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/scanner"
 )
+
+// Relaunching over a file a scanner generates (Dockerfile, fly-deploy.yml)
+// asks before overwriting it. Without a terminal the file is kept, and the
+// output has to say so, or an agent never learns why its change is missing.
+func TestScannerCreateFilesKeepsExistingFileHeadless(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Dockerfile")
+	require.NoError(t, os.WriteFile(path, []byte("old"), 0o600))
+
+	ios, _, out, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	ctx = flagctx.NewContext(ctx, New().Flags())
+
+	state := &launchState{
+		workingDir: dir,
+		planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{
+			Files: []scanner.SourceFile{{Path: "Dockerfile", Contents: []byte("new")}},
+		}},
+	}
+
+	require.NoError(t, state.scannerCreateFiles(ctx))
+
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "old", string(got))
+	assert.Contains(t, out.String(), "Not overwriting "+path)
+	assert.Contains(t, out.String(), "--yes")
+}
 
 func TestWillCreateManagedPostgresCluster(t *testing.T) {
 	tests := []struct {

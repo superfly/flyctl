@@ -22,6 +22,36 @@ import (
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
+// useShortLivedDeployToken creates an app-scoped token for a deploy test and
+// makes that token the test environment's active credential. Cleanup revokes
+// the token before restoring the shared preflight credential, so failed tests
+// do not leave long-lived tokens behind. The one-hour expiry is a fallback for
+// process termination or any other situation where testing.Cleanup cannot run.
+func useShortLivedDeployToken(t *testing.T, f *testlib.FlyctlTestEnv) {
+	t.Helper()
+
+	tokenName := fmt.Sprintf("flyctl-preflight-%s", f.ID())
+	tokenResult := f.Fly("tokens deploy --expiry 1h --name %s", tokenName)
+	token := strings.TrimSpace(tokenResult.StdOutString())
+
+	t.Cleanup(func() {
+		f.OverrideAuthAccessToken(token)
+		defer f.ResetAuthAccessToken()
+
+		revokeResult := f.FlyAllowExitFailure("tokens revoke supplied")
+
+		if revokeResult.ExitCode() != 0 {
+			t.Errorf(
+				"failed to revoke preflight deploy token %q: %s",
+				tokenName,
+				revokeResult.StdErrString(),
+			)
+		}
+	})
+
+	f.OverrideAuthAccessToken(token)
+}
+
 func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	if f.SecondaryRegion() == "" {
@@ -108,8 +138,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOutString())
+	useShortLivedDeployToken(t, f)
 	f.Fly("deploy --buildkit --remote-only")
 }
 
@@ -125,8 +154,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 `
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOutString())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 	output := deployRes.StdErrString()
 	require.Contains(f, output, "the app appears to be crashing")
@@ -145,8 +173,7 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 `
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 	output := deployRes.StdErrString()
 	require.Contains(f, output, "exited with non-zero status of 1")
@@ -370,8 +397,7 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.Fly("deploy --buildkit --remote-only")
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
@@ -391,8 +417,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.Fly("deploy --buildkit --remote-only")
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
@@ -416,8 +441,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 // 		`
 // 	f.WriteFlyToml("%s", appConfig)
 //
-// 	tokenResult := f.Fly("tokens deploy")
-// 	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+// 	useShortLivedDeployToken(t, f)
 // 	deployRes := f.Fly("deploy --buildkit --remote-only")
 // 	output := deployRes.StdOutString()
 // 	require.Contains(f, output, "Test Machine")
@@ -432,8 +456,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 //
 // 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
 //
-// 	tokenResult := f.Fly("tokens deploy")
-// 	f.OverrideAuthAccessToken(tokenResult.StdOutString())
+// 	useShortLivedDeployToken(t, f)
 // 	f.Fly("deploy --buildkit --remote-only")
 // }
 
