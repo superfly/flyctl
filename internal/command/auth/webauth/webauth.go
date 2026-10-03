@@ -21,6 +21,10 @@ import (
 )
 
 func SaveToken(ctx context.Context, token string) error {
+	return SaveTokenFor(ctx, token, token)
+}
+
+func SaveTokenFor(ctx context.Context, token, userToken string) error {
 
 	if ac, err := agent.DefaultClient(ctx); err == nil {
 		_ = ac.Kill(ctx)
@@ -37,7 +41,7 @@ func SaveToken(ctx context.Context, token string) error {
 	}
 
 	user, err := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
-		AccessToken: token,
+		AccessToken: userToken,
 	}).GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving current user: %w", err)

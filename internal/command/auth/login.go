@@ -45,6 +45,23 @@ browser-based authentication.
 			Name:        "otp",
 			Description: "One time password",
 		},
+		flag.Bool{
+			Name:        "restricted",
+			Description: "Save org tokens with limited permissions instead of a full user token",
+		},
+		flag.StringSlice{
+			Name:        "org",
+			Description: "With --restricted, organization slugs to grant access to",
+		},
+		flag.String{
+			Name:        "mask",
+			Description: "With --restricted, permissions to allow: any of r, w, c, d, C",
+		},
+		flag.Duration{
+			Name:        "expiry",
+			Description: "With --restricted, how long the tokens are valid",
+			Default:     restrictedDefaultExpiry,
+		},
 	)
 
 	return cmd
@@ -61,6 +78,10 @@ func runLogin(ctx context.Context) error {
 		token string
 	)
 
+	if err := restrictedFlagsWithoutRestricted(ctx); err != nil {
+		return err
+	}
+
 	switch {
 	case interactive, email != "", password != "", otp != "":
 		token, err = runShellLogin(ctx, email, password, otp)
@@ -71,17 +92,48 @@ func runLogin(ctx context.Context) error {
 		return err
 	}
 
+	if flag.GetBool(ctx, "restricted") {
+		return saveRestrictedToken(ctx, token)
+	}
+
 	if err := webauth.SaveToken(ctx, token); err != nil {
 		return err
 	}
 
+	warnLoginTokenOverride(ctx)
+
+	return nil
+}
+
+func saveRestrictedToken(ctx context.Context, userToken string) error {
+	token, err := restrictToken(ctx, userToken)
+	if err != nil {
+		return err
+	}
+
+	if err := webauth.SaveTokenFor(ctx, token, userToken); err != nil {
+		return err
+	}
+
+	if err := revokeUserToken(ctx, userToken); err != nil {
+		warn(iostreams.FromContext(ctx), fmt.Sprintf(
+			"Failed revoking the unrestricted login session (%v). "+
+				"It is not saved locally, but remains valid until it expires.",
+			err,
+		))
+	}
+
+	warnLoginTokenOverride(ctx)
+
+	return nil
+}
+
+func warnLoginTokenOverride(ctx context.Context) {
 	if warning := loginTokenOverrideWarning(); warning != "" {
 		io := iostreams.FromContext(ctx)
 		colorize := io.ColorScheme()
 		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "\n%s %s\n", colorize.WarningIcon(), colorize.Yellow(warning))
 	}
-
-	return nil
 }
 
 func loginTokenOverrideWarning() string {
