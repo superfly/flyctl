@@ -371,14 +371,16 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	dockerfileMaterializer := imgsrc.NewDockerfileMaterializer()
-	img, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder, dockerfileMaterializer)
+	img, usedWireguard, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder, dockerfileMaterializer)
 	if err != nil {
 		noBuilder := strings.Contains(err.Error(), "Could not find App")
 		recreateBuilder = recreateBuilder || noBuilder
-		if noBuilder || (usingWireguard && httpFailover) {
+		// Failing over to HTTPS only helps a build that went to its builder over
+		// WireGuard; any other build would just run again unchanged.
+		if noBuilder || (usedWireguard && httpFailover) {
 			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
 			span.AddEvent("using http failover")
-			img, err = determineImage(ctx, app, appConfig, false, recreateBuilder, dockerfileMaterializer)
+			img, _, err = determineImage(ctx, app, appConfig, false, recreateBuilder, dockerfileMaterializer)
 		}
 	}
 	if cleanupErr := dockerfileMaterializer.Close(); cleanupErr != nil {
