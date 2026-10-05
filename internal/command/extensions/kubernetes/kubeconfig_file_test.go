@@ -53,6 +53,9 @@ func TestWriteKubeconfigNarrowsExistingFile(t *testing.T) {
 }
 
 func TestWriteKubeconfigRewriteIsInvisibleThroughOldHandle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows refuses to rename over a file that another handle has open")
+	}
 	path := filepath.Join(t.TempDir(), "cluster.kubeconfig.yml")
 	if err := os.WriteFile(path, []byte("old\n"), 0o644); err != nil {
 		t.Fatal(err)

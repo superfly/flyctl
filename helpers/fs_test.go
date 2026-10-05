@@ -24,6 +24,9 @@ func TestWriteFileAtomically_createsOwnerOnlyFile(t *testing.T) {
 }
 
 func TestWriteFileAtomically_replacesExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows refuses to rename over a file that another handle has open")
+	}
 	path := filepath.Join(t.TempDir(), "secret.json")
 	if err := os.WriteFile(path, []byte("old and longer contents\n"), 0o644); err != nil {
 		t.Fatalf("seed: %v", err)
