@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -227,6 +228,54 @@ func TestBuildManifestChecksBillingBeforePlacement(t *testing.T) {
 				assert.Contains(t, err.Error(), "payment method")
 				assert.Contains(t, flyerr.GetErrorSuggestion(err), "https://fly.io/dashboard/personal/billing")
 			}
+		})
+	}
+}
+
+// A manifest given with --from-manifest skips buildManifest, so its billing
+// check has to happen when the launch state is built from the manifest. A
+// manifest buildManifest just produced was checked already, and plan steps (the
+// deployer) skip the check.
+func TestStateFromManifestChecksBilling(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cache    planBuildCache
+		planStep string
+		wantErr  bool
+	}{
+		{name: "manifest loaded from a file", cache: planBuildCache{appNameValidated: true}, wantErr: true},
+		{name: "manifest from buildManifest", cache: planBuildCache{appNameValidated: true, billingChecked: true}},
+		{name: "plan step", cache: planBuildCache{appNameValidated: true}, planStep: "create"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newBuildManifestCtx(t)
+			require.NoError(t, flag.FromContext(ctx).Set("no-deploy", "true")) // no remote builder warm-up
+			if tc.planStep != "" {
+				ctx = context.WithValue(ctx, plan.PlanStepKey, tc.planStep)
+			}
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+					return &uiex.Organization{Slug: "personal", BillingStatus: uiex.BillingStatusSourceRequired}, nil
+				},
+			})
+
+			m := LaunchManifest{
+				Plan:       &plan.LaunchPlan{AppName: "my-app", OrgSlug: "personal"},
+				PlanSource: newDefaultPlanSource("from manifest"),
+				Config:     appconfig.NewConfig(),
+			}
+			tc.cache.appConfig = m.Config
+
+			_, err := stateFromManifest(ctx, m, &tc.cache, &recoverableErrorBuilder{canEnterUi: false})
+
+			if !tc.wantErr {
+				require.NoError(t, err)
+
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "payment method")
+			assert.Contains(t, flyerr.GetErrorSuggestion(err), "https://fly.io/dashboard/personal/billing")
 		})
 	}
 }
