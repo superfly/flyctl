@@ -13,6 +13,15 @@ git diff --cached --quiet
 if [ $? -gt 0 ]; then
   git commit -a -m "[flyctl-bot] Update docs from flyctl"
   git push -f --set-upstream origin HEAD:$BRANCH
-  gh pr create -t "[flybot] Fly CLI docs update" -b "Fly CLI docs update" -B main -H $BRANCH
-  gh pr merge --delete-branch --squash
+
+  # The PR is left for a person to merge. It used to merge itself, which kept
+  # the reference current but meant reworded flag descriptions published with
+  # nobody having read them.
+  #
+  # $BRANCH is derived from the ref, so successive releases reuse one branch.
+  # The force push above updates it, and any open PR picks the new commits up,
+  # so gh pr create failing because one already exists is the expected path
+  # rather than an error.
+  gh pr create -t "[flybot] Fly CLI docs update" -b "Fly CLI docs update" -B main -H $BRANCH \
+    || echo "a pull request for $BRANCH is already open; it now has the latest docs"
 fi
