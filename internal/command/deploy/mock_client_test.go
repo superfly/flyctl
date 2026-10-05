@@ -645,6 +645,10 @@ func (m *mockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id,
 	return fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
 	return nil, fmt.Errorf("failed to update volume %s", volumeId)
 }

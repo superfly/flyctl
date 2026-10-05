@@ -2,6 +2,7 @@ package mpg
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -25,6 +26,7 @@ func newUsers() *cobra.Command {
 		newUsersCreate(),
 		newUsersSetRole(),
 		newUsersDelete(),
+		newUsersRotatePassword(),
 	)
 
 	return cmd
@@ -193,4 +195,50 @@ func runUsersDelete(ctx context.Context) error {
 	}
 
 	return cmdv2.RunUsersDelete(ctx, cluster.Id)
+}
+
+func newUsersRotatePassword() *cobra.Command {
+	const (
+		long  = `Rotate a user's password in a Managed Postgres cluster. Prints the new password.`
+		short = "Rotate a user's password in an MPG cluster."
+		usage = "rotate-password <CLUSTER_ID>"
+	)
+
+	cmd := command.New(usage, short, long, runUsersRotatePassword,
+		command.RequireSession,
+		requireMacaroonToken,
+	)
+
+	cmd.Args = cobra.MaximumNArgs(1)
+
+	flag.Add(cmd,
+		flag.String{
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "The username whose password to rotate",
+		},
+		flag.Bool{
+			Name:        "kill-sessions",
+			Description: "Terminate the user's existing database sessions after rotating the password",
+		},
+		flag.JSONOutput(),
+	)
+
+	return cmd
+}
+
+func runUsersRotatePassword(ctx context.Context) error {
+	clusterID := flag.FirstArg(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
+	}
+
+	// Unlike the sibling commands there is no v1 implementation to route to:
+	// the legacy API has no password rotation endpoint.
+	if cluster.Version == mpg.VersionV1 {
+		return fmt.Errorf("'fly mpg users rotate-password' is not supported for v1 clusters; migrate the cluster to v2 first")
+	}
+
+	return cmdv2.RunUsersRotatePassword(ctx, cluster.Id)
 }
