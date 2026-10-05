@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -231,4 +232,41 @@ func newTestMacaroon(t *testing.T, expiration *time.Time) string {
 	require.NoError(t, err)
 
 	return encoded
+}
+
+func TestConfigureDockerJSON_rewriteIsInvisibleThroughOldHandle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("configureDockerJSON is unsupported on windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	dockerDir := filepath.Join(home, ".docker")
+	if err := os.Mkdir(dockerDir, 0o755); err != nil {
+		t.Fatalf("mkdir .docker: %v", err)
+	}
+	configPath := filepath.Join(dockerDir, "config.json")
+	seed := `{"auths":{}}`
+	if err := os.WriteFile(configPath, []byte(seed), 0o644); err != nil {
+		t.Fatalf("seed config.json: %v", err)
+	}
+	// A reader that opened the world-readable file before the rewrite must
+	// not see the token that the rewrite adds.
+	old, err := os.Open(configPath)
+	if err != nil {
+		t.Fatalf("open old: %v", err)
+	}
+	defer old.Close()
+
+	if err := configureDockerJSON(newTestConfig()); err != nil {
+		t.Fatalf("configureDockerJSON: %v", err)
+	}
+
+	seen, err := io.ReadAll(old)
+	if err != nil {
+		t.Fatalf("read through old handle: %v", err)
+	}
+	if string(seen) != seed {
+		t.Errorf("old handle saw %q, want the seed contents", seen)
+	}
 }
