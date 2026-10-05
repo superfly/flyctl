@@ -18,10 +18,18 @@ if [ $? -gt 0 ]; then
   # the reference current but meant reworded flag descriptions published with
   # nobody having read them.
   #
-  # $BRANCH is derived from the ref, so successive releases reuse one branch.
-  # The force push above updates it, and any open PR picks the new commits up,
-  # so gh pr create failing because one already exists is the expected path
-  # rather than an error.
+  # $BRANCH comes from the ref, so every release reuses one branch, and the
+  # checkout above is a fresh clone of the docs default branch. So this branch
+  # is rebuilt from main each run and force pushed, replacing whatever was
+  # there with a single commit holding all current drift. An open PR always
+  # shows the whole picture rather than a stack, and never needs rebasing when
+  # other docs changes land.
+  #
+  # The consequence worth knowing: do not push fixes onto this branch, because
+  # the next release discards them. Fix the generator in flyctl, or merge the
+  # PR first and let the following release produce a clean one.
+  #
+  # gh pr create failing because a PR is already open is the expected path.
   gh pr create -t "[flybot] Fly CLI docs update" -b "Fly CLI docs update" -B main -H $BRANCH \
     || echo "a pull request for $BRANCH is already open; it now has the latest docs"
 fi
