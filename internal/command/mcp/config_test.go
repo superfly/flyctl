@@ -173,6 +173,9 @@ func TestRemoveConfig_appliesPermsToExistingFile(t *testing.T) {
 }
 
 func TestUpdateConfig_rewriteIsInvisibleThroughOldHandle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows refuses to rename over a file that another handle has open")
+	}
 	path := filepath.Join(t.TempDir(), "mcp.json")
 	seed := `{"mcpServers": {}}`
 	if err := os.WriteFile(path, []byte(seed), 0o644); err != nil {
