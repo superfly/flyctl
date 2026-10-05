@@ -377,6 +377,7 @@ func TestRunUsersRotatePassword(t *testing.T) {
 					require.Equal(t, tt.username, username)
 				}
 				require.Equal(t, tt.killSessions, req.KillSessions)
+
 				return tt.credentials, tt.rotateErr
 			}})
 

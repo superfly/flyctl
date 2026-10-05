@@ -389,5 +389,6 @@ func passwordRotatedWithoutTerminatingSessions(err *flaps.FlapsError) bool {
 	var body struct {
 		Code string `json:"code"`
 	}
+
 	return json.Unmarshal(err.ResponseBody, &body) == nil && body.Code == "sessions_not_terminated"
 }
