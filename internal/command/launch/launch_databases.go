@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
@@ -103,11 +104,12 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 			PgAppName: pgPlan.AppName,
 			AppName:   state.Plan.AppName,
 			DbUser:    dbUser,
+			Force:     flag.GetYes(ctx),
 		})
 
 		if err != nil {
-			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
+			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s --database-user %s --yes'\n"
+			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName, dbUser)
 
 			return err
 		} else {
