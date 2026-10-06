@@ -8,7 +8,9 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
@@ -199,7 +201,8 @@ func runUsersDelete(ctx context.Context) error {
 
 func newUsersRotatePassword() *cobra.Command {
 	const (
-		long  = `Rotate a user's password in a Managed Postgres cluster. Prints the new password.`
+		long = `Rotate a user's password in a Managed Postgres cluster. Prints the new password.
+Update applications and DATABASE_URL secrets that use the old password.`
 		short = "Rotate a user's password in an MPG cluster."
 		usage = "rotate-password <CLUSTER_ID>"
 	)
@@ -221,6 +224,7 @@ func newUsersRotatePassword() *cobra.Command {
 			Name:        "kill-sessions",
 			Description: "Terminate the user's existing database sessions after rotating the password",
 		},
+		flag.Yes(),
 		flag.JSONOutput(),
 	)
 
@@ -229,6 +233,9 @@ func newUsersRotatePassword() *cobra.Command {
 
 func runUsersRotatePassword(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
+	if config.FromContext(ctx).JSONOutput && clusterID == "" {
+		return prompt.NonInteractiveError("CLUSTER_ID must be specified when using --json")
+	}
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {
 		return err

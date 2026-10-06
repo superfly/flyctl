@@ -362,6 +362,7 @@ func TestRunUsersRotatePassword(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, stdout, stderr := usersTestContext(t, tt.jsonOutput)
+			require.NoError(t, flag.FromContext(ctx).Set("yes", "true"))
 			if tt.username != "" {
 				require.NoError(t, flag.SetString(ctx, "username", tt.username))
 			}
@@ -423,7 +424,7 @@ func TestRunUsersRotatePassword(t *testing.T) {
 }
 
 func TestRunUsersRotatePasswordErrors(t *testing.T) {
-	const taggedBody = `{"code":"sessions_not_terminated","error":"server-body-marker","password":"body-password-marker"}`
+	const taggedBody = `{"status":"sessions_not_terminated","error":"server-body-marker","password":"body-password-marker"}`
 	flapsError := func(status int, body string) error {
 		return &flaps.FlapsError{
 			ResponseStatusCode: status,
@@ -450,18 +451,19 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 		{name: "tagged 599", err: flapsError(599, taggedBody), confirmed: true},
 		{name: "exactly 64 KiB", err: flapsError(500, taggedBody+strings.Repeat(" ", 64*1024-len(taggedBody))), confirmed: true},
 		{name: "other 5xx", err: flapsError(502, `{"error":"bad gateway"}`)},
+		{name: "old code tag", err: flapsError(500, `{"code":"sessions_not_terminated"}`)},
 		{name: "old server", err: flapsError(500, `{"error":"Password rotated, but we could not kill existing sessions."}`)},
 		{name: "malformed", err: flapsError(500, `<html>server error</html>`)},
 		{name: "empty", err: flapsError(500, "")},
-		{name: "truncated", err: flapsError(500, `{"code":"sessions_not_terminated"`)},
+		{name: "truncated", err: flapsError(500, `{"status":"sessions_not_terminated"`)},
 		{name: "trailing garbage", err: flapsError(500, taggedBody+"garbage")},
 		{name: "multiple objects", err: flapsError(500, taggedBody+`{}`)},
-		{name: "nonstring code", err: flapsError(500, `{"code":123}`)},
-		{name: "null code", err: flapsError(500, `{"code":null}`)},
-		{name: "unknown code", err: flapsError(500, `{"code":"rotation_failed"}`)},
-		{name: "code must match exactly", err: flapsError(500, `{"code":"sessions_not_terminated "}`)},
-		{name: "code is case sensitive", err: flapsError(500, `{"code":"SESSIONS_NOT_TERMINATED"}`)},
-		{name: "nested code", err: flapsError(500, `{"error":{"code":"sessions_not_terminated"}}`)},
+		{name: "nonstring status", err: flapsError(500, `{"status":123}`)},
+		{name: "null status", err: flapsError(500, `{"status":null}`)},
+		{name: "unknown status", err: flapsError(500, `{"status":"rotation_failed"}`)},
+		{name: "status must match exactly", err: flapsError(500, `{"status":"sessions_not_terminated "}`)},
+		{name: "status is case sensitive", err: flapsError(500, `{"status":"SESSIONS_NOT_TERMINATED"}`)},
+		{name: "nested status", err: flapsError(500, `{"error":{"status":"sessions_not_terminated"}}`)},
 		{name: "oversized body", err: flapsError(500, taggedBody+strings.Repeat(" ", 64*1024+1-len(taggedBody)))},
 		{name: "tagged 400", err: flapsError(400, taggedBody), clientErr: true},
 		{name: "wrapped tagged 422", err: fmt.Errorf("rotate: %w", flapsError(422, taggedBody)), clientErr: true},
@@ -475,6 +477,7 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 			for _, killSessions := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/json=%t/kill-sessions=%t", tt.name, jsonOutput, killSessions), func(t *testing.T) {
 					ctx, stdout, stderr := usersTestContext(t, jsonOutput)
+					require.NoError(t, flag.FromContext(ctx).Set("yes", "true"))
 					require.NoError(t, flag.SetString(ctx, "username", "app_user"))
 					require.NoError(t, flag.FromContext(ctx).Set("kill-sessions", fmt.Sprint(killSessions)))
 					rotateCalls, credentialCalls := 0, 0
@@ -486,9 +489,11 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 							require.Equal(t, killSessions, req.KillSessions)
 							return flaps.ManagedPostgresUserCredentials{Username: "app_user", Password: "returned-password-marker"}, tt.err
 						},
-						GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+						GetManagedPostgresUserCredentialsFunc: func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+							require.Equal(t, "mpg-123", id)
+							require.Equal(t, "app_user", username)
 							credentialCalls++
-							return flaps.ManagedPostgresUserCredentials{}, errors.New("unexpected credential recovery")
+							return flaps.ManagedPostgresUserCredentials{Username: "app_user", Password: "recovered-current-password"}, nil
 						},
 					})
 					ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
@@ -501,8 +506,20 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 					err := RunUsersRotatePassword(ctx, "mpg-123")
 					require.Error(t, err, "partial success must still fail the command")
 					require.Equal(t, 1, rotateCalls, "never retry a failed rotation")
-					require.Zero(t, credentialCalls, "never fetch credentials automatically")
-					if jsonOutput {
+					if tt.confirmed {
+						require.Equal(t, 1, credentialCalls, "read current credentials once without rotating again")
+					} else {
+						require.Zero(t, credentialCalls, "only confirmed rotation permits recovery")
+					}
+					if tt.confirmed {
+						require.Contains(t, stdout.String(), "recovered-current-password")
+						require.NotContains(t, stdout.String(), "were terminated")
+						if jsonOutput {
+							var current flaps.ManagedPostgresUserCredentials
+							require.NoError(t, json.Unmarshal(stdout.Bytes(), &current))
+							require.Equal(t, flaps.ManagedPostgresUserCredentials{Username: "app_user", Password: "recovered-current-password"}, current)
+						}
+					} else if jsonOutput {
 						require.Empty(t, stdout.String(), "no new JSON failure schema")
 					} else {
 						require.Equal(t, "Rotating password for user app_user in cluster mpg-123...\n", stdout.String())
@@ -520,7 +537,7 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 						if tt.clientErr {
 							require.Empty(t, stderr.String())
 						} else {
-							want := "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. If connections start failing, rotate again.\n"
+							want := "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Credentials tab before considering another rotation.\n"
 							if killSessions {
 								want += "Note: with --kill-sessions, session termination is a separate step from rotation and may not have completed.\n"
 							}
@@ -531,5 +548,129 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestRunUsersRotatePasswordRequiresConfirmation(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		for _, killSessions := range []bool{false, true} {
+			t.Run(fmt.Sprintf("json=%t/kill=%t", jsonOutput, killSessions), func(t *testing.T) {
+				ctx, stdout, stderr := usersTestContext(t, jsonOutput)
+				require.NoError(t, flag.SetString(ctx, "username", "app_user"))
+				require.NoError(t, flag.FromContext(ctx).Set("kill-sessions", fmt.Sprint(killSessions)))
+				calls := 0
+				ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{RotateManagedPostgresUserPasswordFunc: func(context.Context, string, string, flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+					calls++
+					return flaps.ManagedPostgresUserCredentials{}, nil
+				}})
+				err := RunUsersRotatePassword(ctx, "mpg-123")
+				require.ErrorContains(t, err, "--yes flag must be specified")
+				require.Zero(t, calls)
+				require.Empty(t, stdout.String())
+				require.Contains(t, stderr.String(), "DATABASE_URL")
+				require.Contains(t, stderr.String(), "cannot be undone")
+				require.Equal(t, killSessions, strings.Contains(stderr.String(), "Existing database sessions will also be terminated"))
+			})
+		}
+	}
+}
+
+func TestRunUsersRotatePasswordRecoveryFailure(t *testing.T) {
+	tests := []struct {
+		name        string
+		credentials flaps.ManagedPostgresUserCredentials
+		err         error
+	}{
+		{"get error", flaps.ManagedPostgresUserCredentials{Password: "untrusted-get-password"}, errors.New("private-get-error")},
+		{"mismatched username", flaps.ManagedPostgresUserCredentials{Username: "other_user", Password: "untrusted-get-password"}, nil},
+		{"empty password", flaps.ManagedPostgresUserCredentials{Username: "app_user"}, nil},
+	}
+	for _, tt := range tests {
+		for _, jsonOutput := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/json=%t", tt.name, jsonOutput), func(t *testing.T) {
+				ctx, stdout, stderr := usersTestContext(t, jsonOutput)
+				require.NoError(t, flag.SetString(ctx, "username", "app_user"))
+				require.NoError(t, flag.FromContext(ctx).Set("yes", "true"))
+				rotations, reads := 0, 0
+				ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+					RotateManagedPostgresUserPasswordFunc: func(context.Context, string, string, flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+						rotations++
+						return flaps.ManagedPostgresUserCredentials{Password: "untrusted-rotation-password"}, &flaps.FlapsError{ResponseStatusCode: 500, ResponseBody: []byte(`{"status":"sessions_not_terminated"}`), OriginalError: errors.New("private-rotation-error")}
+					},
+					GetManagedPostgresUserCredentialsFunc: func(_ context.Context, clusterID, username string) (flaps.ManagedPostgresUserCredentials, error) {
+						reads++
+						require.Equal(t, "mpg-123", clusterID)
+						require.Equal(t, "app_user", username)
+						return tt.credentials, tt.err
+					},
+				})
+				err := RunUsersRotatePassword(ctx, "mpg-123")
+				require.ErrorContains(t, err, "dashboard Credentials tab")
+				require.ErrorContains(t, err, "do not retry rotation")
+				require.Equal(t, 1, rotations)
+				require.Equal(t, 1, reads)
+				for _, marker := range []string{"untrusted-rotation-password", "untrusted-get-password", "private-rotation-error", "private-get-error"} {
+					require.NotContains(t, stdout.String()+stderr.String()+err.Error(), marker)
+				}
+				if jsonOutput {
+					require.Empty(t, stdout.String())
+				}
+			})
+		}
+	}
+}
+
+type credentialOutputFailure struct{}
+
+func (credentialOutputFailure) Write([]byte) (int, error) { return 0, errors.New("output unavailable") }
+func TestRenderRotatedUserCredentialsOutputFailure(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		err := renderRotatedUserCredentials(credentialOutputFailure{}, flaps.ManagedPostgresUserCredentials{Username: "app_user", Password: "sensitive-password"}, jsonOutput, false, true)
+		require.Error(t, err)
+		require.NotContains(t, err.Error(), "sensitive-password")
+	}
+}
+
+func TestRunUsersRotatePasswordJSONDoesNotPrompt(t *testing.T) {
+	for _, username := range []string{"", "app_user"} {
+		ctx, stdout, _ := usersTestContext(t, true)
+		io := iostreams.FromContext(ctx)
+		io.SetStdinTTY(true)
+		io.SetStdoutTTY(true)
+		require.NoError(t, flag.SetString(ctx, "username", username))
+		calls := 0
+		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{RotateManagedPostgresUserPasswordFunc: func(context.Context, string, string, flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+			calls++
+			return flaps.ManagedPostgresUserCredentials{}, nil
+		}})
+		err := RunUsersRotatePassword(ctx, "mpg-123")
+		require.ErrorContains(t, err, "flag")
+		require.Zero(t, calls)
+		require.Empty(t, stdout.String())
+	}
+}
+
+func TestRunUsersRotatePasswordRecoveryOutputFailure(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		ctx, _, stderr := usersTestContext(t, jsonOutput)
+		iostreams.FromContext(ctx).Out = credentialOutputFailure{}
+		require.NoError(t, flag.SetString(ctx, "username", "app_user"))
+		require.NoError(t, flag.FromContext(ctx).Set("yes", "true"))
+		mutations, reads := 0, 0
+		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+			RotateManagedPostgresUserPasswordFunc: func(context.Context, string, string, flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+				mutations++
+				return flaps.ManagedPostgresUserCredentials{}, &flaps.FlapsError{ResponseStatusCode: 500, ResponseBody: []byte(`{"status":"sessions_not_terminated"}`)}
+			},
+			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+				reads++
+				return flaps.ManagedPostgresUserCredentials{Username: "app_user", Password: "sensitive-current-password"}, nil
+			},
+		})
+		err := RunUsersRotatePassword(ctx, "mpg-123")
+		require.ErrorContains(t, err, "current credentials could not be displayed")
+		require.Equal(t, 1, mutations)
+		require.Equal(t, 1, reads)
+		require.NotContains(t, err.Error()+stderr.String(), "sensitive-current-password")
 	}
 }

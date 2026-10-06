@@ -2,9 +2,9 @@ package cmdv2
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	stdio "io"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
@@ -308,6 +308,9 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 
 	username := flag.GetString(ctx, "username")
 	if username == "" {
+		if cfg.JSONOutput {
+			return prompt.NonInteractiveError("username must be specified with --username flag when using --json")
+		}
 		if !io.IsInteractive() {
 			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
 		}
@@ -333,6 +336,25 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 	}
 
 	killSessions := flag.GetBool(ctx, "kill-sessions")
+	if !flag.GetYes(ctx) {
+		fmt.Fprintln(io.ErrOut, "Rotating a password cannot be undone. Applications using the old password will fail to open new connections. Update their DATABASE_URL secrets after rotation.")
+		if killSessions {
+			fmt.Fprintln(io.ErrOut, "Existing database sessions will also be terminated.")
+		}
+		if cfg.JSONOutput {
+			return prompt.NonInteractiveError("--yes flag must be specified when using --json")
+		}
+		switch confirmed, err := prompt.Confirmf(ctx, "Rotate password for user %s in cluster %s?", username, clusterID); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
 
 	if !cfg.JSONOutput {
 		fmt.Fprintf(out, "Rotating password for user %s in cluster %s...\n", username, clusterID)
@@ -347,6 +369,13 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 		if errors.As(err, &flapsErr) {
 			if passwordRotatedWithoutTerminatingSessions(flapsErr) {
 				fmt.Fprintln(io.ErrOut, "Note: the password was rotated, but existing sessions could not be terminated. Existing sessions may still be active and need to be terminated manually.")
+				current, recoveryErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, username)
+				if recoveryErr != nil || current.Username != username || current.Password == "" {
+					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current password could not be retrieved; open the dashboard Credentials tab to retrieve it; do not retry rotation", username)
+				}
+				if err := renderRotatedUserCredentials(out, current, cfg.JSONOutput, false, true); err != nil {
+					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current credentials could not be displayed: %w", username, err)
+				}
 				return fmt.Errorf("failed to terminate existing sessions after rotating password for user %s", username)
 			}
 			if flapsErr.ResponseStatusCode >= 400 && flapsErr.ResponseStatusCode < 500 {
@@ -354,7 +383,7 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 			}
 		}
 		if ambiguous {
-			fmt.Fprintln(io.ErrOut, "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. If connections start failing, rotate again.")
+			fmt.Fprintln(io.ErrOut, "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Credentials tab before considering another rotation.")
 			if killSessions {
 				fmt.Fprintln(io.ErrOut, "Note: with --kill-sessions, session termination is a separate step from rotation and may not have completed.")
 			}
@@ -363,19 +392,24 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 		return fmt.Errorf("failed to rotate password for user %s: %w", username, err)
 	}
 
-	if cfg.JSONOutput {
+	return renderRotatedUserCredentials(out, creds, cfg.JSONOutput, killSessions, false)
+}
+
+func renderRotatedUserCredentials(out stdio.Writer, creds flaps.ManagedPostgresUserCredentials, jsonOutput, sessionsTerminated, recovered bool) error {
+	if jsonOutput {
 		return render.JSON(out, creds)
 	}
-
-	fmt.Fprintf(out, "Password rotated successfully!\n")
-	fmt.Fprintf(out, "  Username: %s\n", creds.Username)
-	if _, err := fmt.Fprintf(out, "  Password: %s\n", creds.Password); err != nil {
+	header := "Password rotated successfully!"
+	if recovered {
+		header = "Current credentials:"
+	}
+	if _, err := fmt.Fprintf(out, "%s\n  Username: %s\n  Password: %s\n", header, creds.Username, creds.Password); err != nil {
 		return fmt.Errorf("password for user %s was rotated but could not be displayed: %w", creds.Username, err)
 	}
-	if killSessions {
-		fmt.Fprintf(out, "Existing sessions for %s were terminated.\n", creds.Username)
+	if sessionsTerminated {
+		_, err := fmt.Fprintf(out, "Existing sessions for %s were terminated.\n", creds.Username)
+		return err
 	}
-
 	return nil
 }
 
@@ -386,9 +420,6 @@ func passwordRotatedWithoutTerminatingSessions(err *flaps.FlapsError) bool {
 	if err.ResponseStatusCode < 500 || err.ResponseStatusCode >= 600 || len(err.ResponseBody) > maxErrorBody {
 		return false
 	}
-	var body struct {
-		Code string `json:"code"`
-	}
-
-	return json.Unmarshal(err.ResponseBody, &body) == nil && body.Code == "sessions_not_terminated"
+	status := err.StatusCode()
+	return status != nil && *status == "sessions_not_terminated"
 }
