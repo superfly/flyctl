@@ -21,13 +21,13 @@ if [ "$1" ]
           awk -v lbl="$label" 'NR==2 && /^title:/ {print; print lbl; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
         done
 
-        # --delete is deliberately absent. With it, the first sync after the
-        # MDX switch would also remove the 12 pages the generator no longer
-        # produces: the retired litefs-cloud commands and the duplicate root
-        # page. 12 docs.json nav entries and 15 redirects still point at those,
-        # so they are a reviewable docs change rather than something this bot
-        # should do unannounced. Restore --delete once that has landed, or
-        # removed commands will linger here forever.
+        # --delete so a command removed from flyctl stops being documented.
+        # Without it the pages linger: the litefs-cloud commands went in
+        # #5187 and their eleven pages stayed live for four weeks, telling
+        # readers a retired CLI worked.
+        #
+        # This deletes anything in the destination the generator did not
+        # produce, so nothing hand-written belongs in flyctl/cmd.
         echo "rsync to $1"
-        rsync out/ $1 -r -v
+        rsync out/ $1 --delete -r -v
 fi
