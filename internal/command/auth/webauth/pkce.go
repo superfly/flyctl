@@ -142,7 +142,7 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 // With acceptPaste the code may also be typed on stdin; without it (no
 // terminal) the loopback callback is the only source.
 func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin, acceptPaste bool) (string, error) {
-	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for PKCE login: %w", context.DeadlineExceeded))
+	ctx, cancel := context.WithTimeoutCause(parent, loginTimeout, fmt.Errorf("waiting for PKCE login: %w", context.DeadlineExceeded))
 	defer cancel()
 	defer p.close()
 

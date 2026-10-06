@@ -23,6 +23,10 @@ import (
 
 const tokensHelpURL = "https://fly.io/docs/security/tokens/"
 
+// loginTimeout is how long a login waits for the browser approval. The
+// server keeps a CLI session for the same 15 minutes.
+const loginTimeout = 15 * time.Minute
+
 // errCI is returned on CI, where nobody will ever approve a browser login:
 // fail at once rather than wait out the timeout.
 func errCI(command string) error {
@@ -43,10 +47,13 @@ func errHeadlessLegacyServer(command string) error {
 }
 
 // headlessNotice explains, to whoever is reading a non-interactive run, why
-// the command might appear to hang: the browser has to be on this machine.
+// the command might appear to hang: the browser has to be on this machine,
+// and an agent has to keep the command alive for longer than its usual
+// command timeout.
 func headlessNotice(command string) string {
 	return "This terminal is not interactive, so the code cannot be pasted here.\n" +
-		"The " + command + " will complete on its own once approved in a browser on this machine.\n" +
+		fmt.Sprintf("The %s completes on its own once approved in a browser on this machine, within %d minutes.\n", command, int(loginTimeout.Minutes())) +
+		"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n" +
 		"From another machine, set FLY_API_TOKEN to a token instead: " + tokensHelpURL + "\n\n"
 }
 
@@ -184,7 +191,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 
 // TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (token string, err error) {
-	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for CLI login: %w", context.DeadlineExceeded))
+	ctx, cancel := context.WithTimeoutCause(parent, loginTimeout, fmt.Errorf("waiting for CLI login: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
