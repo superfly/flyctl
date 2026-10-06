@@ -59,6 +59,9 @@ type dockerClientFactory struct {
 	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
 	apiClient flyutil.Client
 	appName   string
+	// usedWireguard is set once buildFn picks an org builder it reaches over
+	// WireGuard. Managed builders never use WireGuard.
+	usedWireguard bool
 	// mobyBuildFn creates a moby client matching the connection config of the
 	// docker client produced by buildFn (same host, dialer, and auth headers).
 	// Callers that need a moby-typed client (e.g. the buildpacks/pack library)
@@ -103,6 +106,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					return nil, err
 				}
 			} else {
+				f.usedWireguard = connectOverWireguard
 				uiexClient := uiexutil.ClientFromContext(ctx)
 				org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 				if err != nil {
