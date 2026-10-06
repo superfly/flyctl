@@ -1,11 +1,21 @@
 package webauth
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 func TestPendingLoginFile(t *testing.T) {
@@ -87,5 +97,116 @@ func TestRemovePendingLogin(t *testing.T) {
 	removePendingLogin(path, "sess1")
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected the unreadable file removed, stat: %v", err)
+	}
+}
+
+// redeemTestContext returns a context with a scratch config directory and the
+// path of the pending login file in it.
+func redeemTestContext(t *testing.T) (context.Context, string) {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	return state.WithConfigDirectory(context.Background(), dir), filepath.Join(dir, "pending-login.json")
+}
+
+func TestRedeemPendingLogin(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      int    // redeem response status; 0 means no request may be made
+		body        string // redeem response body
+		expiresIn   time.Duration
+		wantToken   string
+		wantErr     string
+		wantRemoved bool // pending file gone after the call
+	}{
+		{name: "approved", status: 200, body: `{"id":"sess1","access_token":"tok123","pkce":true}`, expiresIn: time.Minute, wantToken: "tok123"},
+		{name: "wrong code", status: 403, body: `{"error":"invalid_code"}`, expiresIn: time.Minute, wantErr: "didn't work"},
+		{name: "not approved yet", status: 400, body: `{"error":"authorization_pending"}`, expiresIn: time.Minute, wantErr: "approve"},
+		{name: "expired on the server", status: 404, body: `{"error":"not found"}`, expiresIn: time.Minute, wantErr: "expired", wantRemoved: true},
+		{name: "expired locally", expiresIn: -time.Minute, wantErr: "expired", wantRemoved: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, path := redeemTestContext(t)
+			if err := savePendingLogin(path, pendingLogin{ID: "sess1", Verifier: "verifier1", ExpiresAt: time.Now().Add(tc.expiresIn)}); err != nil {
+				t.Fatal(err)
+			}
+
+			var requests atomic.Int32
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				var body struct {
+					Code         string `json:"code"`
+					CodeVerifier string `json:"code_verifier"`
+				}
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				if r.URL.Path != "/api/v1/cli_sessions/sess1/redeem" || body.Code != "the-code" || body.CodeVerifier != "verifier1" {
+					t.Errorf("unexpected redeem request: %s %+v", r.URL.Path, body)
+				}
+				w.WriteHeader(tc.status)
+				fmt.Fprint(w, tc.body)
+			}))
+			defer ts.Close()
+			fly.SetBaseURL(ts.URL)
+
+			// Whitespace from copying the code off the page is ignored.
+			token, finish, err := RedeemPendingLogin(ctx, " the-code\n")
+
+			_, statErr := os.Stat(path)
+			removed := errors.Is(statErr, os.ErrNotExist)
+
+			if tc.wantErr == "" {
+				if err != nil || token != tc.wantToken {
+					t.Fatalf("expected token %q, got %q, %v", tc.wantToken, token, err)
+				}
+				if removed {
+					t.Fatal("pending login removed before the token was saved")
+				}
+				finish()
+				if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("finish left the pending login behind: %v", err)
+				}
+
+				return
+			}
+
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected an error containing %q, got %v", tc.wantErr, err)
+			}
+			if tc.status == 0 && requests.Load() != 0 {
+				t.Fatal("redeemed a login that had already expired")
+			}
+			if removed != tc.wantRemoved {
+				t.Fatalf("pending login removed = %v, want %v", removed, tc.wantRemoved)
+			}
+		})
+	}
+}
+
+func TestRedeemPendingLoginWithoutPendingLogin(t *testing.T) {
+	ctx, _ := redeemTestContext(t)
+
+	_, _, err := RedeemPendingLogin(ctx, "the-code")
+
+	if err == nil || !strings.Contains(err.Error(), "fly auth login") {
+		t.Fatalf("expected an error pointing at fly auth login, got %v", err)
+	}
+}
+
+func TestRedeemPendingLoginUnreadable(t *testing.T) {
+	ctx, path := redeemTestContext(t)
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := RedeemPendingLogin(ctx, "the-code")
+
+	if err == nil || !strings.Contains(err.Error(), "fly auth login") {
+		t.Fatalf("expected an error pointing at fly auth login, got %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected the unreadable pending login removed: %v", err)
 	}
 }
