@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	stdio "io"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
@@ -297,4 +298,131 @@ func RunUsersDelete(ctx context.Context, clusterID string) error {
 	fmt.Fprintf(out, "User %s deleted successfully from cluster %s\n", username, clusterID)
 
 	return nil
+}
+
+func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
+	cfg := config.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
+	out := io.Out
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	username := flag.GetString(ctx, "username")
+	if username == "" {
+		if cfg.JSONOutput {
+			return prompt.NonInteractiveError("username must be specified with --username flag when using --json")
+		}
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+
+		users, err := listUsers(ctx, clusterID)
+		if err != nil {
+			return fmt.Errorf("failed to list users: %w", err)
+		}
+		if len(users) == 0 {
+			return fmt.Errorf("no users found in cluster %s", clusterID)
+		}
+
+		var userOptions []string
+		for _, user := range users {
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+		}
+
+		var userIndex int
+		if err := prompt.Select(ctx, &userIndex, "Select user to rotate:", "", userOptions...); err != nil {
+			return err
+		}
+		username = users[userIndex].Name
+	}
+
+	killSessions := flag.GetBool(ctx, "kill-sessions")
+	if !flag.GetYes(ctx) {
+		fmt.Fprintln(io.ErrOut, "Rotating a password cannot be undone. Applications using the old password will fail to open new connections. Update their DATABASE_URL secrets after rotation.")
+		if killSessions {
+			fmt.Fprintln(io.ErrOut, "Existing database sessions will also be terminated.")
+		}
+		if cfg.JSONOutput {
+			return prompt.NonInteractiveError("--yes flag must be specified when using --json")
+		}
+		switch confirmed, err := prompt.Confirmf(ctx, "Rotate password for user %s in cluster %s?", username, clusterID); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	if !cfg.JSONOutput {
+		fmt.Fprintf(out, "Rotating password for user %s in cluster %s...\n", username, clusterID)
+	}
+
+	creds, err := flapsClient.RotateManagedPostgresUserPassword(ctx, clusterID, username, flaps.RotateManagedPostgresUserPasswordRequest{
+		KillSessions: killSessions,
+	})
+	if err != nil {
+		var flapsErr *flaps.FlapsError
+		ambiguous := true
+		if errors.As(err, &flapsErr) {
+			if passwordRotatedWithoutTerminatingSessions(flapsErr) {
+				fmt.Fprintln(io.ErrOut, "Note: the password was rotated, but existing sessions could not be terminated. Existing sessions may still be active and need to be terminated manually.")
+				current, recoveryErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, username)
+				if recoveryErr != nil || current.Username != username || current.Password == "" {
+					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current password could not be retrieved; open the dashboard Credentials tab to retrieve it; do not retry rotation", username)
+				}
+				if err := renderRotatedUserCredentials(out, current, cfg.JSONOutput, false, true); err != nil {
+					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current credentials could not be displayed: %w", username, err)
+				}
+
+				return fmt.Errorf("failed to terminate existing sessions after rotating password for user %s", username)
+			}
+			if flapsErr.ResponseStatusCode >= 400 && flapsErr.ResponseStatusCode < 500 {
+				ambiguous = false
+			}
+		}
+		if ambiguous {
+			fmt.Fprintln(io.ErrOut, "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Credentials tab before considering another rotation.")
+			if killSessions {
+				fmt.Fprintln(io.ErrOut, "Note: with --kill-sessions, session termination is a separate step from rotation and may not have completed.")
+			}
+		}
+
+		return fmt.Errorf("failed to rotate password for user %s: %w", username, err)
+	}
+
+	return renderRotatedUserCredentials(out, creds, cfg.JSONOutput, killSessions, false)
+}
+
+func renderRotatedUserCredentials(out stdio.Writer, creds flaps.ManagedPostgresUserCredentials, jsonOutput, sessionsTerminated, recovered bool) error {
+	if jsonOutput {
+		return render.JSON(out, creds)
+	}
+	header := "Password rotated successfully!"
+	if recovered {
+		header = "Current credentials:"
+	}
+	if _, err := fmt.Fprintf(out, "%s\n  Username: %s\n  Password: %s\n", header, creds.Username, creds.Password); err != nil {
+		return fmt.Errorf("password for user %s was rotated but could not be displayed: %w", creds.Username, err)
+	}
+	if sessionsTerminated {
+		_, err := fmt.Fprintf(out, "Existing sessions for %s were terminated.\n", creds.Username)
+		return err
+	}
+
+	return nil
+}
+
+// Only this structured server error confirms that rotation completed. Reject
+// oversized or invalid bodies in full; a truncated prefix cannot confirm it.
+func passwordRotatedWithoutTerminatingSessions(err *flaps.FlapsError) bool {
+	const maxErrorBody = 64 * 1024
+	if err.ResponseStatusCode < 500 || err.ResponseStatusCode >= 600 || len(err.ResponseBody) > maxErrorBody {
+		return false
+	}
+	status := err.StatusCode()
+
+	return status != nil && *status == "sessions_not_terminated"
 }
