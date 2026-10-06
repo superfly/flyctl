@@ -87,11 +87,13 @@ func RedeemPendingLogin(ctx context.Context, code string) (token string, finish 
 	case errors.Is(err, os.ErrNotExist):
 		return "", nil, errors.New("no login is waiting for a code here. Run `fly auth login` first, then use the code its approval page shows")
 	case err != nil:
-		_ = os.Remove(path)
+		// An empty id still spares a newer login that replaced the file
+		// meanwhile: only an unreadable file goes.
+		removePendingLogin(path, "")
 
 		return "", nil, fmt.Errorf("the saved login could not be read (%w). Run `fly auth login` to start a new one", err)
 	case time.Now().After(p.ExpiresAt):
-		_ = os.Remove(path)
+		removePendingLogin(path, p.ID)
 
 		return "", nil, errLoginExpired
 	}
