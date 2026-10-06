@@ -17,6 +17,7 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -317,5 +318,46 @@ func TestWaitingLoginNoLongerPending(t *testing.T) {
 	r := awaitResult(t, result)
 	if !errors.Is(r.err, errLoginNotPending) {
 		t.Fatalf("expected errLoginNotPending, got %q, %v", r.token, r.err)
+	}
+}
+
+func TestRemovePendingLoginWaitsForAConcurrentSave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pending-login.json")
+	if err := savePendingLogin(path, pendingLogin{ID: "sess1", Verifier: "verifier1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Another process is in the middle of saving a newer login.
+	unlock, err := filemu.Lock(context.Background(), path+".lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		removePendingLogin(path, "sess1")
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("removed the pending login while another process was saving one")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	if err := os.WriteFile(path, []byte(`{"id":"sess2","verifier":"verifier2","expires_at":"2999-01-01T00:00:00Z"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := unlock(); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("removePendingLogin never finished")
+	}
+	if p, err := loadPendingLogin(path); err != nil || p.ID != "sess2" {
+		t.Fatalf("the newer login was deleted: %+v, %v", p, err)
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/state"
 )
 
@@ -30,6 +31,13 @@ func pendingLoginPath(ctx context.Context) string {
 	return filepath.Join(state.ConfigDirectory(ctx), "pending-login.json")
 }
 
+// lockPendingLogin serializes changes to the pending login across flyctl
+// processes, so removing one login can't delete a newer one saved meanwhile.
+// Readers need no lock: the file is replaced atomically.
+func lockPendingLogin(path string) (filemu.UnlockFunc, error) {
+	return filemu.Lock(context.Background(), path+".lock")
+}
+
 // savePendingLogin writes p to path, replacing any earlier pending login.
 // Together with a completion code the verifier yields a token, so the file is
 // as private as config.yml.
@@ -38,6 +46,12 @@ func savePendingLogin(path string, p pendingLogin) error {
 	if err != nil {
 		return err
 	}
+
+	unlock, err := lockPendingLogin(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unlock() }()
 
 	return helpers.WriteFileAtomically(path, data, 0o600)
 }
@@ -65,6 +79,12 @@ func loadPendingLogin(path string) (pendingLogin, error) {
 // another session, which means a newer login replaced it. An unreadable file
 // is deleted too: nothing can finish it.
 func removePendingLogin(path, id string) {
+	unlock, err := lockPendingLogin(path)
+	if err != nil {
+		return // left in place: it expires, and the next login replaces it
+	}
+	defer func() { _ = unlock() }()
+
 	p, err := loadPendingLogin(path)
 	if errors.Is(err, os.ErrNotExist) || (err == nil && p.ID != id) {
 		return
