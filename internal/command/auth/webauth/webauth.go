@@ -54,7 +54,7 @@ func headlessNotice(command string) string {
 	return "This terminal is not interactive, so the code cannot be pasted here.\n" +
 		fmt.Sprintf("The %s completes on its own once approved in a browser on this machine, within %d minutes.\n", command, int(loginTimeout.Minutes())) +
 		"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n" +
-		"From another machine, set FLY_API_TOKEN to a token instead: " + tokensHelpURL + "\n\n"
+		"If the browser is on another machine, or this command was stopped, finish with: fly auth login --code <code shown after approving>\n\n"
 }
 
 func SaveToken(ctx context.Context, token string) error {
@@ -154,6 +154,21 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		return "", errHeadlessLegacyServer(command)
 	}
 
+	// Save the login so `fly auth login --code` can finish it if this
+	// process is stopped or the browser can't reach the callback.
+	pendingPath := pendingLoginPath(ctx)
+	var watch *pendingWatch
+	if auth.PKCE {
+		pending := pendingLogin{ID: auth.ID, Verifier: pkce.verifier, ExpiresAt: time.Now().Add(loginTimeout)}
+		if err := savePendingLogin(pendingPath, pending); err != nil {
+			fmt.Fprintf(io.ErrOut, "Could not save this login (%v), so `fly auth login --code` won't be able to finish it.\n", err)
+		} else {
+			configFile := state.ConfigFile(ctx)
+			token, _ := config.ReadAccessToken(configFile)
+			watch = &pendingWatch{path: pendingPath, configFile: configFile, id: auth.ID, token: token}
+		}
+	}
+
 	colorize := io.ColorScheme()
 	if err := open.Run(auth.URL); err != nil {
 		fmt.Fprintf(io.ErrOut,
@@ -170,7 +185,12 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 
 	var token string
 	if auth.PKCE {
-		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless, nil)
+		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless, watch)
+		// Finished or expired: nothing is left for --code to do. A stopped
+		// login keeps its file, which is what --code resumes.
+		if err == nil || errors.Is(err, context.DeadlineExceeded) {
+			removePendingLogin(pendingPath, auth.ID)
+		}
 	} else {
 		// Server predates the PKCE flow
 		pkce.close()
