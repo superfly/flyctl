@@ -371,7 +371,7 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 				fmt.Fprintln(io.ErrOut, "Note: the password was rotated, but existing sessions could not be terminated. Existing sessions may still be active and need to be terminated manually.")
 				current, recoveryErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, username)
 				if recoveryErr != nil || current.Username != username || current.Password == "" {
-					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current password could not be retrieved; open the dashboard Credentials tab to retrieve it; do not retry rotation", username)
+					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current password could not be retrieved; open the dashboard Connect tab to retrieve it; do not retry rotation", username)
 				}
 				if err := renderRotatedUserCredentials(out, current, cfg.JSONOutput, false, true); err != nil {
 					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current credentials could not be displayed: %w", username, err)
@@ -384,7 +384,7 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 			}
 		}
 		if ambiguous {
-			fmt.Fprintln(io.ErrOut, "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Credentials tab before considering another rotation.")
+			fmt.Fprintln(io.ErrOut, "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Connect tab before considering another rotation.")
 			if killSessions {
 				fmt.Fprintln(io.ErrOut, "Note: with --kill-sessions, session termination is a separate step from rotation and may not have completed.")
 			}

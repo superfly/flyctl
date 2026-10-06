@@ -537,7 +537,7 @@ func TestRunUsersRotatePasswordErrors(t *testing.T) {
 						if tt.clientErr {
 							require.Empty(t, stderr.String())
 						} else {
-							want := "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Credentials tab before considering another rotation.\n"
+							want := "Note: the password may already have been rotated even though this command failed. The server does not report rotation status atomically with errors. Check the current credentials in the dashboard Connect tab before considering another rotation.\n"
 							if killSessions {
 								want += "Note: with --kill-sessions, session termination is a separate step from rotation and may not have completed.\n"
 							}
@@ -605,7 +605,7 @@ func TestRunUsersRotatePasswordRecoveryFailure(t *testing.T) {
 					},
 				})
 				err := RunUsersRotatePassword(ctx, "mpg-123")
-				require.ErrorContains(t, err, "dashboard Credentials tab")
+				require.ErrorContains(t, err, "dashboard Connect tab")
 				require.ErrorContains(t, err, "do not retry rotation")
 				require.Equal(t, 1, rotations)
 				require.Equal(t, 1, reads)
