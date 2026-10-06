@@ -3,13 +3,22 @@ package command
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func TestFilesFromCommandUsesPOSIXGuestPath(t *testing.T) {
@@ -84,4 +93,45 @@ func withAccessTokenFlagContext(ctx context.Context, value string) context.Conte
 	}
 
 	return flag.NewContext(ctx, fs)
+}
+
+func TestRequireSessionWithoutTerminal(t *testing.T) {
+	cases := []struct {
+		name        string
+		token       string
+		lastLogin   time.Time
+		wantExpired bool // false: no token at all
+	}{
+		{name: "login older than 30 days", token: "tok", lastLogin: time.Now().Add(-40 * 24 * time.Hour), wantExpired: true},
+		{name: "login without a timestamp", token: "tok", wantExpired: true},
+		{name: "no login at all", lastLogin: time.Now()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("FLY_ACCESS_TOKEN", "")
+			t.Setenv("FLY_API_TOKEN", "")
+
+			ios, _, _, _ := iostreams.Test() // no terminal, so nothing prompts
+			ctx := iostreams.NewContext(context.Background(), ios)
+			ctx = logger.NewContext(ctx, logger.New(ios.ErrOut, logger.Info, false))
+			ctx = flag.NewContext(ctx, pflag.NewFlagSet("test", pflag.ContinueOnError))
+			ctx = config.NewContext(ctx, &config.Config{LastLogin: tc.lastLogin, Tokens: tokens.Parse(tc.token)})
+			ctx = flyutil.NewContextWithClient(ctx, flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: tokens.Parse(tc.token)}))
+
+			_, err := RequireSession(ctx)
+
+			if !tc.wantExpired {
+				if !errors.Is(err, fly.ErrNoAuthToken) {
+					t.Fatalf("expected fly.ErrNoAuthToken without a token, got %v", err)
+				}
+				return
+			}
+			// A token is saved, so "no access token available" would be wrong:
+			// the session is too old, and logging in again fixes it.
+			if err == nil || !strings.Contains(err.Error(), "expired") || !strings.Contains(err.Error(), "fly auth login") {
+				t.Fatalf("expected an expired-session error naming fly auth login, got %v", err)
+			}
+		})
+	}
 }

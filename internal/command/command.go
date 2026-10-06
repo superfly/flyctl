@@ -667,7 +667,7 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 		if !confirmed {
-			return nil, fly.ErrNoAuthToken
+			return nil, reloginError(reason)
 		}
 
 		// Attempt to log the user in
@@ -701,8 +701,23 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 
 		return ctx, nil
 	} else {
-		return nil, fly.ErrNoAuthToken
+		return nil, reloginError(reason)
 	}
+}
+
+// errSessionExpired stands in for fly.ErrNoAuthToken when a token is saved
+// but its login is too old, or predates login timestamps: "no access token
+// available" would be wrong, and logging in again fixes it.
+var errSessionExpired = errors.New("your flyctl session has expired. Run `fly auth login` to log in again")
+
+// reloginError is the error for a command that needs a login and won't get
+// one interactively.
+func reloginError(reason string) error {
+	if reason == "not_authenticated" {
+		return fly.ErrNoAuthToken
+	}
+
+	return errSessionExpired
 }
 
 func tryOpenUserURL(ctx context.Context, url string) error {
