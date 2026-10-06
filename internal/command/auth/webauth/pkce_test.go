@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -149,5 +150,39 @@ func TestPKCELoginPastedCode(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "invalid_code") {
 		t.Fatalf("expected the wrong paste to be reported, got: %q", errOut.String())
+	}
+}
+
+func TestPKCELoginHeadlessRedeemFailure(t *testing.T) {
+	args := map[string]any{}
+
+	p, err := newPKCELogin(args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.close()
+
+	ts := newRedeemServer(t, "sess3", "the-code", args["code_challenge"].(string), "tok123")
+	defer ts.Close()
+	fly.SetBaseURL(ts.URL)
+
+	// The callback delivers a code the server rejects. It comes only once,
+	// and without a terminal nothing else can deliver another, so the login
+	// must stop with a way forward instead of waiting out its 15 minutes.
+	res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/callback?code=rejected&state=%s", p.port, url.QueryEscape(args["state"].(string))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+
+	io, _, _, _ := iostreams.Test()
+	log := logger.New(io.ErrOut, logger.Info, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err = waitForPKCEToken(ctx, io, log, "sess3", p, false, nil)
+
+	if err == nil || errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "fly auth login") {
+		t.Fatalf("expected an error saying to run fly auth login again, got %v", err)
 	}
 }

@@ -193,6 +193,12 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 				return "", errors.New("login session expired, please try again")
 			default:
 				log.Debugf("failed redeeming code: %v", err)
+				if !acceptPaste {
+					// The callback comes only once, and nobody can paste
+					// another code without a terminal: stop with a way
+					// forward instead of waiting out the timeout.
+					return "", fmt.Errorf("failed to redeem the login code (%w). Run `fly auth login` again", err)
+				}
 				fmt.Fprintf(io.ErrOut, "That code didn't work (%v).\n", err)
 				fmt.Fprint(io.Out, prompt)
 			}
