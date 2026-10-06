@@ -11,14 +11,8 @@ import (
 	"github.com/superfly/fly-go/flaps"
 )
 
-type mockWebClient struct {
-}
-
-func (f *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
-	return true, nil
-}
-
 type mockFlapsClient struct {
+	LaunchFunc       func(context.Context, string, fly.LaunchMachineInput) (*fly.Machine, error)
 	breakLaunch      bool
 	breakWait        bool
 	breakUncordon    bool
@@ -372,6 +366,9 @@ func (m *mockFlapsClient) Kill(ctx context.Context, appName, machineID string) (
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	if m.LaunchFunc != nil {
+		return m.LaunchFunc(ctx, appName, builder)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
