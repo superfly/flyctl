@@ -376,6 +376,7 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 				if err := renderRotatedUserCredentials(out, current, cfg.JSONOutput, false, true); err != nil {
 					return fmt.Errorf("password for user %s was rotated, but existing sessions could not be terminated and the current credentials could not be displayed: %w", username, err)
 				}
+
 				return fmt.Errorf("failed to terminate existing sessions after rotating password for user %s", username)
 			}
 			if flapsErr.ResponseStatusCode >= 400 && flapsErr.ResponseStatusCode < 500 {
@@ -410,6 +411,7 @@ func renderRotatedUserCredentials(out stdio.Writer, creds flaps.ManagedPostgresU
 		_, err := fmt.Fprintf(out, "Existing sessions for %s were terminated.\n", creds.Username)
 		return err
 	}
+
 	return nil
 }
 
@@ -421,5 +423,6 @@ func passwordRotatedWithoutTerminatingSessions(err *flaps.FlapsError) bool {
 		return false
 	}
 	status := err.StatusCode()
+
 	return status != nil && *status == "sessions_not_terminated"
 }
