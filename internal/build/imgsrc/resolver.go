@@ -861,6 +861,12 @@ func NewResolver(
 	return resolver
 }
 
+// UsedWireguard reports whether the resolver went to an org builder over
+// WireGuard. Local, Depot, BuildKit and managed builders never do.
+func (r *Resolver) UsedWireguard() bool {
+	return r.dockerFactory.usedWireguard
+}
+
 type imageBuilder interface {
 	Name() string
 	Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error)

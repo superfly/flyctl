@@ -55,7 +55,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, usedWireguard bool, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -72,7 +72,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		depotBool = false
 	case "auto":
 	default:
-		return nil, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
+		return nil, false, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
 	}
 
 	switch flag.GetString(ctx, "builder-pool") {
@@ -84,7 +84,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	case "auto":
 		// nothing
 	default:
-		return nil, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
+		return nil, false, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
@@ -110,7 +110,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var provisioner *imgsrc.Provisioner
@@ -130,6 +130,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		imgsrc.WithProvisioner(provisioner),
 		imgsrc.WithDockerfileMaterializer(dockerfileMaterializer),
 	)
+	defer func() { usedWireguard = resolver.UsedWireguard() }()
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -263,7 +264,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		tracing.RecordError(ctx, span, err, "failed to start heartbeat")
 
-		return nil, err
+		return nil, false, err
 	}
 	defer heartbeat.Stop()
 

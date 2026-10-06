@@ -9,9 +9,53 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/iostreams"
 )
+
+// Deploy fails a build over to HTTPS only when it went over WireGuard, so an
+// org builder reached over WireGuard must count as such even when provisioning
+// fails before any connection is made.
+func TestUsedWireguardAfterFailedOrgBuilder(t *testing.T) {
+	cases := []struct {
+		name      string
+		wireguard bool
+		want      bool
+	}{
+		{name: "over wireguard", wireguard: true, want: true},
+		{name: "over https", wireguard: false, want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := config.NewContext(context.Background(), &config.Config{Tokens: &tokens.Tokens{}})
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetAppFunc: func(_ context.Context, name string) (*flaps.App, error) {
+					return &flaps.App{Name: name, Organization: flaps.AppOrganizationInfo{Slug: "my-org"}}, nil
+				},
+			})
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+					return nil, errors.New("api unavailable")
+				},
+			})
+			ios, _, _, _ := iostreams.Test()
+			resolver := NewResolver(DockerDaemonTypeRemote, nil, "my-app", ios, tc.wireguard, false, WithProvisioner(&Provisioner{}))
+
+			_, err := resolver.StartHeartbeat(ctx)
+
+			require.ErrorContains(t, err, "api unavailable")
+			assert.Equal(t, tc.want, resolver.UsedWireguard())
+		})
+	}
+}
 
 func TestDeploymentImage(t *testing.T) {
 	image := &DeploymentImage{
