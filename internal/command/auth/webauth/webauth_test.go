@@ -282,3 +282,22 @@ func TestRunWebLoginHeadlessLegacyServer(t *testing.T) {
 		t.Fatalf("polled a pre-PKCE session for its token without a terminal (%d polls)", n)
 	}
 }
+
+func TestRunWebLoginKeepsPendingLoginWhenStopped(t *testing.T) {
+	ctx, _, _ := headlessContext(t)
+	pendingPath := filepath.Join(state.ConfigDirectory(ctx), "pending-login.json")
+	newLoginServer(t)
+
+	// The caller's own deadline stops the login long before its 15 minutes
+	// are up, while the session is still waiting for approval.
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	if _, err := RunWebLogin(ctx, false); err == nil {
+		t.Fatal("expected the login to stop at the caller's deadline")
+	}
+
+	if _, err := loadPendingLogin(pendingPath); err != nil {
+		t.Fatalf("a login stopped early lost its pending login, so --code can't finish it: %v", err)
+	}
+}

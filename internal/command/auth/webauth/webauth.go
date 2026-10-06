@@ -157,9 +157,10 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	// Save the login so `fly auth login --code` can finish it if this
 	// process is stopped or the browser can't reach the callback.
 	pendingPath := pendingLoginPath(ctx)
+	expiresAt := time.Now().Add(loginTimeout)
 	var watch *pendingWatch
 	if auth.PKCE {
-		pending := pendingLogin{ID: auth.ID, Verifier: pkce.verifier, ExpiresAt: time.Now().Add(loginTimeout)}
+		pending := pendingLogin{ID: auth.ID, Verifier: pkce.verifier, ExpiresAt: expiresAt}
 		if err := savePendingLogin(pendingPath, pending); err != nil {
 			fmt.Fprintf(io.ErrOut, "Could not save this login (%v), so `fly auth login --code` won't be able to finish it.\n", err)
 		} else {
@@ -186,9 +187,10 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	var token string
 	if auth.PKCE {
 		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless, watch)
-		// Finished or expired: nothing is left for --code to do. A stopped
-		// login keeps its file, which is what --code resumes.
-		if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		// Finished, or past its 15 minutes: nothing is left for --code to do.
+		// A login stopped earlier, by Ctrl-C or a caller's own deadline, keeps
+		// its file, which is what --code resumes.
+		if err == nil || time.Now().After(expiresAt) {
 			removePendingLogin(pendingPath, auth.ID)
 		}
 	} else {
