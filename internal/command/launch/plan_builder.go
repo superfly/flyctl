@@ -337,8 +337,13 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 			os.Exit(0)
 		}
 	case prompt.IsNonInteractive(err):
-		// Should be impossible - we're only called if recoverableErrors.canEnterUi is true
-		return true, nil
+		// Plan steps (the deployer) run without a terminal and keep getting a
+		// generated name. Anyone else would silently get a second app.
+		if plan.GetPlanStep(ctx) != "" {
+			return true, nil
+		}
+
+		return true, prompt.NonInteractiveError(fmt.Sprintf("app %s already exists; to deploy to it, run 'fly deploy'. To launch a new app instead, pass --name with a new name or --generate-name", appName))
 	default:
 		return true, err
 	}
@@ -492,8 +497,8 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)
 			switch {
-			case prompt.IsNonInteractive(err) && !flag.GetYes(ctx):
-				return nil, false, err
+			case prompt.IsNonInteractive(err):
+				return nil, false, prompt.NonInteractiveError("--copy-config must be specified when not running interactively: --copy-config launches with the existing fly.toml, --copy-config=false replaces it. To deploy the app it describes, run 'fly deploy'")
 			case err != nil:
 				return nil, false, err
 			}
