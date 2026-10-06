@@ -12,6 +12,7 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/state"
 )
 
@@ -112,4 +113,42 @@ func RedeemPendingLogin(ctx context.Context, code string) (token string, finish 
 	}
 
 	return session.AccessToken, func() { removePendingLogin(path, p.ID) }, nil
+}
+
+// pendingCheckInterval is how often a waiting login looks at its pending
+// login file.
+var pendingCheckInterval = 2 * time.Second
+
+var (
+	errLoginReplaced   = errors.New("a newer `fly auth login` replaced this one")
+	errLoginNotPending = errors.New("this login is no longer pending. Run `fly auth login` to start a new one")
+)
+
+// pendingWatch lets a waiting login notice that another process finished it
+// with `fly auth login --code`, or that a newer login replaced it.
+type pendingWatch struct {
+	path       string // the pending login file
+	configFile string // config.yml, where a finished login's token lands
+	id         string // this login's session
+	token      string // the token config.yml held when this login started
+}
+
+// check reports whether the login was finished elsewhere (its token), was
+// replaced or dropped (an error), or is still waiting (done is false).
+func (w *pendingWatch) check() (token string, done bool, err error) {
+	p, err := loadPendingLogin(w.path)
+	switch {
+	case err == nil && p.ID == w.id:
+		return "", false, nil
+	case err == nil:
+		return "", true, errLoginReplaced
+	}
+
+	// `fly auth login --code` removes the file only after saving its token,
+	// so a new token means it finished this login.
+	if token, _ := config.ReadAccessToken(w.configFile); token != "" && token != w.token {
+		return token, true, nil
+	}
+
+	return "", true, errLoginNotPending
 }

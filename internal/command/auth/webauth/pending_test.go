@@ -15,7 +15,10 @@ import (
 	"time"
 
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func TestPendingLoginFile(t *testing.T) {
@@ -208,5 +211,109 @@ func TestRedeemPendingLoginUnreadable(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected the unreadable pending login removed: %v", err)
+	}
+}
+
+type waitResult struct {
+	token string
+	err   error
+}
+
+// startWaiting starts waitForPKCEToken for session sess1 the way RunWebLogin
+// does: a pending login on disk, and config.yml holding the token from before
+// the login. It returns those two paths and a channel with the outcome.
+func startWaiting(t *testing.T) (pendingPath, configFile string, result <-chan waitResult) {
+	t.Helper()
+
+	old := pendingCheckInterval
+	pendingCheckInterval = 10 * time.Millisecond
+	t.Cleanup(func() { pendingCheckInterval = old })
+
+	dir := t.TempDir()
+	t.Chdir(dir) // the config lock file lands in the working directory under tests
+	pendingPath = filepath.Join(dir, "pending-login.json")
+	configFile = filepath.Join(dir, "config.yml")
+	if err := config.SetAccessToken(configFile, "old-token"); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := newPKCELogin(map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := savePendingLogin(pendingPath, pendingLogin{ID: "sess1", Verifier: p.verifier, ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	watch := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+
+	ios, _, _, _ := iostreams.Test()
+	log := logger.New(ios.ErrOut, logger.Info, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+
+	ch := make(chan waitResult, 1)
+	go func() {
+		token, err := waitForPKCEToken(ctx, ios, log, "sess1", p, false, watch)
+		ch <- waitResult{token, err}
+	}()
+
+	return pendingPath, configFile, ch
+}
+
+func awaitResult(t *testing.T, ch <-chan waitResult) waitResult {
+	t.Helper()
+
+	select {
+	case r := <-ch:
+		return r
+	case <-time.After(5 * time.Second):
+		t.Fatal("the waiting login did not notice")
+
+		return waitResult{}
+	}
+}
+
+func TestWaitingLoginFinishedWithCode(t *testing.T) {
+	pendingPath, configFile, result := startWaiting(t)
+
+	// What `fly auth login --code` does in another process: save the new
+	// token, then remove the pending login.
+	if err := config.SetAccessToken(configFile, "tok-from-code"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(pendingPath); err != nil {
+		t.Fatal(err)
+	}
+
+	r := awaitResult(t, result)
+	if r.err != nil || r.token != "tok-from-code" {
+		t.Fatalf("expected the token saved by --code, got %q, %v", r.token, r.err)
+	}
+}
+
+func TestWaitingLoginReplaced(t *testing.T) {
+	pendingPath, _, result := startWaiting(t)
+
+	if err := savePendingLogin(pendingPath, pendingLogin{ID: "sess2", Verifier: "verifier2", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+
+	r := awaitResult(t, result)
+	if !errors.Is(r.err, errLoginReplaced) {
+		t.Fatalf("expected errLoginReplaced, got %q, %v", r.token, r.err)
+	}
+}
+
+func TestWaitingLoginNoLongerPending(t *testing.T) {
+	pendingPath, _, result := startWaiting(t)
+
+	// Gone with no new token: expired or dropped elsewhere, not finished.
+	if err := os.Remove(pendingPath); err != nil {
+		t.Fatal(err)
+	}
+
+	r := awaitResult(t, result)
+	if !errors.Is(r.err, errLoginNotPending) {
+		t.Fatalf("expected errLoginNotPending, got %q, %v", r.token, r.err)
 	}
 }

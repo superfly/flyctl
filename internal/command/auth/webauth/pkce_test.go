@@ -104,7 +104,7 @@ func TestPKCELoginCallbackFlow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	token, err := waitForPKCEToken(ctx, io, log, "sess1", p, false)
+	token, err := waitForPKCEToken(ctx, io, log, "sess1", p, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestPKCELoginPastedCode(t *testing.T) {
 	io, _, _, errOut := iostreams.Test()
 	log := logger.New(io.ErrOut, logger.Info, false)
 
-	token, err := waitForPKCEToken(ctx, io, log, "sess2", p, true)
+	token, err := waitForPKCEToken(ctx, io, log, "sess2", p, true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

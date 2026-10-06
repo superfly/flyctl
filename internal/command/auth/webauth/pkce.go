@@ -140,8 +140,9 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 
 // waitForPKCEToken blocks until a completion code arrives and redeems it.
 // With acceptPaste the code may also be typed on stdin; without it (no
-// terminal) the loopback callback is the only source.
-func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin, acceptPaste bool) (string, error) {
+// terminal) the loopback callback is the only source. With watch it also
+// stops once another process finishes or replaces the login.
+func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin, acceptPaste bool, watch *pendingWatch) (string, error) {
 	ctx, cancel := context.WithTimeoutCause(parent, loginTimeout, fmt.Errorf("waiting for PKCE login: %w", context.DeadlineExceeded))
 	defer cancel()
 	defer p.close()
@@ -153,10 +154,25 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 		go p.readPastedCodes(ctx, io.In)
 	}
 
+	ticker := time.NewTicker(pendingCheckInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
+		case <-ticker.C:
+			if watch == nil {
+				continue
+			}
+			if token, done, err := watch.check(); done {
+				if acceptPaste {
+					fmt.Fprint(io.Out, "\r\x1b[K")
+				}
+				log.Debugf("pending login ended in another process: %v", err)
+
+				return token, err
+			}
 		case attempt := <-p.codes:
 			// An HTTP-delivered code leaves the cursor on the prompt line;
 			// erase it so the flow's output starts clean. Pasted codes ended

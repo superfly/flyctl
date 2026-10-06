@@ -170,7 +170,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 
 	var token string
 	if auth.PKCE {
-		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless)
+		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless, nil)
 	} else {
 		// Server predates the PKCE flow
 		pkce.close()
