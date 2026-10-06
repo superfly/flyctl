@@ -6,6 +6,17 @@ rm -f out/*.mdx
 echo "Running doc/main.go"
 go run doc/main.go
 
+# Neither this script nor publish_docs.sh uses set -e, and out/ is cleared
+# before the generator runs. So a generator that fails leaves out/ empty and
+# the rsync below, with --delete, would propagate that and remove every page.
+# Refuse instead. 305 pages today, so 100 is a floor that only a broken run
+# can cross.
+COUNT=$(ls out/*.mdx 2>/dev/null | wc -l)
+if [ "$COUNT" -lt 100 ]; then
+  echo "generator produced $COUNT pages, refusing to sync" >&2
+  exit 1
+fi
+
 if [ "$1" ]
     then
         # Carry sidebarTitle across. On about three dozen pages it is a
