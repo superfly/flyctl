@@ -97,6 +97,15 @@ func TestDetermineSourceInfoNothingToBuild(t *testing.T) {
 		assert.Nil(t, srcInfo)
 	})
 
+	t.Run("headless --manifest only prints the plan", func(t *testing.T) {
+		// `fly launch --manifest > plan.json` creates and deploys nothing, so
+		// there's no false success to prevent.
+		srcInfo, _, err := determineSourceInfo(newSourceInfoCtx(t, false, "--manifest"), appconfig.NewConfig(), false, t.TempDir())
+
+		require.NoError(t, err)
+		assert.Nil(t, srcInfo)
+	})
+
 	t.Run("terminal continues with a blank app", func(t *testing.T) {
 		srcInfo, _, err := determineSourceInfo(newSourceInfoCtx(t, true), appconfig.NewConfig(), false, t.TempDir())
 
