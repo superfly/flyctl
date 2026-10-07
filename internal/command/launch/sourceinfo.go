@@ -89,21 +89,22 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	}
 
 	if srcInfo == nil {
-		var colorFn func(arg any) aurora.Value
-		noBlank := planStep == "propose"
-		if noBlank {
-			colorFn = aurora.Red
-		} else {
-			colorFn = aurora.Green
-		}
 		msg := "Could not find a Dockerfile, nor detect a runtime or framework from source code."
-		if !noBlank {
-			msg += " Continuing with a blank app."
+		var noBlankErr error
+		switch {
+		case planStep == "propose":
+			noBlankErr = errors.New("Could not detect runtime or Dockerfile")
+		case !io.IsInteractive() && !flag.GetBool(ctx, "no-deploy"):
+			// A blank app is never deployed. Without a terminal nobody sees
+			// that, and the empty app plus exit 0 would pass for a launch.
+			noBlankErr = errors.New("found nothing to build; add a Dockerfile, or pass --no-deploy to create an empty app")
 		}
-		fmt.Fprintln(io.Out, colorFn(msg))
-		if noBlank {
-			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
+		if noBlankErr != nil {
+			fmt.Fprintln(io.Out, aurora.Red(msg))
+
+			return nil, nil, noBlankErr
 		}
+		fmt.Fprintln(io.Out, aurora.Green(msg+" Continuing with a blank app."))
 
 		return srcInfo, nil, err
 	}
