@@ -3,6 +3,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -666,7 +667,7 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 		if !confirmed {
-			return nil, fly.ErrNoAuthToken
+			return nil, reloginError(reason)
 		}
 
 		// Attempt to log the user in
@@ -700,8 +701,23 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 
 		return ctx, nil
 	} else {
-		return nil, fly.ErrNoAuthToken
+		return nil, reloginError(reason)
 	}
+}
+
+// errSessionExpired stands in for fly.ErrNoAuthToken when a token is saved
+// but its login is too old, or predates login timestamps: "no access token
+// available" would be wrong, and logging in again fixes it.
+var errSessionExpired = errors.New("your flyctl session has expired. Run `fly auth login` to log in again")
+
+// reloginError is the error for a command that needs a login and won't get
+// one interactively.
+func reloginError(reason string) error {
+	if reason == "not_authenticated" {
+		return fly.ErrNoAuthToken
+	}
+
+	return errSessionExpired
 }
 
 func tryOpenUserURL(ctx context.Context, url string) error {
@@ -738,6 +754,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				var typeErr *json.UnmarshalTypeError
+				if strings.HasSuffix(path, ".json") && flag.FromContext(ctx).Lookup("machine-config") != nil &&
+					errors.As(err, &typeErr) && typeErr.Field == "restart" && typeErr.Value == "object" {
+					logger.Warn("--config expects app configuration; use --machine-config for Machine JSON.")
+				}
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
 

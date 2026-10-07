@@ -1046,6 +1046,21 @@ func (mr *MockFlapsClientMockRecorder) RestoreManagedPostgresCluster(ctx, id, re
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestoreManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).RestoreManagedPostgresCluster), ctx, id, req)
 }
 
+// RotateManagedPostgresUserPassword mocks base method.
+func (m *MockFlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RotateManagedPostgresUserPassword", ctx, id, username, req)
+	ret0, _ := ret[0].(flaps.ManagedPostgresUserCredentials)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RotateManagedPostgresUserPassword indicates an expected call of RotateManagedPostgresUserPassword.
+func (mr *MockFlapsClientMockRecorder) RotateManagedPostgresUserPassword(ctx, id, username, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RotateManagedPostgresUserPassword", reflect.TypeOf((*MockFlapsClient)(nil).RotateManagedPostgresUserPassword), ctx, id, username, req)
+}
+
 // SetAppSecret mocks base method.
 func (m *MockFlapsClient) SetAppSecret(ctx context.Context, appName, name, value string) (*fly.SetAppSecretResp, error) {
 	m.ctrl.T.Helper()

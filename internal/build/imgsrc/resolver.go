@@ -140,7 +140,9 @@ func (di *DeploymentImage) String() string {
 		return di.Tag
 	}
 
-	return fmt.Sprintf("%s@%s", di.Tag, di.Digest)
+	tag, _, _ := strings.Cut(di.Tag, "@")
+
+	return fmt.Sprintf("%s@%s", tag, di.Digest)
 }
 
 func (di *DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
@@ -857,6 +859,12 @@ func NewResolver(
 	resolver.dockerFactory = newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder)
 
 	return resolver
+}
+
+// UsedWireguard reports whether the resolver went to an org builder over
+// WireGuard. Local, Depot, BuildKit and managed builders never do.
+func (r *Resolver) UsedWireguard() bool {
+	return r.dockerFactory.usedWireguard
 }
 
 type imageBuilder interface {

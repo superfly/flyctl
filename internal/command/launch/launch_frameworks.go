@@ -134,6 +134,9 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 			}
 			if !flag.GetBool(ctx, "yes") {
 				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if prompt.IsNonInteractive(err) {
+					fmt.Fprintf(io.Out, "Not overwriting %s when not running interactively; pass --yes to overwrite it\n", path)
+				}
 				if !confirm || err != nil {
 					continue
 				}

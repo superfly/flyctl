@@ -8,10 +8,13 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -218,7 +221,7 @@ func TestDetermineBaseAppConfig(t *testing.T) {
 		assert.Equal(t, "docker.ui-server.dockerfile", cfg.Build.Dockerfile)
 	})
 
-	t.Run("no flags in non-interactive mode returns error", func(t *testing.T) {
+	t.Run("no flags in non-interactive mode returns error naming the flags", func(t *testing.T) {
 		ctx := newDetermineBaseAppConfigCtx(t, false, false)
 		ctx = appconfig.WithConfig(ctx, existingCfg)
 		// Non-interactive iostreams → prompt.Confirm returns ErrNonInteractive.
@@ -226,6 +229,69 @@ func TestDetermineBaseAppConfig(t *testing.T) {
 		ctx = iostreams.NewContext(ctx, ios)
 
 		_, _, err := determineBaseAppConfig(ctx)
-		assert.Error(t, err)
+		require.ErrorIs(t, err, prompt.ErrNonInteractive)
+		assert.Contains(t, err.Error(), "--copy-config")
+		assert.Contains(t, err.Error(), "fly deploy")
+	})
+}
+
+// newNudgeCtx is a non-interactive context carrying every launch flag, where
+// the user can see an app named "existing-app".
+func newNudgeCtx(t *testing.T, args ...string) context.Context {
+	t.Helper()
+
+	ios, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+
+	flags := New().Flags()
+	require.NoError(t, flags.Parse(args))
+	ctx = flagctx.NewContext(ctx, flags)
+
+	return flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetAppFunc: func(_ context.Context, name string) (*flaps.App, error) {
+			if name == "existing-app" {
+				return &flaps.App{Name: name}, nil
+			}
+
+			return nil, errors.New("app not found")
+		},
+	})
+}
+
+// Launching under the name of an app the user already has usually means they
+// wanted `fly deploy`. Interactively they are asked; headless there is nobody
+// to ask, and a new app under a generated name is the one outcome nobody chose.
+func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
+	t.Run("existing app fails with directions", func(t *testing.T) {
+		taken, err := nudgeTowardsDeploy(newNudgeCtx(t), "existing-app")
+
+		require.ErrorIs(t, err, prompt.ErrNonInteractive)
+		assert.True(t, taken)
+		assert.Contains(t, err.Error(), "fly deploy")
+		assert.Contains(t, err.Error(), "--generate-name")
+	})
+
+	t.Run("unknown app proceeds", func(t *testing.T) {
+		taken, err := nudgeTowardsDeploy(newNudgeCtx(t), "new-app")
+
+		require.NoError(t, err)
+		assert.False(t, taken)
+	})
+
+	t.Run("--yes launches a new app", func(t *testing.T) {
+		taken, err := nudgeTowardsDeploy(newNudgeCtx(t, "--yes"), "existing-app")
+
+		require.NoError(t, err)
+		assert.False(t, taken)
+	})
+
+	t.Run("plan steps keep generating a name", func(t *testing.T) {
+		// The deployer drives launch through plan steps, headless.
+		ctx := context.WithValue(newNudgeCtx(t), plan.PlanStepKey, "propose")
+
+		taken, err := nudgeTowardsDeploy(ctx, "existing-app")
+
+		require.NoError(t, err)
+		assert.True(t, taken)
 	})
 }

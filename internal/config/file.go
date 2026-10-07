@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/filemu"
 )
 
@@ -189,47 +190,5 @@ func marshalUnlocked(path string, v any) (err error) {
 		return err
 	}
 
-	return writeFileAtomically(path, b.Bytes(), 0o600)
-}
-
-// writeFileAtomically writes data to a temporary file beside path, flushes it
-// to disk, and renames it over path. A write that fails part way, for example
-// on a full disk, leaves whatever was at path untouched. os.WriteFile
-// truncates first and writes second, so the same failure would leave an empty
-// file behind, and an empty config reads back as a logged-out flyctl.
-func writeFileAtomically(path string, data []byte, perm os.FileMode) (err error) {
-	// Replace the file the link points to, not the link itself, as os.WriteFile
-	// did. Users symlink the config file into place from a dotfiles repository
-	// or a secrets mount.
-	if resolved, e := filepath.EvalSymlinks(path); e == nil {
-		path = resolved
-	}
-
-	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
-	if err != nil {
-		return err
-	}
-	tmp := f.Name()
-
-	defer func() {
-		if err != nil {
-			_ = f.Close()
-			_ = os.Remove(tmp)
-		}
-	}()
-
-	if _, err = f.Write(data); err != nil {
-		return err
-	}
-	if err = f.Sync(); err != nil {
-		return err
-	}
-	if err = f.Chmod(perm); err != nil {
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-
-	return os.Rename(tmp, path)
+	return helpers.WriteFileAtomically(path, b.Bytes(), 0o600)
 }

@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,5 +49,34 @@ func TestWriteKubeconfigNarrowsExistingFile(t *testing.T) {
 	requireOwnerOnly(t, path)
 	if data, _ := os.ReadFile(path); string(data) != "new\n" {
 		t.Errorf("file not truncated, contents %q", data)
+	}
+}
+
+func TestWriteKubeconfigRewriteIsInvisibleThroughOldHandle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows refuses to rename over a file that another handle has open")
+	}
+	path := filepath.Join(t.TempDir(), "cluster.kubeconfig.yml")
+	if err := os.WriteFile(path, []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A reader that opened the world-readable file before the rewrite must
+	// not see the credential that the rewrite adds.
+	old, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer old.Close()
+
+	if err := writeKubeconfig(path, "new\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	seen, err := io.ReadAll(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(seen) != "old\n" {
+		t.Errorf("old handle saw %q, want the original contents", seen)
 	}
 }

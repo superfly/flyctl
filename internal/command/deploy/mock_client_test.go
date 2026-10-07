@@ -11,14 +11,8 @@ import (
 	"github.com/superfly/fly-go/flaps"
 )
 
-type mockWebClient struct {
-}
-
-func (f *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
-	return true, nil
-}
-
 type mockFlapsClient struct {
+	LaunchFunc       func(context.Context, string, fly.LaunchMachineInput) (*fly.Machine, error)
 	breakLaunch      bool
 	breakWait        bool
 	breakUncordon    bool
@@ -372,6 +366,9 @@ func (m *mockFlapsClient) Kill(ctx context.Context, appName, machineID string) (
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	if m.LaunchFunc != nil {
+		return m.LaunchFunc(ctx, appName, builder)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -643,6 +640,10 @@ func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, 
 
 func (m *mockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
 	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
