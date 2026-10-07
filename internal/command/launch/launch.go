@@ -212,7 +212,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if dbErr != nil {
-		return fmt.Errorf("app %s was created, but provisioning failed: %w\nFix that and run `fly deploy`, or run `fly deploy` now to deploy without it", state.Plan.AppName, dbErr)
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `fly deploy`, or run `fly deploy` now to deploy without it", state.Plan.AppName, dbErr)
 	}
 
 	if state.sourceInfo != nil {

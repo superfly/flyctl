@@ -37,7 +37,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Postgres cluster: %s\n", err)
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres create`, then `fly postgres attach`)", err))
 		}
 	}
 
@@ -46,7 +46,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg create`, then `fly mpg attach`)", err))
 		}
 	}
 
@@ -55,7 +55,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly redis create`)", err))
 		}
 	}
 
@@ -64,7 +64,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create`)", err))
 		}
 	}
 
