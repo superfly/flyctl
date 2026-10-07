@@ -780,6 +780,51 @@ func TestToMachineConfig_compute_none(t *testing.T) {
 	}
 }
 
+// Regression test for https://github.com/superfly/flyctl/issues/4544
+//
+// A partial [[vm]] section (e.g. only cpu_kind) must not reset a machine that
+// was previously scaled up via `fly scale vm/--memory` back to the
+// shared-cpu-1x / 256MB defaults. `fly deploy` passes the live (scaled) machine
+// config as src, and any field the user did not explicitly set in fly.toml must
+// be preserved from it.
+func TestToMachineConfig_partialComputePreservesScale(t *testing.T) {
+	// fly.toml with a partial [[vm]] block: only cpu_kind is set, no size and
+	// no explicit cpus/memory.
+	cfg, err := unmarshalTOML([]byte(`
+app = "pfval-4544"
+primary_region = "iad"
+
+[build]
+  image = "nginx"
+
+[[vm]]
+  cpu_kind = "shared"
+`))
+	require.NoError(t, err)
+
+	// The machine as it currently exists on the platform, after the user ran
+	//   fly scale vm shared-cpu-4x --memory 1024
+	src := &fly.MachineConfig{
+		Image: "nginx",
+		Guest: &fly.MachineGuest{
+			CPUKind:  "shared",
+			CPUs:     4,
+			MemoryMB: 1024,
+		},
+	}
+
+	got, err := cfg.ToMachineConfig("", src)
+	require.NoError(t, err)
+
+	// A partial [[vm]] should preserve the scaled CPUs/Memory and only change
+	// the field the user actually specified.
+	assert.Equal(t, &fly.MachineGuest{
+		CPUKind:  "shared",
+		CPUs:     4,
+		MemoryMB: 1024,
+	}, got.Guest)
+}
+
 func TestToMachineConfig_hostdedicationid(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/tomachine-hostdedicationid.toml")
 	require.NoError(t, err)
