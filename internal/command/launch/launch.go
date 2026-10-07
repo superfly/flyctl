@@ -95,14 +95,16 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
 
+	// A failed database or storage provider stops the launch just before the
+	// deploy rather than here, so fly.toml still gets written and `fly deploy`
+	// works once the failure is fixed.
+	var dbErr error
 	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
-		if err = state.createDatabases(ctx); err != nil {
-			return err
-		}
+		dbErr = state.createDatabases(ctx)
 	}
 
 	if planStep != "" && planStep != "deploy" && planStep != "generate" {
-		return nil
+		return dbErr
 	}
 
 	if planStep == "" || planStep == "generate" {
@@ -207,6 +209,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 		if err := appsecrets.Update(ctx, flapsClient, state.appConfig.AppName, secrets, nil); err != nil {
 			return err
 		}
+	}
+
+	if dbErr != nil {
+		return fmt.Errorf("app %s was created, but provisioning failed: %w\nFix that and run `fly deploy`, or run `fly deploy` now to deploy without it", state.Plan.AppName, dbErr)
 	}
 
 	if state.sourceInfo != nil {

@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -29,12 +30,14 @@ import (
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
 	planStep := plan.GetPlanStep(ctx)
+	var errs []error
 
 	if state.Plan.Postgres.FlyPostgres != nil && (planStep == "" || planStep == "postgres") {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Postgres cluster: %s\n", err)
+			errs = append(errs, err)
 		}
 	}
 
@@ -43,6 +46,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
+			errs = append(errs, err)
 		}
 	}
 
@@ -51,6 +55,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
+			errs = append(errs, err)
 		}
 	}
 
@@ -59,6 +64,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
+			errs = append(errs, err)
 		}
 	}
 
@@ -73,7 +79,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
@@ -153,10 +159,8 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 			}
 		}
-		if err != nil {
-			const msg = "Error creating Postgres database. Be warned that this may affect deploys"
-			fmt.Fprintln(io.Out, io.ColorScheme().Red(msg))
-		}
+
+		return err
 	}
 
 	return nil
