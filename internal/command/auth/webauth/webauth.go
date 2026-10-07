@@ -50,11 +50,13 @@ func errHeadlessLegacyServer(command string) error {
 // the command might appear to hang: the browser has to be on this machine,
 // and an agent has to keep the command alive for longer than its usual
 // command timeout.
-func headlessNotice(command string) string {
-	return "This terminal is not interactive, so the code cannot be pasted here.\n" +
+func headlessNotice(command, url string) string {
+	return fmt.Sprintf("Open this URL in a browser and approve the %s:\n\n    %s\n\n", command, url) +
+		"This terminal is not interactive, so the code cannot be pasted here.\n" +
 		fmt.Sprintf("The %s completes on its own once approved in a browser on this machine, within %d minutes.\n", command, int(loginTimeout.Minutes())) +
 		"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n" +
-		"If the browser is on another machine, or this command was stopped, finish with: fly auth login --code <code shown after approving>\n\n"
+		"If the browser is on another machine, or this command was stopped, finish with: fly auth login --code <code shown after approving>\n" +
+		"This command exits on its own once that succeeds.\n\n"
 }
 
 func SaveToken(ctx context.Context, token string) error {
@@ -171,17 +173,19 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	}
 
 	colorize := io.ColorScheme()
-	if err := open.Run(auth.URL); err != nil {
+	openErr := open.Run(auth.URL)
+	switch {
+	case headless:
+		// Whether or not a browser opened, the reader may have to pass the
+		// URL on to someone, so the notice gives it a line of its own.
+		fmt.Fprint(io.ErrOut, headlessNotice(command, auth.URL))
+	case openErr != nil:
 		fmt.Fprintf(io.ErrOut,
 			"failed opening browser. Copy the url (%s) into a browser and continue\n\n",
 			colorize.Bold(auth.URL),
 		)
-	} else {
+	default:
 		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
-	}
-
-	if headless {
-		fmt.Fprint(io.ErrOut, headlessNotice(command))
 	}
 
 	var token string

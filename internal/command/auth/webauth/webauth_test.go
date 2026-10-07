@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -193,8 +194,12 @@ func TestRunWebLoginHeadless(t *testing.T) {
 	if strings.Contains(out.String(), "paste code here") {
 		t.Fatalf("prompted for a paste without a terminal: %q", out.String())
 	}
-	if !strings.Contains(out.String()+errOut.String(), "https://fly.example/app/auth/cli/sess1") {
-		t.Fatalf("login URL not printed; stdout %q, stderr %q", out.String(), errOut.String())
+	// The URL gets a line of its own, so an agent relaying it, or a terminal
+	// linking it, picks it out whole.
+	if !slices.ContainsFunc(strings.Split(errOut.String(), "\n"), func(line string) bool {
+		return strings.TrimSpace(line) == "https://fly.example/app/auth/cli/sess1"
+	}) {
+		t.Fatalf("login URL not on a line of its own; stdout %q, stderr %q", out.String(), errOut.String())
 	}
 	if _, err := os.Stat(pendingPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("pending login left behind after a successful login: %v", err)
