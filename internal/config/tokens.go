@@ -34,7 +34,7 @@ type UserURLCallback func(ctx context.Context, url string) error
 //   - Pruning expired or invalid token.
 //   - Fetching macaroons for any organizations the user has been added to.
 //   - Pruning tokens for organizations the user is no longer a member of.
-func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) {
+func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) error {
 	log := logger.FromContext(monitorCtx)
 	file := t.FromFile()
 
@@ -43,9 +43,9 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
 	}
 
-	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb, 30*time.Second)
-	if err != nil {
-		log.Debugf("failed to update discharge tokens: %s", err)
+	updated2, refreshErr := refreshDischargeTokens(monitorCtx, t, uucb, 30*time.Second)
+	if refreshErr != nil {
+		log.Debugf("failed to update discharge tokens: %s", refreshErr)
 	}
 
 	if file != "" && (updated1 || updated2) {
@@ -82,6 +82,12 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		cancelTask(fmt.Errorf("token monitoring stopped: %w", context.Canceled))
 		wg.Wait()
 	})
+
+	if refreshErr != nil && missingAllDischarges(t) {
+		return fmt.Errorf("failed fetching third-party discharge tokens: %w", refreshErr)
+	}
+
+	return nil
 }
 
 // monitorConfigTokenChanges watches for token changes in the config file. This can
@@ -240,6 +246,41 @@ func doRefreshDischargeTokens(
 	updated, err := t.Update(ctx, updateOpts...)
 
 	return updated || updatedParallel, err
+}
+
+func missingAllDischarges(t *tokens.Tokens) bool {
+	if len(t.GetUserTokens()) > 0 {
+		return false
+	}
+
+	macToks := t.GetMacaroonTokens()
+	if len(macToks) == 0 {
+		return false
+	}
+
+	var undischarged bool
+
+	for _, tok := range macToks {
+		raws, err := macaroon.Parse(tok)
+		if err != nil || len(raws) == 0 {
+			return false
+		}
+
+		m, err := macaroon.Decode(raws[0])
+		if err != nil {
+			return false
+		}
+
+		if m.Location != flyio.LocationPermission {
+			return false
+		}
+
+		if len(macaroon.GetCaveats[*macaroon.Caveat3P](&m.UnsafeCaveats)) > 0 {
+			undischarged = true
+		}
+	}
+
+	return undischarged
 }
 
 // fetchOrgTokens checks that we macaroons for all orgs the user is a member of.
