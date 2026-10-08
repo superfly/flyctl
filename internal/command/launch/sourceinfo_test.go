@@ -106,6 +106,13 @@ func TestDetermineSourceInfoNothingToBuild(t *testing.T) {
 		assert.Nil(t, srcInfo)
 	})
 
+	t.Run("headless --no-create-app only writes fly.toml", func(t *testing.T) {
+		srcInfo, _, err := determineSourceInfo(newSourceInfoCtx(t, false, "--no-create-app"), appconfig.NewConfig(), false, t.TempDir())
+
+		require.NoError(t, err)
+		assert.Nil(t, srcInfo)
+	})
+
 	t.Run("terminal continues with a blank app", func(t *testing.T) {
 		srcInfo, _, err := determineSourceInfo(newSourceInfoCtx(t, true), appconfig.NewConfig(), false, t.TempDir())
 

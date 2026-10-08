@@ -94,10 +94,11 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		switch {
 		case planStep == "propose":
 			noBlankErr = errors.New("Could not detect runtime or Dockerfile")
-		case !io.IsInteractive() && !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "manifest"):
+		case !io.IsInteractive() && !flag.GetBool(ctx, "no-deploy") && !flag.GetBool(ctx, "manifest") && !flag.GetBool(ctx, "no-create-app"):
 			// A blank app is never deployed. Without a terminal nobody sees
 			// that, and the empty app plus exit 0 would pass for a launch.
-			// --manifest only prints the plan, so there's nothing to mistake.
+			// --manifest only prints the plan and --no-create-app only writes
+			// fly.toml, so there's nothing to mistake.
 			noBlankErr = errors.New("found nothing to build; add a Dockerfile, or pass --no-deploy to create an empty app")
 		}
 		if noBlankErr != nil {
