@@ -11,8 +11,10 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -154,6 +156,128 @@ func TestDetermineOrg(t *testing.T) {
 		require.NotNil(t, org)
 		assert.Equal(t, "personal", org.Slug)
 	})
+}
+
+// newBuildManifestCtx is a non-interactive context carrying every launch flag,
+// with --image set so no source scanning happens.
+func newBuildManifestCtx(t *testing.T) context.Context {
+	t.Helper()
+
+	ios, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+
+	flags := New().Flags()
+	require.NoError(t, flags.Set("image", "nginx:alpine"))
+	require.NoError(t, flags.Set("path", t.TempDir()))
+
+	return flagctx.NewContext(ctx, flags)
+}
+
+// An organization with no payment method has a machine limit of zero, so the
+// placements request that picks the region fails with "requested machine
+// count exceeds organization limit", which never mentions billing. The billing
+// check has to run before it.
+func TestBuildManifestChecksBillingBeforePlacement(t *testing.T) {
+	errOrgLimit := errors.New("requested machine count exceeds organization limit")
+
+	for _, tc := range []struct {
+		name       string
+		status     uiex.BillingStatus
+		planStep   string
+		wantPlaced bool
+	}{
+		{name: "no payment method", status: uiex.BillingStatusSourceRequired},
+		{name: "trial ended", status: uiex.BillingStatusTrialEnded},
+		{name: "trial active", status: uiex.BillingStatusTrialActive, wantPlaced: true},
+		{name: "current", status: uiex.BillingStatusCurrent, wantPlaced: true},
+		{name: "past due", status: uiex.BillingStatusPastDue, wantPlaced: true},
+		{name: "unknown status", status: "SOMETHING_NEW", wantPlaced: true},
+		// The deployer drives launch through plan steps; it never had this check.
+		{name: "plan step", status: uiex.BillingStatusSourceRequired, planStep: "propose", wantPlaced: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newBuildManifestCtx(t)
+			if tc.planStep != "" {
+				ctx = context.WithValue(ctx, plan.PlanStepKey, tc.planStep)
+			}
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
+					return []uiex.Organization{{Slug: "personal", RawSlug: "someone-123", Personal: true, BillingStatus: tc.status}}, nil
+				},
+			})
+
+			placed := false
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+					return nil, errors.New("app not found")
+				},
+				AppNameAvailableFunc: func(context.Context, string) (bool, error) { return true, nil },
+				// Stop the build right here either way; only the ordering matters.
+				GetPlacementsFunc: func(context.Context, *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+					placed = true
+
+					return nil, errOrgLimit
+				},
+			})
+
+			_, _, err := buildManifest(ctx, nil, &recoverableErrorBuilder{canEnterUi: false})
+			require.Error(t, err)
+			assert.Equal(t, tc.wantPlaced, placed, "placements requested")
+
+			if !tc.wantPlaced {
+				assert.Contains(t, err.Error(), "payment method")
+				assert.Contains(t, flyerr.GetErrorSuggestion(err), "https://fly.io/dashboard/personal/billing")
+			}
+		})
+	}
+}
+
+// A manifest given with --from-manifest skips buildManifest, so its billing
+// check has to happen when the launch state is built from the manifest. A
+// manifest buildManifest just produced was checked already, and plan steps (the
+// deployer) skip the check.
+func TestStateFromManifestChecksBilling(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cache    planBuildCache
+		planStep string
+		wantErr  bool
+	}{
+		{name: "manifest loaded from a file", cache: planBuildCache{appNameValidated: true}, wantErr: true},
+		{name: "manifest from buildManifest", cache: planBuildCache{appNameValidated: true, billingChecked: true}},
+		{name: "plan step", cache: planBuildCache{appNameValidated: true}, planStep: "create"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newBuildManifestCtx(t)
+			require.NoError(t, flag.FromContext(ctx).Set("no-deploy", "true")) // no remote builder warm-up
+			if tc.planStep != "" {
+				ctx = context.WithValue(ctx, plan.PlanStepKey, tc.planStep)
+			}
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+					return &uiex.Organization{Slug: "personal", BillingStatus: uiex.BillingStatusSourceRequired}, nil
+				},
+			})
+
+			m := LaunchManifest{
+				Plan:       &plan.LaunchPlan{AppName: "my-app", OrgSlug: "personal"},
+				PlanSource: newDefaultPlanSource("from manifest"),
+				Config:     appconfig.NewConfig(),
+			}
+			tc.cache.appConfig = m.Config
+
+			_, err := stateFromManifest(ctx, m, &tc.cache, &recoverableErrorBuilder{canEnterUi: false})
+
+			if !tc.wantErr {
+				require.NoError(t, err)
+
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "payment method")
+			assert.Contains(t, flyerr.GetErrorSuggestion(err), "https://fly.io/dashboard/personal/billing")
+		})
+	}
 }
 
 // newDetermineBaseAppConfigCtx builds a context wired with the flags that

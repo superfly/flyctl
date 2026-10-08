@@ -555,17 +555,6 @@ func run(ctx context.Context) (err error) {
 		incompleteLaunchManifest = true
 	}
 
-	// Check billing status and display appropriate message
-	if planStep == "" {
-		shouldContinue, err := checkBillingStatus(ctx, state)
-		if err != nil {
-			return err
-		}
-		if !shouldContinue {
-			return errors.New("payment method required to continue")
-		}
-	}
-
 	editInUi := false
 	if !flag.GetBool(ctx, "yes") && planStep == "" {
 		colorize := io.ColorScheme()
@@ -689,32 +678,31 @@ func validatePostgresFlags(ctx context.Context) error {
 	return nil
 }
 
-// checkBillingStatus checks the organization's billing status and displays appropriate messaging
-// Returns (shouldContinue, error)
-func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
+// checkBillingStatus stops a launch into an organization that needs a payment
+// method before it can run Machines, and displays appropriate messaging.
+// Without canPrompt it only returns an error naming the billing page.
+func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt bool) error {
+	billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
+	needsPaymentMethod := org.BillingStatus == uiex.BillingStatusSourceRequired || org.BillingStatus == uiex.BillingStatusTrialEnded
+
+	if !canPrompt {
+		if needsPaymentMethod {
+			return flyerr.GenericErr{
+				Err:     fmt.Sprintf("organization %s needs a payment method to launch apps", org.Slug),
+				Suggest: fmt.Sprintf("Add one at %s, then run 'fly launch' again.", billingURL),
+			}
+		}
+
+		return nil
+	}
+
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-
-	// Skip billing check if running in non-interactive mode or CI
-	if !io.IsInteractive() || env.IsCI() {
-		return true, nil
-	}
-
-	// Fetch organization data including billing status
-	org, err := state.orgCompact(ctx)
-	if err != nil {
-		// If we can't fetch org data, log the error but don't block the launch
-		fmt.Fprintf(io.ErrOut, "Warning: Could not check billing status: %v\n", err)
-
-		return true, nil
-	}
-
-	fmt.Fprintln(io.Out)
 
 	switch org.BillingStatus {
 	case uiex.BillingStatusTrialActive:
 		// User is on active free trial - celebrate!
-		fmt.Fprintf(io.Out, "%s\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
+		fmt.Fprintf(io.Out, "%s\n\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
 
 	case uiex.BillingStatusSourceRequired, uiex.BillingStatusTrialEnded:
 		// User needs to add a payment method
@@ -723,12 +711,11 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 
 		addPayment, err := prompt.Confirm(ctx, "Would you like to do this now?")
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if addPayment {
 			// Open billing dashboard URL
-			billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
 			fmt.Fprintln(io.Out)
 			fmt.Fprintf(io.Out, "Opening billing dashboard: %s\n", colorize.Bold(billingURL))
 			fmt.Fprintln(io.Out)
@@ -738,11 +725,9 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 			if err := openBrowser(billingURL); err != nil {
 				fmt.Fprintf(io.ErrOut, "Could not open browser automatically. Please visit: %s\n", billingURL)
 			}
-
-			return false, nil
-		} else {
-			return false, nil
 		}
+
+		return errors.New("payment method required to continue")
 
 	case uiex.BillingStatusCurrent, uiex.BillingStatusPastDue, uiex.BillingStatusDelinquent:
 		// User has a payment method configured - say nothing per requirements
@@ -753,9 +738,7 @@ func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
 		fmt.Fprintf(io.ErrOut, "Warning: Unknown billing status: %s\n", org.BillingStatus)
 	}
 
-	fmt.Fprintln(io.Out)
-
-	return true, nil
+	return nil
 }
 
 // openBrowser attempts to open the given URL in the default browser

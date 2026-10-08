@@ -72,6 +72,7 @@ type planBuildCache struct {
 	// used to skip double-validating in stateFromManifest
 	appNameValidated bool
 	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	billingChecked   bool // true => buildManifest ran checkBillingStatus; manifests loaded with --from-manifest haven't been checked
 }
 
 func appNameTakenErr(appName string) error {
@@ -120,10 +121,21 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
 	org, orgExplanation, err := determineOrg(ctx, parentConfig)
+	billingChecked := false
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
+	} else if plan.GetPlanStep(ctx) == "" {
+		// Before determineRegion: placements fail for an org that can't run
+		// Machines, with an error that doesn't say why.
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			partial := &LaunchManifest{Plan: &plan.LaunchPlan{OrgSlug: org.Slug, FlyctlVersion: buildinfo.Info().Version}}
+
+			return partial, nil, err
+		}
+		billingChecked = true
 	}
 
 	httpServicePort := 8080
@@ -232,6 +244,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		sourceInfo:       srcInfo,
 		appNameValidated: true, // validated in determineAppName
 		warnedNoCcHa:     false,
+		billingChecked:   billingChecked,
 	}
 
 	if planValidateHighAvailability(ctx, lp, org.Billable, true) {
@@ -358,6 +371,15 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	org, err := uiexClient.GetOrganization(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
+	}
+
+	// A manifest loaded with --from-manifest skipped buildManifest and its
+	// billing check, so check here, before warming up a remote builder.
+	if plan.GetPlanStep(ctx) == "" && (optionalCache == nil || !optionalCache.billingChecked) {
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			return nil, err
+		}
 	}
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
