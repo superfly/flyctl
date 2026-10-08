@@ -97,6 +97,13 @@ func TestDetermineSourceInfoNothingToBuild(t *testing.T) {
 		assert.Nil(t, srcInfo)
 	})
 
+	t.Run("headless --no-deploy --now still fails", func(t *testing.T) {
+		// --now overrides --no-deploy, so this asks for a deploy.
+		_, _, err := determineSourceInfo(newSourceInfoCtx(t, false, "--no-deploy", "--now"), appconfig.NewConfig(), false, t.TempDir())
+
+		require.Error(t, err)
+	})
+
 	t.Run("headless --manifest only prints the plan", func(t *testing.T) {
 		// `fly launch --manifest > plan.json` creates and deploys nothing, so
 		// there's no false success to prevent.
