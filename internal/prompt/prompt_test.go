@@ -63,3 +63,22 @@ func TestConfirmOverwriteNonInteractive(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNonInteractive)
 	assert.Empty(t, string(leaked), "wrote to the process stdout")
 }
+
+// Never-prompt (FLY_NO_PROMPT) wins over streams that claim to be TTYs, as
+// under an agent's pseudo-terminal that nobody answers.
+func TestConfirmNeverPrompt(t *testing.T) {
+	// Real files, so only never-prompt stands between Confirm and survey.
+	devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	require.NoError(t, err)
+	defer devNull.Close()
+
+	ios := &iostreams.IOStreams{In: devNull, Out: devNull, ErrOut: devNull}
+	ios.SetStdinTTY(true)
+	ios.SetStdoutTTY(true)
+	ios.SetNeverPrompt(true)
+
+	confirm, err := Confirm(iostreams.NewContext(context.Background(), ios), "Continue?")
+
+	assert.False(t, confirm)
+	assert.ErrorIs(t, err, ErrNonInteractive)
+}

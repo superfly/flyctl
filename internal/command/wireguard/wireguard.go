@@ -155,19 +155,14 @@ func runWireguardCreate(ctx context.Context) error {
 
 	network := flag.GetString(ctx, "network")
 
-	state, err := wireguard.Create(apiClient, org.ID, org.Slug, region, name, network, "static")
-	if err != nil {
-		return err
-	}
-
-	data := &state.Peer
-
 	fmt.Fprintf(io.Out, `
 !!!! WARNING: Output includes private key. Private keys cannot be recovered !!!!
 !!!! after creating the peer; if you lose the key, you'll need to remove    !!!!
 !!!! and re-add the peering connection.                                     !!!!
 `)
 
+	// Settle where the configuration goes before the peer exists: its private
+	// key is never stored anywhere else, so it must have a destination first.
 	w, shouldClose, err := resolveOutputWriter(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ")
 	if err != nil {
 		return err
@@ -175,6 +170,21 @@ func runWireguardCreate(ctx context.Context) error {
 	if shouldClose {
 		defer w.Close() // skipcq: GO-S2307
 	}
+
+	state, err := wireguard.Create(apiClient, org.ID, org.Slug, region, name, network, "static")
+	if err != nil {
+		if shouldClose {
+			// The file was created empty for this peer; remove it so a retry
+			// can use the same name.
+			filename := w.(*os.File).Name()
+			_ = w.Close()
+			_ = os.Remove(filename)
+		}
+
+		return err
+	}
+
+	data := &state.Peer
 
 	generateWgConf(data, state.LocalPrivate, w)
 
