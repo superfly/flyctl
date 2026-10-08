@@ -67,6 +67,12 @@ func TestDetermineSourceInfoDockerfileDetection(t *testing.T) {
 func newSourceInfoCtx(t *testing.T, terminal bool, args ...string) context.Context {
 	t.Helper()
 
+	// env.IsCI only checks presence, so unset rather than blank them.
+	for _, k := range []string{"CI", "GITHUB_ACTIONS", "CONTINUOUS_INTEGRATION", "BUILD_NUMBER", "RUN_ID"} {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+
 	ios, _, _, _ := iostreams.Test()
 	ios.SetStdinTTY(terminal)
 	ios.SetStdoutTTY(terminal)
@@ -128,6 +134,15 @@ func TestDetermineSourceInfoNothingToBuild(t *testing.T) {
 		assert.Nil(t, srcInfo)
 	})
 
+	t.Run("CI with a terminal fails like headless", func(t *testing.T) {
+		ctx := newSourceInfoCtx(t, true)
+		t.Setenv("CI", "true")
+
+		_, _, err := determineSourceInfo(ctx, appconfig.NewConfig(), false, t.TempDir())
+
+		require.Error(t, err)
+	})
+
 	t.Run("plan propose keeps its own error", func(t *testing.T) {
 		// The deployer runs propose headless; it has no --no-deploy to suggest.
 		ctx := context.WithValue(newSourceInfoCtx(t, false), plan.PlanStepKey, "propose")
@@ -146,4 +161,6 @@ func TestNoCreateApp(t *testing.T) {
 		assert.True(t, noCreateApp(newSourceInfoCtx(t, false, args...)), args)
 	}
 	assert.False(t, noCreateApp(newSourceInfoCtx(t, false)))
+	// The canonical flag wins, as in ApplyAliases.
+	assert.False(t, noCreateApp(newSourceInfoCtx(t, false, "--no-create", "--no-create-app=false")))
 }

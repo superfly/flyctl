@@ -12,6 +12,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -94,7 +95,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		switch {
 		case planStep == "propose":
 			noBlankErr = errors.New("Could not detect runtime or Dockerfile")
-		case !io.IsInteractive() && (flag.GetBool(ctx, "now") || !flag.GetBool(ctx, "no-deploy")) && !flag.GetBool(ctx, "manifest") && !noCreateApp(ctx):
+		case (!io.IsInteractive() || env.IsCI()) && (flag.GetBool(ctx, "now") || !flag.GetBool(ctx, "no-deploy")) && !flag.GetBool(ctx, "manifest") && !noCreateApp(ctx):
 			// A blank app is never deployed. Without a terminal nobody sees
 			// that, and the empty app plus exit 0 would pass for a launch.
 			// --manifest only prints the plan and --no-create-app only writes
@@ -150,9 +151,12 @@ func articleFor(w string) string {
 	return article
 }
 
-// noCreateApp reports whether launch should leave app creation alone. Read
-// both names: ApplyAliases copies --no-create into --no-create-app but not
-// the reverse, and plan propose has its own --no-create flag.
+// noCreateApp reports whether launch should leave app creation alone.
+// --no-create-app wins when given, as in ApplyAliases; otherwise read
+// --no-create, its alias or plan propose's own flag.
 func noCreateApp(ctx context.Context) bool {
-	return flag.GetBool(ctx, "no-create-app") || flag.GetBool(ctx, "no-create")
+	if flag.IsSpecified(ctx, "no-create-app") {
+		return flag.GetBool(ctx, "no-create-app")
+	}
+	return flag.GetBool(ctx, "no-create")
 }
