@@ -6,6 +6,17 @@ rm -f out/*.mdx
 echo "Running doc/main.go"
 go run doc/main.go
 
+# Neither this script nor publish_docs.sh uses set -e, and out/ is cleared
+# before the generator runs. So a generator that fails leaves out/ empty and
+# the rsync below, with --delete, would propagate that and remove every page.
+# Refuse instead. 305 pages today, so 100 is a floor that only a broken run
+# can cross.
+COUNT=$(ls out/*.mdx 2>/dev/null | wc -l)
+if [ "$COUNT" -lt 100 ]; then
+  echo "generator produced $COUNT pages, refusing to sync" >&2
+  exit 1
+fi
+
 if [ "$1" ]
     then
         # Carry sidebarTitle across. On about three dozen pages it is a
@@ -21,13 +32,13 @@ if [ "$1" ]
           awk -v lbl="$label" 'NR==2 && /^title:/ {print; print lbl; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
         done
 
-        # --delete is deliberately absent. With it, the first sync after the
-        # MDX switch would also remove the 12 pages the generator no longer
-        # produces: the retired litefs-cloud commands and the duplicate root
-        # page. 12 docs.json nav entries and 15 redirects still point at those,
-        # so they are a reviewable docs change rather than something this bot
-        # should do unannounced. Restore --delete once that has landed, or
-        # removed commands will linger here forever.
+        # --delete so a command removed from flyctl stops being documented.
+        # Without it the pages linger: the litefs-cloud commands went in
+        # #5187 and their eleven pages stayed live for four weeks, telling
+        # readers a retired CLI worked.
+        #
+        # This deletes anything in the destination the generator did not
+        # produce, so nothing hand-written belongs in flyctl/cmd.
         echo "rsync to $1"
-        rsync out/ $1 -r -v
+        rsync out/ $1 --delete -r -v
 fi
