@@ -55,7 +55,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
-			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly redis create`)", err))
+			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly redis create`, then `fly secrets set REDIS_URL=<its URL>`)", err))
 		}
 	}
 

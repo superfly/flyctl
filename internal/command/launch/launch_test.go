@@ -66,6 +66,8 @@ func TestLaunchStopsBeforeDeployWhenProvisioningFails(t *testing.T) {
 	// fly deploy never provisions anything, so the error must say how to
 	// provision what failed before deploying.
 	assert.ErrorContains(t, err, "fly redis create")
+	// fly redis create doesn't attach; launch set REDIS_URL itself.
+	assert.ErrorContains(t, err, "REDIS_URL")
 	assert.Contains(t, errOut.String(), "Error provisioning Upstash Redis: regions unavailable")
 	assert.NotContains(t, out.String(), "Your app is ready")
 	assert.FileExists(t, filepath.Join(dir, "fly.toml"))
