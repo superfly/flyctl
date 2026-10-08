@@ -18,6 +18,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"golang.org/x/crypto/ssh"
 )
 
 var initError error // set during init
@@ -40,8 +41,15 @@ func init() {
 		Environment: buildinfo.Environment(),
 		Release:     "v" + buildinfo.Version().String(),
 		Transport:   transport,
-		BeforeSend: func(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
+		BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
 			if buildinfo.IsDev() {
+				return nil
+			}
+
+			// A remote command exiting non-zero over ssh is the user's command
+			// failing, not flyctl.
+			var exitErr *ssh.ExitError
+			if hint != nil && errors.As(hint.OriginalException, &exitErr) {
 				return nil
 			}
 
