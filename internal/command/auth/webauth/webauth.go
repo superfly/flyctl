@@ -14,11 +14,50 @@ import (
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+const tokensHelpURL = "https://fly.io/docs/security/tokens/"
+
+// loginTimeout is how long a login waits for the browser approval. The
+// server keeps a CLI session for the same 15 minutes.
+const loginTimeout = 15 * time.Minute
+
+// errCI is returned on CI, where nobody will ever approve a browser login:
+// fail at once rather than wait out the timeout.
+func errCI(command string) error {
+	return fmt.Errorf("fly auth %s cannot run on CI. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
+}
+
+// errHeadlessNoListener describes a run where neither delivery path for the
+// completion code is available: no terminal to paste it into and no
+// loopback listener for the browser to post it to.
+func errHeadlessNoListener(command string) error {
+	return fmt.Errorf("fly auth %s needs either an interactive terminal or a free loopback port for the browser to call back on, and has neither. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
+}
+
+// errHeadlessLegacyServer describes a server that predates PKCE: the only
+// login flow it offers is unsafe to run without someone watching.
+func errHeadlessLegacyServer(command string) error {
+	return fmt.Errorf("fly auth %s needs an interactive terminal against this server. Set FLY_API_TOKEN to a token instead: %s", command, tokensHelpURL)
+}
+
+// headlessNotice explains, to whoever is reading a non-interactive run, why
+// the command might appear to hang: the browser has to be on this machine,
+// and an agent has to keep the command alive for longer than its usual
+// command timeout.
+func headlessNotice(command, url string) string {
+	return fmt.Sprintf("Open this URL in a browser and approve the %s:\n\n    %s\n\n", command, url) +
+		"This terminal is not interactive, so the code cannot be pasted here.\n" +
+		fmt.Sprintf("The %s completes on its own once approved in a browser on this machine, within %d minutes.\n", command, int(loginTimeout.Minutes())) +
+		"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n" +
+		"If the browser is on another machine, or this command was stopped, finish with: fly auth login --code <code shown after approving>\n" +
+		"This command exits on its own once that succeeds.\n\n"
+}
 
 func SaveToken(ctx context.Context, token string) error {
 
@@ -80,13 +119,26 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	io := iostreams.FromContext(ctx)
 	logger := logger.FromContext(ctx)
 
-	if !io.IsStdinTTY() {
-		return "", errors.New("fly auth login requires an interactive terminal. In headless environments, set FLY_API_TOKEN to a token created with `fly tokens create`")
+	command := "login"
+	if signup {
+		command = "signup"
+	}
+
+	headless := !io.IsStdinTTY()
+	if headless && env.IsCI() {
+		return "", errCI(command)
 	}
 
 	pkce, err := newPKCELogin(args)
 	if err != nil {
 		return "", err
+	}
+
+	// No terminal means no pasting, so the loopback callback must be available.
+	if headless && pkce.port == 0 {
+		pkce.close()
+
+		return "", errHeadlessNoListener(command)
 	}
 
 	auth, err := fly.StartCLISession(state.Hostname(ctx), args)
@@ -96,19 +148,55 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		return "", err
 	}
 
+	// The pre-PKCE flow hands the token to whoever polls with the session
+	// id, so never run it unattended.
+	if headless && !auth.PKCE {
+		pkce.close()
+
+		return "", errHeadlessLegacyServer(command)
+	}
+
+	// Save the login so `fly auth login --code` can finish it if this
+	// process is stopped or the browser can't reach the callback.
+	pendingPath := pendingLoginPath(ctx)
+	expiresAt := time.Now().Add(loginTimeout)
+	var watch *pendingWatch
+	if auth.PKCE {
+		pending := pendingLogin{ID: auth.ID, Verifier: pkce.verifier, ExpiresAt: expiresAt}
+		if err := savePendingLogin(pendingPath, pending); err != nil {
+			fmt.Fprintf(io.ErrOut, "Could not save this login (%v), so `fly auth login --code` won't be able to finish it.\n", err)
+		} else {
+			configFile := state.ConfigFile(ctx)
+			token, _ := config.ReadAccessToken(configFile)
+			watch = &pendingWatch{path: pendingPath, configFile: configFile, id: auth.ID, token: token}
+		}
+	}
+
 	colorize := io.ColorScheme()
-	if err := open.Run(auth.URL); err != nil {
+	openErr := open.Run(auth.URL)
+	switch {
+	case headless:
+		// Whether or not a browser opened, the reader may have to pass the
+		// URL on to someone, so the notice gives it a line of its own.
+		fmt.Fprint(io.ErrOut, headlessNotice(command, auth.URL))
+	case openErr != nil:
 		fmt.Fprintf(io.ErrOut,
 			"failed opening browser. Copy the url (%s) into a browser and continue\n\n",
 			colorize.Bold(auth.URL),
 		)
-	} else {
+	default:
 		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
 	}
 
 	var token string
 	if auth.PKCE {
-		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce)
+		token, err = waitForPKCEToken(ctx, io, logger, auth.ID, pkce, !headless, watch)
+		// Finished, or past its 15 minutes: nothing is left for --code to do.
+		// A login stopped earlier, by Ctrl-C or a caller's own deadline, keeps
+		// its file, which is what --code resumes.
+		if err == nil || time.Now().After(expiresAt) {
+			removePendingLogin(pendingPath, auth.ID)
+		}
 	} else {
 		// Server predates the PKCE flow
 		pkce.close()
@@ -129,7 +217,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 
 // TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (token string, err error) {
-	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for CLI login: %w", context.DeadlineExceeded))
+	ctx, cancel := context.WithTimeoutCause(parent, loginTimeout, fmt.Errorf("waiting for CLI login: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)

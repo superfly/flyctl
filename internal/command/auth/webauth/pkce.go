@@ -54,7 +54,8 @@ func newPKCELogin(args map[string]any) (*pkceLogin, error) {
 	}
 
 	// Binding the loopback listener is best-effort: without it the login is
-	// paste-only, which is fine because the caller guarantees a TTY.
+	// paste-only, and the caller refuses to start when there is no terminal
+	// to paste into either.
 	if l, err := net.Listen("tcp", "127.0.0.1:0"); err == nil {
 		p.port = l.Addr().(*net.TCPAddr).Port
 		p.serve(l)
@@ -137,24 +138,46 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 	}
 }
 
-func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin) (string, error) {
-	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for PKCE login: %w", context.DeadlineExceeded))
+// waitForPKCEToken blocks until a completion code arrives and redeems it.
+// With acceptPaste the code may also be typed on stdin; without it (no
+// terminal) the loopback callback is the only source. With watch it also
+// stops once another process finishes or replaces the login.
+func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logger.Logger, id string, p *pkceLogin, acceptPaste bool, watch *pendingWatch) (string, error) {
+	ctx, cancel := context.WithTimeoutCause(parent, loginTimeout, fmt.Errorf("waiting for PKCE login: %w", context.DeadlineExceeded))
 	defer cancel()
 	defer p.close()
 
-	prompt := "paste code here if prompted > "
-	fmt.Fprint(io.Out, prompt)
-	go p.readPastedCodes(ctx, io.In)
+	prompt := ""
+	if acceptPaste {
+		prompt = "paste code here if prompted > "
+		fmt.Fprint(io.Out, prompt)
+		go p.readPastedCodes(ctx, io.In)
+	}
+
+	ticker := time.NewTicker(pendingCheckInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
+		case <-ticker.C:
+			if watch == nil {
+				continue
+			}
+			if token, done, err := watch.check(); done {
+				if acceptPaste {
+					fmt.Fprint(io.Out, "\r\x1b[K")
+				}
+				log.Debugf("pending login ended in another process: %v", err)
+
+				return token, err
+			}
 		case attempt := <-p.codes:
 			// An HTTP-delivered code leaves the cursor on the prompt line;
 			// erase it so the flow's output starts clean. Pasted codes ended
 			// with the user's Enter and remain visible above.
-			if attempt.fromHTTP {
+			if attempt.fromHTTP && acceptPaste {
 				fmt.Fprint(io.Out, "\r\x1b[K")
 			}
 
@@ -170,6 +193,12 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 				return "", errors.New("login session expired, please try again")
 			default:
 				log.Debugf("failed redeeming code: %v", err)
+				if !acceptPaste {
+					// The callback comes only once, and nobody can paste
+					// another code without a terminal: stop with a way
+					// forward instead of waiting out the timeout.
+					return "", fmt.Errorf("failed to redeem the login code (%w). Run `fly auth login` again", err)
+				}
 				fmt.Fprintf(io.ErrOut, "That code didn't work (%v).\n", err)
 				fmt.Fprint(io.Out, prompt)
 			}
