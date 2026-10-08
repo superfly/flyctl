@@ -631,7 +631,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
 		taken = false
 	} else {
-		if !taken && !flag.GetBool(ctx, "no-create") {
+		if !taken && !noCreateApp(ctx) {
 			var err error
 			// If the user can see an app with the same name as what they're about to launch,
 			// they *probably* want to deploy to that app instead.

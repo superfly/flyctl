@@ -94,13 +94,17 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		switch {
 		case planStep == "propose":
 			noBlankErr = errors.New("Could not detect runtime or Dockerfile")
-		case !io.IsInteractive() && (flag.GetBool(ctx, "now") || !flag.GetBool(ctx, "no-deploy")) && !flag.GetBool(ctx, "manifest") && !flag.GetBool(ctx, "no-create-app"):
+		case !io.IsInteractive() && (flag.GetBool(ctx, "now") || !flag.GetBool(ctx, "no-deploy")) && !flag.GetBool(ctx, "manifest") && !noCreateApp(ctx):
 			// A blank app is never deployed. Without a terminal nobody sees
 			// that, and the empty app plus exit 0 would pass for a launch.
 			// --manifest only prints the plan and --no-create-app only writes
 			// fly.toml, so there's nothing to mistake. --now overrides
 			// --no-deploy, as in firstDeploy.
-			noBlankErr = errors.New("found nothing to build; add a Dockerfile, or pass --no-deploy to create an empty app")
+			noDeploy := "pass --no-deploy"
+			if flag.GetBool(ctx, "now") {
+				noDeploy = "drop --now and pass --no-deploy"
+			}
+			noBlankErr = fmt.Errorf("found nothing to build; add a Dockerfile, or %s to create an empty app", noDeploy)
 		}
 		if noBlankErr != nil {
 			fmt.Fprintln(io.Out, aurora.Red(msg))
@@ -144,4 +148,11 @@ func articleFor(w string) string {
 	}
 
 	return article
+}
+
+// noCreateApp reports whether launch should leave app creation alone. Read
+// both names: ApplyAliases copies --no-create into --no-create-app but not
+// the reverse, and plan propose has its own --no-create flag.
+func noCreateApp(ctx context.Context) bool {
+	return flag.GetBool(ctx, "no-create-app") || flag.GetBool(ctx, "no-create")
 }

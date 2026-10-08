@@ -102,6 +102,7 @@ func TestDetermineSourceInfoNothingToBuild(t *testing.T) {
 		_, _, err := determineSourceInfo(newSourceInfoCtx(t, false, "--no-deploy", "--now"), appconfig.NewConfig(), false, t.TempDir())
 
 		require.Error(t, err)
+		assert.Contains(t, err.Error(), "drop --now")
 	})
 
 	t.Run("headless --manifest only prints the plan", func(t *testing.T) {
@@ -136,4 +137,13 @@ func TestDetermineSourceInfoNothingToBuild(t *testing.T) {
 		require.Error(t, err)
 		assert.NotContains(t, err.Error(), "--no-deploy")
 	})
+}
+
+// Launch reads --no-create-app in several places; its --no-create alias and
+// plan propose's own --no-create flag must count too.
+func TestNoCreateApp(t *testing.T) {
+	for _, args := range [][]string{{"--no-create-app"}, {"--no-create"}} {
+		assert.True(t, noCreateApp(newSourceInfoCtx(t, false, args...)), args)
+	}
+	assert.False(t, noCreateApp(newSourceInfoCtx(t, false)))
 }
