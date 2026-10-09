@@ -50,10 +50,10 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				parsedVal.WriteString(strings.TrimPrefix(value, `"""`))
 				parsedVal.WriteString("\n")
 			} else {
-				if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
+				if len(value) >= 2 && strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
 					// Remove double quotes
 					value = value[1 : len(value)-1]
-				} else if strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
+				} else if len(value) >= 2 && strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
 					// Remove single quotes
 					value = value[1 : len(value)-1]
 				}
@@ -72,6 +72,14 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 			}
 
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read secrets: %w", err)
+	}
+
+	if parserState == parserStateMultiline {
+		return nil, fmt.Errorf("Secret %s starts a multiline value with \"\"\" that is never closed", parsedKey)
 	}
 
 	return secrets, nil
