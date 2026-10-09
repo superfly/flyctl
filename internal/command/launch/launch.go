@@ -220,6 +220,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 				deploy = fmt.Sprintf("fly deploy %s -c %s", filepath.Dir(abs), abs)
 			}
 		}
+
 		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `%s`, or run it now to deploy without it", state.Plan.AppName, dbErr, deploy)
 	}
 
