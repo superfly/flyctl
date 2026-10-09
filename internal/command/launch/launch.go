@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -212,7 +213,14 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if dbErr != nil {
-		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `fly deploy`, or run `fly deploy` now to deploy without it", state.Plan.AppName, dbErr)
+		// With --path or --config, plain `fly deploy` wouldn't find this fly.toml.
+		deploy := "fly deploy"
+		if abs, err := filepath.Abs(configPath); err == nil {
+			if cwd, err := os.Getwd(); err != nil || abs != filepath.Join(cwd, "fly.toml") {
+				deploy = fmt.Sprintf("fly deploy %s -c %s", filepath.Dir(abs), abs)
+			}
+		}
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `%s`, or run it now to deploy without it", state.Plan.AppName, dbErr, deploy)
 	}
 
 	if state.sourceInfo != nil {
