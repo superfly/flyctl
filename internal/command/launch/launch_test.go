@@ -256,3 +256,9 @@ func TestIsComputeValid(t *testing.T) {
 		})
 	}
 }
+
+func TestDeployCommandQuotesPaths(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "my app")
+
+	assert.Equal(t, "fly deploy '"+dir+"' -c '"+filepath.Join(dir, "fly.toml")+"'", deployCommand(filepath.Join(dir, "fly.toml")))
+}

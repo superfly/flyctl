@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/docker/go-units"
+	"github.com/kballard/go-shellquote"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -213,15 +214,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if dbErr != nil {
-		// With --path or --config, plain `fly deploy` wouldn't find this fly.toml.
-		deploy := "fly deploy"
-		if abs, err := filepath.Abs(configPath); err == nil {
-			if cwd, err := os.Getwd(); err != nil || abs != filepath.Join(cwd, "fly.toml") {
-				deploy = fmt.Sprintf("fly deploy %s -c %s", filepath.Dir(abs), abs)
-			}
-		}
-
-		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `%s`, or run it now to deploy without it", state.Plan.AppName, dbErr, deploy)
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `%s`, or run it now to deploy without it", state.Plan.AppName, dbErr, deployCommand(configPath))
 	}
 
 	if state.sourceInfo != nil {
@@ -498,4 +491,18 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 			Slug: app.Organization.Slug,
 		},
 	}, nil
+}
+
+// deployCommand is the `fly deploy` that finds the fly.toml at configPath:
+// with --path or --config, plain `fly deploy` searches the current directory.
+func deployCommand(configPath string) string {
+	abs, err := filepath.Abs(configPath)
+	if err != nil {
+		return "fly deploy"
+	}
+	if cwd, err := os.Getwd(); err == nil && abs == filepath.Join(cwd, "fly.toml") {
+		return "fly deploy"
+	}
+
+	return "fly deploy " + shellquote.Join(filepath.Dir(abs), "-c", abs)
 }
