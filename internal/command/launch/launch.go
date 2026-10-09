@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/docker/go-units"
+	"github.com/kballard/go-shellquote"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -95,14 +97,16 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
 
+	// A failed database or storage provider stops the launch just before the
+	// deploy rather than here, so fly.toml still gets written and `fly deploy`
+	// works once the failure is fixed.
+	var dbErr error
 	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
-		if err = state.createDatabases(ctx); err != nil {
-			return err
-		}
+		dbErr = state.createDatabases(ctx)
 	}
 
 	if planStep != "" && planStep != "deploy" && planStep != "generate" {
-		return nil
+		return dbErr
 	}
 
 	if planStep == "" || planStep == "generate" {
@@ -207,6 +211,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 		if err := appsecrets.Update(ctx, flapsClient, state.appConfig.AppName, secrets, nil); err != nil {
 			return err
 		}
+	}
+
+	if dbErr != nil {
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `%s`, or run it now to deploy without it", state.Plan.AppName, dbErr, deployCommand(configPath))
 	}
 
 	if state.sourceInfo != nil {
@@ -483,4 +491,18 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 			Slug: app.Organization.Slug,
 		},
 	}, nil
+}
+
+// deployCommand is the `fly deploy` that finds the fly.toml at configPath:
+// with --path or --config, plain `fly deploy` searches the current directory.
+func deployCommand(configPath string) string {
+	abs, err := filepath.Abs(configPath)
+	if err != nil {
+		return "fly deploy"
+	}
+	if cwd, err := os.Getwd(); err == nil && abs == filepath.Join(cwd, "fly.toml") {
+		return "fly deploy"
+	}
+
+	return "fly deploy " + shellquote.Join(filepath.Dir(abs), "-c", abs)
 }

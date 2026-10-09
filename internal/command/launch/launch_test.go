@@ -2,19 +2,83 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/kballard/go-shellquote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
+
+// A database or storage provider that failed used to be printed and
+// dropped, so launch deployed the app without it and exited 0. Launch must
+// stop before the deploy, with fly.toml written so `fly deploy` works once
+// the failure is fixed.
+func TestLaunchStopsBeforeDeployWhenProvisioningFails(t *testing.T) {
+	regionsErr := errors.New("regions unavailable")
+
+	ios, _, out, errOut := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	ctx = flagctx.NewContext(ctx, New().Flags())
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{})
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		CreateAppFunc: func(_ context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+			return &flaps.App{Name: req.Name}, nil
+		},
+		WaitForAppFunc: func(context.Context, string) error { return nil },
+		// Nothing before createDatabases needs regions; Upstash does.
+		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) { return nil, regionsErr },
+	})
+
+	dir := t.TempDir()
+	state := &launchState{
+		workingDir: dir,
+		configPath: filepath.Join(dir, "fly.toml"),
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName: "my-app",
+			Redis:   plan.RedisPlan{UpstashRedis: &plan.UpstashRedisPlan{}},
+		}},
+		planBuildCache: planBuildCache{
+			appConfig: appconfig.NewConfig(),
+			// With SkipDeploy, reaching the deploy step prints
+			// "Your app is ready!" instead of deploying.
+			sourceInfo: &scanner.SourceInfo{SkipDeploy: true},
+		},
+		cache: map[string]any{},
+	}
+
+	err := state.Launch(ctx)
+
+	require.ErrorIs(t, err, regionsErr)
+	assert.ErrorContains(t, err, "app my-app was created")
+	assert.ErrorContains(t, err, "fly deploy")
+	// fly deploy never provisions anything, so the error must say how to
+	// provision what failed before deploying.
+	assert.ErrorContains(t, err, "fly redis create")
+	// fly redis create doesn't attach; launch set REDIS_URL itself.
+	assert.ErrorContains(t, err, "REDIS_URL")
+	// Plan steps stop before fly.toml exists, so name the app.
+	assert.ErrorContains(t, err, "-a my-app")
+	// A launch with --path writes fly.toml elsewhere; deploy must find it.
+	assert.ErrorContains(t, err, "fly deploy "+shellquote.Join(dir, "-c", filepath.Join(dir, "fly.toml")))
+	// Redis may exist already; don't send them to create a second one.
+	assert.ErrorContains(t, err, "fly redis list")
+	assert.Contains(t, errOut.String(), "Error provisioning Upstash Redis: regions unavailable")
+	assert.NotContains(t, out.String(), "Your app is ready")
+	assert.FileExists(t, filepath.Join(dir, "fly.toml"))
+}
 
 // Relaunching over a file a scanner generates (Dockerfile, fly-deploy.yml)
 // asks before overwriting it. Without a terminal the file is kept, and the
@@ -192,4 +256,10 @@ func TestIsComputeValid(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestDeployCommandQuotesPaths(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "my app")
+
+	assert.Equal(t, "fly deploy '"+dir+"' -c '"+filepath.Join(dir, "fly.toml")+"'", deployCommand(filepath.Join(dir, "fly.toml")))
 }
