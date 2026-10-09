@@ -30,6 +30,8 @@ import (
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
 	planStep := plan.GetPlanStep(ctx)
+	// Hints name the app: plan steps stop before fly.toml is written.
+	app := state.Plan.AppName
 	var errs []error
 
 	if state.Plan.Postgres.FlyPostgres != nil && (planStep == "" || planStep == "postgres") {
@@ -37,7 +39,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Postgres cluster: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres create`, then `fly postgres attach`)", err))
+			errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres attach <cluster> -a %s`; if `fly postgres list` doesn't show a cluster from this launch, run `fly postgres create` first)", err, app))
 		}
 	}
 
@@ -46,7 +48,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg create`, then `fly mpg attach`)", err))
+			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg attach <cluster> -a %s`; if `fly mpg list` doesn't show a cluster from this launch, run `fly mpg create` first)", err, app))
 		}
 	}
 
@@ -55,7 +57,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
-			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly redis create`, then `fly secrets set REDIS_URL=<its URL>`)", err))
+			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly redis create`, then `fly secrets set REDIS_URL=<its URL> -a %s`)", err, app))
 		}
 	}
 
@@ -64,7 +66,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create`)", err))
+			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`)", err, app))
 		}
 	}
 
