@@ -738,10 +738,6 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 }
 
 const (
-	// releaseStatusRetryAttempts bounds how many times a release status update is
-	// attempted before the deploy gives up.
-	releaseStatusRetryAttempts = 3
-	// releaseStatusRetryDelay is the delay before the first retry; it doubles on
 	// releaseStatusRetryAttempts is the maximum number of attempts for setting a release's status.
 	releaseStatusRetryAttempts = 3
 	// releaseStatusRetryDelay is the initial backoff delay; doubled on
