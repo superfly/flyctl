@@ -402,6 +402,6 @@ func (c *Config) validateKillSignal() (extraInfo string, err error) {
 			err = ErrInvalidApplicationConfig
 		}
 	}
+
 	return
 }
-

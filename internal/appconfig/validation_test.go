@@ -125,4 +125,3 @@ func TestConfig_ValidateKillSignal(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, extraInfo, "invalid kill_signal 'INVALID_SIG'")
 }
-
