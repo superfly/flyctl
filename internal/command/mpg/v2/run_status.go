@@ -2,11 +2,9 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
@@ -17,7 +15,7 @@ import (
 // RunStatus shows cluster status.
 //
 // Human output prefers the public Machines API; the legacy MPGv2 client is
-// used only as a fallback when the public API returns a classified 404.
+// used only as a fallback when the public API's flaps route is missing.
 // Other public API errors are propagated without falling back.
 //
 // --json skips the public API because the legacy response envelope carries
@@ -37,7 +35,7 @@ func runStatusHuman(ctx context.Context, clusterID string) error {
 	out := iostreams.FromContext(ctx).Out
 
 	cluster, err := flapsutil.ClientFromContext(ctx).GetManagedPostgresCluster(ctx, clusterID)
-	useLegacy := errors.Is(err, flaps.ErrFlapsNotFound)
+	useLegacy := flapsutil.IsFlapsRouteMissing(err)
 	if err != nil && !useLegacy {
 		return fmt.Errorf("failed retrieving details for cluster %s: %w", clusterID, err)
 	}

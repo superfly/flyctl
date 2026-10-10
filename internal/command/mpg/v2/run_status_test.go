@@ -123,6 +123,9 @@ func TestRunStatusHuman(t *testing.T) {
 		{"typed 500 is authoritative, no fallback",
 			flaps.ManagedPostgresCluster{}, &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("oops")},
 			mpgv2.GetClusterResponse{}, nil, nil, nil, "failed retrieving details for cluster mpg-123", false, "oops", 0},
+		{"resource-level 404 (cluster not found) is authoritative, no fallback",
+			flaps.ManagedPostgresCluster{}, &flaps.FlapsError{ResponseStatusCode: 404, ResponseBody: []byte(`{"error":"cluster not found"}`), OriginalError: errors.New("cluster not found")},
+			mpgv2.GetClusterResponse{}, nil, nil, nil, "failed retrieving details for cluster mpg-123", false, "cluster not found", 0},
 	}
 
 	for _, test := range tests {
