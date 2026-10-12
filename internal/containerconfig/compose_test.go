@@ -60,6 +60,98 @@ services:
 	if container.ExtraEnv["ENV_VAR"] != "value" {
 		t.Errorf("Expected ENV_VAR='value', got '%s'", container.ExtraEnv["ENV_VAR"])
 	}
+
+	if container.Restart == nil {
+		t.Fatal("Expected container restart policy")
+	}
+	if container.Restart.Policy != fly.MachineRestartPolicyAlways {
+		t.Errorf("Expected restart policy 'always', got '%s'", container.Restart.Policy)
+	}
+}
+
+func TestParseComposeRestartPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		policy  string
+		want    *fly.MachineRestart
+		wantErr bool
+	}{
+		{
+			name:   "empty",
+			policy: "",
+		},
+		{
+			name:   "no",
+			policy: "no",
+			want:   &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		},
+		{
+			name:   "always",
+			policy: "always",
+			want:   &fly.MachineRestart{Policy: fly.MachineRestartPolicyAlways},
+		},
+		{
+			name:   "on failure",
+			policy: "on-failure",
+			want:   &fly.MachineRestart{Policy: fly.MachineRestartPolicyOnFailure},
+		},
+		{
+			name:   "on failure with max retries",
+			policy: "on-failure:3",
+			want: &fly.MachineRestart{
+				Policy:     fly.MachineRestartPolicyOnFailure,
+				MaxRetries: 3,
+			},
+		},
+		{
+			name:    "on failure with zero retries",
+			policy:  "on-failure:0",
+			wantErr: true,
+		},
+		{
+			name:    "on failure with invalid retries",
+			policy:  "on-failure:many",
+			wantErr: true,
+		},
+		{
+			name:    "policy with unsupported suffix",
+			policy:  "always:3",
+			wantErr: true,
+		},
+		{
+			name:    "unless stopped",
+			policy:  "unless-stopped",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseRestartPolicy(tt.policy)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseRestartPolicy() error = %v", err)
+			}
+
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("parseRestartPolicy() = %#v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("parseRestartPolicy() = nil, want restart policy")
+			}
+			if *got != *tt.want {
+				t.Errorf("parseRestartPolicy() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestParseComposeFileMultiService(t *testing.T) {
