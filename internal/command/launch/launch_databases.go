@@ -66,7 +66,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`)", err, app))
+			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`; if `fly storage list` shows a bucket from this launch, remove it with `fly storage destroy <bucket>` first)", err, app))
 		}
 	}
 
