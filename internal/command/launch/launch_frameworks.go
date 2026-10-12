@@ -33,7 +33,8 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
-	if state.sourceInfo.GitHubActions.Secrets {
+	// The deploy token is for an app; with --no-create-app there isn't one yet.
+	if state.sourceInfo.GitHubActions.Secrets && !noCreateApp(ctx) {
 		gh, err := exec.LookPath("gh")
 
 		if err != nil {
