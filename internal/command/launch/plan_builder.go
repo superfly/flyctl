@@ -491,8 +491,16 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 		// copy-config so we never prompt and never fall back to source scanning.
 		explicitConfig := flag.IsSpecified(ctx, "config")
 		copyConfig := flag.GetBool(ctx, "copy-config") || attach || explicitConfig
+		decided := flag.IsSpecified(ctx, "copy-config") || attach || explicitConfig
 
-		if !flag.IsSpecified(ctx, "copy-config") && !attach && !explicitConfig && !flag.GetYes(ctx) {
+		// --yes skips the question below but can't answer it: replacing
+		// fly.toml launched a second app named after the directory. Plan
+		// steps (the deployer) keep replacing it.
+		if !decided && flag.GetYes(ctx) && plan.GetPlanStep(ctx) == "" {
+			return nil, false, errors.New("an existing fly.toml was found: pass --copy-config to launch with it, or --copy-config=false to replace it. To deploy the app it describes, run 'fly deploy'")
+		}
+
+		if !decided && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)

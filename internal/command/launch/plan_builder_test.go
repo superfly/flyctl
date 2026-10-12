@@ -233,6 +233,57 @@ func TestDetermineBaseAppConfig(t *testing.T) {
 		assert.Contains(t, err.Error(), "--copy-config")
 		assert.Contains(t, err.Error(), "fly deploy")
 	})
+
+	// --yes skips the question but can't answer it: replacing fly.toml
+	// launched a second app named after the directory.
+	t.Run("--yes returns error naming the flags instead of replacing", func(t *testing.T) {
+		ctx := newDetermineBaseAppConfigCtx(t, false, false)
+		ctx = appconfig.WithConfig(ctx, existingCfg)
+		require.NoError(t, flagctx.FromContext(ctx).Parse([]string{"--yes"}))
+
+		cfg, copied, err := determineBaseAppConfig(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--copy-config")
+		assert.Contains(t, err.Error(), "fly deploy")
+		assert.Nil(t, cfg)
+		assert.False(t, copied)
+	})
+
+	t.Run("--yes --copy-config adopts existing config", func(t *testing.T) {
+		ctx := newDetermineBaseAppConfigCtx(t, false, false)
+		ctx = appconfig.WithConfig(ctx, existingCfg)
+		require.NoError(t, flagctx.FromContext(ctx).Parse([]string{"--yes", "--copy-config"}))
+
+		cfg, copied, err := determineBaseAppConfig(ctx)
+		require.NoError(t, err)
+		assert.True(t, copied)
+		assert.Equal(t, "docker.ui-server.dockerfile", cfg.Build.Dockerfile)
+	})
+
+	t.Run("--yes --copy-config=false returns blank config", func(t *testing.T) {
+		ctx := newDetermineBaseAppConfigCtx(t, false, false)
+		ctx = appconfig.WithConfig(ctx, existingCfg)
+		require.NoError(t, flagctx.FromContext(ctx).Parse([]string{"--yes", "--copy-config=false"}))
+
+		cfg, copied, err := determineBaseAppConfig(ctx)
+		require.NoError(t, err)
+		assert.False(t, copied)
+		assert.Nil(t, cfg.Build)
+	})
+
+	t.Run("plan steps with --yes keep returning blank config", func(t *testing.T) {
+		// generate is the plan step (the deployer) that loads fly.toml and
+		// takes --yes.
+		ctx := newDetermineBaseAppConfigCtx(t, false, false)
+		ctx = appconfig.WithConfig(ctx, existingCfg)
+		ctx = context.WithValue(ctx, plan.PlanStepKey, "generate")
+		require.NoError(t, flagctx.FromContext(ctx).Parse([]string{"--yes"}))
+
+		cfg, copied, err := determineBaseAppConfig(ctx)
+		require.NoError(t, err)
+		assert.False(t, copied)
+		assert.Nil(t, cfg.Build)
+	})
 }
 
 // newNudgeCtx is a non-interactive context carrying every launch flag, where
