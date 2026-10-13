@@ -48,7 +48,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg attach <cluster> -a %s`; if `fly mpg list` doesn't show a cluster from this launch, run `fly mpg create` first)", err, app))
+			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg attach <cluster> -a %s` for a ready cluster from this launch in `fly mpg list`; if there's none, run `fly mpg create` first, after `fly mpg destroy <cluster> --yes` for one that failed)", err, app))
 		}
 	}
 
@@ -66,7 +66,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`; if `fly storage list` shows a bucket from this launch, remove it with `fly storage destroy <bucket>` first)", err, app))
+			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`; if `fly storage list` shows a bucket from this launch, remove it with `fly storage destroy <bucket> --yes` first)", err, app))
 		}
 	}
 
