@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -502,6 +503,11 @@ func deployCommand(configPath string) string {
 	}
 	if cwd, err := os.Getwd(); err == nil && abs == filepath.Join(cwd, "fly.toml") {
 		return "fly deploy"
+	}
+
+	// cmd.exe takes single quotes literally, and Windows paths can't contain ".
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf(`fly deploy "%s" -c "%s"`, filepath.Dir(abs), abs)
 	}
 
 	return "fly deploy " + shellquote.Join(filepath.Dir(abs), "-c", abs)
