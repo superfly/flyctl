@@ -36,7 +36,10 @@ type Options struct {
 
 	// TokenMode makes the agent build tunnels by authenticating to
 	// TokenGateway with the session's macaroons instead of registering
-	// peers through the API.
+	// peers through the API. It's the local config's say: the
+	// wireguard-token-mode feature flag, evaluated for the user each time a
+	// tunnel is built, can turn token mode on for a user whose local config
+	// has it off (see server.tokenModeFor).
 	TokenMode    bool
 	TokenGateway string
 }
@@ -163,6 +166,11 @@ type server struct {
 	tokMu                 sync.RWMutex
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
+
+	// tokenModeFlag evaluates the wireguard-token-mode feature flag for a
+	// user; nil selects evaluateTokenModeFlag. Tests inject a stub.
+	tokenModeFlag func(ctx context.Context, userID int) (bool, error)
+	flagClients   flagClients
 }
 
 type terminateError struct{ error }
@@ -276,7 +284,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	}
 
 	var transport string
-	if s.TokenMode {
+	if s.tokenModeFor(ctx, client) {
 		transport = "token"
 
 		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks); err != nil {
