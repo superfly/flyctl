@@ -35,9 +35,11 @@ const (
 
 // SecretWithStatus extends fly.AppSecret with deployment status
 type SecretWithStatus struct {
-	Name   string       `json:"name"`
-	Digest string       `json:"digest"`
-	Status SecretStatus `json:"status"`
+	Name      string       `json:"name"`
+	Digest    string       `json:"digest"`
+	CreatedAt *string      `json:"created_at,omitempty"`
+	UpdatedAt *string      `json:"updated_at,omitempty"`
+	Status    SecretStatus `json:"status"`
 }
 
 func newList() (cmd *cobra.Command) {
@@ -96,12 +98,19 @@ func runList(ctx context.Context) (err error) {
 		}
 		// When status is not available, build JSON from secrets
 		type secretBasic struct {
-			Name   string `json:"name"`
-			Digest string `json:"digest"`
+			Name      string  `json:"name"`
+			Digest    string  `json:"digest"`
+			CreatedAt *string `json:"created_at,omitempty"`
+			UpdatedAt *string `json:"updated_at,omitempty"`
 		}
-		basicSecrets := make([]secretBasic, len(rows))
-		for i, row := range rows {
-			basicSecrets[i] = secretBasic{Name: row[0], Digest: row[1]}
+		basicSecrets := make([]secretBasic, len(secretsWithStatus))
+		for i, s := range secretsWithStatus {
+			basicSecrets[i] = secretBasic{
+				Name:      s.Name,
+				Digest:    s.Digest,
+				CreatedAt: s.CreatedAt,
+				UpdatedAt: s.UpdatedAt,
+			}
 		}
 
 		return render.JSON(out, basicSecrets)
@@ -136,7 +145,8 @@ func buildSecretRows(ctx context.Context, flapsClient flapsutil.FlapsClient, uie
 
 	// Skip status computation if too many machines - just show name and digest
 	if len(relevantMachines) > maxMachinesToCheck {
-		return buildRowsWithoutStatus(secrets), nil, 0, 0, false, nil
+		rows, secretsWithoutStatus := buildRowsWithoutStatus(secrets)
+		return rows, secretsWithoutStatus, 0, 0, false, nil
 	}
 
 	// Fetch release timestamps
@@ -158,9 +168,11 @@ func buildSecretRows(ctx context.Context, flapsClient flapsutil.FlapsClient, uie
 			partialCount++
 		}
 		secretsWithStatus = append(secretsWithStatus, SecretWithStatus{
-			Name:   secret.Name,
-			Digest: secret.Digest,
-			Status: status,
+			Name:      secret.Name,
+			Digest:    secret.Digest,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.UpdatedAt,
+			Status:    status,
 		})
 	}
 
@@ -184,16 +196,23 @@ func buildSecretRows(ctx context.Context, flapsClient flapsutil.FlapsClient, uie
 	return rows, secretsWithStatus, stagedCount, partialCount, true, nil
 }
 
-func buildRowsWithoutStatus(secrets []fly.AppSecret) [][]string {
+func buildRowsWithoutStatus(secrets []fly.AppSecret) ([][]string, []SecretWithStatus) {
 	rows := make([][]string, 0, len(secrets))
+	secretsWithoutStatus := make([]SecretWithStatus, 0, len(secrets))
 	for _, secret := range secrets {
 		rows = append(rows, []string{
 			secret.Name,
 			secret.Digest,
 		})
+		secretsWithoutStatus = append(secretsWithoutStatus, SecretWithStatus{
+			Name:      secret.Name,
+			Digest:    secret.Digest,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.UpdatedAt,
+		})
 	}
 
-	return rows
+	return rows, secretsWithoutStatus
 }
 
 func printDeploymentSummary(out io.Writer, stagedCount, partialCount int) {
