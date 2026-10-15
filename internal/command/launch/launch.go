@@ -7,12 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/docker/go-units"
-	"github.com/kballard/go-shellquote"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -29,7 +27,7 @@ import (
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
-func (state *launchState) Launch(ctx context.Context) error {
+func (state *launchState) Launch(ctx context.Context) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "state.launch")
 	defer span.End()
 
@@ -105,6 +103,13 @@ func (state *launchState) Launch(ctx context.Context) error {
 	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
 		dbErr = state.createDatabases(ctx)
 	}
+
+	// A later step can fail too; keep this error and its recovery steps.
+	defer func() {
+		if dbErr != nil && err != nil && !errors.Is(err, dbErr) {
+			err = errors.Join(err, dbErr)
+		}
+	}()
 
 	if planStep != "" && planStep != "deploy" && planStep != "generate" {
 		return dbErr
@@ -215,7 +220,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if dbErr != nil {
-		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run `%s`, or run it now to deploy without it", state.Plan.AppName, dbErr, deployCommand(configPath))
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run %s, or run it now to deploy without it", state.Plan.AppName, dbErr, deployHint(configPath))
 	}
 
 	if state.sourceInfo != nil {
@@ -494,21 +499,23 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 	}, nil
 }
 
-// deployCommand is the `fly deploy` that finds the fly.toml at configPath:
-// with --path or --config, plain `fly deploy` searches the current directory.
-func deployCommand(configPath string) string {
+// deployHint says where to run the `fly deploy` that finds the fly.toml at
+// configPath: with --path or --config, plain `fly deploy` searches the
+// current directory. Paths stay out of the command, since no quoting is safe
+// in every shell (PowerShell expands $ in double quotes, cmd.exe %).
+func deployHint(configPath string) string {
 	abs, err := filepath.Abs(configPath)
 	if err != nil {
-		return "fly deploy"
+		return "`fly deploy`"
 	}
 	if cwd, err := os.Getwd(); err == nil && abs == filepath.Join(cwd, "fly.toml") {
-		return "fly deploy"
+		return "`fly deploy`"
 	}
 
-	// cmd.exe takes single quotes literally, and Windows paths can't contain ".
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf(`fly deploy "%s" -c "%s"`, filepath.Dir(abs), abs)
+	hint := "`fly deploy` in " + filepath.Dir(abs)
+	if file := filepath.Base(abs); file != "fly.toml" {
+		hint += " with -c " + file
 	}
 
-	return "fly deploy " + shellquote.Join(filepath.Dir(abs), "-c", abs)
+	return hint
 }
