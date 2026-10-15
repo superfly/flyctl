@@ -57,7 +57,7 @@ require (
 	github.com/moby/patternmatcher v0.6.1
 	github.com/morikuni/aec v1.1.0
 	github.com/muesli/termenv v0.16.0
-	github.com/nats-io/nats.go v1.53.1
+	github.com/nats-io/nats.go v1.54.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/olekukonko/tablewriter v1.1.5
@@ -225,7 +225,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
@@ -243,7 +243,7 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
