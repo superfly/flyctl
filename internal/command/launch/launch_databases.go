@@ -75,7 +75,8 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {
-					return err
+					// Keep the provider errors and their recovery steps.
+					return errors.Join(append(errs, err)...)
 				}
 			}
 		}
