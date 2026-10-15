@@ -80,7 +80,7 @@ func TestLaunchStopsBeforeDeployWhenProvisioningFails(t *testing.T) {
 		// Plan steps stop before fly.toml exists, so name the app.
 		assert.ErrorContains(t, err, "-a my-app")
 		// A launch with --path writes fly.toml elsewhere; deploy must find it.
-		assert.ErrorContains(t, err, deployHint(filepath.Join(dir, "fly.toml")))
+		assert.ErrorContains(t, err, deployHint(dir, filepath.Join(dir, "fly.toml")))
 		// Redis may exist already; don't send them to create a second one.
 		assert.ErrorContains(t, err, "fly redis list")
 		assert.Contains(t, errOut.String(), "Error provisioning Upstash Redis: regions unavailable")
@@ -280,6 +280,8 @@ func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 	// path can't be pasted into a command safely for every shell.
 	dir := filepath.Join(t.TempDir(), "my $app")
 
-	assert.Equal(t, "`fly deploy` in "+dir, deployHint(filepath.Join(dir, "fly.toml")))
-	assert.Equal(t, "`fly deploy` in "+dir+" with -c staging.toml", deployHint(filepath.Join(dir, "staging.toml")))
+	assert.Equal(t, "`fly deploy` in "+dir, deployHint(dir, filepath.Join(dir, "fly.toml")))
+	assert.Equal(t, "`fly deploy` in "+dir+" with -c staging.toml", deployHint(dir, filepath.Join(dir, "staging.toml")))
+	// The source directory is the build context, wherever the config lives.
+	assert.Equal(t, "`fly deploy` in "+dir+" with -c "+filepath.Join("deploy", "staging.toml"), deployHint(dir, filepath.Join(dir, "deploy", "staging.toml")))
 }

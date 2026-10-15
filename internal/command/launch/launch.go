@@ -220,7 +220,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 	}
 
 	if dbErr != nil {
-		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run %s, or run it now to deploy without it", state.Plan.AppName, dbErr, deployHint(configPath))
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run %s, or run it now to deploy without it", state.Plan.AppName, dbErr, deployHint(state.workingDir, configPath))
 	}
 
 	if state.sourceInfo != nil {
@@ -501,20 +501,29 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 
 // deployHint says where to run the `fly deploy` that finds the fly.toml at
 // configPath: with --path or --config, plain `fly deploy` searches the
-// current directory. Paths stay out of the command, since no quoting is safe
-// in every shell (PowerShell expands $ in double quotes, cmd.exe %).
-func deployHint(configPath string) string {
-	abs, err := filepath.Abs(configPath)
+// current directory. It runs in workingDir, the build context, wherever the
+// config lives. Paths stay out of the command, since no quoting is safe in
+// every shell (PowerShell expands $ in double quotes, cmd.exe %).
+func deployHint(workingDir, configPath string) string {
+	dir, err := filepath.Abs(workingDir)
 	if err != nil {
 		return "`fly deploy`"
 	}
-	if cwd, err := os.Getwd(); err == nil && abs == filepath.Join(cwd, "fly.toml") {
+	config, err := filepath.Abs(configPath)
+	if err != nil {
 		return "`fly deploy`"
 	}
 
-	hint := "`fly deploy` in " + filepath.Dir(abs)
-	if file := filepath.Base(abs); file != "fly.toml" {
-		hint += " with -c " + file
+	hint := "`fly deploy`"
+	if cwd, err := os.Getwd(); err != nil || cwd != dir {
+		hint += " in " + dir
+	}
+	if config != filepath.Join(dir, "fly.toml") {
+		rel, err := filepath.Rel(dir, config)
+		if err != nil {
+			rel = config
+		}
+		hint += " with -c " + rel
 	}
 
 	return hint
