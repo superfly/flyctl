@@ -309,7 +309,7 @@ func run(ctx context.Context) (err error) {
 
 	var state *launchState = nil
 
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		defer func() {
 			if err != nil {
 				tracing.RecordError(ctx, span, err, "launch failed")
@@ -598,7 +598,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !noCreateApp(ctx) {
 		ctx, err = command.LoadAppConfigIfPresent(ctx)
 		if err != nil {
 			return err
