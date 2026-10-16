@@ -162,3 +162,23 @@ ANOTHER = """another"""`)
 		"ANOTHER":  "another",
 	}, secrets)
 }
+
+func Test_parse_lone_quote(t *testing.T) {
+	for _, quote := range []string{`"`, `'`} {
+		secrets, err := parseSecrets(strings.NewReader("FOO=" + quote + "\n"))
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"FOO": quote}, secrets)
+	}
+}
+
+func Test_parse_unterminated_multiline(t *testing.T) {
+	secrets, err := parseSecrets(strings.NewReader("FOO=BAR\nKEY=\"\"\"line one\nline two\n"))
+	assert.ErrorContains(t, err, "KEY")
+	assert.Nil(t, secrets)
+}
+
+func Test_parse_line_too_long(t *testing.T) {
+	secrets, err := parseSecrets(strings.NewReader("FOO=" + strings.Repeat("a", 1<<20) + "\nBAR=baz\n"))
+	assert.Error(t, err)
+	assert.Nil(t, secrets)
+}
