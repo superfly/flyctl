@@ -60,6 +60,12 @@ func TestRunDetach(t *testing.T) {
 			wantLegacy:       true,
 			wantErr:          "failed to detach: legacy delete failed",
 		},
+		{
+			name:             "resource 404 is authoritative",
+			publicDeleteErr:  resourceNotFound("Cluster not found"),
+			wantPublicDelete: true,
+			wantErr:          "failed to detach: Cluster not found",
+		},
 	}
 
 	for _, test := range tests {

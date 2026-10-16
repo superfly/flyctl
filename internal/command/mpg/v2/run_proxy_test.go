@@ -191,6 +191,13 @@ func TestGetCluster(t *testing.T) {
 			wantErr:         "failed retrieving cluster mpg-123: gone",
 			wantLegacyCalls: 0,
 		},
+		{
+			name:            "resource 404 is authoritative",
+			publicCluster:   flaps.ManagedPostgresCluster{},
+			publicErr:       resourceNotFound("Cluster not found"),
+			wantErr:         "failed retrieving cluster mpg-123: Cluster not found",
+			wantLegacyCalls: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -511,6 +518,22 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("wrapped: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("not found")})
+			},
+		})
+
+		credentials, err := resolveConnectCredentials(ctx, response, false, "")
+		require.EqualError(t, err, "cluster is still initializing, wait a bit more")
+		assert.Nil(t, credentials)
+	})
+
+	t.Run("default user JSON 404 preserves initializing error", func(t *testing.T) {
+		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+				return flaps.ManagedPostgresUserCredentials{}, &flaps.FlapsError{
+					ResponseStatusCode: 404,
+					OriginalError:      errors.New("User not found"),
+					ResponseBody:       []byte(`{"error":"User not found"}`),
+				}
 			},
 		})
 
