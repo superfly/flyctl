@@ -261,6 +261,10 @@ func (m *mockFlapsClient) FindLease(ctx context.Context, appName, machineID stri
 	return nil, fmt.Errorf("failed to find lease for %s", machineID)
 }
 
+func (m *mockFlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("not implemented")
+}
+
 func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, typ string) (*fly.SetSecretKeyResp, error) {
 
 	return nil, fmt.Errorf("failed to generate app secret %s", name)
@@ -489,6 +493,10 @@ func (m *mockFlapsClient) ListManagedPostgresBackups(ctx context.Context, id str
 }
 
 func (m *mockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

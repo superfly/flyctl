@@ -523,6 +523,21 @@ func (mr *MockFlapsClientMockRecorder) FindLease(ctx, appName, machineID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindLease", reflect.TypeOf((*MockFlapsClient)(nil).FindLease), ctx, appName, machineID)
 }
 
+// ForkManagedPostgresCluster mocks base method.
+func (m *MockFlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ForkManagedPostgresCluster", ctx, id, req)
+	ret0, _ := ret[0].(flaps.ManagedPostgresCluster)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ForkManagedPostgresCluster indicates an expected call of ForkManagedPostgresCluster.
+func (mr *MockFlapsClientMockRecorder) ForkManagedPostgresCluster(ctx, id, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ForkManagedPostgresCluster", reflect.TypeOf((*MockFlapsClient)(nil).ForkManagedPostgresCluster), ctx, id, req)
+}
+
 // GenerateSecretKey mocks base method.
 func (m *MockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, typ string) (*fly.SetSecretKeyResp, error) {
 	m.ctrl.T.Helper()
@@ -941,6 +956,21 @@ func (m *MockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id,
 func (mr *MockFlapsClientMockRecorder) ListManagedPostgresExtensions(ctx, id, database any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresExtensions", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresExtensions), ctx, id, database)
+}
+
+// ListManagedPostgresPlans mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresPlans", ctx, orgSlug)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresPlan)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresPlans indicates an expected call of ListManagedPostgresPlans.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresPlans(ctx, orgSlug any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresPlans", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresPlans), ctx, orgSlug)
 }
 
 // ListManagedPostgresUsers mocks base method.
