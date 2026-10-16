@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -29,12 +30,16 @@ import (
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
 	planStep := plan.GetPlanStep(ctx)
+	// Hints name the app: plan steps stop before fly.toml is written.
+	app := state.Plan.AppName
+	var errs []error
 
 	if state.Plan.Postgres.FlyPostgres != nil && (planStep == "" || planStep == "postgres") {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Postgres cluster: %s\n", err)
+			errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres attach <cluster> -a %s`; if `fly postgres list` doesn't show a cluster from this launch, run `fly postgres create` first)", err, app))
 		}
 	}
 
@@ -43,6 +48,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
+			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg attach <cluster> -a %s` for a ready cluster from this launch in `fly mpg list`; if there's none, run `fly mpg create` first, after `fly mpg destroy <cluster> --yes` for one that failed)", err, app))
 		}
 	}
 
@@ -51,6 +57,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
+			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly secrets set REDIS_URL=<its URL> -a %s`; if `fly redis list` doesn't show a database from this launch, run `fly redis create` first)", err, app))
 		}
 	}
 
@@ -59,6 +66,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
+			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`; if `fly storage list` shows a bucket from this launch, remove it with `fly storage destroy <bucket> --yes` first)", err, app))
 		}
 	}
 
@@ -67,13 +75,14 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {
-					return err
+					// Keep the provider errors and their recovery steps.
+					return errors.Join(append(errs, err)...)
 				}
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
@@ -153,10 +162,8 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 			}
 		}
-		if err != nil {
-			const msg = "Error creating Postgres database. Be warned that this may affect deploys"
-			fmt.Fprintln(io.Out, io.ColorScheme().Red(msg))
-		}
+
+		return err
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -26,7 +27,7 @@ import (
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
-func (state *launchState) Launch(ctx context.Context) error {
+func (state *launchState) Launch(ctx context.Context) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "state.launch")
 	defer span.End()
 
@@ -95,14 +96,23 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
 
+	// A failed database or storage provider stops the launch just before the
+	// deploy rather than here, so fly.toml still gets written and `fly deploy`
+	// works once the failure is fixed.
+	var dbErr error
 	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
-		if err = state.createDatabases(ctx); err != nil {
-			return err
-		}
+		dbErr = state.createDatabases(ctx)
 	}
 
+	// A later step can fail too; keep this error and its recovery steps.
+	defer func() {
+		if dbErr != nil && err != nil && !errors.Is(err, dbErr) {
+			err = errors.Join(err, dbErr)
+		}
+	}()
+
 	if planStep != "" && planStep != "deploy" && planStep != "generate" {
-		return nil
+		return dbErr
 	}
 
 	if planStep == "" || planStep == "generate" {
@@ -207,6 +217,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 		if err := appsecrets.Update(ctx, flapsClient, state.appConfig.AppName, secrets, nil); err != nil {
 			return err
 		}
+	}
+
+	if dbErr != nil {
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run %s, or run it now to deploy without it", state.Plan.AppName, dbErr, deployHint(state.workingDir, configPath))
 	}
 
 	if state.sourceInfo != nil {
@@ -483,4 +497,34 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 			Slug: app.Organization.Slug,
 		},
 	}, nil
+}
+
+// deployHint says where to run the `fly deploy` that finds the fly.toml at
+// configPath: with --path or --config, plain `fly deploy` searches the
+// current directory. It runs in workingDir, the build context, wherever the
+// config lives. Paths stay out of the command, since no quoting is safe in
+// every shell (PowerShell expands $ in double quotes, cmd.exe %).
+func deployHint(workingDir, configPath string) string {
+	dir, err := filepath.Abs(workingDir)
+	if err != nil {
+		return "`fly deploy`"
+	}
+	config, err := filepath.Abs(configPath)
+	if err != nil {
+		return "`fly deploy`"
+	}
+
+	hint := "`fly deploy`"
+	if cwd, err := os.Getwd(); err != nil || cwd != dir {
+		hint += " in " + dir
+	}
+	if config != filepath.Join(dir, "fly.toml") {
+		rel, err := filepath.Rel(dir, config)
+		if err != nil {
+			rel = config
+		}
+		hint += " with -c " + rel
+	}
+
+	return hint
 }
