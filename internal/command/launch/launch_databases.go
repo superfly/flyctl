@@ -39,7 +39,12 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Postgres cluster: %s\n", err)
-			errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres attach <cluster> -a %s`; if `fly postgres list` doesn't show a cluster from this launch, run `fly postgres create` first)", err, app))
+			if errors.Is(err, errPostgresAttach) {
+				// The cluster exists; err already carries the exact retry.
+				errs = append(errs, err)
+			} else {
+				errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres attach <cluster> -a %s`; if `fly postgres list` doesn't show a cluster from this launch, run `fly postgres create` first)", err, app))
+			}
 		}
 	}
 
@@ -106,8 +111,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		// format, we'll get an error (since that username already exists)
 		// by generating a new username with a sufficiently random number
 		// (in this case, the nanon second that the database is being attached)
-		currentTime := time.Now().Nanosecond()
-		dbUser := fmt.Sprintf("%s-%d", pgPlan.AppName, currentTime)
+		dbUser := newPostgresUser(pgPlan.AppName)
 
 		err := postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: pgPlan.AppName,
@@ -117,10 +121,9 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		})
 
 		if err != nil {
-			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s --database-user %s --yes'\n"
-			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName, dbUser)
+			fmt.Fprintf(io.Out, "Failed attaching %s to the Postgres cluster %s: %s\n", state.Plan.AppName, pgPlan.AppName, err)
 
-			return err
+			return attachFailed(err, postgresAttachRetry(pgPlan.AppName, state.Plan.AppName))
 		} else {
 			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 		}
@@ -156,8 +159,8 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 			})
 
 			if err != nil {
-				msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-				fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
+				fmt.Fprintf(io.Out, "Failed attaching %s to the Postgres cluster %s: %s\n", state.Plan.AppName, pgPlan.AppName, err)
+				err = attachFailed(err, postgresAttachRetry(pgPlan.AppName, state.Plan.AppName))
 			} else {
 				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 			}
@@ -550,4 +553,22 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 	}
 
 	return err
+}
+
+// errPostgresAttach marks a Postgres cluster that exists but isn't attached.
+var errPostgresAttach = errors.New("attaching Postgres failed")
+
+func attachFailed(err error, retry string) error {
+	return fmt.Errorf("%w: %w (to retry, run `%s`)", errPostgresAttach, err, retry)
+}
+
+// postgresAttachRetry retries an attach that may have stopped halfway: the
+// app's database can exist (--yes) and so can its default user (a new one).
+func postgresAttachRetry(pgApp, app string) string {
+	return fmt.Sprintf("fly postgres attach --app %s %s --database-user %s --yes", app, pgApp, newPostgresUser(pgApp))
+}
+
+// newPostgresUser is unique enough not to collide with an existing user.
+func newPostgresUser(pgApp string) string {
+	return fmt.Sprintf("%s-%d", pgApp, time.Now().Nanosecond())
 }

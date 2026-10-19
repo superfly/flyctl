@@ -285,3 +285,17 @@ func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 	// The source directory is the build context, wherever the config lives.
 	assert.Equal(t, "`fly deploy` in "+dir+" with -c "+filepath.Join("deploy", "staging.toml"), deployHint(dir, filepath.Join(dir, "deploy", "staging.toml")))
 }
+
+// A cluster that exists but failed to attach may already have the app's
+// database and default user: retrying needs --yes and a new user.
+func TestPostgresAttachRetry(t *testing.T) {
+	retry := postgresAttachRetry("my-app-db", "my-app")
+
+	assert.Contains(t, retry, "fly postgres attach --app my-app my-app-db")
+	assert.Contains(t, retry, "--yes")
+	assert.Regexp(t, `--database-user my-app-db-\d+`, retry)
+
+	err := attachFailed(errors.New("secrets unavailable"), retry)
+	assert.ErrorIs(t, err, errPostgresAttach)
+	assert.ErrorContains(t, err, retry)
+}
