@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,9 +71,12 @@ func main() {
 	// emitted: on 36 pages it is a hand-written nav label that cobra's Short
 	// does not match, so scripts/publish_docs.sh carries the existing value
 	// through instead of this overwriting it.
+	//
+	// description is emitted after source_url so the sidebarTitle carried
+	// across by scripts/generate_docs.sh still lands on line 3.
 	filePrepender := func(cmd *cobra.Command, filename string) string {
-		return fmt.Sprintf("---\ntitle: %s\nsource_url: https://fly.io/docs/flyctl/%s\n---\n\n",
-			cmd.CommandPath(), legacySlug(filename))
+		return fmt.Sprintf("---\ntitle: %s\nsource_url: https://fly.io/docs/flyctl/%s\ndescription: %s\n---\n\n",
+			cmd.CommandPath(), legacySlug(filename), quoteYAML(description(cmd)))
 	}
 
 	// Pages live at /flyctl/cmd/<file basename> on docs.fly.io, so the link is
@@ -87,6 +91,92 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// quoteYAML double-quotes s for frontmatter. Go's escapes are a subset of
+// what YAML double-quoted scalars accept, and quoting is needed anyway since
+// every description contains ": ".
+func quoteYAML(s string) string {
+	return strconv.Quote(s)
+}
+
+// maxDescriptionLen keeps the meta description inside what Google shows in a
+// result snippet. Without a description Mintlify emits no meta description at
+// all and search engines write their own snippet from the page body.
+const maxDescriptionLen = 155
+
+// description builds the page's meta description from the command's Short
+// help, e.g. "Reference for fly apps move: move an app to another
+// organization. Usage and flags." Each fallback drops the least useful part
+// until it fits: the trailing section list, then the "Reference for" lead-in,
+// then the end of Short itself.
+func description(cmd *cobra.Command) string {
+	path := cmd.CommandPath()
+	short := strings.TrimRight(strings.Join(strings.Fields(cmd.Short), " "), ".")
+	if short == "" {
+		return truncateWords("Reference for "+path+": usage and flags.", maxDescriptionLen)
+	}
+	short = lowerFirstWord(short)
+
+	var sections string
+	switch {
+	case hasSubCommands(cmd) && len(cmd.Example) > 0:
+		sections = "Subcommands, usage, flags and examples."
+	case hasSubCommands(cmd):
+		sections = "Subcommands, usage and flags."
+	case len(cmd.Example) > 0:
+		sections = "Usage, flags and examples."
+	default:
+		sections = "Usage and flags."
+	}
+
+	for _, d := range []string{
+		"Reference for " + path + ": " + short + ". " + sections,
+		"Reference for " + path + ": " + short + ".",
+		path + ": " + short + ".",
+	} {
+		if len(d) <= maxDescriptionLen {
+			return d
+		}
+	}
+
+	return truncateWords(path+": "+short, maxDescriptionLen)
+}
+
+// lowerFirstWord lowercases a leading plain capitalized word ("Move an app"
+// becomes "move an app") so Short reads naturally after a colon. Acronyms,
+// "[experimental]" and product names are left alone.
+func lowerFirstWord(s string) string {
+	word, _, _ := strings.Cut(s, " ")
+	word = strings.TrimRight(word, ",")
+	switch word {
+	case "Fly", "Unmanaged":
+		return s
+	}
+	if len(word) < 2 || word[0] < 'A' || word[0] > 'Z' {
+		return s
+	}
+	for _, r := range word[1:] {
+		if r < 'a' || r > 'z' {
+			return s
+		}
+	}
+
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// truncateWords cuts s at a word boundary so that it plus an ellipsis fits in
+// limit bytes.
+func truncateWords(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	cut := s[:limit-3]
+	if i := strings.LastIndex(cut, " "); i > 0 {
+		cut = cut[:i]
+	}
+
+	return strings.TrimRight(cut, " ,.:;") + "..."
 }
 
 func printOptions(buf *bytes.Buffer, cmd *cobra.Command, name string) error {
