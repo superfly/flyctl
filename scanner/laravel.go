@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/blang/semver"
@@ -54,7 +53,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		ConsoleCommand: "php /var/www/html/artisan tinker",
 	}
 
-	// Min PHP version to use generator
+	// Oldest PHP the dockerfile-laravel generator supports
 	minVersion, err := semver.Make("8.1.0")
 	if err != nil {
 		panic(err)
@@ -63,9 +62,12 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	// The detected PHP version
 	phpVersion, err := extractPhpVersion()
 	if err != nil || phpVersion == "" {
-		// Fallback to 8.0, which has
-		// the broadest compatibility
 		phpVersion = "8.1"
+	}
+
+	phpNVersion, err := semver.Make(phpVersion + ".0")
+	if err != nil || phpNVersion.LT(minVersion) {
+		return nil, fmt.Errorf("Laravel apps on Fly.io need PHP 8.1 or newer; detected PHP %s. Update the php requirement in composer.json and run fly launch again", phpVersion)
 	}
 
 	s.Runtime = plan.RuntimeStruct{Language: "php", Version: phpVersion}
@@ -75,14 +77,8 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		"NODE_VERSION": "18",
 	}
 
-	// Use default scanner templates if < min version(8.1.0)
-	phpNVersion, err := semver.Make(phpVersion + ".0")
-	if err != nil || phpNVersion.LT(minVersion) {
-		s.Files = templates("templates/laravel")
-	} else {
-		// Else use dockerfile-laravel generator
-		s.Callback = LaravelCallback
-	}
+	// The Dockerfile comes from the dockerfile-laravel generator
+	s.Callback = LaravelCallback
 
 	// Extract DB, Redis config from dotenv
 	db, redis, skipDB := extractConnections(".env")
@@ -248,18 +244,6 @@ func extractPhpVersion() (string, error) {
 	}
 
 	if len(match) > 1 {
-		// If the PHP version is below 7.4, we won't have a
-		// container for it, so we'll use PHP 7.4
-		if match[1][0:1] == "7" {
-			vers, err := strconv.ParseFloat(match[1], 32)
-			if err != nil {
-				return "7.4", nil
-			}
-			if vers < 7.4 {
-				return "7.4", nil
-			}
-		}
-
 		return match[1], nil
 	}
 
