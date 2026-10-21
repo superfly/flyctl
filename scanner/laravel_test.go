@@ -15,6 +15,7 @@ func writeLaravelApp(t *testing.T, phpRequirement string) string {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "artisan"), []byte("#!/usr/bin/env php\n"), 0o755))
 	composer := `{"require": {"php": "` + phpRequirement + `"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "composer.json"), []byte(composer), 0o644))
+
 	return dir
 }
 
