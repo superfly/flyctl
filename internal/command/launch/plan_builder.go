@@ -322,19 +322,20 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 // Check to see if they own the named app, and if so, prompt them to try deploying instead.
 // Returns a whether or not the app is known to be taken.
 // false doesn't necessarily mean available, just not visible to the user, while true means the app name is definitively taken.
+// free is true only when the lookup came back 404, which means nobody holds the name, so callers need not ask again.
 // Returns an error only if the prompt library encounters an error. (this should never occur)
-func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
+func nudgeTowardsDeploy(ctx context.Context, appName string) (taken bool, free bool, err error) {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	if flag.GetYes(ctx) {
-		return false, nil
+		return false, false, nil
 	}
 
 	if _, err := flapsClient.GetApp(ctx, appName); err != nil {
 		// The user can't see the app. Let them proceed.
-		return false, nil
+		return false, errors.Is(err, flaps.ErrFlapsNotFound), nil
 	}
 
 	// The user can see the app. Prompt them to deploy.
@@ -353,15 +354,15 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 		// Plan steps (the deployer) run without a terminal and keep getting a
 		// generated name. Anyone else would silently get a second app.
 		if plan.GetPlanStep(ctx) != "" {
-			return true, nil
+			return true, false, nil
 		}
 
-		return true, prompt.NonInteractiveError(fmt.Sprintf("app %s already exists; to deploy to it, run 'fly deploy'. To launch a new app instead, pass --name with a new name or --generate-name", appName))
+		return true, false, prompt.NonInteractiveError(fmt.Sprintf("app %s already exists; to deploy to it, run 'fly deploy'. To launch a new app instead, pass --name with a new name or --generate-name", appName))
 	default:
-		return true, err
+		return true, false, err
 	}
 
-	return true, nil
+	return true, false, nil
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
@@ -661,17 +662,20 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
 		taken = false
 	} else {
+		// free means nudgeTowardsDeploy's lookup already found the name unused; asking
+		// again is the same request, and each 404 costs flaps several seconds.
+		var free bool
 		if !taken && !flag.GetBool(ctx, "no-create") {
 			var err error
 			// If the user can see an app with the same name as what they're about to launch,
 			// they *probably* want to deploy to that app instead.
-			taken, err = nudgeTowardsDeploy(ctx, appName)
+			taken, free, err = nudgeTowardsDeploy(ctx, appName)
 			if err != nil {
 				return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
 			}
 		}
 
-		if !taken {
+		if !taken && !free {
 			taken, _ = appNameTaken(ctx, appName)
 		}
 	}
