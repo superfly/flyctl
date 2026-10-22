@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	fly "github.com/superfly/fly-go"
@@ -219,6 +220,48 @@ func convertHealthcheck(composeHC *ComposeHealthcheck) *fly.ContainerHealthcheck
 	return hc
 }
 
+// parseRestartPolicy converts a Compose service restart policy to the
+// corresponding Fly container restart policy.
+func parseRestartPolicy(policy string) (*fly.MachineRestart, error) {
+	if policy == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(policy, ":")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("invalid restart policy %q", policy)
+	}
+
+	restart := &fly.MachineRestart{}
+	switch parts[0] {
+	case "no":
+		if len(parts) != 1 {
+			return nil, fmt.Errorf("invalid restart policy %q", policy)
+		}
+		restart.Policy = fly.MachineRestartPolicyNo
+	case "always":
+		if len(parts) != 1 {
+			return nil, fmt.Errorf("invalid restart policy %q", policy)
+		}
+		restart.Policy = fly.MachineRestartPolicyAlways
+	case "on-failure":
+		restart.Policy = fly.MachineRestartPolicyOnFailure
+		if len(parts) == 2 {
+			maxRetries, err := strconv.Atoi(parts[1])
+			if err != nil || maxRetries < 1 {
+				return nil, fmt.Errorf("invalid restart policy %q: max retries must be a positive integer", policy)
+			}
+			restart.MaxRetries = maxRetries
+		}
+	case "unless-stopped":
+		return nil, fmt.Errorf("restart policy %q is not supported by Fly Machines", policy)
+	default:
+		return nil, fmt.Errorf("invalid restart policy %q", policy)
+	}
+
+	return restart, nil
+}
+
 // composeToMachineConfig converts a Docker Compose file to Fly machine configuration
 // Always uses containers for compose files, regardless of service count
 func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, composePath string) error {
@@ -260,8 +303,14 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 
 	// Process all services as containers
 	for serviceName, service := range compose.Services {
+		restart, err := parseRestartPolicy(service.Restart)
+		if err != nil {
+			return fmt.Errorf("failed to parse restart policy for service '%s': %w", serviceName, err)
+		}
+
 		container := &fly.ContainerConfig{
-			Name: serviceName,
+			Name:    serviceName,
+			Restart: restart,
 		}
 
 		// Set image

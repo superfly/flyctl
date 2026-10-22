@@ -3,6 +3,8 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -48,7 +50,6 @@ func newBlueGreenStrategy(client flapsutil.FlapsClient, numberOfExistingMachines
 		})
 	}
 	strategy := &blueGreen{
-		apiClient:       &mockWebClient{},
 		flaps:           client,
 		maxConcurrent:   10,
 		appConfig:       &appconfig.Config{},
@@ -290,7 +291,6 @@ func newBlueGreenStrategyWithState(client flapsutil.FlapsClient, machineState st
 	}
 
 	strategy := &blueGreen{
-		apiClient:       &mockWebClient{},
 		flaps:           client,
 		maxConcurrent:   10,
 		appConfig:       &appconfig.Config{},
@@ -453,7 +453,6 @@ func TestCreateGreenMachinesMirrorsBlueSkipLaunchForNonRepresentatives(t *testin
 	}
 
 	strategy := &blueGreen{
-		apiClient:       &mockWebClient{},
 		flaps:           client,
 		maxConcurrent:   10,
 		appConfig:       &appconfig.Config{},
@@ -594,7 +593,6 @@ func newStrategyWithImages(client flapsutil.FlapsClient, images ...fly.MachineIm
 		})
 	}
 	strategy := &blueGreen{
-		apiClient:     &mockWebClient{},
 		flaps:         client,
 		maxConcurrent: 10,
 		appConfig:     &appconfig.Config{AppName: "test-app"},
@@ -1068,5 +1066,65 @@ func TestCreateGreenMachinesStampsLaunchID(t *testing.T) {
 		_, dup := seen[id]
 		assert.False(t, dup, "launch-id must be unique per intended green machine, got a duplicate: %s", id)
 		seen[id] = struct{}{}
+	}
+}
+
+func TestBlueGreenQuotaRejection(t *testing.T) {
+	for _, created := range []int{0, 2} {
+		t.Run(fmt.Sprintf("after_%d_creates", created), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			rejected := make(chan struct{})
+			var calls atomic.Int32
+			refusal := &flaps.FlapsError{
+				OriginalError:      fmt.Errorf("Your organization has reached its machine limit. Please contact billing@fly.io"),
+				ResponseStatusCode: http.StatusUnprocessableEntity,
+			}
+			client := &mockFlapsClient{leases: make(map[string]struct{})}
+			client.LaunchFunc = func(ctx context.Context, _ string, input fly.LaunchMachineInput) (*fly.Machine, error) {
+				n := int(calls.Add(1))
+				if n > created {
+					if n == created+1 {
+						close(rejected)
+					}
+
+					return nil, refusal
+				}
+				// Keep a successful create in flight until a concurrent create is rejected.
+				if n == 2 {
+					select {
+					case <-rejected:
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					}
+				}
+				id := fmt.Sprintf("green-%d", n)
+				client.mu.Lock()
+				client.leases[id] = struct{}{}
+				client.mu.Unlock()
+
+				return &fly.Machine{ID: id, LeaseNonce: "launch-lease", Config: input.Config}, nil
+			}
+			strategy := newBlueGreenStrategy(client, 6)
+			err := strategy.Deploy(ctx)
+			require.ErrorIs(t, err, ErrCreateGreenMachine)
+			require.ErrorIs(t, err, refusal)
+			require.ErrorContains(t, err, "Your organization has reached its machine limit")
+			require.EqualValues(t, 6, calls.Load(), "quota refusals must not be retried")
+			require.Len(t, strategy.greenMachines, created, "include successful in-flight creates")
+			require.Empty(t, client.leases, "release successful launch leases before rollback")
+			require.NoError(t, strategy.Rollback(ctx, err))
+			var destroyed []string
+			for _, call := range client.destroyCalls {
+				destroyed = append(destroyed, call.input.ID)
+				assert.True(t, call.input.Kill)
+				assert.Empty(t, call.nonce, "launch leases have already been released")
+			}
+			var want []string
+			for n := 1; n <= created; n++ {
+				want = append(want, fmt.Sprintf("green-%d", n))
+			}
+			assert.ElementsMatch(t, want, destroyed, "destroy exactly the created greens, never a blue")
+		})
 	}
 }

@@ -44,6 +44,7 @@ type FlapsClient struct {
 	ExecFunc                              func(ctx context.Context, appName, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error)
 	ExtendVolumeFunc                      func(ctx context.Context, appName, volumeId string, size_gb int) (*fly.Volume, bool, error)
 	FindLeaseFunc                         func(ctx context.Context, appName, machineID string) (*fly.MachineLease, error)
+	ForkManagedPostgresClusterFunc        func(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error)
 	GenerateSecretKeyFunc                 func(ctx context.Context, appName, name string, typ string) (*fly.SetSecretKeyResp, error)
 	GetFunc                               func(ctx context.Context, appName, machineID string) (*fly.Machine, error)
 	GetAppFunc                            func(ctx context.Context, name string) (app *flaps.App, err error)
@@ -74,6 +75,7 @@ type FlapsClient struct {
 	ListManagedPostgresUsersFunc          func(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error)
 	ListManagedPostgresBackupsFunc        func(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
 	ListManagedPostgresExtensionsFunc     func(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
+	ListManagedPostgresPlansFunc          func(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error)
 	ListSecretKeysFunc                    func(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc                        func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -90,6 +92,7 @@ type FlapsClient struct {
 	UpdateFunc                            func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecretsFunc                  func(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateManagedPostgresUserRoleFunc     func(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error
+	RotateManagedPostgresUserPasswordFunc func(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error)
 	UpdateVolumeFunc                      func(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	WaitFunc                              func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForAppFunc                        func(ctx context.Context, name string) error
@@ -227,6 +230,10 @@ func (m *FlapsClient) FindLease(ctx context.Context, appName, machineID string) 
 	return m.FindLeaseFunc(ctx, appName, machineID)
 }
 
+func (m *FlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	return m.ForkManagedPostgresClusterFunc(ctx, id, req)
+}
+
 func (m *FlapsClient) GenerateSecretKey(ctx context.Context, appName, name string, typ string) (*fly.SetSecretKeyResp, error) {
 	return m.GenerateSecretKeyFunc(ctx, appName, name, typ)
 }
@@ -347,6 +354,10 @@ func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, dat
 	return m.ListManagedPostgresExtensionsFunc(ctx, id, database)
 }
 
+func (m *FlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
+	return m.ListManagedPostgresPlansFunc(ctx, orgSlug)
+}
+
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	return m.ListSecretKeysFunc(ctx, appName, version)
 }
@@ -409,6 +420,10 @@ func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, appName string, valu
 
 func (m *FlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
 	return m.UpdateManagedPostgresUserRoleFunc(ctx, id, username, req)
+}
+
+func (m *FlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	return m.RotateManagedPostgresUserPasswordFunc(ctx, id, username, req)
 }
 
 func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {

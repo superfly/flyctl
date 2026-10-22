@@ -661,12 +661,13 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		return nil
 	}
 
-	// when context is canceled, take 500ms to attempt to release the leases
+	// when context is canceled, take 500ms to attempt to release the leases.
+	// The timeout must not derive from ctx itself, or it would already be canceled.
 	contextWasAlreadyCanceled := errors.Is(ctx.Err(), context.Canceled)
 	if contextWasAlreadyCanceled {
 		var cancel context.CancelFunc
 		cancelTimeout := 500 * time.Millisecond
-		ctx, cancel = context.WithTimeoutCause(ctx, cancelTimeout, fmt.Errorf("releasing machine lease: %w", context.DeadlineExceeded))
+		ctx, cancel = context.WithTimeoutCause(context.WithoutCancel(ctx), cancelTimeout, fmt.Errorf("releasing machine lease: %w", context.DeadlineExceeded))
 		terminal.Infof("detected canceled context and allowing %s to release machine %s lease\n", cancelTimeout, lm.FormattedMachineId())
 		defer cancel()
 	}

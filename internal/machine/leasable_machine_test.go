@@ -438,3 +438,26 @@ func TestWaitForSmokeChecksToPass_NotFoundThenFoundPassesAtDeadline(t *testing.T
 	assert.NoError(t, err, "a 404 followed by a successful Get must not fail smoke checks")
 	assert.Greater(t, calls.Load(), int32(1))
 }
+
+// TestReleaseLease_CanceledContext verifies that a lease is still released
+// when the caller's context was already canceled, e.g. by Ctrl-C.
+func TestReleaseLease_CanceledContext(t *testing.T) {
+	var releasedWithLiveCtx atomic.Bool
+	client := &mock.FlapsClient{
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
+			assert.Equal(t, "test-nonce", nonce)
+			if ctx.Err() == nil {
+				releasedWithLiveCtx.Store(true)
+			}
+			return ctx.Err()
+		},
+	}
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+	lm.leaseNonce = "test-nonce"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.NoError(t, lm.ReleaseLease(ctx))
+	assert.True(t, releasedWithLiveCtx.Load(), "lease should be released with a context that isn't canceled")
+}
