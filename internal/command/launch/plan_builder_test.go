@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -438,7 +439,7 @@ func newNudgeCtx(t *testing.T, args ...string) context.Context {
 // to ask, and a new app under a generated name is the one outcome nobody chose.
 func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 	t.Run("existing app fails with directions", func(t *testing.T) {
-		taken, err := nudgeTowardsDeploy(newNudgeCtx(t), "existing-app")
+		taken, _, err := nudgeTowardsDeploy(newNudgeCtx(t), "existing-app")
 
 		require.ErrorIs(t, err, prompt.ErrNonInteractive)
 		assert.True(t, taken)
@@ -447,14 +448,14 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 	})
 
 	t.Run("unknown app proceeds", func(t *testing.T) {
-		taken, err := nudgeTowardsDeploy(newNudgeCtx(t), "new-app")
+		taken, _, err := nudgeTowardsDeploy(newNudgeCtx(t), "new-app")
 
 		require.NoError(t, err)
 		assert.False(t, taken)
 	})
 
 	t.Run("--yes launches a new app", func(t *testing.T) {
-		taken, err := nudgeTowardsDeploy(newNudgeCtx(t, "--yes"), "existing-app")
+		taken, _, err := nudgeTowardsDeploy(newNudgeCtx(t, "--yes"), "existing-app")
 
 		require.NoError(t, err)
 		assert.False(t, taken)
@@ -464,9 +465,67 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 		// The deployer drives launch through plan steps, headless.
 		ctx := context.WithValue(newNudgeCtx(t), plan.PlanStepKey, "propose")
 
-		taken, err := nudgeTowardsDeploy(ctx, "existing-app")
+		taken, _, err := nudgeTowardsDeploy(ctx, "existing-app")
 
 		require.NoError(t, err)
 		assert.True(t, taken)
 	})
+}
+
+// A 404 from the deploy nudge's lookup already answers whether the name is
+// free. Asking again is the same GET, and flaps spends about five seconds on
+// every 404, so only other outcomes go on to the availability check.
+func TestDetermineAppNameChecksNameOnce(t *testing.T) {
+	notFound := &flaps.FlapsError{ResponseStatusCode: http.StatusNotFound}
+	forbidden := &flaps.FlapsError{ResponseStatusCode: http.StatusForbidden}
+
+	for _, tc := range []struct {
+		name          string
+		args          []string
+		getAppErr     error
+		available     bool
+		wantName      string
+		wantGetApp    int
+		wantAvailable int
+	}{
+		{name: "not found skips the availability check", getAppErr: notFound, wantName: "some-app", wantGetApp: 1},
+		{name: "other errors still check availability", getAppErr: errors.New("flaps is having a day"), available: true, wantName: "some-app", wantGetApp: 1, wantAvailable: 1},
+		{name: "forbidden still checks availability", getAppErr: forbidden, wantGetApp: 1, wantAvailable: 2},
+		{name: "--yes still checks availability", args: []string{"--yes"}, available: true, wantName: "some-app", wantAvailable: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ios, _, _, _ := iostreams.Test()
+			ctx := iostreams.NewContext(context.Background(), ios)
+
+			flags := New().Flags()
+			require.NoError(t, flags.Parse(append([]string{"--name", "some-app"}, tc.args...)))
+			ctx = flagctx.NewContext(ctx, flags)
+
+			var getApp, available int
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+					getApp++
+
+					return nil, tc.getAppErr
+				},
+				AppNameAvailableFunc: func(_ context.Context, name string) (bool, error) {
+					available++
+
+					// Generated fallback names are always free.
+					return tc.available || name != "some-app", nil
+				},
+			})
+
+			appName, _, err := determineAppName(ctx, nil, &appconfig.Config{}, "fly.toml")
+
+			require.NoError(t, err)
+			if tc.wantName != "" {
+				assert.Equal(t, tc.wantName, appName)
+			} else {
+				assert.NotEqual(t, "some-app", appName)
+			}
+			assert.Equal(t, tc.wantGetApp, getApp, "GetApp calls")
+			assert.Equal(t, tc.wantAvailable, available, "AppNameAvailable calls")
+		})
+	}
 }
