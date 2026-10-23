@@ -558,3 +558,69 @@ func TestConnectTokenPacketTokenForOlderGateway(t *testing.T) {
 	assert.Equal(t, "FlyV1 fm2_test", gateway.authFor(0).Token)
 	assert.Equal(t, "FlyV1 fm2_test", gateway.headerFor(0))
 }
+
+func TestConnectTokenReprovisionClosesOpenConns(t *testing.T) {
+	gw1, _ := testKeypair(t)
+	gw2, _ := testKeypair(t)
+
+	gateway := newFakeTokenGateway(t, []string{gw1, gw2}, []tokenResult{
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", DNS: "fdaa:0:18::3", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		{Type: "ok", PeerIP: "fdaa:0:18:c9d:2:3333:4444:5502", DNS: "fdaa:0:18::3", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	})
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
+		Token:   func() string { return "FlyV1 fm2_test" },
+		OrgSlug: "test-org",
+	})
+	require.NoError(t, err)
+	defer tunnel.Close()
+
+	<-gateway.ready
+
+	// a connection to our own address stays inside the netstack, standing
+	// in for an ssh session to a machine behind the gateway
+	gNet, _, err := tunnel.netstack()
+	require.NoError(t, err)
+
+	_, cfg := tunnel.StateAndConfig()
+	ln, err := gNet.ListenTCP(&net.TCPAddr{IP: cfg.LocalNetwork.IP, Port: 2222})
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			defer c.Close()
+			_, _ = io.Copy(io.Discard, c)
+		}
+	}()
+
+	conn, err := tunnel.DialContext(context.Background(), "tcp", net.JoinHostPort(cfg.LocalNetwork.IP.String(), "2222"))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	readErr := make(chan error, 1)
+	go func() {
+		_, err := conn.Read(make([]byte, 1))
+		readErr <- err
+	}()
+
+	// anycast moved us: the connection's source address is gone
+	gateway.drop(0)
+
+	select {
+	case err := <-readErr:
+		assert.Error(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("read through the old netstack still blocked after the tunnel was rebuilt")
+	}
+
+	select {
+	case <-tunnel.Done():
+		t.Fatalf("tunnel died: %v", tunnel.Err())
+	default:
+	}
+}
