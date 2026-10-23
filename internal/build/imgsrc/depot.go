@@ -135,7 +135,6 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 			streams.StopProgressIndicator()
 			tracing.RecordErrorEvent(ctx, span, retErr)
 		}
-		span.SetAttributes(attribute.String("depot_connection_stage", buildState.BuilderMeta.DepotConnectionStage), attribute.String("depot_connection_outcome", buildState.BuilderMeta.DepotConnectionOutcome))
 		span.End()
 	}()
 
@@ -166,7 +165,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		build.Finish(buildErr)
 	}()
 
-	recordDepotAcquisition(buildState.BuilderMeta, span, buildkit.ServerName)
+	recordDepotAcquisition(buildState.BuilderMeta, buildkit.ServerName)
 
 	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
@@ -201,10 +200,9 @@ var depotMachineID = regexp.MustCompile(`^[0-9a-f]{14}$`)
 
 // The acquired routing target is not proof of a successful connection. Retain
 // only the observed Fly Machine ID format, not arbitrary routing data.
-func recordDepotAcquisition(meta *uiex.BuilderMeta, span trace.Span, serverName string) {
+func recordDepotAcquisition(meta *uiex.BuilderMeta, serverName string) {
 	if depotMachineID.MatchString(serverName) {
 		meta.DepotAcquisitionTarget = serverName
-		span.SetAttributes(attribute.String("depot_acquisition_target", serverName))
 	}
 }
 

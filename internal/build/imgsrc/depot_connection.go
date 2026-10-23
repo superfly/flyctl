@@ -38,7 +38,7 @@ func connectDepotSDK(ctx context.Context, machine *depotmachine.Machine, meta *u
 			return c, nil
 		}
 		// A terminal context-only error must not erase an earlier observation.
-		if ctx.Err() == nil || last == nil || depotConnectionStage(err) != "connecting" {
+		if last == nil || !contextEnded(ctx) || depotConnectionStage(err) != "connecting" {
 			last = err
 		}
 		timer := time.NewTimer(time.Second)
@@ -48,6 +48,18 @@ func connectDepotSDK(ctx context.Context, machine *depotmachine.Machine, meta *u
 		case <-timer.C:
 		}
 	}
+}
+
+// contextEnded also treats a passed deadline as ended. gRPC labels an RPC that
+// fails after the deadline as DeadlineExceeded before the context timer fires,
+// so a deadline-caused failure can be observed while ctx.Err() is still nil.
+func contextEnded(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		return true
+	}
+	deadline, ok := ctx.Deadline()
+
+	return ok && !time.Now().Before(deadline)
 }
 
 // These markers belong to the pinned BuildKit/gRPC transport. They describe
