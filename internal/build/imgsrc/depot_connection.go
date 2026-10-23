@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -87,10 +88,14 @@ func depotConnectOutcome(ctx context.Context, err error) string {
 	if err == nil {
 		return "success"
 	}
-	switch ctx.Err() {
-	case context.Canceled:
+	outcomeErr := ctx.Err()
+	if outcomeErr == nil {
+		outcomeErr = err
+	}
+	switch {
+	case errors.Is(outcomeErr, context.Canceled):
 		return "canceled"
-	case context.DeadlineExceeded:
+	case errors.Is(outcomeErr, context.DeadlineExceeded):
 		return "deadline_exceeded"
 	default:
 		return "error"

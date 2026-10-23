@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -414,4 +415,27 @@ type depotClockDeadlineContext struct {
 
 func (c depotClockDeadlineContext) Deadline() (time.Time, bool) {
 	return c.deadline, true
+}
+
+func TestDepotConnectOutcomeWrappedErrors(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	expired, cleanup := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
+	defer cleanup()
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+		err  error
+		want string
+	}{
+		{"wrapped cancellation", context.Background(), fmt.Errorf("wrapped: %w", context.Canceled), "canceled"},
+		{"wrapped deadline", context.Background(), fmt.Errorf("wrapped: %w", context.DeadlineExceeded), "deadline_exceeded"},
+		{"canceled parent wins", canceled, fmt.Errorf("wrapped: %w", context.DeadlineExceeded), "canceled"},
+		{"expired parent wins", expired, fmt.Errorf("wrapped: %w", context.Canceled), "deadline_exceeded"},
+		{"success wins", canceled, nil, "success"},
+		{"ordinary error", context.Background(), errors.New("failure"), "error"},
+		{"remote status", context.Background(), status.Error(codes.DeadlineExceeded, "remote deadline"), "error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) { require.Equal(t, tc.want, depotConnectOutcome(tc.ctx, tc.err)) })
+	}
 }
