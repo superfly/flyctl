@@ -31,4 +31,5 @@ func TestInitBuilder(t *testing.T) {
 	// The invocation below doesn't test things much, but it may be better than nothing.
 	_, _, err := initBuilder(ctx, build, "app1", ios, DepotBuilderScopeOrganization)
 	require.ErrorContains(t, err, `unsupported protocol scheme "invalid"`)
+	require.Empty(t, build.BuilderMeta.DepotAcquisitionTarget)
 }
