@@ -17,6 +17,7 @@ type Client interface {
 	// Basic
 	ListOrganizations(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+	GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error)
 
 	// Egress IPs
 	PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error
