@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -134,6 +135,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 			streams.StopProgressIndicator()
 			tracing.RecordErrorEvent(ctx, span, retErr)
 		}
+		span.SetAttributes(attribute.String("depot_connection_stage", buildState.BuilderMeta.DepotConnectionStage), attribute.String("depot_connection_outcome", buildState.BuilderMeta.DepotConnectionOutcome))
 		span.End()
 	}()
 
@@ -164,12 +166,14 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		build.Finish(buildErr)
 	}()
 
+	recordDepotAcquisition(buildState.BuilderMeta, span, buildkit.ServerName)
+
 	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
-	buildkitClient, buildErr = buildkit.Connect(provisionCtx)
+	buildkitClient, buildErr = connectDepotSDK(provisionCtx, buildkit, buildState.BuilderMeta)
 	if buildErr != nil {
 		tracing.RecordCancellation(provisionCtx, span)
-		return nil, buildErr
+		return nil, errors.Wrap(buildErr, "connecting to Depot builder")
 	}
 
 	streams.StopProgressIndicator()
@@ -193,16 +197,29 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
+var depotMachineID = regexp.MustCompile(`^[0-9a-f]{14}$`)
+
+// The acquired routing target is not proof of a successful connection. Retain
+// only the observed Fly Machine ID format, not arbitrary routing data.
+func recordDepotAcquisition(meta *uiex.BuilderMeta, span trace.Span, serverName string) {
+	if depotMachineID.MatchString(serverName) {
+		meta.DepotAcquisitionTarget = serverName
+		span.SetAttributes(attribute.String("depot_acquisition_target", serverName))
+	}
+}
+
 // initBuilder returns a Depot machine to build a container image.
 // Note that the caller is responsible for passing a context with a resonable timeout.
 // Otherwise, the function cloud block indefinitely.
 func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
+	buildState.BuilderMeta.DepotConnectionStage = "ensure_builder"
 
 	defer func() {
 		if retErr != nil {
 			streams.StopProgressIndicator()
 			tracing.RecordErrorEvent(ctx, span, retErr)
+			buildState.BuilderMeta.DepotConnectionOutcome = depotConnectOutcome(ctx, retErr)
 		}
 		buildState.BuilderInitFinish()
 		span.End()
@@ -230,6 +247,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	}
 
 	span.AddEvent("Acquiring Depot machine")
+	buildState.BuilderMeta.DepotConnectionStage = "acquire"
 
 	machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
 	if err != nil {
