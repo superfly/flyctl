@@ -12,6 +12,8 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -192,4 +194,30 @@ func TestIsComputeValid(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// Phoenix and others generate secrets, set on the app before fly.toml is
+// written. --no-create-app has no app to set them on: say which to set
+// later instead of failing the config-only launch.
+func TestScannerCreateSecretsWithoutApp(t *testing.T) {
+	ios, _, out, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	flags := New().Flags()
+	require.NoError(t, flags.Parse([]string{"--no-create-app"}))
+	ctx = flagctx.NewContext(ctx, flags)
+	// No stubs: any secrets call on the missing app panics.
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{})
+
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{AppName: "my-app"}},
+		planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{Secrets: []scanner.Secret{{
+			Key:      "SECRET_KEY_BASE",
+			Generate: func() (string, error) { return "generated", nil },
+		}}}},
+	}
+
+	require.NoError(t, state.scannerCreateSecrets(ctx))
+	assert.Contains(t, out.String(), "SECRET_KEY_BASE")
+	assert.Contains(t, out.String(), "fly secrets set")
+	assert.NotContains(t, out.String(), "generated")
 }
