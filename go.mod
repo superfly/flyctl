@@ -1,6 +1,6 @@
 module github.com/superfly/flyctl
 
-go 1.26.3
+go 1.26.10
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -76,7 +76,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/superfly/client-signals/go v0.4.4
-	github.com/superfly/fly-go v0.11.3
+	github.com/superfly/fly-go v0.11.5
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/macaroon v0.3.2
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
@@ -230,7 +230,7 @@ require (
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mark3labs/mcp-go v1.1.0
+	github.com/mark3labs/mcp-go v1.1.1
 	github.com/mattn/go-runewidth v0.0.19 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/ioprogress v0.0.0-20180201004757-6a23b12fa88e // indirect

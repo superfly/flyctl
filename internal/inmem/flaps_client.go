@@ -128,6 +128,10 @@ func (m *FlapsClient) FindLease(ctx context.Context, appName, machineID string) 
 	panic("TODO")
 }
 
+func (m *FlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GenerateSecretKey(ctx context.Context, appName, name string, typ string) (*fly.SetSecretKeyResp, error) {
 	panic("TODO")
 }
@@ -304,6 +308,10 @@ func (m *FlapsClient) ListManagedPostgresBackups(ctx context.Context, id string)
 }
 
 func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
 	panic("TODO")
 }
 

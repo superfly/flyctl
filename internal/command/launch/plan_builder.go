@@ -72,6 +72,7 @@ type planBuildCache struct {
 	// used to skip double-validating in stateFromManifest
 	appNameValidated bool
 	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	billingChecked   bool // true => buildManifest ran checkBillingStatus; manifests loaded with --from-manifest haven't been checked
 }
 
 func appNameTakenErr(appName string) error {
@@ -120,10 +121,21 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
 	org, orgExplanation, err := determineOrg(ctx, parentConfig)
+	billingChecked := false
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
+	} else if plan.GetPlanStep(ctx) == "" {
+		// Before determineRegion: placements fail for an org that can't run
+		// Machines, with an error that doesn't say why.
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			partial := &LaunchManifest{Plan: &plan.LaunchPlan{OrgSlug: org.Slug, FlyctlVersion: buildinfo.Info().Version}}
+
+			return partial, nil, err
+		}
+		billingChecked = true
 	}
 
 	httpServicePort := 8080
@@ -232,6 +244,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		sourceInfo:       srcInfo,
 		appNameValidated: true, // validated in determineAppName
 		warnedNoCcHa:     false,
+		billingChecked:   billingChecked,
 	}
 
 	if planValidateHighAvailability(ctx, lp, org.Billable, true) {
@@ -358,6 +371,15 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	org, err := uiexClient.GetOrganization(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
+	}
+
+	// A manifest loaded with --from-manifest skipped buildManifest and its
+	// billing check, so check here, before warming up a remote builder.
+	if plan.GetPlanStep(ctx) == "" && (optionalCache == nil || !optionalCache.billingChecked) {
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			return nil, err
+		}
 	}
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
@@ -491,8 +513,16 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 		// copy-config so we never prompt and never fall back to source scanning.
 		explicitConfig := flag.IsSpecified(ctx, "config")
 		copyConfig := flag.GetBool(ctx, "copy-config") || attach || explicitConfig
+		decided := flag.IsSpecified(ctx, "copy-config") || attach || explicitConfig
 
-		if !flag.IsSpecified(ctx, "copy-config") && !attach && !explicitConfig && !flag.GetYes(ctx) {
+		// --yes skips the question below but can't answer it: replacing
+		// fly.toml launched a second app named after the directory. Plan
+		// steps (the deployer) keep replacing it.
+		if !decided && flag.GetYes(ctx) && plan.GetPlanStep(ctx) == "" {
+			return nil, false, errors.New("an existing fly.toml was found: pass --copy-config to launch with it, or --copy-config=false to replace it. To deploy the app it describes, run 'fly deploy'")
+		}
+
+		if !decided && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)
@@ -631,7 +661,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
 		taken = false
 	} else {
-		if !taken && !flag.GetBool(ctx, "no-create") {
+		if !taken && !noCreateApp(ctx) {
 			var err error
 			// If the user can see an app with the same name as what they're about to launch,
 			// they *probably* want to deploy to that app instead.

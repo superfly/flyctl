@@ -8,7 +8,6 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/AlecAivazis/survey/v2"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -18,17 +17,14 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
+func argOrPrompt(ctx context.Context, nth int, msg string) (string, error) {
 	args := flag.Args(ctx)
 	if len(args) >= (nth + 1) {
 		return args[nth], nil
 	}
 
 	val := ""
-	err := survey.AskOne(
-		&survey.Input{Message: prompt},
-		&val,
-	)
+	err := prompt.String(ctx, &val, msg, "", false)
 
 	return val, err
 }
@@ -48,7 +44,7 @@ func orgByArg(ctx context.Context) (*uiex.Organization, error) {
 	return uiexutil.ClientFromContext(ctx).GetOrganization(ctx, args[0])
 }
 
-func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.WriteCloser, mustClose bool, err error) {
+func resolveOutputWriter(ctx context.Context, idx int, msg string) (w io.WriteCloser, mustClose bool, err error) {
 	io := iostreams.FromContext(ctx)
 
 	args := flag.Args(ctx)
@@ -56,8 +52,10 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 	var filename string
 
 	for {
-		filename, err = argOrPrompt(ctx, idx, prompt)
-		if err != nil {
+		switch filename, err = argOrPrompt(ctx, idx, msg); {
+		case prompt.IsNonInteractive(err):
+			return nil, false, prompt.NonInteractiveError("file argument must be specified when not running interactively")
+		case err != nil:
 			return nil, false, err
 		}
 
@@ -147,12 +145,10 @@ func selectWireGuardPeer(ctx context.Context, client flyutil.Client, slug string
 	}
 
 	selectedPeer := 0
-	prompt := &survey.Select{
-		Message:  "Select peer:",
-		Options:  options,
-		PageSize: 30,
-	}
-	if err := survey.AskOne(prompt, &selectedPeer); err != nil {
+	switch err := prompt.Select(ctx, &selectedPeer, "Select peer:", "", options...); {
+	case prompt.IsNonInteractive(err):
+		return "", prompt.NonInteractiveError("name argument must be specified when not running interactively")
+	case err != nil:
 		return "", err
 	}
 

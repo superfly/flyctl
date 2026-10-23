@@ -299,3 +299,29 @@ func TestPostgresAttachRetry(t *testing.T) {
 	assert.ErrorIs(t, err, errPostgresAttach)
 	assert.ErrorContains(t, err, retry)
 }
+
+// Phoenix and others generate secrets, set on the app before fly.toml is
+// written. --no-create-app has no app to set them on: say which to set
+// later instead of failing the config-only launch.
+func TestScannerCreateSecretsWithoutApp(t *testing.T) {
+	ios, _, out, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	flags := New().Flags()
+	require.NoError(t, flags.Parse([]string{"--no-create-app"}))
+	ctx = flagctx.NewContext(ctx, flags)
+	// No stubs: any secrets call on the missing app panics.
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{})
+
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{AppName: "my-app"}},
+		planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{Secrets: []scanner.Secret{{
+			Key:      "SECRET_KEY_BASE",
+			Generate: func() (string, error) { return "generated", nil },
+		}}}},
+	}
+
+	require.NoError(t, state.scannerCreateSecrets(ctx))
+	assert.Contains(t, out.String(), "SECRET_KEY_BASE")
+	assert.Contains(t, out.String(), "fly secrets set")
+	assert.NotContains(t, out.String(), "generated")
+}

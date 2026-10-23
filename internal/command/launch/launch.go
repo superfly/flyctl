@@ -55,7 +55,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 	planStep := plan.GetPlanStep(ctx)
 	createdAppName := ""
 
-	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
+	if !noCreateApp(ctx) && (planStep == "" || planStep == "create") {
 		app, err := state.createApp(ctx)
 		if err != nil {
 			return err
@@ -72,7 +72,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 		}
 	}
 
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		if err = state.confirmManagedPostgresCreation(ctx, createdAppName, planStep); err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 	// deploy rather than here, so fly.toml still gets written and `fly deploy`
 	// works once the failure is fixed.
 	var dbErr error
-	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
+	if !noCreateApp(ctx) && planStep != "generate" {
 		dbErr = state.createDatabases(ctx)
 	}
 
@@ -125,7 +125,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 	}
 
 	// Sentry
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
 		}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -33,7 +34,8 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
-	if state.sourceInfo.GitHubActions.Secrets {
+	// The deploy token is for an app; with --no-create-app there isn't one yet.
+	if state.sourceInfo.GitHubActions.Secrets && !noCreateApp(ctx) {
 		gh, err := exec.LookPath("gh")
 
 		if err != nil {
@@ -191,6 +193,16 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 		if val != "" {
 			secrets[secret.Key] = val
 		}
+	}
+
+	if len(secrets) > 0 && noCreateApp(ctx) {
+		// There's no app to set them on yet. Generated values aren't shown:
+		// any fresh random value works.
+		keys := lo.Keys(secrets)
+		sort.Strings(keys)
+		fmt.Fprintf(io.Out, "Set these secrets once the app exists, with `fly secrets set NAME=VALUE -a %s`: %s\n", state.Plan.AppName, strings.Join(keys, ", "))
+
+		return nil
 	}
 
 	if len(secrets) > 0 {
