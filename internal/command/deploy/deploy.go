@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
+	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -270,6 +271,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		tp.Shutdown(shutdownCtx)
 	}()
 
+	ctx = tracing.WithDeployTrace(ctx)
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy",
 		trace.WithAttributes(attribute.Bool("deploy.build_only", flag.GetBuildOnly(ctx))),
 	)
@@ -398,7 +400,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "\nWatch your deployment at %s\n\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)))
 	if err := deployToMachines(ctx, appConfig, app, img); err != nil {
-		return err
+		return machinelimit.WithRequestLink(ctx, err, app.Organization.Slug)
 	}
 	var ip = "public"
 	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
@@ -480,6 +482,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	} else if ip == "none" {
 		fmt.Fprintf(io.Out, "\nYour app is deployed but does not have a public or private IP address\n")
 	}
+
+	machinelimit.Warn(ctx, app.Organization.Slug)
 
 	return err
 }

@@ -54,7 +54,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	planStep := plan.GetPlanStep(ctx)
 	createdAppName := ""
 
-	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
+	if !noCreateApp(ctx) && (planStep == "" || planStep == "create") {
 		app, err := state.createApp(ctx)
 		if err != nil {
 			return err
@@ -71,7 +71,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		if err = state.confirmManagedPostgresCreation(ctx, createdAppName, planStep); err != nil {
 			return err
 		}
@@ -95,7 +95,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
 
-	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
+	if !noCreateApp(ctx) && planStep != "generate" {
 		if err = state.createDatabases(ctx); err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Sentry
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
 		}

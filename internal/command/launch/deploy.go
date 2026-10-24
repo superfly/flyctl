@@ -36,7 +36,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 		deployNow = true
 	}
 
-	if flag.GetBool(ctx, "no-create") {
+	if noCreateApp(ctx) {
 		deployNow = false
 	}
 
