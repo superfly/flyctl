@@ -400,7 +400,9 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 	useShortLivedDeployToken(t, f)
 	deployRes := f.Fly("deploy --buildkit --remote-only")
 	output := deployRes.StdOutString()
-	require.Contains(f, output, "Test Machine")
+	// The "Test Machine <id>: <state>" summary is skipped once the test
+	// machine has been destroyed, so check for the success line instead.
+	require.Regexp(f, `Test machine \S+ completed successfully`, output)
 }
 
 func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
@@ -420,7 +422,9 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 	useShortLivedDeployToken(t, f)
 	deployRes := f.Fly("deploy --buildkit --remote-only")
 	output := deployRes.StdOutString()
-	require.Contains(f, output, "Test Machine")
+	// The "Test Machine <id>: <state>" summary is skipped once the test
+	// machine has been destroyed, so check for the success line instead.
+	require.Regexp(f, `Test machine \S+ completed successfully`, output)
 }
 
 // TODO: This test times out after ~15 minutes in CI (hangs at deploy command)

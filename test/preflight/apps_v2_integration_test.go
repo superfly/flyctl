@@ -444,12 +444,14 @@ func testDeployDetach(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	// With auto-stop on, the proxy stops these idle machines and deploy
+	// leaves them stopped, so they would never reach "started".
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	ml := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
 
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started")
@@ -457,7 +459,7 @@ func testDeployDetach(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started")
@@ -467,13 +469,15 @@ func testDeployDetachBatching(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	// With auto-stop on, the proxy stops these idle machines and deploy
+	// leaves them stopped, so they would never reach "started".
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("scale count 6 --yes")
 
 	ml := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
 
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
@@ -481,7 +485,7 @@ func testDeployDetachBatching(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started", false)

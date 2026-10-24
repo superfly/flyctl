@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,10 +31,13 @@ type FlyctlTestEnv struct {
 	primaryRegion       string
 	otherRegions        []string
 	env                 map[string]string
-	cmdHistory          []*FlyctlResult
-	noHistoryOnFail     bool
-	id                  string
-	VMSize              string
+	// historyMu guards cmdHistory, which retry goroutines that outlive an
+	// EventuallyWithT call can still append to.
+	historyMu       sync.Mutex
+	cmdHistory      []*FlyctlResult
+	noHistoryOnFail bool
+	id              string
+	VMSize          string
 }
 
 // Preflight flyctl commands are not supposed to take more than five minutes.
@@ -213,8 +217,22 @@ func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{
 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
 
+// FlyBestEffort runs flyctl command with the given timeout and returns the result.
+// It does not fail the test because of the command's outcome: a non-zero exit
+// is reported by ExitCode, and a command that exceeds the timeout is killed and
+// reported by TimedOut. This makes it safe for retry loops and cleanup.
+func (f *FlyctlTestEnv) FlyBestEffort(timeout time.Duration, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true, NoAssertDeadline: true}, flyctlCmd, vals...)
+}
+
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
+	// NoAssertDeadline reports a command that exceeds its context deadline
+	// through TimedOut instead of failing the test.
+	NoAssertDeadline bool
 }
 
 func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfig, flyctlCmd string, vals ...interface{}) *FlyctlResult {
@@ -253,16 +271,24 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	}
 	err = cmd.Wait()
 	if err != nil && ctx.Err() != nil {
-		f.Fatalf("command exceeded its deadline: %s [context error]: %v [stdout]: %s [stderr]: %s", res.cmdStr, ctx.Err(), res.stdOut.String(), res.stdErr.String())
-	}
-	if err == nil {
+		if !cfg.NoAssertDeadline {
+			f.Fatalf("command exceeded its deadline: %s [context error]: %v [stdout]: %s [stderr]: %s", res.cmdStr, ctx.Err(), res.stdOut.String(), res.stdErr.String())
+		}
+		// Record the timeout in stderr rather than logging it: this may run in a
+		// retry goroutine that outlives the test, where t.Logf panics.
+		fmt.Fprintf(res.stdErr, "\ncommand exceeded its deadline: %v", ctx.Err())
+		res.exitCode = -1
+		res.timedOut = true
+	} else if err == nil {
 		res.exitCode = 0
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
 		res.exitCode = exitErr.ExitCode()
 	} else {
 		f.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
+	f.historyMu.Lock()
 	f.cmdHistory = append(f.cmdHistory, res)
+	f.historyMu.Unlock()
 	if !cfg.NoAssertSuccessfulExit {
 		res.AssertSuccessfulExit()
 	}
@@ -282,7 +308,10 @@ func (f *FlyctlTestEnv) DebugPrintHistory() {
 	if f.Failed() || f.noHistoryOnFail {
 		return
 	}
-	for i, r := range f.cmdHistory {
+	f.historyMu.Lock()
+	history := append([]*FlyctlResult(nil), f.cmdHistory...)
+	f.historyMu.Unlock()
+	for i, r := range history {
 		fmt.Printf("%3d:\n", i+1)
 		r.DebugPrintOutput()
 	}
@@ -321,7 +350,12 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 	appName := randomName(f, prefix)
 	f.Cleanup(func() {
-		f.FlyAllowExitFailure("apps destroy --yes %s", appName)
+		// A slow destroy shouldn't fail a test that already passed, or hold up
+		// the suite. Apps left behind are removed by the preflight cleanup workflow.
+		res := f.FlyBestEffort(time.Minute, "apps destroy --yes %s", appName)
+		if res.ExitCode() != 0 {
+			f.Logf("apps destroy %s failed (timed out: %t); leaving it for the preflight cleanup workflow: %s", appName, res.TimedOut(), res.StdErrString())
+		}
 	})
 	return appName
 }

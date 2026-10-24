@@ -308,12 +308,19 @@ func TestFlyLaunchWithBuildSecrets(t *testing.T) {
 RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 `)
 
-	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 
+	// The machine may not accept SSH connections right after launch, so a
+	// failed or hung attempt must be retried rather than failing the test.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
-		assert.Equal(c, "SECRET1", ssh.StdOut().String())
-	}, 10*time.Second, 1*time.Second)
+		// The first attempt may need to start the agent and open a WireGuard
+		// tunnel, so give each attempt room for that.
+		ssh := f.FlyBestEffort(time.Minute, "ssh console -C 'cat /tmp/secrets.txt'")
+		if !assert.Equal(c, 0, ssh.ExitCode(), "ssh console failed: %s", ssh.StdErrString()) {
+			return
+		}
+		assert.Equal(c, "SECRET1", ssh.StdOutString())
+	}, 3*time.Minute, 2*time.Second)
 }
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {

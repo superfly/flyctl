@@ -50,11 +50,18 @@ CMD ["sleep", "infinity"]
 
 		// The backend is eventually consistent. The peer may not be immediately visible.
 		assert.EventuallyWithT(t, func(t *assert.CollectT) {
-			result := f.Fly("machine exec -a %s %s 'dig +short aaaa @fdaa::3 %s._peer.internal'", appName, machineID, peerName)
+			// A failed or hung exec must be retried rather than failing the test.
+			result := f.FlyBestEffort(30*time.Second, "machine exec -a %s %s 'dig +short aaaa @fdaa::3 %s._peer.internal'", appName, machineID, peerName)
+			if !assert.Equal(t, 0, result.ExitCode(), "machine exec failed: %s", result.StdErrString()) {
+				return
+			}
 			assert.Contains(t, result.StdOutString(), "fdaa:")
 
-			result = f.Fly("machine exec -a %s %s 'dig +noall +answer txt @fdaa::3 _peer.internal'", appName, machineID)
+			result = f.FlyBestEffort(30*time.Second, "machine exec -a %s %s 'dig +noall +answer txt @fdaa::3 _peer.internal'", appName, machineID)
+			if !assert.Equal(t, 0, result.ExitCode(), "machine exec failed: %s", result.StdErrString()) {
+				return
+			}
 			assert.Contains(t, cleanupDigOutput(result.StdOutString()), peerName)
-		}, 10*time.Second, time.Second)
+		}, 2*time.Minute, 2*time.Second)
 	})
 }
