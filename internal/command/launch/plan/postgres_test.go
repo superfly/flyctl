@@ -39,6 +39,10 @@ func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*
 	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
+func (m *mockUIEXClient) GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error) {
+	return &uiex.LaunchChecks{}, nil
+}
+
 func (m *mockUIEXClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
 	return nil
 }
