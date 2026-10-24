@@ -17,6 +17,9 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type updateOutcomeRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -119,7 +122,9 @@ func TestSupportsPreservedStoppedUpdate(t *testing.T) {
 	require.False(t, supportsPreservedStoppedUpdate("immediate", fly.MachineStateStarted))
 }
 
+// Ensure readiness owns the state-wait operation even when a Machine intentionally stays stopped.
 func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
+	recorder := recordReadinessSpans(t)
 	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
 
 	ios, _, _, _ := iostreams.Test()
@@ -170,6 +175,7 @@ func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
 	line := statuslogger.Create(ctx, 1, false).Line(0)
 
 	require.NoError(t, md.waitForMachine(ctx, entry, fly.MachineStateStarted, line))
+	assertReadinessSpan(t, recorder)
 	require.True(t, sawMachineGet.Load())
 }
 
@@ -213,6 +219,7 @@ func TestWaitForStartedOrPreservedStoppedUpdateDeclinesNewerLifecycleEvent(t *te
 	require.Error(t, err)
 }
 
+// Ensure the recovery path also nests state checks beneath a dedicated readiness operation.
 func TestUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T) {
 	for _, strategy := range []string{"canary", "rolling"} {
 		t.Run(strategy, func(t *testing.T) {
@@ -222,6 +229,7 @@ func TestUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T) {
 }
 
 func testUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T, strategy string) {
+	recorder := recordReadinessSpans(t)
 	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
 
 	ios, _, _, _ := iostreams.Test()
@@ -279,6 +287,7 @@ func testUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T, strateg
 	line := statuslogger.Create(ctx, 1, false).Line(0)
 
 	require.NoError(t, md.updateMachineWChecks(ctx, oldMachine, newMachine, false, line, ios, &healthcheckResult{}))
+	assertReadinessSpan(t, recorder)
 	require.False(t, sawSkipLaunch.Load(), "observed outcome must not rewrite retry-stable launch intent")
 	require.True(t, sawMachineGet.Load())
 }
@@ -290,4 +299,33 @@ func machineResponse(req *http.Request, body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    req,
 	}
+}
+
+func recordReadinessSpans(t *testing.T) *tracetest.SpanRecorder {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		_ = provider.Shutdown(context.Background())
+	})
+	return recorder
+}
+
+func assertReadinessSpan(t *testing.T, recorder *tracetest.SpanRecorder) {
+	t.Helper()
+	var readiness, state sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		switch span.Name() {
+		case "deployment_readiness":
+			readiness = span
+		case "wait_for_machine_state":
+			state = span
+		}
+	}
+	require.NotNil(t, readiness)
+	require.NotNil(t, state)
+	require.Equal(t, readiness.SpanContext().SpanID(), state.Parent().SpanID())
 }
