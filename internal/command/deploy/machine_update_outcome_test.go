@@ -311,6 +311,7 @@ func recordReadinessSpans(t *testing.T) *tracetest.SpanRecorder {
 		otel.SetTracerProvider(previous)
 		_ = provider.Shutdown(context.Background())
 	})
+
 	return recorder
 }
 
