@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,6 +88,19 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// tar can't represent irregular files, such as directory junctions on
+	// Windows (php artisan storage:link creates one), so leave them out
+	// instead of failing with "archive/tar: unknown file mode"
+	irregular, err := irregularFiles(os.DirFS(sourcePath), options.exclusions)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range irregular {
+		terminal.Warnf("Skipping %s: not a regular file, directory or symlink, so it can't be sent to the builder\n", name)
+	}
+	opts.ExcludePatterns = append(opts.ExcludePatterns, irregular...)
+
 	r, err := archive.TarWithOptions(sourcePath, opts)
 	if err != nil {
 		return nil, err
@@ -156,6 +170,39 @@ func parseDockerignore(r io.Reader, dockerfile string) ([]string, error) {
 	}
 
 	return excludes, nil
+}
+
+// irregularFiles returns the paths in fsys, outside of the excluded ones,
+// whose file mode is irregular.
+func irregularFiles(fsys fs.FS, excludes []string) ([]string, error) {
+	pm, err := patternmatcher.New(excludes)
+	if err != nil {
+		return nil, err
+	}
+
+	var irregular []string
+	err = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || path == "." {
+			return err
+		}
+
+		if excluded, _ := pm.MatchesOrParentMatches(path); excluded {
+			// an exception pattern could bring back something below this directory
+			if d.IsDir() && !pm.Exclusions() {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if d.Type()&fs.ModeIrregular != 0 {
+			irregular = append(irregular, path)
+		}
+
+		return nil
+	})
+
+	return irregular, err
 }
 
 func isPathInRoot(target, rootDir string) bool {

@@ -3,14 +3,17 @@ package imgsrc
 import (
 	"archive/tar"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/moby/go-archive/compression"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestDir(filenames ...string) (tempDir string, err error) {
@@ -219,4 +222,18 @@ func TestIsPathInRoot(t *testing.T) {
 	for _, c := range cases {
 		assert.Equal(t, c.rooted, isPathInRoot(c.filename, c.rootDir), "target: %s root:%s", c.filename, c.rootDir)
 	}
+}
+
+func TestIrregularFiles(t *testing.T) {
+	fsys := fstest.MapFS{
+		"artisan":                     {},
+		"public/index.php":            {},
+		"public/storage":              {Mode: fs.ModeIrregular},
+		"node_modules/.bin/vite":      {Mode: fs.ModeIrregular},
+		"storage/app/public/logo.png": {},
+	}
+
+	got, err := irregularFiles(fsys, []string{"node_modules"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"public/storage"}, got)
 }

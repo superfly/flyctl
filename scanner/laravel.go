@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/blang/semver"
@@ -74,7 +76,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
-		"NODE_VERSION": "18",
+		"NODE_VERSION": "22",
 	}
 
 	// The Dockerfile comes from the dockerfile-laravel generator
@@ -159,38 +161,52 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		installed = false
 	}
 
-	// install fly-apps/dockerfile-laravel if it's not already installed
-	if !installed {
-		args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
-		fmt.Printf("installing: %s\n", strings.Join(args, " "))
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+	// the generator is a PHP script; running it through php works on every
+	// platform, including Windows, where vendor/bin/dockerfile-laravel isn't
+	// directly executable
+	_, phpErr := exec.LookPath("php")
+	_, composerErr := exec.LookPath("composer")
 
-		if err := cmd.Run(); err != nil && !dockerfileExists {
-			return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
-		}
+	// install fly-apps/dockerfile-laravel if it's not already installed
+	var installErr error
+	switch {
+	case installed && phpErr != nil:
+		installErr = errors.New("php was not found on your PATH")
+	case !installed && (phpErr != nil || composerErr != nil):
+		installErr = errors.New("php or composer was not found on your PATH")
+	case !installed:
+		installErr = runCommand("composer", "require", "--dev", "fly-apps/dockerfile-laravel")
 	}
 
-	args := []string{vendorPath, "generate"}
+	generateArgs := []string{"generate"}
 	if dockerfileExists {
-		args = append(args, "--skip")
+		generateArgs = append(generateArgs, "--skip")
 	}
 
 	// add additional flags from launch command
 	if len(flags) > 0 {
-		args = append(args, flags...)
+		generateArgs = append(generateArgs, flags...)
 	}
 
-	fmt.Printf("Running: %s\n", strings.Join(args, " "))
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	switch {
+	case installErr == nil:
+		if err := runCommand("php", append([]string{vendorPath}, generateArgs...)...); err != nil {
+			return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		}
+	case dockerfileExists:
+		// the generator only adds supporting files around an existing
+		// Dockerfile, so the launch can go ahead without it
+		fmt.Printf("Skipping fly-apps/dockerfile-laravel (%v); using your existing Dockerfile\n", installErr)
+	case phpErr == nil && composerErr == nil:
+		return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", installErr)
+	default:
+		if _, err := exec.LookPath("docker"); err != nil {
+			return fmt.Errorf("fly launch needs PHP and Composer, or Docker, to generate a Dockerfile for your Laravel app (%w). Install Composer (https://getcomposer.org) and run fly launch again", installErr)
+		}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		if err := generateLaravelDockerfileInDocker(generateArgs); err != nil {
+			return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		}
 	}
 
 	// provide some advice
@@ -203,6 +219,41 @@ Now: run 'fly deploy' to deploy your %s app.
 `, srcInfo.Family)
 
 	return nil
+}
+
+// generateLaravelDockerfileInDocker installs and runs fly-apps/dockerfile-laravel
+// in the official Composer image, for machines without PHP or Composer.
+func generateLaravelDockerfileInDocker(generateArgs []string) error {
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	docker := []string{"run", "--rm", "-i", "-v", dir + ":/app", "-w", "/app", "-e", "COMPOSER_HOME=/tmp/composer"}
+	if runtime.GOOS != "windows" {
+		// keep the files the generator writes owned by the current user
+		docker = append(docker, "--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()))
+	}
+	docker = append(docker, "composer:2")
+
+	// the image's PHP may not match the app's PHP version or extensions,
+	// which only matter at runtime, not for installing the generator
+	err = runCommand("docker", slices.Concat(docker, []string{"composer", "require", "--dev", "--no-interaction", "--ignore-platform-reqs", "fly-apps/dockerfile-laravel"})...)
+	if err != nil {
+		return err
+	}
+
+	return runCommand("docker", slices.Concat(docker, []string{"php", "vendor/bin/dockerfile-laravel"}, generateArgs)...)
+}
+
+func runCommand(name string, args ...string) error {
+	fmt.Printf("Running: %s %s\n", name, strings.Join(args, " "))
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
 
 func extractPhpVersion() (string, error) {
