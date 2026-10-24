@@ -211,6 +211,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			tracing.RecordError(ctx, span, err, "failed to resolve image")
 
 			return nil, err
 		}
