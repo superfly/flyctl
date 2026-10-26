@@ -11,9 +11,9 @@ require (
 	github.com/PuerkitoBio/rehttp v1.4.0
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.7.0
-	github.com/aws/aws-sdk-go-v2/config v1.33.5
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
+	github.com/aws/aws-sdk-go-v2/config v1.33.9
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.3
 	github.com/azazeal/pause v1.3.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.23.2
@@ -48,7 +48,7 @@ require (
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.15
 	github.com/mattn/go-isatty v0.0.24
-	github.com/mattn/go-zglob v0.0.6
+	github.com/mattn/go-zglob v0.0.8
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.73
 	github.com/moby/buildkit v0.33.0
@@ -57,7 +57,7 @@ require (
 	github.com/moby/patternmatcher v0.6.1
 	github.com/morikuni/aec v1.1.0
 	github.com/muesli/termenv v0.16.0
-	github.com/nats-io/nats.go v1.53.1
+	github.com/nats-io/nats.go v1.54.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/olekukonko/tablewriter v1.1.5
@@ -106,7 +106,7 @@ require (
 	cel.dev/expr v0.25.2 // indirect
 	cyphar.com/go-pathrs v0.2.5 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.10.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.10.4 // indirect
 	github.com/chainguard-dev/kaniko v1.25.16 // indirect
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
@@ -153,22 +153,22 @@ require (
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/apex/log v1.9.0
-	github.com/aws/aws-sdk-go-v2 v1.47.0 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.47.3 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.22 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.3 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.55.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.38.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.51.0 // indirect
-	github.com/aws/smithy-go v1.28.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.38.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.4 // indirect
+	github.com/aws/smithy-go v1.28.5 // indirect
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.12.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -180,8 +180,8 @@ require (
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/containerd/console v1.0.5 // indirect
-	github.com/containerd/containerd/api v1.11.1
-	github.com/containerd/containerd/v2 v2.3.5 // indirect
+	github.com/containerd/containerd/api v1.12.0
+	github.com/containerd/containerd/v2 v2.3.6 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -225,7 +225,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/launchdarkly/go-jsonstream/v3 v3.1.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
@@ -243,7 +243,7 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/nats-io/nkeys v0.4.15 // indirect
+	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
@@ -259,7 +259,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
-	github.com/sirupsen/logrus v1.10.1 // indirect
+	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
