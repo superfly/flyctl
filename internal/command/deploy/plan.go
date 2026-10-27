@@ -364,10 +364,19 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 
 			// Determine if the machine should be started after deployment. This is based
 			// on the state of originalMachine, which was captured pre-deploy and won't
-			// change during deploy recovery retries.
+			// change during deploy recovery retries. The same state (oldMachine's if
+			// there is no originalMachine) decides whether an update that flyd left
+			// stopped is accepted.
 			skipLaunch := false
 			if newMachine != nil {
 				skipLaunch = shouldSkipLaunch(originalMachine, newMachine.Config)
+			}
+			var launchBasisState string
+			switch {
+			case originalMachine != nil:
+				launchBasisState = originalMachine.State
+			case oldMachine != nil:
+				launchBasisState = oldMachine.State
 			}
 
 			var machineID string
@@ -396,7 +405,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			}
 			machineCheckResult := checkResult.(*healthcheckResult)
 
-			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult)
+			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, launchBasisState, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
 				tracing.RecordErrorEvent(gCtx, span, err)
@@ -579,7 +588,7 @@ func isEmptyOrNilSlice(v interface{}) bool {
 	return rv.Kind() == reflect.Slice && rv.Len() == 0
 }
 
-func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, launchBasisState string, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks", trace.WithAttributes(
 		attribute.Bool("smoke_checks", healthcheckResult.smokeChecksPassed),
 		attribute.Bool("machine_checks", healthcheckResult.machineChecksPassed),
@@ -613,7 +622,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 			return err
 		}
 		if state == fly.MachineStateStopped && oldMachine != nil &&
-			supportsPreservedStoppedUpdate(md.strategy, oldMachine.State) &&
+			supportsPreservedStoppedUpdate(md.strategy, launchBasisState) &&
 			md.readPreservedStoppedUpdate(ctx, machine.ID, machine.Version) {
 			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s was updated and left stopped", machine.ID))
 
