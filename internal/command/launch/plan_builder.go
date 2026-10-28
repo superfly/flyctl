@@ -99,35 +99,26 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
-// errorsPresentErr ends a launch that needed the Launch UI to fix its
-// problems and didn't get it. They were printed already, so the message stays
-// short; launch metrics record them from here.
-type errorsPresentErr struct {
-	problems []string
-}
+// summary is the problems on one line, for launch metrics: "" for none or a
+// nil builder, and cut short past maxSummaryLen.
+func (r *recoverableErrorBuilder) summary() string {
+	if r == nil {
+		return ""
+	}
 
-func (e errorsPresentErr) Error() string {
-	return "launch can not continue with errors present"
-}
-
-func (r *recoverableErrorBuilder) abort() error {
 	problems := make([]string, 0, len(r.errors))
 	for _, e := range r.errors {
-		problems = append(problems, e.base.Error())
+		problems = append(problems, strings.Join(strings.Fields(e.Error()), " "))
+	}
+	s := strings.Join(problems, "; ")
+	if len(s) > maxSummaryLen {
+		s = s[:maxSummaryLen] + "…"
 	}
 
-	return errorsPresentErr{problems: problems}
+	return s
 }
 
-// launchStatusError is err as launch metrics record it.
-func launchStatusError(err error) string {
-	var present errorsPresentErr
-	if errors.As(err, &present) && len(present.problems) > 0 {
-		return err.Error() + ": " + strings.Join(present.problems, "; ")
-	}
-
-	return err.Error()
-}
+const maxSummaryLen = 1000
 
 func (r *recoverableErrorBuilder) build() string {
 	if len(r.errors) == 0 {
