@@ -507,7 +507,7 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 		{
 			name:          "no capacity",
 			primaryRegion: "maa",
-			wantErr:       "no regions with capacity for the requested configuration: region maa from your fly.toml",
+			wantErr:       "region maa from your fly.toml: no regions with capacity for the requested configuration",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -534,6 +534,7 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, tc.wantErr, err.Error())
 				assert.Equal(t, recoverableSpecifyInUi, explanation)
+				assert.Equal(t, tc.primaryRegion, region, "failures report the region as configured")
 
 				return
 			}
