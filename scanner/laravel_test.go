@@ -49,3 +49,30 @@ func TestConfigureLaravelUsesGeneratorFrom81(t *testing.T) {
 		})
 	}
 }
+
+// Without Composer there is no generator to install. With no Dockerfile, say
+// what to install; with one, launch goes ahead on it instead of running a
+// generator that was never installed.
+func TestLaravelCallbackWithoutComposer(t *testing.T) {
+	t.Run("no Dockerfile", func(t *testing.T) {
+		t.Chdir(writeLaravelApp(t, "^8.2"))
+		t.Setenv("PATH", t.TempDir())
+
+		err := LaravelCallback("my-app", &SourceInfo{Family: "Laravel"}, nil, nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "composer isn't on your PATH")
+	})
+
+	t.Run("existing Dockerfile", func(t *testing.T) {
+		t.Chdir(writeLaravelApp(t, "^8.2"))
+		t.Setenv("PATH", t.TempDir())
+		require.NoError(t, os.WriteFile("Dockerfile", []byte("FROM php:8.2\n"), 0o644))
+
+		srcInfo := &SourceInfo{Family: "Laravel"}
+		err := LaravelCallback("my-app", srcInfo, nil, nil)
+
+		require.NoError(t, err)
+		assert.Contains(t, srcInfo.DeployDocs, "fly deploy")
+	})
+}
