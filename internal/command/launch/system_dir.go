@@ -21,8 +21,9 @@ import (
 // there used to fail late with "open C:\WINDOWS\system32\fly.toml: Access is
 // denied". Call it after setupFromTemplate, which changes into --into.
 func checkLaunchDir(ctx context.Context) error {
-	// Plan steps and --manifest write nothing into the working directory.
-	if plan.GetPlanStep(ctx) != "" || flag.GetBool(ctx, "manifest") {
+	// Of the plan steps, only generate writes into the working directory;
+	// --manifest writes nothing there.
+	if step := plan.GetPlanStep(ctx); (step != "" && step != "generate") || flag.GetBool(ctx, "manifest") {
 		return nil
 	}
 
@@ -32,77 +33,56 @@ func checkLaunchDir(ctx context.Context) error {
 		return nil
 	}
 
-	if runtime.GOOS == "windows" {
-		systemRoot := os.Getenv("SystemRoot")
-		if systemRoot == "" {
-			systemRoot = os.Getenv("windir")
-		}
-		if err := checkNotInSystemDir(canonicalPath(dir), canonicalPath(systemRoot)); err != nil {
-			return err
-		}
-	}
-
-	return checkWritable(dir)
+	return checkWritable(dir, windowsSystemRoot())
 }
 
-// canonicalPath resolves symlinks and junctions, which on Windows also
-// expands 8.3 short names (C:\WINDOW~1), so different spellings of a
-// directory compare equal. A path that doesn't resolve is returned as is.
-func canonicalPath(p string) string {
-	if p == "" {
-		return p
+// windowsSystemRoot is %SystemRoot%, or "" off Windows.
+func windowsSystemRoot() string {
+	if runtime.GOOS != "windows" {
+		return ""
 	}
-	if resolved, err := filepath.EvalSymlinks(p); err == nil {
-		return resolved
+	if root := os.Getenv("SystemRoot"); root != "" {
+		return root
 	}
 
-	return p
+	return os.Getenv("windir")
 }
 
 // checkWritable fails when dir exists but launch can't create files in it.
-// A directory that doesn't exist is left for launch to report.
-func checkWritable(dir string) error {
+// A directory that doesn't exist is left for launch to report. Under
+// systemRoot, the error says how people usually end up there.
+func checkWritable(dir, systemRoot string) error {
 	f, err := os.CreateTemp(dir, ".fly-launch-*")
-	if err != nil {
-		if !errors.Is(err, fs.ErrPermission) {
-			return nil
-		}
+	if err == nil {
+		f.Close()
+		os.Remove(f.Name())
 
-		return flyerr.GenericErr{
-			Err:      fmt.Sprintf("fly launch can't write to %s", dir),
-			Descript: "fly launch writes fly.toml and other files into the directory it runs in.",
-			Suggest:  "Run fly launch in your project's directory, or give yourself write access to this one",
-		}
+		return nil
 	}
-	f.Close()
-	os.Remove(f.Name())
-
-	return nil
-}
-
-// checkNotInSystemDir fails when dir is systemRoot or inside it. Windows paths
-// are case-insensitive, and either slash separates them.
-func checkNotInSystemDir(dir, systemRoot string) error {
-	normalize := func(p string) string {
-		p = strings.TrimPrefix(strings.ReplaceAll(p, "/", `\`), `\\?\`)
-
-		return strings.TrimRight(strings.ToLower(p), `\`)
-	}
-
-	root := normalize(systemRoot)
-	// A system folder at the root of a drive (or none at all) would match
-	// every directory on it.
-	if root == "" || strings.HasSuffix(root, ":") {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
 
-	if d := normalize(dir); d != root && !strings.HasPrefix(d, root+`\`) {
-		return nil
+	descript := fmt.Sprintf("fly launch writes fly.toml and other files into the directory it runs in, and can't create files here: %v", err)
+	if isWithin(dir, systemRoot) {
+		descript = "That's a Windows system folder, where a terminal opened as administrator starts. " + descript
 	}
 
 	return flyerr.GenericErr{
-		Err:      fmt.Sprintf("fly launch can't run in %s", dir),
-		Descript: "That's a Windows system folder, where a terminal opened as administrator starts. fly launch writes fly.toml and other files into the directory it runs in.",
+		Err:      fmt.Sprintf("fly launch can't write to %s", dir),
+		Descript: descript,
 		Suggest:  "cd into your project's directory and run fly launch again",
 	}
+}
+
+// isWithin reports whether dir is root or inside it, ignoring case as
+// Windows paths do.
+func isWithin(dir, root string) bool {
+	if root == "" {
+		return false
+	}
+	dir = strings.ToLower(filepath.Clean(dir))
+	root = strings.ToLower(filepath.Clean(root))
+
+	return dir == root || strings.HasPrefix(dir, strings.TrimSuffix(root, string(filepath.Separator))+string(filepath.Separator))
 }

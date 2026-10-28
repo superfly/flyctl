@@ -11,47 +11,18 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
-func TestCheckNotInSystemDir(t *testing.T) {
-	for _, tc := range []struct {
-		dir     string
-		wantErr bool
-	}{
-		{dir: `C:\WINDOWS\system32`, wantErr: true},
-		{dir: `C:\Windows\System32`, wantErr: true},
-		{dir: `c:/windows/system32/`, wantErr: true},
-		{dir: `\\?\C:\Windows\System32`, wantErr: true},
-		{dir: `C:\Windows`, wantErr: true},
-		{dir: `C:\Users\me\code\my-app`},
-		{dir: `C:\WindowsApps\my-app`},
-		{dir: `D:\Windows\system32`},
-	} {
-		t.Run(tc.dir, func(t *testing.T) {
-			err := checkNotInSystemDir(tc.dir, `C:\Windows`)
-
-			if !tc.wantErr {
-				assert.NoError(t, err)
-
-				return
-			}
-			assert.EqualError(t, err, "fly launch can't run in "+tc.dir)
-			assert.Contains(t, flyerr.GetErrorSuggestion(err), "cd into your project")
-		})
-	}
-
-	assert.NoError(t, checkNotInSystemDir(`C:\Windows\System32`, ""), "no SystemRoot, nothing to check")
-	assert.NoError(t, checkNotInSystemDir(`C:\Users\me\my-app`, `C:\`), "a drive root isn't a system folder to refuse")
-}
-
 // Any directory launch can't write to fails up front, before the app is
-// created; one that doesn't exist is left for launch to report.
+// created, and inside the system folder the error says how people get there.
+// A writable directory passes wherever it is (LocalSystem's CI workspaces
+// live under C:\Windows), and one that doesn't exist is left for launch.
 func TestCheckWritable(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, checkWritable(dir))
+	require.NoError(t, checkWritable(dir, dir), "writable, even inside the system root")
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	assert.Empty(t, entries, "the probe file is removed")
 
-	assert.NoError(t, checkWritable(filepath.Join(dir, "missing")))
+	assert.NoError(t, checkWritable(filepath.Join(dir, "missing"), ""))
 
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("permissions don't stop this user writing")
@@ -60,7 +31,21 @@ func TestCheckWritable(t *testing.T) {
 	require.NoError(t, os.Mkdir(readOnly, 0o500))
 	t.Cleanup(func() { os.Chmod(readOnly, 0o700) })
 
-	err = checkWritable(readOnly)
+	err = checkWritable(readOnly, "")
 	assert.EqualError(t, err, "fly launch can't write to "+readOnly)
-	assert.Contains(t, flyerr.GetErrorSuggestion(err), "write access")
+	assert.NotContains(t, flyerr.GetErrorDescription(err), "Windows system folder")
+	assert.Contains(t, flyerr.GetErrorSuggestion(err), "cd into your project")
+
+	err = checkWritable(readOnly, dir)
+	assert.Contains(t, flyerr.GetErrorDescription(err), "That's a Windows system folder")
+}
+
+func TestIsWithin(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "Windows")
+
+	assert.True(t, isWithin(root, root))
+	assert.True(t, isWithin(filepath.Join(root, "System32"), root))
+	assert.True(t, isWithin(filepath.Join(string(filepath.Separator), "WINDOWS", "system32"), root), "case-insensitive")
+	assert.False(t, isWithin(filepath.Join(string(filepath.Separator), "WindowsApps"), root))
+	assert.False(t, isWithin(root, ""))
 }
