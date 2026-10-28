@@ -356,7 +356,7 @@ func TestSetupGitHubActionsSurvivesTokenFailure(t *testing.T) {
 		wantWarn  string
 		wantErr   bool
 	}{
-		{name: "token not authorized", wantWarn: "Couldn't create a deploy token for GitHub Actions: " + errNotAuthorized.Error()},
+		{name: "token not authorized", wantWarn: "Couldn't create a deploy token for GitHub Actions: the token you're using isn't allowed to create tokens"},
 		{name: "app lookup fails", getAppErr: errors.New("boom"), wantWarn: "Couldn't create a deploy token for GitHub Actions: failed retrieving app my-app: boom"},
 		{name: "plan step stays quiet", planStep: "generate"},
 		{name: "canceled", cancel: true, wantErr: true},

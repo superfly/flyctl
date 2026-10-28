@@ -105,6 +105,12 @@ func createGitHubDeployToken(ctx context.Context, appName string) (string, error
 		"999999h",
 	)
 	if err != nil {
+		// The API says "input:3:2: createLimitedAccessToken Not authorized to
+		// access this createlimitedaccesstoken".
+		if strings.Contains(err.Error(), "Not authorized") {
+			return "", errors.New("the token you're using isn't allowed to create tokens")
+		}
+
 		return "", err
 	}
 
