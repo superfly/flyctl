@@ -731,3 +731,59 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 		})
 	}
 }
+
+func TestRunAttach_emptyCredentials(t *testing.T) {
+	for _, source := range []string{"public default", "public user", "legacy default", "legacy user", "default credentials fallback"} {
+		for _, field := range []string{"username", "password"} {
+			t.Run(source+"/"+field, func(t *testing.T) {
+				ctx, _, _, flags := attachTestContext(t)
+				addAttachFlags(flags)
+				if source == "public user" || source == "legacy user" {
+					require.NoError(t, flags.Set("username", "alice"))
+				}
+				user, password := "alice", "pass"
+				if field == "username" {
+					user = ""
+				} else {
+					password = ""
+				}
+				public := minimalAttachFlapsClient()
+				legacy := minimalAttachLegacyClient()
+				if source == "legacy default" || source == "legacy user" {
+					public.GetManagedPostgresClusterFunc = func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+						return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+					}
+				}
+				public.GetManagedPostgresUserCredentialsFunc = func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+					if source == "legacy user" || source == "default credentials fallback" {
+						return flaps.ManagedPostgresUserCredentials{}, flaps.ErrFlapsNotFound
+					}
+					return flaps.ManagedPostgresUserCredentials{Username: user, Password: password}, nil
+				}
+				getCluster := legacy.GetClusterByIdFunc
+				legacy.GetClusterByIdFunc = func(ctx context.Context, id string) (mpgv2.GetClusterResponse, error) {
+					response, err := getCluster(ctx, id)
+					response.Credentials.User = user
+					response.Credentials.Password = password
+					return response, err
+				}
+				getUser := legacy.GetUserCredentialsFunc
+				legacy.GetUserCredentialsFunc = func(ctx context.Context, id, username string) (mpgv2.GetUserCredentialsResponse, error) {
+					response, err := getUser(ctx, id, username)
+					response.Data.User = user
+					response.Data.Password = password
+					return response, err
+				}
+				writes := 0
+				public.UpdateAppSecretsFunc = func(context.Context, string, map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+					writes++
+					return &fly.UpdateAppSecretsResp{}, nil
+				}
+				ctx = flapsutil.NewContextWithClient(ctx, public)
+				ctx = mpgv2.NewContextWithClient(ctx, legacy)
+				require.ErrorContains(t, RunAttach(ctx, "mpg-123"), "credentials contain an empty username or password")
+				require.Zero(t, writes)
+			})
+		}
+	}
+}

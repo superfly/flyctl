@@ -155,6 +155,10 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		password = info.DefaultPassword
 	}
 
+	if user == "" || password == "" {
+		return fmt.Errorf("cannot attach: credentials contain an empty username or password")
+	}
+
 	if db == "" {
 		db = info.DefaultDBName
 	}
