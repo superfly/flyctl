@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
@@ -469,4 +470,119 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, taken)
 	})
+}
+
+// Mumbai (bom) is deprecated: the regions list filters it out and placements
+// rejects it, so a fly.toml that still names it has to be moved like the other
+// retired regions. The summary and any error say so, and errors name the
+// region as the user gave it.
+func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		flagRegion      string
+		primaryRegion   string
+		placements      []flaps.RegionPlacement
+		placementsErr   error
+		wantExplanation string
+		wantErr         string
+	}{
+		{
+			name:            "from fly.toml",
+			primaryRegion:   "bom",
+			placements:      []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantExplanation: "from your fly.toml; bom is retired",
+		},
+		{
+			name:            "from the command line",
+			flagRegion:      "bom",
+			placements:      []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantExplanation: "specified on the command line; bom is retired",
+		},
+		{
+			name:          "replacement rejected",
+			primaryRegion: "bom",
+			placementsErr: errors.New("invalid region"),
+			wantErr:       "failed to determine region: region bom from your fly.toml (retired, using sin): invalid region",
+		},
+		{
+			name:          "no capacity",
+			primaryRegion: "maa",
+			wantErr:       "region maa from your fly.toml: no regions with capacity for the requested configuration",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newBuildManifestCtx(t)
+			if tc.flagRegion != "" {
+				require.NoError(t, flag.FromContext(ctx).Set("region", tc.flagRegion))
+			}
+
+			var asked string
+			flapsClient := &mock.FlapsClient{
+				GetPlacementsFunc: func(_ context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+					asked = req.Region
+
+					return tc.placements, tc.placementsErr
+				},
+			}
+
+			config := appconfig.NewConfig()
+			config.PrimaryRegion = tc.primaryRegion
+
+			region, explanation, err := determineRegion(ctx, config, "personal", &fly.MachineGuest{}, flapsClient)
+
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tc.wantErr, err.Error())
+				assert.Equal(t, recoverableSpecifyInUi, explanation)
+				assert.Equal(t, tc.primaryRegion, region, "failures report the region as configured")
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "sin", asked)
+			assert.Equal(t, "sin", region)
+			assert.Equal(t, tc.wantExplanation, explanation)
+		})
+	}
+}
+
+// When placements rejects the region, a terminal launch leaves it to be picked
+// in the Launch UI. The summary has to show it as unspecified and list the
+// placements error, not fail on the rejected code with "region maa not found".
+func TestPlanSummaryWithRegionLeftForUi(t *testing.T) {
+	ctx := newBuildManifestCtx(t)
+	require.NoError(t, flag.FromContext(ctx).Set("region", "maa"))
+	require.NoError(t, flag.FromContext(ctx).Set("no-deploy", "true"))
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
+			return []uiex.Organization{{Slug: "personal", Name: "Personal", Personal: true, BillingStatus: uiex.BillingStatusCurrent}}, nil
+		},
+		GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+			return &uiex.Organization{Slug: "personal", Name: "Personal", BillingStatus: uiex.BillingStatusCurrent}, nil
+		},
+	})
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+			return nil, errors.New("app not found")
+		},
+		AppNameAvailableFunc: func(context.Context, string) (bool, error) { return true, nil },
+		GetPlacementsFunc: func(context.Context, *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+			return nil, errors.New("invalid region")
+		},
+		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
+			return &flaps.RegionData{Regions: []fly.Region{{Code: "sin", Name: "Singapore"}}}, nil
+		},
+	})
+
+	recoverable := &recoverableErrorBuilder{canEnterUi: true}
+	m, cache, err := buildManifest(ctx, nil, recoverable)
+	require.NoError(t, err)
+
+	state, err := stateFromManifest(ctx, *m, cache, recoverable)
+	require.NoError(t, err)
+
+	summary, err := state.PlanSummary(ctx)
+	require.NoError(t, err)
+	assert.Regexp(t, `Region:\s+<unspecified>`, summary)
+	assert.Contains(t, recoverable.build(), "failed to determine region: region maa specified on the command line: invalid region")
 }

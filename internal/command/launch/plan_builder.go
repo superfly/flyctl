@@ -800,6 +800,7 @@ var deprecatedRegionReplacements = map[string]string{
 	"scl": "gru",
 	"eze": "gru",
 	"hkg": "sin",
+	"bom": "sin",
 }
 
 // determineRegion returns the region to use for a new app. It uses the
@@ -817,12 +818,22 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		explanation = "from your fly.toml"
 	}
 
+	// Errors name the region as the user gave it, and where: an invalid one is
+	// usually a stale primary_region in fly.toml.
+	described := fmt.Sprintf("region %s %s", regionCode, explanation)
+	// Failures report the code as configured too, so launch metrics can tell
+	// a retired region apart from its replacement.
+	configured := regionCode
+
 	if replacement, ok := deprecatedRegionReplacements[regionCode]; ok {
+		described += fmt.Sprintf(" (retired, using %s)", replacement)
+		explanation += fmt.Sprintf("; %s is retired", regionCode)
 		regionCode = replacement
 	}
 
 	if regionCode == "" {
 		regionCode = "any"
+		configured = regionCode
 		explanation = "this is the fastest region for you"
 	}
 
@@ -838,15 +849,22 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		Org:                 orgSlug,
 	})
 	if err != nil {
-		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
+		if regionCode != "any" {
+			err = fmt.Errorf("%s: %w", described, err)
+		}
+
+		return configured, recoverableSpecifyInUi, recoverableInUiError{
 			fmt.Errorf("failed to determine region: %w", err),
 		}
 	}
 
 	if len(placements) == 0 {
-		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
-			fmt.Errorf("no regions with capacity for the requested configuration"),
+		err := errors.New("no regions with capacity for the requested configuration")
+		if regionCode != "any" {
+			err = fmt.Errorf("%s: %w", described, err)
 		}
+
+		return configured, recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 
 	return placements[0].Region, explanation, nil
