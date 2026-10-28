@@ -343,6 +343,10 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	if err := checkLaunchDir(ctx); err != nil {
+		return err
+	}
+
 	var (
 		launchManifest *LaunchManifest
 		cache          *planBuildCache
