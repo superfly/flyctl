@@ -800,6 +800,7 @@ var deprecatedRegionReplacements = map[string]string{
 	"scl": "gru",
 	"eze": "gru",
 	"hkg": "sin",
+	"bom": "sin",
 }
 
 // determineRegion returns the region to use for a new app. It uses the
@@ -838,6 +839,12 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		Org:                 orgSlug,
 	})
 	if err != nil {
+		if regionCode != "any" {
+			// Name the region and where it came from: an invalid one is usually a
+			// stale primary_region in fly.toml.
+			err = fmt.Errorf("region %s %s: %w", regionCode, explanation, err)
+		}
+
 		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
 			fmt.Errorf("failed to determine region: %w", err),
 		}
