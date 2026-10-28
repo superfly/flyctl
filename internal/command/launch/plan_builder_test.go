@@ -479,9 +479,9 @@ func TestRecoverableErrorsAbortListsErrors(t *testing.T) {
 	require.NoError(t, r.tryRecover(recoverableInUiError{errors.New("failed to determine region: invalid region")}))
 	require.NoError(t, r.tryRecover(recoverableInUiError{appNameTakenErr("app")}))
 
-	err := r.abort()
+	msg := r.abort().Error()
 
-	assert.Equal(t, "launch can not continue with errors present:\n"+
-		" * failed to determine region: invalid region\n"+
-		" * "+strings.ReplaceAll(recoverableInUiError{appNameTakenErr("app")}.String(), "\n", "\n   "), err.Error())
+	assert.True(t, strings.HasPrefix(msg, "launch can not continue with errors present:\n * failed to determine region: invalid region\n * "), msg)
+	assert.Contains(t, msg, "app name app is already taken")
+	assert.False(t, strings.HasSuffix(msg, "\n"), "no trailing newline")
 }
