@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -16,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -45,6 +49,8 @@ func addAttachFlags(fs *pflag.FlagSet) {
 	fs.String("username", "", "")
 	fs.String("database", "", "")
 	fs.String("variable-name", "", "")
+	fs.String("direct-variable-name", "DIRECT_URL", "")
+	fs.Bool("no-direct-url", false, "")
 }
 
 // minimalAttachFlapsClient returns a mock FlapsClient with all methods needed
@@ -55,6 +61,7 @@ func minimalAttachFlapsClient() *mock.FlapsClient {
 		GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
 			cluster := flaps.ManagedPostgresCluster{ID: id}
 			cluster.Endpoints.Primary.Pooler = flaps.ManagedPostgresEndpoint{Host: "pooler.fly.dev", Port: 5432}
+			cluster.Endpoints.Primary.Direct = flaps.ManagedPostgresEndpoint{Host: "direct.fly.dev", Port: 5433}
 			return cluster, nil
 		},
 		ListManagedPostgresUsersFunc: func(_ context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
@@ -85,6 +92,7 @@ func minimalAttachLegacyClient() *mock.MpgV2Client {
 	return &mock.MpgV2Client{
 		GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
 			return mpgv2.GetClusterResponse{
+				Data: mpgv2.ManagedCluster{IpAssignments: mpg.ManagedClusterIpAssignments{Direct: "fdaa::1"}},
 				Credentials: mpgv2.GetClusterCredentialsResponse{
 					User:          "default_user",
 					Password:      "default-pass",
@@ -110,11 +118,12 @@ func minimalAttachLegacyClient() *mock.MpgV2Client {
 // wantSecretOutput returns the expected stdout for a successful attach.
 func wantSecretOutput(appName, varName, uri string) string {
 	return "\nPostgres cluster mpg-123 is being attached to " + appName + "\n" +
-		"The following secret was added to " + appName + ":\n" +
-		"  " + varName + "=" + uri + "\n"
+		"The following secrets were added to " + appName + ":\n" +
+		"  " + varName + "=" + uri + "\n" +
+		"  DIRECT_URL=" + strings.Replace(uri, "pooler.fly.dev:5432", "direct.fly.dev:5433", 1) + "\n"
 }
 
-func TestBuildConnectionUri_invalidBase(t *testing.T) {
+func TestBuildConnectionURI_invalidBase(t *testing.T) {
 	_, err := buildConnectionUri("postgres://host:notaport/db", "user", "pass", "database")
 	require.Error(t, err)
 }
@@ -132,6 +141,8 @@ func TestRunAttach_publicSuccess(t *testing.T) {
 		require.Equal(t, "my-app", appName)
 		require.NotNil(t, values["DATABASE_URL"])
 		writtenURI = *values["DATABASE_URL"]
+		require.Len(t, values, 2)
+		require.Equal(t, "postgresql://alice:alice-pass@direct.fly.dev:5433/appdb", *values["DIRECT_URL"])
 
 		return &fly.UpdateAppSecretsResp{Version: 1}, nil
 	}
@@ -204,26 +215,27 @@ func TestRunAttach_noUsernameDefaultCredentials(t *testing.T) {
 
 // TestRunAttach_customVariableName verifies that a custom secret variable name is respected
 func TestRunAttach_customVariableName(t *testing.T) {
-	ctx, stdout, stderr, flags := attachTestContext(t)
-	addAttachFlags(flags)
-	require.NoError(t, flags.Set("variable-name", "MY_PG_URL"))
-	// No username or database.
-
-	flapsClient := minimalAttachFlapsClient()
-	flapsClient.UpdateAppSecretsFunc = func(_ context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
-		require.Contains(t, values, "MY_PG_URL")
-
-		return &fly.UpdateAppSecretsResp{Version: 1}, nil
+	for _, name := range []string{"DIRECT_URL", "ANALYTICS_URL"} {
+		t.Run(name, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			require.NoError(t, flags.Set("variable-name", name))
+			public := minimalAttachFlapsClient()
+			writes := 0
+			public.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				writes++
+				require.Len(t, values, 1)
+				require.Equal(t, "postgresql://fly-user:alice-pass@pooler.fly.dev:5432/fly-db", *values[name])
+				return &fly.UpdateAppSecretsResp{Version: 1}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, public)
+			ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
+			require.NoError(t, RunAttach(ctx, "mpg-123"))
+			require.Equal(t, 1, writes)
+			require.Contains(t, stdout.String(), "secret was added")
+			require.Contains(t, stderr.String(), "pass --direct-variable-name")
+		})
 	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-	ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
-
-	err := RunAttach(ctx, "mpg-123")
-	require.NoError(t, err)
-
-	wantUri := "postgresql://fly-user:alice-pass@pooler.fly.dev:5432/fly-db"
-	require.Equal(t, wantSecretOutput("my-app", "MY_PG_URL", wantUri), stdout.String())
-	require.Empty(t, stderr.String())
 }
 
 // TestRunAttach_secretAlreadySet verifies that an existing secret prevents overwrite
@@ -244,8 +256,8 @@ func TestRunAttach_secretAlreadySet(t *testing.T) {
 	require.ErrorContains(t, err, "already has DATABASE_URL set")
 }
 
-// TestRunAttach_invalidConnectionUriError verifies that an empty connection URI is rejected
-func TestRunAttach_invalidConnectionUriError(t *testing.T) {
+// TestRunAttach_invalidConnectionURIError verifies that an empty connection URI is rejected
+func TestRunAttach_invalidConnectionURIError(t *testing.T) {
 	ctx, _, _, flags := attachTestContext(t)
 	addAttachFlags(flags)
 	// No username.
@@ -585,9 +597,11 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 	publicCluster := flaps.ManagedPostgresCluster{ID: "mpg-123"}
 	publicCluster.Endpoints.Primary.Pooler = flaps.ManagedPostgresEndpoint{Host: "pooler.fly.dev", Port: 5432}
+	publicCluster.Endpoints.Primary.Direct = flaps.ManagedPostgresEndpoint{Host: "direct.fly.dev", Port: 5433}
 	publicCreds := flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "public-pass"}
 
 	legacyResp := mpgv2.GetClusterResponse{
+		Data: mpgv2.ManagedCluster{IpAssignments: mpg.ManagedClusterIpAssignments{Direct: "fdaa::1"}},
 		Credentials: mpgv2.GetClusterCredentialsResponse{
 			User:          "legacy_user",
 			Password:      "legacy-pass",
@@ -619,6 +633,7 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 			wantCredsCalls: 1,
 			wantInfo: clusterConnectionInfo{
 				BaseURI:         "postgresql://pooler.fly.dev:5432/fly-db",
+				DirectEndpoint:  flaps.ManagedPostgresEndpoint{Host: "direct.fly.dev", Port: 5433},
 				DefaultUser:     "fly-user",
 				DefaultPassword: "public-pass",
 				DefaultDBName:   "fly-db",
@@ -638,14 +653,18 @@ func TestGetClusterConnectionInfoPublicFirst(t *testing.T) {
 			name:             "falls back to legacy bundle on cluster 404",
 			publicClusterErr: flaps.ErrFlapsNotFound,
 			wantLegacyCalls:  1,
-			wantInfo:         legacyInfo,
+			wantInfo:         func() clusterConnectionInfo { info := legacyInfo; info.LegacyClusterAPI = true; return info }(),
 		},
 		{
 			name:            "falls back to legacy bundle on default-creds 404",
 			publicCredsErr:  flaps.ErrFlapsNotFound,
 			wantCredsCalls:  1,
 			wantLegacyCalls: 1,
-			wantInfo:        legacyInfo,
+			wantInfo: func() clusterConnectionInfo {
+				info := legacyInfo
+				info.DirectEndpoint = publicCluster.Endpoints.Primary.Direct
+				return info
+			}(),
 		},
 		{
 			name:             "propagates non-404 public cluster error without fallback",
@@ -785,5 +804,455 @@ func TestRunAttach_emptyCredentials(t *testing.T) {
 				require.Zero(t, writes)
 			})
 		}
+	}
+}
+
+func TestRunAttach_directURL(t *testing.T) {
+	for _, tt := range []struct {
+		name                                                       string
+		explicitUser, legacyCluster, legacyCredentials, wantDirect bool
+	}{
+		{name: "public", explicitUser: true, wantDirect: true},
+		{name: "legacy", explicitUser: true, legacyCluster: true, legacyCredentials: true},
+		{name: "legacy default", legacyCluster: true, legacyCredentials: true},
+		{name: "legacy credentials", legacyCredentials: true, wantDirect: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			if tt.explicitUser {
+				require.NoError(t, flags.Set("username", "alice"))
+			}
+			require.NoError(t, flags.Set("database", "appdb"))
+			require.NoError(t, flags.Set("direct-variable-name", "MIGRATION_URL"))
+			public := minimalAttachFlapsClient()
+			if tt.legacyCluster {
+				public.GetManagedPostgresClusterFunc = func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+					return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+				}
+			}
+			if tt.legacyCredentials {
+				public.GetManagedPostgresUserCredentialsFunc = func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+					return flaps.ManagedPostgresUserCredentials{}, flaps.ErrFlapsNotFound
+				}
+			}
+			writes := 0
+			public.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				writes++
+				if tt.wantDirect {
+					require.Len(t, values, 2)
+					user, password := "alice", "alice-pass"
+					if !tt.explicitUser {
+						user, password = "default_user", "default-pass"
+					}
+					require.Equal(t, "postgresql://"+user+":"+password+"@direct.fly.dev:5433/appdb", *values["MIGRATION_URL"])
+				} else {
+					require.Len(t, values, 1)
+					require.NotNil(t, values["DATABASE_URL"])
+				}
+
+				return &fly.UpdateAppSecretsResp{Version: 1}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, public)
+			legacy := minimalAttachLegacyClient()
+			getLegacy := legacy.GetClusterByIdFunc
+			legacy.GetClusterByIdFunc = func(ctx context.Context, id string) (mpgv2.GetClusterResponse, error) {
+				cluster, err := getLegacy(ctx, id)
+				cluster.Credentials.ConnectionUri += "?hostaddr=pooler&pgbouncer=true"
+				return cluster, err
+			}
+			ctx = mpgv2.NewContextWithClient(ctx, legacy)
+			require.NoError(t, RunAttach(ctx, "mpg-123"))
+			require.Equal(t, 1, writes)
+			if tt.wantDirect {
+				require.Contains(t, stdout.String(), "secrets were added")
+				require.Empty(t, stderr.String())
+			} else {
+				require.Contains(t, stdout.String(), "secret was added")
+				require.NotContains(t, stdout.String(), "MIGRATION_URL=")
+				require.Equal(t, "Warning: MIGRATION_URL was not set because the direct endpoint is not available from the legacy API. Set it manually with 'fly secrets set' if you need it.\n", stderr.String())
+			}
+		})
+	}
+}
+
+func TestRunAttach_endpointReadiness(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		direct, pooler flaps.ManagedPostgresEndpoint
+		legacy         bool
+		existingDirect bool
+		legacyURI      string
+		warning, err   string
+	}{
+		{name: "existing direct/public", existingDirect: true, direct: flaps.ManagedPostgresEndpoint{Host: "direct.fly.dev", Port: 5433}},
+		{name: "existing direct/legacy", existingDirect: true, legacy: true},
+		{name: "existing direct/no endpoint", existingDirect: true},
+		{name: "existing direct/invalid endpoint", existingDirect: true, direct: flaps.ManagedPostgresEndpoint{Host: "bad host", Port: 5433}},
+		{name: "direct endpoint"},
+		{name: "direct host", direct: flaps.ManagedPostgresEndpoint{Port: 5433}},
+		{name: "direct port", direct: flaps.ManagedPostgresEndpoint{Host: "direct.fly.dev"}},
+		{name: "invalid direct port", direct: flaps.ManagedPostgresEndpoint{Host: "direct.fly.dev", Port: 65536}, warning: "invalid"},
+		{name: "pooler host", pooler: flaps.ManagedPostgresEndpoint{Port: 5432}, err: "cluster is not ready"},
+		{name: "pooler port", pooler: flaps.ManagedPostgresEndpoint{Host: "pooler.fly.dev"}, err: "cluster is not ready"},
+		{name: "legacy direct host", legacy: true, warning: "legacy"},
+		{name: "legacy pooler URI", legacy: true, legacyURI: "postgres://host:bad/db", err: "failed to build connection URI"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			public := minimalAttachFlapsClient()
+			if tt.existingDirect {
+				public.ListAppSecretsFunc = func(context.Context, string, *uint64, bool) ([]fly.AppSecret, error) {
+					return []fly.AppSecret{{Name: "DIRECT_URL"}}, nil
+				}
+			}
+			getCluster := public.GetManagedPostgresClusterFunc
+			public.GetManagedPostgresClusterFunc = func(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+				if tt.legacy {
+					return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+				}
+				cluster, err := getCluster(ctx, id)
+				if tt.err != "" {
+					cluster.Endpoints.Primary.Pooler = tt.pooler
+				} else {
+					cluster.Endpoints.Primary.Direct = tt.direct
+				}
+
+				return cluster, err
+			}
+			legacy := minimalAttachLegacyClient()
+			getLegacyCluster := legacy.GetClusterByIdFunc
+			legacy.GetClusterByIdFunc = func(ctx context.Context, id string) (mpgv2.GetClusterResponse, error) {
+				cluster, err := getLegacyCluster(ctx, id)
+				cluster.Data.IpAssignments.Direct = ""
+				if tt.legacyURI != "" {
+					cluster.Credentials.ConnectionUri = tt.legacyURI
+				}
+
+				return cluster, err
+			}
+			writes := 0
+			public.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				writes++
+				require.Len(t, values, 1)
+				require.NotNil(t, values["DATABASE_URL"])
+				return &fly.UpdateAppSecretsResp{}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, public)
+			ctx = mpgv2.NewContextWithClient(ctx, legacy)
+			err := RunAttach(ctx, "mpg-123")
+			if tt.err == "" {
+				require.NoError(t, err)
+				require.Equal(t, 1, writes)
+				require.Contains(t, stderr.String(), "Warning: DIRECT_URL was not set because")
+				warning := tt.warning
+				if tt.existingDirect {
+					warning = "existing"
+				}
+				switch warning {
+				case "existing":
+					require.Equal(t, "Warning: DIRECT_URL was not set because app my-app already has it. To replace it, run 'fly secrets unset DATABASE_URL DIRECT_URL -a my-app' and re-run attach.\n", stderr.String())
+				case "invalid":
+					require.Contains(t, stderr.String(), "direct endpoint is invalid")
+					require.Equal(t, "Warning: DIRECT_URL was not set because the direct endpoint is invalid: invalid Postgres endpoint\n", stderr.String())
+				case "legacy":
+					require.Equal(t, "Warning: DIRECT_URL was not set because the direct endpoint is not available from the legacy API. Set it manually with 'fly secrets set' if you need it.\n", stderr.String())
+				default:
+					require.Equal(t, "Warning: DIRECT_URL was not set because the cluster has no direct endpoint.\n", stderr.String())
+				}
+				require.Contains(t, stdout.String(), "  DATABASE_URL=")
+				require.NotContains(t, stdout.String(), "DIRECT_URL=")
+			} else {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.err)
+				if tt.legacyURI != "" {
+					require.ErrorContains(t, err, `invalid port ":bad" after host`)
+				}
+				require.Zero(t, writes)
+			}
+		})
+	}
+}
+
+func TestBuildConnectionURI_ipv6AndEscaping(t *testing.T) {
+	uri, err := buildConnectionUri("postgresql://[fdaa::1]:5432", "a@b", "p:/?#", "db/name")
+	require.NoError(t, err)
+	require.Equal(t, "postgresql://a%40b:p%3A%2F%3F%23@[fdaa::1]:5432/db/name", uri)
+}
+
+func TestRunAttach_legacyURIAndOptions(t *testing.T) {
+	for _, host := range []string{"pooler.fly.dev", "h1:5432,h2:5432"} {
+		t.Run(host, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			public := minimalAttachFlapsClient()
+			public.GetManagedPostgresClusterFunc = func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+				return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+			}
+			legacy := minimalAttachLegacyClient()
+			getCluster := legacy.GetClusterByIdFunc
+			const query = "hostaddr=pooler&pgbouncer=true&sslmode=require&options=-c%20search_path%3Dapp"
+			legacy.GetClusterByIdFunc = func(ctx context.Context, id string) (mpgv2.GetClusterResponse, error) {
+				cluster, err := getCluster(ctx, id)
+				cluster.Credentials.ConnectionUri = "postgres://u:p@" + host + "/db?" + query
+				return cluster, err
+			}
+			writes := 0
+			public.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				writes++
+				require.Len(t, values, 1)
+				require.Equal(t, "postgres://default_user:default-pass@"+host+"/default_db?"+query, *values["DATABASE_URL"])
+				return &fly.UpdateAppSecretsResp{Version: 1}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, public)
+			ctx = mpgv2.NewContextWithClient(ctx, legacy)
+			require.NoError(t, RunAttach(ctx, "mpg-123"))
+			require.Equal(t, 1, writes)
+			require.Equal(t, "Warning: DIRECT_URL was not set because the direct endpoint is not available from the legacy API. Set it manually with 'fly secrets set' if you need it.\n", stderr.String())
+			require.NotContains(t, stdout.String(), "DIRECT_URL=")
+		})
+	}
+}
+
+func TestBuildConnectionURI_preservesLegacyHostAndOptions(t *testing.T) {
+	for _, host := range []string{"h1:5432,h2:5432", "host:", "host", "host:0", "host:65536"} {
+		t.Run(host, func(t *testing.T) {
+			uri, err := buildConnectionUri("postgres://u:p@"+host+"/db?hostaddr=pooler&pgbouncer=true", "alice", "pass", "appdb")
+			require.NoError(t, err)
+			require.Equal(t, "postgres://alice:pass@"+host+"/appdb?hostaddr=pooler&pgbouncer=true", uri)
+		})
+	}
+}
+
+func TestBuildDirectConnectionURI_ipv6AndEscaping(t *testing.T) {
+	uri, err := buildDirectConnectionURI(flaps.ManagedPostgresEndpoint{Host: "fdaa::1", Port: 5433}, "a@b", "p:/?#", "db/name")
+	require.NoError(t, err)
+	require.Equal(t, "postgresql://a%40b:p%3A%2F%3F%23@[fdaa::1]:5433/db/name", uri)
+}
+
+func TestRunAttach_targetSecretGuardsBeforePrompts(t *testing.T) {
+	for _, name := range []string{"", "DIRECT_URL", "MIGRATION_URL"} {
+		secretName := name
+		if secretName == "" {
+			secretName = "DIRECT_URL"
+		}
+		for _, names := range [][]string{{secretName}, {"DATABASE_URL"}, {"DATABASE_URL", secretName}, {secretName, "DATABASE_URL"}} {
+			if name == "" && len(names) == 1 && names[0] == secretName {
+				continue
+			}
+			t.Run(fmt.Sprintf("%s/%v", name, names), func(t *testing.T) {
+				ctx, stdout, stderr, flags := attachTestContext(t)
+				addAttachFlags(flags)
+				if name != "" {
+					require.NoError(t, flags.Set("direct-variable-name", name))
+				}
+				io := iostreams.FromContext(ctx)
+				io.SetStdinTTY(true)
+				io.SetStdoutTTY(true)
+				io.SetStderrTTY(true)
+				public := minimalAttachFlapsClient()
+				clusterCalls, userCreates, databaseCreates, writes := 0, 0, 0, 0
+				public.GetManagedPostgresClusterFunc = func(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+					clusterCalls++
+					return flaps.ManagedPostgresCluster{}, nil
+				}
+				public.ListAppSecretsFunc = func(context.Context, string, *uint64, bool) ([]fly.AppSecret, error) {
+					var secrets []fly.AppSecret
+					for _, n := range names {
+						secrets = append(secrets, fly.AppSecret{Name: n})
+					}
+					return secrets, nil
+				}
+				public.CreateManagedPostgresUserFunc = func(context.Context, string, flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
+					userCreates++
+					return flaps.ManagedPostgresUser{}, nil
+				}
+				public.CreateManagedPostgresDatabaseFunc = func(context.Context, string, flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+					databaseCreates++
+					return flaps.ManagedPostgresDatabase{}, nil
+				}
+				public.ListManagedPostgresUsersFunc = nil
+				public.ListManagedPostgresDatabasesFunc = nil
+				public.UpdateAppSecretsFunc = func(context.Context, string, map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+					writes++
+					return &fly.UpdateAppSecretsResp{}, nil
+				}
+				ctx = flapsutil.NewContextWithClient(ctx, public)
+				ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
+				want := fmt.Sprintf("app my-app already has %s set. Use 'fly secrets unset %s -a my-app' to remove it first, or pass a different --direct-variable-name", secretName, secretName)
+				if len(names) > 1 || names[0] == "DATABASE_URL" {
+					want = "app my-app already has DATABASE_URL set. Use 'fly secrets unset DATABASE_URL' to remove it first"
+				}
+				require.EqualError(t, RunAttach(ctx, "mpg-123"), want)
+				require.Zero(t, clusterCalls)
+				require.Zero(t, userCreates)
+				require.Zero(t, databaseCreates)
+				require.Zero(t, writes)
+				require.Empty(t, stdout.String())
+				require.Empty(t, stderr.String())
+			})
+		}
+	}
+}
+
+func TestRunAttach_explicitDirectNames(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		directName    string
+		noDirectURL   bool
+		defaultPooled bool
+	}{
+		{name: "custom", directName: "MIGRATION_URL"},
+		{name: "empty defaults to DIRECT_URL"},
+		{name: "skip", noDirectURL: true},
+		{name: "skip default pooled", noDirectURL: true, defaultPooled: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			pooledName := "APP_URL"
+			if tt.defaultPooled {
+				pooledName = "DATABASE_URL"
+			} else {
+				require.NoError(t, flags.Set("variable-name", pooledName))
+			}
+			if tt.noDirectURL {
+				require.NoError(t, flags.Set("no-direct-url", "true"))
+			} else {
+				require.NoError(t, flags.Set("direct-variable-name", tt.directName))
+			}
+			directName := tt.directName
+			if directName == "" {
+				directName = "DIRECT_URL"
+			}
+			require.NoError(t, flags.Set("username", "alice"))
+			require.NoError(t, flags.Set("database", "appdb"))
+			public := minimalAttachFlapsClient()
+			if tt.noDirectURL {
+				public.ListAppSecretsFunc = func(context.Context, string, *uint64, bool) ([]fly.AppSecret, error) {
+					return []fly.AppSecret{{Name: "DIRECT_URL"}}, nil
+				}
+			}
+			writes := 0
+			public.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				writes++
+				want := map[string]string{pooledName: "postgresql://alice:alice-pass@pooler.fly.dev:5432/appdb"}
+				if !tt.noDirectURL {
+					want[directName] = "postgresql://alice:alice-pass@direct.fly.dev:5433/appdb"
+				}
+				actual := map[string]string{}
+				for name, value := range values {
+					require.NotNil(t, value)
+					actual[name] = *value
+				}
+				require.Equal(t, want, actual)
+
+				return &fly.UpdateAppSecretsResp{Version: 1}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, public)
+			ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
+			require.NoError(t, RunAttach(ctx, "mpg-123"))
+			require.Equal(t, 1, writes)
+			want := "\nPostgres cluster mpg-123 is being attached to my-app\nThe following secret was added to my-app:\n  APP_URL=postgresql://alice:alice-pass@pooler.fly.dev:5432/appdb\n"
+			want = strings.ReplaceAll(want, "APP_URL", pooledName)
+			if !tt.noDirectURL {
+				want = strings.Replace(want, "secret was", "secrets were", 1) + "  " + directName + "=postgresql://alice:alice-pass@direct.fly.dev:5433/appdb\n"
+			}
+			require.Equal(t, want, stdout.String())
+			if tt.noDirectURL {
+				require.NotContains(t, stdout.String(), "DIRECT_URL")
+			}
+			require.Empty(t, stderr.String())
+		})
+	}
+}
+
+func TestRunAttach_targetSecretsSetBeforeUpdate(t *testing.T) {
+	for _, name := range []string{"", "DIRECT_URL", "MIGRATION_URL", "DATABASE_URL"} {
+		t.Run(name, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			secretName := "DIRECT_URL"
+			if name != "" && name != "DATABASE_URL" {
+				require.NoError(t, flags.Set("direct-variable-name", name))
+				secretName = name
+			}
+			if name == "DATABASE_URL" {
+				secretName = name
+			}
+			public := minimalAttachFlapsClient()
+			lists, writes := 0, 0
+			public.ListAppSecretsFunc = func(context.Context, string, *uint64, bool) ([]fly.AppSecret, error) {
+				lists++
+				if lists == 1 {
+					return nil, nil
+				}
+				return []fly.AppSecret{{Name: secretName}}, nil
+			}
+			public.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				writes++
+				require.Len(t, values, 1)
+				require.NotNil(t, values["DATABASE_URL"])
+				return &fly.UpdateAppSecretsResp{}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, public)
+			ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
+			err := RunAttach(ctx, "mpg-123")
+			switch name {
+			case "DATABASE_URL":
+				require.EqualError(t, err, "app my-app already has DATABASE_URL set. Use 'fly secrets unset DATABASE_URL' to remove it first")
+				require.Zero(t, writes)
+			case "":
+				require.NoError(t, err)
+				require.Equal(t, 1, writes)
+				require.Equal(t, "Warning: DIRECT_URL was not set because app my-app already has it. To replace it, run 'fly secrets unset DATABASE_URL DIRECT_URL -a my-app' and re-run attach.\n", stderr.String())
+				require.NotContains(t, stdout.String(), "DIRECT_URL=")
+			default:
+				require.EqualError(t, err, fmt.Sprintf("app my-app already has %s set. Use 'fly secrets unset %s -a my-app' to remove it first, or pass a different --direct-variable-name", name, name))
+				require.Zero(t, writes)
+				require.Empty(t, stderr.String())
+			}
+			require.Equal(t, 2, lists)
+		})
+	}
+}
+
+func TestBuildDirectConnectionURI_endpointValidation(t *testing.T) {
+	for _, tt := range []struct {
+		host  string
+		port  int
+		valid bool
+	}{
+		{host: "host", port: 5432, valid: true},
+		{host: "127.0.0.1", port: 1, valid: true},
+		{host: "host", port: 65535, valid: true},
+		{host: "fdaa::1", port: 5432, valid: true},
+		{host: "", port: 5432},
+		{host: "host", port: 0},
+		{host: "host", port: -1},
+		{host: "host", port: 65536},
+		{host: "bad host", port: 5432},
+		{host: "h/x", port: 5432},
+		{host: "h:5432", port: 5432},
+		{host: "[::1]", port: 5432},
+		{host: "h?x", port: 5432},
+		{host: "h#x", port: 5432},
+		{host: "h@x", port: 5432},
+		{host: "h\\x", port: 5432},
+	} {
+		t.Run(fmt.Sprintf("%s:%d", tt.host, tt.port), func(t *testing.T) {
+			uri, err := buildDirectConnectionURI(flaps.ManagedPostgresEndpoint{Host: tt.host, Port: tt.port}, "user", "pass", "db")
+			if tt.valid {
+				require.NoError(t, err)
+				parsed, err := url.Parse(uri)
+				require.NoError(t, err)
+				require.Equal(t, tt.host, parsed.Hostname())
+				require.Equal(t, fmt.Sprint(tt.port), parsed.Port())
+			} else {
+				require.EqualError(t, err, "invalid Postgres endpoint")
+				require.Empty(t, uri)
+			}
+		})
 	}
 }

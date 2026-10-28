@@ -24,8 +24,8 @@ func detachTestContext(t *testing.T) (context.Context, *bytes.Buffer) {
 
 func TestRunDetach(t *testing.T) {
 	const wantSuccessOutput = "\nPostgres cluster mpg-123 has been detached from my-app\n" +
-		"Note: This only removes the attachment record. Any secrets (like DATABASE_URL) are still set on the app.\n" +
-		"Use 'fly secrets unset DATABASE_URL -a my-app' to remove the connection string.\n"
+		"Note: This only removes the attachment record. DATABASE_URL, and DIRECT_URL if attach set it, remain on the app (or your custom secret names).\n" +
+		"To remove them, run 'fly secrets unset DATABASE_URL -a my-app', and DIRECT_URL too if attach set it (use your custom names if needed).\n"
 
 	tests := []struct {
 		name                 string
