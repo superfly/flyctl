@@ -228,15 +228,23 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	deps := pyProject.Tool.Poetry.Dependencies
 	appName := pyProject.Tool.Poetry.Name
 
-	if deps == nil {
-		return nil, errors.New("No dependencies found in pyproject.toml")
+	if len(deps) == 0 {
+		// Poetry 2 lists them under [project], which configPyProject reads.
+		return nil, nil
 	}
 	var depList []string
 
 	for dep := range deps {
 		depList = append(depList, parsePyDep(dep))
 	}
-	pyVersion := deps["python"].(string)
+	pyVersion, ok := deps["python"].(string)
+	if !ok {
+		// Missing, or a table or list of constraints.
+		pyVersion, _, err = extractPythonVersion()
+		if err != nil {
+			return nil, err
+		}
+	}
 	pyVersion = strings.TrimPrefix(pyVersion, "^")
 	pyVersion = parsePyDep(pyVersion)
 	cfg := PyCfg{pyVersion, appName, depList, Poetry}
@@ -248,7 +256,6 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("pyproject.toml")) {
 		return nil, nil
 	}
-	terminal.Info("Detected pyproject.toml")
 	doc, err := os.ReadFile("pyproject.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading pyproject.toml")
@@ -258,11 +265,12 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, errors.Wrap(err, "Error parsing pyproject.toml")
 	}
 	deps := pyProject.Project.Dependencies
-	if deps == nil {
+	if len(deps) == 0 {
 		// Often a pyproject.toml that only configures tools (ruff, black, ...);
 		// the dependencies may be in a Pipfile or requirements.txt.
 		return nil, nil
 	}
+	terminal.Info("Detected pyproject.toml")
 	var depList []string
 	for _, dep := range deps {
 		dep := parsePyDep(dep)
@@ -291,7 +299,6 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Pipfile", "Pipfile.lock")) {
 		return nil, nil
 	}
-	terminal.Info("Detected Pipfile")
 	doc, err := os.ReadFile("Pipfile")
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading Pipfile")
@@ -301,9 +308,11 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, errors.Wrap(err, "Error parsing Pipfile")
 	}
 	deps := pipfile.Packages
-	if deps == nil {
-		return nil, errors.New("No packages found in Pipfile")
+	if len(deps) == 0 {
+		// Maybe only [dev-packages], with the app's in requirements.txt.
+		return nil, nil
 	}
+	terminal.Info("Detected Pipfile")
 	var depList []string
 	for dep := range deps {
 		dep := parsePyDep(dep)
@@ -340,6 +349,10 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 	} else {
 		return nil, nil
 	}
+	if len(deps) == 0 {
+		// The generic Python setup, as for requirements naming no framework.
+		return nil, nil
+	}
 	var depList []string
 	for _, dep := range deps {
 		dep := parsePyDep(dep)
@@ -372,7 +385,7 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if src != nil || err != nil {
 		return src, err
 	}
-	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
+	if !checksPass(sourceDir, fileExists("requirements.txt", "requirements.in", "pyproject.toml", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
 		return nil, nil
 	}
 
