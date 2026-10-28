@@ -6,7 +6,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	genq "github.com/Khan/genqlient/graphql"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +19,9 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -324,4 +329,50 @@ func TestScannerCreateSecretsWithoutApp(t *testing.T) {
 	assert.Contains(t, out.String(), "SECRET_KEY_BASE")
 	assert.Contains(t, out.String(), "fly secrets set")
 	assert.NotContains(t, out.String(), "generated")
+}
+
+type failingGenqClient struct{ err error }
+
+func (c failingGenqClient) MakeRequest(context.Context, *genq.Request, *genq.Response) error {
+	return c.err
+}
+
+// The deploy token for GitHub Actions is made after the app exists. A token
+// that can't create tokens (a deploy token, say) used to fail the launch at
+// that point; now it says how to set the secret by hand and carries on.
+func TestSetupGitHubActionsSurvivesTokenFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh is a shell script")
+	}
+
+	bin := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	t.Setenv("PATH", bin)
+
+	ios, _, out, errOut := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	ctx = flagctx.NewContext(ctx, New().Flags())
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetAppFunc: func(_ context.Context, name string) (*flaps.App, error) {
+			return &flaps.App{Name: name, Organization: flaps.AppOrganizationInfo{Slug: "personal"}}, nil
+		},
+	})
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
+			return &uiex.Organization{ID: "org-1", Slug: slug}, nil
+		},
+	})
+	ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
+		GenqClientFunc: func() genq.Client {
+			return failingGenqClient{errors.New("input:3:2: createLimitedAccessToken Not authorized to access this createlimitedaccesstoken")}
+		},
+	})
+
+	state := &launchState{planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{
+		GitHubActions: scanner.GitHubActionsStruct{Deploy: true, Secrets: true},
+	}}}
+
+	require.NoError(t, state.setupGitHubActions(ctx, "my-app"))
+	assert.Contains(t, errOut.String(), "couldn't create a deploy token for GitHub Actions: input:3:2: createLimitedAccessToken Not authorized")
+	assert.Contains(t, out.String(), "fly tokens create deploy -x 999999h")
 }

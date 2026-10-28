@@ -40,11 +40,7 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 		if err != nil {
 			if plan.GetPlanStep(ctx) == "" {
-				io := iostreams.FromContext(ctx)
-				colorize := io.ColorScheme()
-				fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
-				fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
-				fmt.Fprintln(io.Out)
+				printDeployTokenSteps(ctx)
 			}
 		} else {
 			apiClient := flyutil.ClientFromContext(ctx)
@@ -73,7 +69,12 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				expiry,
 			)
 			if err != nil {
-				return fmt.Errorf("failed creating token: %w", err)
+				// The app exists by now, so this mustn't fail the launch: the
+				// user's token may not be allowed to create tokens (a deploy
+				// token, say), and the workflow works once the secret is set.
+				io := iostreams.FromContext(ctx)
+				fmt.Fprintf(io.ErrOut, "%s couldn't create a deploy token for GitHub Actions: %v\n", io.ColorScheme().WarningIcon(), err)
+				printDeployTokenSteps(ctx)
 			} else {
 				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
 
@@ -90,6 +91,16 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 	}
 
 	return nil
+}
+
+// printDeployTokenSteps says how to give GitHub Actions a deploy token when
+// launch can't set one up itself.
+func printDeployTokenSteps(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+	fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+	fmt.Fprintln(io.Out)
 }
 
 // satisfyScannerBeforeDb performs operations that the scanner requests that must be done before databases are created
