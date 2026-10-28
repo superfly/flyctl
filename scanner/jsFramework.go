@@ -397,12 +397,10 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		if !installed || args[0] == "npx" {
 			fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 			cmd := exec.Command(args[0], args[1:]...)
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
 
-			if err := cmd.Run(); err != nil {
-				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+			if err := runGenerator(cmd); err != nil {
+				var exitError *exec.ExitError
+				if errors.As(err, &exitError) && exitError.ExitCode() == 42 {
 					// generator exited with code 42, which means existing
 					// Dockerfile contains errors which will prevent deployment.
 					srcInfo.SkipDeploy = true
@@ -458,12 +456,10 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
 
-			if err := cmd.Run(); err != nil {
-				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+			if err := runGenerator(cmd); err != nil {
+				var exitError *exec.ExitError
+				if errors.As(err, &exitError) && exitError.ExitCode() == 42 {
 					// generator exited with code 42, which means existing
 					// Dockerfile contains errors which will prevent deployment.
 					srcInfo.SkipDeploy = true

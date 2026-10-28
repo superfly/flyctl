@@ -164,33 +164,41 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
 		fmt.Printf("installing: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil && !dockerfileExists {
-			return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
+		if err := runGenerator(cmd); err != nil {
+			switch {
+			case dockerfileExists:
+				// The existing Dockerfile will do; the generator only adds to it.
+				fmt.Printf("Couldn't install fly-apps/dockerfile-laravel; using your existing Dockerfile.\n")
+			case errors.Is(err, exec.ErrNotFound):
+				return fmt.Errorf("fly launch needs Composer to generate a Dockerfile for a Laravel app, and composer isn't on your PATH. Install PHP and Composer (https://getcomposer.org), or add a Dockerfile, and run fly launch again")
+			default:
+				return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
+			}
 		}
 	}
 
-	args := []string{vendorPath, "generate"}
-	if dockerfileExists {
-		args = append(args, "--skip")
-	}
+	// The install above can fail with a Dockerfile already present; there is
+	// then no generator to run.
+	if _, err := os.Stat(vendorPath); err == nil {
+		args := []string{vendorPath, "generate"}
+		if dockerfileExists {
+			args = append(args, "--skip")
+		}
 
-	// add additional flags from launch command
-	if len(flags) > 0 {
-		args = append(args, flags...)
-	}
+		// add additional flags from launch command
+		if len(flags) > 0 {
+			args = append(args, flags...)
+		}
 
-	fmt.Printf("Running: %s\n", strings.Join(args, " "))
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+		fmt.Printf("Running: %s\n", strings.Join(args, " "))
+		cmd := exec.Command(args[0], args[1:]...)
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		if err := runGenerator(cmd); err != nil {
+			return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		}
+	} else if !dockerfileExists {
+		return fmt.Errorf("failed to generate Dockerfile: %s is missing; run composer install and fly launch again", vendorPath)
 	}
 
 	// provide some advice
