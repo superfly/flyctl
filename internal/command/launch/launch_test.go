@@ -339,40 +339,87 @@ func (c failingGenqClient) MakeRequest(context.Context, *genq.Request, *genq.Res
 
 // The deploy token for GitHub Actions is made after the app exists. A token
 // that can't create tokens (a deploy token, say) used to fail the launch at
-// that point; now it says how to set the secret by hand and carries on.
+// that point; now any failure making it says how to set the secret by hand
+// and launch carries on. Only cancellation still stops it.
 func TestSetupGitHubActionsSurvivesTokenFailure(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake gh is a shell script")
 	}
 
-	bin := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
-	t.Setenv("PATH", bin)
+	errNotAuthorized := errors.New("input:3:2: createLimitedAccessToken Not authorized to access this createlimitedaccesstoken")
 
-	ios, _, out, errOut := iostreams.Test()
-	ctx := iostreams.NewContext(context.Background(), ios)
-	ctx = flagctx.NewContext(ctx, New().Flags())
-	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-		GetAppFunc: func(_ context.Context, name string) (*flaps.App, error) {
-			return &flaps.App{Name: name, Organization: flaps.AppOrganizationInfo{Slug: "personal"}}, nil
-		},
-	})
-	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
-		GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
-			return &uiex.Organization{ID: "org-1", Slug: slug}, nil
-		},
-	})
-	ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
-		GenqClientFunc: func() genq.Client {
-			return failingGenqClient{errors.New("input:3:2: createLimitedAccessToken Not authorized to access this createlimitedaccesstoken")}
-		},
-	})
+	for _, tc := range []struct {
+		name      string
+		getAppErr error
+		planStep  string
+		cancel    bool
+		wantWarn  string
+		wantErr   bool
+	}{
+		{name: "token not authorized", wantWarn: "Couldn't create a deploy token for GitHub Actions: " + errNotAuthorized.Error()},
+		{name: "app lookup fails", getAppErr: errors.New("boom"), wantWarn: "Couldn't create a deploy token for GitHub Actions: failed retrieving app my-app: boom"},
+		{name: "plan step stays quiet", planStep: "generate"},
+		{name: "canceled", cancel: true, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+			t.Setenv("PATH", bin)
 
-	state := &launchState{planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{
-		GitHubActions: scanner.GitHubActionsStruct{Deploy: true, Secrets: true},
-	}}}
+			ios, _, out, errOut := iostreams.Test()
+			ctx, cancel := context.WithCancel(iostreams.NewContext(context.Background(), ios))
+			defer cancel()
+			if tc.planStep != "" {
+				ctx = context.WithValue(ctx, plan.PlanStepKey, tc.planStep)
+			}
+			ctx = flagctx.NewContext(ctx, New().Flags())
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetAppFunc: func(_ context.Context, name string) (*flaps.App, error) {
+					if tc.getAppErr != nil {
+						return nil, tc.getAppErr
+					}
 
-	require.NoError(t, state.setupGitHubActions(ctx, "my-app"))
-	assert.Contains(t, errOut.String(), "couldn't create a deploy token for GitHub Actions: input:3:2: createLimitedAccessToken Not authorized")
-	assert.Contains(t, out.String(), "fly tokens create deploy -x 999999h")
+					return &flaps.App{Name: name, Organization: flaps.AppOrganizationInfo{Slug: "personal"}}, nil
+				},
+			})
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
+					return &uiex.Organization{ID: "org-1", Slug: slug}, nil
+				},
+			})
+			ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
+				GenqClientFunc: func() genq.Client {
+					if tc.cancel {
+						cancel()
+
+						return failingGenqClient{context.Canceled}
+					}
+
+					return failingGenqClient{errNotAuthorized}
+				},
+			})
+
+			state := &launchState{planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{
+				GitHubActions: scanner.GitHubActionsStruct{Deploy: true, Secrets: true},
+			}}}
+
+			err := state.setupGitHubActions(ctx, "my-app")
+
+			if tc.wantErr {
+				require.ErrorIs(t, err, context.Canceled)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Empty(t, out.String())
+			if tc.wantWarn == "" {
+				assert.Empty(t, errOut.String())
+
+				return
+			}
+			assert.Contains(t, errOut.String(), tc.wantWarn)
+			assert.Contains(t, errOut.String(), "fly auth login")
+			assert.Contains(t, errOut.String(), "fly tokens create deploy -x 999999h")
+		})
+	}
 }
