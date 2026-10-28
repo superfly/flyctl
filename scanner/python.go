@@ -273,7 +273,6 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	terminal.Info("Detected pyproject.toml")
 	var depList []string
 	for _, dep := range deps {
-		dep := parsePyDep(dep)
 		depList = append(depList, parsePyDep(dep))
 	}
 	appName := pyProject.Project.Name
