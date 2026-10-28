@@ -99,11 +99,34 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
-// abort is the error for a launch that needed the Launch UI to fix its
-// problems and didn't get it. It lists them again, which also puts them in
-// launch metrics instead of a bare "errors present".
+// errorsPresentErr ends a launch that needed the Launch UI to fix its
+// problems and didn't get it. They were printed already, so the message stays
+// short; launch metrics record them from here.
+type errorsPresentErr struct {
+	problems []string
+}
+
+func (e errorsPresentErr) Error() string {
+	return "launch can not continue with errors present"
+}
+
 func (r *recoverableErrorBuilder) abort() error {
-	return fmt.Errorf("launch can not continue with errors present:\n%s", strings.TrimRight(r.build(), "\n"))
+	problems := make([]string, 0, len(r.errors))
+	for _, e := range r.errors {
+		problems = append(problems, e.base.Error())
+	}
+
+	return errorsPresentErr{problems: problems}
+}
+
+// launchStatusError is err as launch metrics record it.
+func launchStatusError(err error) string {
+	var present errorsPresentErr
+	if errors.As(err, &present) && len(present.problems) > 0 {
+		return err.Error() + ": " + strings.Join(present.problems, "; ")
+	}
+
+	return err.Error()
 }
 
 func (r *recoverableErrorBuilder) build() string {

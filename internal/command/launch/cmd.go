@@ -313,7 +313,7 @@ func run(ctx context.Context) (err error) {
 		defer func() {
 			if err != nil {
 				tracing.RecordError(ctx, span, err, "launch failed")
-				status.Error = err.Error()
+				status.Error = launchStatusError(err)
 
 				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
 					err = state.sourceInfo.FailureCallback(err)

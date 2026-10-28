@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -472,16 +471,18 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 	})
 }
 
-// Declining the Launch UI ends the launch. The error lists what needed fixing,
-// so launch metrics record why, not just that something did.
+// Declining the Launch UI ends the launch. The problems were just printed, so
+// the error stays short, but launch metrics record them, not just that there
+// were some.
 func TestRecoverableErrorsAbortListsErrors(t *testing.T) {
 	r := &recoverableErrorBuilder{canEnterUi: true}
 	require.NoError(t, r.tryRecover(recoverableInUiError{errors.New("failed to determine region: invalid region")}))
 	require.NoError(t, r.tryRecover(recoverableInUiError{appNameTakenErr("app")}))
 
-	msg := r.abort().Error()
+	err := r.abort()
 
-	assert.True(t, strings.HasPrefix(msg, "launch can not continue with errors present:\n * failed to determine region: invalid region\n * "), msg)
-	assert.Contains(t, msg, "app name app is already taken")
-	assert.False(t, strings.HasSuffix(msg, "\n"), "no trailing newline")
+	assert.EqualError(t, err, "launch can not continue with errors present")
+	assert.Equal(t, "launch can not continue with errors present: failed to determine region: invalid region; app name app is already taken", launchStatusError(err))
+	assert.Equal(t, "launch can not continue with errors present", launchStatusError((&recoverableErrorBuilder{}).abort()))
+	assert.Equal(t, "other", launchStatusError(errors.New("other")))
 }
