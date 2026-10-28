@@ -329,11 +329,9 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
 
-	connectionURI := mpgutil.ConnectionURI(readyCluster, creds.Password)
-
-	// Set the connection string as a secret
-	secrets := map[string]string{
-		"DATABASE_URL": connectionURI,
+	secrets, warning := managedPostgresSecrets(readyCluster, creds.Password)
+	if warning != "" {
+		fmt.Fprintln(io.ErrOut, warning)
 	}
 
 	if err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil); err != nil {
@@ -341,9 +339,27 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "\n%s\n", colorize.Bold(colorize.Green(fmt.Sprintf("Managed Postgres cluster %s is ready and attached to %s", clusterID, state.Plan.AppName))))
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, connectionURI)
+	wording := "secret was"
+	if len(secrets) > 1 {
+		wording = "secrets were"
+	}
+	fmt.Fprintf(io.Out, "The following %s added to %s:\n  DATABASE_URL=%s\n", wording, state.Plan.AppName, secrets["DATABASE_URL"])
+	if directURI, ok := secrets["DIRECT_URL"]; ok {
+		fmt.Fprintf(io.Out, "  DIRECT_URL=%s\n", directURI)
+	}
 
 	return nil
+}
+
+func managedPostgresSecrets(cluster flaps.ManagedPostgresCluster, password string) (map[string]string, string) {
+	secrets := map[string]string{"DATABASE_URL": mpgutil.ConnectionURI(cluster, password)}
+	directURI, err := mpgutil.DirectConnectionURI(cluster.Endpoints.Primary.Direct, mpgutil.DefaultUsername, password, mpgutil.DefaultDatabase)
+	if err != nil {
+		return secrets, "Warning: DIRECT_URL was not set because the direct endpoint is missing or invalid."
+	}
+	secrets["DIRECT_URL"] = directURI
+
+	return secrets, ""
 }
 
 // attachToManagedPostgres attaches an existing Managed Postgres cluster to the app
