@@ -34,4 +34,5 @@ func TestCheckNotInSystemDir(t *testing.T) {
 	}
 
 	assert.NoError(t, checkNotInSystemDir(`C:\Windows\System32`, ""), "no SystemRoot, nothing to check")
+	assert.NoError(t, checkNotInSystemDir(`C:\Users\me\my-app`, `C:\`), "a drive root isn't a system folder to refuse")
 }

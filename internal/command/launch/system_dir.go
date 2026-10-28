@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 )
@@ -15,26 +16,29 @@ import (
 // checkLaunchDir stops a launch into the Windows system folder before it gets
 // as far as "open C:\WINDOWS\system32\fly.toml: Access is denied". A terminal
 // opened as administrator starts there, so people run fly launch in it by
-// accident.
+// accident. Call it after setupFromTemplate, which changes into --into.
 func checkLaunchDir(ctx context.Context) error {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
 
-	dir := flag.GetString(ctx, "into")
-	if dir == "" {
-		dir = flag.GetString(ctx, "path")
-	}
-	if dir == "" {
-		dir = "."
+	// Plan steps and --manifest write nothing into the working directory.
+	if plan.GetPlanStep(ctx) != "" || flag.GetBool(ctx, "manifest") {
+		return nil
 	}
 
-	abs, err := filepath.Abs(dir)
+	// The directory buildManifest works in.
+	dir, err := filepath.Abs(flag.GetString(ctx, "path"))
 	if err != nil {
 		return nil
 	}
 
-	return checkNotInSystemDir(abs, os.Getenv("SystemRoot"))
+	systemRoot := os.Getenv("SystemRoot")
+	if systemRoot == "" {
+		systemRoot = os.Getenv("windir")
+	}
+
+	return checkNotInSystemDir(dir, systemRoot)
 }
 
 // checkNotInSystemDir fails when dir is systemRoot or inside it. Windows paths
@@ -45,7 +49,9 @@ func checkNotInSystemDir(dir, systemRoot string) error {
 	}
 
 	root := normalize(systemRoot)
-	if root == "" {
+	// A system folder at the root of a drive (or none at all) would match
+	// every directory on it.
+	if root == "" || strings.HasSuffix(root, ":") {
 		return nil
 	}
 
