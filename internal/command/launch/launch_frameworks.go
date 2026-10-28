@@ -19,11 +19,11 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -37,58 +37,77 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 	// The deploy token is for an app; with --no-create-app there isn't one yet.
 	if state.sourceInfo.GitHubActions.Secrets && !noCreateApp(ctx) {
-		io := iostreams.FromContext(ctx)
+		ios := iostreams.FromContext(ctx)
+		colorize := ios.ColorScheme()
 		quiet := plan.GetPlanStep(ctx) != ""
 
 		gh, err := exec.LookPath("gh")
 		if err != nil {
 			if !quiet {
-				printDeployTokenSteps(io.Out, io.ColorScheme())
+				printDeployTokenSteps(ios.Out, colorize)
 			}
 
 			return nil
 		}
 
-		token, err := createGitHubDeployToken(ctx, appName)
+		token, err := state.createGitHubDeployToken(ctx, appName)
 		if err != nil {
 			if ctx.Err() != nil {
 				return err
 			}
 
-			// The app exists by now, so this mustn't fail the launch. The
-			// usual cause is a token that can't create tokens (a deploy
-			// token, as agents and CI tend to have); the workflow works once
-			// the secret is set by hand.
+			// The app exists by now, so this mustn't fail the launch: the
+			// workflow works once the secret is set by hand. Plan steps get
+			// the warning too, so their caller knows the secret isn't set.
+			fmt.Fprintln(ios.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf("Couldn't create a deploy token for GitHub Actions: %v", err)))
 			if !quiet {
-				colorize := io.ColorScheme()
-				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf("Couldn't create a deploy token for GitHub Actions: %v", err)))
-				fmt.Fprintln(io.ErrOut, "Logged in as yourself (`fly auth login`), not with a deploy token:")
-				printDeployTokenSteps(io.ErrOut, colorize)
+				if errors.Is(err, errCantCreateTokens) {
+					fmt.Fprintln(ios.ErrOut, needTokenThatCanCreateTokens())
+				}
+				printDeployTokenSteps(ios.ErrOut, colorize)
 			}
 
 			return nil
 		}
 
-		fmt.Fprintln(io.Out, "Setting FLY_API_TOKEN secret in GitHub repository settings")
-		cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
+		if !quiet {
+			fmt.Fprintln(ios.Out, "Setting FLY_API_TOKEN secret in GitHub repository settings")
+		}
+		cmd := exec.CommandContext(ctx, gh, "secret", "set", "FLY_API_TOKEN")
 		cmd.Stdin = strings.NewReader(token)
+		cmd.Stdout = ios.Out
+		cmd.Stderr = ios.ErrOut
 		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(io.ErrOut, "failed setting FLY_API_TOKEN secret in GitHub repository settings: %s\n", err)
+			fmt.Fprintln(ios.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf("Couldn't set the FLY_API_TOKEN secret in GitHub repository settings: %v", err)))
+			if !quiet {
+				printDeployTokenSteps(ios.ErrOut, colorize)
+			}
 		}
 	}
 
 	return nil
 }
 
-// createGitHubDeployToken creates the deploy token GitHub Actions deploys the
-// app with.
-func createGitHubDeployToken(ctx context.Context, appName string) (string, error) {
-	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
-	if err != nil {
-		return "", fmt.Errorf("failed retrieving app %s: %w", appName, err)
+// errCantCreateTokens is the API refusing CreateLimitedAccessToken, which it
+// does for tokens that can't create tokens, such as deploy tokens.
+var errCantCreateTokens = errors.New("the token you're using isn't allowed to create tokens")
+
+// needTokenThatCanCreateTokens says how to run the manual steps with a token
+// that can: a token in the environment overrides the one fly auth login saves.
+func needTokenThatCanCreateTokens() string {
+	for _, key := range []string{config.AccessTokenEnvKey, config.APITokenEnvKey} {
+		if os.Getenv(key) != "" {
+			return fmt.Sprintf("%s is set; without it, logged in as yourself (`fly auth login`):", key)
+		}
 	}
 
-	org, err := uiexutil.AppOrganization(ctx, app)
+	return "Logged in as yourself (`fly auth login`), not with a deploy token:"
+}
+
+// createGitHubDeployToken creates the deploy token GitHub Actions deploys the
+// app with.
+func (state *launchState) createGitHubDeployToken(ctx context.Context, appName string) (string, error) {
+	org, err := state.Org(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -100,7 +119,7 @@ func createGitHubDeployToken(ctx context.Context, appName string) (string, error
 		org.ID,
 		"deploy",
 		&gql.LimitedAccessTokenOptions{
-			"app_id": app.Name,
+			"app_id": appName,
 		},
 		"999999h",
 	)
@@ -108,7 +127,7 @@ func createGitHubDeployToken(ctx context.Context, appName string) (string, error
 		// The API says "input:3:2: createLimitedAccessToken Not authorized to
 		// access this createlimitedaccesstoken".
 		if strings.Contains(err.Error(), "Not authorized") {
-			return "", errors.New("the token you're using isn't allowed to create tokens")
+			return "", errCantCreateTokens
 		}
 
 		return "", err
