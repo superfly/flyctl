@@ -474,27 +474,75 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 
 // Mumbai (bom) is deprecated: the regions list filters it out and placements
 // rejects it, so a fly.toml that still names it has to be moved like the other
-// retired regions.
+// retired regions. The summary and any error say so, and errors name the
+// region as the user gave it.
 func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
-	ctx := newBuildManifestCtx(t)
-
-	var asked string
-	flapsClient := &mock.FlapsClient{
-		GetPlacementsFunc: func(_ context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
-			asked = req.Region
-
-			return []flaps.RegionPlacement{{Region: req.Region, Count: 1}}, nil
+	for _, tc := range []struct {
+		name            string
+		flagRegion      string
+		primaryRegion   string
+		placements      []flaps.RegionPlacement
+		placementsErr   error
+		wantExplanation string
+		wantErr         string
+	}{
+		{
+			name:            "from fly.toml",
+			primaryRegion:   "bom",
+			placements:      []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantExplanation: "from your fly.toml; bom is retired",
 		},
+		{
+			name:            "from the command line",
+			flagRegion:      "bom",
+			placements:      []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantExplanation: "specified on the command line; bom is retired",
+		},
+		{
+			name:          "replacement rejected",
+			primaryRegion: "bom",
+			placementsErr: errors.New("invalid region"),
+			wantErr:       "failed to determine region: region bom from your fly.toml (retired, using sin): invalid region",
+		},
+		{
+			name:          "no capacity",
+			primaryRegion: "maa",
+			wantErr:       "no regions with capacity for the requested configuration: region maa from your fly.toml",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newBuildManifestCtx(t)
+			if tc.flagRegion != "" {
+				require.NoError(t, flag.FromContext(ctx).Set("region", tc.flagRegion))
+			}
+
+			var asked string
+			flapsClient := &mock.FlapsClient{
+				GetPlacementsFunc: func(_ context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+					asked = req.Region
+
+					return tc.placements, tc.placementsErr
+				},
+			}
+
+			config := appconfig.NewConfig()
+			config.PrimaryRegion = tc.primaryRegion
+
+			region, explanation, err := determineRegion(ctx, config, "personal", &fly.MachineGuest{}, flapsClient)
+
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tc.wantErr, err.Error())
+				assert.Equal(t, recoverableSpecifyInUi, explanation)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "sin", asked)
+			assert.Equal(t, "sin", region)
+			assert.Equal(t, tc.wantExplanation, explanation)
+		})
 	}
-
-	config := appconfig.NewConfig()
-	config.PrimaryRegion = "bom"
-
-	region, explanation, err := determineRegion(ctx, config, "personal", &fly.MachineGuest{}, flapsClient)
-	require.NoError(t, err)
-	assert.Equal(t, "sin", asked)
-	assert.Equal(t, "sin", region)
-	assert.Equal(t, "from your fly.toml", explanation)
 }
 
 // When placements rejects the region, a terminal launch leaves it to be picked
