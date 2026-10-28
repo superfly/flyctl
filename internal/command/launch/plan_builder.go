@@ -99,6 +99,13 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
+// abort is the error for a launch that needed the Launch UI to fix its
+// problems and didn't get it. It lists them again, which also puts them in
+// launch metrics instead of a bare "errors present".
+func (r *recoverableErrorBuilder) abort() error {
+	return fmt.Errorf("launch can not continue with errors present:\n%s", strings.TrimRight(r.build(), "\n"))
+}
+
 func (r *recoverableErrorBuilder) build() string {
 	if len(r.errors) == 0 {
 		return ""

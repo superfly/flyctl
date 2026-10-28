@@ -577,7 +577,7 @@ func run(ctx context.Context) (err error) {
 		}
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
-		return errors.New("launch can not continue with errors present")
+		return recoverableErrors.abort()
 	}
 
 	err = state.Launch(ctx)

@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -469,4 +470,18 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, taken)
 	})
+}
+
+// Declining the Launch UI ends the launch. The error lists what needed fixing,
+// so launch metrics record why, not just that something did.
+func TestRecoverableErrorsAbortListsErrors(t *testing.T) {
+	r := &recoverableErrorBuilder{canEnterUi: true}
+	require.NoError(t, r.tryRecover(recoverableInUiError{errors.New("failed to determine region: invalid region")}))
+	require.NoError(t, r.tryRecover(recoverableInUiError{appNameTakenErr("app")}))
+
+	err := r.abort()
+
+	assert.Equal(t, "launch can not continue with errors present:\n"+
+		" * failed to determine region: invalid region\n"+
+		" * "+strings.ReplaceAll(recoverableInUiError{appNameTakenErr("app")}.String(), "\n", "\n   "), err.Error())
 }
