@@ -3,10 +3,15 @@ package launch
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+
+	genq "github.com/Khan/genqlient/graphql"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +21,9 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -324,4 +331,156 @@ func TestScannerCreateSecretsWithoutApp(t *testing.T) {
 	assert.Contains(t, out.String(), "SECRET_KEY_BASE")
 	assert.Contains(t, out.String(), "fly secrets set")
 	assert.NotContains(t, out.String(), "generated")
+}
+
+// fakeGenqClient answers every GraphQL request with data, or fails with err.
+type fakeGenqClient struct {
+	data string
+	err  error
+}
+
+func (c fakeGenqClient) MakeRequest(_ context.Context, _ *genq.Request, resp *genq.Response) error {
+	if c.err != nil {
+		return c.err
+	}
+
+	return json.Unmarshal([]byte(c.data), resp.Data)
+}
+
+// The deploy token for GitHub Actions is made after the app exists. A token
+// that can't create tokens (a deploy token, say) used to fail the launch at
+// that point; now any failure says how to set the secret by hand, with the
+// right token, and launch carries on. Only cancellation still stops it.
+func TestSetupGitHubActionsToken(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake gh is a shell script")
+	}
+
+	const token = "FlyV1 fm2_deploy"
+	errNotAuthorized := errors.New("input:3:2: createLimitedAccessToken Not authorized to access this createlimitedaccesstoken")
+
+	for _, tc := range []struct {
+		name       string
+		genqErr    error
+		ghExit     int
+		envToken   bool
+		planStep   string
+		cancel     bool
+		wantErr    bool
+		wantSecret bool
+		wantOut    []string
+		wantErrOut []string
+		notErrOut  []string
+	}{
+		{
+			name:       "token set",
+			wantSecret: true,
+			wantOut:    []string{"Setting FLY_API_TOKEN secret"},
+		},
+		{
+			name:       "token not allowed to create tokens",
+			genqErr:    errNotAuthorized,
+			wantErrOut: []string{"Couldn't create a deploy token for GitHub Actions: the token you're using isn't allowed to create tokens", "Logged in as yourself (`fly auth login`)", "fly tokens create deploy -x 999999h"},
+		},
+		{
+			name:       "token from the environment",
+			genqErr:    errNotAuthorized,
+			envToken:   true,
+			wantErrOut: []string{"FLY_API_TOKEN is set; without it, logged in as yourself", "fly tokens create deploy -x 999999h"},
+		},
+		{
+			name:       "other failure",
+			genqErr:    errors.New("503 Service Unavailable"),
+			wantErrOut: []string{"Couldn't create a deploy token for GitHub Actions: 503 Service Unavailable", "fly tokens create deploy -x 999999h"},
+			notErrOut:  []string{"fly auth login"},
+		},
+		{
+			name:       "gh fails",
+			ghExit:     1,
+			wantSecret: true,
+			wantErrOut: []string{"gh: not logged in", "Couldn't set the FLY_API_TOKEN secret", "fly tokens create deploy -x 999999h"},
+		},
+		{
+			name:       "plan step warns without the steps",
+			genqErr:    errNotAuthorized,
+			planStep:   "generate",
+			wantErrOut: []string{"Couldn't create a deploy token for GitHub Actions"},
+			notErrOut:  []string{"fly tokens create deploy"},
+		},
+		{name: "canceled", cancel: true, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin := t.TempDir()
+			secret := filepath.Join(bin, "secret")
+			gh := fmt.Sprintf("#!/bin/sh\ncat > %q\n[ %d -eq 0 ] || { echo 'gh: not logged in' >&2; exit %d; }\n", secret, tc.ghExit, tc.ghExit)
+			require.NoError(t, os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o755))
+			t.Setenv("PATH", bin+":/bin:/usr/bin")
+			t.Setenv("FLY_ACCESS_TOKEN", "")
+			t.Setenv("FLY_API_TOKEN", "")
+			if tc.envToken {
+				t.Setenv("FLY_API_TOKEN", token)
+			}
+
+			ios, _, out, errOut := iostreams.Test()
+			ctx, cancel := context.WithCancel(iostreams.NewContext(context.Background(), ios))
+			defer cancel()
+			if tc.planStep != "" {
+				ctx = context.WithValue(ctx, plan.PlanStepKey, tc.planStep)
+			}
+			ctx = flagctx.NewContext(ctx, New().Flags())
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
+					return &uiex.Organization{ID: "org-1", Slug: slug}, nil
+				},
+			})
+			ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
+				GenqClientFunc: func() genq.Client {
+					if tc.cancel {
+						cancel()
+
+						return fakeGenqClient{err: context.Canceled}
+					}
+
+					return fakeGenqClient{
+						data: `{"createLimitedAccessToken":{"limitedAccessToken":{"tokenHeader":"` + token + `"}}}`,
+						err:  tc.genqErr,
+					}
+				},
+			})
+
+			state := &launchState{
+				LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{OrgSlug: "personal"}},
+				planBuildCache: planBuildCache{sourceInfo: &scanner.SourceInfo{
+					GitHubActions: scanner.GitHubActionsStruct{Deploy: true, Secrets: true},
+				}},
+				cache: map[string]any{},
+			}
+
+			err := state.setupGitHubActions(ctx, "my-app")
+
+			if tc.wantErr {
+				require.ErrorIs(t, err, context.Canceled)
+
+				return
+			}
+			require.NoError(t, err)
+
+			got, readErr := os.ReadFile(secret)
+			if tc.wantSecret {
+				require.NoError(t, readErr)
+				assert.Equal(t, token, string(got), "gh gets the token on stdin")
+			} else {
+				assert.True(t, os.IsNotExist(readErr), "gh not run")
+			}
+			for _, want := range tc.wantOut {
+				assert.Contains(t, out.String(), want)
+			}
+			for _, want := range tc.wantErrOut {
+				assert.Contains(t, errOut.String(), want)
+			}
+			for _, unwanted := range tc.notErrOut {
+				assert.NotContains(t, errOut.String(), unwanted)
+			}
+		})
+	}
 }
