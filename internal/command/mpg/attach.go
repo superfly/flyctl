@@ -21,7 +21,8 @@ func newAttach() *cobra.Command {
 		short = "Attach a managed Postgres cluster to an app"
 		long  = short + ". " +
 			`This command will add a secret to the specified app
- containing the connection string for the database.`
+ containing the connection string for the database.
+ On v2 clusters, the default variable name also adds DIRECT_URL for migrations.`
 		usage = "attach <CLUSTER ID>"
 	)
 
