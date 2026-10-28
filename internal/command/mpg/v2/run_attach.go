@@ -4,18 +4,50 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// ResolveAttachSecretNames validates attach flags and resolves enabled secret names.
+func ResolveAttachSecretNames(ctx context.Context) (pooled, direct string, err error) {
+	noDirectURL := flag.GetBool(ctx, "no-direct-url")
+	if noDirectURL && flag.IsSpecified(ctx, "direct-variable-name") {
+		return "", "", flyerr.GenericErr{
+			Err:     "Cannot specify both --direct-variable-name and --no-direct-url",
+			Suggest: "Remove either --direct-variable-name or --no-direct-url",
+		}
+	}
+
+	variableName := flag.GetString(ctx, "variable-name")
+	if variableName == "" {
+		variableName = "DATABASE_URL"
+	}
+	directVariableName := flag.GetString(ctx, "direct-variable-name")
+	if directVariableName == "" {
+		directVariableName = "DIRECT_URL"
+	}
+	if noDirectURL || (!flag.IsSpecified(ctx, "direct-variable-name") && flag.IsSpecified(ctx, "variable-name")) {
+		directVariableName = ""
+	}
+	if directVariableName != "" && directVariableName == variableName {
+		return "", "", fmt.Errorf("pooled and direct variable names must be different")
+	}
+
+	return variableName, directVariableName, nil
+}
 
 // RunAttach attaches a managed Postgres cluster to an app.
 func RunAttach(ctx context.Context, clusterID string) error {
@@ -24,8 +56,23 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		io      = iostreams.FromContext(ctx)
 	)
 
+	variableName, directVariableName, err := ResolveAttachSecretNames(ctx)
+	if err != nil {
+		return err
+	}
+	noteCustomPooled := directVariableName == "" && !flag.GetBool(ctx, "no-direct-url")
+
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	legacyClient := mpgv2.ClientFromContext(ctx)
+
+	directVariableName, err = checkAttachTargetSecrets(ctx, flapsClient, appName, variableName, directVariableName)
+	if err != nil {
+		return err
+	}
+
+	if noteCustomPooled {
+		fmt.Fprintln(io.ErrOut, "Note: pass --direct-variable-name to also set a direct connection secret.")
+	}
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
@@ -167,26 +214,29 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		return fmt.Errorf("failed to build connection URI: %w", err)
 	}
 
-	variableName := flag.GetString(ctx, "variable-name")
-	if variableName == "" {
-		variableName = "DATABASE_URL"
-	}
-
-	// Check if the app already has the secret variable set
-	secrets, err := appsecrets.List(ctx, flapsClient, appName)
-	if err != nil {
-		return fmt.Errorf("failed retrieving secrets for app %s: %w", appName, err)
-	}
-
-	for _, secret := range secrets {
-		if secret.Name == variableName {
-			return fmt.Errorf("app %s already has %s set. Use 'fly secrets unset %s' to remove it first", appName, variableName, variableName)
+	s := map[string]string{variableName: connectionUri}
+	if directVariableName != "" {
+		if info.LegacyClusterAPI {
+			fmt.Fprintf(io.ErrOut, "Warning: %s was not set because the direct endpoint is not available from the legacy API. Set it manually with 'fly secrets set' if you need it.\n", directVariableName)
+		} else if info.DirectEndpoint.Host == "" || info.DirectEndpoint.Port == 0 {
+			fmt.Fprintf(io.ErrOut, "Warning: %s was not set because the cluster has no direct endpoint.\n", directVariableName)
+		} else if directURI, err := buildDirectConnectionURI(info.DirectEndpoint, user, password, db); err != nil {
+			fmt.Fprintf(io.ErrOut, "Warning: %s was not set because the direct endpoint is invalid: %v\n", directVariableName, err)
+		} else {
+			s[directVariableName] = directURI
 		}
 	}
 
-	// Write the secret.
-	s := map[string]string{}
-	s[variableName] = connectionUri
+	if _, ok := s[directVariableName]; !ok {
+		directVariableName = ""
+	}
+	checkedDirectName, err := checkAttachTargetSecrets(ctx, flapsClient, appName, variableName, directVariableName)
+	if err != nil {
+		return err
+	}
+	if checkedDirectName == "" {
+		delete(s, directVariableName)
+	}
 
 	if err := appsecrets.Update(ctx, flapsClient, appName, s, nil); err != nil {
 		return err
@@ -203,7 +253,14 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	}
 
 	fmt.Fprintf(io.Out, "\nPostgres cluster %s is being attached to %s\n", clusterID, appName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
+	wording := "secret was"
+	if len(s) > 1 {
+		wording = "secrets were"
+	}
+	fmt.Fprintf(io.Out, "The following %s added to %s:\n  %s=%s\n", wording, appName, variableName, connectionUri)
+	if directURI, ok := s[directVariableName]; ok {
+		fmt.Fprintf(io.Out, "  %s=%s\n", directVariableName, directURI)
+	}
 
 	return nil
 }
@@ -312,6 +369,26 @@ func buildConnectionUri(baseUri, user, password, db string) (string, error) {
 	return parsedURI.String(), nil
 }
 
+// buildDirectConnectionURI uses only the public endpoint and selected credentials.
+func buildDirectConnectionURI(endpoint flaps.ManagedPostgresEndpoint, user, password, db string) (string, error) {
+	if endpoint.Host == "" || endpoint.Port < 1 || endpoint.Port > 65535 ||
+		strings.ContainsAny(endpoint.Host, "[]") || (strings.Contains(endpoint.Host, ":") && net.ParseIP(endpoint.Host) == nil) {
+		return "", fmt.Errorf("invalid Postgres endpoint")
+	}
+	uri := (&url.URL{
+		Scheme: "postgresql",
+		Host:   net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port)),
+		User:   url.UserPassword(user, password),
+		Path:   "/" + db,
+	}).String()
+	parsed, err := url.Parse(uri)
+	if err != nil || parsed.Hostname() != endpoint.Host || parsed.Port() != strconv.Itoa(endpoint.Port) {
+		return "", fmt.Errorf("invalid Postgres endpoint")
+	}
+
+	return uri, nil
+}
+
 // createAttachmentPublicFirst tries the public Machines API for attachment
 // creation and falls back to the legacy MPGv2 client on a classified 404.
 func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string, input mpgv2.CreateAttachmentInput) error {
@@ -332,19 +409,24 @@ func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.Flap
 	return nil
 }
 
-// clusterConnectionInfo holds the base URI and default credentials for attach.
+// clusterConnectionInfo holds the pooled URI, public direct endpoint, and default credentials.
 type clusterConnectionInfo struct {
-	BaseURI         string
-	DefaultUser     string
-	DefaultPassword string
-	DefaultDBName   string
+	BaseURI          string
+	DirectEndpoint   flaps.ManagedPostgresEndpoint
+	LegacyClusterAPI bool
+	DefaultUser      string
+	DefaultPassword  string
+	DefaultDBName    string
 }
 
 // getClusterConnectionInfoPublicFirst falls back on cluster or credential 404s.
 func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string, needDefaultCredentials bool) (clusterConnectionInfo, error) {
 	cluster, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
 	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		info, err := getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		info.LegacyClusterAPI = true
+
+		return info, err
 	}
 	if err != nil {
 		return clusterConnectionInfo{}, err
@@ -364,13 +446,17 @@ func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsu
 		BaseURI:       fmt.Sprintf("postgresql://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase),
 		DefaultDBName: mpgutil.DefaultDatabase,
 	}
+	info.DirectEndpoint = cluster.Endpoints.Primary.Direct
 	if !needDefaultCredentials {
 		return info, nil
 	}
 
 	creds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgutil.DefaultUsername)
 	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		legacyInfo, legacyErr := getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		legacyInfo.DirectEndpoint = info.DirectEndpoint
+
+		return legacyInfo, legacyErr
 	}
 	if err != nil {
 		return clusterConnectionInfo{}, err
@@ -393,4 +479,33 @@ func getClusterConnectionInfoLegacy(ctx context.Context, legacyClient mpgv2.Clie
 		DefaultPassword: clusterResp.Credentials.Password,
 		DefaultDBName:   clusterResp.Credentials.DBName,
 	}, nil
+}
+
+func checkAttachTargetSecrets(ctx context.Context, client flapsutil.FlapsClient, appName, variableName, directVariableName string) (string, error) {
+	secrets, err := appsecrets.List(ctx, client, appName)
+	if err != nil {
+		return "", fmt.Errorf("failed retrieving secrets for app %s: %w", appName, err)
+	}
+	pooledAlreadySet, directAlreadySet := false, false
+	for _, secret := range secrets {
+		if directVariableName != "" && secret.Name == directVariableName {
+			directAlreadySet = true
+		}
+		if secret.Name == variableName {
+			pooledAlreadySet = true
+		}
+	}
+	if pooledAlreadySet {
+		return "", fmt.Errorf("app %s already has %s set. Use 'fly secrets unset %s' to remove it first", appName, variableName, variableName)
+	}
+	if directAlreadySet {
+		if flag.IsSpecified(ctx, "direct-variable-name") {
+			return "", fmt.Errorf("app %s already has %s set. Use 'fly secrets unset %s -a %s' to remove it first, or pass a different --direct-variable-name", appName, directVariableName, directVariableName, appName)
+		}
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Warning: %s was not set because app %s already has it. To replace it, run 'fly secrets unset %s %s -a %s' and re-run attach.\n", directVariableName, appName, variableName, directVariableName, appName)
+
+		return "", nil
+	}
+
+	return directVariableName, nil
 }
