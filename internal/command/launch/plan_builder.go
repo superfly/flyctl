@@ -99,6 +99,27 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
+// summary is the problems on one line, for launch metrics: "" for none or a
+// nil builder, and cut short past maxSummaryLen.
+func (r *recoverableErrorBuilder) summary() string {
+	if r == nil {
+		return ""
+	}
+
+	problems := make([]string, 0, len(r.errors))
+	for _, e := range r.errors {
+		problems = append(problems, strings.Join(strings.Fields(e.Error()), " "))
+	}
+	s := strings.Join(problems, "; ")
+	if len(s) > maxSummaryLen {
+		s = s[:maxSummaryLen] + "…"
+	}
+
+	return s
+}
+
+const maxSummaryLen = 1000
+
 func (r *recoverableErrorBuilder) build() string {
 	if len(r.errors) == 0 {
 		return ""
