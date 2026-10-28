@@ -215,7 +215,6 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("poetry.lock")) || !checksPass(sourceDir, fileExists("pyproject.toml")) {
 		return nil, nil
 	}
-	terminal.Info("Detected Poetry project")
 	doc, err := os.ReadFile("pyproject.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading pyproject.toml")
@@ -227,19 +226,35 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 	deps := pyProject.Tool.Poetry.Dependencies
 	appName := pyProject.Tool.Poetry.Name
+	pyVersion, _ := deps["python"].(string)
 
-	if len(deps) == 0 {
-		// Poetry 2 lists them under [project], which configPyProject reads.
+	var depList []string
+	for dep := range deps {
+		if dep != "python" {
+			depList = append(depList, parsePyDep(dep))
+		}
+	}
+	if len(depList) == 0 {
+		// Poetry 2 lists them under [project], with requires-python.
+		for _, dep := range pyProject.Project.Dependencies {
+			depList = append(depList, parsePyDep(dep))
+		}
+		if appName == "" {
+			appName = pyProject.Project.Name
+		}
+		if pyVersion == "" {
+			pyVersion = strings.TrimFunc(pyProject.Project.RequiresPython, func(r rune) bool {
+				return !unicode.IsDigit(r) && r != '.'
+			})
+		}
+	}
+	if len(depList) == 0 {
 		return nil, nil
 	}
-	var depList []string
+	terminal.Info("Detected Poetry project")
 
-	for dep := range deps {
-		depList = append(depList, parsePyDep(dep))
-	}
-	pyVersion, ok := deps["python"].(string)
-	if !ok {
-		// Missing, or a table or list of constraints.
+	if pyVersion == "" {
+		// Not given, or a table or list of constraints.
 		pyVersion, _, err = extractPythonVersion()
 		if err != nil {
 			return nil, err
@@ -384,7 +399,7 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if src != nil || err != nil {
 		return src, err
 	}
-	if !checksPass(sourceDir, fileExists("requirements.txt", "requirements.in", "pyproject.toml", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
+	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
 		return nil, nil
 	}
 
