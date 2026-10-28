@@ -259,7 +259,9 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 	deps := pyProject.Project.Dependencies
 	if deps == nil {
-		return nil, errors.New("No dependencies found in pyproject.toml")
+		// Often a pyproject.toml that only configures tools (ruff, black, ...);
+		// the dependencies may be in a Pipfile or requirements.txt.
+		return nil, nil
 	}
 	var depList []string
 	for _, dep := range deps {
@@ -337,9 +339,6 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 		deps = req_deps
 	} else {
 		return nil, nil
-	}
-	if deps == nil {
-		return nil, errors.New("No dependencies found in requirements file")
 	}
 	var depList []string
 	for _, dep := range deps {
