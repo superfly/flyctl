@@ -400,6 +400,10 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	if err := checkLaunchDir(ctx); err != nil {
+		return err
+	}
+
 	incompleteLaunchManifest := false
 	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
 
