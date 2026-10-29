@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -546,4 +547,100 @@ func TestManifestPathsCannotEscapeSkillDir(t *testing.T) {
 	assert.ErrorIs(t, err, errUnsafePath)
 	body, _ := os.ReadFile(victim)
 	assert.Equal(t, "precious\n", string(body))
+}
+
+func TestExtractArchiveRecordsTopLevelAndHash(t *testing.T) {
+	t.Run("github-style archive", func(t *testing.T) {
+		tarball := makeTarball(t, []tarEntry{
+			{name: "skills-" + testOldSHA + "/", dir: true},
+			{name: "skills-" + testOldSHA + "/README.md", body: "readme\n"},
+			{name: "skills-" + testOldSHA + "/plugins/fly/skills/fly/SKILL.md", body: "# Fly\n"},
+		})
+		a, err := extractArchive(tarball, skillsPathPrefix)
+		require.NoError(t, err)
+		assert.Equal(t, "skills-"+testOldSHA, a.TopLevel)
+		assert.Equal(t, archiveSHA256(tarball), a.SHA256)
+		assert.Len(t, a.SHA256, 64)
+		assert.Equal(t, []string{"fly"}, sortedKeys(a.Skills))
+	})
+
+	t.Run("leading ./ is ignored", func(t *testing.T) {
+		tarball := makeTarball(t, []tarEntry{
+			{name: "./skills-main/plugins/fly/skills/fly/SKILL.md", body: "# Fly\n"},
+		})
+		a, err := extractArchive(tarball, skillsPathPrefix)
+		require.NoError(t, err)
+		assert.Equal(t, "skills-main", a.TopLevel)
+	})
+
+	t.Run("more than one top-level directory is rejected", func(t *testing.T) {
+		tarball := makeTarball(t, []tarEntry{
+			{name: "skills-main/plugins/fly/skills/fly/SKILL.md", body: "# Fly\n"},
+			{name: "other/plugins/fly/skills/fly/SKILL.md", body: "# Evil\n"},
+		})
+		_, err := extractArchive(tarball, skillsPathPrefix)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "more than one top-level directory")
+	})
+
+	t.Run("hash differs for different bytes", func(t *testing.T) {
+		a := makeTarball(t, []tarEntry{{name: "skills-main/plugins/fly/skills/fly/SKILL.md", body: "one\n"}})
+		b := makeTarball(t, []tarEntry{{name: "skills-main/plugins/fly/skills/fly/SKILL.md", body: "two\n"}})
+		assert.NotEqual(t, archiveSHA256(a), archiveSHA256(b))
+	})
+}
+
+func TestVerifyArchiveRevision(t *testing.T) {
+	github := source{repo: skillsRepo}
+
+	assert.NoError(t, verifyArchiveRevision(github, testOldSHA, "skills-"+testOldSHA))
+
+	err := verifyArchiveRevision(github, testOldSHA, "skills-main")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"skills-main"`)
+	assert.Contains(t, err.Error(), `"skills-`+testOldSHA+`"`)
+
+	err = verifyArchiveRevision(github, testOldSHA, "skills-"+testNewSHA)
+	require.Error(t, err, "an archive for a different commit is rejected")
+
+	// A --tarball override has no resolved revision to compare against, and
+	// neither does a download that produced no SHA.
+	assert.NoError(t, verifyArchiveRevision(source{repo: skillsRepo, tarball: "/tmp/skills.tar.gz"}, testOldSHA, "skills-main"))
+	assert.NoError(t, verifyArchiveRevision(source{repo: skillsRepo, tarball: "https://example.com/skills.tar.gz"}, testOldSHA, "whatever"))
+	assert.NoError(t, verifyArchiveRevision(github, "", "skills-main"))
+}
+
+func TestSyncSkillsRecordsArchiveHash(t *testing.T) {
+	ctx, e, flags, out := skillsTestContext(t)
+	target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
+	writeSkillsArchive(t, flags, "fly")
+
+	location, err := flags.GetString("tarball")
+	require.NoError(t, err)
+	tarball, err := os.ReadFile(location)
+	require.NoError(t, err)
+
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+
+	manifest, err := readManifest(e.configDir)
+	require.NoError(t, err)
+	assert.Equal(t, archiveSHA256(tarball), manifest.ArchiveSHA256)
+	assert.Equal(t, testOldSHA, manifest.SourceSHA)
+
+	out.Reset()
+	require.NoError(t, runStatus(ctx))
+	var report statusReport
+	require.NoError(t, json.Unmarshal(out.Bytes(), &report))
+	assert.Equal(t, archiveSHA256(tarball), report.ArchiveSHA256)
+	assert.Contains(t, out.String(), `"archive_sha256"`)
+
+	// A later run that keeps a local edit leaves the recorded archive alone.
+	writeFiles(t, joinRel(target.SkillsDir, "fly"), map[string]string{"SKILL.md": "my edits"})
+	require.NoError(t, os.WriteFile(location, makeTarball(t, []tarEntry{
+		{name: "skills-main/plugins/fly/skills/fly/SKILL.md", body: "fly v2"},
+	}), 0o644))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "updated", false))
+	manifest, err = readManifest(e.configDir)
+	require.NoError(t, err)
+	assert.Equal(t, archiveSHA256(tarball), manifest.ArchiveSHA256)
 }

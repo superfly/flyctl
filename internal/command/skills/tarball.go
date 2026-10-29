@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -161,22 +163,44 @@ func isURL(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 }
 
+// archive is a downloaded skills tarball, read once.
+type archive struct {
+	// SHA256 is the hex digest of the tarball bytes as downloaded.
+	SHA256 string
+	// TopLevel is the single directory every entry lives under. GitHub names
+	// it "<repo>-<ref>", which lets us confirm the archive matches the
+	// revision we resolved.
+	TopLevel string
+	Skills   SkillFiles
+}
+
+func archiveSHA256(tarball []byte) string {
+	sum := sha256.Sum256(tarball)
+
+	return hex.EncodeToString(sum[:])
+}
+
 // extractSkillFiles pulls every regular file under skillsPathPrefix out of a
 // gzipped tarball, grouped by the skill directory directly under the prefix.
 // GitHub archives wrap everything in a "<repo>-<ref>/" directory, so the
 // prefix is matched anywhere in the entry path rather than at the start.
 func extractSkillFiles(tarball []byte) (SkillFiles, error) {
-	return extractSkillFilesWithPrefix(tarball, skillsPathPrefix)
+	a, err := extractArchive(tarball, skillsPathPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.Skills, nil
 }
 
-func extractSkillFilesWithPrefix(tarball []byte, prefix string) (SkillFiles, error) {
+func extractArchive(tarball []byte, prefix string) (*archive, error) {
 	gz, err := gzip.NewReader(bytes.NewReader(tarball))
 	if err != nil {
 		return nil, fmt.Errorf("skills archive is not gzipped: %w", err)
 	}
 	defer gz.Close() //nolint:errcheck
 
-	skills := SkillFiles{}
+	a := &archive{SHA256: archiveSHA256(tarball), Skills: SkillFiles{}}
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
@@ -186,6 +210,20 @@ func extractSkillFilesWithPrefix(tarball []byte, prefix string) (SkillFiles, err
 		if err != nil {
 			return nil, fmt.Errorf("failed to read skills archive: %w", err)
 		}
+		if hdr.Typeflag == tar.TypeXGlobalHeader || hdr.Typeflag == tar.TypeXHeader {
+			continue
+		}
+
+		top, _, _ := strings.Cut(strings.TrimPrefix(hdr.Name, "./"), "/")
+		switch {
+		case top == "":
+			return nil, fmt.Errorf("skills archive has an entry outside a top-level directory: %q", hdr.Name)
+		case a.TopLevel == "":
+			a.TopLevel = top
+		case a.TopLevel != top:
+			return nil, fmt.Errorf("skills archive has more than one top-level directory: %q and %q", a.TopLevel, top)
+		}
+
 		if hdr.Typeflag != tar.TypeReg {
 			continue
 		}
@@ -201,14 +239,29 @@ func extractSkillFilesWithPrefix(tarball []byte, prefix string) (SkillFiles, err
 		if err != nil {
 			return nil, fmt.Errorf("failed to read %s from skills archive: %w", hdr.Name, err)
 		}
-		skills[name] = append(skills[name], SkillFile{Rel: rel, Contents: contents})
+		a.Skills[name] = append(a.Skills[name], SkillFile{Rel: rel, Contents: contents})
 	}
 
-	if len(skills) == 0 {
+	if len(a.Skills) == 0 {
 		return nil, fmt.Errorf("no skills found under %s in the downloaded archive", prefix)
 	}
 
-	return skills, nil
+	return a, nil
+}
+
+// verifyArchiveRevision confirms a GitHub archive is for the commit we
+// resolved: GitHub names the top-level directory "<repo>-<sha>". It is
+// skipped for a --tarball override, where no revision was resolved.
+func verifyArchiveRevision(src source, sha, topLevel string) error {
+	if src.tarball != "" || sha == "" {
+		return nil
+	}
+	_, repoName, _ := strings.Cut(src.repo, "/")
+	if want := repoName + "-" + sha; topLevel != want {
+		return fmt.Errorf("downloaded archive does not match revision %s: its top-level directory is %q, expected %q", shortSHA(sha), topLevel, want)
+	}
+
+	return nil
 }
 
 // splitSkillPath turns an archive entry name into (skill name, path relative

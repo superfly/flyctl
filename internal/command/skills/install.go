@@ -24,7 +24,15 @@ coding agent (Claude Code, Codex, Cursor, OpenCode, GitHub Copilot, Factory
 Droid, Pi and Antigravity). Use --agent to pick agents explicitly.
 
 Files you have edited since the last install are left alone; pass --force to
-overwrite them.`
+overwrite them.
+
+Skills are fetched from github.com/superfly/skills over TLS: main is resolved
+to a commit SHA through the GitHub API, the archive for that exact SHA is
+downloaded, and the SHA, the archive's SHA-256 and a hash of every file written
+are recorded in ~/.fly/skills.json. There is no separate signature, so trust
+rests on TLS to github.com and on write access to the superfly/skills
+repository, the same model as flyctl's own install script. Pass --ref with a
+tag or commit SHA to pin a revision instead of tracking main.`
 	)
 
 	cmd := command.New("install", short, long, runInstall)
@@ -42,7 +50,7 @@ overwrite them.`
 		},
 		flag.Yes(),
 	)
-	addSourceFlags(cmd)
+	addSourceFlags(cmd, true)
 
 	return cmd
 }
@@ -85,10 +93,11 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 		return fmt.Errorf("failed to read %s: %w", manifestPath(e.configDir), err)
 	}
 
-	sha, skills, err := fetchSkills(ctx, sourceFromFlags(ctx))
+	dl, err := fetchSkills(ctx, sourceFromFlags(ctx))
 	if err != nil {
 		return err
 	}
+	sha, skills := dl.SHA, dl.Skills
 
 	var (
 		changed int
@@ -150,11 +159,14 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 		}
 	}
 
+	// The top-level revision and archive hash describe the last download that
+	// was applied in full; a run that kept local edits leaves them alone.
 	previous := manifest.SourceSHA
+	if skipped == 0 {
+		manifest.SourceSHA = sha
+		manifest.ArchiveSHA256 = dl.ArchiveSHA256
+	}
 	if sha != "" {
-		if skipped == 0 {
-			manifest.SourceSHA = sha
-		}
 		manifest.LatestSHA = sha
 		manifest.LastChecked = nowRFC3339()
 	}

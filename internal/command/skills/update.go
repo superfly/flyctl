@@ -34,7 +34,7 @@ updated unless --agent is given.`
 			Description: "Overwrite files you have modified locally instead of skipping them",
 		},
 	)
-	addSourceFlags(cmd)
+	addSourceFlags(cmd, true)
 
 	return cmd
 }

@@ -49,15 +49,16 @@ a newer revision is available upstream.`
 	return cmd
 }
 
-// addSourceFlags adds the hidden flags that point installs at a different
-// branch, commit or tarball. The FLY_SKILLS_REF and FLY_SKILLS_TARBALL
-// environment variables do the same for scripted use.
-func addSourceFlags(cmd *cobra.Command) {
+// addSourceFlags adds the flags that point installs at a different branch,
+// commit or tarball. --ref is shown where showRef is set; --tarball stays
+// hidden. The FLY_SKILLS_REF and FLY_SKILLS_TARBALL environment variables do
+// the same for scripted use.
+func addSourceFlags(cmd *cobra.Command, showRef bool) {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "ref",
-			Description: "Branch, tag or commit of " + skillsRepo + " to install from (default: " + skillsRef + ")",
-			Hidden:      true,
+			Description: "Install from a branch, tag or commit SHA of " + skillsRepo + " instead of " + skillsRef + ". Use a tag or SHA to pin.",
+			Hidden:      !showRef,
 		},
 		flag.String{
 			Name:        "tarball",
@@ -100,31 +101,44 @@ func shortSHA(sha string) string {
 	return sha
 }
 
-// fetchSkills resolves the upstream revision and downloads and extracts the
-// skills, reporting progress on stderr.
-func fetchSkills(ctx context.Context, src source) (string, SkillFiles, error) {
+// download is a resolved and verified skills download.
+type download struct {
+	// SHA is the skills repository commit, or "" for a local tarball.
+	SHA string
+	// ArchiveSHA256 is the hex digest of the tarball bytes.
+	ArchiveSHA256 string
+	Skills        SkillFiles
+}
+
+// fetchSkills resolves the upstream revision, downloads the archive pinned to
+// it, checks the archive is for that revision, and extracts the skills,
+// reporting progress on stderr.
+func fetchSkills(ctx context.Context, src source) (*download, error) {
 	io := iostreams.FromContext(ctx)
 
 	io.StartProgressIndicatorMsg("Checking for the latest Fly skills")
 	sha, err := fetchLatestSHA(ctx, src)
 	if err != nil {
 		io.StopProgressIndicator()
-		return "", nil, err
+		return nil, err
 	}
 
 	io.ChangeProgressIndicatorMsg("Downloading Fly skills")
 	tarball, err := downloadTarball(ctx, src, sha)
 	io.StopProgressIndicator()
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	skills, err := extractSkillFiles(tarball)
+	a, err := extractArchive(tarball, skillsPathPrefix)
 	if err != nil {
-		return "", nil, err
+		return nil, err
+	}
+	if err := verifyArchiveRevision(src, sha, a.TopLevel); err != nil {
+		return nil, err
 	}
 
-	return sha, skills, nil
+	return &download{SHA: sha, ArchiveSHA256: a.SHA256, Skills: a.Skills}, nil
 }
 
 func printTargets(ctx context.Context, action string, targets []Target) {

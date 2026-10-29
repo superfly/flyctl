@@ -36,7 +36,7 @@ func addStatusFlags(cmd *cobra.Command) {
 			Description: "Do not contact GitHub to check for a newer revision",
 		},
 	)
-	addSourceFlags(cmd)
+	addSourceFlags(cmd, false)
 }
 
 // statusSkill is one skill's status in one target.
@@ -57,8 +57,11 @@ type statusTarget struct {
 }
 
 type statusReport struct {
-	Installed       bool           `json:"installed"`
-	SourceSHA       string         `json:"source_sha,omitempty"`
+	Installed bool   `json:"installed"`
+	SourceSHA string `json:"source_sha,omitempty"`
+	// ArchiveSHA256 is the hex digest of the archive the installed files
+	// came from.
+	ArchiveSHA256   string         `json:"archive_sha256,omitempty"`
 	LatestSHA       string         `json:"latest_sha,omitempty"`
 	UpdateAvailable bool           `json:"update_available"`
 	Targets         []statusTarget `json:"targets"`
@@ -81,9 +84,10 @@ func runStatus(ctx context.Context) error {
 	}
 
 	report := statusReport{
-		Installed: manifest.hasInstalledSkills(),
-		SourceSHA: manifest.SourceSHA,
-		LatestSHA: manifest.LatestSHA,
+		Installed:     manifest.hasInstalledSkills(),
+		SourceSHA:     manifest.SourceSHA,
+		ArchiveSHA256: manifest.ArchiveSHA256,
+		LatestSHA:     manifest.LatestSHA,
 	}
 
 	for _, t := range sortedTargetsFromManifest(e, manifest) {
@@ -169,6 +173,9 @@ func runStatus(ctx context.Context) error {
 	printUnmanaged(ctx, report.Unmanaged)
 
 	fmt.Fprintln(io.Out)
+	if report.ArchiveSHA256 != "" {
+		fmt.Fprintf(io.Out, "Archive sha256 %s\n", colorize.Gray(report.ArchiveSHA256))
+	}
 	switch {
 	case report.LatestSHA == "":
 		fmt.Fprintf(io.Out, "Upstream revision unknown.\n")
