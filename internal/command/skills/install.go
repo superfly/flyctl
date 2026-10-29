@@ -19,9 +19,10 @@ func newInstall() *cobra.Command {
 	const (
 		short = "Install the Fly agent skills into local coding agents"
 		long  = `Download the Fly agent skills from github.com/superfly/skills and install
-them into ~/.agents/skills plus the global skills directory of every detected
+them into ~/.agents/skills and the global skills directory of every detected
 coding agent (Claude Code, Codex, Cursor, OpenCode, GitHub Copilot, Factory
-Droid, Pi and Antigravity). Use --agent to pick agents explicitly.
+Droid, Pi and Antigravity). With --agent, exactly the agents you name are
+written, so include universal to write ~/.agents/skills.
 
 Files you have edited since the last install are left alone; pass --force to
 overwrite them.
@@ -32,7 +33,8 @@ downloaded, and the SHA, the archive's SHA-256 and a hash of every file written
 are recorded in ~/.fly/skills.json. There is no separate signature, so trust
 rests on TLS to github.com and on write access to the superfly/skills
 repository, the same model as flyctl's own install script. Pass --ref with a
-tag or commit SHA to pin a revision instead of tracking main.`
+tag or commit SHA to pin a revision instead of tracking main; the pin is
+remembered by later update and status runs until you pass --ref main.`
 	)
 
 	cmd := command.New("install", short, long, runInstall)
@@ -50,7 +52,7 @@ tag or commit SHA to pin a revision instead of tracking main.`
 		},
 		flag.Yes(),
 	)
-	addSourceFlags(cmd, true)
+	addSourceFlags(cmd, installRefDescription)
 
 	return cmd
 }
@@ -93,7 +95,8 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 		return fmt.Errorf("failed to read %s: %w", manifestPath(e.configDir), err)
 	}
 
-	dl, err := fetchSkills(ctx, sourceFromFlags(ctx))
+	src := sourceFromFlags(ctx, manifest)
+	dl, err := fetchSkills(ctx, src)
 	if err != nil {
 		return err
 	}
@@ -170,6 +173,9 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 		manifest.LatestSHA = sha
 		manifest.LastChecked = nowRFC3339()
 	}
+	// The pin records the ref this run asked for, applied in full or not, so
+	// the next update and status follow it. Main clears it.
+	manifest.SourceRef = src.ref
 	if err := manifest.save(e.configDir); err != nil {
 		return fmt.Errorf("failed to write %s: %w", manifestPath(e.configDir), err)
 	}
@@ -191,6 +197,7 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 	if previous != "" && sha != "" && previous != sha && skipped == 0 {
 		fmt.Fprintf(io.Out, "  revision %s → %s\n", shortSHA(previous), shortSHA(sha))
 	}
+	printPin(ctx, src.ref)
 
 	return nil
 }

@@ -18,7 +18,10 @@ func newStatus() *cobra.Command {
 		short = "Show the installed Fly agent skills and whether an update is available"
 		long  = `Show, for every coding agent the Fly skills are installed into, the revision
 installed and any files modified since, and whether a newer revision is
-available upstream.`
+available upstream.
+
+An install pinned with --ref is compared against that branch, tag or commit.
+Pass --ref here to compare against another one without changing the pin.`
 	)
 
 	cmd := command.New("status", short, long, runStatus)
@@ -36,7 +39,7 @@ func addStatusFlags(cmd *cobra.Command) {
 			Description: "Do not contact GitHub to check for a newer revision",
 		},
 	)
-	addSourceFlags(cmd, false)
+	addSourceFlags(cmd, statusRefDescription)
 }
 
 // statusSkill is one skill's status in one target.
@@ -61,7 +64,11 @@ type statusReport struct {
 	SourceSHA string `json:"source_sha,omitempty"`
 	// ArchiveSHA256 is the hex digest of the archive the installed files
 	// came from.
-	ArchiveSHA256   string         `json:"archive_sha256,omitempty"`
+	ArchiveSHA256 string `json:"archive_sha256,omitempty"`
+	// SourceRef is the pin recorded by install or update; empty tracks main.
+	SourceRef string `json:"source_ref,omitempty"`
+	// CheckedRef is the branch, tag or commit LatestSHA is the head of.
+	CheckedRef      string         `json:"checked_ref"`
 	LatestSHA       string         `json:"latest_sha,omitempty"`
 	UpdateAvailable bool           `json:"update_available"`
 	Targets         []statusTarget `json:"targets"`
@@ -83,10 +90,16 @@ func runStatus(ctx context.Context) error {
 		return fmt.Errorf("failed to read %s: %w", manifestPath(e.configDir), err)
 	}
 
+	// Status reads the pin but never writes it: --ref here only changes
+	// what this run compares against.
+	src := sourceFromFlags(ctx, manifest)
+
 	report := statusReport{
 		Installed:     manifest.hasInstalledSkills(),
 		SourceSHA:     manifest.SourceSHA,
 		ArchiveSHA256: manifest.ArchiveSHA256,
+		SourceRef:     manifest.SourceRef,
+		CheckedRef:    src.refOrDefault(),
 		LatestSHA:     manifest.LatestSHA,
 	}
 
@@ -122,9 +135,11 @@ func runStatus(ctx context.Context) error {
 		}
 	}
 
-	if report.Installed && !flag.GetBool(ctx, "offline") {
+	// A ref that is already a commit SHA needs no lookup, so it is honoured
+	// even offline.
+	if report.Installed && (src.pinned() || !flag.GetBool(ctx, "offline")) {
 		io.StartProgressIndicatorMsg("Checking for the latest Fly skills")
-		latest, err := fetchLatestSHA(ctx, sourceFromFlags(ctx))
+		latest, err := fetchLatestSHA(ctx, src)
 		io.StopProgressIndicator()
 		if err != nil {
 			fmt.Fprintf(io.ErrOut, "%s Could not check upstream: %v\n", colorize.WarningIcon(), err)
@@ -176,13 +191,21 @@ func runStatus(ctx context.Context) error {
 	if report.ArchiveSHA256 != "" {
 		fmt.Fprintf(io.Out, "Archive sha256 %s\n", colorize.Gray(report.ArchiveSHA256))
 	}
+	printPin(ctx, report.SourceRef)
+	upstream := "upstream"
+	switch {
+	case src.pinned():
+		upstream = "the pinned commit"
+	case src.ref != "":
+		upstream = src.ref
+	}
 	switch {
 	case report.LatestSHA == "":
-		fmt.Fprintf(io.Out, "Upstream revision unknown.\n")
+		fmt.Fprintf(io.Out, "Revision of %s unknown.\n", upstream)
 	case report.UpdateAvailable:
-		fmt.Fprintf(io.Out, "%s A newer revision is available upstream (%s). Run %s.\n", colorize.Yellow("!"), shortSHA(report.LatestSHA), colorize.Cyan("fly skills update"))
+		fmt.Fprintf(io.Out, "%s A newer revision is available on %s (%s). Run %s.\n", colorize.Yellow("!"), upstream, shortSHA(report.LatestSHA), colorize.Cyan("fly skills update"))
 	default:
-		fmt.Fprintf(io.Out, "%s Up to date with upstream (%s).\n", colorize.SuccessIcon(), shortSHA(report.LatestSHA))
+		fmt.Fprintf(io.Out, "%s Up to date with %s (%s).\n", colorize.SuccessIcon(), upstream, shortSHA(report.LatestSHA))
 	}
 
 	return nil

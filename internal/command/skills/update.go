@@ -17,7 +17,10 @@ func newUpdate() *cobra.Command {
 		long  = `Re-download the Fly agent skills and refresh every file that is still as
 installed. Files you have edited are left alone and listed; pass --force to
 overwrite them. Only agents the skills were previously installed into are
-updated unless --agent is given.`
+updated unless --agent is given.
+
+An install pinned with --ref stays on that branch, tag or commit until you
+pass --ref main.`
 	)
 
 	cmd := command.New("update", short, long, runUpdate)
@@ -34,7 +37,7 @@ updated unless --agent is given.`
 			Description: "Overwrite files you have modified locally instead of skipping them",
 		},
 	)
-	addSourceFlags(cmd, true)
+	addSourceFlags(cmd, installRefDescription)
 
 	return cmd
 }

@@ -16,7 +16,8 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const agentFlagDescription = "Only act on the named agent(s) instead of every detected one. " +
+const agentFlagDescription = "Act on exactly the named agent(s) instead of detecting them; " +
+	"include universal to write ~/.agents/skills. " +
 	"One of: universal, claude-code, codex, cursor, opencode, copilot, factory-droid, pi, antigravity. " +
 	"Can be repeated or comma-separated."
 
@@ -26,9 +27,11 @@ func New() *cobra.Command {
 		short = "Manage the Fly agent skills installed into local coding agents"
 		long  = `Install, update and remove the Fly agent skills from github.com/superfly/skills.
 
-Skills are always installed into ~/.agents/skills and additionally into the
-global skills directory of every detected coding agent: Claude Code, Codex,
-Cursor, OpenCode, GitHub Copilot, Factory Droid, Pi and Antigravity.
+Skills are installed into ~/.agents/skills and into the global skills
+directory of every detected coding agent: Claude Code, Codex, Cursor,
+OpenCode, GitHub Copilot, Factory Droid, Pi and Antigravity. With --agent,
+exactly the agents you name are written, so include universal to write
+~/.agents/skills.
 
 Without a subcommand this shows the installed revision per agent and whether
 a newer revision is available upstream.`
@@ -49,16 +52,22 @@ a newer revision is available upstream.`
 	return cmd
 }
 
-// addSourceFlags adds the flags that point installs at a different branch,
-// commit or tarball. --ref is shown where showRef is set; --tarball stays
-// hidden. The FLY_SKILLS_REF and FLY_SKILLS_TARBALL environment variables do
-// the same for scripted use.
-func addSourceFlags(cmd *cobra.Command, showRef bool) {
+const (
+	installRefDescription = "Install from a branch, tag or commit SHA of " + skillsRepo + ". " +
+		"The pin is remembered by later update and status runs; pass --ref " + skillsRef + " to track " + skillsRef + " again."
+	statusRefDescription = "Compare against a branch, tag or commit SHA of " + skillsRepo + " " +
+		"instead of the remembered pin or " + skillsRef + ". Does not change the pin."
+)
+
+// addSourceFlags adds the flags that point a run at a different branch,
+// commit or tarball, with refDescription explaining --ref for that command.
+// --tarball stays hidden. The FLY_SKILLS_REF and FLY_SKILLS_TARBALL
+// environment variables do the same for scripted use.
+func addSourceFlags(cmd *cobra.Command, refDescription string) {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "ref",
-			Description: "Install from a branch, tag or commit SHA of " + skillsRepo + " instead of " + skillsRef + ". Use a tag or SHA to pin.",
-			Hidden:      !showRef,
+			Description: refDescription,
 		},
 		flag.String{
 			Name:        "tarball",
@@ -68,16 +77,52 @@ func addSourceFlags(cmd *cobra.Command, showRef bool) {
 	)
 }
 
-func sourceFromFlags(ctx context.Context) source {
-	src := sourceFromEnv()
-	if ref := flag.GetString(ctx, "ref"); ref != "" {
-		src.ref = ref
+// resolveRef picks the branch, tag or commit to act on. An explicit --ref
+// beats FLY_SKILLS_REF, which beats the pin recorded in the manifest, which
+// beats main. The result is "" for main, so naming main clears a pin.
+func resolveRef(ctx context.Context, manifest *Manifest) string {
+	switch {
+	case flag.IsSpecified(ctx, "ref"):
+		return normalizeRef(flag.GetString(ctx, "ref"))
+	case os.Getenv(envRef) != "":
+		return normalizeRef(os.Getenv(envRef))
+	case manifest != nil:
+		return normalizeRef(manifest.SourceRef)
 	}
+
+	return ""
+}
+
+func normalizeRef(ref string) string {
+	ref = strings.TrimSpace(ref)
+	if ref == skillsRef {
+		return ""
+	}
+
+	return ref
+}
+
+// sourceFromFlags builds the download source for this run from the flags,
+// the environment and the manifest's recorded pin.
+func sourceFromFlags(ctx context.Context, manifest *Manifest) source {
+	src := sourceFromEnv()
+	src.ref = resolveRef(ctx, manifest)
 	if tarball := flag.GetString(ctx, "tarball"); tarball != "" {
 		src.tarball = tarball
 	}
 
 	return src
+}
+
+// printPin says which ref is in effect when it is not main, and how to go
+// back to tracking main.
+func printPin(ctx context.Context, ref string) {
+	if ref == "" {
+		return
+	}
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.Out, "Pinned to %s (pass %s to track %s).\n", colorize.Cyan(ref), colorize.Cyan("--ref "+skillsRef), skillsRef)
 }
 
 // env is everything the subcommands need to know about where things live.
