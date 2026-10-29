@@ -1,14 +1,22 @@
 package feedback
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -75,5 +83,104 @@ func TestReadNote(t *testing.T) {
 
 		_, err := readNote(ctx, nil)
 		require.ErrorContains(t, err, "note is required")
+	})
+}
+
+func newRunContext(t *testing.T, args []string, stdin string, jsonOutput bool, client *mock.UiexClient) (context.Context, *bytes.Buffer) {
+	t.Helper()
+
+	ios, in, out, _ := iostreams.Test()
+	in.WriteString(stdin)
+
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flags.String("category", "", "")
+	flags.String("request-id", "", "")
+	flags.String("url", "", "")
+	require.NoError(t, flags.Parse(args))
+
+	ctx := iostreams.NewContext(context.Background(), ios)
+	ctx = config.NewContext(ctx, &config.Config{JSONOutput: jsonOutput})
+	ctx = flagctx.NewContext(ctx, flags)
+	ctx = uiexutil.NewContextWithClient(ctx, client)
+
+	return ctx, out
+}
+
+func TestRun(t *testing.T) {
+	t.Run("submits the report and prints the ID", func(t *testing.T) {
+		var got uiex.FeedbackRequest
+		ctx, out := newRunContext(t,
+			[]string{"--category", "bug", "--request-id", "req-1", "--url", "https://fly.io"},
+			"it broke\n", false,
+			&mock.UiexClient{
+				SubmitFeedbackFunc: func(_ context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+					got = in
+					return &uiex.FeedbackResponse{FeedbackID: "fb-1"}, nil
+				},
+			})
+
+		require.NoError(t, run(ctx))
+		assert.Equal(t, uiex.FeedbackRequest{Category: "bug", Note: "it broke", RequestID: "req-1", URL: "https://fly.io"}, got)
+		assert.Equal(t, "Thanks! Feedback submitted (ID: fb-1)\n", out.String())
+	})
+
+	t.Run("reports an already submitted duplicate", func(t *testing.T) {
+		ctx, out := newRunContext(t,
+			[]string{"--category", "other", "--url", "https://fly.io", "a note"},
+			"", false,
+			&mock.UiexClient{
+				SubmitFeedbackFunc: func(_ context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+					assert.Equal(t, "a note", in.Note)
+					return &uiex.FeedbackResponse{FeedbackID: "fb-1", AlreadySubmitted: true}, nil
+				},
+			})
+
+		require.NoError(t, run(ctx))
+		assert.Equal(t, "This feedback was already submitted (ID: fb-1)\n", out.String())
+	})
+
+	t.Run("json output", func(t *testing.T) {
+		ctx, out := newRunContext(t,
+			[]string{"--category", "bug", "--request-id", "req-1"},
+			"it broke", true,
+			&mock.UiexClient{
+				SubmitFeedbackFunc: func(context.Context, uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+					return &uiex.FeedbackResponse{FeedbackID: "fb-1"}, nil
+				},
+			})
+
+		require.NoError(t, run(ctx))
+
+		var res uiex.FeedbackResponse
+		require.NoError(t, json.Unmarshal(out.Bytes(), &res))
+		assert.Equal(t, uiex.FeedbackResponse{FeedbackID: "fb-1"}, res)
+	})
+
+	t.Run("propagates API errors", func(t *testing.T) {
+		ctx, out := newRunContext(t,
+			[]string{"--category", "bug", "--request-id", "req-1"},
+			"it broke", false,
+			&mock.UiexClient{
+				SubmitFeedbackFunc: func(context.Context, uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+					return nil, errors.New("boom")
+				},
+			})
+
+		require.ErrorContains(t, run(ctx), "boom")
+		assert.Empty(t, out.String())
+	})
+
+	t.Run("invalid flags never reach the API", func(t *testing.T) {
+		ctx, _ := newRunContext(t,
+			[]string{"--category", "praise", "--request-id", "req-1", "note"},
+			"", false,
+			&mock.UiexClient{
+				SubmitFeedbackFunc: func(context.Context, uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+					t.Fatal("SubmitFeedback should not be called")
+					return nil, nil
+				},
+			})
+
+		require.ErrorContains(t, run(ctx), "invalid --category")
 	})
 }
