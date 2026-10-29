@@ -139,6 +139,9 @@ func downloadTarball(ctx context.Context, src source, sha string) ([]byte, error
 	if !isURL(location) {
 		return os.ReadFile(location)
 	}
+	if strings.HasPrefix(location, "http://") {
+		return nil, fmt.Errorf("refusing to download Fly skills over http: %s", location)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
 	if err != nil {

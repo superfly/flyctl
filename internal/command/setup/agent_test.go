@@ -28,7 +28,14 @@ import (
 )
 
 func TestHelpRecordsInstallerContract(t *testing.T) {
-	require.Contains(t, newAgent().Long, "FLY_SETUP_EMBEDDED=1 fly setup agent -y")
+	long := newAgent().Long
+	require.Contains(t, long, "FLY_SETUP_EMBEDDED=1 fly setup agent -y")
+	require.Contains(t, long, "whitespace-only")
+	require.Contains(t, long, "XDG_CONFIG_HOME")
+	require.Contains(t, long, "CODEX_HOME")
+	require.Contains(t, long, "CLAUDE_CONFIG_DIR")
+	require.Contains(t, long, "COPILOT_HOME")
+	require.Contains(t, long, "exits non-zero")
 }
 
 func TestYesSkipsPromptOnATTY(t *testing.T) {
@@ -168,10 +175,14 @@ func TestEmbeddedJSONOmitsHints(t *testing.T) {
 }
 
 func TestLoginFailureDoesNotBlockSetup(t *testing.T) {
-	ctx, home, flags, _, out, _ := harness(t, loggedOut())
+	ctx, home, flags, streams, out, _ := harness(t, loggedOut())
 	mkdirAgent(t, home, "claude-code")
+	streams.SetStdinTTY(true)
 	require.NoError(t, flags.Set("yes", "true"))
 	loginFn = func(context.Context) error {
+		// Writes finish before the browser login starts.
+		require.FileExists(t, filepath.Join(home, ".claude.json"))
+		require.FileExists(t, filepath.Join(home, ".claude", "skills", "fly", "SKILL.md"))
 		return errors.New("browser closed")
 	}
 
@@ -183,8 +194,9 @@ func TestLoginFailureDoesNotBlockSetup(t *testing.T) {
 }
 
 func TestJSONLoginWritesToStderr(t *testing.T) {
-	ctx, home, flags, _, out, errOut := harness(t, loggedOut())
+	ctx, home, flags, streams, out, errOut := harness(t, loggedOut())
 	mkdirAgent(t, home, "claude-code")
+	streams.SetStdinTTY(true)
 	require.NoError(t, flags.Set("yes", "true"))
 	require.NoError(t, flags.Set("json", "true"))
 	loginFn = func(ctx context.Context) error {
@@ -399,6 +411,9 @@ func harness(t *testing.T, client ...flyutil.Client) (context.Context, string, *
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))
+	for _, key := range []string{"CODEX_HOME", "CLAUDE_CONFIG_DIR", "COPILOT_HOME", "XDG_CONFIG_HOME"} {
+		clearSetupEnv(t, key)
+	}
 	// ReadAccessToken locks flyctl.ConfigDir(), which is a process global.
 	// Point it at the temp home so a logged-out run does not drop a lock
 	// file in the package directory.
@@ -430,6 +445,16 @@ func harness(t *testing.T, client ...flyutil.Client) (context.Context, string, *
 	ctx = flag.NewContext(ctx, flags)
 
 	return ctx, home, flags, streams, &out, &errOut
+}
+
+func clearSetupEnv(t *testing.T, key string) {
+	t.Helper()
+	value, ok := os.LookupEnv(key)
+	if !ok {
+		return
+	}
+	require.NoError(t, os.Unsetenv(key))
+	t.Cleanup(func() { _ = os.Setenv(key, value) })
 }
 
 func silenceHooks(t *testing.T) {

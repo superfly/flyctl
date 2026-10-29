@@ -64,10 +64,21 @@ are left alone. This command's --force does not overwrite those files; use
 'fly skills install --force' for that.
 
 The MCP server entry is named "fly" and stores only the URL. No access
-tokens, client IDs or secrets are written. An entry that already points at
-https://mcp.fly.io is left as it is. An entry that points somewhere else is
-left as it is unless --force is passed. A config file that cannot be parsed
-is left untouched and that agent is reported; the others are still set up.
+tokens, client IDs or secrets are written. Config files are written before
+sign-in, so a login that waits on the browser cannot block them.
+
+An entry is already configured only when it matches the shape this command
+would write: the right type, the hosted URL (a trailing slash does not
+matter), Copilot's tools list when that client requires one, and not
+disabled or enabled: false. Extra keys such as headers are kept. Anything
+else is a conflict. --force repairs the keys this command owns and leaves
+the extra keys in place. A config file that cannot be parsed is left
+untouched and that agent is reported; the others are still set up. An empty
+or whitespace-only file, including one that is only a UTF-8 BOM, counts as
+missing and is created. A BOM in front of real JSON is kept.
+
+A symlinked config file is updated at its target so the link stays in place,
+and the summary prints that resolved path.
 
 Detected agents get that entry in their global config: Claude Code
 (~/.claude.json), Cursor (~/.cursor/mcp.json), Codex (~/.codex/config.toml),
@@ -77,10 +88,27 @@ Antigravity (~/.gemini/config/mcp_config.json). Pi and the universal
 ~/.agents target receive skills only. Pi has no stable global MCP config
 that this command writes.
 
-If you are not signed in, you are offered 'fly auth login' and
-'fly auth signup'. -y runs login. A failed login does not stop the skills
-or MCP setup; it is reported at the end. The first MCP call from an agent
-opens a browser to authorize https://mcp.fly.io.
+CODEX_HOME, CLAUDE_CONFIG_DIR and COPILOT_HOME are honored when set, and
+the resolved path is printed for each agent. XDG_CONFIG_HOME is not:
+OpenCode's docs place its global config at ~/.config/opencode/opencode.json
+and do not mention that variable. Cursor, Factory Droid, Antigravity and Pi
+have no confirmed override for the file this command writes.
+
+OpenCode configs that already use the v2 mcp.servers object get
+mcp.servers.fly. Other OpenCode configs get mcp.fly.
+
+If you are not signed in, an interactive terminal offers 'fly auth login'
+and 'fly auth signup' after the files are written. -y on a terminal runs
+login after the files are written. Embedded mode and a non-TTY stdin do not
+start the browser login. A failed login does not stop the skills or MCP
+setup; it is reported at the end. The first MCP call from an agent opens a
+browser to authorize https://mcp.fly.io.
+
+The command exits non-zero when skills could not be installed, when an
+agent named with --agent failed, or when nothing was installed or
+configured. An MCP entry that is already correct, or that was left unchanged
+because it points somewhere else, does not by itself fail the command. A
+failed login does not either.
 
 The installer script runs this command with the banner and the restart hint
 suppressed, one line per agent:
@@ -100,7 +128,7 @@ Pass --json to print the same summary as JSON.`
 		},
 		flag.Bool{
 			Name:        "force",
-			Description: "Overwrite an existing fly MCP entry that points somewhere other than https://mcp.fly.io",
+			Description: "Repair a fly MCP entry whose type, URL, tools, or enabled state does not match. Extra keys such as headers are kept",
 		},
 		flag.Bool{
 			Name:        "skip-mcp",
@@ -169,6 +197,7 @@ func runAgent(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	tools = prepareTools(home, tools, explicit)
 	if !quiet {
 		printPlan(streams.Out, streams.ColorScheme(), home, tools, skipSkills, skipMCP)
 	}
@@ -176,8 +205,10 @@ func runAgent(ctx context.Context) error {
 		return err
 	}
 
-	authReport := ensureAuth(ctx, streams, flag.GetBool(ctx, "skip-login"), assumeYes, quiet)
+	// Write skills and MCP before sign-in. Browser login can wait a long
+	// time, and a hang or a killed process must not leave the configs unwritten.
 	agents := applySetup(ctx, home, tools, skipSkills, skipMCP, flag.GetBool(ctx, "force"), quiet)
+	authReport := ensureAuth(ctx, streams, flag.GetBool(ctx, "skip-login"), assumeYes, quiet)
 	rep := makeReport(agents, authReport, embedded)
 	exitErr := decideExit(agents, explicit)
 	rep.OK = exitErr == nil
@@ -192,7 +223,7 @@ func runAgent(ctx context.Context) error {
 		return exitErr
 	}
 	if embedded {
-		printEmbedded(streams.Out, rep)
+		printEmbedded(streams.Out, streams.ErrOut, rep)
 	} else {
 		printHuman(streams.Out, streams.ColorScheme(), rep)
 	}
@@ -231,6 +262,13 @@ func ensureAuth(ctx context.Context, streams *iostreams.IOStreams, skip, assumeY
 		return signedIn(streams, email, quiet)
 	case !errors.Is(err, errNotSignedIn):
 		return authResult{Error: oneLine(err.Error())}
+	}
+
+	// A non-TTY stdin, including the installer and CI, cannot complete the
+	// browser login. Embedded mode keeps one line per agent on stdout, so it
+	// does not start that login either. Both still write configs first.
+	if embeddedMode() || !streams.IsStdinTTY() {
+		return authResult{Skipped: true}
 	}
 
 	action, authErr := chooseAuth(ctx, assumeYes)
@@ -292,10 +330,11 @@ func chooseAuth(ctx context.Context, assumeYes bool) (string, error) {
 	}
 }
 
-// callAuth runs login or signup. --json moves that flow's stdout onto stderr
-// so a "successfully logged in" line cannot break the JSON document.
+// callAuth runs login or signup. --json and embedded mode move that flow's
+// stdout onto stderr so a "successfully logged in" line cannot break the
+// one-line or JSON contract.
 func callAuth(ctx context.Context, streams *iostreams.IOStreams, fn func(context.Context) error) error {
-	if !flag.GetBool(ctx, "json") || streams.ErrOut == nil {
+	if (!flag.GetBool(ctx, "json") && !embeddedMode()) || streams.ErrOut == nil {
 		return fn(ctx)
 	}
 	saved := streams.Out
@@ -387,9 +426,13 @@ func makeReport(agents []agentResult, auth authResult, embedded bool) report {
 func decideExit(agents []agentResult, explicit bool) error {
 	var failed []string
 	success := false
+	skillsFailed := 0
 	for _, agent := range agents {
 		if agent.Skills == skillsInstalled || agent.MCP == statusConfigured || agent.MCP == statusAlready {
 			success = true
+		}
+		if agent.Skills == statusFailed {
+			skillsFailed++
 		}
 		if explicit && (agent.Skills == statusFailed || agent.MCP == statusFailed) {
 			failed = append(failed, agent.Name)
@@ -397,6 +440,11 @@ func decideExit(agents []agentResult, explicit bool) error {
 	}
 	if len(failed) > 0 {
 		return fmt.Errorf("setup failed for %s", strings.Join(failed, ", "))
+	}
+	// One InstallInto error marks every agent. A successful MCP write does
+	// not make that a successful setup.
+	if len(agents) > 0 && skillsFailed == len(agents) {
+		return errors.New("setup failed to install skills")
 	}
 	if !success {
 		return errors.New("setup did not install skills or configure MCP for any agent")
@@ -429,7 +477,7 @@ func mcpPlan(home, slug string, skip bool) string {
 		return "skipped (--skip-mcp)"
 	}
 	if client, ok := clientFor(slug); ok {
-		return client.path(home)
+		return annotatePath(client.path(home))
 	}
 
 	return skillsOnlyDetail(slug)
@@ -443,26 +491,23 @@ func printHuman(out io.Writer, colorize *iostreams.ColorScheme, rep report) {
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, rep.RestartHint)
 	fmt.Fprintln(out, rep.AuthorizeHint)
-	printAuthFooter(out, rep, false)
+	printAuthFooter(out, rep)
 }
 
-func printEmbedded(out io.Writer, rep report) {
+func printEmbedded(out, errOut io.Writer, rep report) {
 	for _, agent := range rep.Agents {
 		fmt.Fprintln(out, agentLine(agent))
 	}
-	printAuthFooter(out, rep, true)
+	if rep.Auth.Error != "" && errOut != nil {
+		fmt.Fprintf(errOut, "Sign-in failed: %s\n", rep.Auth.Error)
+	}
 }
 
-func printAuthFooter(out io.Writer, rep report, embedded bool) {
+func printAuthFooter(out io.Writer, rep report) {
 	switch {
 	case rep.Auth.Error != "":
-		if embedded {
-			fmt.Fprintf(out, "Sign-in failed: %s\n", rep.Auth.Error)
-
-			return
-		}
 		fmt.Fprintf(out, "Sign-in failed: %s. Skills and MCP setup were not blocked.\n", rep.Auth.Error)
-	case rep.Auth.Skipped && !embedded:
+	case rep.Auth.Skipped:
 		fmt.Fprintln(out, authSkipHint)
 	}
 }

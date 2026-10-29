@@ -2,7 +2,6 @@ package setup
 
 import (
 	"encoding/json"
-	"path/filepath"
 )
 
 // hostedMCPURL is the plain hosted Fly MCP server. Clients that speak MCP
@@ -36,7 +35,8 @@ const (
 //	Claude Code     ~/.claude.json                         type http + url
 //	Cursor          ~/.cursor/mcp.json                     url (Cursor infers HTTP)
 //	Codex           ~/.codex/config.toml                   [mcp_servers.fly] url
-//	OpenCode        ~/.config/opencode/opencode.json       mcp.fly type remote
+//	OpenCode        ~/.config/opencode/opencode.json       mcp.fly, or mcp.servers.fly
+//	                                                       when the file already uses mcp.servers
 //	GitHub Copilot  ~/.copilot/mcp-config.json             type http + url + tools
 //	Factory Droid   ~/.factory/mcp.json                    type http + url
 //	Antigravity     ~/.gemini/config/mcp_config.json       serverUrl
@@ -53,14 +53,6 @@ type mcpClient struct {
 	// preference order. Antigravity's documented key is serverUrl; url is
 	// accepted so an already-correct url entry is not treated as a conflict.
 	urlKeys []string
-}
-
-func (c mcpClient) path(home string) string {
-	parts := make([]string, 0, len(c.rel)+1)
-	parts = append(parts, home)
-	parts = append(parts, c.rel...)
-
-	return filepath.Join(parts...)
 }
 
 func (c mcpClient) entryJSON() ([]byte, error) {

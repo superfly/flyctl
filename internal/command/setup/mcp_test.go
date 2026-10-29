@@ -247,7 +247,7 @@ func TestCodexConflictRefused(t *testing.T) {
 func TestCodexForceReplacesTableOnly(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, ".codex", "config.toml")
-	original := []byte("# keep me\n\n[mcp_servers.fly]\nurl = \"https://example.com\"\nbearer_token = \"super-secret\"\n\n[profiles.ada]\n# comment stays\nname = \"ada\"\n")
+	original := []byte("# keep me\n\n[mcp_servers.fly]\nurl = \"https://example.com\"\nnote = \"keep-me\"\n\n[profiles.ada]\n# comment stays\nname = \"ada\"\n")
 	writeExisting(t, path, original, 0o644)
 
 	out := configureMCP(home, "codex", true, false)
@@ -256,8 +256,8 @@ func TestCodexForceReplacesTableOnly(t *testing.T) {
 	require.Contains(t, string(next), "# keep me")
 	require.Contains(t, string(next), "# comment stays")
 	require.Contains(t, string(next), "name = \"ada\"")
-	require.NotContains(t, string(next), "super-secret")
-	require.NotContains(t, string(next), "bearer_token")
+	require.Contains(t, string(next), "note = \"keep-me\"")
+	require.NotContains(t, string(next), "https://example.com")
 	assertCodex(t, next, hostedMCPURL, "", "ada")
 	assertNoSecrets(t, next)
 }
@@ -271,6 +271,9 @@ func TestCodexInlineTableIsNotRewritten(t *testing.T) {
 	out := configureMCP(home, "codex", true, false)
 	require.Equal(t, statusFailed, out.Status)
 	require.Error(t, out.Err)
+	require.Contains(t, out.Err.Error(), "manually")
+	require.NotContains(t, strings.ToLower(out.Err.Error()), "could not parse")
+	require.NotContains(t, strings.ToLower(out.Err.Error()), "unparseable")
 	require.Equal(t, original, readFile(t, path))
 }
 

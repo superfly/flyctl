@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -470,6 +471,13 @@ func TestSourceURLs(t *testing.T) {
 
 	local := source{repo: skillsRepo, tarball: "/tmp/skills.tar.gz"}
 	assert.Equal(t, "/tmp/skills.tar.gz", local.tarballURL("whatever"))
+}
+
+func TestDownloadRejectsHTTP(t *testing.T) {
+	_, err := downloadTarball(context.Background(), source{tarball: "http://example.com/skills.tar.gz"}, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "http://")
+	assert.Contains(t, err.Error(), "refusing")
 }
 
 func TestValidSkillName(t *testing.T) {

@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -9,6 +10,10 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 )
+
+// errManualEdit means the fly server is present but not as a standalone
+// [mcp_servers.fly] table. The file parses; it just cannot be edited safely.
+var errManualEdit = errors.New("can't safely edit; edit manually")
 
 var (
 	flyHeaderRe = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\.\s*fly\s*\]\s*(?:#.*)?$`)
@@ -32,7 +37,7 @@ func mergeCodexBytes(original []byte, force bool) (out []byte, status string, er
 	}
 
 	url, present := codexFlyURL(root)
-	if present && url == hostedMCPURL {
+	if present && urlsMatch(url, hostedMCPURL) {
 		return nil, statusAlready, nil
 	}
 	if present && !force {
@@ -41,12 +46,9 @@ func mergeCodexBytes(original []byte, force bool) (out []byte, status string, er
 
 	var next []byte
 	if present {
-		replaced, ok, err := replaceCodexTable(original)
+		replaced, err := updateCodexSection(original)
 		if err != nil {
 			return nil, "", err
-		}
-		if !ok {
-			return nil, "", fmt.Errorf("[mcp_servers.fly] in the Codex config is not a table this command can replace without rewriting the file")
 		}
 		next = replaced
 	} else {
@@ -105,9 +107,11 @@ func appendCodexTable(original []byte) []byte {
 	return append(out, codexTable(nl)...)
 }
 
-// replaceCodexTable swaps the [mcp_servers.fly] section for the hosted entry
-// and copies every other line through unchanged.
-func replaceCodexTable(original []byte) ([]byte, bool, error) {
+// updateCodexSection rewrites url lines inside the standalone
+// [mcp_servers.fly] table and leaves every other line, including extra keys,
+// comments and the following tables. An inline table is not a section this
+// can cut safely, so it returns errManualEdit instead of a parse error.
+func updateCodexSection(original []byte) ([]byte, error) {
 	nl := lineEnding(original)
 	lines := splitLines(string(original))
 	start := -1
@@ -118,7 +122,7 @@ func replaceCodexTable(original []byte) ([]byte, bool, error) {
 		}
 	}
 	if start < 0 {
-		return nil, false, nil
+		return nil, errManualEdit
 	}
 
 	end := len(lines)
@@ -130,18 +134,63 @@ func replaceCodexTable(original []byte) ([]byte, bool, error) {
 	}
 
 	var b strings.Builder
-	for i := 0; i < start; i++ {
+	for i := 0; i <= start; i++ {
 		b.WriteString(lines[i])
 	}
-	if built := b.String(); built != "" && !strings.HasSuffix(built, nl) {
+	if !strings.HasSuffix(lines[start], "\n") {
 		b.WriteString(nl)
 	}
-	b.WriteString(codexTable(nl))
+	sawURL := false
+	for i := start + 1; i < end; i++ {
+		if isCodexURLLine(lines[i]) {
+			b.WriteString(rewriteCodexURLLine(lines[i], nl))
+			sawURL = true
+
+			continue
+		}
+		b.WriteString(lines[i])
+	}
+	if !sawURL {
+		b.WriteString("url = " + strconv.Quote(hostedMCPURL) + nl)
+	}
 	for i := end; i < len(lines); i++ {
 		b.WriteString(lines[i])
 	}
 
-	return []byte(b.String()), true, nil
+	return []byte(b.String()), nil
+}
+
+func isCodexURLLine(line string) bool {
+	trimmed := strings.TrimSpace(strings.TrimRight(line, "\r\n"))
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return false
+	}
+	key, _, ok := strings.Cut(trimmed, "=")
+
+	return ok && strings.TrimSpace(key) == "url"
+}
+
+func rewriteCodexURLLine(line, nl string) string {
+	indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+	ending := ""
+	body := line
+	switch {
+	case strings.HasSuffix(body, "\r\n"):
+		ending = "\r\n"
+		body = strings.TrimSuffix(body, "\r\n")
+	case strings.HasSuffix(body, "\n"):
+		ending = "\n"
+		body = strings.TrimSuffix(body, "\n")
+	}
+	comment := ""
+	if i := strings.Index(body, "#"); i >= 0 {
+		comment = " " + strings.TrimSpace(body[i:])
+	}
+	if ending == "" {
+		ending = nl
+	}
+
+	return indent + "url = " + strconv.Quote(hostedMCPURL) + comment + ending
 }
 
 func splitLines(text string) []string {
