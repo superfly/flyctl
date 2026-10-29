@@ -20,6 +20,10 @@ const agentFlagDescription = "Only act on the named agent(s) instead of every de
 	"One of: universal, claude-code, codex, cursor, opencode, copilot, factory-droid, pi, antigravity. " +
 	"Can be repeated or comma-separated."
 
+// AgentFlagDescription is the --agent help text shared with fly setup agent,
+// so the two commands accept the same slugs.
+const AgentFlagDescription = agentFlagDescription
+
 // New initializes and returns a new skills Command.
 func New() *cobra.Command {
 	const (

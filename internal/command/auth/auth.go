@@ -2,6 +2,8 @@
 package auth
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -29,4 +31,14 @@ If you do have an account, begin with the AUTH LOGIN subcommand.
 	)
 
 	return auth
+}
+
+// RunLogin runs the same flow as `fly auth login` with no extra flags.
+func RunLogin(ctx context.Context) error {
+	return runLogin(ctx)
+}
+
+// RunSignup runs the same flow as `fly auth signup`.
+func RunSignup(ctx context.Context) error {
+	return runSignup(ctx)
 }

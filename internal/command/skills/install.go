@@ -79,23 +79,64 @@ func runInstall(ctx context.Context) error {
 		}
 	}
 
-	return syncSkills(ctx, e, targets, "installed", flag.GetBool(ctx, "force"))
+	_, err = syncSkillsReport(ctx, e, targets, "installed", flag.GetBool(ctx, "force"), false)
+
+	return err
+}
+
+// SyncReport is what a skills install or update did, per target.
+type SyncReport struct {
+	SHA     string
+	Changed int
+	Skipped int
+	Targets []TargetSync
+}
+
+// TargetSync is one target's outcome. Status is "installed", "updated",
+// "up to date", "kept local changes", or one of those with ", kept local
+// changes" appended when some files were written and some were left alone.
+type TargetSync struct {
+	Slug      string
+	ToolName  string
+	SkillsDir string
+	Status    string
+}
+
+// SyncSkills downloads the Fly agent skills and installs them into targets.
+// quiet suppresses the per-target lines and the closing summary; the report
+// still describes what changed. verb names a fresh write ("installed").
+func SyncSkills(ctx context.Context, targets []Target, verb string, force, quiet bool) (*SyncReport, error) {
+	e, err := envFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return syncSkillsReport(ctx, e, targets, verb, force, quiet)
 }
 
 // syncSkills downloads the skills and applies them to every target, then
 // records the result in the manifest. verb names a fresh write in output.
 func syncSkills(ctx context.Context, e env, targets []Target, verb string, force bool) error {
+	_, err := syncSkillsReport(ctx, e, targets, verb, force, false)
+
+	return err
+}
+
+// syncSkillsReport is syncSkills with a per-target report. quiet is set by
+// fly setup agent when it prints its own summary.
+func syncSkillsReport(ctx context.Context, e env, targets []Target, verb string, force, quiet bool) (*SyncReport, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
+	report := &SyncReport{}
 
 	manifest, err := readManifest(e.configDir)
 	if err != nil {
-		return fmt.Errorf("failed to read %s: %w", manifestPath(e.configDir), err)
+		return nil, fmt.Errorf("failed to read %s: %w", manifestPath(e.configDir), err)
 	}
 
 	dl, err := fetchSkills(ctx, sourceFromFlags(ctx))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sha, skills := dl.SHA, dl.Skills
 
@@ -105,6 +146,11 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 	)
 
 	for _, t := range targets {
+		var (
+			targetChanged bool
+			targetNew     bool
+			targetSkipped bool
+		)
 		key := t.Key()
 		names := map[string]bool{}
 		for name := range skills {
@@ -121,7 +167,7 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 
 			next, res, err := applySkill(skillDir, files, rec, hasRec, sha, force)
 			if err != nil {
-				return err
+				return report, err
 			}
 			if !incoming && len(res.Skipped) == 0 {
 				manifest.deleteRecord(key, name)
@@ -134,29 +180,50 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 			switch {
 			case !incoming && len(res.Skipped) == 0:
 				changed++
-				fmt.Fprintf(io.Out, "%s %s: removed retired skill %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), colorize.Green(name), colorize.Gray(skillDir))
+				targetChanged = true
+				if !quiet {
+					fmt.Fprintf(io.Out, "%s %s: removed retired skill %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), colorize.Green(name), colorize.Gray(skillDir))
+				}
 			case res.changed() && state == NotInstalled:
 				changed++
-				fmt.Fprintf(io.Out, "%s %s: %s %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), verb, colorize.Green(name), colorize.Gray(skillDir))
+				targetChanged = true
+				targetNew = true
+				if !quiet {
+					fmt.Fprintf(io.Out, "%s %s: %s %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), verb, colorize.Green(name), colorize.Gray(skillDir))
+				}
 			case res.changed():
 				changed++
-				label := "updated"
-				if force && (state == Modified || state == Unverifiable) {
-					label = "overwrote"
+				targetChanged = true
+				if !quiet {
+					label := "updated"
+					if force && (state == Modified || state == Unverifiable) {
+						label = "overwrote"
+					}
+					fmt.Fprintf(io.Out, "%s %s: %s %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), label, colorize.Green(name), colorize.Gray(skillDir))
 				}
-				fmt.Fprintf(io.Out, "%s %s: %s %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), label, colorize.Green(name), colorize.Gray(skillDir))
 			case len(res.Skipped) == 0:
-				fmt.Fprintf(io.Out, "%s %s: %s already up to date\n", colorize.Gray("-"), t.ToolName, name)
+				if !quiet {
+					fmt.Fprintf(io.Out, "%s %s: %s already up to date\n", colorize.Gray("-"), t.ToolName, name)
+				}
 			}
 
 			if files := res.skippedFiles(); len(files) > 0 {
 				skipped++
-				fmt.Fprintf(io.Out, "%s %s: kept your local copy of %s\n", colorize.WarningIcon(), colorize.Bold(t.ToolName), colorize.Yellow(name))
-				for _, rel := range files {
-					fmt.Fprintf(io.Out, "    %s (%s)\n", joinRel(skillDir, rel), res.Skipped[rel])
+				targetSkipped = true
+				if !quiet {
+					fmt.Fprintf(io.Out, "%s %s: kept your local copy of %s\n", colorize.WarningIcon(), colorize.Bold(t.ToolName), colorize.Yellow(name))
+					for _, rel := range files {
+						fmt.Fprintf(io.Out, "    %s (%s)\n", joinRel(skillDir, rel), res.Skipped[rel])
+					}
 				}
 			}
 		}
+		report.Targets = append(report.Targets, TargetSync{
+			Slug:      t.Slug,
+			ToolName:  t.ToolName,
+			SkillsDir: t.SkillsDir,
+			Status:    skillSyncStatus(targetNew, targetChanged, targetSkipped),
+		})
 	}
 
 	// The top-level revision and archive hash describe the last download that
@@ -171,28 +238,53 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 		manifest.LastChecked = nowRFC3339()
 	}
 	if err := manifest.save(e.configDir); err != nil {
-		return fmt.Errorf("failed to write %s: %w", manifestPath(e.configDir), err)
+		return report, fmt.Errorf("failed to write %s: %w", manifestPath(e.configDir), err)
 	}
 
-	fmt.Fprintln(io.Out)
+	report.SHA = sha
+	report.Changed = changed
+	report.Skipped = skipped
+
+	if !quiet {
+		fmt.Fprintln(io.Out)
+		switch {
+		case changed > 0 && skipped > 0:
+			fmt.Fprintf(io.Out, "%s %d skill(s) %s; %d skipped because of local changes. Re-run with %s to overwrite them.\n",
+				colorize.Yellow("!"), changed, verb, skipped, colorize.Cyan("--force"))
+		case changed > 0:
+			fmt.Fprintf(io.Out, "%s Fly skills %s at %s.\n", colorize.SuccessIcon(), verb, shortSHA(sha))
+			fmt.Fprintf(io.Out, "%s You may need to restart your coding agent(s) to load them.\n", colorize.Yellow("!"))
+		case skipped > 0:
+			fmt.Fprintf(io.Out, "%s No skills were %s: every pending change touched a file you modified. Re-run with %s to overwrite them.\n",
+				colorize.Yellow("!"), verb, colorize.Cyan("--force"))
+		default:
+			fmt.Fprintf(io.Out, "%s Fly skills already up to date at %s.\n", colorize.SuccessIcon(), shortSHA(sha))
+		}
+		if previous != "" && sha != "" && previous != sha && skipped == 0 {
+			fmt.Fprintf(io.Out, "  revision %s → %s\n", shortSHA(previous), shortSHA(sha))
+		}
+	}
+
+	return report, nil
+}
+
+func skillSyncStatus(targetNew, targetChanged, targetSkipped bool) string {
+	var status string
 	switch {
-	case changed > 0 && skipped > 0:
-		fmt.Fprintf(io.Out, "%s %d skill(s) %s; %d skipped because of local changes. Re-run with %s to overwrite them.\n",
-			colorize.Yellow("!"), changed, verb, skipped, colorize.Cyan("--force"))
-	case changed > 0:
-		fmt.Fprintf(io.Out, "%s Fly skills %s at %s.\n", colorize.SuccessIcon(), verb, shortSHA(sha))
-		fmt.Fprintf(io.Out, "%s You may need to restart your coding agent(s) to load them.\n", colorize.Yellow("!"))
-	case skipped > 0:
-		fmt.Fprintf(io.Out, "%s No skills were %s: every pending change touched a file you modified. Re-run with %s to overwrite them.\n",
-			colorize.Yellow("!"), verb, colorize.Cyan("--force"))
+	case targetNew:
+		status = "installed"
+	case targetChanged:
+		status = "updated"
+	case targetSkipped:
+		status = "kept local changes"
 	default:
-		fmt.Fprintf(io.Out, "%s Fly skills already up to date at %s.\n", colorize.SuccessIcon(), shortSHA(sha))
+		status = "up to date"
 	}
-	if previous != "" && sha != "" && previous != sha && skipped == 0 {
-		fmt.Fprintf(io.Out, "  revision %s → %s\n", shortSHA(previous), shortSHA(sha))
+	if targetSkipped && status != "kept local changes" {
+		status += ", kept local changes"
 	}
 
-	return nil
+	return status
 }
 
 func plural(n int, one, many string) string {

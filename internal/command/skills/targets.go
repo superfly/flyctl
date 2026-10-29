@@ -53,6 +53,18 @@ func codingTools(home string) []CodingTool {
 	}
 }
 
+// ResolveTools picks the tools to act on. With no filter, the universal target
+// plus every tool whose parent directory exists. With a filter, exactly the
+// named slugs, in the order given. fly setup agent uses the same detection.
+func ResolveTools(home string, slugs []string) ([]CodingTool, error) {
+	return resolveTools(home, slugs)
+}
+
+// BuildTargets maps tools to the skills directories an install writes.
+func BuildTargets(tools []CodingTool) []Target {
+	return buildTargets(tools)
+}
+
 // resolveTools picks the tools to act on. With no filter, the universal target
 // plus every tool whose parent directory exists. With a filter, exactly the
 // named slugs, in the order given.
