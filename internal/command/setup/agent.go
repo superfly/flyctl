@@ -31,7 +31,9 @@ const (
 	authorizeHint = "The first MCP call opens a browser to authorize https://mcp.fly.io."
 	authSkipHint  = "Not signed in. Run `fly auth login` or `fly auth signup` when you are ready."
 
-	skillsInstalled = "installed"
+	skillsInstalled  = "installed"
+	skillsPreserved  = "preserved_local_changes"
+	skillsIncomplete = "incomplete"
 )
 
 const (
@@ -63,6 +65,12 @@ Code, Codex, Cursor, OpenCode, GitHub Copilot, Factory Droid, Pi and
 Antigravity). Use --agent to pick agents explicitly. Files you have edited
 are left alone. This command's --force does not overwrite those files; use
 'fly skills install --force' for that.
+
+Each agent gets its own skills result. A failed directory does not stop the
+other agents, and completed writes are recorded in the skills manifest.
+Preserved local edits are reported as preserved_local_changes, with the
+affected paths and reasons. Preserved local deletions leave the install
+incomplete and cause a non-zero exit; this command does not restore them.
 
 The MCP server entry is named "fly" and stores only the URL. No access
 tokens, client IDs or secrets are written. Config files are written before
@@ -167,15 +175,16 @@ type report struct {
 }
 
 type agentResult struct {
-	Slug        string `json:"slug"`
-	Name        string `json:"name"`
-	SkillsDir   string `json:"skills_dir"`
-	Skills      string `json:"skills"`
-	SkillsError string `json:"skills_error,omitempty"`
-	MCP         string `json:"mcp"`
-	MCPPath     string `json:"mcp_path,omitempty"`
-	MCPDetail   string `json:"mcp_detail,omitempty"`
-	MCPError    string `json:"mcp_error,omitempty"`
+	Slug            string                 `json:"slug"`
+	Name            string                 `json:"name"`
+	SkillsDir       string                 `json:"skills_dir"`
+	Skills          string                 `json:"skills"`
+	SkillsError     string                 `json:"skills_error,omitempty"`
+	SkillsPreserved []skills.PreservedFile `json:"skills_preserved,omitempty"`
+	MCP             string                 `json:"mcp"`
+	MCPPath         string                 `json:"mcp_path,omitempty"`
+	MCPDetail       string                 `json:"mcp_detail,omitempty"`
+	MCPError        string                 `json:"mcp_error,omitempty"`
 }
 
 type authResult struct {
@@ -427,25 +436,33 @@ func authRejected(err error) bool {
 }
 
 func applySetup(ctx context.Context, home string, tools []skills.CodingTool, skipSkills, skipMCP, force, quiet bool) []agentResult {
-	skillsStatus := skillsInstalled
+	targets := skills.BuildTargets(tools)
+	var outcomes map[string]skills.InstallResult
 	var skillsErr error
-	if skipSkills {
-		skillsStatus = statusSkipped
-	} else if err := skills.InstallInto(ctx, skills.BuildTargets(tools), "installed", false, quiet); err != nil {
-		skillsStatus = statusFailed
-		skillsErr = err
+	if !skipSkills {
+		outcomes, skillsErr = skills.InstallInto(ctx, targets, "installed", false, quiet)
 	}
 
 	agents := make([]agentResult, 0, len(tools))
-	for _, tool := range tools {
+	for i, tool := range tools {
+		outcome := outcomes[targets[i].Key()]
 		result := agentResult{
-			Slug:      tool.Slug,
-			Name:      tool.Name,
-			SkillsDir: tool.SkillsDir(),
-			Skills:    skillsStatus,
+			Slug:            tool.Slug,
+			Name:            tool.Name,
+			SkillsDir:       tool.SkillsDir(),
+			Skills:          skillsInstalled,
+			SkillsPreserved: outcome.Preserved,
 		}
-		if skillsErr != nil {
-			result.SkillsError = oneLine(skillsErr.Error())
+		switch err := errors.Join(skillsErr, outcome.Err); {
+		case skipSkills:
+			result.Skills = statusSkipped
+		case err != nil:
+			result.Skills = statusFailed
+			result.SkillsError = oneLine(err.Error())
+		case outcome.Incomplete:
+			result.Skills = skillsIncomplete
+		case len(outcome.Preserved) > 0:
+			result.Skills = skillsPreserved
 		}
 		mcp := configureMCP(home, tool.Slug, force, skipMCP)
 		result.MCP = mcp.Status
@@ -475,23 +492,23 @@ func decideExit(agents []agentResult, explicit bool) error {
 	success := false
 	skillsFailed := 0
 	for _, agent := range agents {
-		if agent.Skills == skillsInstalled || agent.MCP == statusConfigured || agent.MCP == statusAlready {
+		if agent.Skills == skillsInstalled || agent.Skills == skillsPreserved || agent.MCP == statusConfigured || agent.MCP == statusAlready {
 			success = true
 		}
 		if agent.Skills == statusFailed {
 			skillsFailed++
 		}
-		if explicit && (agent.Skills == statusFailed || agent.MCP == statusFailed) {
+		if agent.Skills == statusFailed || agent.Skills == skillsIncomplete || (explicit && agent.MCP == statusFailed) {
 			failed = append(failed, agent.Name)
 		}
 	}
-	if len(failed) > 0 {
-		return fmt.Errorf("setup failed for %s", strings.Join(failed, ", "))
-	}
-	// One InstallInto error marks every agent. A successful MCP write does
-	// not make that a successful setup.
-	if len(agents) > 0 && skillsFailed == len(agents) {
+	// Any skills failure or preserved deletion makes setup incomplete,
+	// even when another agent or the MCP phase succeeded.
+	if !explicit && len(agents) > 0 && skillsFailed == len(agents) {
 		return errors.New("setup failed to install skills")
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("setup incomplete for %s", strings.Join(failed, ", "))
 	}
 	if !success {
 		return errors.New("setup did not install skills or configure MCP for any agent")
@@ -573,7 +590,7 @@ func summaryIcon(colorize *iostreams.ColorScheme, agent agentResult) string {
 	switch {
 	case agent.Skills == statusFailed || agent.MCP == statusFailed:
 		return colorize.FailureIcon()
-	case agent.MCP == statusConflict:
+	case agent.MCP == statusConflict || agent.Skills == skillsIncomplete || agent.Skills == skillsPreserved:
 		return colorize.WarningIcon()
 	default:
 		return colorize.SuccessIcon()
@@ -582,8 +599,18 @@ func summaryIcon(colorize *iostreams.ColorScheme, agent agentResult) string {
 
 func agentLine(agent agentResult) string {
 	skills := "skills " + agent.Skills
+	if agent.Skills == skillsPreserved {
+		skills = "skills kept local changes"
+	}
 	if agent.Skills == statusFailed && agent.SkillsError != "" {
 		skills = "skills failed (" + agent.SkillsError + ")"
+	}
+	if len(agent.SkillsPreserved) > 0 {
+		var kept []string
+		for _, file := range agent.SkillsPreserved {
+			kept = append(kept, oneLine(file.Path)+" ("+oneLine(file.Reason)+")")
+		}
+		skills += "; preserved " + strings.Join(kept, ", ")
 	}
 	mcp := agent.MCPDetail
 	if mcp == "" {

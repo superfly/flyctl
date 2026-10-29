@@ -2,6 +2,7 @@ package skills
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,6 +24,28 @@ func (r applyResult) skippedFiles() []string {
 
 func (r applyResult) changed() bool {
 	return len(r.Written) > 0 || len(r.Removed) > 0
+}
+
+// partialRecord retains the previous baseline for unprocessed files and
+// records every completed operation before an apply error. The skill's
+// revision must not advance until it has been applied in full.
+func partialRecord(rec SkillRecord, files []SkillFile, res applyResult) SkillRecord {
+	next := SkillRecord{SourceSHA: rec.SourceSHA, InstalledAt: nowRFC3339(), Files: maps.Clone(rec.Files)}
+	if next.Files == nil {
+		next.Files = map[string]string{}
+	}
+	hashes := newFileHashes(files)
+	for _, rel := range res.Written {
+		next.Files[rel] = hashes[rel]
+	}
+	for _, rel := range res.Adopted {
+		next.Files[rel] = hashes[rel]
+	}
+	for _, rel := range res.Removed {
+		delete(next.Files, rel)
+	}
+
+	return next
 }
 
 // applySkill writes one skill into skillDir file by file. A file is written
