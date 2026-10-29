@@ -59,6 +59,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/settings"
+	"github.com/superfly/flyctl/internal/command/skills"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
@@ -125,6 +126,7 @@ func New() *cobra.Command {
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
 		group(mcp.New(), "upkeep"),
+		group(skills.New(), "more_help"),
 		group(mpg.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
 		group(secrets.New(), "configuring"),
