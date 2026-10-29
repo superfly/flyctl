@@ -2,6 +2,7 @@ package setup
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,13 +12,11 @@ import (
 	"time"
 
 	"github.com/tailscale/hujson"
-
-	"github.com/superfly/flyctl/helpers"
 )
 
-// beforeWriteHook runs after the target has been resolved and checked, and
-// before the bytes are published. Tests swap a symlink here to prove the
-// write uses the path that was checked rather than resolving again.
+// beforeWriteHook runs after the target directory has been checked and
+// opened, before publishing bytes. Tests replace symlinks and parent
+// directories here to verify that the write stays on the pinned directory.
 var beforeWriteHook func()
 
 // utf8BOM is the byte order mark some editors write at the start of a JSON file.
@@ -54,7 +53,7 @@ func configureMCP(home, slug string, force, skip bool) mcpOutcome {
 
 func installJSON(home, path string, client mcpClient, force bool) mcpOutcome {
 	return withFileLock(home, path, func(wt writeTarget) mcpOutcome {
-		data, missing, err := readConfig(wt.target)
+		data, missing, err := readConfig(wt)
 		if err != nil {
 			return failed(wt.logical, err.Error())
 		}
@@ -89,7 +88,7 @@ func installJSON(home, path string, client mcpClient, force bool) mcpOutcome {
 
 func installTOML(home, path string, force bool) mcpOutcome {
 	return withFileLock(home, path, func(wt writeTarget) mcpOutcome {
-		data, missing, err := readConfig(wt.target)
+		data, missing, err := readConfig(wt)
 		if err != nil {
 			return failed(wt.logical, err.Error())
 		}
@@ -121,12 +120,13 @@ type writeTarget struct {
 	logical string
 	target  string
 	perm    os.FileMode
+	dir     *os.Root // pinned parent for every read, attribute change and rename
 }
 
 // withFileLock locks a file in the flyctl state directory, then resolves
 // path once and refuses a target that escapes the expected directory.
-// MkdirAll is only called for the expected directory, and only after the
-// resolved target has been accepted.
+// The accepted parent is opened without following any further symlinks.
+// Missing directories are created relative to those pinned handles.
 func withFileLock(home, path string, fn func(writeTarget) mcpOutcome) mcpOutcome {
 	unlock, err := acquireConfigLock(path)
 	if err != nil {
@@ -145,11 +145,13 @@ func withFileLock(home, path string, fn func(writeTarget) mcpOutcome) mcpOutcome
 	if err := requireContained(home, path, target); err != nil {
 		return failed(path, err.Error())
 	}
-	if err := mkdirExpected(path); err != nil {
+	dir, err := openConfigDir(filepath.Dir(target))
+	if err != nil {
 		return failed(path, err.Error())
 	}
+	defer dir.Close() //nolint:errcheck
 
-	return fn(writeTarget{logical: path, target: target, perm: perm})
+	return fn(writeTarget{logical: path, target: target, perm: perm, dir: dir})
 }
 
 func finishMerge(wt writeTarget, original, next []byte, status string) mcpOutcome {
@@ -181,18 +183,19 @@ func finishMerge(wt writeTarget, original, next []byte, status string) mcpOutcom
 // nothing to preserve, so it is created the same way as a missing file.
 // A BOM in front of real JSON is returned with the body so the write can
 // keep it. Any other read error is returned and the caller must not write.
-func readConfig(path string) (data []byte, missing bool, err error) {
-	info, err := os.Lstat(path)
+func readConfig(wt writeTarget) (data []byte, missing bool, err error) {
+	name := filepath.Base(wt.target)
+	info, err := wt.dir.Lstat(name)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, true, nil
 	}
 	if err != nil {
 		return nil, false, err
 	}
-	if info.IsDir() {
-		return nil, false, fmt.Errorf("%s is a directory", path)
+	if info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, false, fmt.Errorf("%s is no longer a regular config file", wt.target)
 	}
-	data, err = os.ReadFile(path)
+	data, err = wt.dir.ReadFile(name)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, true, nil
 	}
@@ -208,8 +211,8 @@ func readConfig(path string) (data []byte, missing bool, err error) {
 }
 
 // writeConfig replaces the resolved file atomically and keeps its mode.
-// wt.target was resolved once while the lock was held; this does not resolve
-// again, so a symlink swapped after the check is not followed.
+// Every filesystem operation uses the pinned parent, including on Windows,
+// so replacing any ancestor of wt.target cannot redirect the write.
 //
 // A hard link is a second directory entry for the same inode. The rename
 // that publishes the temp file replaces only the entry at the target path,
@@ -219,37 +222,101 @@ func writeConfig(wt writeTarget, data []byte) error {
 	if beforeWriteHook != nil {
 		beforeWriteHook()
 	}
-	restore, err := prepareReplace(wt.target)
+	name := filepath.Base(wt.target)
+	tmp := name + "." + rand.Text() + ".tmp"
+	f, err := wt.dir.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = f.Close()
+		_ = wt.dir.Remove(tmp)
+	}()
+	if _, err := f.Write(data); err != nil {
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		return err
+	}
+	if err := f.Chmod(wt.perm); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	restore, err := prepareReplace(wt.dir, name)
 	if err != nil {
 		return err
 	}
 	defer restore()
 
-	return helpers.WriteFileAtomically(wt.target, data, wt.perm)
+	return wt.dir.Rename(tmp, name)
 }
 
-// mkdirExpected creates the lexical parent of the config path. It does not
-// create the directory of a resolved target that lives somewhere else. An
-// existing directory, including one reached by a symlink, is left alone.
-func mkdirExpected(logical string) error {
-	dir := filepath.Dir(logical)
-	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
-		info, statErr := os.Stat(resolved)
-		if statErr == nil && info.IsDir() {
-			return nil
+// openConfigDir walks an already canonical, accepted path from its volume
+// root. Each child must still be the directory we inspected, not a symlink
+// substituted since resolution. Handles keep reads and writes on that same
+// directory even if its name or any ancestor is subsequently replaced.
+func openConfigDir(path string) (*os.Root, error) {
+	volume := filepath.VolumeName(path) + string(filepath.Separator)
+	dir, err := os.OpenRoot(volume)
+	if err != nil {
+		return nil, err
+	}
+	rel, err := filepath.Rel(volume, path)
+	if err != nil {
+		_ = dir.Close()
+
+		return nil, err
+	}
+	if rel == "." {
+		return dir, nil
+	}
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		next, err := openConfigChild(dir, part)
+		_ = dir.Close()
+		if err != nil {
+			return nil, fmt.Errorf("could not open config directory %s: %w", path, err)
 		}
+		dir = next
 	}
 
-	return os.MkdirAll(dir, 0o755)
+	return dir, nil
+}
+
+func openConfigChild(parent *os.Root, name string) (*os.Root, error) {
+	info, err := parent.Lstat(name)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := parent.Mkdir(name, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
+			return nil, err
+		}
+		info, err = parent.Lstat(name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("%s is not a directory; refusing a substituted symlink", name)
+	}
+	child, err := parent.OpenRoot(name)
+	if err != nil {
+		return nil, err
+	}
+	opened, err := child.Stat(".")
+	if err != nil || !os.SameFile(info, opened) {
+		_ = child.Close()
+
+		return nil, fmt.Errorf("directory %s changed while opening it", name)
+	}
+
+	return child, nil
 }
 
 // requireContained refuses a resolved target that is not inside the expected
-// config directory or the user's home. Both roots are compared in their
-// lexical form and in their canonical form, because the target has already
-// been canonicalized: a home behind a symlink (macOS /var -> /private/var,
-// Fedora /home -> /var/home) or a Windows 8.3 short name must not look like an
-// escape. The resolved client directory is allowed only when that directory
-// itself stays inside home or the expected directory. A target under ~/.ssh
+// config directory or the user's home. Home and parents of explicit external
+// directories can contain platform aliases (macOS /var -> /private/var or
+// Windows short names). Canonicalizing those must not also authorize an
+// agent directory beneath home to point outside it. A target under ~/.ssh
 // is refused even though it is inside home, and --force is not consulted.
 func requireContained(home, logical, resolved string) error {
 	logical = filepath.Clean(logical)
@@ -265,23 +332,16 @@ func requireContained(home, logical, resolved string) error {
 			roots = append(roots, realHome)
 		}
 	}
-	for _, root := range roots {
-		if pathWithin(resolved, root) {
-			return nil
+	if home == "" || !pathWithin(expected, home) {
+		// An explicitly selected directory outside home may have platform
+		// aliases in its parent (e.g. /var -> /private/var on macOS). Do not
+		// resolve the config directory itself, or agent ancestors inside home.
+		if parent := resolvePath(filepath.Dir(expected)); parent != "" {
+			roots = append(roots, filepath.Join(parent, filepath.Base(expected)))
 		}
 	}
-	// The expected directory may canonicalize differently from its lexical
-	// form (an ancestor symlink, a short name). Accept a target inside the
-	// canonical directory, unless the config directory itself is a symlink
-	// that leaves every root: a ~/.cursor pointing outside home is refused.
-	if realExpected := resolvePath(expected); realExpected != "" && pathWithin(resolved, realExpected) {
-		if info, err := os.Lstat(expected); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			for _, root := range roots {
-				if pathWithin(realExpected, root) {
-					return nil
-				}
-			}
-		} else {
+	for _, root := range roots {
+		if pathWithin(resolved, root) {
 			return nil
 		}
 	}

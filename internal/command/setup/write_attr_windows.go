@@ -4,34 +4,29 @@ package setup
 
 import (
 	"errors"
-
-	"golang.org/x/sys/windows"
+	"os"
 )
 
 // prepareReplace clears FILE_ATTRIBUTE_READONLY so the atomic rename can
-// replace the file, then the returned function puts the attribute back on
-// whatever is at path afterwards.
-func prepareReplace(path string) (func(), error) {
-	ptr, err := windows.UTF16PtrFromString(path)
+// replace the file, then restores it. Root.Chmod uses a handle beneath the
+// pinned directory rather than resolving the original absolute pathname.
+func prepareReplace(dir *os.Root, name string) (func(), error) {
+	info, err := dir.Stat(name)
 	if err != nil {
-		return nil, err
-	}
-	attrs, err := windows.GetFileAttributes(ptr)
-	if err != nil {
-		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) {
+		if errors.Is(err, os.ErrNotExist) {
 			return func() {}, nil
 		}
 
 		return nil, err
 	}
-	if attrs&windows.FILE_ATTRIBUTE_READONLY == 0 {
+	if info.Mode().Perm()&0o200 != 0 {
 		return func() {}, nil
 	}
-	if err := windows.SetFileAttributes(ptr, attrs&^windows.FILE_ATTRIBUTE_READONLY); err != nil {
+	if err := dir.Chmod(name, info.Mode().Perm()|0o200); err != nil {
 		return nil, err
 	}
 
 	return func() {
-		_ = windows.SetFileAttributes(ptr, attrs)
+		_ = dir.Chmod(name, info.Mode().Perm())
 	}, nil
 }

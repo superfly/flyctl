@@ -330,7 +330,7 @@ func objectMap(raw []byte) (map[string]any, bool) {
 		return nil, false
 	}
 
-	return obj, true
+	return obj, obj != nil
 }
 
 func valueBytes(body []byte, value *hujson.Value) []byte {

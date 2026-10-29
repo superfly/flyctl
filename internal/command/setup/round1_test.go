@@ -52,6 +52,7 @@ func TestEmbeddedLoggedOutStaysOneLinePerAgent(t *testing.T) {
 	require.NotContains(t, text, "Opening")
 	require.NotContains(t, text, "successfully logged in")
 	require.NotContains(t, text, authSkipHint)
+	require.Contains(t, errOut.String(), authSkipHint)
 	require.NotContains(t, errOut.String(), "Sign-in failed")
 	require.NotContains(t, errOut.String(), "Opening")
 	require.Equal(t, []string{

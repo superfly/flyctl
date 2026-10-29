@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/auth"
@@ -302,7 +303,9 @@ func ensureAuth(ctx context.Context, streams *iostreams.IOStreams, skip, assumeY
 		return authResult{Error: oneLine(err.Error())}
 	}
 
-	email, err = currentEmail(ctx)
+	// Login saves a new token, but does not update the client on ctx. In
+	// particular, that client may still carry the credentials just rejected.
+	email, err = savedEmail(ctx)
 	switch {
 	case errors.Is(err, errNotSignedIn):
 		// Login reported success but the token is not visible yet. Do not
@@ -368,6 +371,10 @@ func currentEmail(ctx context.Context) (string, error) {
 		return emailFrom(client.GetCurrentUser(ctx))
 	}
 
+	return savedEmail(ctx)
+}
+
+func savedEmail(ctx context.Context) (string, error) {
 	token, err := config.ReadAccessToken(state.ConfigFile(ctx))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -386,6 +393,10 @@ func currentEmail(ctx context.Context) (string, error) {
 
 func emailFrom(user *fly.User, err error) (string, error) {
 	if err != nil {
+		if authRejected(err) {
+			return "", errNotSignedIn
+		}
+
 		return "", err
 	}
 	if user == nil || user.Email == "" {
@@ -393,6 +404,26 @@ func emailFrom(user *fly.User, err error) (string, error) {
 	}
 
 	return user.Email, nil
+}
+
+func authRejected(err error) bool {
+	var apiErr *fly.ApiError
+	if errors.As(err, &apiErr) && apiErr.Status == 401 {
+		return true
+	}
+	var gqlErr *graphql.GraphQLError
+	if errors.As(err, &gqlErr) {
+		if graphql.IsUnauthorizedError(gqlErr) {
+			return true
+		}
+		// graphql does not expose a typed HTTP status error. Match its exact
+		// underlying 401 error, not arbitrary messages containing "401".
+		cause := gqlErr.Unwrap()
+
+		return cause != nil && cause.Error() == "server returned a non-200 status code: 401"
+	}
+
+	return false
 }
 
 func applySetup(ctx context.Context, home string, tools []skills.CodingTool, skipSkills, skipMCP, force, quiet bool) []agentResult {
@@ -514,8 +545,8 @@ func printEmbedded(out, errOut io.Writer, rep report) {
 	for _, agent := range rep.Agents {
 		fmt.Fprintln(out, agentLine(agent))
 	}
-	if rep.Auth.Error != "" && errOut != nil {
-		fmt.Fprintf(errOut, "%s: %s\n", authErrorLabel(rep.Auth), rep.Auth.Error)
+	if errOut != nil {
+		printAuthFooter(errOut, rep)
 	}
 }
 
