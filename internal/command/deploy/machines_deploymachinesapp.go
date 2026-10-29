@@ -107,7 +107,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		status = "failed"
 	}
 
-	if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
+	finalizationCtx, finalizationSpan := tracing.GetTracer().Start(ctx, "finalize_deployment", trace.WithAttributes(
+		attribute.Bool("deployment.skip_dns_checks", md.skipDNSChecks),
+	))
+
+	if updateErr := md.updateReleaseInBackend(finalizationCtx, status, metadata); updateErr != nil {
+		tracing.RecordError(finalizationCtx, finalizationSpan, updateErr, "failed to finalize release")
 		if err == nil {
 			// Deployment succeeded, but we couldn't update the release status
 			// This is not critical enough to fail the entire deployment
@@ -119,18 +124,22 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if md.tigrisStatics != nil && !md.restartOnly {
 		if err == nil {
-			err = md.tigrisStatics.Finalize(ctx)
+			err = md.tigrisStatics.Finalize(finalizationCtx)
+			tracing.RecordError(finalizationCtx, finalizationSpan, err, "failed to finalize statics")
 		} else {
-			md.tigrisStatics.CleanupAfterFailure(ctx)
+			md.tigrisStatics.CleanupAfterFailure(finalizationCtx)
 		}
 	}
 
 	// no need to run dns checks if the deployment failed
 	if !md.skipDNSChecks && err == nil {
-		if err := md.checkDNS(ctx); err != nil {
+		if err := md.checkDNS(finalizationCtx); err != nil {
+			tracing.RecordError(finalizationCtx, finalizationSpan, err, "DNS checks failed")
 			terminal.Warnf("DNS checks failed: %v\n", err)
 		}
 	}
+
+	finalizationSpan.End()
 
 	if err != nil {
 		tracing.RecordError(deploymentCtx, span, err, "failed to deploy machines")
@@ -217,12 +226,22 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 	return nil
 }
 
-func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, launchBasisState string, sl statuslogger.StatusLine) error {
+func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, launchBasisState string, sl statuslogger.StatusLine) (err error) {
 	lm := e.leasableMachine
 	// Don't wait for SkipLaunch machines, they are updated but not started
 	if e.launchInput.SkipLaunch {
 		return nil
 	}
+
+	ctx, span := tracing.GetTracer().Start(ctx, "deployment_readiness", trace.WithAttributes(
+		attribute.String("machine.ID", lm.Machine().ID),
+		attribute.Bool("deployment.skip_health_checks", md.skipHealthChecks),
+		attribute.Bool("deployment.skip_smoke_checks", md.skipSmokeChecks),
+	))
+	defer func() {
+		tracing.RecordError(ctx, span, err, "machine readiness failed")
+		span.End()
+	}()
 
 	if !md.skipHealthChecks {
 		preservedStopped, err := md.waitForStartedOrPreservedStoppedUpdate(ctx, lm, launchBasisState, md.waitTimeout)
