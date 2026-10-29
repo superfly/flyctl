@@ -110,10 +110,10 @@ func (m *Manifest) hasInstalledSkills() bool {
 // targetRevision summarises the revision a target is at: the common SHA when
 // every skill agrees, "" when nothing is recorded, and mixed=true otherwise.
 func (m *Manifest) targetRevision(targetKey string) (sha string, mixed bool) {
-	for _, name := range sortedKeys(m.Targets[targetKey]) {
+	for i, name := range sortedKeys(m.Targets[targetKey]) {
 		rec := m.Targets[targetKey][name]
 		switch {
-		case sha == "":
+		case i == 0:
 			sha = rec.SourceSHA
 		case rec.SourceSHA != sha:
 			return sha, true

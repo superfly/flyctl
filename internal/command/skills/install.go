@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -89,7 +90,6 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 		return err
 	}
 
-	names := sortedKeys(skills)
 	var (
 		changed int
 		skipped int
@@ -97,18 +97,35 @@ func syncSkills(ctx context.Context, e env, targets []Target, verb string, force
 
 	for _, t := range targets {
 		key := t.Key()
-		for _, name := range names {
+		names := map[string]bool{}
+		for name := range skills {
+			names[name] = true
+		}
+		for name := range manifest.Targets[key] {
+			names[name] = true
+		}
+		for _, name := range sortedKeys(names) {
+			files, incoming := skills[name]
 			skillDir := joinRel(t.SkillsDir, name)
 			rec, hasRec := manifest.record(key, name)
-			state := classifySkill(skillDir, newFileHashes(skills[name]), rec, hasRec)
+			state := classifySkill(skillDir, newFileHashes(files), rec, hasRec)
 
-			next, res, err := applySkill(skillDir, skills[name], rec, hasRec, sha, force)
+			next, res, err := applySkill(skillDir, files, rec, hasRec, sha, force)
 			if err != nil {
 				return err
 			}
-			manifest.setRecord(key, name, next)
+			if !incoming && len(res.Skipped) == 0 {
+				manifest.deleteRecord(key, name)
+				// Only remove an empty directory; user-added files survive.
+				_ = os.Remove(skillDir)
+			} else {
+				manifest.setRecord(key, name, next)
+			}
 
 			switch {
+			case !incoming && len(res.Skipped) == 0:
+				changed++
+				fmt.Fprintf(io.Out, "%s %s: removed retired skill %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), colorize.Green(name), colorize.Gray(skillDir))
 			case res.changed() && state == NotInstalled:
 				changed++
 				fmt.Fprintf(io.Out, "%s %s: %s %s %s\n", colorize.SuccessIcon(), colorize.Bold(t.ToolName), verb, colorize.Green(name), colorize.Gray(skillDir))

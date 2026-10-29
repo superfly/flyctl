@@ -38,6 +38,15 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 	res := applyResult{Skipped: map[string]string{}}
 	next := SkillRecord{SourceSHA: sha, InstalledAt: nowRFC3339(), Files: map[string]string{}}
 
+	// Retiring a linked skill must not prune files in the shared directory.
+	if len(files) == 0 {
+		if unlinked, err := unlinkSkillDir(skillDir); err != nil {
+			return rec, res, err
+		} else if unlinked {
+			return next, res, nil
+		}
+	}
+
 	sorted := append([]SkillFile(nil), files...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Rel < sorted[j].Rel })
 
@@ -114,8 +123,13 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 }
 
 // removeSkillFiles deletes exactly the files a record lists, then any
-// directories that became empty, up to and including skillDir.
+// directories that became empty, up to and including skillDir. A linked
+// skill directory is unlinked without deleting anything in its destination.
 func removeSkillFiles(skillDir string, rec SkillRecord) (removed []string, err error) {
+	if unlinked, err := unlinkSkillDir(skillDir); err != nil || unlinked {
+		return nil, err
+	}
+
 	for _, rel := range sortedKeys(rec.Files) {
 		path := joinRel(skillDir, rel)
 		if err := os.Remove(path); err != nil {
@@ -131,6 +145,24 @@ func removeSkillFiles(skillDir string, rec SkillRecord) (removed []string, err e
 	_ = os.Remove(skillDir)
 
 	return removed, nil
+}
+
+func unlinkSkillDir(skillDir string) (bool, error) {
+	info, err := os.Lstat(skillDir)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect %s: %w", skillDir, err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return false, nil
+	}
+	if err := os.Remove(skillDir); err != nil {
+		return false, fmt.Errorf("failed to unlink %s: %w", skillDir, err)
+	}
+
+	return true, nil
 }
 
 // removeEmptyParents removes dir and its ancestors while they are empty,
