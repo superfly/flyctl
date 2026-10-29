@@ -77,22 +77,29 @@ untouched and that agent is reported; the others are still set up. An empty
 or whitespace-only file, including one that is only a UTF-8 BOM, counts as
 missing and is created. A BOM in front of real JSON is kept.
 
-A symlinked config file is updated at its target so the link stays in place,
-and the summary prints that resolved path.
+A symlinked config is updated at its target only when that resolved path
+stays inside the expected config directory or your home directory, and not
+under ~/.ssh. A link that points anywhere else is left untouched. --force
+does not bypass that check. The link stays in place, the summary prints the
+resolved path, and the path is resolved once while the lock is held.
 
 Detected agents get that entry in their global config: Claude Code
 (~/.claude.json), Cursor (~/.cursor/mcp.json), Codex (~/.codex/config.toml),
-OpenCode (~/.config/opencode/opencode.json), GitHub Copilot
-(~/.copilot/mcp-config.json), Factory Droid (~/.factory/mcp.json) and
-Antigravity (~/.gemini/config/mcp_config.json). Pi and the universal
-~/.agents target receive skills only. Pi has no stable global MCP config
-that this command writes.
+OpenCode (~/.config/opencode/opencode.json, or $XDG_CONFIG_HOME/opencode
+when that variable is set), GitHub Copilot (~/.copilot/mcp-config.json),
+Factory Droid (~/.factory/mcp.json) and Antigravity
+(~/.gemini/config/mcp_config.json). Pi and the universal ~/.agents target
+receive skills only. Pi has no stable global MCP config that this command
+writes.
 
-CODEX_HOME, CLAUDE_CONFIG_DIR and COPILOT_HOME are honored when set, and
-the resolved path is printed for each agent. XDG_CONFIG_HOME is not:
-OpenCode's docs place its global config at ~/.config/opencode/opencode.json
-and do not mention that variable. Cursor, Factory Droid, Antigravity and Pi
-have no confirmed override for the file this command writes.
+CODEX_HOME, CLAUDE_CONFIG_DIR and COPILOT_HOME are honored when set. A
+relative value is made absolute and ".." is cleaned; a leading ~ is not
+expanded. OpenCode uses $XDG_CONFIG_HOME/opencode when XDG_CONFIG_HOME is
+set, and ~/.config/opencode otherwise, for both the MCP config and the
+skills directory. An existing opencode.jsonc is edited instead of creating
+opencode.json. The resolved path is printed for each agent. Cursor, Factory
+Droid, Antigravity and Pi have no confirmed override for the file this
+command writes.
 
 OpenCode configs that already use the v2 mcp.servers object get
 mcp.servers.fly. Other OpenCode configs get mcp.fly.

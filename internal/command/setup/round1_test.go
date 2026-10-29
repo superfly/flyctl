@@ -143,18 +143,23 @@ func TestConfigEnvVarsRelocateSkillsAndMCP(t *testing.T) {
 	})
 }
 
-func TestXDGConfigHomeDoesNotMoveOpenCode(t *testing.T) {
+func TestXDGConfigHomeMovesOpenCode(t *testing.T) {
 	xdg := t.TempDir()
-	ctx, home, flags, _, _, _ := harness(t)
+	ctx, home, flags, _, out, _ := harness(t)
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	require.NoError(t, os.MkdirAll(filepath.Join(xdg, "opencode"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "opencode"), 0o755))
 	require.NoError(t, flags.Set("yes", "true"))
-	require.NoError(t, flags.Set("agent", "opencode"))
 
 	require.NoError(t, runAgent(ctx))
-	require.Equal(t, hostedMCPURL, flyObject(t, filepath.Join(home, ".config", "opencode", "opencode.json"), "mcp")["url"])
-	_, err := os.Stat(filepath.Join(xdg, "opencode", "opencode.json"))
+	cfg := filepath.Join(xdg, "opencode", "opencode.json")
+	require.Equal(t, hostedMCPURL, flyObject(t, cfg, "mcp")["url"])
+	require.FileExists(t, filepath.Join(xdg, "opencode", "skills", "fly", "SKILL.md"))
+	_, err := os.Stat(filepath.Join(home, ".config", "opencode", "opencode.json"))
 	require.True(t, os.IsNotExist(err))
+	_, err = os.Stat(filepath.Join(home, ".config", "opencode", "skills", "fly", "SKILL.md"))
+	require.True(t, os.IsNotExist(err))
+	require.Contains(t, out.String(), cfg)
 }
 
 func TestSymlinkedConfigIsUpdatedAtTarget(t *testing.T) {
@@ -237,9 +242,11 @@ func TestHardLinkKeepsPreviousInode(t *testing.T) {
 
 func TestConfigureMCPWaitsForFileLock(t *testing.T) {
 	home := t.TempDir()
+	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))
 	path := filepath.Join(home, ".claude.json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	mu := flock.New(path + ".lock")
+	lockPath, err := configLockPath(path)
+	require.NoError(t, err)
+	mu := flock.New(lockPath)
 	require.NoError(t, mu.Lock())
 
 	done := make(chan mcpOutcome, 1)
@@ -264,6 +271,13 @@ func TestConfigureMCPWaitsForFileLock(t *testing.T) {
 		t.Fatal("configure did not finish after the lock was released")
 	}
 	require.Equal(t, hostedMCPURL, flyObject(t, path, "mcpServers")["url"])
+	_, err = os.Lstat(path + ".lock")
+	require.True(t, os.IsNotExist(err), "lock file must not sit beside the config")
+	if runtime.GOOS != "windows" {
+		info, statErr := os.Stat(filepath.Dir(lockPath))
+		require.NoError(t, statErr)
+		require.Equal(t, os.FileMode(0o700), info.Mode().Perm())
+	}
 }
 
 func TestShapeMismatchIsAConflictUntilForce(t *testing.T) {

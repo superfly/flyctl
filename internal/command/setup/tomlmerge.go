@@ -36,8 +36,8 @@ func mergeCodexBytes(original []byte, force bool) (out []byte, status string, er
 		return nil, "", fmt.Errorf("not valid TOML: %w", err)
 	}
 
-	url, present := codexFlyURL(root)
-	if present && urlsMatch(url, hostedMCPURL) {
+	table, present := codexFlyTable(root)
+	if present && codexReady(table) {
 		return nil, statusAlready, nil
 	}
 	if present && !force {
@@ -62,22 +62,37 @@ func mergeCodexBytes(original []byte, force bool) (out []byte, status string, er
 	return next, statusConfigured, nil
 }
 
-func codexFlyURL(root map[string]any) (string, bool) {
+func codexFlyTable(root map[string]any) (map[string]any, bool) {
 	servers, ok := root["mcp_servers"].(map[string]any)
 	if !ok {
-		return "", false
+		return nil, false
 	}
 	entry, exists := servers[mcpServerName]
 	if !exists {
-		return "", false
+		return nil, false
 	}
 	table, ok := entry.(map[string]any)
 	if !ok {
-		return "", true
+		// Present, but not a table this command can treat as configured.
+		return map[string]any{}, true
 	}
-	url, _ := table["url"].(string)
 
-	return url, true
+	return table, true
+}
+
+// codexReady reports whether the fly table matches the shape this command
+// writes. A matching URL with enabled = false is a conflict: the entry is
+// disabled. An absent enabled key is fine, matching the JSON clients.
+func codexReady(table map[string]any) bool {
+	url, _ := table["url"].(string)
+	if !urlsMatch(url, hostedMCPURL) {
+		return false
+	}
+	if enabled, ok := table["enabled"].(bool); ok && !enabled {
+		return false
+	}
+
+	return true
 }
 
 func codexTable(nl string) string {
@@ -107,10 +122,11 @@ func appendCodexTable(original []byte) []byte {
 	return append(out, codexTable(nl)...)
 }
 
-// updateCodexSection rewrites url lines inside the standalone
-// [mcp_servers.fly] table and leaves every other line, including extra keys,
-// comments and the following tables. An inline table is not a section this
-// can cut safely, so it returns errManualEdit instead of a parse error.
+// updateCodexSection rewrites url lines and enabled = false inside the
+// standalone [mcp_servers.fly] table and leaves every other line, including
+// extra keys, comments and the following tables. An inline table is not a
+// section this can cut safely, so it returns errManualEdit instead of a
+// parse error.
 func updateCodexSection(original []byte) ([]byte, error) {
 	nl := lineEnding(original)
 	lines := splitLines(string(original))
@@ -142,13 +158,15 @@ func updateCodexSection(original []byte) ([]byte, error) {
 	}
 	sawURL := false
 	for i := start + 1; i < end; i++ {
-		if isCodexURLLine(lines[i]) {
+		switch {
+		case isCodexURLLine(lines[i]):
 			b.WriteString(rewriteCodexURLLine(lines[i], nl))
 			sawURL = true
-
-			continue
+		case isCodexEnabledFalseLine(lines[i]):
+			b.WriteString(rewriteCodexEnabledLine(lines[i], nl))
+		default:
+			b.WriteString(lines[i])
 		}
-		b.WriteString(lines[i])
 	}
 	if !sawURL {
 		b.WriteString("url = " + strconv.Quote(hostedMCPURL) + nl)
@@ -170,7 +188,32 @@ func isCodexURLLine(line string) bool {
 	return ok && strings.TrimSpace(key) == "url"
 }
 
+func isCodexEnabledFalseLine(line string) bool {
+	trimmed := strings.TrimSpace(strings.TrimRight(line, "\r\n"))
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return false
+	}
+	key, val, ok := strings.Cut(trimmed, "=")
+	if !ok || strings.TrimSpace(key) != "enabled" {
+		return false
+	}
+	val = strings.TrimSpace(val)
+	if i := strings.Index(val, "#"); i >= 0 {
+		val = strings.TrimSpace(val[:i])
+	}
+
+	return val == "false"
+}
+
+func rewriteCodexEnabledLine(line, nl string) string {
+	return rewriteCodexAssignment(line, "enabled = true", nl)
+}
+
 func rewriteCodexURLLine(line, nl string) string {
+	return rewriteCodexAssignment(line, "url = "+strconv.Quote(hostedMCPURL), nl)
+}
+
+func rewriteCodexAssignment(line, assignment, nl string) string {
 	indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
 	ending := ""
 	body := line
@@ -190,7 +233,7 @@ func rewriteCodexURLLine(line, nl string) string {
 		ending = nl
 	}
 
-	return indent + "url = " + strconv.Quote(hostedMCPURL) + comment + ending
+	return indent + assignment + comment + ending
 }
 
 func splitLines(text string) []string {

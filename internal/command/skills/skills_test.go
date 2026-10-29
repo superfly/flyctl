@@ -6,6 +6,9 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -478,6 +481,58 @@ func TestDownloadRejectsHTTP(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "http://")
 	assert.Contains(t, err.Error(), "refusing")
+}
+
+func TestDownloadRejectsHTTPRedirect(t *testing.T) {
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("http redirect target was fetched")
+		http.Error(w, "nope", http.StatusOK)
+	}))
+	t.Cleanup(plain.Close)
+
+	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, plain.URL+"/skills.tar.gz", http.StatusFound)
+	}))
+	t.Cleanup(tlsSrv.Close)
+
+	prev := httpClient.Transport
+	httpClient.Transport = tlsSrv.Client().Transport
+	t.Cleanup(func() { httpClient.Transport = prev })
+
+	_, err := downloadTarball(context.Background(), source{tarball: tlsSrv.URL + "/skills.tar.gz"}, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing")
+	assert.Contains(t, err.Error(), "http://")
+}
+
+func TestDownloadAllowsHTTPSRedirect(t *testing.T) {
+	var hits int
+	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, "/final", http.StatusFound)
+			return
+		}
+		hits++
+		_, _ = w.Write([]byte("tarball-bytes"))
+	}))
+	t.Cleanup(tlsSrv.Close)
+
+	prev := httpClient.Transport
+	httpClient.Transport = tlsSrv.Client().Transport
+	t.Cleanup(func() { httpClient.Transport = prev })
+
+	body, err := downloadTarball(context.Background(), source{tarball: tlsSrv.URL + "/start"}, "")
+	require.NoError(t, err)
+	assert.Equal(t, "tarball-bytes", string(body))
+	assert.Equal(t, 1, hits)
+}
+
+func TestRequireFinalHTTPSRejectsHTTP(t *testing.T) {
+	resp := &http.Response{Request: &http.Request{URL: &url.URL{Scheme: "http", Host: "example.com", Path: "/skills.tar.gz"}}}
+	err := requireFinalHTTPS(resp)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing")
+	assert.Contains(t, err.Error(), "http://example.com/skills.tar.gz")
 }
 
 func TestValidSkillName(t *testing.T) {

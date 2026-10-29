@@ -21,8 +21,11 @@ import (
 //	COPILOT_HOME        replaces ~/.copilot, including mcp-config.json
 //	                    (https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)
 //
-// OpenCode's docs place the global file at ~/.config/opencode/opencode.json
-// and do not mention XDG_CONFIG_HOME, so that variable is not consulted.
+// OpenCode resolves its global directory with xdg-basedir
+// (packages/opencode/src/global/index.ts, and packages/core/src/global.ts on
+// current dev): $XDG_CONFIG_HOME/opencode when XDG_CONFIG_HOME is set,
+// otherwise ~/.config/opencode. That directory holds the MCP config and the
+// skills directory. An existing opencode.jsonc is edited in place.
 // Cursor, Factory Droid, Antigravity, and Pi have no confirmed override for
 // the global MCP file this command writes.
 func envPath(key string) (string, bool) {
@@ -30,8 +33,14 @@ func envPath(key string) (string, bool) {
 	if !ok || value == "" {
 		return "", false
 	}
+	// Abs also cleans ".." so a relative override cannot escape by lexical
+	// trickery. A leading ~ is not expanded.
+	abs, err := filepath.Abs(value)
+	if err != nil {
+		return filepath.Clean(value), true
+	}
 
-	return value, true
+	return abs, true
 }
 
 func claudeConfigDir(home string) string {
@@ -66,6 +75,36 @@ func copilotHome(home string) string {
 	return filepath.Join(home, ".copilot")
 }
 
+func opencodeConfigDir(home string) string {
+	if dir, ok := envPath("XDG_CONFIG_HOME"); ok {
+		return filepath.Join(dir, "opencode")
+	}
+
+	return filepath.Join(home, ".config", "opencode")
+}
+
+// opencodeMCPPath edits opencode.jsonc when that file is already present so a
+// parallel opencode.json is not created beside it. A fresh install still
+// writes opencode.json.
+func opencodeMCPPath(home string) string {
+	dir := opencodeConfigDir(home)
+	jsonc := filepath.Join(dir, "opencode.jsonc")
+	if isExistingFile(jsonc) {
+		return jsonc
+	}
+
+	return filepath.Join(dir, "opencode.json")
+}
+
+func isExistingFile(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
+}
+
 func (c mcpClient) path(home string) string {
 	switch c.slug {
 	case "claude-code":
@@ -74,6 +113,8 @@ func (c mcpClient) path(home string) string {
 		return filepath.Join(codexHome(home), "config.toml")
 	case "copilot":
 		return filepath.Join(copilotHome(home), "mcp-config.json")
+	case "opencode":
+		return opencodeMCPPath(home)
 	default:
 		parts := make([]string, 0, len(c.rel)+1)
 		parts = append(parts, home)
@@ -83,9 +124,9 @@ func (c mcpClient) path(home string) string {
 	}
 }
 
-// prepareTools points Claude Code, Codex, and Copilot at the directories
-// named by their config env vars, and auto-detects those tools when the
-// override directory exists even if the default parent does not.
+// prepareTools points Claude Code, Codex, Copilot, and OpenCode at the
+// directories named by their config env vars, and auto-detects those tools
+// when the override directory exists even if the default parent does not.
 func prepareTools(home string, tools []skills.CodingTool, explicit bool) []skills.CodingTool {
 	if !explicit {
 		tools = appendEnvTools(home, tools)
@@ -110,6 +151,7 @@ func appendEnvTools(home string, tools []skills.CodingTool) []skills.CodingTool 
 		{"claude-code", claudeConfigDir(home)},
 		{"codex", codexHome(home)},
 		{"copilot", copilotHome(home)},
+		{"opencode", opencodeConfigDir(home)},
 	}
 	for _, candidate := range candidates {
 		if have[candidate.slug] || !isDir(candidate.dir) {
@@ -142,6 +184,9 @@ func envOverrides(slug string) bool {
 	case "copilot":
 		_, ok := envPath("COPILOT_HOME")
 		return ok
+	case "opencode":
+		_, ok := envPath("XDG_CONFIG_HOME")
+		return ok
 	default:
 		return false
 	}
@@ -158,6 +203,8 @@ func relocateTools(home string, tools []skills.CodingTool) []skills.CodingTool {
 			out[i].Parent = codexHome(home)
 		case "copilot":
 			out[i].Parent = copilotHome(home)
+		case "opencode":
+			out[i].Parent = opencodeConfigDir(home)
 		}
 	}
 

@@ -2,19 +2,23 @@ package setup
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/tailscale/hujson"
 
 	"github.com/superfly/flyctl/helpers"
 )
+
+// beforeWriteHook runs after the target has been resolved and checked, and
+// before the bytes are published. Tests swap a symlink here to prove the
+// write uses the path that was checked rather than resolving again.
+var beforeWriteHook func()
 
 // utf8BOM is the byte order mark some editors write at the start of a JSON file.
 var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
@@ -40,120 +44,130 @@ func configureMCP(home, slug string, force, skip bool) mcpOutcome {
 
 	switch client.format {
 	case formatJSON:
-		return installJSON(client.path(home), client, force)
+		return installJSON(home, client.path(home), client, force)
 	case formatTOML:
-		return installTOML(client.path(home), force)
+		return installTOML(home, client.path(home), force)
 	default:
 		return mcpOutcome{Status: statusSkipped, Detail: skillsOnlyDetail(slug)}
 	}
 }
 
-func installJSON(path string, client mcpClient, force bool) mcpOutcome {
-	return withFileLock(path, func() mcpOutcome {
-		data, missing, err := readConfig(path)
+func installJSON(home, path string, client mcpClient, force bool) mcpOutcome {
+	return withFileLock(home, path, func(wt writeTarget) mcpOutcome {
+		data, missing, err := readConfig(wt.target)
 		if err != nil {
-			return failed(path, err.Error())
+			return failed(wt.logical, err.Error())
 		}
 		if missing {
 			entry, err := client.entryJSON()
 			if err != nil {
-				return failed(path, err.Error())
+				return failed(wt.logical, err.Error())
 			}
 			fresh, err := freshJSON(client.container, entry)
 			if err != nil {
-				return failed(path, err.Error())
+				return failed(wt.logical, err.Error())
 			}
-			if err := writeConfig(path, fresh); err != nil {
-				return failed(path, err.Error())
+			if err := writeConfig(wt, fresh); err != nil {
+				return failed(wt.logical, err.Error())
 			}
 
-			return configured(path)
+			return configured(wt)
 		}
 
 		next, status, err := mergeJSONBytes(data, client, force)
 		if err != nil {
-			return failed(path, fmt.Sprintf("could not parse %s: %s", path, err.Error()))
+			return failed(wt.logical, fmt.Sprintf("could not parse %s: %s", wt.logical, err.Error()))
 		}
 
-		return finishMerge(path, data, next, status)
+		return finishMerge(wt, data, next, status)
 	})
 }
 
-func installTOML(path string, force bool) mcpOutcome {
-	return withFileLock(path, func() mcpOutcome {
-		data, missing, err := readConfig(path)
+func installTOML(home, path string, force bool) mcpOutcome {
+	return withFileLock(home, path, func(wt writeTarget) mcpOutcome {
+		data, missing, err := readConfig(wt.target)
 		if err != nil {
-			return failed(path, err.Error())
+			return failed(wt.logical, err.Error())
 		}
 		if missing {
-			if err := writeConfig(path, []byte(codexTable("\n"))); err != nil {
-				return failed(path, err.Error())
+			if err := writeConfig(wt, []byte(codexTable("\n"))); err != nil {
+				return failed(wt.logical, err.Error())
 			}
 
-			return configured(path)
+			return configured(wt)
 		}
 
 		next, status, err := mergeCodexBytes(data, force)
 		if err != nil {
 			if errors.Is(err, errManualEdit) {
-				return failed(path, fmt.Sprintf("can't safely edit %s; edit [mcp_servers.fly] manually", path))
+				return failed(wt.logical, fmt.Sprintf("can't safely edit %s; edit [mcp_servers.fly] manually", wt.logical))
 			}
 
-			return failed(path, fmt.Sprintf("could not parse %s: %s", path, err.Error()))
+			return failed(wt.logical, fmt.Sprintf("could not parse %s: %s", wt.logical, err.Error()))
 		}
 
-		return finishMerge(path, data, next, status)
+		return finishMerge(wt, data, next, status)
 	})
 }
 
-// withFileLock takes an exclusive lock on the resolved config, then re-reads
-// and writes inside that lock so two setup processes cannot clobber each other.
-func withFileLock(path string, fn func() mcpOutcome) mcpOutcome {
-	target, _, err := resolveWriteTarget(path)
+// writeTarget is the path resolved once while the config lock is held.
+// target is the file the temp file is renamed onto. logical is the path the
+// user sees. --force does not widen target.
+type writeTarget struct {
+	logical string
+	target  string
+	perm    os.FileMode
+}
+
+// withFileLock locks a file in the flyctl state directory, then resolves
+// path once and refuses a target that escapes the expected directory.
+// MkdirAll is only called for the expected directory, and only after the
+// resolved target has been accepted.
+func withFileLock(home, path string, fn func(writeTarget) mcpOutcome) mcpOutcome {
+	unlock, err := acquireConfigLock(path)
+	if err != nil {
+		if errors.Is(err, errLockTimeout) {
+			return failed(path, "timed out waiting to update "+path)
+		}
+
+		return failed(path, "could not lock "+path+": "+oneLine(err.Error()))
+	}
+	defer unlock()
+
+	target, perm, err := resolveWriteTarget(path)
 	if err != nil {
 		return failed(path, err.Error())
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := requireContained(home, path, target); err != nil {
+		return failed(path, err.Error())
+	}
+	if err := mkdirExpected(path); err != nil {
 		return failed(path, err.Error())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), fileLockTimeout)
-	defer cancel()
-
-	mu := flock.New(target + ".lock")
-	locked, err := mu.TryLockContext(ctx, 25*time.Millisecond)
-	if err != nil || !locked {
-		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-			return failed(path, "could not lock "+path+": "+oneLine(err.Error()))
-		}
-
-		return failed(path, "timed out waiting to update "+path)
-	}
-	defer func() { _ = mu.Unlock() }()
-
-	return fn()
+	return fn(writeTarget{logical: path, target: target, perm: perm})
 }
 
-func finishMerge(path string, original, next []byte, status string) mcpOutcome {
+func finishMerge(wt writeTarget, original, next []byte, status string) mcpOutcome {
 	switch status {
 	case statusAlready:
-		return already(path)
+		return already(wt)
 	case statusConflict:
-		return conflictOutcome(path)
+		return conflictOutcome(wt)
 	case statusConfigured:
 		if bytes.Equal(original, next) {
-			return already(path)
+			return already(wt)
 		}
 		if len(next) == 0 {
-			return failed(path, "refusing to write an empty config")
+			return failed(wt.logical, "refusing to write an empty config")
 		}
-		if err := writeConfig(path, next); err != nil {
-			return failed(path, err.Error())
+		if err := writeConfig(wt, next); err != nil {
+			return failed(wt.logical, err.Error())
 		}
 
-		return configured(path)
+		return configured(wt)
 	default:
-		return failed(path, "could not update "+path)
+		return failed(wt.logical, "could not update "+wt.logical)
 	}
 }
 
@@ -189,32 +203,96 @@ func readConfig(path string) (data []byte, missing bool, err error) {
 	return data, false, nil
 }
 
-// writeConfig replaces the real file atomically and keeps its mode.
-//
-// Lstat is used so a symlink is not mistaken for the file it points at.
-// When path is a symlink, the temp file is renamed onto the resolved target
-// and the link itself is left in place. The mode comes from that target.
-// A dangling symlink is an error; it is not replaced with a regular file.
+// writeConfig replaces the resolved file atomically and keeps its mode.
+// wt.target was resolved once while the lock was held; this does not resolve
+// again, so a symlink swapped after the check is not followed.
 //
 // A hard link is a second directory entry for the same inode. The rename
 // that publishes the temp file replaces only the entry at the target path,
 // so any other hard link keeps the previous contents. Writing through the
 // inode would update every name, and would give up the atomic replace.
-func writeConfig(path string, data []byte) error {
-	target, perm, err := resolveWriteTarget(path)
-	if err != nil {
-		return err
+func writeConfig(wt writeTarget, data []byte) error {
+	if beforeWriteHook != nil {
+		beforeWriteHook()
 	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
-	}
-	restore, err := prepareReplace(target)
+	restore, err := prepareReplace(wt.target)
 	if err != nil {
 		return err
 	}
 	defer restore()
 
-	return helpers.WriteFileAtomically(target, data, perm)
+	return helpers.WriteFileAtomically(wt.target, data, wt.perm)
+}
+
+// mkdirExpected creates the lexical parent of the config path. It does not
+// create the directory of a resolved target that lives somewhere else. An
+// existing directory, including one reached by a symlink, is left alone.
+func mkdirExpected(logical string) error {
+	dir := filepath.Dir(logical)
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		info, statErr := os.Stat(resolved)
+		if statErr == nil && info.IsDir() {
+			return nil
+		}
+	}
+
+	return os.MkdirAll(dir, 0o755)
+}
+
+// requireContained refuses a resolved target that is not inside the expected
+// config directory or the user's home. The resolved client directory is
+// allowed only when that directory itself stays inside home or the expected
+// directory. A target under ~/.ssh is refused even though it is inside home,
+// and --force is not consulted.
+func requireContained(home, logical, resolved string) error {
+	logical = filepath.Clean(logical)
+	resolved = filepath.Clean(resolved)
+	if home != "" && underSSH(home, resolved) {
+		return fmt.Errorf("refusing to write %s: it resolves to %s, which is under %s", logical, resolved, filepath.Join(home, ".ssh"))
+	}
+	expected := filepath.Dir(logical)
+	if pathWithin(resolved, expected) || (home != "" && pathWithin(resolved, home)) {
+		return nil
+	}
+	if resolvedDir, err := filepath.EvalSymlinks(expected); err == nil {
+		inside := pathWithin(resolvedDir, expected) || (home != "" && pathWithin(resolvedDir, home))
+		if inside && pathWithin(resolved, resolvedDir) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("refusing to write %s: it resolves to %s, which is outside the expected config directory", logical, resolved)
+}
+
+func underSSH(home, resolved string) bool {
+	ssh := filepath.Join(home, ".ssh")
+	if pathWithin(resolved, ssh) {
+		return true
+	}
+	real, err := filepath.EvalSymlinks(ssh)
+	if err != nil {
+		return false
+	}
+
+	return pathWithin(resolved, real)
+}
+
+func pathWithin(path, root string) bool {
+	path = filepath.Clean(path)
+	root = filepath.Clean(root)
+	if path == root {
+		return true
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	prefix := ".." + string(filepath.Separator)
+
+	return rel != ".." && !strings.HasPrefix(rel, prefix)
 }
 
 // resolveWriteTarget returns the path to rename onto and the mode to keep.
@@ -224,7 +302,14 @@ func resolveWriteTarget(path string) (target string, perm os.FileMode, err error
 	perm = 0o644
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return path, perm, nil
+		if danglingSymlink(path) {
+			return "", 0, fmt.Errorf("%s is a symlink that cannot be resolved", path)
+		}
+		if resolved := resolvePath(path); resolved != "" {
+			return resolved, perm, nil
+		}
+
+		return filepath.Clean(path), perm, nil
 	}
 	if err != nil {
 		return "", 0, err
@@ -250,11 +335,32 @@ func resolveWriteTarget(path string) (target string, perm os.FileMode, err error
 	if info.IsDir() {
 		return "", 0, fmt.Errorf("%s is a directory", path)
 	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", 0, err
+	}
 	if mode := info.Mode().Perm(); mode != 0 {
 		perm = mode
 	}
 
-	return path, perm, nil
+	return resolved, perm, nil
+}
+
+func danglingSymlink(path string) bool {
+	cur := filepath.Dir(path)
+	for {
+		info, err := os.Lstat(cur)
+		if err == nil && info.Mode()&os.ModeSymlink != 0 {
+			if _, evalErr := filepath.EvalSymlinks(cur); evalErr != nil {
+				return true
+			}
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return false
+		}
+		cur = parent
+	}
 }
 
 // annotatePath appends the resolved path when path, or a parent directory,
@@ -310,19 +416,27 @@ func resolvePath(path string) string {
 	}
 }
 
-func configured(path string) mcpOutcome {
-	return mcpOutcome{Status: statusConfigured, Path: path, Detail: "configured (" + annotatePath(path) + ")"}
+func showPath(wt writeTarget) string {
+	if filepath.Clean(wt.target) == filepath.Clean(wt.logical) {
+		return wt.logical
+	}
+
+	return wt.logical + " -> " + wt.target
 }
 
-func already(path string) mcpOutcome {
-	return mcpOutcome{Status: statusAlready, Path: path, Detail: "already configured (" + annotatePath(path) + ")"}
+func configured(wt writeTarget) mcpOutcome {
+	return mcpOutcome{Status: statusConfigured, Path: wt.logical, Detail: "configured (" + showPath(wt) + ")"}
 }
 
-func conflictOutcome(path string) mcpOutcome {
-	shown := annotatePath(path)
+func already(wt writeTarget) mcpOutcome {
+	return mcpOutcome{Status: statusAlready, Path: wt.logical, Detail: "already configured (" + showPath(wt) + ")"}
+}
+
+func conflictOutcome(wt writeTarget) mcpOutcome {
+	shown := showPath(wt)
 	return mcpOutcome{
 		Status: statusConflict,
-		Path:   path,
+		Path:   wt.logical,
 		Detail: "left unchanged (" + shown + " points elsewhere; re-run with --force)",
 	}
 }
