@@ -164,7 +164,7 @@ func TestXDGConfigHomeMovesOpenCode(t *testing.T) {
 }
 
 func TestSymlinkedConfigIsUpdatedAtTarget(t *testing.T) {
-	home := t.TempDir()
+	home := canonicalTempDir(t)
 	real := filepath.Join(home, "real-claude.json")
 	link := filepath.Join(home, ".claude.json")
 	writeExisting(t, real, []byte(`{"theme":"dark"}`), 0o640)
@@ -206,7 +206,7 @@ func TestDanglingSymlinkIsNotReplaced(t *testing.T) {
 }
 
 func TestSymlinkedParentDirIsFollowed(t *testing.T) {
-	home := t.TempDir()
+	home := canonicalTempDir(t)
 	realCursor := filepath.Join(home, "real-cursor")
 	require.NoError(t, os.MkdirAll(realCursor, 0o755))
 	link := filepath.Join(home, ".cursor")

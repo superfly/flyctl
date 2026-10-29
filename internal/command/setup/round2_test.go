@@ -18,6 +18,13 @@ func TestMain(m *testing.M) {
 	if err := os.Setenv("FLY_CONFIG_DIR", filepath.Join(dir, ".fly")); err != nil {
 		panic(err)
 	}
+	// Direct writer tests must not use the invoking user's client configs.
+	// Individual override tests opt in with t.Setenv.
+	for _, key := range []string{"CODEX_HOME", "CLAUDE_CONFIG_DIR", "COPILOT_HOME", "XDG_CONFIG_HOME"} {
+		if err := os.Unsetenv(key); err != nil {
+			panic(err)
+		}
+	}
 	code := m.Run()
 	if had {
 		_ = os.Setenv("FLY_CONFIG_DIR", prev)
@@ -28,8 +35,17 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// Windows can expose temporary directories through short-name aliases. Tests
+// that assert resolved paths must compare against the canonical directory.
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	return dir
+}
+
 func TestSymlinkToSSHIsRefusedEvenWithForce(t *testing.T) {
-	home := t.TempDir()
+	home := canonicalTempDir(t)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))
 	keys := filepath.Join(home, ".ssh", "authorized_keys")
 	original := []byte("ssh-ed25519 AAAA keep\n")
@@ -54,9 +70,9 @@ func TestSymlinkToSSHIsRefusedEvenWithForce(t *testing.T) {
 }
 
 func TestSymlinkedCursorOutsideHomeIsRefused(t *testing.T) {
-	home := t.TempDir()
+	home := canonicalTempDir(t)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))
-	outside := t.TempDir()
+	outside := canonicalTempDir(t)
 	link := filepath.Join(home, ".cursor")
 	if err := os.Symlink(outside, link); err != nil {
 		t.Skip(err)
@@ -77,9 +93,9 @@ func TestSymlinkedCursorOutsideHomeIsRefused(t *testing.T) {
 }
 
 func TestSymlinkOutsideHomeIsRefused(t *testing.T) {
-	home := t.TempDir()
+	home := canonicalTempDir(t)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))
-	outside := filepath.Join(t.TempDir(), "passwd")
+	outside := filepath.Join(canonicalTempDir(t), "passwd")
 	original := []byte("root:x:0:0\n")
 	require.NoError(t, os.WriteFile(outside, original, 0o644))
 	link := filepath.Join(home, ".claude.json")
@@ -122,10 +138,10 @@ func TestExplicitConfigDirOutsideHomeIsAllowed(t *testing.T) {
 }
 
 func TestSymlinkOutOfExplicitConfigDirIsRefused(t *testing.T) {
-	home := t.TempDir()
+	home := canonicalTempDir(t)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))
-	dest := t.TempDir()
-	outside := filepath.Join(t.TempDir(), "config.toml")
+	dest := canonicalTempDir(t)
+	outside := filepath.Join(canonicalTempDir(t), "config.toml")
 	original := []byte("url = \"https://example.com\"\n")
 	require.NoError(t, os.WriteFile(outside, original, 0o644))
 	link := filepath.Join(dest, "config.toml")
@@ -282,9 +298,11 @@ func TestOpenCodeJSONUsedWhenJSONCAbsent(t *testing.T) {
 }
 
 func TestConfigLocationsAreAbsoluteAndClean(t *testing.T) {
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	base := t.TempDir()
+	base := canonicalTempDir(t)
+	cwd := filepath.Join(base, "work")
+	require.NoError(t, os.MkdirAll(cwd, 0o755))
+	// Keep the working directory and config on the same Windows volume.
+	t.Chdir(cwd)
 	real := filepath.Join(base, "real")
 	require.NoError(t, os.MkdirAll(real, 0o755))
 	rel, err := filepath.Rel(cwd, real)
@@ -322,9 +340,11 @@ func TestConfigLocationsAreAbsoluteAndClean(t *testing.T) {
 }
 
 func TestXDGConfigHomeRelativeIsAbsolute(t *testing.T) {
-	cwd, err := os.Getwd()
-	require.NoError(t, err)
-	base := t.TempDir()
+	base := canonicalTempDir(t)
+	cwd := filepath.Join(base, "work")
+	require.NoError(t, os.MkdirAll(cwd, 0o755))
+	// Keep the working directory and config on the same Windows volume.
+	t.Chdir(cwd)
 	real := filepath.Join(base, "xdg")
 	require.NoError(t, os.MkdirAll(real, 0o755))
 	rel, err := filepath.Rel(cwd, real)
