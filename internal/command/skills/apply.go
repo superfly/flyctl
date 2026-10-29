@@ -110,11 +110,13 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 			next.Files[rel] = rec.Files[rel]
 			continue
 		}
-		if err := os.Remove(path); err != nil {
-			return rec, res, fmt.Errorf("failed to remove %s: %w", path, err)
+		removed, err := removeSkillFile(skillDir, rel)
+		if err != nil {
+			return rec, res, err
 		}
-		res.Removed = append(res.Removed, rel)
-		removeEmptyParents(filepath.Dir(path), skillDir)
+		if removed {
+			res.Removed = append(res.Removed, rel)
+		}
 	}
 
 	// The record's revision only moves when the whole skill is at it.
@@ -130,8 +132,8 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 
 // removeSkillFiles deletes exactly the files a record lists, then any
 // directories that became empty, up to and including skillDir. A recorded
-// path that fails validation aborts the removal before anything is deleted
-// from outside skillDir. A linked
+// path that fails validation or traverses a symlink outside skillDir aborts
+// the removal without deleting files outside skillDir. A linked
 // skill directory is unlinked without deleting anything in its destination.
 func removeSkillFiles(skillDir string, rec SkillRecord) (removed []string, err error) {
 	if unlinked, err := unlinkSkillDir(skillDir); err != nil || unlinked {
@@ -139,18 +141,13 @@ func removeSkillFiles(skillDir string, rec SkillRecord) (removed []string, err e
 	}
 
 	for _, rel := range sortedKeys(rec.Files) {
-		path, err := safeJoin(skillDir, rel)
+		deleted, err := removeSkillFile(skillDir, rel)
 		if err != nil {
-			return removed, fmt.Errorf("manifest records an invalid path: %w", err)
+			return removed, err
 		}
-		if err := os.Remove(path); err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return removed, fmt.Errorf("failed to remove %s: %w", path, err)
+		if deleted {
+			removed = append(removed, rel)
 		}
-		removed = append(removed, rel)
-		removeEmptyParents(filepath.Dir(path), skillDir)
 	}
 	// Remove the skill directory itself when nothing else lives there.
 	_ = os.Remove(skillDir)
@@ -176,11 +173,39 @@ func unlinkSkillDir(skillDir string) (bool, error) {
 	return true, nil
 }
 
-// removeEmptyParents removes dir and its ancestors while they are empty,
-// stopping before stop.
-func removeEmptyParents(dir, stop string) {
-	for dir != stop && len(dir) > len(stop) {
-		if err := os.Remove(dir); err != nil {
+// removeSkillFile confines both file deletion and empty-directory cleanup to
+// the opened skill directory. Unlike lexical path validation, os.Root also
+// prevents escapes through nested symlinks, including concurrent replacements.
+func removeSkillFile(skillDir, rel string) (bool, error) {
+	path, err := safeJoin(skillDir, rel)
+	if err != nil {
+		return false, fmt.Errorf("manifest records an invalid path: %w", err)
+	}
+	root, err := os.OpenRoot(skillDir)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to open %s: %w", skillDir, err)
+	}
+	defer root.Close() //nolint:errcheck
+
+	native := filepath.FromSlash(rel)
+	if err := root.Remove(native); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to remove %s: %w", path, err)
+	}
+	removeEmptyParents(root, filepath.Dir(native))
+
+	return true, nil
+}
+
+// removeEmptyParents removes directories relative to root while they are empty.
+func removeEmptyParents(root *os.Root, dir string) {
+	for dir != "." {
+		if err := root.Remove(dir); err != nil {
 			return
 		}
 		dir = filepath.Dir(dir)
