@@ -620,7 +620,7 @@ func TestSyncSkillsRecordsArchiveHash(t *testing.T) {
 	tarball, err := os.ReadFile(location)
 	require.NoError(t, err)
 
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 
 	manifest, err := readManifest(e.configDir)
 	require.NoError(t, err)
@@ -639,7 +639,7 @@ func TestSyncSkillsRecordsArchiveHash(t *testing.T) {
 	require.NoError(t, os.WriteFile(location, makeTarball(t, []tarEntry{
 		{name: "skills-main/plugins/fly/skills/fly/SKILL.md", body: "fly v2"},
 	}), 0o644))
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "updated", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "updated", false, false))
 	manifest, err = readManifest(e.configDir)
 	require.NoError(t, err)
 	assert.Equal(t, archiveSHA256(tarball), manifest.ArchiveSHA256)

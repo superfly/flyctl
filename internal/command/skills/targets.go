@@ -94,6 +94,24 @@ func resolveTools(home string, slugs []string) ([]CodingTool, error) {
 	return selected, nil
 }
 
+// KnownAgentSlugs is every agent slug fly skills and fly setup agent accept,
+// in display order.
+func KnownAgentSlugs() []string {
+	return toolSlugs(codingTools(""))
+}
+
+// ResolveTools picks the tools to act on. With no slugs, the universal target
+// plus every tool whose parent directory exists. With slugs, exactly those
+// agents, in the order given.
+func ResolveTools(home string, slugs []string) ([]CodingTool, error) {
+	return resolveTools(home, slugs)
+}
+
+// BuildTargets maps tools to the skills directories an install writes into.
+func BuildTargets(tools []CodingTool) []Target {
+	return buildTargets(tools)
+}
+
 func toolSlugs(tools []CodingTool) []string {
 	slugs := make([]string, 0, len(tools))
 	for _, tool := range tools {

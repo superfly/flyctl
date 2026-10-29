@@ -16,9 +16,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const agentFlagDescription = "Only act on the named agent(s) instead of every detected one. " +
-	"One of: universal, claude-code, codex, cursor, opencode, copilot, factory-droid, pi, antigravity. " +
-	"Can be repeated or comma-separated."
+// AgentFlagDescription is the shared --agent help text. The slug list comes
+// from codingTools so fly skills and fly setup agent cannot drift apart.
+func AgentFlagDescription() string {
+	return "Only act on the named agent(s) instead of every detected one. " +
+		"One of: " + strings.Join(KnownAgentSlugs(), ", ") + ". " +
+		"Can be repeated or comma-separated."
+}
 
 // New initializes and returns a new skills Command.
 func New() *cobra.Command {
