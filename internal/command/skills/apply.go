@@ -51,7 +51,10 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Rel < sorted[j].Rel })
 
 	for _, f := range sorted {
-		path := joinRel(skillDir, f.Rel)
+		path, err := safeJoin(skillDir, f.Rel)
+		if err != nil {
+			return rec, res, err
+		}
 		want := hashContent(f.Contents)
 		recorded, owned := rec.Files[f.Rel]
 		got, exists := hashDiskFile(path)
@@ -94,7 +97,10 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 		if incoming[rel] {
 			continue
 		}
-		path := joinRel(skillDir, rel)
+		path, err := safeJoin(skillDir, rel)
+		if err != nil {
+			return rec, res, fmt.Errorf("manifest records an invalid path: %w", err)
+		}
 		got, exists := hashDiskFile(path)
 		if !exists {
 			continue
@@ -123,7 +129,9 @@ func applySkill(skillDir string, files []SkillFile, rec SkillRecord, hasRec bool
 }
 
 // removeSkillFiles deletes exactly the files a record lists, then any
-// directories that became empty, up to and including skillDir. A linked
+// directories that became empty, up to and including skillDir. A recorded
+// path that fails validation aborts the removal before anything is deleted
+// from outside skillDir. A linked
 // skill directory is unlinked without deleting anything in its destination.
 func removeSkillFiles(skillDir string, rec SkillRecord) (removed []string, err error) {
 	if unlinked, err := unlinkSkillDir(skillDir); err != nil || unlinked {
@@ -131,7 +139,10 @@ func removeSkillFiles(skillDir string, rec SkillRecord) (removed []string, err e
 	}
 
 	for _, rel := range sortedKeys(rec.Files) {
-		path := joinRel(skillDir, rel)
+		path, err := safeJoin(skillDir, rel)
+		if err != nil {
+			return removed, fmt.Errorf("manifest records an invalid path: %w", err)
+		}
 		if err := os.Remove(path); err != nil {
 			if os.IsNotExist(err) {
 				continue

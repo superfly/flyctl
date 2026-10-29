@@ -155,6 +155,8 @@ func newFileHashes(files []SkillFile) map[string]string {
 	return hashes
 }
 
+// joinRel joins a forward-slashed path onto dir without validation. Use
+// safeJoin for anything read from an archive or the manifest.
 func joinRel(dir, rel string) string {
 	return filepath.Join(dir, filepath.FromSlash(rel))
 }
@@ -218,8 +220,10 @@ func classifySkill(skillDir string, newHashes map[string]string, rec SkillRecord
 			return h
 		}
 		var h *string
-		if v, found := hashDiskFile(joinRel(skillDir, rel)); found {
-			h = &v
+		if p, err := safeJoin(skillDir, rel); err == nil {
+			if v, found := hashDiskFile(p); found {
+				h = &v
+			}
 		}
 		disk[rel] = h
 
@@ -270,7 +274,13 @@ func classifySkill(skillDir string, newHashes map[string]string, rec SkillRecord
 func modifiedFiles(skillDir string, rec SkillRecord) []string {
 	var out []string
 	for _, rel := range sortedKeys(rec.Files) {
-		if got, ok := hashDiskFile(joinRel(skillDir, rel)); !ok || got != rec.Files[rel] {
+		p, err := safeJoin(skillDir, rel)
+		if err != nil {
+			out = append(out, rel)
+
+			continue
+		}
+		if got, ok := hashDiskFile(p); !ok || got != rec.Files[rel] {
 			out = append(out, rel)
 		}
 	}

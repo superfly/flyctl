@@ -74,6 +74,9 @@ func runRemove(ctx context.Context) error {
 			continue
 		}
 		for _, name := range sortedKeys(skills) {
+			if !validSkillName(name) {
+				return fmt.Errorf("%s records an invalid skill name %q", manifestPath(e.configDir), name)
+			}
 			skillDir := joinRel(t.SkillsDir, name)
 			files, err := removeSkillFiles(skillDir, skills[name])
 			if err != nil {

@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -213,8 +212,9 @@ func extractSkillFilesWithPrefix(tarball []byte, prefix string) (SkillFiles, err
 }
 
 // splitSkillPath turns an archive entry name into (skill name, path relative
-// to the skill dir). It rejects entries outside the prefix, directory entries
-// and anything that could escape the skill directory.
+// to the skill dir). It rejects entries outside the prefix, directory entries,
+// skill names outside the agentskills.io rules, and any relative path that
+// could escape the skill directory on any OS (see validRelPath).
 func splitSkillPath(entry, prefix string) (name, rel string, ok bool) {
 	entry = strings.TrimPrefix(entry, "./")
 	idx := strings.Index(entry, prefix)
@@ -232,10 +232,7 @@ func splitSkillPath(entry, prefix string) (name, rel string, ok bool) {
 		return "", "", false
 	}
 	name, rel = after[:slash], after[slash+1:]
-	if name == "" || rel == "" || strings.HasPrefix(name, ".") {
-		return "", "", false
-	}
-	if cleaned := path.Clean(rel); cleaned != rel || strings.HasPrefix(cleaned, "../") || cleaned == ".." || path.IsAbs(cleaned) {
+	if !validSkillName(name) || !validRelPath(rel) {
 		return "", "", false
 	}
 

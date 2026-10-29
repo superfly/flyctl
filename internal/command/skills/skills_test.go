@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -113,6 +114,24 @@ func TestSplitSkillPath(t *testing.T) {
 		{"skills-main/plugins/fly/skills/fly/../../x.md", "", "", false},
 		{"skills-main/plugins/fly/skills/fly/a/../b.md", "", "", false},
 		{"skills-main/plugins/fly/skills/../fly/SKILL.md", "", "", false},
+		// Backslashes are never legitimate in a GitHub archive and would be
+		// separators on Windows.
+		{`skills-main/plugins/fly/skills/fly/..\..\x`, "", "", false},
+		{`skills-main/plugins/fly/skills/fly/a\..\..\x`, "", "", false},
+		{`skills-main/plugins/fly/skills/fly/a/..\b`, "", "", false},
+		{`skills-main/plugins/fly/skills/fly/C:\x`, "", "", false},
+		{`skills-main/plugins/fly/skills/fly/C:x`, "", "", false},
+		{`skills-main/plugins/fly/skills/fly/\\server\share`, "", "", false},
+		{"skills-main/plugins/fly/skills/fly/a\x00b", "", "", false},
+		{"skills-main/plugins/fly/skills/fly//etc/passwd", "", "", false},
+		// Skill names follow the agentskills.io rules.
+		{`skills-main/plugins/fly/skills/fly\../SKILL.md`, "", "", false},
+		{"skills-main/plugins/fly/skills/Fly/SKILL.md", "", "", false},
+		{"skills-main/plugins/fly/skills/-fly/SKILL.md", "", "", false},
+		{"skills-main/plugins/fly/skills/fly--x/SKILL.md", "", "", false},
+		{"skills-main/plugins/fly/skills/.hidden/SKILL.md", "", "", false},
+		{"skills-main/plugins/fly/skills/C:/SKILL.md", "", "", false},
+		{"skills-main/plugins/fly/skills/fly-2/SKILL.md", "fly-2", "SKILL.md", true},
 	}
 	for _, tc := range cases {
 		name, rel, ok := splitSkillPath(tc.entry, skillsPathPrefix)
@@ -450,4 +469,81 @@ func TestSourceURLs(t *testing.T) {
 
 	local := source{repo: skillsRepo, tarball: "/tmp/skills.tar.gz"}
 	assert.Equal(t, "/tmp/skills.tar.gz", local.tarballURL("whatever"))
+}
+
+func TestValidSkillName(t *testing.T) {
+	for _, name := range []string{"fly", "brand", "fly-2", "a", "a1-b2-c3"} {
+		assert.True(t, validSkillName(name), name)
+	}
+	for _, name := range []string{"", "Fly", "-fly", "fly-", "fly--x", "fly_x", "fly.x", "fly/x", `fly\x`, "fly x", ".", "..", "C:", strings.Repeat("a", 65)} {
+		assert.False(t, validSkillName(name), name)
+	}
+	assert.True(t, validSkillName(strings.Repeat("a", 64)))
+}
+
+func TestValidRelPath(t *testing.T) {
+	for _, rel := range []string{"SKILL.md", "references/a.md", "a/b/c.md", "a-b_c.d", "..a/b", "a/.b"} {
+		assert.True(t, validRelPath(rel), rel)
+	}
+	for _, rel := range []string{
+		"", ".", "..", "../x", "a/../x", "a/..", "./a", "a/./b", "/etc/passwd", "a//b", "a/",
+		`..\..\x`, `a\..\..\x`, `a/..\b`, `a\b`, `C:\x`, `C:x`, `C:/x`, `\\server\share`, "a\x00b", "a:b",
+	} {
+		assert.False(t, validRelPath(rel), rel)
+	}
+}
+
+func TestSafeJoin(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "fly")
+
+	got, err := safeJoin(dir, "references/a.md")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "references", "a.md"), got)
+
+	for _, rel := range []string{"../x", `..\..\x`, `C:\x`, `\\server\share`, "/x", "a\x00b"} {
+		_, err := safeJoin(dir, rel)
+		require.Error(t, err, rel)
+		assert.ErrorIs(t, err, errUnsafePath, rel)
+	}
+}
+
+// A hand-edited manifest must never let remove or update delete or write
+// outside the skill directory.
+func TestManifestPathsCannotEscapeSkillDir(t *testing.T) {
+	root := t.TempDir()
+	skillDir := filepath.Join(root, "skills", "fly")
+	victim := filepath.Join(root, "victim.txt")
+	require.NoError(t, os.WriteFile(victim, []byte("precious\n"), 0o644))
+	writeFiles(t, skillDir, map[string]string{"SKILL.md": "v1\n"})
+
+	for _, rel := range []string{"../../victim.txt", `..\..\victim.txt`, "/" + filepath.ToSlash(victim)} {
+		rec := SkillRecord{Files: map[string]string{
+			"SKILL.md": hashContent([]byte("v1\n")),
+			rel:        hashContent([]byte("precious\n")),
+		}}
+
+		removed, err := removeSkillFiles(skillDir, rec)
+		require.Error(t, err, rel)
+		assert.ErrorIs(t, err, errUnsafePath)
+		assert.Empty(t, removed, "nothing is deleted once an invalid path is found")
+		assert.FileExists(t, victim)
+		assert.FileExists(t, filepath.Join(skillDir, "SKILL.md"))
+
+		// Upgrading treats the bogus entry as a dropped file and must refuse
+		// rather than remove it.
+		_, _, err = applySkill(skillDir, skillFiles(map[string]string{"SKILL.md": "v2\n"}), rec, true, "s2", false)
+		require.Error(t, err, rel)
+		assert.ErrorIs(t, err, errUnsafePath)
+		assert.FileExists(t, victim)
+
+		// Status reports it as modified instead of reading outside the dir.
+		assert.Contains(t, modifiedFiles(skillDir, rec), rel)
+	}
+
+	// An incoming file with a bad path is refused before anything is written.
+	_, _, err := applySkill(skillDir, []SkillFile{{Rel: `..\..\victim.txt`, Contents: []byte("owned\n")}}, SkillRecord{}, false, "s1", false)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errUnsafePath)
+	body, _ := os.ReadFile(victim)
+	assert.Equal(t, "precious\n", string(body))
 }

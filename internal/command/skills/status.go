@@ -91,6 +91,9 @@ func runStatus(ctx context.Context) error {
 		sha, mixed := manifest.targetRevision(key)
 		st := statusTarget{Tool: t.ToolName, SkillsDir: t.SkillsDir, SourceSHA: sha, Mixed: mixed}
 		for _, name := range sortedKeys(manifest.Targets[key]) {
+			if !validSkillName(name) {
+				continue
+			}
 			rec := manifest.Targets[key][name]
 			st.Skills = append(st.Skills, statusSkill{
 				Name:        name,
