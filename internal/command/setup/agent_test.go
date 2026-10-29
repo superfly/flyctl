@@ -378,14 +378,95 @@ func TestSkillsFailureOfRequestedAgentExitsNonZero(t *testing.T) {
 	require.FileExists(t, filepath.Join(home, ".claude.json"))
 }
 
-func TestNothingSucceeded(t *testing.T) {
-	ctx, _, flags, _, _, _ := harness(t)
+func TestSkippingEverythingIsRefusedBeforeLogin(t *testing.T) {
+	ctx, _, flags, streams, _, _ := harness(t, loggedOut())
+	streams.SetStdinTTY(true)
 	require.NoError(t, flags.Set("yes", "true"))
 	require.NoError(t, flags.Set("skip-skills", "true"))
 	require.NoError(t, flags.Set("skip-mcp", "true"))
+	loginFn = func(context.Context) error {
+		t.Fatal("login must not run when there is nothing to set up")
+		return nil
+	}
+
+	err := runAgent(ctx)
+	require.EqualError(t, err, "nothing to do: --skip-skills and --skip-mcp were both given")
+}
+
+func TestNothingSucceeded(t *testing.T) {
+	// Skills skipped, and the only MCP target cannot be written.
+	ctx, home, flags, _, _, _ := harness(t)
+	mkdirAgent(t, home, "cursor")
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".cursor", "mcp.json"), []byte("{ not json"), 0o644))
+	require.NoError(t, flags.Set("yes", "true"))
+	require.NoError(t, flags.Set("skip-skills", "true"))
 
 	err := runAgent(ctx)
 	require.EqualError(t, err, "setup did not install skills or configure MCP for any agent")
+}
+
+func TestHomeBehindSymlinkIsAccepted(t *testing.T) {
+	// A HOME whose canonical path differs from its lexical path (macOS
+	// /var -> /private/var, Fedora /home -> /var/home, Windows short names)
+	// must not look like an escape from the config directory.
+	ctx, realHome, flags, _, out, _ := harness(t)
+	linkParent := t.TempDir()
+	linkedHome := filepath.Join(linkParent, "home")
+	require.NoError(t, os.Symlink(realHome, linkedHome))
+	t.Setenv("HOME", linkedHome)
+	t.Setenv("USERPROFILE", linkedHome)
+	mkdirAgent(t, realHome, "claude-code", "cursor", "codex")
+	require.NoError(t, flags.Set("yes", "true"))
+
+	require.NoError(t, runAgent(ctx))
+	for _, rel := range []string{".claude.json", filepath.Join(".cursor", "mcp.json"), filepath.Join(".codex", "config.toml")} {
+		require.FileExists(t, filepath.Join(realHome, rel), rel)
+	}
+	require.NotContains(t, out.String(), "outside the expected config directory")
+	require.Contains(t, out.String(), "MCP configured")
+}
+
+func TestUnverifiableSignInIsNotAFailure(t *testing.T) {
+	client := &mock.Client{
+		AuthenticatedFunc: func() bool { return true },
+		GetCurrentUserFunc: func(context.Context) (*fly.User, error) {
+			return nil, errors.New("dial tcp: i/o timeout")
+		},
+	}
+	ctx, home, flags, streams, out, _ := harness(t, client)
+	mkdirAgent(t, home, "claude-code")
+	streams.SetStdinTTY(true)
+	require.NoError(t, flags.Set("yes", "true"))
+	loginFn = func(context.Context) error {
+		t.Fatal("login must not run when the user may already be signed in")
+		return nil
+	}
+
+	require.NoError(t, runAgent(ctx))
+	require.Contains(t, out.String(), "Could not verify sign-in: dial tcp: i/o timeout")
+	require.NotContains(t, out.String(), "Sign-in failed")
+}
+
+func TestPipedStdoutDoesNotOpenBrowserLogin(t *testing.T) {
+	// stdin is a terminal but stdout is not, so the prompt cannot be shown.
+	// Without -y the login must be skipped rather than launched unasked.
+	ctx, home, _, streams, out, _ := harness(t, loggedOut())
+	mkdirAgent(t, home, "claude-code")
+	streams.SetStdinTTY(true)
+	confirmFn = func(context.Context, string) (bool, error) {
+		return false, prompt.NonInteractiveError("no terminal")
+	}
+	selectFn = func(context.Context, *int, string, string, ...string) error {
+		return prompt.NonInteractiveError("no terminal")
+	}
+	loginFn = func(context.Context) error {
+		t.Fatal("login must not run without a prompt or -y")
+		return nil
+	}
+
+	require.NoError(t, runAgent(ctx))
+	require.Contains(t, out.String(), authSkipHint)
+	require.FileExists(t, filepath.Join(home, ".claude.json"))
 }
 
 func TestUnknownAgent(t *testing.T) {
@@ -407,7 +488,10 @@ func harness(t *testing.T, client ...flyutil.Client) (context.Context, string, *
 		t.Cleanup(func() { _ = os.Setenv(embeddedEnv, value) })
 	}
 
-	home := t.TempDir()
+	// Canonicalize the temp dir: macOS puts it under /var -> /private/var and
+	// Windows hands out 8.3 short names, and the command compares resolved paths.
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(home, ".fly"))

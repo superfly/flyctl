@@ -181,7 +181,10 @@ type authResult struct {
 	OK      bool   `json:"ok"`
 	Email   string `json:"email,omitempty"`
 	Skipped bool   `json:"skipped,omitempty"`
-	Error   string `json:"error,omitempty"`
+	// Unverified is set when the sign-in state could not be checked at all
+	// (network or API failure) rather than the user being signed out.
+	Unverified bool   `json:"unverified,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 func runAgent(ctx context.Context) error {
@@ -199,6 +202,9 @@ func runAgent(ctx context.Context) error {
 	quiet := embedded || asJSON
 	skipSkills := flag.GetBool(ctx, "skip-skills")
 	skipMCP := flag.GetBool(ctx, "skip-mcp")
+	if skipSkills && skipMCP {
+		return errors.New("nothing to do: --skip-skills and --skip-mcp were both given")
+	}
 
 	tools, err := skills.ResolveTools(home, slugs)
 	if err != nil {
@@ -268,7 +274,9 @@ func ensureAuth(ctx context.Context, streams *iostreams.IOStreams, skip, assumeY
 	case err == nil:
 		return signedIn(streams, email, quiet)
 	case !errors.Is(err, errNotSignedIn):
-		return authResult{Error: oneLine(err.Error())}
+		// The token may well be valid; the check itself failed. Say that
+		// rather than reporting a sign-in failure.
+		return authResult{Unverified: true, Error: oneLine(err.Error())}
 	}
 
 	// A non-TTY stdin, including the installer and CI, cannot complete the
@@ -322,7 +330,8 @@ func chooseAuth(ctx context.Context, assumeYes bool) (string, error) {
 	var index int
 	err := selectFn(ctx, &index, "Sign in to Fly", optLogin, optLogin, optSignup, optSkip)
 	if prompt.IsNonInteractive(err) {
-		return optLogin, nil
+		// Nobody can answer, and -y was not given: do not open a browser unasked.
+		return optSkip, nil
 	}
 	if err != nil {
 		return "", err
@@ -391,7 +400,7 @@ func applySetup(ctx context.Context, home string, tools []skills.CodingTool, ski
 	var skillsErr error
 	if skipSkills {
 		skillsStatus = statusSkipped
-	} else if err := skills.InstallInto(ctx, skills.BuildTargets(tools), "install", false, quiet); err != nil {
+	} else if err := skills.InstallInto(ctx, skills.BuildTargets(tools), "installed", false, quiet); err != nil {
 		skillsStatus = statusFailed
 		skillsErr = err
 	}
@@ -506,14 +515,24 @@ func printEmbedded(out, errOut io.Writer, rep report) {
 		fmt.Fprintln(out, agentLine(agent))
 	}
 	if rep.Auth.Error != "" && errOut != nil {
-		fmt.Fprintf(errOut, "Sign-in failed: %s\n", rep.Auth.Error)
+		fmt.Fprintf(errOut, "%s: %s\n", authErrorLabel(rep.Auth), rep.Auth.Error)
 	}
+}
+
+// authErrorLabel distinguishes a failed or declined login from a sign-in
+// check that could not run.
+func authErrorLabel(auth authResult) string {
+	if auth.Unverified {
+		return "Could not verify sign-in"
+	}
+
+	return "Sign-in failed"
 }
 
 func printAuthFooter(out io.Writer, rep report) {
 	switch {
 	case rep.Auth.Error != "":
-		fmt.Fprintf(out, "Sign-in failed: %s. Skills and MCP setup were not blocked.\n", rep.Auth.Error)
+		fmt.Fprintf(out, "%s: %s. Skills and MCP setup were not blocked.\n", authErrorLabel(rep.Auth), rep.Auth.Error)
 	case rep.Auth.Skipped:
 		fmt.Fprintln(out, authSkipHint)
 	}

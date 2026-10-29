@@ -4,35 +4,57 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"regexp"
+	"maps"
+	"reflect"
+	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/pelletier/go-toml/v2/unstable"
 )
 
-// errManualEdit means the fly server is present but not as a standalone
-// [mcp_servers.fly] table. The file parses; it just cannot be edited safely.
+// errManualEdit means the fly server is present but cannot be edited
+// safely: it is not a standalone [mcp_servers.fly] table, it is a stdio
+// entry, or the rewrite would not produce the expected document. The file
+// parses; it just has to be fixed by hand.
 var errManualEdit = errors.New("can't safely edit; edit manually")
 
-var (
-	flyHeaderRe = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\.\s*fly\s*\]\s*(?:#.*)?$`)
-	anyHeaderRe = regexp.MustCompile(`^\s*\[`)
-)
+// stdioKeys mark an entry that launches a local process. Overlaying the
+// hosted URL onto one would leave a hybrid entry, so such entries are never
+// rewritten.
+var stdioKeys = []string{"command", "args", "env"}
+
+func hasStdioKeys(obj map[string]any) bool {
+	for _, key := range stdioKeys {
+		if _, ok := obj[key]; ok {
+			return true
+		}
+	}
+
+	return false
+}
 
 // mergeCodexBytes inserts [mcp_servers.fly] into a Codex config.
 //
 // The original bytes are kept as a prefix and the table is appended, so
 // comments and other tables stay intact. A file that does not parse is
 // returned via a non-nil error and must not be written. out is nil when the
-// file should not change.
+// file should not change. A leading UTF-8 BOM is stripped for the parse and
+// put back on a write.
+//
+// With force, the url and enabled keys of an existing standalone table are
+// rewritten in place using parser positions, so strings and comments that
+// merely look like a table header or an assignment are never touched. The
+// rewritten bytes are parsed again and compared with the original: anything
+// other than the keys this command owns changing is an errManualEdit.
 func mergeCodexBytes(original []byte, force bool) (out []byte, status string, err error) {
-	if len(bytes.TrimSpace(original)) == 0 {
-		return []byte(codexTable("\n")), statusConfigured, nil
+	bom, body := splitBOM(original)
+	if len(bytes.TrimSpace(body)) == 0 {
+		return withBOM(bom, []byte(codexTable("\n"))), statusConfigured, nil
 	}
 
 	var root map[string]any
-	if err := toml.Unmarshal(original, &root); err != nil {
+	if err := toml.Unmarshal(body, &root); err != nil {
 		return nil, "", fmt.Errorf("not valid TOML: %w", err)
 	}
 
@@ -43,23 +65,25 @@ func mergeCodexBytes(original []byte, force bool) (out []byte, status string, er
 	if present && !force {
 		return nil, statusConflict, nil
 	}
+	if present && hasStdioKeys(table) {
+		return nil, "", fmt.Errorf("%w: [mcp_servers.fly] is a stdio server", errManualEdit)
+	}
 
 	var next []byte
 	if present {
-		replaced, err := updateCodexSection(original)
+		next, err = updateCodexSection(body)
 		if err != nil {
 			return nil, "", err
 		}
-		next = replaced
 	} else {
-		next = appendCodexTable(original)
+		next = appendCodexTable(body)
 	}
 
-	if err := toml.Unmarshal(next, new(map[string]any)); err != nil {
-		return nil, "", fmt.Errorf("refusing to write TOML that does not parse: %w", err)
+	if err := verifyCodexEdit(root, next); err != nil {
+		return nil, "", err
 	}
 
-	return next, statusConfigured, nil
+	return withBOM(bom, next), statusConfigured, nil
 }
 
 func codexFlyTable(root map[string]any) (map[string]any, bool) {
@@ -96,7 +120,11 @@ func codexReady(table map[string]any) bool {
 }
 
 func codexTable(nl string) string {
-	return "[mcp_servers." + mcpServerName + "]" + nl + "url = " + strconv.Quote(hostedMCPURL) + nl
+	return "[mcp_servers." + mcpServerName + "]" + nl + codexURLAssignment() + nl
+}
+
+func codexURLAssignment() string {
+	return "url = " + strconv.Quote(hostedMCPURL)
 }
 
 func lineEnding(data []byte) string {
@@ -122,138 +150,183 @@ func appendCodexTable(original []byte) []byte {
 	return append(out, codexTable(nl)...)
 }
 
-// updateCodexSection rewrites url lines and enabled = false inside the
-// standalone [mcp_servers.fly] table and leaves every other line, including
-// extra keys, comments and the following tables. An inline table is not a
-// section this can cut safely, so it returns errManualEdit instead of a
-// parse error.
-func updateCodexSection(original []byte) ([]byte, error) {
-	nl := lineEnding(original)
-	lines := splitLines(string(original))
-	start := -1
-	for i, line := range lines {
-		if flyHeaderRe.MatchString(strings.TrimRight(line, "\r\n")) {
-			start = i
-			break
-		}
+// verifyCodexEdit parses the rewritten bytes and checks that the fly table
+// now points at the hosted server and that nothing else changed. A rewrite
+// that fails this check is reported as errManualEdit: the original parsed,
+// so the problem is the edit, not the file.
+func verifyCodexEdit(before map[string]any, next []byte) error {
+	var after map[string]any
+	if err := toml.Unmarshal(next, &after); err != nil {
+		return fmt.Errorf("%w: the rewritten config does not parse: %v", errManualEdit, err)
 	}
-	if start < 0 {
-		return nil, errManualEdit
+	table, present := codexFlyTable(after)
+	if !present || !codexReady(table) {
+		return fmt.Errorf("%w: the rewrite did not produce a hosted [mcp_servers.fly] table", errManualEdit)
+	}
+	if !reflect.DeepEqual(codexComparable(before), codexComparable(after)) {
+		return fmt.Errorf("%w: the rewrite would change keys outside [mcp_servers.fly]", errManualEdit)
 	}
 
-	end := len(lines)
-	for i := start + 1; i < len(lines); i++ {
-		if anyHeaderRe.MatchString(strings.TrimRight(lines[i], "\r\n")) {
-			end = i
-			break
+	return nil
+}
+
+// codexComparable copies root without the keys this command owns, so the
+// parse before and after an edit can be compared directly.
+func codexComparable(root map[string]any) map[string]any {
+	out := maps.Clone(root)
+	servers, ok := out["mcp_servers"].(map[string]any)
+	if !ok {
+		return out
+	}
+	servers = maps.Clone(servers)
+	out["mcp_servers"] = servers
+	if fly, ok := servers[mcpServerName].(map[string]any); ok {
+		fly = maps.Clone(fly)
+		delete(fly, "url")
+		delete(fly, "enabled")
+		if len(fly) == 0 {
+			delete(servers, mcpServerName)
+		} else {
+			servers[mcpServerName] = fly
 		}
 	}
+	if len(servers) == 0 {
+		delete(out, "mcp_servers")
+	}
 
-	var b strings.Builder
-	for i := 0; i <= start; i++ {
-		b.WriteString(lines[i])
+	return out
+}
+
+// codexSection is the standalone [mcp_servers.fly] table located by the
+// parser. bodyStart is the offset just past the header line.
+type codexSection struct {
+	bodyStart int
+	keyvals   []codexKeyval
+}
+
+// codexKeyval is one simple `key = value` inside the fly table. start and
+// end bound the key through the end of the value; a trailing comment is
+// outside the range.
+type codexKeyval struct {
+	key        string
+	start, end int
+	isFalse    bool
+}
+
+// updateCodexSection rewrites url and enabled = false inside the standalone
+// [mcp_servers.fly] table and leaves every other byte, including extra keys,
+// comments and the following tables. A fly entry defined any other way (an
+// inline table, a dotted key under [mcp_servers]) is errManualEdit.
+func updateCodexSection(body []byte) ([]byte, error) {
+	section, err := locateCodexSection(body)
+	if err != nil {
+		return nil, err
 	}
-	if !strings.HasSuffix(lines[start], "\n") {
-		b.WriteString(nl)
+	nl := lineEnding(body)
+
+	type edit struct {
+		start, end int
+		text       string
 	}
+	var edits []edit
 	sawURL := false
-	for i := start + 1; i < end; i++ {
-		switch {
-		case isCodexURLLine(lines[i]):
-			b.WriteString(rewriteCodexURLLine(lines[i], nl))
+	for _, kv := range section.keyvals {
+		switch kv.key {
+		case "url":
 			sawURL = true
-		case isCodexEnabledFalseLine(lines[i]):
-			b.WriteString(rewriteCodexEnabledLine(lines[i], nl))
-		default:
-			b.WriteString(lines[i])
+			edits = append(edits, edit{kv.start, kv.end, codexURLAssignment()})
+		case "enabled":
+			if kv.isFalse {
+				edits = append(edits, edit{kv.start, kv.end, "enabled = true"})
+			}
 		}
 	}
 	if !sawURL {
-		b.WriteString("url = " + strconv.Quote(hostedMCPURL) + nl)
-	}
-	for i := end; i < len(lines); i++ {
-		b.WriteString(lines[i])
-	}
-
-	return []byte(b.String()), nil
-}
-
-func isCodexURLLine(line string) bool {
-	trimmed := strings.TrimSpace(strings.TrimRight(line, "\r\n"))
-	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-		return false
-	}
-	key, _, ok := strings.Cut(trimmed, "=")
-
-	return ok && strings.TrimSpace(key) == "url"
-}
-
-func isCodexEnabledFalseLine(line string) bool {
-	trimmed := strings.TrimSpace(strings.TrimRight(line, "\r\n"))
-	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-		return false
-	}
-	key, val, ok := strings.Cut(trimmed, "=")
-	if !ok || strings.TrimSpace(key) != "enabled" {
-		return false
-	}
-	val = strings.TrimSpace(val)
-	if i := strings.Index(val, "#"); i >= 0 {
-		val = strings.TrimSpace(val[:i])
-	}
-
-	return val == "false"
-}
-
-func rewriteCodexEnabledLine(line, nl string) string {
-	return rewriteCodexAssignment(line, "enabled = true", nl)
-}
-
-func rewriteCodexURLLine(line, nl string) string {
-	return rewriteCodexAssignment(line, "url = "+strconv.Quote(hostedMCPURL), nl)
-}
-
-func rewriteCodexAssignment(line, assignment, nl string) string {
-	indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
-	ending := ""
-	body := line
-	switch {
-	case strings.HasSuffix(body, "\r\n"):
-		ending = "\r\n"
-		body = strings.TrimSuffix(body, "\r\n")
-	case strings.HasSuffix(body, "\n"):
-		ending = "\n"
-		body = strings.TrimSuffix(body, "\n")
-	}
-	comment := ""
-	if i := strings.Index(body, "#"); i >= 0 {
-		comment = " " + strings.TrimSpace(body[i:])
-	}
-	if ending == "" {
-		ending = nl
-	}
-
-	return indent + assignment + comment + ending
-}
-
-func splitLines(text string) []string {
-	if text == "" {
-		return nil
-	}
-	var lines []string
-	for text != "" {
-		i := strings.IndexAny(text, "\r\n")
-		if i < 0 {
-			lines = append(lines, text)
-			break
+		text := codexURLAssignment() + nl
+		if section.bodyStart > 0 && body[section.bodyStart-1] != '\n' {
+			text = nl + text
 		}
-		end := i + 1
-		if text[i] == '\r' && end < len(text) && text[end] == '\n' {
-			end++
+		edits = append(edits, edit{section.bodyStart, section.bodyStart, text})
+	}
+	sort.Slice(edits, func(i, j int) bool {
+		return edits[i].start > edits[j].start
+	})
+
+	out := body
+	for _, e := range edits {
+		out, err = splice(out, e.start, e.end, []byte(e.text))
+		if err != nil {
+			return nil, err
 		}
-		lines = append(lines, text[:end])
-		text = text[end:]
 	}
 
-	return lines
+	return out, nil
+}
+
+// locateCodexSection walks the top-level expressions and returns the
+// standalone [mcp_servers.fly] table. Strings, comments and other tables
+// are skipped by the parser, so a header-looking line inside a multi-line
+// string is never mistaken for the table.
+func locateCodexSection(body []byte) (*codexSection, error) {
+	parser := &unstable.Parser{}
+	parser.Reset(body)
+
+	var section *codexSection
+	inFly := false
+	for parser.NextExpression() {
+		node := parser.Expression()
+		switch node.Kind {
+		case unstable.Table, unstable.ArrayTable:
+			if inFly {
+				return section, nil
+			}
+			keys := keyParts(node)
+			inFly = node.Kind == unstable.Table && len(keys) == 2 && keys[0] == "mcp_servers" && keys[1] == mcpServerName
+			if !inFly {
+				continue
+			}
+			end := 0
+			for it := node.Key(); it.Next(); {
+				end = int(it.Node().Raw.Offset + it.Node().Raw.Length)
+			}
+			if i := bytes.IndexByte(body[end:], '\n'); i >= 0 {
+				end += i + 1
+			} else {
+				end = len(body)
+			}
+			section = &codexSection{bodyStart: end}
+		case unstable.KeyValue:
+			if !inFly {
+				continue
+			}
+			keys := keyParts(node)
+			if len(keys) != 1 {
+				continue
+			}
+			value := node.Value()
+			section.keyvals = append(section.keyvals, codexKeyval{
+				key:     keys[0],
+				start:   int(node.Raw.Offset),
+				end:     int(node.Raw.Offset + node.Raw.Length),
+				isFalse: value.Kind == unstable.Bool && string(value.Data) == "false",
+			})
+		}
+	}
+	if err := parser.Error(); err != nil {
+		return nil, fmt.Errorf("%w: %v", errManualEdit, err)
+	}
+	if section == nil {
+		return nil, errManualEdit
+	}
+
+	return section, nil
+}
+
+func keyParts(node *unstable.Node) []string {
+	var parts []string
+	for it := node.Key(); it.Next(); {
+		parts = append(parts, string(it.Node().Data))
+	}
+
+	return parts
 }

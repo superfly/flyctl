@@ -76,6 +76,10 @@ func installJSON(home, path string, client mcpClient, force bool) mcpOutcome {
 
 		next, status, err := mergeJSONBytes(data, client, force)
 		if err != nil {
+			if errors.Is(err, errManualEdit) {
+				return failed(wt.logical, fmt.Sprintf("can't safely edit %s; edit the %q entry manually", wt.logical, mcpServerName))
+			}
+
 			return failed(wt.logical, fmt.Sprintf("could not parse %s: %s", wt.logical, err.Error()))
 		}
 
@@ -240,10 +244,13 @@ func mkdirExpected(logical string) error {
 }
 
 // requireContained refuses a resolved target that is not inside the expected
-// config directory or the user's home. The resolved client directory is
-// allowed only when that directory itself stays inside home or the expected
-// directory. A target under ~/.ssh is refused even though it is inside home,
-// and --force is not consulted.
+// config directory or the user's home. Both roots are compared in their
+// lexical form and in their canonical form, because the target has already
+// been canonicalized: a home behind a symlink (macOS /var -> /private/var,
+// Fedora /home -> /var/home) or a Windows 8.3 short name must not look like an
+// escape. The resolved client directory is allowed only when that directory
+// itself stays inside home or the expected directory. A target under ~/.ssh
+// is refused even though it is inside home, and --force is not consulted.
 func requireContained(home, logical, resolved string) error {
 	logical = filepath.Clean(logical)
 	resolved = filepath.Clean(resolved)
@@ -251,12 +258,30 @@ func requireContained(home, logical, resolved string) error {
 		return fmt.Errorf("refusing to write %s: it resolves to %s, which is under %s", logical, resolved, filepath.Join(home, ".ssh"))
 	}
 	expected := filepath.Dir(logical)
-	if pathWithin(resolved, expected) || (home != "" && pathWithin(resolved, home)) {
-		return nil
+	roots := []string{expected}
+	if home != "" {
+		roots = append(roots, home)
+		if realHome := resolvePath(home); realHome != "" {
+			roots = append(roots, realHome)
+		}
 	}
-	if resolvedDir, err := filepath.EvalSymlinks(expected); err == nil {
-		inside := pathWithin(resolvedDir, expected) || (home != "" && pathWithin(resolvedDir, home))
-		if inside && pathWithin(resolved, resolvedDir) {
+	for _, root := range roots {
+		if pathWithin(resolved, root) {
+			return nil
+		}
+	}
+	// The expected directory may canonicalize differently from its lexical
+	// form (an ancestor symlink, a short name). Accept a target inside the
+	// canonical directory, unless the config directory itself is a symlink
+	// that leaves every root: a ~/.cursor pointing outside home is refused.
+	if realExpected := resolvePath(expected); realExpected != "" && pathWithin(resolved, realExpected) {
+		if info, err := os.Lstat(expected); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			for _, root := range roots {
+				if pathWithin(realExpected, root) {
+					return nil
+				}
+			}
+		} else {
 			return nil
 		}
 	}

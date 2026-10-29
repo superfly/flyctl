@@ -227,8 +227,9 @@ func antigravityURLsMatch(obj map[string]any) bool {
 	}
 }
 
-// urlsMatch compares scheme, host, path and query. A trailing slash on the
-// path is ignored. A different host, path, query, or http versus https is
+// urlsMatch compares scheme, userinfo, host, path, query and fragment. A
+// trailing slash on the path is ignored. A different host, path, query,
+// http versus https, or any userinfo or fragment the hosted URL lacks is
 // not a match.
 func urlsMatch(got, want string) bool {
 	if got == want {
@@ -241,9 +242,11 @@ func urlsMatch(got, want string) bool {
 	}
 
 	return strings.EqualFold(left.Scheme, right.Scheme) &&
+		left.User.String() == right.User.String() &&
 		strings.EqualFold(left.Host, right.Host) &&
 		strings.TrimRight(left.Path, "/") == strings.TrimRight(right.Path, "/") &&
-		left.RawQuery == right.RawQuery
+		left.RawQuery == right.RawQuery &&
+		left.Fragment == right.Fragment
 }
 
 func stringField(obj map[string]any, key string) string {
@@ -255,11 +258,17 @@ func stringField(obj map[string]any, key string) string {
 // overlayRaw updates the keys this command owns and marshals that value
 // back. The surrounding document is spliced around it, so unrelated keys
 // and servers stay put. Comments inside the fly value itself are not kept.
-// A fly value that is not an object is replaced by the canonical entry.
+// A fly value that is not an object is replaced by the canonical entry. A
+// stdio entry (command, args or env) is never overlaid: the result would be
+// a hybrid that is neither a local nor a hosted server, so it is
+// errManualEdit instead.
 func overlayRaw(body []byte, value *hujson.Value, client mcpClient, v2 bool, desired []byte) ([]byte, error) {
 	obj, ok := objectMap(valueBytes(body, value))
 	if !ok {
 		return desired, nil
+	}
+	if hasStdioKeys(obj) {
+		return nil, fmt.Errorf("%w: %s is a stdio server", errManualEdit, mcpServerName)
 	}
 	if disabled, isBool := obj["disabled"].(bool); isBool && disabled {
 		obj["disabled"] = false
@@ -392,24 +401,109 @@ func withBOM(bom, body []byte) []byte {
 	return out
 }
 
-// insertMember splices "name": entry into object, before its closing brace.
+// insertMember splices "name": entry into object.
+//
+// An empty object gets the member just before its closing brace. Otherwise
+// the member goes directly after the last member's value, or after that
+// member's trailing comma when it has one, so the whitespace that already
+// sits before the closing brace stays where it is. When the last member
+// starts on its own line the new member does too, with the same indentation,
+// and the entry is indented to match; a compact object gets a compact
+// member.
 func insertMember(original []byte, object *hujson.Value, name string, entry []byte) ([]byte, error) {
 	obj, ok := object.Value.(*hujson.Object)
 	if !ok {
 		return nil, errors.New("internal: MCP config value is not a JSON object")
 	}
-	at, err := closeBrace(object, original)
-	if err != nil {
-		return nil, err
+	if len(obj.Members) == 0 {
+		at, err := closeBrace(object, original)
+		if err != nil {
+			return nil, err
+		}
+
+		return splice(original, at, at, memberFragment(name, entry, false))
 	}
 
-	// A trailing comma is recorded on the last member. When it is absent the
-	// new member needs its own comma; when it is present the comma is already
-	// in the bytes we leave alone.
-	needComma := len(obj.Members) > 0 && obj.Members[len(obj.Members)-1].Value.AfterExtra == nil
-	fragment := memberFragment(name, entry, needComma)
+	last := &obj.Members[len(obj.Members)-1]
+	if last.Value.EndOffset <= 0 || last.Value.EndOffset > len(original) {
+		return nil, errors.New("internal: JSON value is outside the file")
+	}
+	at := last.Value.EndOffset
+
+	// A trailing comma is recorded as a non-nil AfterExtra on the last member,
+	// holding whatever sits between the value and the comma. When it is
+	// present the new member goes after it and needs no comma of its own.
+	trailingComma := last.Value.AfterExtra != nil
+	if trailingComma {
+		at += len(last.Value.AfterExtra)
+		if at >= len(original) || original[at] != ',' {
+			return nil, errors.New("internal: trailing comma is not where the parser reported it")
+		}
+		at++
+	}
+
+	nl, indent := memberIndent(last.Name.BeforeExtra)
+	var fragment []byte
+	if !trailingComma {
+		fragment = append(fragment, ',')
+	}
+	if nl != "" {
+		fragment = append(fragment, nl...)
+		fragment = append(fragment, indent...)
+		entry = indentEntry(entry, indent, containerIndent(obj.AfterExtra), nl)
+	}
+	fragment = append(fragment, memberFragment(name, entry, false)...)
 
 	return splice(original, at, at, fragment)
+}
+
+// memberIndent reads the line ending and indentation a member was written
+// with from the whitespace and comments before its name. Both are empty
+// when the member does not start on its own line.
+func memberIndent(before hujson.Extra) (nl, indent string) {
+	i := bytes.LastIndexByte(before, '\n')
+	if i < 0 {
+		return "", ""
+	}
+	nl = "\n"
+	if i > 0 && before[i-1] == '\r' {
+		nl = "\r\n"
+	}
+	rest := before[i+1:]
+	j := len(rest)
+	for j > 0 && (rest[j-1] == ' ' || rest[j-1] == '\t') {
+		j--
+	}
+
+	return nl, string(rest[j:])
+}
+
+// containerIndent is the indentation of the object's closing brace, read
+// from the whitespace that precedes it.
+func containerIndent(after hujson.Extra) string {
+	_, indent := memberIndent(after)
+
+	return indent
+}
+
+// indentEntry re-indents a compact JSON value so that it reads as if it had
+// been written at memberIndent inside an object whose closing brace sits at
+// outer. The value stays compact when the indentation unit cannot be told
+// from those two.
+func indentEntry(entry []byte, memberIndent, outer, nl string) []byte {
+	if !strings.HasPrefix(memberIndent, outer) || len(memberIndent) == len(outer) {
+		return entry
+	}
+	unit := memberIndent[len(outer):]
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, entry, memberIndent, unit); err != nil {
+		return entry
+	}
+	if nl != "\n" {
+		return bytes.ReplaceAll(buf.Bytes(), []byte("\n"), []byte(nl))
+	}
+
+	return buf.Bytes()
 }
 
 func closeBrace(value *hujson.Value, original []byte) (int, error) {
