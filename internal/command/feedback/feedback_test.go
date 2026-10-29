@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -183,4 +184,74 @@ func TestRun(t *testing.T) {
 
 		require.ErrorContains(t, run(ctx), "invalid --category")
 	})
+
+	t.Run("missing category never reaches the API", func(t *testing.T) {
+		ctx, _ := newRunContext(t,
+			[]string{"--request-id", "req-1", "note"},
+			"", false, failOnSubmit(t))
+
+		require.ErrorContains(t, run(ctx), "--category is required")
+	})
+
+	t.Run("missing request id and url never reaches the API", func(t *testing.T) {
+		ctx, _ := newRunContext(t,
+			[]string{"--category", "bug", "note"},
+			"", false, failOnSubmit(t))
+
+		require.ErrorContains(t, run(ctx), "--request-id or --url")
+	})
+
+	t.Run("empty note never reaches the API", func(t *testing.T) {
+		ctx, _ := newRunContext(t,
+			[]string{"--category", "bug", "--request-id", "req-1"},
+			" \n", false, failOnSubmit(t))
+
+		require.ErrorContains(t, run(ctx), "can't be empty")
+	})
+
+	t.Run("too long note never reaches the API", func(t *testing.T) {
+		ctx, _ := newRunContext(t,
+			[]string{"--category", "bug", "--request-id", "req-1", strings.Repeat("a", maxNoteLength+1)},
+			"", false, failOnSubmit(t))
+
+		require.ErrorContains(t, run(ctx), "too long")
+	})
+
+	t.Run("flags are validated before stdin is read", func(t *testing.T) {
+		ctx, _ := newRunContext(t,
+			[]string{"--category", "praise", "--request-id", "req-1"},
+			"", false, failOnSubmit(t))
+
+		ios, _, _, _ := iostreams.Test()
+		stdin := &readRecorder{}
+		ios.In = stdin
+		ctx = iostreams.NewContext(ctx, ios)
+
+		require.ErrorContains(t, run(ctx), "invalid --category")
+		assert.False(t, stdin.read, "stdin should not be read when the flags are invalid")
+	})
 }
+
+// failOnSubmit returns a client that fails the test if the API is called.
+func failOnSubmit(t *testing.T) *mock.UiexClient {
+	t.Helper()
+
+	return &mock.UiexClient{
+		SubmitFeedbackFunc: func(context.Context, uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+			t.Error("SubmitFeedback should not be called")
+
+			return nil, errors.New("unexpected call")
+		},
+	}
+}
+
+// readRecorder is a stdin that records whether it was read.
+type readRecorder struct{ read bool }
+
+func (r *readRecorder) Read([]byte) (int, error) {
+	r.read = true
+
+	return 0, io.EOF
+}
+
+func (r *readRecorder) Close() error { return nil }
