@@ -90,6 +90,10 @@ func (m *mockUIEXClient) GetCurrentRelease(ctx context.Context, appName string) 
 	return &uiex.Release{}, nil
 }
 
+func (m *mockUIEXClient) SubmitFeedback(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+	return &uiex.FeedbackResponse{}, nil
+}
+
 func (m *mockUIEXClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
 	return &uiex.Release{}, nil
 }
