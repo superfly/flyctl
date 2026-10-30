@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -92,7 +93,44 @@ func (s source) tarballURL(sha string) string {
 	return fmt.Sprintf("https://github.com/%s/archive/%s.tar.gz", s.repo, ref)
 }
 
-var httpClient = &http.Client{Timeout: 2 * time.Minute}
+var httpClient = &http.Client{
+	Timeout:       2 * time.Minute,
+	CheckRedirect: rejectNonHTTPSRedirect,
+}
+
+// rejectNonHTTPSRedirect refuses any redirect whose next URL is not https.
+// The default policy allows ten redirects; keep that cap.
+func rejectNonHTTPSRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	if req.URL == nil || !strings.EqualFold(req.URL.Scheme, "https") {
+		return insecureURL(req.URL)
+	}
+
+	return nil
+}
+
+func insecureURL(u *url.URL) error {
+	if u == nil {
+		return fmt.Errorf("refusing to download Fly skills over http")
+	}
+
+	return fmt.Errorf("refusing to download Fly skills over http: %s", u.String())
+}
+
+// requireFinalHTTPS rejects a response whose final URL is not https, so a
+// redirect that slipped past CheckRedirect still cannot be saved.
+func requireFinalHTTPS(resp *http.Response) error {
+	if resp == nil || resp.Request == nil {
+		return fmt.Errorf("refusing to download Fly skills over http")
+	}
+	if resp.Request.URL == nil || !strings.EqualFold(resp.Request.URL.Scheme, "https") {
+		return insecureURL(resp.Request.URL)
+	}
+
+	return nil
+}
 
 // fetchLatestSHA returns the bare commit SHA the source ref currently points
 // at. A local tarball has no upstream, so it returns "".
@@ -117,6 +155,9 @@ func fetchLatestSHA(ctx context.Context, src source) (string, error) {
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
+	if err := requireFinalHTTPS(resp); err != nil {
+		return "", err
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("failed to look up the latest %s revision: HTTP %s", src.repo, resp.Status)
 	}
@@ -139,6 +180,9 @@ func downloadTarball(ctx context.Context, src source, sha string) ([]byte, error
 	if !isURL(location) {
 		return os.ReadFile(location)
 	}
+	if strings.HasPrefix(location, "http://") {
+		return nil, fmt.Errorf("refusing to download Fly skills over http: %s", location)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
 	if err != nil {
@@ -152,6 +196,9 @@ func downloadTarball(ctx context.Context, src source, sha string) ([]byte, error
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
+	if err := requireFinalHTTPS(resp); err != nil {
+		return nil, err
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to download Fly skills: HTTP %s", resp.Status)
 	}
