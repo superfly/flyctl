@@ -6,7 +6,6 @@ import (
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/extensions/arcjet"
-	"github.com/superfly/flyctl/internal/command/extensions/kubernetes"
 	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/command/extensions/tigris"
 	"github.com/superfly/flyctl/internal/command/extensions/vector"
@@ -26,7 +25,6 @@ func New() (cmd *cobra.Command) {
 	cmd.AddCommand(
 		sentry_ext.New(),
 		tigris.New(),
-		kubernetes.New(),
 		vector.New(),
 		arcjet.New(),
 		wafris.New(),
