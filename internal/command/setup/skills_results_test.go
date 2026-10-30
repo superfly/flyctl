@@ -11,6 +11,28 @@ import (
 	"github.com/superfly/flyctl/internal/command/skills"
 )
 
+func TestPinnedSetupKeepsStructuredOutputClean(t *testing.T) {
+	ctx, home, flags, _, out, _ := harness(t)
+	mkdirAgent(t, home, "cursor")
+	require.NoError(t, flags.Set("agent", "cursor"))
+	t.Setenv("FLY_SKILLS_REF", "1111111111111111111111111111111111111111")
+	require.NoError(t, flags.Set("json", "true"))
+	require.NoError(t, runAgent(ctx))
+	var rep report
+	require.NoError(t, json.Unmarshal(out.Bytes(), &rep))
+	require.True(t, rep.OK)
+
+	// A later run gets its pin from the manifest, including in embedded mode.
+	t.Setenv("FLY_SKILLS_REF", "")
+	require.NoError(t, flags.Set("json", "false"))
+	t.Setenv(embeddedEnv, "1")
+	out.Reset()
+	require.NoError(t, runAgent(ctx))
+	require.Len(t, nonEmptyLines(out.String()), 1)
+	require.Contains(t, out.String(), "Cursor: skills installed")
+	require.NotContains(t, out.String(), "Pinned to")
+}
+
 func TestSkillsFailureContinuesOtherAgentsAndSavesManifest(t *testing.T) {
 	ctx, home, flags, _, out, _ := harness(t)
 	mkdirAgent(t, home, "claude-code", "cursor")

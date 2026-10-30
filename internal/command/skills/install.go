@@ -238,6 +238,7 @@ func syncSkillsWithResults(ctx context.Context, e env, targets []Target, verb st
 	}
 	if sha != "" {
 		manifest.LatestSHA = sha
+		manifest.LatestRef = src.refOrDefault()
 		manifest.LastChecked = nowRFC3339()
 	}
 	// The pin records the ref this run asked for, applied in full or not, so
@@ -267,7 +268,9 @@ func syncSkillsWithResults(ctx context.Context, e env, targets []Target, verb st
 	if previous != "" && sha != "" && previous != sha && skipped == 0 && failed == 0 {
 		fmt.Fprintf(out, "  revision %s → %s\n", shortSHA(previous), shortSHA(sha))
 	}
-	printPin(ctx, src.ref)
+	if !quiet {
+		printPin(ctx, src.ref)
+	}
 
 	return results, nil
 }

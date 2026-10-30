@@ -100,7 +100,11 @@ func runStatus(ctx context.Context) error {
 		ArchiveSHA256: manifest.ArchiveSHA256,
 		SourceRef:     manifest.SourceRef,
 		CheckedRef:    src.refOrDefault(),
-		LatestSHA:     manifest.LatestSHA,
+	}
+	// Never label a cached revision as belonging to another ref, including
+	// when offline or when the lookup below fails. Legacy caches have no ref.
+	if manifest.LatestRef == report.CheckedRef {
+		report.LatestSHA = manifest.LatestSHA
 	}
 
 	for _, t := range sortedTargetsFromManifest(e, manifest) {
@@ -146,6 +150,7 @@ func runStatus(ctx context.Context) error {
 		} else if latest != "" {
 			report.LatestSHA = latest
 			manifest.LatestSHA = latest
+			manifest.LatestRef = report.CheckedRef
 			manifest.LastChecked = nowRFC3339()
 			if err := manifest.save(e.configDir); err != nil {
 				fmt.Fprintf(io.ErrOut, "%s Could not record the upstream check: %v\n", colorize.WarningIcon(), err)

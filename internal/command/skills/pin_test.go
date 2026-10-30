@@ -73,6 +73,7 @@ func TestUpdateHonoursStoredPin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testOldSHA, m.SourceRef)
 	assert.Equal(t, testOldSHA, m.SourceSHA)
+	assert.Equal(t, testOldSHA, m.LatestRef)
 	assert.Contains(t, out.String(), "Pinned to "+testOldSHA)
 	assert.Contains(t, out.String(), "--ref main")
 
@@ -213,4 +214,75 @@ func TestInstallWithAgentWritesOnlyThoseAgents(t *testing.T) {
 	m, err := readManifest(e.configDir)
 	require.NoError(t, err)
 	assert.Equal(t, []string{filepath.ToSlash(claude)}, sortedKeys(m.Targets))
+}
+
+func TestStatusDoesNotReuseAnotherRefsCachedRevision(t *testing.T) {
+	ctx, e, flags, out := skillsTestContext(t)
+	target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
+	writeSkillsArchive(t, flags, "fly")
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
+
+	status := func(ref string) statusReport {
+		t.Helper()
+		require.NoError(t, flags.Set("ref", ref))
+		out.Reset()
+		require.NoError(t, runStatus(ctx))
+		var report statusReport
+		require.NoError(t, json.Unmarshal(out.Bytes(), &report))
+
+		return report
+	}
+
+	// An install cached the pinned SHA, not the head of main or another branch.
+	for _, ref := range []string{"main", "preview"} {
+		report := status(ref)
+		require.Equal(t, ref, report.CheckedRef)
+		require.Empty(t, report.LatestSHA)
+		require.False(t, report.UpdateAvailable)
+	}
+
+	// A comparison against another commit must not later masquerade as main.
+	report := status(testNewSHA)
+	require.Equal(t, testNewSHA, report.LatestSHA)
+	require.True(t, report.UpdateAvailable)
+	report = status("main")
+	require.Empty(t, report.LatestSHA)
+	require.False(t, report.UpdateAvailable)
+	m, err := readManifest(e.configDir)
+	require.NoError(t, err)
+	require.Equal(t, testOldSHA, m.SourceRef)
+	require.Equal(t, testNewSHA, m.LatestRef)
+}
+
+func TestOfflineStatusRequiresMatchingCacheRef(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		pin       string
+		cachedRef string
+		wantSHA   string
+	}{
+		{name: "main", cachedRef: "main", wantSHA: testNewSHA},
+		{name: "branch", pin: "preview", cachedRef: "preview", wantSHA: testNewSHA},
+		{name: "different branch", pin: "preview", cachedRef: "main"},
+		{name: "legacy cache"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, e, flags, out := skillsTestContext(t)
+			unsetFlag(t, flags, "ref")
+			m, err := readManifest(e.configDir)
+			require.NoError(t, err)
+			m.SourceRef = tc.pin
+			m.LatestRef = tc.cachedRef
+			m.LatestSHA = testNewSHA
+			m.setRecord(filepath.ToSlash(filepath.Join(e.home, ".agents", "skills")), "fly",
+				recordFor(map[string]string{}, testOldSHA))
+			require.NoError(t, m.save(e.configDir))
+
+			require.NoError(t, runStatus(ctx))
+			var report statusReport
+			require.NoError(t, json.Unmarshal(out.Bytes(), &report))
+			require.Equal(t, tc.wantSHA, report.LatestSHA)
+			require.Equal(t, tc.wantSHA != "", report.UpdateAvailable)
+		})
+	}
 }

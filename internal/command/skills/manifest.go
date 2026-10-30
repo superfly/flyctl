@@ -41,7 +41,10 @@ type Manifest struct {
 	// empty when tracking main. Later update and status runs use it unless
 	// --ref or FLY_SKILLS_REF overrides it.
 	SourceRef string `json:"source_ref,omitempty"`
-	// LatestSHA is the newest upstream revision seen, applied or not.
+	// LatestRef identifies the ref LatestSHA was resolved from. An empty
+	// value is an older, unscoped cache and cannot be reused by status.
+	LatestRef string `json:"latest_ref,omitempty"`
+	// LatestSHA is the last revision seen for LatestRef, applied or not.
 	LatestSHA   string                            `json:"latest_sha,omitempty"`
 	LastChecked string                            `json:"last_checked,omitempty"`
 	Targets     map[string]map[string]SkillRecord `json:"targets"`
