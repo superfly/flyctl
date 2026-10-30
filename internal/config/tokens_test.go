@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
 	"github.com/superfly/macaroon/resset"
@@ -299,6 +300,60 @@ func TestRefreshDischargeTokensTimeouts(t *testing.T) {
 
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.Greater(t, took, interactive-nonInteractive, "the retry ran on the non-interactive budget")
+	})
+}
+
+func TestMonitorTokensUndischargeableTokens(t *testing.T) {
+	ctx := task.NewWithContext(logger.NewContext(context.Background(), logger.New(os.Stdout, logger.Debug, true)))
+
+	thirdParty := fakeThirdParty(t, func(w http.ResponseWriter, r *http.Request, tp3 *tp.TP) {
+		http.Error(w, "discharge endpoint is down", http.StatusInternalServerError)
+	})
+
+	t.Run("tokens left without discharges report the discharge failure", func(t *testing.T) {
+		err := MonitorTokens(ctx, fakeThirdPartyTokens(t, thirdParty, 1), nil)
+
+		require.ErrorContains(t, err, "third-party discharge tokens")
+	})
+
+	t.Run("a token that can still authenticate is not an error", func(t *testing.T) {
+		toks := fakeThirdPartyTokens(t, thirdParty, 1)
+		toks.AddTokens(fakeTokens(t, "", 2).GetMacaroonTokens()...)
+
+		require.NoError(t, MonitorTokens(ctx, toks, nil))
+	})
+}
+
+func TestMissingAllDischarges(t *testing.T) {
+	thirdParty := fakeThirdParty(t, func(w http.ResponseWriter, r *http.Request, tp3 *tp.TP) {
+		t.Error("no discharge should have been requested")
+	})
+
+	t.Run("undischarged tokens", func(t *testing.T) {
+		require.True(t, missingAllDischarges(fakeThirdPartyTokens(t, thirdParty, 1, 2)))
+	})
+
+	t.Run("discharged tokens", func(t *testing.T) {
+		require.False(t, missingAllDischarges(fakeTokens(t, "", 1)))
+	})
+
+	t.Run("undischarged tokens alongside a user token", func(t *testing.T) {
+		toks := fakeThirdPartyTokens(t, thirdParty, 1)
+		toks.AddTokens("fo1_hi")
+
+		require.False(t, missingAllDischarges(toks))
+	})
+
+	t.Run("tokens needing no discharge", func(t *testing.T) {
+		perm := fakePermissionToken(t, &flyio.Organization{ID: 1, Mask: resset.ActionAll})
+		tok, err := perm.Encode()
+		require.NoError(t, err)
+
+		require.False(t, missingAllDischarges(tokens.Parse(macaroon.ToAuthorizationHeader(tok))))
+	})
+
+	t.Run("no tokens", func(t *testing.T) {
+		require.False(t, missingAllDischarges(&tokens.Tokens{}))
 	})
 }
 
