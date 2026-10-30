@@ -28,7 +28,7 @@ skills were installed into are touched unless --agent is given.`
 	flag.Add(cmd,
 		flag.StringSlice{
 			Name:        "agent",
-			Description: agentFlagDescription,
+			Description: AgentFlagDescription(),
 		},
 	)
 

@@ -85,7 +85,7 @@ func TestRemoveLinkedSkillPreservesOtherTarget(t *testing.T) {
 	writeFiles(t, joinRel(universal, "fly"), map[string]string{"SKILL.md": "fly"})
 	linkSkill(t, joinRel(universal, "fly"), joinRel(claude, "fly"))
 	writeSkillsArchive(t, flags, "fly")
-	require.NoError(t, syncSkills(ctx, e, []Target{{SkillsDir: universal}, {SkillsDir: claude}}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{{SkillsDir: universal}, {SkillsDir: claude}}, "installed", false, false))
 	// A shared local edit and a user-added file must survive removing the link.
 	writeFiles(t, joinRel(universal, "fly"), map[string]string{"SKILL.md": "local edit", "notes.md": "keep"})
 	require.NoError(t, flags.Set("agent", "claude-code"))
@@ -119,7 +119,7 @@ func TestSyncSkillsRetiresDroppedSkill(t *testing.T) {
 			ctx, e, flags, out := skillsTestContext(t)
 			target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
 			writeSkillsArchive(t, flags, "brand", "fly")
-			require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+			require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 			brandDir := joinRel(target.SkillsDir, "brand")
 			if tc.modified {
 				writeFiles(t, brandDir, map[string]string{"SKILL.md": "local edit"})
@@ -174,7 +174,7 @@ func TestSyncSkillsRetiresLinkedSkillWithoutDeletingSharedFiles(t *testing.T) {
 	writeFiles(t, shared, map[string]string{"SKILL.md": "brand"})
 	linkSkill(t, shared, joinRel(target.SkillsDir, "brand"))
 	writeSkillsArchive(t, flags, "brand", "fly")
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 	writeSkillsArchive(t, flags, "fly")
 	require.NoError(t, flags.Set("ref", testNewSHA))
 	require.NoError(t, runUpdate(ctx))
@@ -195,7 +195,7 @@ func TestStatusReportsPartialAdoptionAsMixed(t *testing.T) {
 			target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
 			writeFiles(t, joinRel(target.SkillsDir, modified), map[string]string{"SKILL.md": "my existing skill"})
 			writeSkillsArchive(t, flags, "brand", "fly")
-			require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+			require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 			out.Reset()
 			require.NoError(t, runStatus(ctx))
 

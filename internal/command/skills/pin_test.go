@@ -68,7 +68,7 @@ func TestUpdateHonoursStoredPin(t *testing.T) {
 	writeSkillsArchive(t, flags, "fly")
 
 	// The harness installs with --ref <sha>, which records the pin.
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 	m, err := readManifest(e.configDir)
 	require.NoError(t, err)
 	assert.Equal(t, testOldSHA, m.SourceRef)
@@ -92,7 +92,7 @@ func TestUpdateRefMainClearsPin(t *testing.T) {
 	ctx, e, flags, out := skillsTestContext(t)
 	target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
 	writeSkillsArchive(t, flags, "fly")
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 
 	require.NoError(t, flags.Set("ref", "main"))
 	out.Reset()
@@ -117,7 +117,7 @@ func TestUpdateRefPrecedence(t *testing.T) {
 	ctx, e, flags, out := skillsTestContext(t)
 	target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
 	writeSkillsArchive(t, flags, "fly")
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 
 	// The environment beats the manifest's pin.
 	unsetFlag(t, flags, "ref")
@@ -143,7 +143,7 @@ func TestStatusComparesAgainstPinWithoutWritingIt(t *testing.T) {
 	ctx, e, flags, out := skillsTestContext(t)
 	target := Target{SkillsDir: filepath.Join(e.home, ".agents", "skills")}
 	writeSkillsArchive(t, flags, "fly")
-	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false))
+	require.NoError(t, syncSkills(ctx, e, []Target{target}, "installed", false, false))
 
 	status := func() statusReport {
 		t.Helper()

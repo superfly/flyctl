@@ -30,7 +30,7 @@ pass --ref main.`
 	flag.Add(cmd,
 		flag.StringSlice{
 			Name:        "agent",
-			Description: agentFlagDescription,
+			Description: AgentFlagDescription(),
 		},
 		flag.Bool{
 			Name:        "force",
@@ -68,5 +68,5 @@ func runUpdate(ctx context.Context) error {
 
 	printTargets(ctx, "Updating Fly skills in:", targets)
 
-	return syncSkills(ctx, e, targets, "updated", flag.GetBool(ctx, "force"))
+	return syncSkills(ctx, e, targets, "updated", flag.GetBool(ctx, "force"), false)
 }
