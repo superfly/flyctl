@@ -37,7 +37,14 @@ type Manifest struct {
 	// ArchiveSHA256 is the hex digest of the tarball that revision was
 	// installed from, recorded together with SourceSHA.
 	ArchiveSHA256 string `json:"archive_sha256,omitempty"`
-	// LatestSHA is the newest upstream revision seen, applied or not.
+	// SourceRef is the branch, tag or commit the install is pinned to. It is
+	// empty when tracking main. Later update and status runs use it unless
+	// --ref or FLY_SKILLS_REF overrides it.
+	SourceRef string `json:"source_ref,omitempty"`
+	// LatestRef identifies the ref LatestSHA was resolved from. An empty
+	// value is an older, unscoped cache and cannot be reused by status.
+	LatestRef string `json:"latest_ref,omitempty"`
+	// LatestSHA is the last revision seen for LatestRef, applied or not.
 	LatestSHA   string                            `json:"latest_sha,omitempty"`
 	LastChecked string                            `json:"last_checked,omitempty"`
 	Targets     map[string]map[string]SkillRecord `json:"targets"`

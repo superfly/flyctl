@@ -37,13 +37,24 @@ func skillsTestContext(t *testing.T) (context.Context, env, *pflag.FlagSet, *byt
 	ctx = state.WithConfigDirectory(ctx, e.configDir)
 	ctx = config.NewContext(ctx, &config.Config{JSONOutput: true})
 	flags := pflag.NewFlagSet("skills-test", pflag.ContinueOnError)
-	flags.String("ref", testOldSHA, "")
+	flags.String("ref", "", "")
 	flags.String("tarball", filepath.Join(home, "skills.tar.gz"), "")
 	flags.StringSlice("agent", nil, "")
 	flags.Bool("force", false, "")
 	flags.Bool("offline", true, "")
+	flags.Bool("yes", false, "")
+	require.NoError(t, flags.Set("ref", testOldSHA))
 
 	return flag.NewContext(ctx, flags), e, flags, &out
+}
+
+// unsetFlag puts a flag back to how cobra leaves one the user did not pass.
+func unsetFlag(t *testing.T, flags *pflag.FlagSet, name string) {
+	t.Helper()
+	f := flags.Lookup(name)
+	require.NotNil(t, f)
+	require.NoError(t, f.Value.Set(f.DefValue))
+	f.Changed = false
 }
 
 func writeSkillsArchive(t *testing.T, flags *pflag.FlagSet, names ...string) {
