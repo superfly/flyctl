@@ -21,12 +21,14 @@ import (
 // goroutine after Test has completed" once the parent has moved on. With
 // the collector, a failed command just fails that tick and the loop retries.
 //
-// Commands still land in the shared history. History is not printed on a
-// failed tick, since failing ticks are expected; the final failure is
-// reported by EventuallyWithT on the parent test as usual.
+// Commands still land in the shared history, and each one is logged with
+// its exit status and duration as a numbered retry attempt. History is not
+// printed on a failed tick, since failing ticks are expected; the final
+// failure is reported by EventuallyWithT on the parent test as usual.
 func (f *FlyctlTestEnv) Collect(c *assert.CollectT) *FlyctlTestEnv {
 	view := *f
 	view.t = &collectTB{TB: f.t, c: c}
+	view.retrying = true
 	view.noHistoryOnFail = true
 
 	return &view

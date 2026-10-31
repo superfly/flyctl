@@ -32,6 +32,7 @@ type FlyctlTestEnv struct {
 	otherRegions        []string
 	env                 map[string]string
 	history             *cmdHistory // shared with Collect views
+	retrying            bool        // set on Collect views: log each command as a retry attempt
 	noHistoryOnFail     bool
 	id                  string
 	VMSize              string
@@ -44,12 +45,20 @@ type FlyctlTestEnv struct {
 type cmdHistory struct {
 	mu      sync.Mutex
 	results []*FlyctlResult
+	retries int // commands run through Collect views, across all retry loops
 }
 
-func (h *cmdHistory) add(r *FlyctlResult) {
+// add records r and, for a retry attempt, returns its number; 0 otherwise.
+func (h *cmdHistory) add(r *FlyctlResult, retry bool) int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.results = append(h.results, r)
+	if !retry {
+		return 0
+	}
+	h.retries++
+
+	return h.retries
 }
 
 func (h *cmdHistory) snapshot() []*FlyctlResult {
@@ -309,7 +318,13 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	} else {
 		f.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
-	f.history.add(res)
+	if retryNo := f.history.add(res, f.retrying); retryNo > 0 {
+		// Every command inside a retry loop is logged with its exit status and
+		// duration, so slow or repeatedly failing retries are visible. Written to
+		// stdout rather than t.Logf: this runs on the retry goroutine, which can
+		// outlive the test, and t.Logf panics after the test has finished.
+		fmt.Printf("    retry %d: %s exited %d after %s\n", retryNo, res.argsStr, res.exitCode, res.duration.Round(time.Millisecond))
+	}
 	if !cfg.NoAssertSuccessfulExit {
 		res.AssertSuccessfulExit()
 	}

@@ -313,11 +313,9 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 	// The SSH server on a fresh machine may not be up yet, so a failed attempt
 	// must be retried rather than failing the test. The agent keeps the
 	// WireGuard tunnel between attempts, so only the first one pays for it.
-	attempt := 0
+	// Each attempt is logged by the harness with its exit status and duration.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		attempt++
-		ssh := f.FlyBestEffort(30*time.Second, "ssh console -C 'cat /tmp/secrets.txt'")
-		t.Logf("ssh console attempt %d exited %d after %s", attempt, ssh.ExitCode(), ssh.Duration().Round(time.Millisecond))
+		ssh := f.Collect(c).FlyBestEffort(30*time.Second, "ssh console -C 'cat /tmp/secrets.txt'")
 		if !assert.Equal(c, 0, ssh.ExitCode(), "ssh console failed: %s", ssh.StdErrString()) {
 			return
 		}

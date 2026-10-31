@@ -73,8 +73,10 @@ func TestCollectSharesCommandHistory(t *testing.T) {
 	f.Fly("first")
 	c := new(assert.CollectT)
 	f.Collect(c).Fly("second")
+	f.Collect(c).Fly("third")
 
-	require.Len(t, f.history.snapshot(), 2, "commands run through the view must appear in the parent's history")
+	require.Len(t, f.history.snapshot(), 3, "commands run through the view must appear in the parent's history")
+	require.Equal(t, 2, f.history.retries, "only commands run through the view count as retry attempts")
 }
 
 func TestCollectKeepsNonFailureMethodsOnParent(t *testing.T) {
