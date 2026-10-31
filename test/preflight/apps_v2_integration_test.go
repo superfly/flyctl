@@ -451,7 +451,7 @@ func testDeployDetach(t *testing.T) {
 	ml := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started")
@@ -459,7 +459,7 @@ func testDeployDetach(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started")
@@ -477,7 +477,7 @@ func testDeployDetachBatching(t *testing.T) {
 	ml := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
@@ -485,7 +485,7 @@ func testDeployDetachBatching(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 60s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started", false)
@@ -542,4 +542,18 @@ ENV BUILT_BY_DOCKERFILE=true
 	for _, image := range machineImages {
 		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
 	}
+}
+
+// waitMachineStarted waits up to a minute for the machine to be started. When
+// it isn't, the failure includes the machine's event log, so a machine that
+// was stopped (and by what) shows up in the test output rather than just
+// "currently stopped".
+func waitMachineStarted(f *testlib.FlyctlTestEnv, machineID string) {
+	f.Helper()
+	res := f.FlyAllowExitFailure("machine wait %s --state started --wait-timeout 60s", machineID)
+	if res.ExitCode() == 0 {
+		return
+	}
+	status := f.FlyAllowExitFailure("machine status %s", machineID)
+	f.Fatalf("machine %s did not start: %s\n%s%s", machineID, strings.TrimSpace(res.StdErrString()), status.StdOutString(), status.StdErrString())
 }

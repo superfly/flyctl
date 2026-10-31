@@ -163,6 +163,18 @@ func TestFlyMachineRun_port(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
+	// The machines list can lag a completed update for a moment, so retry
+	// the read instead of asserting on the first response.
+	requireServices := func(want []fly.MachineService) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			ml := f.Collect(c).MachinesList(appName)
+			if !assert.Len(c, ml, 1) {
+				return
+			}
+			assert.Equal(c, want, ml[0].Config.Services)
+		}, 30*time.Second, 2*time.Second, "machine services never matched the update")
+	}
+
 	f.Fly("machine run -a %s nginx --port 443:80/tcp:http:tls --region %s", appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
@@ -180,7 +192,6 @@ func TestFlyMachineRun_port(t *testing.T) {
 	require.Contains(f, []string{"created", "started"}, m.State)
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:http --port 1001/udp", appName, m.ID)
-	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 80,
@@ -198,10 +209,9 @@ func TestFlyMachineRun_port(t *testing.T) {
 			Port: fly.Pointer(1001),
 		}},
 	}}
-	require.Equal(f, want, m.Config.Services)
+	requireServices(want)
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:- --port 1001/udp:tls", appName, m.ID)
-	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "udp",
 		InternalPort: 1001,
@@ -210,5 +220,5 @@ func TestFlyMachineRun_port(t *testing.T) {
 			Handlers: []string{"tls"},
 		}},
 	}}
-	require.Equal(f, want, m.Config.Services)
+	requireServices(want)
 }
