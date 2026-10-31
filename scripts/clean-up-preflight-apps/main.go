@@ -119,6 +119,7 @@ func removeStalePeers(ctx context.Context, apiClient *fly.Client, orgSlug string
 			return fmt.Errorf("removing peer %s: %w", peer.Name, err)
 		}
 	}
+
 	return nil
 }
 
