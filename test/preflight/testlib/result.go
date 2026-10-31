@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -20,6 +21,8 @@ type FlyctlResult struct {
 	testIoStreams         *iostreams.IOStreams
 	stdIn, stdOut, stdErr *bytes.Buffer
 	exitCode              int
+	timedOut              bool
+	duration              time.Duration
 }
 
 func (r *FlyctlResult) CmdString() string {
@@ -28,6 +31,16 @@ func (r *FlyctlResult) CmdString() string {
 
 func (r *FlyctlResult) ExitCode() int {
 	return r.exitCode
+}
+
+// TimedOut reports whether the command was killed for exceeding its deadline.
+func (r *FlyctlResult) TimedOut() bool {
+	return r.timedOut
+}
+
+// Duration is how long the command ran, from start until it exited or was killed.
+func (r *FlyctlResult) Duration() time.Duration {
+	return r.duration
 }
 
 func (r *FlyctlResult) StdOut() *bytes.Buffer {
@@ -62,5 +75,5 @@ func (r *FlyctlResult) AssertSuccessfulExit() {
 
 func (r *FlyctlResult) DebugPrintOutput() {
 	r.t.Helper()
-	fmt.Printf("DBGCMD: %s\nOUTPUT:\n%s\nSTDERR:\n%s\n", r.cmdStr, r.stdOut.String(), r.stdErr.String())
+	fmt.Printf("DBGCMD: %s\nEXIT: %d after %s\nOUTPUT:\n%s\nSTDERR:\n%s\n", r.cmdStr, r.exitCode, r.duration.Round(time.Millisecond), r.stdOut.String(), r.stdErr.String())
 }

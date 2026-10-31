@@ -48,7 +48,7 @@ func runDetachedAppProcessMachine(f *testlib.FlyctlTestEnv, appName string) {
 func requireMachineCounts(f *testlib.FlyctlTestEnv, appName string, managedCount, detachedCount int) ([]*fly.Machine, []*fly.Machine) {
 	var managedMachines, detachedMachines []*fly.Machine
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
-		managedMachines, detachedMachines = splitFlyLaunchMachines(f.MachinesList(appName))
+		managedMachines, detachedMachines = splitFlyLaunchMachines(f.Collect(c).MachinesList(appName))
 		assert.Len(c, managedMachines, managedCount)
 		assert.Len(c, detachedMachines, detachedCount)
 	}, 2*time.Minute, 3*time.Second)
