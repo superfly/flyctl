@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="doc/images/fly-cli.png" alt="The Fly CLI" />
+</p>
+
 # flyctl
 
-flyctl is a command-line interface for fly.io.
+flyctl is a command-line interface for [fly.io](https://fly.io/).
 
 Note: Most installations of `flyctl` also alias `flyctl` to `fly` as a command name, and this will become the default name in the future. During the transition, note that where you see `flyctl` as a command, it can be replaced with `fly`.
 

@@ -16,6 +16,7 @@ var _ uiexutil.Client = (*UiexClient)(nil)
 type UiexClient struct {
 	ListOrganizationsFunc      func(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	GetOrganizationFunc        func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+	GetLaunchChecksFunc        func(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error)
 	PromoteMachineEgressIPFunc func(ctx context.Context, appName string, egressIP string) error
 
 	CreateBuildFunc                        func(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error)
@@ -51,6 +52,14 @@ func (m *UiexClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex
 	}
 
 	return &uiex.Organization{Slug: orgSlug}, nil
+}
+
+func (m *UiexClient) GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error) {
+	if m.GetLaunchChecksFunc != nil {
+		return m.GetLaunchChecksFunc(ctx, orgSlug)
+	}
+
+	return &uiex.LaunchChecks{}, nil
 }
 
 func (m *UiexClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {

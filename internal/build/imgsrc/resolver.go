@@ -211,6 +211,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			tracing.RecordError(ctx, span, err, "failed to resolve image")
 
 			return nil, err
 		}
@@ -602,6 +603,23 @@ type buildResult struct {
 	wallclockTimeMs int
 }
 
+// depotFinishContext preserves the normal client budget while the parent is live.
+// Once the parent ends, only the result notification gets a bounded grace period.
+func depotFinishContext(parent context.Context, grace time.Duration) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+	stop := context.AfterFunc(parent, func() {
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			cancel()
+		case <-ctx.Done():
+		}
+	})
+
+	return ctx, func() { stop(); cancel() }
+}
+
 func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*buildResult, error) {
 	if build.CreateApiFailed {
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
@@ -630,6 +648,14 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 			Tag:       img.Tag,
 			SizeBytes: img.Size,
 		}
+	}
+	// A canceled Depot build must still get a bounded chance to report its
+	// acquisition target. Detach only this result notification, not the build
+	// or SDK cleanup. Keep context values (auth, tracing, config) intact.
+	if failed && build.BuilderMeta.BuilderType == string(depotBuilderType) {
+		var cancel context.CancelFunc
+		ctx, cancel = depotFinishContext(ctx, 3*time.Second)
+		defer cancel()
 	}
 	resp, err := uiexClient.FinishBuild(ctx, input)
 	if err != nil {

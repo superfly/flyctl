@@ -7,6 +7,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/tracing"
 )
 
 func supportsPreservedStoppedUpdate(strategy, launchBasisState string) bool {
@@ -45,7 +46,13 @@ func (md *machineDeployment) waitForStartedOrPreservedStoppedUpdate(
 	lm machine.LeasableMachine,
 	launchBasisState string,
 	timeout time.Duration,
-) (bool, error) {
+) (preserved bool, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_machine_state")
+	defer func() {
+		tracing.RecordError(ctx, span, err, "machine state wait failed")
+		span.End()
+	}()
+
 	if !supportsPreservedStoppedUpdate(md.strategy, launchBasisState) {
 		return false, lm.WaitForState(ctx, fly.MachineStateStarted, timeout, machine.WithJustCreated())
 	}

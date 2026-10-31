@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -184,7 +185,12 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	err = updatePool.Wait()
 	if err != nil {
-		return withVolumePlacementCapacitySuggestion(err)
+		err = withVolumePlacementCapacitySuggestion(err)
+		if machinelimit.Refused(err) {
+			err = machinelimit.WithRequestLink(ctx, err, machinelimit.AppOrgSlug(ctx, appName))
+		}
+
+		return err
 	}
 
 	// Scaling may change the situation of app-scoped egress IPs in affected regions
@@ -193,6 +199,11 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		regionMap[r] = nil
 	}
 	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
+
+	// Scaling down alone never needs the warning.
+	if lo.SomeBy(actions, func(a *planItem) bool { return a.Delta > 0 }) {
+		machinelimit.Warn(ctx, machinelimit.AppOrgSlug(ctx, appName))
+	}
 
 	return nil
 }
