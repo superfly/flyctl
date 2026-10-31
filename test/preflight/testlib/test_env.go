@@ -31,13 +31,32 @@ type FlyctlTestEnv struct {
 	primaryRegion       string
 	otherRegions        []string
 	env                 map[string]string
-	// historyMu guards cmdHistory, which retry goroutines that outlive an
-	// EventuallyWithT call can still append to.
-	historyMu       sync.Mutex
-	cmdHistory      []*FlyctlResult
-	noHistoryOnFail bool
-	id              string
-	VMSize          string
+	history             *cmdHistory // shared with Collect views
+	noHistoryOnFail     bool
+	id                  string
+	VMSize              string
+}
+
+// cmdHistory is the list of commands a test has run. It lives behind a
+// pointer so Collect views share it with the parent env, and it is locked
+// because a retry goroutine that outlives an EventuallyWithT call can still
+// append to it.
+type cmdHistory struct {
+	mu      sync.Mutex
+	results []*FlyctlResult
+}
+
+func (h *cmdHistory) add(r *FlyctlResult) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.results = append(h.results, r)
+}
+
+func (h *cmdHistory) snapshot() []*FlyctlResult {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return append([]*FlyctlResult(nil), h.results...)
 }
 
 // Preflight flyctl commands are not supposed to take more than five minutes.
@@ -153,6 +172,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 	}
 	testEnv := &FlyctlTestEnv{
 		id:                  ulid.Make().String(),
+		history:             &cmdHistory{},
 		t:                   t,
 		flyctlBin:           flyctlBin,
 		primaryRegion:       primaryReg,
@@ -289,9 +309,7 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	} else {
 		f.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
-	f.historyMu.Lock()
-	f.cmdHistory = append(f.cmdHistory, res)
-	f.historyMu.Unlock()
+	f.history.add(res)
 	if !cfg.NoAssertSuccessfulExit {
 		res.AssertSuccessfulExit()
 	}
@@ -311,10 +329,7 @@ func (f *FlyctlTestEnv) DebugPrintHistory() {
 	if f.Failed() || f.noHistoryOnFail {
 		return
 	}
-	f.historyMu.Lock()
-	history := append([]*FlyctlResult(nil), f.cmdHistory...)
-	f.historyMu.Unlock()
-	for i, r := range history {
+	for i, r := range f.history.snapshot() {
 		fmt.Printf("%3d:\n", i+1)
 		r.DebugPrintOutput()
 	}

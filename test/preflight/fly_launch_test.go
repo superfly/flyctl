@@ -241,7 +241,7 @@ func TestFlyLaunchHA(t *testing.T) {
 	var ml []*fly.Machine
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml = f.MachinesList(appName)
+		ml = f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 5, len(ml), "want 5 machines, which includes two standbys")
 	}, 10*time.Second, 1*time.Second)
 
@@ -288,12 +288,12 @@ func TestFlyLaunchSingleMount(t *testing.T) {
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(appName)
+		ml := f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 2, len(ml))
 	}, 15*time.Second, 1*time.Second, "want 2 machines, one for each process")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
+		vl := f.Collect(c).VolumeList(appName)
 		assert.Equal(c, 2, len(vl))
 	}, 15*time.Second, 1*time.Second, "want 2 volumes, one for each process")
 }

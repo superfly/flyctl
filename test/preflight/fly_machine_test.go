@@ -6,7 +6,9 @@ package preflight
 import (
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
@@ -34,7 +36,16 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	require.Nil(f, m.Config.DisableMachineAutostart)
 	require.Equal(f, want, m.Config.Services)
 
-	f.Fly("machine update -a %s %s --autostart -y", appName, m.ID)
+	// The lease taken by the previous command can linger for a moment, in
+	// which case update fails with "lease currently held"; retry rather than
+	// fail the test on that.
+	updateMachine := func(flags string) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			f.Collect(c).Fly("machine update -a %s %s %s -y", appName, m.ID, flags)
+		}, 30*time.Second, 2*time.Second, "machine update %s never succeeded", flags)
+	}
+
+	updateMachine("--autostart")
 	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "tcp",
@@ -49,7 +60,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	require.Nil(f, m.Config.DisableMachineAutostart)
 	require.Equal(f, want, m.Config.Services)
 
-	f.Fly("machine update -a %s %s --autostart=false --autostop=false -y", appName, m.ID)
+	updateMachine("--autostart=false --autostop=false")
 	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "tcp",

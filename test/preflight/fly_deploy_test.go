@@ -81,8 +81,8 @@ func TestFlyDeployHA(t *testing.T) {
 		result := f.Fly("volume create -a %s -r %s -s 1 data -y --json", appName, region)
 		result.StdOutJSON(&volume)
 
-		require.Eventually(t, func() bool {
-			return f.FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode() == 0
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode())
 		}, time.Minute, 2*time.Second, "volume %s never became readable", volume.ID)
 	}
 	f.Fly("deploy --buildkit --remote-only")
@@ -115,8 +115,8 @@ func TestFlyDeploy_AddNewMount(t *testing.T) {
 	var volume *fly.Volume
 	result := f.Fly("volume create -a %s -r %s -s 1 data -y --json", appName, f.PrimaryRegion())
 	result.StdOutJSON(&volume)
-	require.Eventually(t, func() bool {
-		return f.FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode() == 0
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode())
 	}, time.Minute, 2*time.Second, "volume %s never became readable", volume.ID)
 	f.Fly("deploy --buildkit --remote-only")
 }
@@ -189,7 +189,7 @@ ENV PREFLIGHT_TEST=true`)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		// Use FlyAllowExitFailure to handle transient WireGuard API failures (HTTP 500)
-		sshResult := f.FlyAllowExitFailure("ssh console -C 'printenv PREFLIGHT_TEST'")
+		sshResult := f.Collect(c).FlyAllowExitFailure("ssh console -C 'printenv PREFLIGHT_TEST'")
 		if sshResult.ExitCode() != 0 {
 			assert.Fail(c, "ssh command failed, will retry", "exit code: %d, stderr: %s", sshResult.ExitCode(), sshResult.StdErrString())
 			return
@@ -585,13 +585,10 @@ func TestFlyDeploy_BlueGreen_StoppedMachines(t *testing.T) {
 		for _, m := range machines {
 			f.Fly("machine stop -a %s %s", appName, m.ID)
 		}
-		require.Eventually(t, func() bool {
-			for _, m := range f.MachinesList(appName) {
-				if m.State != fly.MachineStateStopped {
-					return false
-				}
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			for _, m := range f.Collect(c).MachinesList(appName) {
+				assert.Equal(c, fly.MachineStateStopped, m.State, "machine %s", m.ID)
 			}
-			return true
 		}, 30*time.Second, 2*time.Second, "timed out waiting for all machines to reach stopped state")
 
 		return f, appName
