@@ -116,7 +116,9 @@ func removeStalePeers(ctx context.Context, apiClient *fly.Client, orgSlug string
 		}
 		fmt.Fprintf(os.Stderr, "removing stale wireguard peer %s\n", peer.Name)
 		if err := apiClient.RemoveWireGuardPeer(ctx, org.ID, peer.Name); err != nil {
-			return fmt.Errorf("removing peer %s: %w", peer.Name, err)
+			// The test's own cleanup or a parallel run may have removed it first.
+			// Keep sweeping so one peer never blocks the rest.
+			fmt.Fprintf(os.Stderr, "removing peer %s failed; continuing cleanup: %v\n", peer.Name, err)
 		}
 	}
 

@@ -188,14 +188,15 @@ ENV PREFLIGHT_TEST=true`)
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// Use FlyAllowExitFailure to handle transient WireGuard API failures (HTTP 500)
-		sshResult := f.Collect(c).FlyAllowExitFailure("ssh console -C 'printenv PREFLIGHT_TEST'")
+		// A failed attempt (transient WireGuard API 500, SSH server not up yet)
+		// is retried, and a hung one is killed so the loop gets another try.
+		sshResult := f.Collect(c).FlyBestEffort(30*time.Second, "ssh console -C 'printenv PREFLIGHT_TEST'")
 		if sshResult.ExitCode() != 0 {
 			assert.Fail(c, "ssh command failed, will retry", "exit code: %d, stderr: %s", sshResult.ExitCode(), sshResult.StdErrString())
 			return
 		}
 		assert.Equal(c, "true", strings.TrimSpace(sshResult.StdOutString()), "expected PREFLIGHT_TEST env var to be set in machine")
-	}, 30*time.Second, 2*time.Second)
+	}, 90*time.Second, 2*time.Second)
 }
 
 // TestFlyDeploy_SlowBind_NoFalseListenWarning is the regression test for
@@ -586,7 +587,11 @@ func TestFlyDeploy_BlueGreen_StoppedMachines(t *testing.T) {
 			f.Fly("machine stop -a %s %s", appName, m.ID)
 		}
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			for _, m := range f.Collect(c).MachinesList(appName) {
+			ml := f.Collect(c).MachinesList(appName)
+			if !assert.NotEmpty(c, ml, "machines list came back empty") {
+				return
+			}
+			for _, m := range ml {
 				assert.Equal(c, fly.MachineStateStopped, m.State, "machine %s", m.ID)
 			}
 		}, 30*time.Second, 2*time.Second, "timed out waiting for all machines to reach stopped state")

@@ -45,10 +45,12 @@ type FlyctlTestEnv struct {
 type cmdHistory struct {
 	mu      sync.Mutex
 	results []*FlyctlResult
-	retries int // commands run through Collect views, across all retry loops
+	retries map[string]int // attempts per command line run through Collect views
 }
 
-// add records r and, for a retry attempt, returns its number; 0 otherwise.
+// add records r and, for a retry attempt, returns how many times this exact
+// command line has been retried so far; 0 otherwise. Counting per command line
+// gives each retry loop its own attempt numbers.
 func (h *cmdHistory) add(r *FlyctlResult, retry bool) int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -56,9 +58,12 @@ func (h *cmdHistory) add(r *FlyctlResult, retry bool) int {
 	if !retry {
 		return 0
 	}
-	h.retries++
+	if h.retries == nil {
+		h.retries = map[string]int{}
+	}
+	h.retries[r.argsStr]++
 
-	return h.retries
+	return h.retries[r.argsStr]
 }
 
 func (h *cmdHistory) snapshot() []*FlyctlResult {

@@ -63,6 +63,6 @@ CMD ["sleep", "infinity"]
 				return
 			}
 			assert.Contains(c, cleanupDigOutput(result.StdOutString()), peerName)
-		}, time.Minute, 2*time.Second)
+		}, 90*time.Second, 2*time.Second) // room for two full attempts of both 20s lookups
 	})
 }
