@@ -265,17 +265,20 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	cmd.Stdin = testIostreams.In
 	cmd.Stdout = testIostreams.Out
 	cmd.Stderr = testIostreams.ErrOut
+	start := time.Now()
 	err = cmd.Start()
 	if err != nil {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
 	err = cmd.Wait()
+	res.duration = time.Since(start)
 	if err != nil && ctx.Err() != nil {
 		if !cfg.NoAssertDeadline {
 			f.Fatalf("command exceeded its deadline: %s [context error]: %v [stdout]: %s [stderr]: %s", res.cmdStr, ctx.Err(), res.stdOut.String(), res.stdErr.String())
 		}
-		// Record the timeout in stderr rather than logging it: this may run in a
-		// retry goroutine that outlives the test, where t.Logf panics.
+		// Record the timeout in stderr so it travels with the result. This may run
+		// in a retry goroutine after the test has finished, where failing the test
+		// would panic.
 		fmt.Fprintf(res.stdErr, "\ncommand exceeded its deadline: %v", ctx.Err())
 		res.exitCode = -1
 		res.timedOut = true
@@ -350,12 +353,7 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 	appName := randomName(f, prefix)
 	f.Cleanup(func() {
-		// A slow destroy shouldn't fail a test that already passed, or hold up
-		// the suite. Apps left behind are removed by the preflight cleanup workflow.
-		res := f.FlyBestEffort(time.Minute, "apps destroy --yes %s", appName)
-		if res.ExitCode() != 0 {
-			f.Logf("apps destroy %s failed (timed out: %t); leaving it for the preflight cleanup workflow: %s", appName, res.TimedOut(), res.StdErrString())
-		}
+		f.FlyAllowExitFailure("apps destroy --yes %s", appName)
 	})
 	return appName
 }

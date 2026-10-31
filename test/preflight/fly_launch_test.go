@@ -310,17 +310,19 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	// The machine may not accept SSH connections right after launch, so a
-	// failed or hung attempt must be retried rather than failing the test.
+	// The SSH server on a fresh machine may not be up yet, so a failed attempt
+	// must be retried rather than failing the test. The agent keeps the
+	// WireGuard tunnel between attempts, so only the first one pays for it.
+	attempt := 0
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// The first attempt may need to start the agent and open a WireGuard
-		// tunnel, so give each attempt room for that.
-		ssh := f.FlyBestEffort(time.Minute, "ssh console -C 'cat /tmp/secrets.txt'")
+		attempt++
+		ssh := f.FlyBestEffort(30*time.Second, "ssh console -C 'cat /tmp/secrets.txt'")
+		t.Logf("ssh console attempt %d exited %d after %s", attempt, ssh.ExitCode(), ssh.Duration().Round(time.Millisecond))
 		if !assert.Equal(c, 0, ssh.ExitCode(), "ssh console failed: %s", ssh.StdErrString()) {
 			return
 		}
 		assert.Equal(c, "SECRET1", ssh.StdOutString())
-	}, 3*time.Minute, 2*time.Second)
+	}, 90*time.Second, 2*time.Second)
 }
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {
