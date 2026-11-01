@@ -49,3 +49,14 @@ func TestConfigureLaravelUsesGeneratorFrom81(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigureLaravelBuildsAssetsOnNode22(t *testing.T) {
+	dir := writeLaravelApp(t, "^8.2")
+	t.Chdir(dir)
+
+	srcInfo, err := configureLaravel(dir, &ScannerConfig{})
+
+	require.NoError(t, err)
+	require.NotNil(t, srcInfo)
+	assert.Equal(t, "22", srcInfo.BuildArgs["NODE_VERSION"])
+}

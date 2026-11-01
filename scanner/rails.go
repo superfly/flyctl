@@ -21,6 +21,20 @@ import (
 var healthcheck_channel = make(chan string)
 var bundle, ruby string
 
+// rubyVersionFileRE matches the version in a .ruby-version file, written
+// either plain ("3.3.0", the rbenv/asdf/mise style that `rails new` writes)
+// or with rvm's "ruby-" prefix ("ruby-3.3.0"). Other engines such as
+// "jruby-9.4.5.0" don't match.
+var rubyVersionFileRE = regexp.MustCompile(`(?m)^\s*(?:ruby-)?(\d+\.\d+\.\d+)`)
+
+// parseRubyVersionFile returns the X.Y.Z version in a .ruby-version file, or "".
+func parseRubyVersionFile(content string) string {
+	if matches := rubyVersionFileRE.FindStringSubmatch(content); len(matches) >= 2 {
+		return matches[1]
+	}
+	return ""
+}
+
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
 	// so checking for that can produce a false positive.  Look for
@@ -97,11 +111,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// add ruby version from .ruby-version file
 		versionFile, err := os.ReadFile(".ruby-version")
 		if err == nil {
-			re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
-			matches := re.FindStringSubmatch(string(versionFile))
-			if len(matches) >= 2 {
-				rubyVersion = matches[1]
-			}
+			rubyVersion = parseRubyVersionFile(string(versionFile))
 		}
 	}
 

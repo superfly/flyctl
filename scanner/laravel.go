@@ -72,9 +72,11 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s.Runtime = plan.RuntimeStruct{Language: "php", Version: phpVersion}
 
+	// Node 22 to build assets: Vite 7, which new Laravel apps use, needs
+	// Node 20.19+, and Node 18 is EOL
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
-		"NODE_VERSION": "18",
+		"NODE_VERSION": "22",
 	}
 
 	// The Dockerfile comes from the dockerfile-laravel generator
