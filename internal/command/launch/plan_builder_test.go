@@ -492,6 +492,9 @@ func TestResolveManifestRegion(t *testing.T) {
 		{"", "ord"},
 		{" ANY ", "ord"},
 		{"fra", "fra"},
+		{"qro", "dfw"}, // retired, with a known replacement
+		{"bom", "sin"}, // retired, closest open region
+		{"xyz", "fra"},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
 			p := &plan.LaunchPlan{RegionCode: tc.in}
@@ -500,4 +503,10 @@ func TestResolveManifestRegion(t *testing.T) {
 		})
 	}
 
+	t.Run("unknown region", func(t *testing.T) {
+		p := &plan.LaunchPlan{RegionCode: "nope"}
+		err := resolveManifestRegion(ctx, p)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fly platform regions")
+	})
 }

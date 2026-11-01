@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -854,30 +855,75 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 }
 
 // resolveManifestRegion turns the region of a manifest loaded from a file, or
-// set by --region on `fly launch plan generate`, into a real region. These
-// skip determineRegion, so "any" (what placements takes for "the best
-// region") or an empty region reached the plan as is, and launch failed with
-// "region any not found". Both now become the nearest region.
+// set by --region on `fly launch plan generate`, into one new apps can use.
+// These skip determineRegion, so "any" (what placements takes for "the best
+// region"), an empty region, or a retired one like qro reached the plan as is,
+// and launch failed with "region any not found". "any" and an empty region
+// become the nearest region; a retired one becomes its replacement, or the
+// closest region still open to new apps.
 func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
 	code := strings.ToLower(strings.TrimSpace(p.RegionCode))
-	if code != "" && code != "any" {
+	if replacement, ok := deprecatedRegionReplacements[code]; ok {
+		p.RegionCode = replacement
 		return nil
 	}
 
 	regionData, err := flapsutil.ClientFromContext(ctx).GetRegions(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to look up the nearest region: %w", err)
+		return fmt.Errorf("failed to look up region %q: %w", p.RegionCode, err)
 	}
 
-	nearest := lo.FindOrElse(regionData.Regions, fly.Region{}, func(r fly.Region) bool {
-		return r.Code == regionData.Nearest && !r.Deprecated
-	})
-	if nearest.Code == "" {
-		return fmt.Errorf("couldn't find the nearest region for region %q. Pass a region from `fly platform regions` with --region", p.RegionCode)
+	resolved, err := resolveRegionCode(code, regionData)
+	if err != nil {
+		return err
 	}
-	p.RegionCode = nearest.Code
+	p.RegionCode = resolved
 
 	return nil
+}
+
+func resolveRegionCode(code string, regionData *flaps.RegionData) (string, error) {
+	var requested *fly.Region
+	for i, r := range regionData.Regions {
+		if r.Code == code {
+			requested = &regionData.Regions[i]
+		}
+	}
+
+	switch {
+	case requested != nil && !requested.Deprecated:
+		return code, nil
+	case requested != nil:
+		if closest := closestOpenRegion(*requested, regionData.Regions); closest != "" {
+			return closest, nil
+		}
+	case code == "" || code == "any":
+		if nearest := lo.FindOrElse(regionData.Regions, fly.Region{}, func(r fly.Region) bool {
+			return r.Code == regionData.Nearest && !r.Deprecated
+		}); nearest.Code != "" {
+			return nearest.Code, nil
+		}
+	}
+
+	return "", fmt.Errorf("region %q can't be used for new apps. Pass a region from `fly platform regions` with --region, or leave it out to use the nearest one", code)
+}
+
+// closestOpenRegion returns the region nearest to from, as the crow flies, that
+// isn't deprecated.
+func closestOpenRegion(from fly.Region, regions []fly.Region) string {
+	best, bestDist := "", math.Inf(1)
+	for _, r := range regions {
+		if r.Deprecated {
+			continue
+		}
+		dLat := float64(r.Latitude - from.Latitude)
+		dLon := float64(r.Longitude-from.Longitude) * math.Cos(float64(from.Latitude)*math.Pi/180)
+		if dist := dLat*dLat + dLon*dLon; dist < bestDist {
+			best, bestDist = r.Code, dist
+		}
+	}
+
+	return best
 }
 
 // Applies the fields of the guest to the provided compute.
