@@ -320,6 +320,17 @@ func run(ctx context.Context) (err error) {
 				}
 			}
 
+			// Failures before or inside state.Launch return before the IDs
+			// below are copied; take whatever the state knows by now.
+			if state != nil {
+				if status.OrgID == "" {
+					status.OrgID = state.orgID
+				}
+				if status.AppID == "" {
+					status.AppID = state.appID
+				}
+			}
+
 			status.TraceID = span.SpanContext().TraceID().String()
 			status.Duration = time.Since(startTime)
 			metrics.LaunchStatus(ctx, status)

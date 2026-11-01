@@ -56,10 +56,18 @@ type launchState struct {
 	planBuildCache
 	cache map[string]any
 
-	// appID and orgID are the internal numeric IDs of the app and org,
-	// populated once createApp succeeds, for use in metrics reporting.
+	// appID and orgID are the internal numeric IDs of the app and org, for use
+	// in metrics reporting. orgID is set as soon as the org is looked up, appID
+	// once createApp succeeds.
 	appID string
 	orgID string
+}
+
+// setOrgID records the org's internal numeric ID for metrics, if known.
+func (state *launchState) setOrgID(org *uiex.Organization) {
+	if org != nil && org.InternalNumericID != 0 {
+		state.orgID = strconv.FormatUint(org.InternalNumericID, 10)
+	}
 }
 
 func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T, error) {
@@ -80,7 +88,7 @@ func (state *launchState) orgCompact(ctx context.Context) (*uiex.Organization, e
 }
 
 func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
-	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
+	org, err := cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
 		org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, state.Plan.OrgSlug)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
@@ -88,6 +96,14 @@ func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
 
 		return org, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Record the org as soon as it's known, so a launch that fails later
+	// (e.g. in CreateApp: name taken, payment method required) still reports it.
+	state.setOrgID(org)
+
+	return org, nil
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
