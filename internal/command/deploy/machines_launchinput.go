@@ -21,6 +21,10 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 		return nil, err
 	}
 
+	if origMachineRaw.Config == nil {
+		return nil, fmt.Errorf("machine %s has no config to restart with; check it with `fly machine status %s`", origMachineRaw.ID, origMachineRaw.ID)
+	}
+
 	mConfig := machine.CloneConfig(origMachineRaw.Config)
 	md.setMachineReleaseData(mConfig)
 

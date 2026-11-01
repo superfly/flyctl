@@ -652,6 +652,15 @@ func TestValidateVolumeConfigReplacementChecksCountByRegion(t *testing.T) {
 }
 
 // Test machineDeployment.restartOnly
+func Test_launchInputForRestart_nilConfig(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{})
+	assert.NoError(t, err)
+
+	got, err := md.launchInputForRestart(&fly.Machine{ID: "NoConfig"})
+	assert.Nil(t, got)
+	assert.ErrorContains(t, err, "machine NoConfig has no config")
+}
+
 func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Env: map[string]string{
