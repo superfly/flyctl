@@ -17,6 +17,7 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -138,6 +139,15 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 	}
 }
 
+// loginMethodFor says how a completion code reached the CLI.
+func loginMethodFor(attempt pkceCode) string {
+	if attempt.fromHTTP {
+		return metrics.LoginMethodCallback
+	}
+
+	return metrics.LoginMethodPaste
+}
+
 // waitForPKCEToken blocks until a completion code arrives and redeems it.
 // With acceptPaste the code may also be typed on stdin; without it (no
 // terminal) the loopback callback is the only source. With watch it also
@@ -170,6 +180,9 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 					fmt.Fprint(io.Out, "\r\x1b[K")
 				}
 				log.Debugf("pending login ended in another process: %v", err)
+				if err == nil && token != "" {
+					metrics.SetLoginMethod(metrics.LoginMethodOtherProcess)
+				}
 
 				return token, err
 			}
@@ -185,6 +198,7 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 			switch {
 			case err == nil && session.AccessToken != "":
 				log.Debug("redeemed access token.")
+				metrics.SetLoginMethod(loginMethodFor(attempt))
 
 				return session.AccessToken, nil
 			case err == nil:
