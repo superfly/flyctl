@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
@@ -469,4 +470,34 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, taken)
 	})
+}
+
+func TestResolveManifestRegion(t *testing.T) {
+	regionData := &flaps.RegionData{
+		Nearest: "ord",
+		Regions: []fly.Region{
+			{Code: "ord", Latitude: 41.9, Longitude: -87.6},
+			{Code: "sin", Latitude: 1.3, Longitude: 103.8},
+			{Code: "fra", Latitude: 50.1, Longitude: 8.7},
+			{Code: "bom", Latitude: 19.1, Longitude: 72.9, Deprecated: true},
+			{Code: "xyz", Latitude: 49.0, Longitude: 2.5, Deprecated: true},
+		},
+	}
+	ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) { return regionData, nil },
+	})
+
+	for _, tc := range []struct{ in, want string }{
+		{"any", "ord"},
+		{"", "ord"},
+		{" ANY ", "ord"},
+		{"fra", "fra"},
+	} {
+		t.Run(tc.in, func(t *testing.T) {
+			p := &plan.LaunchPlan{RegionCode: tc.in}
+			require.NoError(t, resolveManifestRegion(ctx, p))
+			assert.Equal(t, tc.want, p.RegionCode)
+		})
+	}
+
 }

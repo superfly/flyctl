@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -850,6 +851,33 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 	}
 
 	return placements[0].Region, explanation, nil
+}
+
+// resolveManifestRegion turns the region of a manifest loaded from a file, or
+// set by --region on `fly launch plan generate`, into a real region. These
+// skip determineRegion, so "any" (what placements takes for "the best
+// region") or an empty region reached the plan as is, and launch failed with
+// "region any not found". Both now become the nearest region.
+func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
+	code := strings.ToLower(strings.TrimSpace(p.RegionCode))
+	if code != "" && code != "any" {
+		return nil
+	}
+
+	regionData, err := flapsutil.ClientFromContext(ctx).GetRegions(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to look up the nearest region: %w", err)
+	}
+
+	nearest := lo.FindOrElse(regionData.Regions, fly.Region{}, func(r fly.Region) bool {
+		return r.Code == regionData.Nearest && !r.Deprecated
+	})
+	if nearest.Code == "" {
+		return fmt.Errorf("couldn't find the nearest region for region %q. Pass a region from `fly platform regions` with --region", p.RegionCode)
+	}
+	p.RegionCode = nearest.Code
+
+	return nil
 }
 
 // Applies the fields of the guest to the provided compute.
