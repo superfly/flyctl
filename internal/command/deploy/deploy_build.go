@@ -201,6 +201,8 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 		tracing.RecordError(ctx, span, err, "no image specified")
+	} else if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to build image")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
 	if err == nil {
