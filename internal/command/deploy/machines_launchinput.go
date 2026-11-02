@@ -16,13 +16,14 @@ import (
 )
 
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
+	// Config is nil when the machine's host isn't reachable.
+	if origMachineRaw.Config == nil {
+		return nil, fmt.Errorf("can't restart machine %s: its host status is %q; try again later or check `fly machine status %s -a %s`", origMachineRaw.ID, origMachineRaw.HostStatus, origMachineRaw.ID, md.app.Name)
+	}
+
 	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
 	if err != nil {
 		return nil, err
-	}
-
-	if origMachineRaw.Config == nil {
-		return nil, fmt.Errorf("machine %s has no config to restart with; check it with `fly machine status %s`", origMachineRaw.ID, origMachineRaw.ID)
 	}
 
 	mConfig := machine.CloneConfig(origMachineRaw.Config)
