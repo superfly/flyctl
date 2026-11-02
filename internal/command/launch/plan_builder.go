@@ -12,7 +12,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -870,7 +869,10 @@ func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
 
 	regionData, err := flapsutil.ClientFromContext(ctx).GetRegions(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to look up region %q: %w", p.RegionCode, err)
+		if code != "" && code != "any" {
+			return nil // keep the region as is rather than fail on the lookup
+		}
+		return fmt.Errorf("failed to look up the nearest region: %w", err)
 	}
 
 	resolved, err := resolveRegionCode(code, regionData)
@@ -883,29 +885,24 @@ func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
 }
 
 func resolveRegionCode(code string, regionData *flaps.RegionData) (string, error) {
-	var requested *fly.Region
-	for i, r := range regionData.Regions {
-		if r.Code == code {
-			requested = &regionData.Regions[i]
-		}
+	lookup := code
+	if lookup == "" || lookup == "any" {
+		lookup = regionData.Nearest
 	}
 
-	switch {
-	case requested != nil && !requested.Deprecated:
-		return code, nil
-	case requested != nil:
-		if closest := closestOpenRegion(*requested, regionData.Regions); closest != "" {
+	for _, r := range regionData.Regions {
+		if r.Code != lookup {
+			continue
+		}
+		if !r.Deprecated {
+			return r.Code, nil
+		}
+		if closest := closestOpenRegion(r, regionData.Regions); closest != "" {
 			return closest, nil
 		}
-	case code == "" || code == "any":
-		if nearest := lo.FindOrElse(regionData.Regions, fly.Region{}, func(r fly.Region) bool {
-			return r.Code == regionData.Nearest && !r.Deprecated
-		}); nearest.Code != "" {
-			return nearest.Code, nil
-		}
 	}
 
-	return "", fmt.Errorf("region %q can't be used for new apps. Pass a region from `fly platform regions` with --region, or leave it out to use the nearest one", code)
+	return "", fmt.Errorf("region %q can't be used for new apps. Use a region from `fly platform regions`", code)
 }
 
 // closestOpenRegion returns the region nearest to from, as the crow flies, that
