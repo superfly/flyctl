@@ -63,13 +63,6 @@ type launchState struct {
 	orgID string
 }
 
-// setOrgID records the org's internal numeric ID for metrics, if known.
-func (state *launchState) setOrgID(org *uiex.Organization) {
-	if org != nil && org.InternalNumericID != 0 {
-		state.orgID = strconv.FormatUint(org.InternalNumericID, 10)
-	}
-}
-
 func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T, error) {
 	if val, ok := cache[key]; ok {
 		return val.(T), nil
@@ -101,7 +94,9 @@ func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
 	}
 	// Record the org as soon as it's known, so a launch that fails later
 	// (e.g. in CreateApp: name taken, payment method required) still reports it.
-	state.setOrgID(org)
+	if org.InternalNumericID != 0 {
+		state.orgID = strconv.FormatUint(org.InternalNumericID, 10)
+	}
 
 	return org, nil
 }

@@ -25,12 +25,3 @@ func TestOrgRecordsOrgIDForMetrics(t *testing.T) {
 	assert.Equal(t, uint64(4242), org.InternalNumericID)
 	assert.Equal(t, "4242", state.orgID)
 }
-
-func TestSetOrgIDIgnoresUnknownOrg(t *testing.T) {
-	state := &launchState{}
-
-	state.setOrgID(nil)
-	state.setOrgID(&uiex.Organization{Slug: "personal"})
-
-	assert.Empty(t, state.orgID)
-}

@@ -320,15 +320,10 @@ func run(ctx context.Context) (err error) {
 				}
 			}
 
-			// Failures before or inside state.Launch return before the IDs
-			// below are copied; take whatever the state knows by now.
+			// Report whatever IDs the state knows, on every exit path.
 			if state != nil {
-				if status.OrgID == "" {
-					status.OrgID = state.orgID
-				}
-				if status.AppID == "" {
-					status.AppID = state.appID
-				}
+				status.OrgID = state.orgID
+				status.AppID = state.appID
 			}
 
 			status.TraceID = span.SpanContext().TraceID().String()
@@ -592,8 +587,6 @@ func run(ctx context.Context) (err error) {
 	}
 
 	err = state.Launch(ctx)
-	status.AppID = state.appID
-	status.OrgID = state.orgID
 	if err != nil {
 		return err
 	}
