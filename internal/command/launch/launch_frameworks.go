@@ -75,9 +75,12 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 		}
 		cmd := exec.CommandContext(ctx, gh, "secret", "set", "FLY_API_TOKEN")
 		cmd.Stdin = strings.NewReader(token)
-		cmd.Stdout = ios.Out
 		cmd.Stderr = ios.ErrOut
 		if err := cmd.Run(); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
 			fmt.Fprintln(ios.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf("Couldn't set the FLY_API_TOKEN secret in GitHub repository settings: %v", err)))
 			if !quiet {
 				printDeployTokenSteps(ios.ErrOut, colorize)
