@@ -215,6 +215,17 @@ func (wswg *WsWgProxy) resetConn(ctx context.Context, c net.Conn, err error) {
 		return
 	}
 
+	// Every relay loop fails on a dead conn and lands here; the limiter
+	// releases them one by one, maybe after a reconnect has replaced it.
+	// Another reconnect then would only drop the new session.
+	wswg.lock.RLock()
+	cur = wswg.wsConn
+	wswg.lock.RUnlock()
+
+	if cur != c {
+		return
+	}
+
 	log.Printf("resetting connection due to error: %s", err)
 
 	select {

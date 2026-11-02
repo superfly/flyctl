@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/curve25519"
+	"golang.org/x/time/rate"
 )
 
 func testKeypair(t *testing.T) (pub, priv string) {
@@ -759,4 +760,45 @@ func TestConnectTokenInBandRefreshRejectedReconnects(t *testing.T) {
 	require.ErrorAs(t, tunnel.Err(), &gwErr)
 	assert.Equal(t, GatewayErrUnauthorized, gwErr.Code)
 	assert.Equal(t, 2, gateway.connections())
+}
+
+func TestResetConnIgnoresConnReplacedWhileRateLimited(t *testing.T) {
+	wswg, err := NewWsWgProxy()
+	require.NoError(t, err)
+	defer wswg.close()
+
+	wswg.limit = rate.NewLimiter(rate.Every(300*time.Millisecond), 1)
+
+	old, _ := net.Pipe()
+	wswg.wsConn = old
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// the first failure on the dead conn asks for a reconnect
+	go wswg.resetConn(ctx, old, errors.New("EOF"))
+	<-wswg.reset
+
+	// the relay loops' other failures on it wait out the rate limit...
+	done := make(chan struct{})
+	go func() {
+		wswg.resetConn(ctx, old, errors.New("broken pipe"))
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// ...while the reconnect replaces the conn
+	replacement, _ := net.Pipe()
+	wswg.lock.Lock()
+	wswg.wsConn = replacement
+	wswg.lock.Unlock()
+
+	select {
+	case <-wswg.reset:
+		t.Fatal("a failure on the replaced conn asked for another reconnect")
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("resetConn never returned")
+	}
 }
