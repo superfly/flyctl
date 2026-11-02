@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -484,6 +485,8 @@ func TestRecoverableErrorsSummary(t *testing.T) {
 	assert.Empty(t, (&recoverableErrorBuilder{}).summary())
 
 	long := &recoverableErrorBuilder{canEnterUi: true}
-	require.NoError(t, long.tryRecover(recoverableInUiError{errors.New(strings.Repeat("x", 2*maxSummaryLen))}))
-	assert.Len(t, []rune(long.summary()), maxSummaryLen+1)
+	require.NoError(t, long.tryRecover(recoverableInUiError{errors.New(strings.Repeat("€", maxSummaryLen))}))
+	s := long.summary()
+	assert.True(t, utf8.ValidString(s))
+	assert.LessOrEqual(t, len(s), maxSummaryLen+len("…"))
 }

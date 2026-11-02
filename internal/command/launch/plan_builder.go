@@ -112,7 +112,7 @@ func (r *recoverableErrorBuilder) summary() string {
 	}
 	s := strings.Join(problems, "; ")
 	if len(s) > maxSummaryLen {
-		s = s[:maxSummaryLen] + "…"
+		s = strings.ToValidUTF8(s[:maxSummaryLen], "") + "…"
 	}
 
 	return s
