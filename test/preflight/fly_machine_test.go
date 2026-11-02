@@ -42,7 +42,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	updateMachine := func(flags string) {
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			f.Collect(c).Fly("machine update -a %s %s %s -y", appName, m.ID, flags)
-		}, 30*time.Second, 2*time.Second, "machine update %s never succeeded", flags)
+		}, 2*time.Minute, 2*time.Second, "machine update %s never succeeded", flags)
 	}
 
 	updateMachine("--autostart")

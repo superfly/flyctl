@@ -76,7 +76,6 @@ func TestCollectSharesCommandHistory(t *testing.T) {
 	f.Collect(c).Fly("third")
 
 	require.Len(t, f.history.snapshot(), 3, "commands run through the view must appear in the parent's history")
-	require.Equal(t, map[string]int{"second": 1, "third": 1}, f.history.retries, "only commands run through the view count as retry attempts")
 }
 
 func TestCollectKeepsNonFailureMethodsOnParent(t *testing.T) {
@@ -85,15 +84,4 @@ func TestCollectKeepsNonFailureMethodsOnParent(t *testing.T) {
 
 	require.Equal(t, t.Name(), view.t.Name())
 	require.NotEmpty(t, view.t.TempDir())
-}
-
-func TestCollectNumbersRetriesPerCommand(t *testing.T) {
-	f := newLocalEnv(t, "true")
-	c := new(assert.CollectT)
-
-	f.Collect(c).Fly("first")
-	f.Collect(c).Fly("first")
-	f.Collect(c).Fly("second")
-
-	require.Equal(t, map[string]int{"first": 2, "second": 1}, f.history.retries, "each command line gets its own attempt count")
 }

@@ -22,7 +22,7 @@ import (
 // the collector, a failed command just fails that tick and the loop retries.
 //
 // Commands still land in the shared history, and each one is logged with
-// its exit status and duration as a numbered retry attempt. History is not
+// its exit status and duration as a retry attempt. History is not
 // printed on a failed tick, since failing ticks are expected; the final
 // failure is reported by EventuallyWithT on the parent test as usual.
 func (f *FlyctlTestEnv) Collect(c *assert.CollectT) *FlyctlTestEnv {

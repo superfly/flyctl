@@ -45,25 +45,12 @@ type FlyctlTestEnv struct {
 type cmdHistory struct {
 	mu      sync.Mutex
 	results []*FlyctlResult
-	retries map[string]int // attempts per command line run through Collect views
 }
 
-// add records r and, for a retry attempt, returns how many times this exact
-// command line has been retried so far; 0 otherwise. Counting per command line
-// gives each retry loop its own attempt numbers.
-func (h *cmdHistory) add(r *FlyctlResult, retry bool) int {
+func (h *cmdHistory) add(r *FlyctlResult) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.results = append(h.results, r)
-	if !retry {
-		return 0
-	}
-	if h.retries == nil {
-		h.retries = map[string]int{}
-	}
-	h.retries[r.argsStr]++
-
-	return h.retries[r.argsStr]
 }
 
 func (h *cmdHistory) snapshot() []*FlyctlResult {
@@ -254,7 +241,7 @@ func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{
 // FlyBestEffort runs flyctl command with the given timeout and returns the result.
 // It does not fail the test because of the command's outcome: a non-zero exit
 // is reported by ExitCode, and a command that exceeds the timeout is killed and
-// reported by TimedOut. This makes it safe for retry loops and cleanup.
+// reported with exit code -1. This makes it safe for retry loops and cleanup.
 func (f *FlyctlTestEnv) FlyBestEffort(timeout time.Duration, flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -265,7 +252,7 @@ func (f *FlyctlTestEnv) FlyBestEffort(timeout time.Duration, flyctlCmd string, v
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
 	// NoAssertDeadline reports a command that exceeds its context deadline
-	// through TimedOut instead of failing the test.
+	// with exit code -1 instead of failing the test.
 	NoAssertDeadline bool
 }
 
@@ -315,7 +302,6 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 		// would panic.
 		fmt.Fprintf(res.stdErr, "\ncommand exceeded its deadline: %v", ctx.Err())
 		res.exitCode = -1
-		res.timedOut = true
 	} else if err == nil {
 		res.exitCode = 0
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
@@ -323,12 +309,13 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	} else {
 		f.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
-	if retryNo := f.history.add(res, f.retrying); retryNo > 0 {
+	f.history.add(res)
+	if f.retrying {
 		// Every command inside a retry loop is logged with its exit status and
 		// duration, so slow or repeatedly failing retries are visible. Written to
 		// stdout rather than t.Logf: this runs on the retry goroutine, which can
 		// outlive the test, and t.Logf panics after the test has finished.
-		fmt.Printf("    retry %d: %s exited %d after %s\n", retryNo, res.argsStr, res.exitCode, res.duration.Round(time.Millisecond))
+		fmt.Printf("    attempt: %s exited %d after %s\n", res.argsStr, res.exitCode, res.duration.Round(time.Millisecond))
 	}
 	if !cfg.NoAssertSuccessfulExit {
 		res.AssertSuccessfulExit()

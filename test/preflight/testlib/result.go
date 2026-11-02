@@ -21,7 +21,6 @@ type FlyctlResult struct {
 	testIoStreams         *iostreams.IOStreams
 	stdIn, stdOut, stdErr *bytes.Buffer
 	exitCode              int
-	timedOut              bool
 	duration              time.Duration
 }
 
@@ -31,16 +30,6 @@ func (r *FlyctlResult) CmdString() string {
 
 func (r *FlyctlResult) ExitCode() int {
 	return r.exitCode
-}
-
-// TimedOut reports whether the command was killed for exceeding its deadline.
-func (r *FlyctlResult) TimedOut() bool {
-	return r.timedOut
-}
-
-// Duration is how long the command ran, from start until it exited or was killed.
-func (r *FlyctlResult) Duration() time.Duration {
-	return r.duration
 }
 
 func (r *FlyctlResult) StdOut() *bytes.Buffer {
