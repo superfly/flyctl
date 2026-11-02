@@ -63,6 +63,11 @@ func checkWritable(dir, systemRoot string) error {
 		return nil
 	}
 
+	// Report the reason, not the probe file's name the user never created.
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		err = pathErr.Err
+	}
 	descript := fmt.Sprintf("fly launch writes fly.toml and other files into the directory it runs in, and can't create files here: %v", err)
 	if isWithin(dir, systemRoot) {
 		descript = "That's a Windows system folder, where a terminal opened as administrator starts. " + descript

@@ -34,6 +34,7 @@ func TestCheckWritable(t *testing.T) {
 	err = checkWritable(readOnly, "")
 	assert.EqualError(t, err, "fly launch can't write to "+readOnly)
 	assert.NotContains(t, flyerr.GetErrorDescription(err), "Windows system folder")
+	assert.NotContains(t, flyerr.GetErrorDescription(err), ".fly-launch-", "the probe file isn't named")
 	assert.Contains(t, flyerr.GetErrorSuggestion(err), "cd into your project")
 
 	err = checkWritable(readOnly, dir)
