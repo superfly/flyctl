@@ -16,7 +16,6 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -151,15 +150,6 @@ func TestPKCELoginPastedCode(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "invalid_code") {
 		t.Fatalf("expected the wrong paste to be reported, got: %q", errOut.String())
-	}
-}
-
-func TestLoginMethodFor(t *testing.T) {
-	if got := loginMethodFor(pkceCode{code: "c", fromHTTP: true}); got != metrics.LoginMethodCallback {
-		t.Fatalf("expected %q for a callback code, got %q", metrics.LoginMethodCallback, got)
-	}
-	if got := loginMethodFor(pkceCode{code: "c"}); got != metrics.LoginMethodPaste {
-		t.Fatalf("expected %q for a pasted code, got %q", metrics.LoginMethodPaste, got)
 	}
 }
 

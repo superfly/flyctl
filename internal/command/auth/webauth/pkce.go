@@ -139,15 +139,6 @@ func (p *pkceLogin) readPastedCodes(ctx context.Context, in io.Reader) {
 	}
 }
 
-// loginMethodFor says how a completion code reached the CLI.
-func loginMethodFor(attempt pkceCode) string {
-	if attempt.fromHTTP {
-		return metrics.LoginMethodCallback
-	}
-
-	return metrics.LoginMethodPaste
-}
-
 // waitForPKCEToken blocks until a completion code arrives and redeems it.
 // With acceptPaste the code may also be typed on stdin; without it (no
 // terminal) the loopback callback is the only source. With watch it also
@@ -198,7 +189,11 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 			switch {
 			case err == nil && session.AccessToken != "":
 				log.Debug("redeemed access token.")
-				metrics.SetLoginMethod(loginMethodFor(attempt))
+				method := metrics.LoginMethodPaste
+				if attempt.fromHTTP {
+					method = metrics.LoginMethodCallback
+				}
+				metrics.SetLoginMethod(method)
 
 				return session.AccessToken, nil
 			case err == nil:
