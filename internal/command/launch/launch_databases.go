@@ -530,6 +530,7 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 	}
 
 	_, err = extensions_core.ProvisionExtension(ctx, state.tigrisExtensionParams(org))
+
 	return err
 }
 
