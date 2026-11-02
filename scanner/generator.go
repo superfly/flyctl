@@ -1,11 +1,13 @@
 package scanner
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // How much of a failed generator's stderr goes into its error.
@@ -24,9 +26,12 @@ func runGenerator(cmd *exec.Cmd) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, tail)
+	// stderr is a pipe, so don't hang if a grandchild keeps it open after
+	// the generator itself has exited successfully.
+	cmd.WaitDelay = 5 * time.Second
 
 	err := cmd.Run()
-	if err == nil {
+	if err == nil || errors.Is(err, exec.ErrWaitDelay) {
 		return nil
 	}
 
