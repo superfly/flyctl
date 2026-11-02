@@ -514,6 +514,12 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
 				"App name %q is already taken, so this app is called %q instead. Use --name to choose one.\n",
 				state.Plan.AppName, name)
+			if pg := state.Plan.Postgres.FlyPostgres; pg != nil && pg.AppName == state.Plan.AppName+"-db" {
+				pg.AppName = name + "-db"
+			}
+			if pg := state.Plan.Postgres.ManagedPostgres; pg != nil && pg.DbName == state.Plan.AppName+"-db" {
+				pg.DbName = name + "-db"
+			}
 			state.Plan.AppName = name
 			state.appConfig.AppName = name
 			state.PlanSource.appNameSource = "generated"
