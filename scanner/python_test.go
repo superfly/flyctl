@@ -60,6 +60,15 @@ func TestConfigurePythonWithoutDependencies(t *testing.T) {
 			wantPoetry: true,
 		},
 		{
+			name: "Poetry 2 with extras for a [project] dependency",
+			files: map[string]string{
+				"poetry.lock":    "",
+				"pyproject.toml": "[project]\nname = \"app\"\ndependencies = [\"fastapi\", \"uvicorn\"]\n\n[tool.poetry.dependencies]\nuvicorn = {extras = [\"standard\"]}\n",
+			},
+			wantFamily: "FastAPI",
+			wantPoetry: true,
+		},
+		{
 			name: "Poetry without a python dependency",
 			files: map[string]string{
 				"poetry.lock":    "",

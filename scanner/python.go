@@ -226,27 +226,26 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 	deps := pyProject.Tool.Poetry.Dependencies
 	appName := pyProject.Tool.Poetry.Name
+	if appName == "" {
+		appName = pyProject.Project.Name
+	}
 	pyVersion, _ := deps["python"].(string)
+	if pyVersion == "" {
+		pyVersion = strings.TrimFunc(pyProject.Project.RequiresPython, func(r rune) bool {
+			return !unicode.IsDigit(r) && r != '.'
+		})
+	}
 
+	// Poetry 2 lists dependencies under [project]; [tool.poetry.dependencies]
+	// may then hold only python, or extras and sources for some of them.
 	var depList []string
 	for dep := range deps {
 		if dep != "python" {
 			depList = append(depList, parsePyDep(dep))
 		}
 	}
-	if len(depList) == 0 {
-		// Poetry 2 lists them under [project], with requires-python.
-		for _, dep := range pyProject.Project.Dependencies {
-			depList = append(depList, parsePyDep(dep))
-		}
-		if appName == "" {
-			appName = pyProject.Project.Name
-		}
-		if pyVersion == "" {
-			pyVersion = strings.TrimFunc(pyProject.Project.RequiresPython, func(r rune) bool {
-				return !unicode.IsDigit(r) && r != '.'
-			})
-		}
+	for _, dep := range pyProject.Project.Dependencies {
+		depList = append(depList, parsePyDep(dep))
 	}
 	if len(depList) == 0 {
 		return nil, nil
