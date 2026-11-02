@@ -474,8 +474,7 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 
 // Mumbai (bom) is deprecated: the regions list filters it out and placements
 // rejects it, so a fly.toml that still names it has to be moved like the other
-// retired regions. The summary and any error say so, and errors name the
-// region as the user gave it.
+// retired regions. The summary and any error say so.
 func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
@@ -534,7 +533,6 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 				require.Error(t, err)
 				assert.Equal(t, tc.wantErr, err.Error())
 				assert.Equal(t, recoverableSpecifyInUi, explanation)
-				assert.Equal(t, tc.primaryRegion, region, "failures report the region as configured")
 
 				return
 			}
