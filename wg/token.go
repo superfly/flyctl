@@ -31,6 +31,18 @@ import (
 // reads the header says so in its hello (auth_header), and then the auth
 // packet leaves the token out, since the gateway rejects a header and a
 // packet that disagree. Gateways predating that get it in the packet.
+//
+// A session is extended in band:
+//
+//	client  -> gateway  tokenRefresh {version, token}
+//	gateway -> client   tokenResult  {expires_at} or {error, code}
+//
+// on the established connection, between relayed WireGuard frames. A
+// WireGuard message starts with its type (1-4), a JSON control packet with
+// '{', which is how each side tells them apart. Refreshing in band keeps us
+// on the same gateway; a reconnect to the anycast address may land on
+// another one, which allocates a new peer address and so breaks every
+// connection through the tunnel.
 
 const (
 	tokenProtoVersion = 1
@@ -131,6 +143,12 @@ type tokenAuthPacket struct {
 	NetworkName string `json:"network_name,omitempty"`
 }
 
+type tokenRefresh struct {
+	Version int    `json:"version"`
+	Type    string `json:"type"`
+	Token   string `json:"token"`
+}
+
 type tokenResult struct {
 	Type      string `json:"type"`
 	PeerIP    string `json:"peer_ip,omitempty"`
@@ -188,18 +206,34 @@ func deadlineHit(err error) bool {
 }
 
 func writeJSONFrame(w io.Writer, v any) error {
+	buf, err := jsonFrame(v)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(buf)
+
+	return err
+}
+
+// jsonFrame encodes v as a length-prefixed control packet.
+func jsonFrame(v any) ([]byte, error) {
 	payload, err := json.Marshal(v)
 	if err != nil {
-		return fmt.Errorf("marshal control packet: %w", err)
+		return nil, fmt.Errorf("marshal control packet: %w", err)
 	}
 
 	buf := make([]byte, 4+len(payload))
 	binary.BigEndian.PutUint32(buf, uint32(len(payload)))
 	copy(buf[4:], payload)
 
-	_, err = w.Write(buf)
+	return buf, nil
+}
 
-	return err
+// isControlFrame reports whether a relayed frame is a JSON control packet
+// rather than a WireGuard message.
+func isControlFrame(pkt []byte) bool {
+	return len(pkt) > 0 && pkt[0] == '{'
 }
 
 func readJSONFrame(r io.Reader, v any) error {
