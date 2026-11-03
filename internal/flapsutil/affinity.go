@@ -1,22 +1,23 @@
 package flapsutil
 
 import (
-	"net/url"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-// affinityDirName holds the flaps app affinity tokens flyctl has been given
+// affinityDir holds the flaps app affinity tokens flyctl has been given
 // recently, so that the next fly command touching the same app reaches the
 // flaps instance that already has it, rather than one whose view of the app
 // is still catching up.
 //
-// The layout is <config dir>/flaps-affinity/<endpoint>/<app>: one file per
+// The layout is <config dir>/state/affinity/<url hash>/<app>: one file per
 // app, holding only the token, with the token's expiry as its modification
 // time.
-const affinityDirName = "flaps-affinity"
+var affinityDir = filepath.Join("state", "affinity")
 
 // affinityPruneGrace is how long past its expiry a file is kept before a
 // save removes it. A token is written with a future expiry, so a file this far
@@ -41,30 +42,26 @@ type fileAffinityStore struct {
 }
 
 func newFileAffinityStore(configDir string) *fileAffinityStore {
-	return &fileAffinityStore{root: filepath.Join(configDir, affinityDirName)}
+	return &fileAffinityStore{root: filepath.Join(configDir, affinityDir)}
 }
 
 // path returns the file holding appName's token at the flaps endpoint
-// baseURL, or "" if either cannot be a single safe path element.
+// baseURL, or "" if appName cannot be a single safe path element.
 func (s *fileAffinityStore) path(baseURL, appName string) string {
-	endpoint := affinityEndpointDir(baseURL)
-	if !safePathElem(endpoint) || !safePathElem(appName) {
+	if baseURL == "" || !safePathElem(appName) {
 		return ""
 	}
 
-	return filepath.Join(s.root, endpoint, appName)
+	return filepath.Join(s.root, affinityURLHash(baseURL), appName)
 }
 
-// affinityEndpointDir names the directory for a flaps endpoint after its host
-// and port, the part that decides which flaps a request reaches. The port is
-// joined with "_" since Windows forbids ":" in file names.
-func affinityEndpointDir(baseURL string) string {
-	u, err := url.Parse(baseURL)
-	if err != nil || u.Host == "" {
-		return ""
-	}
+// affinityURLHash names the directory for a flaps endpoint: a short hash of
+// its base URL, which keeps tokens from different endpoints apart without
+// putting a URL's characters into a file name.
+func affinityURLHash(baseURL string) string {
+	sum := sha256.Sum256([]byte(baseURL))
 
-	return strings.ReplaceAll(strings.ToLower(u.Host), ":", "_")
+	return hex.EncodeToString(sum[:8])
 }
 
 // safePathElem reports whether name can be used as one file name under the

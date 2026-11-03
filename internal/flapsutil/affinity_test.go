@@ -26,7 +26,7 @@ func TestFileAffinityStoreSharedAcrossInstances(t *testing.T) {
 	require.Empty(t, s.LoadAffinity(testBaseURL, "app-b"))
 	require.Empty(t, s.LoadAffinity("http://127.0.0.1:4280", "app-a"))
 
-	p := filepath.Join(dir, affinityDirName, "api.machines.dev", "app-a")
+	p := filepath.Join(dir, "state", "affinity", affinityURLHash(testBaseURL), "app-a")
 	require.Equal(t, p, s.path(testBaseURL, "app-a"))
 
 	// Windows has no Unix permission bits to check.
@@ -39,20 +39,21 @@ func TestFileAffinityStoreSharedAcrossInstances(t *testing.T) {
 
 func TestFileAffinityStorePaths(t *testing.T) {
 	s := newFileAffinityStore("/cfg")
-	root := filepath.Join("/cfg", affinityDirName)
+	prod := filepath.Join("/cfg", "state", "affinity", affinityURLHash(testBaseURL))
+
+	require.Len(t, affinityURLHash(testBaseURL), 16)
+	require.NotEqual(t, affinityURLHash(testBaseURL), affinityURLHash("http://127.0.0.1:4280"))
 
 	for _, tc := range []struct {
 		baseURL, app, want string
 	}{
-		{testBaseURL, "app-a", filepath.Join(root, "api.machines.dev", "app-a")},
-		{"http://127.0.0.1:4280", "app-a", filepath.Join(root, "127.0.0.1_4280", "app-a")},
-		{"https://API.Machines.dev/some/path", "app-a", filepath.Join(root, "api.machines.dev", "app-a")},
+		{testBaseURL, "app-a", filepath.Join(prod, "app-a")},
+		{"", "app-a", ""},
 		{testBaseURL, "", ""},
 		{testBaseURL, "..", ""},
 		{testBaseURL, ".tmp-123", ""},
 		{testBaseURL, "a/b", ""},
 		{testBaseURL, `a\b`, ""},
-		{"not a url", "app-a", ""},
 	} {
 		require.Equal(t, tc.want, s.path(tc.baseURL, tc.app), "path(%q, %q)", tc.baseURL, tc.app)
 	}
@@ -125,7 +126,7 @@ func TestFileAffinityStoreConcurrentWriters(t *testing.T) {
 		require.Regexp(t, `^tok-`+app+`-[0-3]$`, s.LoadAffinity(testBaseURL, app))
 	}
 
-	entries, err := os.ReadDir(filepath.Join(dir, affinityDirName, "api.machines.dev"))
+	entries, err := os.ReadDir(filepath.Join(dir, affinityDir, affinityURLHash(testBaseURL)))
 	require.NoError(t, err)
 	require.Len(t, entries, len(apps), "temp files left behind")
 }
