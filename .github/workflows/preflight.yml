@@ -46,6 +46,21 @@ jobs:
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
+      # The Buildpack deploy test exports images through the runner's Docker
+      # daemon. Some runner images ship a Docker whose containerd image store
+      # can't export heroku/heroku:24 ("no suitable export target found ...
+      # does not provide the specified platform (linux/amd64)"), which failed
+      # every deploy-fixtures run on those images. Pin the classic store so the
+      # test doesn't depend on which runner image we get.
+      - name: Use Docker's classic image store
+        if: matrix.group == 'deploy-fixtures'
+        run: |
+          docker info --format 'before: {{.ServerVersion}} driver={{.Driver}}'
+          cfg=/etc/docker/daemon.json
+          current=$( [ -s "$cfg" ] && sudo cat "$cfg" || echo '{}' )
+          echo "$current" | jq '.features["containerd-snapshotter"] = false' | sudo tee "$cfg" > /dev/null
+          sudo systemctl restart docker
+          docker info --format 'after: {{.ServerVersion}} driver={{.Driver}}'
       - name: Set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=gha-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
