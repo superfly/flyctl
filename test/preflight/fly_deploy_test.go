@@ -500,10 +500,15 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 
 	var result *testlib.FlyctlResult
 	if builderFlag != "" {
-		result = f.Fly("deploy %s --app %s %s", builderFlag, app, appDir)
+		result = f.FlyAllowExitFailure("deploy %s --app %s %s", builderFlag, app, appDir)
 	} else {
-		result = f.Fly("deploy --app %s %s", app, appDir)
+		result = f.FlyAllowExitFailure("deploy --app %s %s", app, appDir)
 	}
+	// Some GitHub runner images ship a Docker that can't export pack's images (#5360).
+	if result.ExitCode() != 0 && strings.Contains(result.StdOutString()+result.StdErrString(), "no suitable export target found") {
+		t.Skip("runner's Docker daemon can't export the buildpack image; not a flyctl failure")
+	}
+	result.AssertSuccessfulExit()
 	t.Log(result.StdOutString())
 
 	var resp *http.Response
