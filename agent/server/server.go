@@ -618,8 +618,8 @@ func (s *server) GetTokens() *tokens.Tokens {
 	return s.tokens
 }
 
-// tokensFromFile synchronizes the monitored file before taking a session
-// snapshot. Other config files remain independent of the server's tokens.
+// tokensFromFile synchronizes the shared monitored tokens before a session
+// uses them. Other config files remain independent of the server's tokens.
 func (s *server) tokensFromFile(file string) (*tokens.Tokens, error) {
 	s.tokMu.RLock()
 	current, syncTokens := s.tokens, s.syncTokens
@@ -629,7 +629,7 @@ func (s *server) tokensFromFile(file string) (*tokens.Tokens, error) {
 		if err := syncTokens(); err != nil {
 			return nil, err
 		}
-		return current.Copy(), nil
+		return current, nil
 	}
 	token, err := config.ReadAccessToken(file)
 	if err != nil {

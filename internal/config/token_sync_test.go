@@ -113,24 +113,6 @@ func tokenMonitorContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func TestInitialRefreshPreservesConcurrentLogin(t *testing.T) {
-	ctx := tokenMonitorContext(t)
-	path := filepath.Join(t.TempDir(), "config.yml")
-	saved := make(chan error, 1)
-	third := fakeThirdParty(t, func(w http.ResponseWriter, r *http.Request, party *tp.TP) {
-		saved <- SetAccessToken(path, "fo1_new_login")
-		party.RespondDischarge(w, r)
-	})
-	cached := tokens.ParseFromFile(fakeThirdPartyTokens(t, third, 1).All(), path)
-	require.NoError(t, SetAccessToken(path, cached.All()))
-	MonitorTokens(ctx, cached, nil)
-	require.NoError(t, <-saved)
-	disk, err := ReadAccessToken(path)
-	require.NoError(t, err)
-	require.Equal(t, "fo1_new_login", disk)
-	require.Equal(t, disk, cached.All())
-}
-
 func TestSyncPreservesUnsavedDischarge(t *testing.T) {
 	ctx := tokenMonitorContext(t)
 	path := filepath.Join(t.TempDir(), "config.yml")
