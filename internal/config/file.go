@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/wg"
 	"gopkg.in/yaml.v3"
 
@@ -34,6 +35,36 @@ func SetAccessToken(path, token string) error {
 	return set(path, map[string]any{
 		AccessTokenFileKey: token,
 	})
+}
+
+// setAccessTokenIfUnchanged avoids overwriting a login made since the refresh
+// began, returning the disk tokens on mismatch so the monitor can adopt them.
+// Compare parsed tokens because config files may include a scheme prefix.
+func setAccessTokenIfUnchanged(path string, before *tokens.Tokens, token string) (current *tokens.Tokens, err error) {
+	unlock, err := filemu.Lock(context.Background(), lockPath())
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if e := unlock(); err == nil {
+			err = e
+		}
+	}()
+	m := make(map[string]any)
+	if err = unmarshalUnlocked(path, &m); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	if err == nil {
+		tokenOnDisk, _ := m[AccessTokenFileKey].(string)
+		current = tokens.ParseFromFile(tokenOnDisk, path)
+		if !current.Equal(before) {
+			return current, nil
+		}
+	}
+	m[AccessTokenFileKey] = token
+	err = marshalUnlocked(path, m)
+
+	return nil, err
 }
 
 // SetLastLogin sets the last login timestamp at the configuration file

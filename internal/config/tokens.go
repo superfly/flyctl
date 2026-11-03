@@ -34,22 +34,28 @@ type UserURLCallback func(ctx context.Context, url string) error
 //   - Pruning expired or invalid token.
 //   - Fetching macaroons for any organizations the user has been added to.
 //   - Pruning tokens for organizations the user is no longer a member of.
-func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) {
+//
+// The returned function synchronizes file-backed tokens on demand, serialized
+// with the background monitor's updates. It performs no API calls.
+func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) func() error {
 	log := logger.FromContext(monitorCtx)
 	file := t.FromFile()
+	before := t.Copy()
+	m := tokenMonitor{disk: before}
+	updated := before.Copy()
 
-	updated1, err := fetchOrgTokens(monitorCtx, t)
+	updated1, err := fetchOrgTokens(monitorCtx, updated)
 	if err != nil {
 		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
 	}
 
-	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb, 30*time.Second)
+	updated2, err := refreshDischargeTokens(monitorCtx, updated, uucb, 30*time.Second)
 	if err != nil {
 		log.Debugf("failed to update discharge tokens: %s", err)
 	}
 
-	if file != "" && (updated1 || updated2) {
-		if err := SetAccessToken(file, t.All()); err != nil {
+	if updated1 || updated2 {
+		if err := commitTokenRefresh(&m, t, before, updated, file); err != nil {
 			log.Debugf("failed to persist updated tokens: %s", err)
 		}
 	}
@@ -57,7 +63,6 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 	task.FromContext(monitorCtx).Run(func(taskCtx context.Context) {
 		taskCtx, cancelTask := context.WithCancelCause(taskCtx)
 
-		var m sync.Mutex
 		var wg sync.WaitGroup
 
 		wg.Add(2)
@@ -82,12 +87,14 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		cancelTask(fmt.Errorf("token monitoring stopped: %w", context.Canceled))
 		wg.Wait()
 	})
+
+	return func() error { return syncConfigTokens(&m, t) }
 }
 
 // monitorConfigTokenChanges watches for token changes in the config file. This can
 // happen if a foreground process updates the config file while the agent is
 // running.
-func monitorConfigTokenChanges(ctx context.Context, m *sync.Mutex, t *tokens.Tokens, done func()) error {
+func monitorConfigTokenChanges(ctx context.Context, m *tokenMonitor, t *tokens.Tokens, done func()) error {
 	defer done()
 
 	file := t.FromFile()
@@ -103,23 +110,71 @@ func monitorConfigTokenChanges(ctx context.Context, m *sync.Mutex, t *tokens.Tok
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			currentStr, err := ReadAccessToken(file)
-			if err != nil {
+			if err := syncConfigTokens(m, t); err != nil {
 				return err
 			}
-
-			current := tokens.ParseFromFile(currentStr, file)
-
-			m.Lock()
-			t.Replace(current)
-			m.Unlock()
 		}
 	}
 }
 
+// tokenMonitor remembers the last disk value separately from usable in-memory
+// credentials: a failed save must not make an unchanged file undo a refresh.
+type tokenMonitor struct {
+	sync.Mutex
+	disk *tokens.Tokens
+}
+
+// syncConfigTokens reads under the monitor lock so an older read cannot
+// overwrite a newer sync or interleave with a refresh commit.
+func syncConfigTokens(m *tokenMonitor, t *tokens.Tokens) error {
+	m.Lock()
+	defer m.Unlock()
+	file := t.FromFile()
+	if file == "" {
+		return nil
+	}
+	current, err := ReadAccessToken(file)
+	if err != nil {
+		return err
+	}
+	disk := tokens.ParseFromFile(current, file)
+	if !disk.Equal(m.disk) {
+		t.Replace(disk)
+		m.disk = disk
+	}
+
+	return nil
+}
+
+// commitTokenRefresh checks both the monitored snapshot and the file before
+// committing. The file comparison and write share the config file lock.
+func commitTokenRefresh(m *tokenMonitor, t, before, updated *tokens.Tokens, file string) error {
+	m.Lock()
+	defer m.Unlock()
+	if !before.Equal(t) {
+		return nil
+	}
+	var err error
+	if file != "" {
+		var current *tokens.Tokens
+		current, err = setAccessTokenIfUnchanged(file, m.disk, updated.All())
+		if current != nil {
+			// Make progress even if the watcher has stopped after a read error.
+			updated = current
+		}
+		if err == nil {
+			m.disk = updated.Copy()
+		}
+	}
+	// Keep refreshed credentials usable in memory even if persistence failed.
+	t.Replace(updated)
+
+	return err
+}
+
 // keepConfigTokensFresh periodically updates our tokens and syncs those to the config
 // file.
-func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens, uucb UserURLCallback, done func()) error {
+func keepConfigTokensFresh(ctx context.Context, m *tokenMonitor, t *tokens.Tokens, uucb UserURLCallback, done func()) error {
 	defer done()
 
 	ticker := time.NewTicker(time.Minute)
@@ -133,8 +188,8 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			localCopy := t.Copy()
 			beforeUpdate := t.Copy()
+			localCopy := beforeUpdate.Copy()
 
 			updated1, err := fetchOrgTokens(ctx, localCopy)
 			if err != nil {
@@ -152,24 +207,11 @@ func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens,
 				continue
 			}
 
-			m.Lock()
-			// don't clobber config file if it changed out from under us. the
-			// consequences of a race here (agent and foreground command both
-			// fetching updates simultaneously) are low, so don't bother with an
-			// extra lock file.
-			if beforeUpdate.Equal(t) {
-				t.Replace(localCopy)
-
-				if file != "" {
-					if err := SetAccessToken(file, t.All()); err != nil {
-						logger.Debugf("failed to persist updated tokens: %s", err)
-
-						// don't try again if we fail to write once
-						file = ""
-					}
-				}
+			if err := commitTokenRefresh(m, t, beforeUpdate, localCopy, file); err != nil {
+				logger.Debugf("failed to persist updated tokens: %s", err)
+				// Preserve the existing policy: stop persisting after a write error.
+				file = ""
 			}
-			m.Unlock()
 		}
 	}
 }

@@ -67,7 +67,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 	monitorCtx, cancelMonitorCause := context.WithCancelCause(ctx)
 
 	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring stopped: %w", context.Canceled)) }
-	config.MonitorTokens(monitorCtx, toks, nil)
+	syncTokens := config.MonitorTokens(monitorCtx, toks, nil)
 
 	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
@@ -79,6 +79,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
 		slugAliases:           make(map[string]string),
 		tokens:                toks,
+		syncTokens:            syncTokens,
 		cancelTokenMonitoring: cancelMonitor,
 	}).serve(ctx, l)
 
@@ -161,11 +162,12 @@ type server struct {
 	// its raw slug (as Flaps does) or by the "personal" alias (as web does).
 	slugAliases map[string]string
 
-	// tokMu guards the two below, separately from mu so that code running
+	// tokMu guards the three below, separately from mu so that code running
 	// under mu (tunnel construction, which presents tokens) can read them.
 	tokMu                 sync.RWMutex
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
+	syncTokens            func() error
 
 	// tokenModeFlag evaluates the wireguard-token-mode feature flag for a
 	// user; nil selects evaluateTokenModeFlag. Tests inject a stub.
@@ -616,12 +618,34 @@ func (s *server) GetTokens() *tokens.Tokens {
 	return s.tokens
 }
 
+// tokensFromFile synchronizes the monitored file before taking a session
+// snapshot. Other config files remain independent of the server's tokens.
+func (s *server) tokensFromFile(file string) (*tokens.Tokens, error) {
+	s.tokMu.RLock()
+	current, syncTokens := s.tokens, s.syncTokens
+	s.tokMu.RUnlock()
+	// A file-backed token source is never replaced by client promotion.
+	if file != "" && file == current.FromFile() {
+		if err := syncTokens(); err != nil {
+			return nil, err
+		}
+		return current.Copy(), nil
+	}
+	token, err := config.ReadAccessToken(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return tokens.ParseFromFile(token, file), nil
+}
+
 // tokensFor returns the tokens to act with on behalf of a client that sent
 // sessionToks (nil if it sent none): the client's, except that a client
 // reading the same config file the server monitors gets the server's
 // current copy. The client's is a one-shot snapshot, while the server's is
 // kept fresh (refreshed discharges, new org tokens, replacement via
 // UpdateTokensFromClient) for as long as a tunnel built from it lives.
+// set-token synchronizes same-file credentials before this selection.
 func (s *server) tokensFor(sessionToks *tokens.Tokens) *tokens.Tokens {
 	cur := s.GetTokens()
 
@@ -654,9 +678,10 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	monitorCtx, cancelMonitorCause := context.WithCancelCause(s.runCtx)
 
 	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring replaced: %w", context.Canceled)) }
-	config.MonitorTokens(monitorCtx, t, nil)
+	syncTokens := config.MonitorTokens(monitorCtx, t, nil)
 
 	s.tokens = t
+	s.syncTokens = syncTokens
 	s.cancelTokenMonitoring = cancelMonitor
 }
 
