@@ -179,11 +179,13 @@ func TestResetConnCancellation(t *testing.T) {
 			defer peer.Close()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			reportCtx := &resetWaitContext{Context: ctx, waiting: make(chan struct{})}
 			done := make(chan struct{})
 			go func() {
-				p.resetConn(ctx, conn, io.EOF)
+				p.resetConn(reportCtx, conn, io.EOF)
 				close(done)
 			}()
+			waitReset(t, reportCtx.waiting)
 			if receive {
 				select {
 				case failed := <-p.reset:
