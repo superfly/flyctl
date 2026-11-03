@@ -2,6 +2,7 @@ package flapsutil
 
 import (
 	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -23,9 +24,12 @@ func TestFileAffinityStoreSharedAcrossInstances(t *testing.T) {
 	require.Empty(t, s.LoadAffinity(testBaseURL, "app-b"))
 	require.Empty(t, s.LoadAffinity("https://other.example", "app-a"))
 
-	info, err := os.Stat(s.path)
-	require.NoError(t, err)
-	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	// Windows has no Unix permission bits to check.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(s.path)
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	}
 }
 
 func TestFileAffinityStoreDropsExpired(t *testing.T) {
