@@ -308,12 +308,18 @@ func run(ctx context.Context) (err error) {
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil
+	// Problems only the Launch UI can fix, while it hasn't fixed them. The
+	// user saw them listed; launch metrics record them with the error.
+	var unresolved *recoverableErrorBuilder
 
 	if !noCreateApp(ctx) {
 		defer func() {
 			if err != nil {
 				tracing.RecordError(ctx, span, err, "launch failed")
 				status.Error = err.Error()
+				if problems := unresolved.summary(); problems != "" {
+					status.Error += ": " + problems
+				}
 
 				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
 					err = state.sourceInfo.FailureCallback(err)
@@ -553,6 +559,7 @@ func run(ctx context.Context) (err error) {
 
 		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
 		incompleteLaunchManifest = true
+		unresolved = &recoverableErrors
 	}
 
 	editInUi := false
@@ -575,6 +582,7 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		unresolved = nil
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
 		return errors.New("launch can not continue with errors present")
