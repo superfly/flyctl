@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"golang.org/x/time/rate"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -48,8 +47,11 @@ type WsWgProxy struct {
 	lock         sync.RWMutex
 	wrlock       sync.Mutex
 	atime        time.Time
-	reset        chan bool
-	limit        *rate.Limiter
+	reset        chan net.Conn
+
+	// replaced is closed when Connect installs a new connection, waking
+	// every relay waiting on errors from the previous connection.
+	replaced chan struct{}
 
 	// token-authenticated mode: instead of the legacy magic, each
 	// (re-)connection authenticates with a macaroon and the gateway
@@ -162,8 +164,8 @@ func NewWsWgProxy() (*WsWgProxy, error) {
 	return &WsWgProxy{
 		atime:    time.Now(),
 		plugConn: l,
-		reset:    make(chan bool),
-		limit:    rate.NewLimiter(rate.Every(5*time.Second), 2),
+		reset:    make(chan net.Conn),
+		replaced: make(chan struct{}),
 	}, nil
 }
 
@@ -184,20 +186,26 @@ func (wswg *WsWgProxy) lastIo() time.Duration {
 func (wswg *WsWgProxy) resetConn(ctx context.Context, c net.Conn, err error) {
 	wswg.lock.RLock()
 	cur := wswg.wsConn
+	replaced := wswg.replaced
 	wswg.lock.RUnlock()
 
 	if cur != c || ctx.Err() != nil {
 		return
 	}
 
-	if err := wswg.limit.Wait(ctx); err != nil {
+	select {
+	case wswg.reset <- c:
+		log.Printf("resetting connection due to error: %s", err)
+	case <-replaced:
+		return
+	case <-ctx.Done():
 		return
 	}
 
-	log.Printf("resetting connection due to error: %s", err)
-
+	// The connection owner paces and retries reconnects. Do not spin on
+	// the failed socket or delay use of its replacement with a relay timer.
 	select {
-	case wswg.reset <- true:
+	case <-replaced:
 	case <-ctx.Done():
 	}
 }
@@ -274,6 +282,8 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 		_ = wswg.wsConn.Close()
 	}
 	wswg.wsConn = wsConn
+	close(wswg.replaced)
+	wswg.replaced = make(chan struct{})
 
 	if reprovisioned != nil && wswg.onReprovision != nil {
 		wswg.onReprovision(reprovisioned)
@@ -464,6 +474,7 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 		defer tick.Stop()
 
 		reconnectAt := time.Time{}
+		resetPending := false
 
 		for {
 			select {
@@ -498,22 +509,24 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 				}
 
 				if !reconnectAt.IsZero() && !reconnectAt.After(now) {
+					reconnectAt = time.Time{}
 					wswg.lock.Lock()
 					wswg.refreshAt = time.Time{}
 					if err := wswg.Connect(lifetimeCtx, lifetimeCtx, endpoint); err != nil {
-						// After a dropped connection the relay loops keep
-						// failing on the dead conn and ask for another reset.
-						// After a failed refresh the old conn is still fine;
-						// try again before the session expires.
 						log.Printf("reconnect failed: %s", err)
 
+						// Failed relays wait for replacement, so the owner
+						// must retain their retry until Connect succeeds.
+						if resetPending {
+							reconnectAt = time.Now().Add(reconnectInterval)
+						}
 						if wswg.prov != nil {
 							wswg.scheduleRefresh(wswg.prov)
 						}
+					} else {
+						resetPending = false
 					}
 					wswg.lock.Unlock()
-
-					reconnectAt = time.Time{}
 				}
 
 			case <-lifetimeCtx.Done():
@@ -524,7 +537,16 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 					reconnectAt = time.Now().Add(reconnectInterval)
 				}
 
-			case <-wswg.reset:
+			case failed := <-wswg.reset:
+				// Requests can arrive after replacement even if the sender
+				// checked identity before sending. Only reset their socket.
+				wswg.lock.RLock()
+				current := wswg.wsConn
+				wswg.lock.RUnlock()
+				if failed != current {
+					continue
+				}
+				resetPending = true
 				if reconnectAt.IsZero() {
 					reconnectAt = time.Now().Add(reconnectInterval)
 				}
