@@ -613,7 +613,9 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+	if err := config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL); err != nil {
+		return nil, err
+	}
 
 	return ctx, nil
 }
@@ -697,7 +699,9 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 		}
 
 		// Fetch organization tokens and discharge any third-party caveats
-		config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+		if err := config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL); err != nil {
+			return nil, err
+		}
 
 		return ctx, nil
 	} else {
