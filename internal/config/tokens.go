@@ -151,13 +151,13 @@ func syncConfigTokens(m *tokenMonitor, t *tokens.Tokens) error {
 func commitTokenRefresh(m *tokenMonitor, t, before, updated *tokens.Tokens, file string) error {
 	m.Lock()
 	defer m.Unlock()
-	if !before.Equal(t) {
+	if !before.Equal(t) && !preservesCompletedDischarge(before, t, updated) {
 		return nil
 	}
 	var err error
 	if file != "" {
 		var current *tokens.Tokens
-		current, err = setAccessTokenIfUnchanged(file, m.disk, updated.All())
+		current, err = setAccessTokenIfUnchanged(file, m.disk, updated)
 		if current != nil {
 			// Make progress even if the watcher has stopped after a read error.
 			updated = current
@@ -170,6 +170,54 @@ func commitTokenRefresh(m *tokenMonitor, t, before, updated *tokens.Tokens, file
 	t.Replace(updated)
 
 	return err
+}
+
+// preservesCompletedDischarge allows a completed authentication to beat a partial
+// refresh, but never a change of credentials. All checks are local; no discharge
+// request or browser interaction happens while the monitor/config locks are held.
+func preservesCompletedDischarge(before, current, updated *tokens.Tokens) bool {
+	roots, ok := credentialRoots(before)
+	if !ok {
+		return false
+	}
+	for _, other := range []*tokens.Tokens{current, updated} {
+		otherRoots, ok := credentialRoots(other)
+		if !ok || !slices.Equal(roots, otherRoots) {
+			return false
+		}
+	}
+	client := flyio.DischargeClient()
+	needs, err := client.NeedsDischarge(current.All())
+	if err != nil || !needs {
+		return false
+	}
+	needs, err = client.NeedsDischarge(updated.All())
+
+	return err == nil && !needs
+}
+
+// Compare exact permission bytes, not org IDs: scopes and caveats are part of
+// credential identity. Discharges may differ; malformed tokens fail closed.
+func credentialRoots(t *tokens.Tokens) ([]string, bool) {
+	roots := t.GetUserTokens()
+	for _, encoded := range t.GetMacaroonTokens() {
+		raw, err := macaroon.Parse(encoded)
+		if err != nil {
+			return nil, false
+		}
+		for _, token := range raw {
+			m, err := macaroon.Decode(token)
+			if err != nil {
+				return nil, false
+			}
+			if m.Location == flyio.LocationPermission {
+				roots = append(roots, string(token))
+			}
+		}
+	}
+	slices.Sort(roots)
+
+	return roots, true
 }
 
 // keepConfigTokensFresh periodically updates our tokens and syncs those to the config

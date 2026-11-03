@@ -40,7 +40,7 @@ func SetAccessToken(path, token string) error {
 // setAccessTokenIfUnchanged avoids overwriting a login made since the refresh
 // began, returning the disk tokens on mismatch so the monitor can adopt them.
 // Compare parsed tokens because config files may include a scheme prefix.
-func setAccessTokenIfUnchanged(path string, before *tokens.Tokens, token string) (current *tokens.Tokens, err error) {
+func setAccessTokenIfUnchanged(path string, before, updated *tokens.Tokens) (current *tokens.Tokens, err error) {
 	unlock, err := filemu.Lock(context.Background(), lockPath())
 	if err != nil {
 		return nil, err
@@ -57,11 +57,11 @@ func setAccessTokenIfUnchanged(path string, before *tokens.Tokens, token string)
 	if err == nil {
 		tokenOnDisk, _ := m[AccessTokenFileKey].(string)
 		current = tokens.ParseFromFile(tokenOnDisk, path)
-		if !current.Equal(before) {
+		if !current.Equal(before) && !preservesCompletedDischarge(before, current, updated) {
 			return current, nil
 		}
 	}
-	m[AccessTokenFileKey] = token
+	m[AccessTokenFileKey] = updated.All()
 	err = marshalUnlocked(path, m)
 
 	return nil, err
