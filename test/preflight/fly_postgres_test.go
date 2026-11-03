@@ -433,7 +433,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 
 	require.NoError(f, pgCreateErr, "pg create failed after 3 attempts")
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		assertPostgresIsUp(t, f, firstAppName)
+		assertPostgresIsUp(t, f.Collect(t), firstAppName)
 	}, 1*time.Minute, 10*time.Second)
 
 	f.Fly(
@@ -459,7 +459,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 
 	// Wait for the importer machine to be destroyed.
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		assertMachineCount(t, f, secondAppName, 1)
+		assertMachineCount(t, f.Collect(t), secondAppName, 1)
 	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
@@ -503,7 +503,7 @@ func TestPostgres_ImportFailure(t *testing.T) {
 
 	require.NoError(f, pgCreateErr, "pg create failed after 3 attempts")
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		assertPostgresIsUp(t, f, appName)
+		assertPostgresIsUp(t, f.Collect(t), appName)
 	}, 1*time.Minute, 10*time.Second)
 
 	result := f.FlyAllowExitFailure(
@@ -515,6 +515,6 @@ func TestPostgres_ImportFailure(t *testing.T) {
 
 	// Wait for the importer machine to be destroyed.
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		assertMachineCount(t, f, appName, 1)
+		assertMachineCount(t, f.Collect(t), appName, 1)
 	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }

@@ -40,6 +40,11 @@ type Tunnel struct {
 	wscancel     func()
 	resolv       *net.Resolver
 
+	// conns are the connections dialed through the current netstack. They
+	// die with it: closing the device doesn't reset their endpoints, so
+	// without this they'd hang instead of failing.
+	conns map[*tunnelConn]struct{}
+
 	// token mode
 	ephemeral bool
 	wswg      *WsWgProxy
@@ -181,6 +186,7 @@ func newTunnel(state *WireGuardState, cfg *Config, endpointAddr string, wscancel
 		State:        state,
 		endpointAddr: endpointAddr,
 		wscancel:     wscancel,
+		conns:        make(map[*tunnelConn]struct{}),
 		done:         make(chan struct{}),
 	}
 
@@ -299,6 +305,7 @@ func (t *Tunnel) reprovision(prov *TokenProvision) {
 	t.State, t.Config = &state, cfg
 
 	old.Close()
+	t.closeConnsLocked()
 
 	log.Printf("rebuilt tunnel for %s as %s (gateway key %s)", state.Org, prov.PeerIP, prov.GatewayPubkey)
 }
@@ -371,6 +378,7 @@ func (t *Tunnel) Close() error {
 	if t.dev != nil {
 		t.dev.Close()
 	}
+	t.closeConnsLocked()
 
 	t.dev, t.net, t.tun = nil, nil, nil
 
@@ -385,7 +393,61 @@ func (t *Tunnel) DialContext(ctx context.Context, network, addr string) (net.Con
 		return nil, err
 	}
 
-	return gNet.DialContext(ctx, network, addr)
+	c, err := gNet.DialContext(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// the netstack was replaced or closed while we dialed: this
+	// connection's source address is already gone
+	if t.net != gNet {
+		_ = c.Close()
+
+		if t.net == nil {
+			return nil, errTunnelClosed
+		}
+
+		return nil, errTunnelReplaced
+	}
+
+	tc := &tunnelConn{Conn: c, t: t}
+	t.conns[tc] = struct{}{}
+
+	return tc, nil
+}
+
+var errTunnelReplaced = errors.New("tunnel was rebuilt with a new address")
+
+// closeConnsLocked closes every connection dialed through the current
+// netstack. Callers must hold t.mu.
+func (t *Tunnel) closeConnsLocked() {
+	if len(t.conns) > 0 {
+		log.Printf("closing %d connections through the old netstack", len(t.conns))
+	}
+
+	for tc := range t.conns {
+		_ = tc.Conn.Close()
+	}
+
+	clear(t.conns)
+}
+
+// tunnelConn is a connection dialed through a Tunnel; it forgets itself
+// when closed.
+type tunnelConn struct {
+	net.Conn
+	t *Tunnel
+}
+
+func (c *tunnelConn) Close() error {
+	c.t.mu.Lock()
+	delete(c.t.conns, c)
+	c.t.mu.Unlock()
+
+	return c.Conn.Close()
 }
 
 func (t *Tunnel) Resolver() *net.Resolver {
