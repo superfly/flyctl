@@ -77,7 +77,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
-	actions, err := computeActions(appName, machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(appName, machines, expectedGroupCounts, regions, maxPerRegion, defaults, flag.GetBool(ctx, "per-region"))
 	if err != nil {
 		return err
 	}
@@ -304,7 +304,7 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues, perRegion bool) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
@@ -340,7 +340,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 			return k, len(v)
 		})
 
-		regionDiffs, err := convergeGroupCounts(expected, currentPerRegionCount, regions, maxPerRegion)
+		regionDiffs, err := convergeCounts(expected, currentPerRegionCount, regions, maxPerRegion, perRegion)
 		if err != nil {
 			return nil, err
 		}
@@ -376,7 +376,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 			return nil, err
 		}
 
-		regionDiffs, err := convergeGroupCounts(expected, nil, regions, maxPerRegion)
+		regionDiffs, err := convergeCounts(expected, nil, regions, maxPerRegion, perRegion)
 		if err != nil {
 			return nil, err
 		}
@@ -395,6 +395,20 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	}
 
 	return actions, nil
+}
+
+func convergeCounts(expected int, current map[string]int, regions []string, maxPerRegion int, perRegion bool) (map[string]int, error) {
+	if !perRegion {
+		return convergeGroupCounts(expected, current, regions, maxPerRegion)
+	}
+	diffs := make(map[string]int)
+	for _, region := range regions {
+		if delta := expected - current[region]; delta != 0 {
+			diffs[region] = delta
+		}
+	}
+
+	return diffs, nil
 }
 
 var ErrMaxPerRegion = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")

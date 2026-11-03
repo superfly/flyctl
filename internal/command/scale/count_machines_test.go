@@ -1,6 +1,7 @@
 package scale
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,8 +14,11 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -340,4 +344,72 @@ func Test_convergeGroupCounts_duplicateRegions(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("convergeGroupCounts did not return when regions contained a duplicate")
 	}
+}
+
+func countTestMachines(counts map[string]map[string]int) []*fly.Machine {
+	var machines []*fly.Machine
+	for group, regions := range counts {
+		for region, count := range regions {
+			for i := 0; i < count; i++ {
+				machines = append(machines, &fly.Machine{Region: region, Config: &fly.MachineConfig{
+					Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: group},
+					Guest:    &fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 256},
+				}})
+			}
+		}
+	}
+
+	return machines
+}
+
+func TestComputeActionsPerRegionNewGroup(t *testing.T) {
+	defaults := newDefaults(&appconfig.Config{PrimaryRegion: "ord"}, fly.Release{ImageRef: "test-image"}, nil, nil, "", false, nil)
+	actions, err := computeActions("local-test", nil, groupCounts{"app": {absolute: 4}}, []string{"ord", "sjc", "ord"}, -1, defaults, true)
+	require.NoError(t, err)
+	require.Len(t, actions, 2)
+	for _, action := range actions {
+		require.Equal(t, 4, action.Delta)
+		require.Contains(t, []string{"ord", "sjc"}, action.Region)
+		require.Equal(t, action.Region, action.LaunchMachineInput.Region)
+	}
+}
+
+// Unimplemented client methods panic, so this fixture cannot execute mutations.
+type scaleCountReadClient struct {
+	flapsutil.FlapsClient
+}
+
+func (*scaleCountReadClient) ListFlyAppsMachines(context.Context, string) ([]*fly.Machine, *fly.Machine, error) {
+	return countTestMachines(map[string]map[string]int{"app": {"ord": 2, "sjc": 2, "ams": 4}}), nil, nil
+}
+
+func (*scaleCountReadClient) GetVolumes(context.Context, string) ([]fly.Volume, error) {
+	return nil, nil
+}
+
+type scaleCountReleaseClient struct {
+	uiexutil.Client
+}
+
+func (*scaleCountReleaseClient) ListReleases(context.Context, string, int) ([]uiex.Release, error) {
+	return []uiex.Release{{Status: "complete", ImageRef: "test-image"}}, nil
+}
+
+func TestRunMachinesScaleCountPerRegion(t *testing.T) {
+	cmd := newScaleCount()
+	require.NoError(t, cmd.ParseFlags([]string{"4", "--per-region", "-r", "ord,sjc,ams"}))
+	require.NoError(t, cmd.ValidateArgs(cmd.Flags().Args()))
+	ctx := flag.NewContext(t.Context(), cmd.Flags())
+	ctx = flapsutil.NewContextWithClient(ctx, &scaleCountReadClient{})
+	ctx = uiexutil.NewContextWithClient(ctx, &scaleCountReleaseClient{})
+	var out bytes.Buffer
+	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &out, ErrOut: io.Discard})
+	groups, err := parseGroupCounts(cmd.Flags().Args(), "app")
+	require.NoError(t, err)
+	err = runMachinesScaleCount(ctx, "local-test", &appconfig.Config{}, groups, -1)
+	// Stop at confirmation: exercise the production flag read and plan, not execution.
+	require.ErrorContains(t, err, "--yes flag must be specified")
+	require.Contains(t, out.String(), "+2 machines for group 'app' on region 'ord'")
+	require.Contains(t, out.String(), "+2 machines for group 'app' on region 'sjc'")
+	require.NotContains(t, out.String(), "on region 'ams'")
 }
