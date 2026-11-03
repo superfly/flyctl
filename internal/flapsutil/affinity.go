@@ -51,6 +51,7 @@ func (s *fileAffinityStore) read() map[string]affinityEntry {
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return nil
 	}
+
 	return entries
 }
 
