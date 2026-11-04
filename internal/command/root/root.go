@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/curl"
 	"github.com/superfly/flyctl/internal/command/dashboard"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/deployments"
 	"github.com/superfly/flyctl/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/docs"
@@ -115,6 +116,7 @@ func New() *cobra.Command {
 		group(docs.New(), "more_help"),
 		group(releases.New(), "upkeep"),
 		group(deploy.New().Command, "deploy"),
+		group(deployments.New(), "deploy"),
 		group(history.New(), "upkeep"),
 		group(status.New(), "deploy"),
 		group(logs.New(), "upkeep"),
