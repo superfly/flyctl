@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/machine"
@@ -75,9 +74,8 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	}()
 
 	logOpts := &logs.LogOptions{
-		AppName:    appconfig.NameFromContext(ctx),
-		RegionCode: config.FromContext(ctx).Region,
-		NoTail:     false,
+		AppName: appconfig.NameFromContext(ctx),
+		NoTail:  false,
 	}
 	var stream logs.LogStream
 
@@ -110,7 +108,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
-	logOpts.VMID = releaseCmdMachine.Machine().ID
+	releaseCommandLogOptions(logOpts, releaseCmdMachine.Machine())
 	logsCtx, cancelLogs := context.WithCancelCause(ctx)
 	defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 	var buf *ring.Ring
@@ -123,9 +121,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 			return
 		}
 		for entry := range stream.Stream(logsCtx, logOpts) {
-			var ts time.Time
-			if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
-				err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
+			ts, perr := time.Parse(time.RFC3339Nano, entry.Timestamp)
+			if perr != nil {
+				fmt.Fprintf(md.io.ErrOut, "failed parsing release command log timestamp %q: %v\n", entry.Timestamp, perr)
 
 				return
 			}
@@ -213,8 +211,18 @@ func waitForLogs(md *machineDeployment, ctx context.Context, stream logs.LogStre
 			fmt.Fprintf(md.io.ErrOut, "error getting release command logs: %v\n", stream.Err())
 		}
 	case <-timer.C:
-		fmt.Fprintf(md.io.ErrOut, "timeout waiting for release command logs\n")
+		fmt.Fprintf(md.io.ErrOut, "timeout waiting for release command logs. Run `fly logs -a %s -i %s --no-tail` to see them.\n", md.appConfig.AppName, id)
 	}
+}
+
+// releaseCommandLogOptions scopes the log stream to the release command machine.
+// The region must be the machine's own: config.Region comes from --region or
+// FLY_REGION, and FLY_REGION is set on every Fly Machine. When flyctl runs on a
+// machine in another region (the GitHub launcher's deployer, CI on Fly), filtering
+// on it matches none of the release machine's logs and the wait times out.
+func releaseCommandLogOptions(opts *logs.LogOptions, m *fly.Machine) {
+	opts.VMID = m.ID
+	opts.RegionCode = m.Region
 }
 
 // machineHostDedicationID resolves the host dedication ID from whichever machine
