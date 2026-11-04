@@ -221,6 +221,17 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	return &manifest, nil
 }
 
+// launchUiAvailable reports whether a recoverable error can wait for the Launch
+// UI. --yes and plan steps never offer the UI, so deferring there would replace
+// the real error with "launch can not continue with errors present".
+func launchUiAvailable(ctx context.Context, planStep string) bool {
+	return planStep == "" &&
+		!flag.GetYes(ctx) &&
+		!flag.GetBool(ctx, "manifest") &&
+		iostreams.FromContext(ctx).IsInteractive() &&
+		!env.IsCI()
+}
+
 func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
@@ -393,6 +404,10 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	if launchManifest != nil {
+		replaceManifestRetiredRegion(ctx, launchManifest)
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -401,7 +416,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	incompleteLaunchManifest := false
-	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
+	canEnterUi := launchUiAvailable(ctx, planStep)
 
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 

@@ -269,11 +269,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 				}
 				planSource.postgresSource = scannerSource
 
-				// We offer switching to MPG if interactive session and the region is not the same as the MPG region
-				// App should launch in the MPG region
-				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
-					lp.RegionCode = lp.Postgres.ManagedPostgres.Region
-				}
+				followManagedPostgresRegion(lp, planSource, regionCode)
 			case scanner.DatabaseKindMySQL:
 				// TODO
 			case scanner.DatabaseKindSqlite:
@@ -289,11 +285,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			}
 			planSource.postgresSource = "forced by --db flag"
 
-			// We offer switching to MPG if interactive session and the region is not the same as the MPG region
-			// App should launch in the MPG region
-			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
-				lp.RegionCode = lp.Postgres.ManagedPostgres.Region
-			}
+			followManagedPostgresRegion(lp, planSource, regionCode)
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
@@ -803,6 +795,51 @@ var deprecatedRegionReplacements = map[string]string{
 	"bom": "sin",
 }
 
+// replaceRetiredRegion returns the region that took over from a retired one.
+// It warns on stderr because --manifest and plan steps never print the summary.
+func replaceRetiredRegion(ctx context.Context, code string) (string, bool) {
+	replacement, ok := deprecatedRegionReplacements[code]
+	if ok {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Warning: region %s is retired, using %s instead\n", code, replacement)
+	}
+
+	return replacement, ok
+}
+
+// replaceManifestRetiredRegion moves a loaded manifest off a retired region,
+// because buildManifest and its determineRegion are skipped for manifests.
+func replaceManifestRetiredRegion(ctx context.Context, m *LaunchManifest) {
+	if m.Plan == nil {
+		return
+	}
+
+	retired := m.Plan.RegionCode
+	replacement, ok := replaceRetiredRegion(ctx, retired)
+	if !ok {
+		return
+	}
+
+	m.Plan.RegionCode = replacement
+	if m.PlanSource != nil {
+		m.PlanSource.regionSource = fmt.Sprintf("from manifest; %s is retired", retired)
+	}
+}
+
+// followManagedPostgresRegion launches the app in its Managed Postgres region
+// when that differs from the region picked for the app. We offer switching to
+// MPG in an interactive session. A region still left for the UI stays that way.
+func followManagedPostgresRegion(lp *plan.LaunchPlan, planSource *launchPlanSource, regionCode string) {
+	pg := lp.Postgres.ManagedPostgres
+	if pg == nil || pg.Region == regionCode {
+		return
+	}
+
+	lp.RegionCode = pg.Region
+	if planSource.regionSource != recoverableSpecifyInUi {
+		planSource.regionSource = "chosen for Managed Postgres"
+	}
+}
+
 // determineRegion returns the region to use for a new app. It uses the
 // placements API to find the best region with capacity for the requested
 // compute. In order, it tries:
@@ -820,9 +857,12 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 
 	// Errors name the region as the user gave it, and where: an invalid one is
 	// usually a stale primary_region in fly.toml.
-	described := fmt.Sprintf("region %s %s", regionCode, explanation)
+	var described string
+	if regionCode != "" {
+		described = fmt.Sprintf("region %s %s", regionCode, explanation)
+	}
 
-	if replacement, ok := deprecatedRegionReplacements[regionCode]; ok {
+	if replacement, ok := replaceRetiredRegion(ctx, regionCode); ok {
 		described += fmt.Sprintf(" (retired, using %s)", replacement)
 		explanation += fmt.Sprintf("; %s is retired", regionCode)
 		regionCode = replacement
@@ -831,6 +871,14 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 	if regionCode == "" {
 		regionCode = "any"
 		explanation = "this is the fastest region for you"
+	}
+
+	nameRegion := func(err error) error {
+		if described == "" {
+			return err
+		}
+
+		return fmt.Errorf("%s: %w", described, err)
 	}
 
 	count := uint64(1)
@@ -845,22 +893,15 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		Org:                 orgSlug,
 	})
 	if err != nil {
-		if regionCode != "any" {
-			err = fmt.Errorf("%s: %w", described, err)
-		}
-
 		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
-			fmt.Errorf("failed to determine region: %w", err),
+			fmt.Errorf("failed to determine region: %w", nameRegion(err)),
 		}
 	}
 
 	if len(placements) == 0 {
 		err := errors.New("no regions with capacity for the requested configuration")
-		if regionCode != "any" {
-			err = fmt.Errorf("%s: %w", described, err)
-		}
 
-		return regionCode, recoverableSpecifyInUi, recoverableInUiError{err}
+		return regionCode, recoverableSpecifyInUi, recoverableInUiError{nameRegion(err)}
 	}
 
 	return placements[0].Region, explanation, nil

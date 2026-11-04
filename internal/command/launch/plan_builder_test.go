@@ -1,8 +1,10 @@
 package launch
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"os"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -476,37 +478,82 @@ func TestNudgeTowardsDeployNonInteractive(t *testing.T) {
 // rejects it, so a fly.toml that still names it has to be moved like the other
 // retired regions. The summary and any error say so.
 func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
+	const retiredWarning = "Warning: region bom is retired, using sin instead\n"
+
 	for _, tc := range []struct {
 		name            string
 		flagRegion      string
 		primaryRegion   string
 		placements      []flaps.RegionPlacement
 		placementsErr   error
+		wantAsked       string
+		wantRegion      string
 		wantExplanation string
 		wantErr         string
+		wantWarning     string
 	}{
 		{
 			name:            "from fly.toml",
 			primaryRegion:   "bom",
 			placements:      []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantAsked:       "sin",
+			wantRegion:      "sin",
 			wantExplanation: "from your fly.toml; bom is retired",
+			wantWarning:     retiredWarning,
 		},
 		{
 			name:            "from the command line",
 			flagRegion:      "bom",
 			placements:      []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantAsked:       "sin",
+			wantRegion:      "sin",
 			wantExplanation: "specified on the command line; bom is retired",
+			wantWarning:     retiredWarning,
 		},
 		{
-			name:          "replacement rejected",
+			name:          "replacement rejected keeps the replacement for the UI",
 			primaryRegion: "bom",
 			placementsErr: errors.New("invalid region"),
+			wantAsked:     "sin",
+			wantRegion:    "sin",
 			wantErr:       "failed to determine region: region bom from your fly.toml (retired, using sin): invalid region",
+			wantWarning:   retiredWarning,
+		},
+		{
+			name:          "replacement has no capacity",
+			primaryRegion: "bom",
+			wantAsked:     "sin",
+			wantRegion:    "sin",
+			wantErr:       "region bom from your fly.toml (retired, using sin): no regions with capacity for the requested configuration",
+			wantWarning:   retiredWarning,
+		},
+		{
+			name:          "invalid region",
+			flagRegion:    "maa",
+			placementsErr: errors.New("invalid region"),
+			wantAsked:     "maa",
+			wantRegion:    "maa",
+			wantErr:       "failed to determine region: region maa specified on the command line: invalid region",
 		},
 		{
 			name:          "no capacity",
 			primaryRegion: "maa",
+			wantAsked:     "maa",
+			wantRegion:    "maa",
 			wantErr:       "region maa from your fly.toml: no regions with capacity for the requested configuration",
+		},
+		{
+			name:          "no region given, placements fails",
+			placementsErr: errors.New("invalid region"),
+			wantAsked:     "any",
+			wantRegion:    "any",
+			wantErr:       "failed to determine region: invalid region",
+		},
+		{
+			name:       "no region given, no capacity",
+			wantAsked:  "any",
+			wantRegion: "any",
+			wantErr:    "no regions with capacity for the requested configuration",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -529,17 +576,163 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 
 			region, explanation, err := determineRegion(ctx, config, "personal", &fly.MachineGuest{}, flapsClient)
 
+			assert.Equal(t, tc.wantAsked, asked)
+			assert.Equal(t, tc.wantRegion, region)
+			assert.Equal(t, tc.wantWarning, stderrOf(ctx))
+
 			if tc.wantErr != "" {
 				require.Error(t, err)
 				assert.Equal(t, tc.wantErr, err.Error())
 				assert.Equal(t, recoverableSpecifyInUi, explanation)
 
+				var recoverable recoverableInUiError
+				assert.ErrorAs(t, err, &recoverable)
+
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, "sin", asked)
-			assert.Equal(t, "sin", region)
 			assert.Equal(t, tc.wantExplanation, explanation)
+		})
+	}
+}
+
+func stderrOf(ctx context.Context) string {
+	return iostreams.FromContext(ctx).ErrOut.(*bytes.Buffer).String()
+}
+
+// Replacement isn't applied twice, so a retired region must never point at
+// another retired region.
+func TestDeprecatedRegionReplacementsAreLive(t *testing.T) {
+	for retired, replacement := range deprecatedRegionReplacements {
+		assert.NotContains(t, deprecatedRegionReplacements, replacement, "%s moves to a retired region", retired)
+	}
+}
+
+// A manifest skips buildManifest, so without this a retired region gets to
+// state.Region and fails with "region bom not found".
+func TestReplaceManifestRetiredRegion(t *testing.T) {
+	t.Run("moves a retired region", func(t *testing.T) {
+		ctx := newBuildManifestCtx(t)
+		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+			GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
+				return &flaps.RegionData{Regions: []fly.Region{
+					{Code: "bom", Name: "Mumbai", Deprecated: true},
+					{Code: "sin", Name: "Singapore"},
+				}}, nil
+			},
+		})
+		m := LaunchManifest{
+			Plan:       &plan.LaunchPlan{RegionCode: "bom"},
+			PlanSource: newDefaultPlanSource("from manifest"),
+		}
+
+		replaceManifestRetiredRegion(ctx, &m)
+
+		assert.Equal(t, "sin", m.Plan.RegionCode)
+		assert.Equal(t, "from manifest; bom is retired", m.PlanSource.regionSource)
+		assert.Equal(t, "Warning: region bom is retired, using sin instead\n", stderrOf(ctx))
+
+		state := &launchState{LaunchManifest: m, cache: map[string]any{}}
+		region, err := state.Region(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "Singapore", region.Name)
+	})
+
+	t.Run("leaves a live region", func(t *testing.T) {
+		ctx := newBuildManifestCtx(t)
+		m := LaunchManifest{
+			Plan:       &plan.LaunchPlan{RegionCode: "iad"},
+			PlanSource: newDefaultPlanSource("from manifest"),
+		}
+
+		replaceManifestRetiredRegion(ctx, &m)
+
+		assert.Equal(t, "iad", m.Plan.RegionCode)
+		assert.Equal(t, "from manifest", m.PlanSource.regionSource)
+		assert.Empty(t, stderrOf(ctx))
+	})
+
+	t.Run("no plan source", func(t *testing.T) {
+		m := LaunchManifest{Plan: &plan.LaunchPlan{RegionCode: "bom"}}
+
+		replaceManifestRetiredRegion(newBuildManifestCtx(t), &m)
+
+		assert.Equal(t, "sin", m.Plan.RegionCode)
+	})
+
+	t.Run("no plan", func(t *testing.T) {
+		replaceManifestRetiredRegion(newBuildManifestCtx(t), &LaunchManifest{})
+	})
+}
+
+// The summary row must describe the region the app actually lands in, not the
+// one it had before Managed Postgres moved it.
+func TestFollowManagedPostgresRegion(t *testing.T) {
+	const fromToml = "from your fly.toml; bom is retired"
+
+	for _, tc := range []struct {
+		name       string
+		pgRegion   string
+		source     string
+		wantRegion string
+		wantSource string
+	}{
+		{name: "no managed postgres", source: fromToml, wantRegion: "sin", wantSource: fromToml},
+		{name: "same region", pgRegion: "sin", source: fromToml, wantRegion: "sin", wantSource: fromToml},
+		{name: "moved", pgRegion: "iad", source: fromToml, wantRegion: "iad", wantSource: "chosen for Managed Postgres"},
+		{name: "region still left for the UI", pgRegion: "iad", source: recoverableSpecifyInUi, wantRegion: "iad", wantSource: recoverableSpecifyInUi},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lp := &plan.LaunchPlan{RegionCode: "sin"}
+			if tc.pgRegion != "" {
+				lp.Postgres.ManagedPostgres = &plan.ManagedPostgresPlan{Region: tc.pgRegion}
+			}
+			source := &launchPlanSource{regionSource: tc.source}
+
+			followManagedPostgresRegion(lp, source, "sin")
+
+			assert.Equal(t, tc.wantRegion, lp.RegionCode)
+			assert.Equal(t, tc.wantSource, source.regionSource)
+		})
+	}
+}
+
+// --yes and plan steps never offer the Launch UI, so their recoverable errors
+// have to be returned, not deferred to a UI that won't open.
+func TestLaunchUiAvailable(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		interactive bool
+		ci          bool
+		flags       []string
+		planStep    string
+		want        bool
+	}{
+		{name: "terminal", interactive: true, want: true},
+		{name: "not a terminal"},
+		{name: "ci", interactive: true, ci: true},
+		{name: "--yes", interactive: true, flags: []string{"yes"}},
+		{name: "--manifest", interactive: true, flags: []string{"manifest"}},
+		{name: "plan step", interactive: true, planStep: "propose"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, name := range []string{"CI", "GITHUB_ACTIONS", "CONTINUOUS_INTEGRATION", "BUILD_NUMBER", "RUN_ID"} {
+				t.Setenv(name, "")
+				require.NoError(t, os.Unsetenv(name))
+			}
+			if tc.ci {
+				t.Setenv("CI", "true")
+			}
+
+			ctx := newBuildManifestCtx(t)
+			ios := iostreams.FromContext(ctx)
+			ios.SetStdinTTY(tc.interactive)
+			ios.SetStdoutTTY(tc.interactive)
+			for _, name := range tc.flags {
+				require.NoError(t, flag.FromContext(ctx).Set(name, "true"))
+			}
+
+			assert.Equal(t, tc.want, launchUiAvailable(ctx, tc.planStep))
 		})
 	}
 }
@@ -547,40 +740,76 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 // When placements rejects the region, a terminal launch leaves it to be picked
 // in the Launch UI. The summary has to show it as unspecified and list the
 // placements error, not fail on the rejected code with "region maa not found".
-func TestPlanSummaryWithRegionLeftForUi(t *testing.T) {
-	ctx := newBuildManifestCtx(t)
-	require.NoError(t, flag.FromContext(ctx).Set("region", "maa"))
-	require.NoError(t, flag.FromContext(ctx).Set("no-deploy", "true"))
-	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
-		ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
-			return []uiex.Organization{{Slug: "personal", Name: "Personal", Personal: true, BillingStatus: uiex.BillingStatusCurrent}}, nil
+// A region that resolved is looked up and shown as usual.
+func TestPlanSummaryRegion(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		flagRegion    string
+		placements    []flaps.RegionPlacement
+		placementsErr error
+		wantSummary   string
+		wantError     string
+	}{
+		{
+			name:          "left for the UI",
+			flagRegion:    "maa",
+			placementsErr: errors.New("invalid region"),
+			wantSummary:   `Region:\s+<unspecified>`,
+			wantError:     "failed to determine region: region maa specified on the command line: invalid region",
 		},
-		GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
-			return &uiex.Organization{Slug: "personal", Name: "Personal", BillingStatus: uiex.BillingStatusCurrent}, nil
+		{
+			name:        "resolved",
+			flagRegion:  "sin",
+			placements:  []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantSummary: `Region:\s+Singapore\s+\(specified on the command line\)`,
 		},
-	})
-	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-		GetAppFunc: func(context.Context, string) (*flaps.App, error) {
-			return nil, errors.New("app not found")
+		{
+			name:        "retired",
+			flagRegion:  "bom",
+			placements:  []flaps.RegionPlacement{{Region: "sin", Count: 1}},
+			wantSummary: `Region:\s+Singapore\s+\(specified on the command line; bom is retired\)`,
 		},
-		AppNameAvailableFunc: func(context.Context, string) (bool, error) { return true, nil },
-		GetPlacementsFunc: func(context.Context, *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
-			return nil, errors.New("invalid region")
-		},
-		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
-			return &flaps.RegionData{Regions: []fly.Region{{Code: "sin", Name: "Singapore"}}}, nil
-		},
-	})
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newBuildManifestCtx(t)
+			require.NoError(t, flag.FromContext(ctx).Set("region", tc.flagRegion))
+			require.NoError(t, flag.FromContext(ctx).Set("no-deploy", "true"))
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
+					return []uiex.Organization{{Slug: "personal", Name: "Personal", Personal: true, BillingStatus: uiex.BillingStatusCurrent}}, nil
+				},
+				GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+					return &uiex.Organization{Slug: "personal", Name: "Personal", BillingStatus: uiex.BillingStatusCurrent}, nil
+				},
+			})
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+					return nil, errors.New("app not found")
+				},
+				AppNameAvailableFunc: func(context.Context, string) (bool, error) { return true, nil },
+				GetPlacementsFunc: func(context.Context, *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+					return tc.placements, tc.placementsErr
+				},
+				GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
+					return &flaps.RegionData{Regions: []fly.Region{{Code: "sin", Name: "Singapore"}}}, nil
+				},
+			})
 
-	recoverable := &recoverableErrorBuilder{canEnterUi: true}
-	m, cache, err := buildManifest(ctx, nil, recoverable)
-	require.NoError(t, err)
+			recoverable := &recoverableErrorBuilder{canEnterUi: true}
+			m, cache, err := buildManifest(ctx, nil, recoverable)
+			require.NoError(t, err)
 
-	state, err := stateFromManifest(ctx, *m, cache, recoverable)
-	require.NoError(t, err)
+			state, err := stateFromManifest(ctx, *m, cache, recoverable)
+			require.NoError(t, err)
 
-	summary, err := state.PlanSummary(ctx)
-	require.NoError(t, err)
-	assert.Regexp(t, `Region:\s+<unspecified>`, summary)
-	assert.Contains(t, recoverable.build(), "failed to determine region: region maa specified on the command line: invalid region")
+			summary, err := state.PlanSummary(ctx)
+			require.NoError(t, err)
+			assert.Regexp(t, tc.wantSummary, summary)
+			if tc.wantError == "" {
+				assert.Empty(t, recoverable.build())
+			} else {
+				assert.Contains(t, recoverable.build(), tc.wantError)
+			}
+		})
+	}
 }
