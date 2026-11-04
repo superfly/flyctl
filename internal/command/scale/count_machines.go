@@ -416,5 +416,6 @@ func convergeGroupCounts(count groupCount, current map[string]int, regions []str
 			diffs[region] = delta
 		}
 	}
+
 	return diffs, nil
 }
