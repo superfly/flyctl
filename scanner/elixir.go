@@ -23,5 +23,11 @@ func configureElixir(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		Runtime: plan.RuntimeStruct{Language: "elixir"},
 	}
 
+	if procfileHasNoWeb(sourceDir) {
+		s.Port = 0
+		s.Env = nil
+		s.NoHttpService = true
+	}
+
 	return s, nil
 }
