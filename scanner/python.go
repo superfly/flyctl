@@ -383,16 +383,26 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 
 	s := &SourceInfo{
-		Files:   templates("templates/python"),
-		Builder: "paketobuildpacks/builder:base",
-		Family:  "Python",
-		Port:    8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
+		Builder:    "paketobuildpacks/builder:base",
+		Family:     "Python",
 		SkipDeploy: true,
-		DeployDocs: `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
 		Runtime:    plan.RuntimeStruct{Language: "python", Version: pythonVersion},
+	}
+
+	switch {
+	case procfileHasNoWeb(sourceDir):
+		terminal.Info("Procfile has no web process, not configuring an HTTP service")
+		s.NoHttpService = true
+		s.DeployDocs = `Run "fly deploy" to deploy your application.`
+	case fileExists("Procfile")(sourceDir):
+		s.Port = 8080
+		s.Env = map[string]string{"PORT": "8080"}
+		s.DeployDocs = `Make sure the web process in your Procfile listens on port 8080, then run "fly deploy" to deploy your application.`
+	default:
+		s.Files = templates("templates/python")
+		s.Port = 8080
+		s.Env = map[string]string{"PORT": "8080"}
+		s.DeployDocs = `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`
 	}
 
 	return s, nil

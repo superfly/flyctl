@@ -62,6 +62,7 @@ type SourceInfo struct {
 
 	Files                           []SourceFile
 	Port                            int
+	NoHttpService                   bool // the app serves no HTTP (e.g. worker-only Procfile): launch without [http_service]
 	Env                             map[string]string
 	Statics                         []Static
 	Processes                       map[string]string
