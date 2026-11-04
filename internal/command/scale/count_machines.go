@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/samber/lo"
@@ -54,13 +55,13 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	var regions []string
-	if v := flag.GetRegion(ctx); v != "" {
-		regions = strings.Split(v, ",")
-	}
-	if len(regions) == 0 {
-		regions = lo.Uniq(lo.Map(machines, func(m *fly.Machine, _ int) string { return m.Region }))
-		if len(regions) == 0 {
-			regions = []string{appConfig.PrimaryRegion}
+	if flag.IsSpecified(ctx, "region") {
+		regions = strings.Split(flag.GetRegion(ctx), ",")
+		for i, region := range regions {
+			regions[i] = strings.TrimSpace(region)
+			if regions[i] == "" {
+				return fmt.Errorf("region must not be empty")
+			}
 		}
 	}
 
@@ -77,7 +78,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
-	actions, err := computeActions(appName, machines, expectedGroupCounts, regions, maxPerRegion, defaults, flag.GetBool(ctx, "per-region"))
+	actions, err := computeActions(appName, machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -194,9 +195,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	// Scaling may change the situation of app-scoped egress IPs in affected regions
-	regionMap := make(map[string]any, len(regions))
-	for _, r := range regions {
-		regionMap[r] = nil
+	regionMap := make(map[string]any, len(actions))
+	for _, action := range actions {
+		regionMap[action.Region] = nil
 	}
 	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
 
@@ -304,19 +305,11 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues, perRegion bool) ([]*planItem, error) {
+func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
-	})
-	expectedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, group string) int {
-		count := c.absolute
-		if c.relative != 0 {
-			count = len(machineGroups[group]) + c.relative
-		}
-
-		return max(count, 0)
 	})
 
 	minvers, err := appsecrets.GetMinvers(appName)
@@ -325,7 +318,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	}
 
 	for groupName, groupMachines := range machineGroups {
-		expected, ok := expectedCounts[groupName]
+		expected, ok := expectedGroupCounts[groupName]
 		// Ignore the group if it is not expected to change
 		if !ok {
 			continue
@@ -340,7 +333,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 			return k, len(v)
 		})
 
-		regionDiffs, err := convergeCounts(expected, currentPerRegionCount, regions, maxPerRegion, perRegion)
+		regionDiffs, err := convergeGroupCounts(expected, currentPerRegionCount, regions, maxPerRegion)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +359,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	}
 
 	// Fill in the groups without existing machines
-	for groupName, expected := range expectedCounts {
+	for groupName, expected := range expectedGroupCounts {
 		if seenGroups[groupName] {
 			continue
 		}
@@ -376,7 +369,11 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 			return nil, err
 		}
 
-		regionDiffs, err := convergeCounts(expected, nil, regions, maxPerRegion, perRegion)
+		groupRegions := regions
+		if len(groupRegions) == 0 {
+			groupRegions = []string{defaults.appConfig.PrimaryRegion}
+		}
+		regionDiffs, err := convergeGroupCounts(expected, nil, groupRegions, maxPerRegion)
 		if err != nil {
 			return nil, err
 		}
@@ -397,70 +394,27 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	return actions, nil
 }
 
-func convergeCounts(expected int, current map[string]int, regions []string, maxPerRegion int, perRegion bool) (map[string]int, error) {
-	if !perRegion {
-		return convergeGroupCounts(expected, current, regions, maxPerRegion)
+var ErrMaxPerRegion = errors.New("requested count exceeds the maximum machines per region")
+
+func convergeGroupCounts(count groupCount, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
+	if len(regions) == 0 {
+		regions = lo.Keys(current)
 	}
 	diffs := make(map[string]int)
 	for _, region := range regions {
+		expected := count.absolute
+		if count.relative != 0 {
+			if count.relative > 0 && current[region] > math.MaxInt-count.relative {
+				return nil, fmt.Errorf("relative count overflows machine count in region %s", region)
+			}
+			expected = max(current[region]+count.relative, 0)
+		}
+		if maxPerRegion >= 0 && expected > maxPerRegion {
+			return nil, ErrMaxPerRegion
+		}
 		if delta := expected - current[region]; delta != 0 {
 			diffs[region] = delta
 		}
 	}
-
-	return diffs, nil
-}
-
-var ErrMaxPerRegion = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
-
-func convergeGroupCounts(expectedTotal int, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
-	diffs := make(map[string]int)
-
-	if len(regions) == 0 {
-		regions = lo.Keys(current)
-	}
-	regions = lo.Uniq(regions)
-
-	if maxPerRegion >= 0 {
-		if len(regions)*maxPerRegion < expectedTotal {
-			return nil, ErrMaxPerRegion
-		}
-
-		// Compute the diff to any region with more machines than the maximum allowed
-		for _, region := range regions {
-			c := current[region]
-			if c > maxPerRegion {
-				diffs[region] = maxPerRegion - c
-			}
-		}
-	}
-
-	diff := expectedTotal
-	for _, region := range regions {
-		diff -= (current[region] + diffs[region])
-	}
-
-	idx := 0
-	for diff > 0 {
-		region := regions[idx%(len(regions))]
-		if maxPerRegion < 0 || current[region]+diffs[region] < maxPerRegion {
-			diffs[region]++
-			diff--
-		}
-		idx++
-	}
-
-	// Iterate regions in reverse order because the region list
-	// tend to have the primary region first
-	idx = -1
-	for diff < 0 {
-		region := regions[-idx%(len(regions))]
-		if current[region]+diffs[region] > 0 {
-			diffs[region]--
-			diff++
-		}
-		idx--
-	}
-
 	return diffs, nil
 }

@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -197,153 +197,31 @@ func TestNewDefaultsOnlyCountsReusableVolumes(t *testing.T) {
 	require.True(t, createOnly.withNewVolumes)
 }
 
-func Test_convergeGroupCounts(t *testing.T) {
-	testcases := []struct {
-		name          string
-		want          map[string]int
-		expectedTotal int
-		current       map[string]int
-		regions       []string
-		maxPerRegion  int
+func TestConvergeGroupCounts(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		count   groupCount
+		current map[string]int
+		regions []string
+		cap     int
+		want    map[string]int
+		wantErr error
 	}{
-		{
-			name:          "Spread instances across regions from nothing",
-			want:          map[string]int{"scl": 2, "iad": 1},
-			expectedTotal: 3,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  -1,
-		},
-		{
-			name:          "Spread instances across regions from existing",
-			want:          map[string]int{"scl": 1},
-			current:       map[string]int{"scl": 1, "iad": 1},
-			expectedTotal: 3,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  -1,
-		},
-		{
-			name:          "Act on all current regions if not region is passed",
-			want:          map[string]int{"scl": 2, "iad": 2},
-			current:       map[string]int{"scl": 1, "iad": 1},
-			expectedTotal: 6,
-			maxPerRegion:  -1,
-		},
-		{
-			name:          "Requirements already met",
-			want:          map[string]int{},
-			current:       map[string]int{"scl": 1, "iad": 1},
-			expectedTotal: 2,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  -1,
-		},
-		{
-			name:          "Reduce the fleet",
-			want:          map[string]int{"iad": -1},
-			current:       map[string]int{"scl": 1, "iad": 1},
-			expectedTotal: 1,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  -1,
-		},
-		{
-			name:          "Reduce the fleet (like previous but order of regions matters)",
-			want:          map[string]int{"scl": -1},
-			current:       map[string]int{"scl": 1, "iad": 1},
-			expectedTotal: 1,
-			regions:       []string{"iad", "scl"},
-			maxPerRegion:  -1,
-		},
-		// Ignore non-listed regions
-		{
-			name:          "Ignore non-listed regions while removing machines",
-			want:          map[string]int{"scl": -3, "iad": -3},
-			current:       map[string]int{"scl": 3, "iad": 5, "ord": 1, "sin": 10},
-			expectedTotal: 2,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  -1,
-		},
-		{
-			name:          "Ignore non-listed regions while adding machines",
-			want:          map[string]int{"scl": 2, "iad": 2},
-			current:       map[string]int{"scl": 3, "iad": 5, "ord": 1, "sin": 10},
-			expectedTotal: 12,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  -1,
-		},
-	}
-
-	for _, tc := range testcases {
+		{"zero", groupCount{}, map[string]int{"ord": 2, "sjc": 3}, []string{"ord"}, 0, map[string]int{"ord": -2}, nil},
+		{"decrement clamps at zero", groupCount{relative: -3}, map[string]int{"ord": 2, "sjc": 4}, []string{"ord", "sjc", "ams"}, -1, map[string]int{"ord": -2, "sjc": -3}, nil},
+		{"cap met", groupCount{absolute: 4}, map[string]int{"ord": 6, "sjc": 2}, []string{"ord", "sjc"}, 4, map[string]int{"ord": -2, "sjc": 2}, nil},
+		{"absolute exceeds cap", groupCount{absolute: 4}, nil, []string{"ord", "sjc"}, 3, nil, ErrMaxPerRegion},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := convergeGroupCounts(tc.expectedTotal, tc.current, tc.regions, tc.maxPerRegion)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.want, got)
+			got, err := convergeGroupCounts(tc.count, tc.current, tc.regions, tc.cap)
+			require.ErrorIs(t, err, tc.wantErr)
+			require.Equal(t, tc.want, got)
 		})
 	}
-}
-
-func Test_convergeGroupCounts_maxPerRegion(t *testing.T) {
-	// maxPerRegion * len(regions) < expectedTotal must fail
-	_, err := convergeGroupCounts(10, nil, []string{"scl", "mia"}, 1)
-	assert.Equal(t, ErrMaxPerRegion, err)
-
-	// Happy path cases
-	testcases := []struct {
-		name          string
-		want          map[string]int
-		expectedTotal int
-		current       map[string]int
-		regions       []string
-		maxPerRegion  int
-	}{
-		{
-			name:          "Spread instances across regions respecting max per region",
-			want:          map[string]int{"scl": 1, "iad": 2},
-			current:       map[string]int{"scl": 2, "iad": 1},
-			expectedTotal: 6,
-			regions:       []string{"scl", "iad"},
-			maxPerRegion:  3,
-		},
-		{
-			name:          "Spread instances across regions respecting max per regioni with reductions",
-			want:          map[string]int{"scl": -5, "iad": 1, "ord": 2, "sin": 2},
-			current:       map[string]int{"scl": 7, "iad": 1},
-			expectedTotal: 8,
-			regions:       []string{"scl", "iad", "ord", "sin"},
-			maxPerRegion:  2,
-		},
-		{
-			name:          "Spread respecting unlisted regions",
-			want:          map[string]int{"scl": -5, "iad": 1, "ord": 2, "sin": 2},
-			current:       map[string]int{"scl": 7, "iad": 1, "mia": 10},
-			expectedTotal: 8,
-			regions:       []string{"scl", "iad", "ord", "sin"},
-			maxPerRegion:  2,
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := convergeGroupCounts(tc.expectedTotal, tc.current, tc.regions, tc.maxPerRegion)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-func Test_convergeGroupCounts_duplicateRegions(t *testing.T) {
-	errCh := make(chan error, 1)
-	go func() {
-		// Pass a duplicate region. This is a regression test because the function
-		// would choke on duplicates.
-		_, err := convergeGroupCounts(20, nil, []string{"dfw", "sjc", "lhr", "lax", "cdg", "ams", "dfw", "gru", "arn", "sin"}, 2)
-		errCh <- err
-	}()
-
-	select {
-	case err := <-errCh:
-		assert.ErrorIs(t, err, ErrMaxPerRegion)
-	case <-time.After(time.Second):
-		t.Fatal("convergeGroupCounts did not return when regions contained a duplicate")
-	}
+	t.Run("relative overflow cannot become a deletion", func(t *testing.T) {
+		_, err := convergeGroupCounts(groupCount{relative: math.MaxInt}, map[string]int{"ord": 2}, []string{"ord"}, -1)
+		require.ErrorContains(t, err, "overflows")
+	})
 }
 
 func countTestMachines(counts map[string]map[string]int) []*fly.Machine {
@@ -364,7 +242,7 @@ func countTestMachines(counts map[string]map[string]int) []*fly.Machine {
 
 func TestComputeActionsPerRegionNewGroup(t *testing.T) {
 	defaults := newDefaults(&appconfig.Config{PrimaryRegion: "ord"}, fly.Release{ImageRef: "test-image"}, nil, nil, "", false, nil)
-	actions, err := computeActions("local-test", nil, groupCounts{"app": {absolute: 4}}, []string{"ord", "sjc", "ord"}, -1, defaults, true)
+	actions, err := computeActions("local-test", nil, groupCounts{"app": {absolute: 4}}, []string{"ord", "sjc", "ord"}, -1, defaults)
 	require.NoError(t, err)
 	require.Len(t, actions, 2)
 	for _, action := range actions {
@@ -377,10 +255,11 @@ func TestComputeActionsPerRegionNewGroup(t *testing.T) {
 // Unimplemented client methods panic, so this fixture cannot execute mutations.
 type scaleCountReadClient struct {
 	flapsutil.FlapsClient
+	machines []*fly.Machine
 }
 
-func (*scaleCountReadClient) ListFlyAppsMachines(context.Context, string) ([]*fly.Machine, *fly.Machine, error) {
-	return countTestMachines(map[string]map[string]int{"app": {"ord": 2, "sjc": 2, "ams": 4}}), nil, nil
+func (c *scaleCountReadClient) ListFlyAppsMachines(context.Context, string) ([]*fly.Machine, *fly.Machine, error) {
+	return c.machines, nil, nil
 }
 
 func (*scaleCountReadClient) GetVolumes(context.Context, string) ([]fly.Volume, error) {
@@ -396,20 +275,92 @@ func (*scaleCountReleaseClient) ListReleases(context.Context, string, int) ([]ui
 }
 
 func TestRunMachinesScaleCountPerRegion(t *testing.T) {
-	cmd := newScaleCount()
-	require.NoError(t, cmd.ParseFlags([]string{"4", "--per-region", "-r", "ord,sjc,ams"}))
-	require.NoError(t, cmd.ValidateArgs(cmd.Flags().Args()))
-	ctx := flag.NewContext(t.Context(), cmd.Flags())
-	ctx = flapsutil.NewContextWithClient(ctx, &scaleCountReadClient{})
-	ctx = uiexutil.NewContextWithClient(ctx, &scaleCountReleaseClient{})
-	var out bytes.Buffer
-	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &out, ErrOut: io.Discard})
-	groups, err := parseGroupCounts(cmd.Flags().Args(), "app")
-	require.NoError(t, err)
-	err = runMachinesScaleCount(ctx, "local-test", &appconfig.Config{}, groups, -1)
-	// Stop at confirmation: exercise the production flag read and plan, not execution.
-	require.ErrorContains(t, err, "--yes flag must be specified")
-	require.Contains(t, out.String(), "+2 machines for group 'app' on region 'ord'")
-	require.Contains(t, out.String(), "+2 machines for group 'app' on region 'sjc'")
-	require.NotContains(t, out.String(), "on region 'ams'")
+	for _, tc := range []struct {
+		name         string
+		args         []string
+		counts       map[string]map[string]int
+		want         []string
+		absent       []string
+		wantCapError bool
+		wantError    string
+	}{
+		{
+			name:   "explicit regions and groups",
+			args:   []string{"app=4", "worker=0", "-r", "ord,sjc,syd,lax,ams,ord"},
+			counts: map[string]map[string]int{"app": {"ord": 6, "sjc": 1, "syd": 2, "lax": 2, "ams": 2, "nrt": 3}, "worker": {"ord": 2, "nrt": 3}, "untouched": {"ord": 2}},
+			want:   []string{"-2 machines for group 'app' on region 'ord'", "+3 machines for group 'app' on region 'sjc'", "+2 machines for group 'app' on region 'syd'", "+2 machines for group 'app' on region 'lax'", "+2 machines for group 'app' on region 'ams'", "-2 machines for group 'worker' on region 'ord'"},
+			absent: []string{"on region 'nrt'", "group 'untouched'", "+0 machines"},
+		},
+		{
+			name:   "inferred regions belong to each group",
+			args:   []string{"4"},
+			counts: map[string]map[string]int{"app": {"ord": 2, "sjc": 4}, "worker": {"ams": 1}},
+			want:   []string{"+2 machines for group 'app' on region 'ord'"},
+			absent: []string{"on region 'sjc'"},
+		},
+		{
+			name: "empty app uses primary region",
+			args: []string{"4"},
+			want: []string{"+4 machines for group 'app' on region 'ord'"},
+		},
+		{
+			name:   "new group uses primary region",
+			args:   []string{"4"},
+			counts: map[string]map[string]int{"worker": {"ams": 1}},
+			want:   []string{"+4 machines for group 'app' on region 'ord'"},
+		},
+		{
+			name: "space padded regions",
+			args: []string{"2", "-r", " ord, sjc "},
+			want: []string{"+2 machines for group 'app' on region 'ord'", "+2 machines for group 'app' on region 'sjc'"},
+		},
+		{name: "empty region entry", args: []string{"2", "-r", "ord,"}, wantError: "region must not be empty"},
+		{name: "empty region flag", args: []string{"2", "-r", ""}, wantError: "region must not be empty"},
+		{
+			name:   "relative count uses each selected region",
+			args:   []string{"+1", "-r", "ord,sjc,ord"},
+			counts: map[string]map[string]int{"app": {"ord": 2, "sjc": 4, "nrt": 8}},
+			want:   []string{"+1 machines for group 'app' on region 'ord'", "+1 machines for group 'app' on region 'sjc'"},
+			absent: []string{"on region 'nrt'"},
+		},
+		{
+			name:         "cap rejects entire plan",
+			args:         []string{"+1", "-r", "ord,sjc", "--max-per-region", "4"},
+			counts:       map[string]map[string]int{"app": {"ord": 2, "sjc": 4}},
+			wantCapError: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newScaleCount()
+			require.NoError(t, cmd.ParseFlags(tc.args))
+			require.NoError(t, cmd.ValidateArgs(cmd.Flags().Args()))
+			ctx := flag.NewContext(t.Context(), cmd.Flags())
+			ctx = flapsutil.NewContextWithClient(ctx, &scaleCountReadClient{machines: countTestMachines(tc.counts)})
+			ctx = uiexutil.NewContextWithClient(ctx, &scaleCountReleaseClient{})
+			var out bytes.Buffer
+			ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &out, ErrOut: io.Discard})
+			groups, err := parseGroupCounts(cmd.Flags().Args(), "app")
+			require.NoError(t, err)
+			err = runMachinesScaleCount(ctx, "local-test", &appconfig.Config{PrimaryRegion: "ord"}, groups, flag.GetInt(ctx, "max-per-region"))
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				require.Empty(t, out.String())
+				return
+			}
+			if tc.wantCapError {
+				require.ErrorIs(t, err, ErrMaxPerRegion)
+				require.Empty(t, out.String())
+				return
+			}
+			// Stop at confirmation: exercise production region selection and planning.
+			require.ErrorContains(t, err, "--yes flag must be specified")
+			for _, line := range tc.want {
+				require.Contains(t, out.String(), line)
+			}
+			for _, line := range tc.absent {
+				require.NotContains(t, out.String(), line)
+			}
+			require.Equal(t, len(tc.want), strings.Count(out.String(), " machines for group "))
+		})
+	}
 }
