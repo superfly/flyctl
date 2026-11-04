@@ -11,8 +11,8 @@ import (
 	"strings"
 	"unicode"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/samber/lo"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
