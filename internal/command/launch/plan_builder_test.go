@@ -644,14 +644,37 @@ func TestNormalizeLoadedManifest(t *testing.T) {
 		m := LaunchManifest{Plan: &plan.LaunchPlan{
 			RegionCode: "bom",
 			Postgres:   plan.PostgresPlan{ManagedPostgres: &plan.ManagedPostgresPlan{Region: "bom"}},
-			Redis:      plan.RedisPlan{UpstashRedis: &plan.UpstashRedisPlan{ReadReplicas: []string{"iad", "bom"}}},
 		}}
 
 		normalizeLoadedManifest(newBuildManifestCtx(t), &m)
 
 		assert.Equal(t, "sin", m.Plan.Postgres.ManagedPostgres.Region)
-		assert.Equal(t, []string{"iad", "sin"}, m.Plan.Redis.UpstashRedis.ReadReplicas)
 	})
+
+	// redis.Create rejects a replica in the primary region.
+	for _, tc := range []struct {
+		name     string
+		primary  string
+		replicas []string
+		want     []string
+	}{
+		{name: "replica moves", primary: "iad", replicas: []string{"bom", "ams"}, want: []string{"sin", "ams"}},
+		{name: "replica moves with the primary", primary: "bom", replicas: []string{"iad", "bom"}, want: []string{"iad"}},
+		{name: "primary moves onto a replica", primary: "bom", replicas: []string{"sin", "iad"}, want: []string{"iad"}},
+		{name: "replicas collapse", primary: "iad", replicas: []string{"hkg", "bom"}, want: []string{"sin"}},
+		{name: "nothing retired is left alone", primary: "iad", replicas: []string{"iad", "ams", "ams"}, want: []string{"iad", "ams", "ams"}},
+	} {
+		t.Run("redis: "+tc.name, func(t *testing.T) {
+			m := LaunchManifest{Plan: &plan.LaunchPlan{
+				RegionCode: tc.primary,
+				Redis:      plan.RedisPlan{UpstashRedis: &plan.UpstashRedisPlan{ReadReplicas: tc.replicas}},
+			}}
+
+			normalizeLoadedManifest(newBuildManifestCtx(t), &m)
+
+			assert.Equal(t, tc.want, m.Plan.Redis.UpstashRedis.ReadReplicas)
+		})
+	}
 
 	t.Run("leaves live regions", func(t *testing.T) {
 		ctx := newBuildManifestCtx(t)

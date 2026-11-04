@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/samber/lo"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -808,7 +809,7 @@ func replaceRetiredRegion(ctx context.Context, code string) (string, bool) {
 
 // normalizeLoadedManifest prepares a manifest read from a file. It skipped
 // buildManifest and its determineRegion, so it can still name retired regions,
-// and plan_source is missing from any manifest that wasn't written by flyctl.
+// and a hand-written one may have no plan_source.
 func normalizeLoadedManifest(ctx context.Context, m *LaunchManifest) {
 	if m.PlanSource == nil {
 		m.PlanSource = newDefaultPlanSource("from manifest")
@@ -818,9 +819,11 @@ func normalizeLoadedManifest(ctx context.Context, m *LaunchManifest) {
 		return
 	}
 
+	primaryMoved := false
 	if replacement, ok := replaceRetiredRegion(ctx, m.Plan.RegionCode); ok {
 		m.PlanSource.regionSource = fmt.Sprintf("from manifest; %s is retired", m.Plan.RegionCode)
 		m.Plan.RegionCode = replacement
+		primaryMoved = true
 	}
 
 	if pg := m.Plan.Postgres.ManagedPostgres; pg != nil {
@@ -830,10 +833,18 @@ func normalizeLoadedManifest(ctx context.Context, m *LaunchManifest) {
 	}
 
 	if redis := m.Plan.Redis.UpstashRedis; redis != nil {
+		moved := primaryMoved
 		for i, code := range redis.ReadReplicas {
 			if replacement, ok := replaceRetiredRegion(ctx, code); ok {
 				redis.ReadReplicas[i] = replacement
+				moved = true
 			}
+		}
+
+		// Moving regions can land a replica on the primary, which Redis
+		// rejects, or on another replica.
+		if moved {
+			redis.ReadReplicas = lo.Without(lo.Uniq(redis.ReadReplicas), m.Plan.RegionCode)
 		}
 	}
 }

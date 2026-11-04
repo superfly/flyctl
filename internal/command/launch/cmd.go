@@ -585,6 +585,8 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		// The plan may have reached the UI with a region placements rejected.
+		status.Region = state.Plan.RegionCode
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
 		return errors.New("launch can not continue with errors present")
