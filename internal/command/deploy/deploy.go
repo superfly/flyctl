@@ -740,6 +740,12 @@ func deployToMachines(
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
+	ctx, configurationSpan := tracing.GetTracer().Start(ctx, "deployment_configuration")
+	defer func() {
+		tracing.RecordError(ctx, configurationSpan, err, "failed to configure deployment")
+		configurationSpan.End()
+	}()
+
 	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	appName := appconfig.NameFromContext(ctx)
