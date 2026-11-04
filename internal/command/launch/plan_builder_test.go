@@ -610,7 +610,9 @@ func TestDeprecatedRegionReplacementsAreLive(t *testing.T) {
 
 // A manifest skips buildManifest, so without this a retired region gets to
 // state.Region and fails with "region bom not found".
-func TestReplaceManifestRetiredRegion(t *testing.T) {
+func TestNormalizeLoadedManifest(t *testing.T) {
+	const warning = "Warning: region bom is retired, using sin instead\n"
+
 	t.Run("moves a retired region", func(t *testing.T) {
 		ctx := newBuildManifestCtx(t)
 		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
@@ -626,11 +628,11 @@ func TestReplaceManifestRetiredRegion(t *testing.T) {
 			PlanSource: newDefaultPlanSource("from manifest"),
 		}
 
-		replaceManifestRetiredRegion(ctx, &m)
+		normalizeLoadedManifest(ctx, &m)
 
 		assert.Equal(t, "sin", m.Plan.RegionCode)
 		assert.Equal(t, "from manifest; bom is retired", m.PlanSource.regionSource)
-		assert.Equal(t, "Warning: region bom is retired, using sin instead\n", stderrOf(ctx))
+		assert.Equal(t, warning, stderrOf(ctx))
 
 		state := &launchState{LaunchManifest: m, cache: map[string]any{}}
 		region, err := state.Region(ctx)
@@ -638,30 +640,57 @@ func TestReplaceManifestRetiredRegion(t *testing.T) {
 		assert.Equal(t, "Singapore", region.Name)
 	})
 
-	t.Run("leaves a live region", func(t *testing.T) {
+	t.Run("moves the databases with the app", func(t *testing.T) {
+		m := LaunchManifest{Plan: &plan.LaunchPlan{
+			RegionCode: "bom",
+			Postgres:   plan.PostgresPlan{ManagedPostgres: &plan.ManagedPostgresPlan{Region: "bom"}},
+			Redis:      plan.RedisPlan{UpstashRedis: &plan.UpstashRedisPlan{ReadReplicas: []string{"iad", "bom"}}},
+		}}
+
+		normalizeLoadedManifest(newBuildManifestCtx(t), &m)
+
+		assert.Equal(t, "sin", m.Plan.Postgres.ManagedPostgres.Region)
+		assert.Equal(t, []string{"iad", "sin"}, m.Plan.Redis.UpstashRedis.ReadReplicas)
+	})
+
+	t.Run("leaves live regions", func(t *testing.T) {
 		ctx := newBuildManifestCtx(t)
 		m := LaunchManifest{
-			Plan:       &plan.LaunchPlan{RegionCode: "iad"},
+			Plan: &plan.LaunchPlan{
+				RegionCode: "iad",
+				Postgres:   plan.PostgresPlan{ManagedPostgres: &plan.ManagedPostgresPlan{Region: "iad"}},
+				Redis:      plan.RedisPlan{UpstashRedis: &plan.UpstashRedisPlan{ReadReplicas: []string{"iad"}}},
+			},
 			PlanSource: newDefaultPlanSource("from manifest"),
 		}
 
-		replaceManifestRetiredRegion(ctx, &m)
+		normalizeLoadedManifest(ctx, &m)
 
 		assert.Equal(t, "iad", m.Plan.RegionCode)
+		assert.Equal(t, "iad", m.Plan.Postgres.ManagedPostgres.Region)
+		assert.Equal(t, []string{"iad"}, m.Plan.Redis.UpstashRedis.ReadReplicas)
 		assert.Equal(t, "from manifest", m.PlanSource.regionSource)
 		assert.Empty(t, stderrOf(ctx))
 	})
 
+	// PlanSummary reads plan_source, which a hand-written manifest may not have.
 	t.Run("no plan source", func(t *testing.T) {
 		m := LaunchManifest{Plan: &plan.LaunchPlan{RegionCode: "bom"}}
 
-		replaceManifestRetiredRegion(newBuildManifestCtx(t), &m)
+		normalizeLoadedManifest(newBuildManifestCtx(t), &m)
 
+		require.NotNil(t, m.PlanSource)
 		assert.Equal(t, "sin", m.Plan.RegionCode)
+		assert.Equal(t, "from manifest; bom is retired", m.PlanSource.regionSource)
+		assert.Equal(t, "from manifest", m.PlanSource.orgSource)
 	})
 
 	t.Run("no plan", func(t *testing.T) {
-		replaceManifestRetiredRegion(newBuildManifestCtx(t), &LaunchManifest{})
+		m := LaunchManifest{}
+
+		normalizeLoadedManifest(newBuildManifestCtx(t), &m)
+
+		assert.NotNil(t, m.PlanSource)
 	})
 }
 
@@ -732,7 +761,11 @@ func TestLaunchUiAvailable(t *testing.T) {
 				require.NoError(t, flag.FromContext(ctx).Set(name, "true"))
 			}
 
-			assert.Equal(t, tc.want, launchUiAvailable(ctx, tc.planStep))
+			if tc.planStep != "" {
+				ctx = context.WithValue(ctx, plan.PlanStepKey, tc.planStep)
+			}
+
+			assert.Equal(t, tc.want, launchUiAvailable(ctx))
 		})
 	}
 }

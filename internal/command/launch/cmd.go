@@ -224,8 +224,8 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 // launchUiAvailable reports whether a recoverable error can wait for the Launch
 // UI. --yes and plan steps never offer the UI, so deferring there would replace
 // the real error with "launch can not continue with errors present".
-func launchUiAvailable(ctx context.Context, planStep string) bool {
-	return planStep == "" &&
+func launchUiAvailable(ctx context.Context) bool {
+	return plan.GetPlanStep(ctx) == "" &&
 		!flag.GetYes(ctx) &&
 		!flag.GetBool(ctx, "manifest") &&
 		iostreams.FromContext(ctx).IsInteractive() &&
@@ -397,15 +397,10 @@ func run(ctx context.Context) (err error) {
 			launchManifest.Plan.RegionCode = regionRequested
 		}
 
-		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
-		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
-		if launchManifest.PlanSource == nil {
-			launchManifest.PlanSource = newDefaultPlanSource("from manifest")
-		}
 	}
 
 	if launchManifest != nil {
-		replaceManifestRetiredRegion(ctx, launchManifest)
+		normalizeLoadedManifest(ctx, launchManifest)
 	}
 
 	// "--from" arg handling
@@ -416,7 +411,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	incompleteLaunchManifest := false
-	canEnterUi := launchUiAvailable(ctx, planStep)
+	canEnterUi := launchUiAvailable(ctx)
 
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 

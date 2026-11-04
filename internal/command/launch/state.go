@@ -142,7 +142,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// A region left to be chosen in the Launch UI holds whatever code failed
+	// A region left to be chosen in the Launch UI can hold a code that failed
 	// placement ("any", or a region that doesn't exist); it shows as
 	// <unspecified> below, so don't look it up.
 	var region fly.Region

@@ -806,22 +806,35 @@ func replaceRetiredRegion(ctx context.Context, code string) (string, bool) {
 	return replacement, ok
 }
 
-// replaceManifestRetiredRegion moves a loaded manifest off a retired region,
-// because buildManifest and its determineRegion are skipped for manifests.
-func replaceManifestRetiredRegion(ctx context.Context, m *LaunchManifest) {
+// normalizeLoadedManifest prepares a manifest read from a file. It skipped
+// buildManifest and its determineRegion, so it can still name retired regions,
+// and plan_source is missing from any manifest that wasn't written by flyctl.
+func normalizeLoadedManifest(ctx context.Context, m *LaunchManifest) {
+	if m.PlanSource == nil {
+		m.PlanSource = newDefaultPlanSource("from manifest")
+	}
+
 	if m.Plan == nil {
 		return
 	}
 
-	retired := m.Plan.RegionCode
-	replacement, ok := replaceRetiredRegion(ctx, retired)
-	if !ok {
-		return
+	if replacement, ok := replaceRetiredRegion(ctx, m.Plan.RegionCode); ok {
+		m.PlanSource.regionSource = fmt.Sprintf("from manifest; %s is retired", m.Plan.RegionCode)
+		m.Plan.RegionCode = replacement
 	}
 
-	m.Plan.RegionCode = replacement
-	if m.PlanSource != nil {
-		m.PlanSource.regionSource = fmt.Sprintf("from manifest; %s is retired", retired)
+	if pg := m.Plan.Postgres.ManagedPostgres; pg != nil {
+		if replacement, ok := replaceRetiredRegion(ctx, pg.Region); ok {
+			pg.Region = replacement
+		}
+	}
+
+	if redis := m.Plan.Redis.UpstashRedis; redis != nil {
+		for i, code := range redis.ReadReplicas {
+			if replacement, ok := replaceRetiredRegion(ctx, code); ok {
+				redis.ReadReplicas[i] = replacement
+			}
+		}
 	}
 }
 
