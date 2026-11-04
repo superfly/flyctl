@@ -28,6 +28,10 @@ type LaunchPlan struct {
 
 	HttpServicePort             int  `json:"http_service_port,omitempty"`
 	HttpServicePortSetByScanner bool `json:"http_service_port_set_by_scanner,omitempty"`
+	// WorkerOnly is set by the scanner for apps whose Procfile has no web
+	// process. Such an app gets no [http_service], whatever HttpServicePort
+	// says: launch UIs send their default port back with the plan.
+	WorkerOnly bool `json:"worker_only,omitempty"`
 
 	Postgres      PostgresPlan      `json:"postgres"`
 	Redis         RedisPlan         `json:"redis"`

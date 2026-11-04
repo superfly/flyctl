@@ -392,7 +392,7 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	switch {
 	case procfileHasNoWeb(sourceDir):
 		terminal.Info("Procfile has no web process, not configuring an HTTP service")
-		s.NoHttpService = true
+		s.WorkerOnly = true
 		s.DeployDocs = `Run "fly deploy" to deploy your application.`
 	case fileExists("Procfile")(sourceDir):
 		s.Port = 8080

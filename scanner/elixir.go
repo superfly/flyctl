@@ -26,7 +26,7 @@ func configureElixir(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	if procfileHasNoWeb(sourceDir) {
 		s.Port = 0
 		s.Env = nil
-		s.NoHttpService = true
+		s.WorkerOnly = true
 	}
 
 	return s, nil

@@ -49,7 +49,7 @@ func TestConfigurePythonProcfile(t *testing.T) {
 
 			assert.Equal(t, "Python", si.Family)
 			assert.Equal(t, tc.wantPort, si.Port)
-			assert.Equal(t, tc.wantNoHttp, si.NoHttpService)
+			assert.Equal(t, tc.wantNoHttp, si.WorkerOnly)
 			if tc.wantNoHttp {
 				assert.NotContains(t, si.Env, "PORT")
 			} else {
