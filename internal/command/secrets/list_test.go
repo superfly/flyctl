@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -232,4 +233,42 @@ func TestGetMachineReleaseVersion(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestBuildRowsWithoutStatus_PreservesTimestamps(t *testing.T) {
+	created := "2024-01-01T10:00:00Z"
+	updated := "2024-01-01T11:00:00Z"
+	secrets := []fly.AppSecret{
+		{
+			Name:      "TEST_SECRET",
+			Digest:    "abc123",
+			CreatedAt: &created,
+			UpdatedAt: &updated,
+		},
+	}
+	rows, secretsWithoutStatus := buildRowsWithoutStatus(secrets)
+	assert.Len(t, rows, 1)
+	assert.Equal(t, []string{"TEST_SECRET", "abc123"}, rows[0])
+	assert.Len(t, secretsWithoutStatus, 1)
+	assert.Equal(t, "TEST_SECRET", secretsWithoutStatus[0].Name)
+	assert.Equal(t, "abc123", secretsWithoutStatus[0].Digest)
+	assert.Equal(t, &created, secretsWithoutStatus[0].CreatedAt)
+	assert.Equal(t, &updated, secretsWithoutStatus[0].UpdatedAt)
+}
+
+func TestSecretWithStatus_JSONMarshalling(t *testing.T) {
+	created := "2024-01-01T10:00:00Z"
+	updated := "2024-01-01T11:00:00Z"
+	s := SecretWithStatus{
+		Name:      "MY_KEY",
+		Digest:    "deadbeef",
+		CreatedAt: &created,
+		UpdatedAt: &updated,
+		Status:    StatusDeployed,
+	}
+	data, err := json.Marshal(s)
+	assert.NoError(t, err)
+	assert.Contains(t, string(data), `"created_at":"2024-01-01T10:00:00Z"`)
+	assert.Contains(t, string(data), `"updated_at":"2024-01-01T11:00:00Z"`)
+	assert.Contains(t, string(data), `"status":"Deployed"`)
 }
