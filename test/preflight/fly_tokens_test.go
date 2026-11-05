@@ -4,10 +4,13 @@
 package preflight
 
 import (
-	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/test/preflight/testlib"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 // TODO: list of things to test
@@ -53,8 +56,7 @@ func TestTokensListDeterminesScopeApp(t *testing.T) {
 	}
 
 	for _, cmd_ := range commandList {
-		console_out := f.Fly(cmd_).StdOutString()
-		require.Contains(f, console_out, `Tokens for app`)
+		requireTokensListContains(t, f, cmd_, `Tokens for app`)
 	}
 }
 
@@ -104,10 +106,20 @@ func TestTokensListPrioritizesAppFromFlagOverToml(t *testing.T) {
 		f.OrgSlug(), appNameB, f.PrimaryRegion(),
 	)
 	// By default use the app name found in the current dir should be used ( appNameB )
-	console_out := f.Fly("tokens list").StdOutString()
-	require.Contains(f, console_out, `Tokens for app "`+appNameB+`"`)
+	requireTokensListContains(t, f, "tokens list", `Tokens for app "`+appNameB+`"`)
 
 	// But, the app name passed in --app should be prioritized over the toml appname ( appNameA )
-	console_out = f.Fly("tokens list --app " + appNameA).StdOutString()
-	require.Contains(f, console_out, `Tokens for app "`+appNameA+`"`)
+	requireTokensListContains(t, f, "tokens list --app "+appNameA, `Tokens for app "`+appNameA+`"`)
+}
+
+// requireTokensListContains runs a tokens list command until its output
+// contains want. The apps these tests list tokens for were created moments
+// earlier, and the API can briefly answer that the app "does not belong to
+// selected organization" before the new app has propagated.
+func requireTokensListContains(t *testing.T, f *testlib.FlyctlTestEnv, cmd, want string) {
+	t.Helper()
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Contains(c, f.Collect(c).Fly(cmd).StdOutString(), want)
+	}, 30*time.Second, 2*time.Second, "%s never printed %q", cmd, want)
 }

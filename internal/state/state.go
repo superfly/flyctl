@@ -65,3 +65,10 @@ func get(ctx context.Context, key contextKeyType) any {
 func set(ctx context.Context, key contextKeyType, val any) context.Context {
 	return context.WithValue(ctx, key, val)
 }
+
+// MaybeConfigDirectory returns the config directory ctx carries, or "" when
+// it carries none.
+func MaybeConfigDirectory(ctx context.Context) string {
+	cd, _ := get(ctx, configDirKey).(string)
+	return cd
+}

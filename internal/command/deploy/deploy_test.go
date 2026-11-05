@@ -25,15 +25,20 @@ import (
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 //go:embed testdata
 var testdata embed.FS
 
+// Ensure deploy succeeds and configuration and finalization own their operation spans.
 func TestCommand_Execute(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
 	makeTerminalLoggerQuiet(t)
 
 	// Set FLY_ACCESS_TOKEN to simulate CI/CD environment
@@ -81,9 +86,24 @@ func TestCommand_Execute(t *testing.T) {
 	ctx = flapsutil.NewContextWithClient(ctx, server.FlapsClient("test-basic"))
 	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{})
 
+	provider, err := tracing.InitTraceProvider(ctx, "test-basic")
+	require.NoError(t, err)
+	provider.RegisterSpanProcessor(recorder)
+	t.Cleanup(func() { provider.UnregisterSpanProcessor(recorder) })
+
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)
 	}
+	spans := map[string][]sdktrace.ReadOnlySpan{}
+	for _, span := range recorder.Ended() {
+		spans[span.Name()] = append(spans[span.Name()], span)
+	}
+	require.Len(t, spans["deployment_configuration"], 1)
+	require.Len(t, spans["get_app_config"], 1)
+	assert.Equal(t, spans["deployment_configuration"][0].SpanContext().SpanID(), spans["get_app_config"][0].Parent().SpanID())
+	require.Len(t, spans["finalize_deployment"], 1)
+	require.Len(t, spans["update_release_in_backend"], 2)
+	assert.Equal(t, spans["finalize_deployment"][0].SpanContext().SpanID(), spans["update_release_in_backend"][1].Parent().SpanID())
 }
 
 // A failed build that never reached a builder over WireGuard has nothing to
