@@ -290,7 +290,7 @@ func stringifyYAMLMapKeys(obj any) any {
 	} else if mapobj, ok := obj.(map[any]any); ok {
 		newmap := make(map[string]any)
 		for k, v := range mapobj {
-			newmap[k.(string)] = stringifyYAMLMapKeys(v)
+			newmap[fmt.Sprint(k)] = stringifyYAMLMapKeys(v)
 		}
 		obj = newmap
 	}
