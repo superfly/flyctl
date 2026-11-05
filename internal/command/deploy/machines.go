@@ -745,12 +745,13 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 }
 
 const (
-	// releaseStatusRetryAttempts bounds how many times a release status update is
-	// attempted before the deploy gives up.
+	// releaseStatusRetryAttempts is the maximum number of attempts for setting a release's status.
 	releaseStatusRetryAttempts = 3
-	// releaseStatusRetryDelay is the delay before the first retry; it doubles on
+	// releaseStatusRetryDelay is the initial backoff delay; doubled on
 	// each subsequent attempt.
 	releaseStatusRetryDelay = 500 * time.Millisecond
+	// releaseStatusAttemptTimeout is the timeout for each individual release status update attempt.
+	releaseStatusAttemptTimeout = 30 * time.Second
 )
 
 func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
@@ -768,7 +769,9 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	err := retry.Do(
 		func() error {
 			attempts++
-			_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+			attemptCtx, cancel := context.WithTimeout(ctx, releaseStatusAttemptTimeout)
+			defer cancel()
+			_, err := md.uiexClient.UpdateRelease(attemptCtx, md.releaseId, status, metadata)
 
 			return err
 		},
