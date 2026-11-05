@@ -1,6 +1,7 @@
 package cmdv2
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -120,7 +121,7 @@ func publicToLegacyClusterResponse(c flaps.ManagedPostgresCluster) (mpgv2.GetClu
 }
 
 // resolveConnectCredentials uses the same API as the cluster lookup.
-// Public credentials default to fly-user and fly-db.
+// Public credentials default to the user and database the v2 show reports.
 func resolveConnectCredentials(
 	ctx context.Context,
 	response *mpgv2.GetClusterResponse,
@@ -143,6 +144,11 @@ func resolveConnectCredentials(
 			DBName:   response.Credentials.DBName,
 		}
 	case username != "":
+		_, database, err := publicConnectDefaults(ctx, response.Data.Id)
+		if err != nil {
+			return nil, err
+		}
+
 		flapsClient := flapsutil.ClientFromContext(ctx)
 		userCreds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, response.Data.Id, username)
 		if err != nil {
@@ -152,25 +158,30 @@ func resolveConnectCredentials(
 		credentials = mpgv2.GetClusterCredentialsResponse{
 			User:     userCreds.Username,
 			Password: userCreds.Password,
-			DBName:   mpgutil.DefaultDatabase,
+			DBName:   database,
 		}
 	case useLegacy:
 		credentials = response.Credentials
 	default:
+		user, database, err := publicConnectDefaults(ctx, response.Data.Id)
+		if err != nil {
+			return nil, err
+		}
+
 		flapsClient := flapsutil.ClientFromContext(ctx)
-		userCreds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, response.Data.Id, mpgutil.DefaultUsername)
+		userCreds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, response.Data.Id, user)
 		if err != nil {
 			if errors.Is(err, flaps.ErrFlapsNotFound) {
 				return nil, fmt.Errorf("cluster is still initializing, wait a bit more")
 			}
 
-			return nil, fmt.Errorf("failed retrieving credentials for user %s: %w", mpgutil.DefaultUsername, err)
+			return nil, fmt.Errorf("failed retrieving credentials for user %s: %w", user, err)
 		}
 
 		credentials = mpgv2.GetClusterCredentialsResponse{
 			User:     userCreds.Username,
 			Password: userCreds.Password,
-			DBName:   mpgutil.DefaultDatabase,
+			DBName:   database,
 		}
 	}
 
@@ -196,6 +207,19 @@ func resolveConnectCredentials(
 	}
 
 	return &credentials, nil
+}
+
+// publicConnectDefaults asks the v2 show, since clusters migrated from v1 use pgdb-<hashid>, not fly-user and fly-db.
+func publicConnectDefaults(ctx context.Context, clusterID string) (string, string, error) {
+	response, err := mpgv2.ClientFromContext(ctx).GetClusterById(ctx, clusterID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+	}
+
+	user := cmp.Or(response.Credentials.User, mpgutil.DefaultUsername)
+	database := cmp.Or(response.Credentials.DBName, mpgutil.DefaultDatabase)
+
+	return user, database, nil
 }
 
 func buildProxyParams(

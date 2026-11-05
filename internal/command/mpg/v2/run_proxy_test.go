@@ -273,7 +273,8 @@ func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 }
 
 func TestGetMpgConnectParamsResolvesCredentialsBeforeTunnel(t *testing.T) {
-	ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+	ctx := mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{})
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
 			return sampleProxyPublicCluster(), nil
 		},
@@ -424,14 +425,72 @@ func TestResolveExplicitUserConnectCredentialsErrors(t *testing.T) {
 	})
 }
 
+// clusterShowContext serves the v2 show with the given credentials block.
+func clusterShowContext(t *testing.T, credentials mpgv2.GetClusterCredentialsResponse) context.Context {
+	t.Helper()
+
+	return mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{
+		GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
+			require.Equal(t, "cluster-id", id)
+
+			return mpgv2.GetClusterResponse{Credentials: credentials}, nil
+		},
+	})
+}
+
 func TestResolveConnectCredentialsPublic(t *testing.T) {
 	response := &mpgv2.GetClusterResponse{
 		Data: mpgv2.ManagedCluster{Id: "cluster-id", Name: "test-cluster", Status: "ready"},
 	}
+	// A cluster migrated from v1 keeps its pgdb-<hashid> user and database.
+	migrated := mpgv2.GetClusterCredentialsResponse{Status: "ok", User: "pgdb-abc", Password: "show-pass", DBName: "pgdb-abc"}
+	// ui-ex leaves user and dbname out while credentials are initializing.
+	noDefaults := mpgv2.GetClusterCredentialsResponse{Status: "initializing"}
 
-	t.Run("default user resolves fly-user from public API", func(t *testing.T) {
+	t.Run("default user resolves the show's user and database", func(t *testing.T) {
 		credCalls := 0
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, migrated), &mock.FlapsClient{
+			GetManagedPostgresUserCredentialsFunc: func(_ context.Context, clusterID, username string) (flaps.ManagedPostgresUserCredentials, error) {
+				credCalls++
+				require.Equal(t, "cluster-id", clusterID)
+				require.Equal(t, "pgdb-abc", username)
+
+				return flaps.ManagedPostgresUserCredentials{Username: "pgdb-abc", Password: "p"}, nil
+			},
+		})
+
+		credentials, err := resolveConnectCredentials(ctx, response, false, "")
+		require.NoError(t, err)
+		require.Equal(t, 1, credCalls)
+		require.Equal(t, "pgdb-abc", credentials.User)
+		require.Equal(t, "p", credentials.Password)
+		require.Equal(t, "pgdb-abc", credentials.DBName)
+	})
+
+	t.Run("explicit user connects to the show's database", func(t *testing.T) {
+		credCalls := 0
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, migrated), &mock.FlapsClient{
+			GetManagedPostgresUserCredentialsFunc: func(_ context.Context, clusterID, username string) (flaps.ManagedPostgresUserCredentials, error) {
+				credCalls++
+				require.Equal(t, "cluster-id", clusterID)
+				require.Equal(t, "alice", username)
+
+				return flaps.ManagedPostgresUserCredentials{Username: "alice", Password: "a"}, nil
+			},
+		})
+
+		credentials, err := resolveConnectCredentials(ctx, response, false, "alice")
+		require.NoError(t, err)
+		require.Equal(t, 1, credCalls)
+		require.Equal(t, "alice", credentials.User)
+		require.Equal(t, "a", credentials.Password)
+		require.Equal(t, "postgresql://alice:a@localhost:16380/pgdb-abc", buildConnectURL(credentials, "", "16380"))
+		require.Equal(t, "postgresql://alice:a@localhost:16380/app-db", buildConnectURL(credentials, "app-db", "16380"))
+	})
+
+	t.Run("default user falls back to fly-user and fly-db", func(t *testing.T) {
+		credCalls := 0
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(_ context.Context, clusterID, username string) (flaps.ManagedPostgresUserCredentials, error) {
 				credCalls++
 				require.Equal(t, "cluster-id", clusterID)
@@ -449,30 +508,44 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 		require.Equal(t, "fly-db", credentials.DBName)
 	})
 
-	t.Run("explicit user passes flag value through", func(t *testing.T) {
-		credCalls := 0
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
-			GetManagedPostgresUserCredentialsFunc: func(_ context.Context, clusterID, username string) (flaps.ManagedPostgresUserCredentials, error) {
-				credCalls++
-				require.Equal(t, "cluster-id", clusterID)
-				require.Equal(t, "alice", username)
-
-				return flaps.ManagedPostgresUserCredentials{Username: "alice", Password: "a"}, nil
+	t.Run("explicit user falls back to fly-db", func(t *testing.T) {
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
+			GetManagedPostgresUserCredentialsFunc: func(_ context.Context, _, username string) (flaps.ManagedPostgresUserCredentials, error) {
+				return flaps.ManagedPostgresUserCredentials{Username: username, Password: "a"}, nil
 			},
 		})
 
 		credentials, err := resolveConnectCredentials(ctx, response, false, "alice")
 		require.NoError(t, err)
-		require.Equal(t, 1, credCalls)
 		require.Equal(t, "alice", credentials.User)
-		require.Equal(t, "a", credentials.Password)
 		require.Equal(t, "fly-db", credentials.DBName)
-		require.Equal(t, "postgresql://alice:a@localhost:16380/fly-db", buildConnectURL(credentials, "", "16380"))
-		require.Equal(t, "postgresql://alice:a@localhost:16380/app-db", buildConnectURL(credentials, "app-db", "16380"))
+	})
+
+	t.Run("show error stops before credentials", func(t *testing.T) {
+		for _, username := range []string{"", "alice"} {
+			credCalls := 0
+			ctx := mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{
+				GetClusterByIdFunc: func(context.Context, string) (mpgv2.GetClusterResponse, error) {
+					return mpgv2.GetClusterResponse{}, errors.New("Something went wrong")
+				},
+			})
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+					credCalls++
+
+					return flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "p"}, nil
+				},
+			})
+
+			credentials, err := resolveConnectCredentials(ctx, response, false, username)
+			require.EqualError(t, err, "failed retrieving cluster cluster-id: Something went wrong")
+			assert.Nil(t, credentials)
+			require.Zero(t, credCalls)
+		}
 	})
 
 	t.Run("default user empty password mirrors legacy error", func(t *testing.T) {
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: ""}, nil
 			},
@@ -484,7 +557,7 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 	})
 
 	t.Run("explicit user empty password returns user error", func(t *testing.T) {
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{Username: "alice", Password: ""}, nil
 			},
@@ -496,7 +569,7 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 	})
 
 	t.Run("default user public credentials error propagates", func(t *testing.T) {
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{}, errors.New("denied")
 			},
@@ -508,7 +581,7 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 	})
 
 	t.Run("default user 404 preserves initializing error", func(t *testing.T) {
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("wrapped: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("not found")})
 			},
@@ -520,7 +593,7 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 	})
 
 	t.Run("explicit user 404 remains a user error", func(t *testing.T) {
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("wrapped: %w", &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("missing user")})
 			},
@@ -549,7 +622,8 @@ func TestResolveConnectCredentialsPublicNonReady(t *testing.T) {
 			response, _ := publicToLegacyClusterResponse(c)
 
 			credCalls := 0
-			ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+			ctx := mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{})
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 					credCalls++
 
@@ -570,7 +644,8 @@ func TestResolveConnectCredentialsPublicNonReady(t *testing.T) {
 			response, _ := publicToLegacyClusterResponse(c)
 
 			credCalls := 0
-			ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+			ctx := mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{})
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 					credCalls++
 
