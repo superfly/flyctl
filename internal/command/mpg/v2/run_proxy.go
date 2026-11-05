@@ -120,8 +120,7 @@ func publicToLegacyClusterResponse(c flaps.ManagedPostgresCluster) (mpgv2.GetClu
 	}, port
 }
 
-// resolveConnectCredentials uses the same API as the cluster lookup.
-// Public credentials default to the user and database the v2 show reports.
+// resolveConnectCredentials reads credentials from the API that found the cluster, and public defaults from the v2 show, as attach does.
 func resolveConnectCredentials(
 	ctx context.Context,
 	response *mpgv2.GetClusterResponse,
@@ -209,11 +208,11 @@ func resolveConnectCredentials(
 	return &credentials, nil
 }
 
-// publicConnectDefaults asks the v2 show, since clusters migrated from v1 use pgdb-<hashid>, not fly-user and fly-db.
+// publicConnectDefaults asks the v2 show, since some clusters migrated from v1 keep a pgdb-<hashid> main user.
 func publicConnectDefaults(ctx context.Context, clusterID string) (string, string, error) {
 	response, err := mpgv2.ClientFromContext(ctx).GetClusterById(ctx, clusterID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
+		return "", "", fmt.Errorf("failed retrieving default user for cluster %s: %w", clusterID, err)
 	}
 
 	user := cmp.Or(response.Credentials.User, mpgutil.DefaultUsername)

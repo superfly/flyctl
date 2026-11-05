@@ -240,7 +240,7 @@ func TestGetCluster(t *testing.T) {
 }
 
 func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
-	credCalls, legacyCredCalls := 0, 0
+	credCalls, legacyCredCalls, showCalls := 0, 0, 0
 	ctx := flag.NewContext(context.Background(), pflag.NewFlagSet("test", pflag.ContinueOnError))
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
@@ -257,6 +257,11 @@ func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 		},
 	})
 	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
+		GetClusterByIdFunc: func(context.Context, string) (mpgv2.GetClusterResponse, error) {
+			showCalls++
+
+			return mpgv2.GetClusterResponse{}, nil
+		},
 		GetUserCredentialsFunc: func(context.Context, string, string) (mpgv2.GetUserCredentialsResponse, error) {
 			legacyCredCalls++
 
@@ -270,6 +275,7 @@ func TestGetMpgProxyParamsPublicNeverTouchesCredentials(t *testing.T) {
 	require.Nil(t, params)
 	require.Zero(t, credCalls)
 	require.Zero(t, legacyCredCalls)
+	require.Zero(t, showCalls)
 }
 
 func TestGetMpgConnectParamsResolvesCredentialsBeforeTunnel(t *testing.T) {
@@ -522,25 +528,30 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 	})
 
 	t.Run("show error stops before credentials", func(t *testing.T) {
-		for _, username := range []string{"", "alice"} {
-			credCalls := 0
-			ctx := mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{
-				GetClusterByIdFunc: func(context.Context, string) (mpgv2.GetClusterResponse, error) {
-					return mpgv2.GetClusterResponse{}, errors.New("Something went wrong")
-				},
-			})
-			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-				GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
-					credCalls++
+		for _, tt := range []struct{ name, username string }{
+			{"default user", ""},
+			{"explicit user", "alice"},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				credCalls := 0
+				ctx := mpgv2.NewContextWithClient(context.Background(), &mock.MpgV2Client{
+					GetClusterByIdFunc: func(context.Context, string) (mpgv2.GetClusterResponse, error) {
+						return mpgv2.GetClusterResponse{}, errors.New("Something went wrong")
+					},
+				})
+				ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+					GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
+						credCalls++
 
-					return flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "p"}, nil
-				},
-			})
+						return flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "p"}, nil
+					},
+				})
 
-			credentials, err := resolveConnectCredentials(ctx, response, false, username)
-			require.EqualError(t, err, "failed retrieving cluster cluster-id: Something went wrong")
-			assert.Nil(t, credentials)
-			require.Zero(t, credCalls)
+				credentials, err := resolveConnectCredentials(ctx, response, false, tt.username)
+				require.EqualError(t, err, "failed retrieving default user for cluster cluster-id: Something went wrong")
+				assert.Nil(t, credentials)
+				require.Zero(t, credCalls)
+			})
 		}
 	})
 
