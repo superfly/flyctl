@@ -87,10 +87,12 @@ const (
 )
 
 // promptUserDatabases asks which databases a custom user can connect to. It
-// returns nil for every database. current is preselected.
-func promptUserDatabases(ctx context.Context, clusterID string, current []string) ([]string, error) {
+// returns nil for every database. A limited user starts on "Only some
+// databases", even with none left, so Enter never widens its access; current
+// is preselected.
+func promptUserDatabases(ctx context.Context, clusterID string, limited bool, current []string) ([]string, error) {
 	def := allDatabasesOption
-	if len(current) > 0 {
+	if limited {
 		def = someDatabasesOption
 	}
 
@@ -170,6 +172,15 @@ func userRolesCell(roles []string) string {
 	return strings.Join(roles, ", ")
 }
 
+// userRoleLabel shows a user's built-in role, or "-" when it has none.
+func userRoleLabel(role string) string {
+	if role == "" {
+		return "-"
+	}
+
+	return role
+}
+
 // userDatabasesCell shows which databases a user can reach. Users without a
 // built-in role are reported as not limited, but their access comes from SQL
 // grants, so it shows "unknown" for them.
@@ -217,14 +228,11 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 		return fmt.Errorf("failed to list users for cluster %s: %w", clusterID, err)
 	}
 
-	if len(users) == 0 {
-		fmt.Fprintf(out, "No users found for cluster %s\n", clusterID)
-
-		return nil
-	}
-
 	if cfg.JSONOutput {
 		// roles stays null when not reported; databases is always a list.
+		if users == nil {
+			users = []mpgv2.User{}
+		}
 		for i := range users {
 			if users[i].Databases == nil {
 				users[i].Databases = []string{}
@@ -232,6 +240,12 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 		}
 
 		return render.JSON(out, users)
+	}
+
+	if len(users) == 0 {
+		fmt.Fprintf(out, "No users found for cluster %s\n", clusterID)
+
+		return nil
 	}
 
 	rolesReported := true
@@ -242,7 +256,7 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 		}
 		rows = append(rows, []string{
 			user.Name,
-			user.Role,
+			userRoleLabel(user.Role),
 			userRolesCell(user.Roles),
 			userDatabasesCell(user.DatabasesLimited, user.Databases, user.Role),
 		})
@@ -252,7 +266,7 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 		return err
 	}
 	if !rolesReported {
-		fmt.Fprintln(io.ErrOut, "This cluster doesn't report customer roles yet.")
+		fmt.Fprintln(io.ErrOut, "This cluster doesn't report customer roles yet. "+clusterUpdateHint)
 	}
 
 	return nil
@@ -277,18 +291,24 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 		}
 	}
 
-	role, err := promptUserRole(ctx, flag.GetString(ctx, "role"))
+	databases := databasesFlag(ctx)
+	role := flag.GetString(ctx, "role")
+	if role == "" && databases != nil {
+		// custom is the only role --database allows.
+		role = string(flaps.ManagedPostgresUserRoleCustom)
+		fmt.Fprintln(out, "Using role custom, the only role that can be limited to databases.")
+	}
+	role, err := promptUserRole(ctx, role)
 	if err != nil {
 		return err
 	}
 
 	isCustom := role == string(flaps.ManagedPostgresUserRoleCustom)
-	databases := databasesFlag(ctx)
 	if databases != nil && !isCustom {
 		return errors.New("--database needs --role custom: only custom users can be limited to databases")
 	}
 	if isCustom && databases == nil && iostreams.FromContext(ctx).IsInteractive() {
-		if databases, err = promptUserDatabases(ctx, clusterID, nil); err != nil {
+		if databases, err = promptUserDatabases(ctx, clusterID, false, nil); err != nil {
 			return err
 		}
 	}
@@ -314,6 +334,11 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 			Username: legacyResponse.Data.Name,
 			Role:     flaps.ManagedPostgresUserRole(legacyResponse.Data.Role),
 		}
+	} else if errors.Is(err, flaps.ErrFlapsNotFound) {
+		return flyerr.WithSuggestion(
+			fmt.Errorf("failed to create user: limiting a user to databases isn't available yet: %w", err),
+			"Leave out --database to give the user every database, or try again later.",
+		)
 	} else if err != nil {
 		return fmt.Errorf("failed to create user: %w", withClusterUpdateHint(err))
 	}
@@ -353,7 +378,7 @@ func RunUsersSetRole(ctx context.Context, clusterID string) error {
 		// Format users as options: "username [role]"
 		var userOptions []string
 		for _, user := range users {
-			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, userRoleLabel(user.Role)))
 		}
 
 		var userIndex int
@@ -397,7 +422,7 @@ func userDatabasesLabel(user mpgv2.User) string {
 	case !user.DatabasesLimited:
 		return "all databases"
 	case len(user.Databases) == 0:
-		return "no databases"
+		return "none"
 	default:
 		return strings.Join(user.Databases, ", ")
 	}
@@ -432,20 +457,23 @@ func selectCustomUser(ctx context.Context, clusterID string) (mpgv2.User, error)
 	return customUsers[index], nil
 }
 
-// currentUserDatabases returns the databases a limited user can reach, to
-// preselect them in the prompt.
-func currentUserDatabases(ctx context.Context, clusterID, username string) ([]string, error) {
+// lookupCustomUser finds a custom user by name, to start the prompts from its
+// current databases. Other users are refused before any prompt.
+func lookupCustomUser(ctx context.Context, clusterID, username string) (mpgv2.User, error) {
 	users, err := listUsers(ctx, clusterID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
-	}
-	for _, user := range users {
-		if user.Name == username && user.DatabasesLimited {
-			return user.Databases, nil
-		}
+		return mpgv2.User{}, fmt.Errorf("failed to list users: %w", err)
 	}
 
-	return nil, nil
+	i := slices.IndexFunc(users, func(user mpgv2.User) bool { return user.Name == username })
+	if i < 0 {
+		return mpgv2.User{}, fmt.Errorf("user %q not found in cluster %s", username, clusterID)
+	}
+	if users[i].Role != string(flaps.ManagedPostgresUserRoleCustom) {
+		return mpgv2.User{}, fmt.Errorf("user %q isn't a custom user; only custom users can be limited to databases", username)
+	}
+
+	return users[i], nil
 }
 
 // setDatabasesMayHaveApplied reports whether a failed set-databases call may
@@ -477,29 +505,30 @@ func RunUsersSetDatabases(ctx context.Context, clusterID string) error {
 	}
 
 	username := flag.GetString(ctx, "username")
-	var current []string
+	var user mpgv2.User
 	if username == "" {
 		if !io.IsInteractive() {
 			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
 		}
-		user, err := selectCustomUser(ctx, clusterID)
-		if err != nil {
+		var err error
+		if user, err = selectCustomUser(ctx, clusterID); err != nil {
 			return err
 		}
 		username = user.Name
-		if user.DatabasesLimited {
-			current = user.Databases
-		}
 	} else if databases == nil && !allDatabases {
 		var err error
-		if current, err = currentUserDatabases(ctx, clusterID, username); err != nil {
+		if user, err = lookupCustomUser(ctx, clusterID, username); err != nil {
 			return err
 		}
 	}
 
 	if databases == nil && !allDatabases {
+		var current []string
+		if user.DatabasesLimited {
+			current = user.Databases
+		}
 		var err error
-		if databases, err = promptUserDatabases(ctx, clusterID, current); err != nil {
+		if databases, err = promptUserDatabases(ctx, clusterID, user.DatabasesLimited, current); err != nil {
 			return err
 		}
 	}
@@ -568,7 +597,7 @@ func RunUsersDelete(ctx context.Context, clusterID string) error {
 		// Format users as options: "username [role]"
 		var userOptions []string
 		for _, user := range users {
-			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, userRoleLabel(user.Role)))
 		}
 
 		var userIndex int
@@ -636,7 +665,7 @@ func RunUsersRotatePassword(ctx context.Context, clusterID string) error {
 
 		var userOptions []string
 		for _, user := range users {
-			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, userRoleLabel(user.Role)))
 		}
 
 		var userIndex int

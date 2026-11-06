@@ -39,6 +39,7 @@ func v1ClusterContext(t *testing.T, cmd *cobra.Command, args ...string) context.
 	t.Helper()
 	require.NoError(t, cmd.Flags().Parse(args))
 	ctx := flagctx.NewContext(setupTestContext(), cmd.Flags())
+	ctx = config.NewContext(ctx, &config.Config{})
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
 			return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
@@ -70,4 +71,20 @@ func TestRolesRefusedOnV1(t *testing.T) {
 
 	ctx = v1ClusterContext(t, newRolesMembers(), "mpg-v1", "-r", "analytics")
 	require.EqualError(t, runRolesMembers(ctx), "'fly mpg roles members' is not supported for v1 clusters; migrate the cluster to v2 first")
+}
+
+func TestRolesJSONRequiresClusterBeforePicker(t *testing.T) {
+	for name, run := range map[string]func(context.Context) error{"list": runRolesList, "members": runRolesMembers} {
+		t.Run(name, func(t *testing.T) {
+			io, _, stdout, _ := iostreams.Test()
+			io.SetStdinTTY(true)
+			io.SetStdoutTTY(true)
+			ctx := iostreams.NewContext(context.Background(), io)
+			ctx = config.NewContext(ctx, &config.Config{JSONOutput: true})
+			ctx = flagctx.NewContext(ctx, pflag.NewFlagSet("test", pflag.ContinueOnError))
+			// No client context: a cluster lookup or picker would panic.
+			require.EqualError(t, run(ctx), "CLUSTER_ID must be specified when using --json")
+			require.Empty(t, stdout.String())
+		})
+	}
 }

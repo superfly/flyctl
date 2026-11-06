@@ -69,7 +69,7 @@ func tableCells(out string) [][]string {
 }
 
 func TestRunUsersList(t *testing.T) {
-	const rolesNote = "This cluster doesn't report customer roles yet."
+	const rolesNote = "This cluster doesn't report customer roles yet. It arrives with a scheduled update in the cluster's maintenance window."
 	tests := []struct {
 		name         string
 		jsonOutput   bool
@@ -100,7 +100,7 @@ func TestRunUsersList(t *testing.T) {
 				{"app_user", "writer", "-", "all"},
 				{"dropped", "custom", "-", "none"},
 				{"open_custom", "custom", "-", "all"},
-				{"sql_login", "", "analytics", "unknown"},
+				{"sql_login", "-", "analytics", "unknown"},
 			},
 		},
 		{
@@ -127,6 +127,7 @@ func TestRunUsersList(t *testing.T) {
 			]`,
 		},
 		{name: "public empty", wantContains: []string{"No users found for cluster mpg-123"}},
+		{name: "public empty JSON", jsonOutput: true, wantJSON: `[]`},
 		{name: "wrapped 404 fallback", publicErr: wrappedNotFound(), legacyUsers: []mpgv2.User{{Name: "legacy_user", Role: "schema_admin"}}, wantLegacy: true, wantContains: []string{"legacy_user", "schema_admin"}, wantStderr: rolesNote},
 		{
 			name:        "fallback shows the same columns",
@@ -215,24 +216,26 @@ func setDatabases(t *testing.T, ctx context.Context, databases ...string) {
 
 func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 	tests := []struct {
-		name         string
-		username     string
-		role         string
-		databases    []string
-		publicErr    error
-		legacyErr    error
-		wantPublic   bool
-		wantLegacy   bool
-		wantErr      string
-		wantHint     bool
-		wantContains []string
-		wantMissing  []string
+		name           string
+		username       string
+		role           string
+		databases      []string
+		publicErr      error
+		legacyErr      error
+		wantPublic     bool
+		wantLegacy     bool
+		wantErr        string
+		wantHint       bool
+		wantSuggestion string
+		wantContains   []string
+		wantMissing    []string
 	}{
 		{name: "public success", username: "new_user", role: "writer", wantPublic: true, wantContains: []string{"Databases: all"}, wantMissing: []string{"grants access with SQL"}},
 		{name: "custom accepted with every database", username: "analyst", role: "custom", wantPublic: true, wantContains: []string{"Role: custom", "Databases: all", "custom users can't read or write anything until an admin user grants access with SQL."}},
 		{name: "custom limited to databases", username: "analyst", role: "custom", databases: []string{"app1", "app2"}, wantPublic: true, wantContains: []string{"Databases: app1, app2", "grants access with SQL"}},
 		{name: "database needs custom", username: "new_user", role: "writer", databases: []string{"app1"}, wantErr: "--database needs --role custom: only custom users can be limited to databases"},
-		{name: "404 with databases does not fall back", username: "analyst", role: "custom", databases: []string{"app1"}, publicErr: wrappedNotFound(), wantPublic: true, wantErr: "failed to create user"},
+		{name: "database without role means custom", username: "analyst", databases: []string{"app1"}, wantPublic: true, wantContains: []string{"Using role custom", "Role: custom", "Databases: app1"}},
+		{name: "404 with databases does not fall back", username: "analyst", role: "custom", databases: []string{"app1"}, publicErr: wrappedNotFound(), wantPublic: true, wantErr: "failed to create user: limiting a user to databases isn't available yet", wantSuggestion: "Leave out --database to give the user every database, or try again later."},
 		{name: "wrapped 404 fallback", username: "new_user", role: "reader", publicErr: wrappedNotFound(), wantPublic: true, wantLegacy: true},
 		{name: "custom 404 without databases falls back", username: "analyst", role: "custom", publicErr: wrappedNotFound(), wantPublic: true, wantLegacy: true},
 		{name: "old cluster gets the update hint", username: "analyst", role: "custom", databases: []string{"app1"}, publicErr: notImplemented(), wantPublic: true, wantErr: "failed to create user", wantHint: true},
@@ -256,11 +259,15 @@ func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 				publicCalls++
 				require.Equal(t, "mpg-123", id)
 				// nil, never an empty list, when no database was named.
-				require.Equal(t, flaps.CreateManagedPostgresUserRequest{Username: tt.username, Role: tt.role, Databases: tt.databases}, req)
+				wantRole := tt.role
+				if wantRole == "" {
+					wantRole = "custom"
+				}
+				require.Equal(t, flaps.CreateManagedPostgresUserRequest{Username: tt.username, Role: wantRole, Databases: tt.databases}, req)
 
 				return flaps.ManagedPostgresUser{
 					Username:         tt.username,
-					Role:             flaps.ManagedPostgresUserRole(tt.role),
+					Role:             flaps.ManagedPostgresUserRole(req.Role),
 					Roles:            []string{},
 					DatabasesLimited: len(req.Databases) > 0,
 					Databases:        req.Databases,
@@ -280,9 +287,12 @@ func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 				require.NoError(t, err)
 				require.Contains(t, stdout.String(), "User created successfully!")
 			}
-			if tt.wantHint {
+			switch {
+			case tt.wantHint:
 				requireClusterUpdateHint(t, err)
-			} else {
+			case tt.wantSuggestion != "":
+				require.Equal(t, tt.wantSuggestion, flyerr.GetErrorSuggestion(err))
+			default:
 				require.Empty(t, flyerr.GetErrorSuggestion(err))
 			}
 			for _, want := range tt.wantContains {
@@ -953,5 +963,34 @@ func TestRunUsersRotatePasswordRecoveryOutputFailure(t *testing.T) {
 		require.Equal(t, 1, mutations)
 		require.Equal(t, 1, reads)
 		require.NotContains(t, err.Error()+stderr.String(), "sensitive-current-password")
+	}
+}
+
+// With -u and no database flags, set-databases checks the user before any
+// prompt. The terminal is interactive, but no prompt is reached.
+func TestRunUsersSetDatabasesRefusesUsersBeforePrompting(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		users   []flaps.ManagedPostgresUser
+		wantErr string
+	}{
+		{name: "missing user", users: []flaps.ManagedPostgresUser{{Username: "other", Role: flaps.ManagedPostgresUserRoleCustom}}, wantErr: `user "analyst" not found in cluster mpg-123`},
+		{name: "built-in role", users: []flaps.ManagedPostgresUser{{Username: "analyst", Role: flaps.ManagedPostgresUserRoleWriter}}, wantErr: `user "analyst" isn't a custom user; only custom users can be limited to databases`},
+		{name: "no built-in role", users: []flaps.ManagedPostgresUser{{Username: "analyst"}}, wantErr: `user "analyst" isn't a custom user; only custom users can be limited to databases`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, _ := usersTestContext(t, false)
+			io := iostreams.FromContext(ctx)
+			io.SetStdinTTY(true)
+			io.SetStdoutTTY(true)
+			require.NoError(t, flag.SetString(ctx, "username", "analyst"))
+			// Only the users list is served: a prompt or a write would fail.
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{ListManagedPostgresUsersFunc: func(context.Context, string) ([]flaps.ManagedPostgresUser, error) {
+				return tt.users, nil
+			}})
+
+			require.EqualError(t, RunUsersSetDatabases(ctx, "mpg-123"), tt.wantErr)
+			require.Empty(t, stdout.String())
+		})
 	}
 }

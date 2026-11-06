@@ -37,7 +37,7 @@ func newUsers() *cobra.Command {
 
 func newUsersList() *cobra.Command {
 	const (
-		long  = `List users in a Managed Postgres cluster.`
+		long  = `List users in a Managed Postgres cluster. ROLE is - for users without a built-in role. Their access comes from SQL grants, so DATABASES shows unknown, and in --json output databases_limited means nothing when role is empty.`
 		short = "List users in an MPG cluster."
 		usage = "list <CLUSTER_ID>"
 	)
