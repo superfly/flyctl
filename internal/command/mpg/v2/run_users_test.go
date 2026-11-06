@@ -50,11 +50,12 @@ func wrappedNotFound() error {
 }
 
 // tableCells splits a rendered table into trimmed cells, one row per line,
-// header first.
+// header first. A one-column table has no separators, so each non-empty line
+// is a row.
 func tableCells(out string) [][]string {
 	var rows [][]string
 	for _, line := range strings.Split(out, "\n") {
-		if !strings.Contains(line, "│") {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		cells := strings.Split(line, "│")

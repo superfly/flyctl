@@ -63,3 +63,11 @@ func TestUsersDatabaseLimitsRefusedOnV1(t *testing.T) {
 	ctx = v1ClusterContext(t, newUsersSetDatabases(), "mpg-v1", "-u", "analyst", "--all-databases")
 	require.EqualError(t, runUsersSetDatabases(ctx), "'fly mpg users set-databases' is not supported for v1 clusters; migrate the cluster to v2 first")
 }
+
+func TestRolesRefusedOnV1(t *testing.T) {
+	ctx := v1ClusterContext(t, newRolesList(), "mpg-v1")
+	require.EqualError(t, runRolesList(ctx), "'fly mpg roles list' is not supported for v1 clusters; migrate the cluster to v2 first")
+
+	ctx = v1ClusterContext(t, newRolesMembers(), "mpg-v1", "-r", "analytics")
+	require.EqualError(t, runRolesMembers(ctx), "'fly mpg roles members' is not supported for v1 clusters; migrate the cluster to v2 first")
+}

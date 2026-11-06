@@ -76,6 +76,8 @@ type FlapsClient struct {
 	ListManagedPostgresBackupsFunc        func(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
 	ListManagedPostgresExtensionsFunc     func(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
 	ListManagedPostgresPlansFunc          func(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error)
+	ListManagedPostgresRolesFunc          func(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error)
+	ListManagedPostgresRoleMembersFunc    func(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error)
 	ListSecretKeysFunc                    func(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequestFunc                        func(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLeaseFunc                      func(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -357,6 +359,14 @@ func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, dat
 
 func (m *FlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
 	return m.ListManagedPostgresPlansFunc(ctx, orgSlug)
+}
+
+func (m *FlapsClient) ListManagedPostgresRoles(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error) {
+	return m.ListManagedPostgresRolesFunc(ctx, id)
+}
+
+func (m *FlapsClient) ListManagedPostgresRoleMembers(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error) {
+	return m.ListManagedPostgresRoleMembersFunc(ctx, id, role)
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {

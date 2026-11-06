@@ -500,6 +500,14 @@ func (m *mockFlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug 
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (m *mockFlapsClient) ListManagedPostgresRoles(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresRoleMembers(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) ListAppSecrets(ctx context.Context, appName string, version *uint64, showSecrets bool) ([]fly.AppSecret, error) {
 	return nil, fmt.Errorf("failed to list app secrets")
 }

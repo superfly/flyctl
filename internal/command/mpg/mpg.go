@@ -48,6 +48,7 @@ func New() *cobra.Command {
 		newFork(),
 		newDatabases(),
 		newUsers(),
+		newRoles(),
 	)
 
 	return cmd

@@ -973,6 +973,36 @@ func (mr *MockFlapsClientMockRecorder) ListManagedPostgresPlans(ctx, orgSlug any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresPlans", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresPlans), ctx, orgSlug)
 }
 
+// ListManagedPostgresRoleMembers mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresRoleMembers(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresRoleMembers", ctx, id, role)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresRoleMember)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresRoleMembers indicates an expected call of ListManagedPostgresRoleMembers.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresRoleMembers(ctx, id, role any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresRoleMembers", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresRoleMembers), ctx, id, role)
+}
+
+// ListManagedPostgresRoles mocks base method.
+func (m *MockFlapsClient) ListManagedPostgresRoles(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListManagedPostgresRoles", ctx, id)
+	ret0, _ := ret[0].([]flaps.ManagedPostgresRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListManagedPostgresRoles indicates an expected call of ListManagedPostgresRoles.
+func (mr *MockFlapsClientMockRecorder) ListManagedPostgresRoles(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListManagedPostgresRoles", reflect.TypeOf((*MockFlapsClient)(nil).ListManagedPostgresRoles), ctx, id)
+}
+
 // ListManagedPostgresUsers mocks base method.
 func (m *MockFlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
 	m.ctrl.T.Helper()

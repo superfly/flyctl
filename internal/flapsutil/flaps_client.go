@@ -75,6 +75,8 @@ type FlapsClient interface {
 	ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
 	ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
 	ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error)
+	ListManagedPostgresRoles(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error)
+	ListManagedPostgresRoleMembers(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
