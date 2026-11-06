@@ -46,7 +46,26 @@ func wrappedNotFound() error {
 	})
 }
 
+// tableCells splits a rendered table into trimmed cells, one row per line,
+// header first.
+func tableCells(out string) [][]string {
+	var rows [][]string
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.Contains(line, "│") {
+			continue
+		}
+		cells := strings.Split(line, "│")
+		for i := range cells {
+			cells[i] = strings.TrimSpace(cells[i])
+		}
+		rows = append(rows, cells)
+	}
+
+	return rows
+}
+
 func TestRunUsersList(t *testing.T) {
+	const rolesNote = "This cluster doesn't report customer roles yet."
 	tests := []struct {
 		name         string
 		jsonOutput   bool
@@ -57,19 +76,71 @@ func TestRunUsersList(t *testing.T) {
 		wantLegacy   bool
 		wantErr      string
 		wantContains []string
+		wantRows     [][]string
 		wantJSON     string
+		wantStderr   string
 	}{
-		{name: "public table", publicUsers: []flaps.ManagedPostgresUser{{Username: "app_user", Role: flaps.ManagedPostgresUserRoleWriter}}, wantContains: []string{"NAME", "ROLE", "app_user", "writer"}},
-		{name: "public JSON keeps legacy name shape", jsonOutput: true, publicUsers: []flaps.ManagedPostgresUser{{Username: "app_user", Role: flaps.ManagedPostgresUserRoleReader}}, wantJSON: `[{"name":"app_user","role":"reader"}]`},
+		{name: "public table", publicUsers: []flaps.ManagedPostgresUser{{Username: "app_user", Role: flaps.ManagedPostgresUserRoleWriter}}, wantContains: []string{"NAME", "ROLE", "app_user", "writer"}, wantStderr: rolesNote},
+		{
+			name: "roles and databases cells",
+			publicUsers: []flaps.ManagedPostgresUser{
+				{Username: "analyst", Role: flaps.ManagedPostgresUserRoleCustom, Roles: []string{"Team B", "analytics"}, DatabasesLimited: true, Databases: []string{"app1", "app2"}},
+				{Username: "app_user", Role: flaps.ManagedPostgresUserRoleWriter, Roles: []string{}},
+				{Username: "dropped", Role: flaps.ManagedPostgresUserRoleCustom, Roles: []string{}, DatabasesLimited: true},
+				{Username: "open_custom", Role: flaps.ManagedPostgresUserRoleCustom, Roles: []string{}},
+				{Username: "sql_login", Roles: []string{"analytics"}},
+			},
+			wantRows: [][]string{
+				{"NAME", "ROLE", "ROLES", "DATABASES"},
+				{"analyst", "custom", "Team B, analytics", "app1, app2"},
+				{"app_user", "writer", "-", "all"},
+				{"dropped", "custom", "-", "none"},
+				{"open_custom", "custom", "-", "all"},
+				{"sql_login", "", "analytics", "unknown"},
+			},
+		},
+		{
+			name:        "roles not reported are blank",
+			publicUsers: []flaps.ManagedPostgresUser{{Username: "fly-user", Role: flaps.ManagedPostgresUserRoleSchemaAdmin}},
+			wantRows: [][]string{
+				{"NAME", "ROLE", "ROLES", "DATABASES"},
+				{"fly-user", "schema_admin", "", "all"},
+			},
+			wantStderr: rolesNote,
+		},
+		{
+			name:       "public JSON keeps legacy name shape",
+			jsonOutput: true,
+			publicUsers: []flaps.ManagedPostgresUser{
+				{Username: "analyst", Role: flaps.ManagedPostgresUserRoleCustom, Roles: []string{"analytics"}, DatabasesLimited: true, Databases: []string{"app1"}},
+				{Username: "app_user", Role: flaps.ManagedPostgresUserRoleReader, Roles: []string{}},
+				{Username: "old", Role: flaps.ManagedPostgresUserRoleWriter},
+			},
+			wantJSON: `[
+				{"name":"analyst","role":"custom","roles":["analytics"],"databases_limited":true,"databases":["app1"]},
+				{"name":"app_user","role":"reader","roles":[],"databases_limited":false,"databases":[]},
+				{"name":"old","role":"writer","roles":null,"databases_limited":false,"databases":[]}
+			]`,
+		},
 		{name: "public empty", wantContains: []string{"No users found for cluster mpg-123"}},
-		{name: "wrapped 404 fallback", publicErr: wrappedNotFound(), legacyUsers: []mpgv2.User{{Name: "legacy_user", Role: "schema_admin"}}, wantLegacy: true, wantContains: []string{"legacy_user", "schema_admin"}},
+		{name: "wrapped 404 fallback", publicErr: wrappedNotFound(), legacyUsers: []mpgv2.User{{Name: "legacy_user", Role: "schema_admin"}}, wantLegacy: true, wantContains: []string{"legacy_user", "schema_admin"}, wantStderr: rolesNote},
+		{
+			name:        "fallback shows the same columns",
+			publicErr:   wrappedNotFound(),
+			legacyUsers: []mpgv2.User{{Name: "analyst", Role: "custom", Roles: []string{}, DatabasesLimited: true, Databases: []string{"app1"}}},
+			wantLegacy:  true,
+			wantRows: [][]string{
+				{"NAME", "ROLE", "ROLES", "DATABASES"},
+				{"analyst", "custom", "-", "app1"},
+			},
+		},
 		{name: "non-404 authoritative", publicErr: &flaps.FlapsError{ResponseStatusCode: 422, OriginalError: errors.New("invalid")}, wantErr: "failed to list users for cluster mpg-123", wantLegacy: false},
 		{name: "legacy failure", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy boom"), wantLegacy: true, wantErr: "failed to list users for cluster mpg-123: legacy boom"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, stdout, _ := usersTestContext(t, tt.jsonOutput)
+			ctx, stdout, stderr := usersTestContext(t, tt.jsonOutput)
 			publicCalls, legacyCalls := 0, 0
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{ListManagedPostgresUsersFunc: func(_ context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
 				publicCalls++
@@ -95,12 +166,20 @@ func TestRunUsersList(t *testing.T) {
 			for _, want := range tt.wantContains {
 				require.Contains(t, stdout.String(), want)
 			}
+			if tt.wantRows != nil {
+				require.Equal(t, tt.wantRows, tableCells(stdout.String()))
+			}
 			if tt.wantJSON != "" {
 				var got, want any
 				require.NoError(t, json.Unmarshal(stdout.Bytes(), &got))
 				require.NoError(t, json.Unmarshal([]byte(tt.wantJSON), &want))
 				require.Equal(t, want, got)
 				require.NotContains(t, stdout.String(), "username")
+			}
+			if tt.wantStderr != "" {
+				require.Equal(t, tt.wantStderr+"\n", stderr.String())
+			} else {
+				require.Empty(t, stderr.String())
 			}
 			require.NotContains(t, strings.ToLower(stdout.String()), "password")
 			require.NotContains(t, strings.ToLower(stdout.String()), "credential")

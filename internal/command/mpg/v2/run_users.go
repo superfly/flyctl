@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	stdio "io"
+	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
@@ -28,7 +29,42 @@ var managedPostgresUserRoleOptions = []string{
 
 // publicUserToLegacy converts the public response to the legacy output shape.
 func publicUserToLegacy(u flaps.ManagedPostgresUser) mpgv2.User {
-	return mpgv2.User{Name: u.Username, Role: string(u.Role)}
+	return mpgv2.User{
+		Name:             u.Username,
+		Role:             string(u.Role),
+		Roles:            u.Roles,
+		DatabasesLimited: u.DatabasesLimited,
+		Databases:        u.Databases,
+	}
+}
+
+// userRolesCell shows a user's customer roles. It is blank when the cluster
+// doesn't report them, and "-" when the user has none.
+func userRolesCell(roles []string) string {
+	if roles == nil {
+		return ""
+	}
+	if len(roles) == 0 {
+		return "-"
+	}
+
+	return strings.Join(roles, ", ")
+}
+
+// userDatabasesCell shows which databases a user can reach. Users without a
+// built-in role are reported as not limited, but their access comes from SQL
+// grants, so it shows "unknown" for them.
+func userDatabasesCell(limited bool, databases []string, role string) string {
+	switch {
+	case limited && len(databases) == 0:
+		return "none"
+	case limited:
+		return strings.Join(databases, ", ")
+	case role == "":
+		return "unknown"
+	default:
+		return "all"
+	}
 }
 
 func listUsers(ctx context.Context, clusterID string) ([]mpgv2.User, error) {
@@ -55,7 +91,8 @@ func listUsers(ctx context.Context, clusterID string) ([]mpgv2.User, error) {
 
 func RunUsersList(ctx context.Context, clusterID string) error {
 	cfg := config.FromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	out := io.Out
 	users, err := listUsers(ctx, clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to list users for cluster %s: %w", clusterID, err)
@@ -68,18 +105,38 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 	}
 
 	if cfg.JSONOutput {
+		// roles stays null when not reported; databases is always a list.
+		for i := range users {
+			if users[i].Databases == nil {
+				users[i].Databases = []string{}
+			}
+		}
+
 		return render.JSON(out, users)
 	}
 
+	rolesReported := true
 	rows := make([][]string, 0, len(users))
 	for _, user := range users {
+		if user.Roles == nil {
+			rolesReported = false
+		}
 		rows = append(rows, []string{
 			user.Name,
 			user.Role,
+			userRolesCell(user.Roles),
+			userDatabasesCell(user.DatabasesLimited, user.Databases, user.Role),
 		})
 	}
 
-	return render.Table(out, "", rows, "Name", "Role")
+	if err := render.Table(out, "", rows, "Name", "Role", "Roles", "Databases"); err != nil {
+		return err
+	}
+	if !rolesReported {
+		fmt.Fprintln(io.ErrOut, "This cluster doesn't report customer roles yet.")
+	}
+
+	return nil
 }
 
 func RunUsersCreate(ctx context.Context, clusterID string) error {
@@ -133,7 +190,8 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 
 	response, err := flapsClient.CreateManagedPostgresUser(ctx, clusterID, input)
 	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		legacyResponse, legacyErr := mpgv2.ClientFromContext(ctx).CreateUserWithRole(ctx, clusterID, mpgv2.CreateUserWithRoleInput(input))
+		legacyInput := mpgv2.CreateUserWithRoleInput{Username: input.Username, Role: input.Role}
+		legacyResponse, legacyErr := mpgv2.ClientFromContext(ctx).CreateUserWithRole(ctx, clusterID, legacyInput)
 		if legacyErr != nil {
 			return fmt.Errorf("failed to create user: %w", legacyErr)
 		}
