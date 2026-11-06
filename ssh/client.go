@@ -81,7 +81,7 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	respCh := make(chan connResp)
 
-	// ssh.NewClientConn doesn't take a context, so we need to handle cancelation on our end
+	// ssh.NewClientConn doesn't take a context, so we need to handle cancellation on our end
 	go func() {
 		conn, chans, reqs, err := ssh.NewClientConn(tcpConn, tcpConn.RemoteAddr().String(), conf)
 		if err != nil {
