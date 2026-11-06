@@ -73,8 +73,8 @@ func TestRolesRefusedOnV1(t *testing.T) {
 	require.EqualError(t, runRolesMembers(ctx), "'fly mpg roles members' is not supported for v1 clusters; migrate the cluster to v2 first")
 }
 
-func TestRolesJSONRequiresClusterBeforePicker(t *testing.T) {
-	for name, run := range map[string]func(context.Context) error{"list": runRolesList, "members": runRolesMembers} {
+func TestListsJSONRequireClusterBeforePicker(t *testing.T) {
+	for name, run := range map[string]func(context.Context) error{"roles list": runRolesList, "roles members": runRolesMembers, "users list": runUsersList} {
 		t.Run(name, func(t *testing.T) {
 			io, _, stdout, _ := iostreams.Test()
 			io.SetStdinTTY(true)

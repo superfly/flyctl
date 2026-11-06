@@ -41,11 +41,17 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
 	// limitedUser is set when the chosen user is limited to some databases.
+	// Only a users list that reports databases_limited true marks a user as
+	// limited. A list from an API without database limits, such as the
+	// postgresv2 fallback on older deployments, leaves the field out, so it
+	// decodes to false and no user is checked.
 	var limitedUser *mpgv2.User
 	if username != "" {
+		// Fail closed: without the list, attach can't tell whether the URL
+		// would connect.
 		users, err := listUsers(ctx, clusterID)
 		if err != nil {
-			return fmt.Errorf("failed to list users: %w", err)
+			return fmt.Errorf("couldn't check %s's database limits: %w", username, err)
 		}
 		if i := slices.IndexFunc(users, func(user mpgv2.User) bool { return user.Name == username }); i >= 0 && users[i].DatabasesLimited {
 			limitedUser = &users[i]

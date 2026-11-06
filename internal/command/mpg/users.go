@@ -57,6 +57,9 @@ func newUsersList() *cobra.Command {
 
 func runUsersList(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
+	if config.FromContext(ctx).JSONOutput && clusterID == "" {
+		return prompt.NonInteractiveError("CLUSTER_ID must be specified when using --json")
+	}
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {
 		return err
