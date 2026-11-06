@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/mock"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -35,6 +36,8 @@ func usersTestContext(t *testing.T, jsonOutput bool) (context.Context, *bytes.Bu
 	flags.String("role", "", "")
 	flags.Bool("yes", false, "")
 	flags.Bool("kill-sessions", false, "")
+	flags.StringArray("database", nil, "")
+	flags.Bool("all-databases", false, "")
 
 	return flagctx.NewContext(ctx, flags), stdout, stderr
 }
@@ -187,23 +190,55 @@ func TestRunUsersList(t *testing.T) {
 	}
 }
 
+func notImplemented() error {
+	return &flaps.FlapsError{
+		ResponseStatusCode: 501,
+		OriginalError:      errors.New("Custom users and database limits are not available on this cluster yet"),
+	}
+}
+
+// requireClusterUpdateHint checks that err is a 501 carrying the hint.
+func requireClusterUpdateHint(t *testing.T, err error) {
+	t.Helper()
+	require.ErrorIs(t, err, flaps.ErrFlapsNotImplemented)
+	require.ErrorContains(t, err, "not available on this cluster yet")
+	require.Equal(t, clusterUpdateHint, flyerr.GetErrorSuggestion(err))
+}
+
+func setDatabases(t *testing.T, ctx context.Context, databases ...string) {
+	t.Helper()
+	for _, database := range databases {
+		require.NoError(t, flag.FromContext(ctx).Set("database", database))
+	}
+}
+
 func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 	tests := []struct {
-		name       string
-		username   string
-		role       string
-		publicErr  error
-		legacyErr  error
-		wantPublic bool
-		wantLegacy bool
-		wantErr    string
+		name         string
+		username     string
+		role         string
+		databases    []string
+		publicErr    error
+		legacyErr    error
+		wantPublic   bool
+		wantLegacy   bool
+		wantErr      string
+		wantHint     bool
+		wantContains []string
+		wantMissing  []string
 	}{
-		{name: "public success", username: "new_user", role: "writer", wantPublic: true},
+		{name: "public success", username: "new_user", role: "writer", wantPublic: true, wantContains: []string{"Databases: all"}, wantMissing: []string{"grants access with SQL"}},
+		{name: "custom accepted with every database", username: "analyst", role: "custom", wantPublic: true, wantContains: []string{"Role: custom", "Databases: all", "custom users can't read or write anything until an admin user grants access with SQL."}},
+		{name: "custom limited to databases", username: "analyst", role: "custom", databases: []string{"app1", "app2"}, wantPublic: true, wantContains: []string{"Databases: app1, app2", "grants access with SQL"}},
+		{name: "database needs custom", username: "new_user", role: "writer", databases: []string{"app1"}, wantErr: "--database needs --role custom: only custom users can be limited to databases"},
+		{name: "404 with databases does not fall back", username: "analyst", role: "custom", databases: []string{"app1"}, publicErr: wrappedNotFound(), wantPublic: true, wantErr: "failed to create user"},
 		{name: "wrapped 404 fallback", username: "new_user", role: "reader", publicErr: wrappedNotFound(), wantPublic: true, wantLegacy: true},
+		{name: "custom 404 without databases falls back", username: "analyst", role: "custom", publicErr: wrappedNotFound(), wantPublic: true, wantLegacy: true},
+		{name: "old cluster gets the update hint", username: "analyst", role: "custom", databases: []string{"app1"}, publicErr: notImplemented(), wantPublic: true, wantErr: "failed to create user", wantHint: true},
 		{name: "conflict authoritative", username: "new_user", role: "writer", publicErr: &flaps.FlapsError{ResponseStatusCode: 409, OriginalError: errors.New("exists")}, wantPublic: true, wantErr: "failed to create user"},
 		{name: "username required first", role: "writer", wantErr: "username must be specified"},
 		{name: "role required", username: "new_user", wantErr: "user role must be specified"},
-		{name: "role validated before API", username: "new_user", role: "owner", wantErr: `invalid role "owner"`},
+		{name: "role validated before API", username: "new_user", role: "owner", wantErr: `invalid role "owner". Must be one of: schema_admin, writer, reader, custom`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -214,13 +249,21 @@ func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 			if tt.role != "" {
 				require.NoError(t, flag.SetString(ctx, "role", tt.role))
 			}
+			setDatabases(t, ctx, tt.databases...)
 			publicCalls, legacyCalls := 0, 0
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{CreateManagedPostgresUserFunc: func(_ context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
 				publicCalls++
 				require.Equal(t, "mpg-123", id)
-				require.Equal(t, flaps.CreateManagedPostgresUserRequest{Username: tt.username, Role: tt.role}, req)
+				// nil, never an empty list, when no database was named.
+				require.Equal(t, flaps.CreateManagedPostgresUserRequest{Username: tt.username, Role: tt.role, Databases: tt.databases}, req)
 
-				return flaps.ManagedPostgresUser{Username: tt.username, Role: flaps.ManagedPostgresUserRole(tt.role)}, tt.publicErr
+				return flaps.ManagedPostgresUser{
+					Username:         tt.username,
+					Role:             flaps.ManagedPostgresUserRole(tt.role),
+					Roles:            []string{},
+					DatabasesLimited: len(req.Databases) > 0,
+					Databases:        req.Databases,
+				}, tt.publicErr
 			}})
 			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{CreateUserWithRoleFunc: func(_ context.Context, id string, input mpgv2.CreateUserWithRoleInput) (mpgv2.CreateUserWithRoleResponse, error) {
 				legacyCalls++
@@ -231,9 +274,21 @@ func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 			err := RunUsersCreate(ctx, "mpg-123")
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+				require.NotContains(t, stdout.String(), "User created successfully!")
 			} else {
 				require.NoError(t, err)
 				require.Contains(t, stdout.String(), "User created successfully!")
+			}
+			if tt.wantHint {
+				requireClusterUpdateHint(t, err)
+			} else {
+				require.Empty(t, flyerr.GetErrorSuggestion(err))
+			}
+			for _, want := range tt.wantContains {
+				require.Contains(t, stdout.String(), want)
+			}
+			for _, missing := range tt.wantMissing {
+				require.NotContains(t, stdout.String(), missing)
 			}
 			require.Equal(t, tt.wantPublic, publicCalls == 1)
 			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
@@ -244,33 +299,42 @@ func TestRunUsersCreateRoutingAndValidation(t *testing.T) {
 func TestRunUsersSetRoleRouting(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
+		role         string
 		publicErr    error
 		legacyErr    error
 		wantLegacy   bool
 		wantErr      string
 		wantExactErr string
+		wantHint     bool
 	}{
 		{name: "public success"},
+		{name: "custom reaches the public API", role: "custom"},
+		{name: "custom reaches the fallback", role: "custom", publicErr: wrappedNotFound(), wantLegacy: true},
 		{name: "wrapped 404 fallback", publicErr: wrappedNotFound(), wantLegacy: true},
 		{name: "wrapped 404 legacy failure", publicErr: wrappedNotFound(), legacyErr: errors.New("legacy update boom"), wantLegacy: true, wantExactErr: "failed to update user role: legacy update boom"},
 		{name: "server error authoritative", publicErr: &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("boom")}, wantErr: "failed to update user role"},
+		{name: "old cluster gets the update hint", role: "custom", publicErr: notImplemented(), wantErr: "failed to update user role", wantHint: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			role := tt.role
+			if role == "" {
+				role = "reader"
+			}
 			ctx, stdout, _ := usersTestContext(t, false)
 			require.NoError(t, flag.SetString(ctx, "username", "app_user"))
-			require.NoError(t, flag.SetString(ctx, "role", "reader"))
+			require.NoError(t, flag.SetString(ctx, "role", role))
 			publicCalls, legacyCalls := 0, 0
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{UpdateManagedPostgresUserRoleFunc: func(_ context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
 				publicCalls++
 				require.Equal(t, "mpg-123", id)
 				require.Equal(t, "app_user", username)
-				require.Equal(t, "reader", req.Role)
+				require.Equal(t, role, req.Role)
 
 				return tt.publicErr
 			}})
 			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{UpdateUserRoleFunc: func(_ context.Context, id, username string, input mpgv2.UpdateUserRoleInput) error {
 				legacyCalls++
-				require.Equal(t, "reader", input.Role)
+				require.Equal(t, role, input.Role)
 
 				return tt.legacyErr
 			}})
@@ -284,8 +348,144 @@ func TestRunUsersSetRoleRouting(t *testing.T) {
 				require.NoError(t, err)
 				require.Contains(t, stdout.String(), "User role updated successfully!")
 			}
+			if tt.wantHint {
+				requireClusterUpdateHint(t, err)
+			}
 			require.Equal(t, 1, publicCalls)
 			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
+		})
+	}
+}
+
+func TestRunUsersSetDatabases(t *testing.T) {
+	const appliedNote = "Note: the change may already be in place. It is safe to run the same command again."
+	for _, tt := range []struct {
+		name       string
+		username   string
+		databases  []string
+		all        bool
+		yes        bool
+		publicErr  error
+		wantReq    *flaps.SetManagedPostgresUserDatabasesRequest
+		wantErr    string
+		wantHint   bool
+		wantStdout []string
+		wantStderr []string
+	}{
+		{
+			name:       "limit to databases",
+			username:   "analyst",
+			databases:  []string{"app1", "app2"},
+			yes:        true,
+			wantReq:    &flaps.SetManagedPostgresUserDatabasesRequest{DatabasesLimited: true, Databases: []string{"app1", "app2"}},
+			wantStdout: []string{"Updating databases for user analyst in cluster mpg-123...", "User databases updated successfully!", "Name: analyst", "Databases: app1, app2"},
+		},
+		{
+			name:       "every database needs no confirmation",
+			username:   "analyst",
+			all:        true,
+			wantReq:    &flaps.SetManagedPostgresUserDatabasesRequest{},
+			wantStdout: []string{"Databases: all"},
+		},
+		{name: "both flags", username: "analyst", databases: []string{"app1"}, all: true, yes: true, wantErr: "use either --database or --all-databases"},
+		{name: "neither flag", username: "analyst", wantErr: "--database or --all-databases must be specified when not running interactively"},
+		{name: "username required", all: true, wantErr: "username must be specified with --username flag"},
+		{name: "limiting needs yes", username: "analyst", databases: []string{"app1"}, wantErr: "--yes flag must be specified when not running interactively"},
+		{
+			name:      "old cluster gets the update hint",
+			username:  "analyst",
+			databases: []string{"app1"},
+			yes:       true,
+			publicErr: notImplemented(),
+			wantReq:   &flaps.SetManagedPostgresUserDatabasesRequest{DatabasesLimited: true, Databases: []string{"app1"}},
+			wantErr:   "failed to update databases for user analyst",
+			wantHint:  true,
+		},
+		{
+			name:      "404 does not fall back",
+			username:  "analyst",
+			all:       true,
+			publicErr: wrappedNotFound(),
+			wantReq:   &flaps.SetManagedPostgresUserDatabasesRequest{},
+			wantErr:   "failed to update databases for user analyst",
+		},
+		{
+			name:      "refusal is not ambiguous",
+			username:  "app_user",
+			databases: []string{"app1"},
+			yes:       true,
+			publicErr: &flaps.FlapsError{ResponseStatusCode: 400, OriginalError: errors.New(`user "app_user" isn't a custom user`)},
+			wantReq:   &flaps.SetManagedPostgresUserDatabasesRequest{DatabasesLimited: true, Databases: []string{"app1"}},
+			wantErr:   `isn't a custom user`,
+		},
+		{
+			name:       "server error after limiting may have applied",
+			username:   "analyst",
+			databases:  []string{"app1"},
+			yes:        true,
+			publicErr:  &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("failed to end sessions")},
+			wantReq:    &flaps.SetManagedPostgresUserDatabasesRequest{DatabasesLimited: true, Databases: []string{"app1"}},
+			wantErr:    "failed to update databases for user analyst",
+			wantStderr: []string{appliedNote, "running the command again ends them"},
+		},
+		{
+			name:       "transport error may have applied",
+			username:   "analyst",
+			all:        true,
+			publicErr:  errors.New("connection reset"),
+			wantReq:    &flaps.SetManagedPostgresUserDatabasesRequest{},
+			wantErr:    "connection reset",
+			wantStderr: []string{appliedNote},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, stderr := usersTestContext(t, false)
+			if tt.username != "" {
+				require.NoError(t, flag.SetString(ctx, "username", tt.username))
+			}
+			setDatabases(t, ctx, tt.databases...)
+			if tt.all {
+				require.NoError(t, flag.FromContext(ctx).Set("all-databases", "true"))
+			}
+			if tt.yes {
+				require.NoError(t, flag.FromContext(ctx).Set("yes", "true"))
+			}
+			var gotReq *flaps.SetManagedPostgresUserDatabasesRequest
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{SetManagedPostgresUserDatabasesFunc: func(_ context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error {
+				require.Nil(t, gotReq, "called twice")
+				require.Equal(t, "mpg-123", id)
+				require.Equal(t, tt.username, username)
+				gotReq = &req
+
+				return tt.publicErr
+			}})
+			// The users list and the postgresv2 client are never needed: a nil
+			// client panics if a fallback is attempted.
+			ctx = mpgv2.NewContextWithClient(ctx, nil)
+
+			err := RunUsersSetDatabases(ctx, "mpg-123")
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.NotContains(t, stdout.String(), "updated successfully")
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantReq, gotReq)
+			if tt.wantHint {
+				requireClusterUpdateHint(t, err)
+			}
+			for _, want := range tt.wantStdout {
+				require.Contains(t, stdout.String(), want)
+			}
+			if tt.wantStderr == nil {
+				require.Empty(t, stderr.String())
+			}
+			for _, want := range tt.wantStderr {
+				require.Contains(t, stderr.String(), want)
+			}
+			if tt.wantReq != nil && !tt.wantReq.DatabasesLimited {
+				require.NotContains(t, stderr.String(), "running the command again ends them")
+			}
 		})
 	}
 }

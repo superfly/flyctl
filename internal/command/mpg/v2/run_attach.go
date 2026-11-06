@@ -16,6 +16,15 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+// attachUserRoleOptions are the roles attach offers for a new user. custom
+// is left out: a new custom user can't read anything, so its DATABASE_URL
+// would be of no use.
+var attachUserRoleOptions = []string{
+	string(flaps.ManagedPostgresUserRoleSchemaAdmin),
+	string(flaps.ManagedPostgresUserRoleWriter),
+	string(flaps.ManagedPostgresUserRoleReader),
+}
+
 // RunAttach attaches a managed Postgres cluster to an app.
 func RunAttach(ctx context.Context, clusterID string) error {
 	var (
@@ -61,7 +70,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			// Prompt for role selection
 			var roleIndex int
-			roleOptions := managedPostgresUserRoleOptions
+			roleOptions := attachUserRoleOptions
 			err = prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptions...)
 			if err != nil {
 				return err

@@ -1106,6 +1106,20 @@ func (mr *MockFlapsClientMockRecorder) SetAppSecret(ctx, appName, name, value an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAppSecret", reflect.TypeOf((*MockFlapsClient)(nil).SetAppSecret), ctx, appName, name, value)
 }
 
+// SetManagedPostgresUserDatabases mocks base method.
+func (m *MockFlapsClient) SetManagedPostgresUserDatabases(ctx context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetManagedPostgresUserDatabases", ctx, id, username, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetManagedPostgresUserDatabases indicates an expected call of SetManagedPostgresUserDatabases.
+func (mr *MockFlapsClientMockRecorder) SetManagedPostgresUserDatabases(ctx, id, username, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetManagedPostgresUserDatabases", reflect.TypeOf((*MockFlapsClient)(nil).SetManagedPostgresUserDatabases), ctx, id, username, req)
+}
+
 // SetMetadata mocks base method.
 func (m *MockFlapsClient) SetMetadata(ctx context.Context, appName, machineID, key, value string) error {
 	m.ctrl.T.Helper()

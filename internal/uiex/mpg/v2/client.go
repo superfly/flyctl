@@ -133,7 +133,7 @@ type ListUsersResponse struct {
 
 type CreateUserWithRoleInput struct {
 	Username string `json:"username"`
-	Role     string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
+	Role     string `json:"role"` // 'schema_admin' | 'writer' | 'reader' | 'custom'
 }
 
 type CreateUserWithRoleResponse struct {
@@ -141,7 +141,7 @@ type CreateUserWithRoleResponse struct {
 }
 
 type UpdateUserRoleInput struct {
-	Role string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
+	Role string `json:"role"` // 'schema_admin' | 'writer' | 'reader' | 'custom'
 }
 
 type Region struct {

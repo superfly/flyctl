@@ -383,6 +383,10 @@ func (m *FlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id,
 	panic("TODO")
 }
 
+func (m *FlapsClient) SetManagedPostgresUserDatabases(ctx context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error {
+	panic("TODO")
+}
+
 func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
 	panic("TODO")
 }

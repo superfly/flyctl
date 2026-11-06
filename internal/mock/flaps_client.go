@@ -93,6 +93,7 @@ type FlapsClient struct {
 	UpdateAppSecretsFunc                  func(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateManagedPostgresUserRoleFunc     func(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error
 	RotateManagedPostgresUserPasswordFunc func(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error)
+	SetManagedPostgresUserDatabasesFunc   func(ctx context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error
 	UpdateVolumeFunc                      func(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	WaitFunc                              func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForAppFunc                        func(ctx context.Context, name string) error
@@ -424,6 +425,10 @@ func (m *FlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, use
 
 func (m *FlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
 	return m.RotateManagedPostgresUserPasswordFunc(ctx, id, username, req)
+}
+
+func (m *FlapsClient) SetManagedPostgresUserDatabases(ctx context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error {
+	return m.SetManagedPostgresUserDatabasesFunc(ctx, id, username, req)
 }
 
 func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {

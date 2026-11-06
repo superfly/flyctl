@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	stdio "io"
+	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -25,6 +28,122 @@ var managedPostgresUserRoleOptions = []string{
 	string(flaps.ManagedPostgresUserRoleSchemaAdmin),
 	string(flaps.ManagedPostgresUserRoleWriter),
 	string(flaps.ManagedPostgresUserRoleReader),
+	string(flaps.ManagedPostgresUserRoleCustom),
+}
+
+// roleOptionLabels labels roles for a prompt. custom says it grants nothing,
+// since that surprises people.
+func roleOptionLabels(roles []string) []string {
+	labels := make([]string, len(roles))
+	for i, role := range roles {
+		labels[i] = role
+		if role == string(flaps.ManagedPostgresUserRoleCustom) {
+			labels[i] = role + " (no access until granted with SQL)"
+		}
+	}
+
+	return labels
+}
+
+func validateUserRole(role string) error {
+	if slices.Contains(managedPostgresUserRoleOptions, role) {
+		return nil
+	}
+
+	return fmt.Errorf("invalid role %q. Must be one of: %s", role, strings.Join(managedPostgresUserRoleOptions, ", "))
+}
+
+// promptUserRole asks for a role when none was given, and checks it otherwise.
+func promptUserRole(ctx context.Context, role string) (string, error) {
+	if role != "" {
+		return role, validateUserRole(role)
+	}
+	if !iostreams.FromContext(ctx).IsInteractive() {
+		return "", prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
+	}
+
+	var roleIndex int
+	if err := prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptionLabels(managedPostgresUserRoleOptions)...); err != nil {
+		return "", err
+	}
+
+	return managedPostgresUserRoleOptions[roleIndex], nil
+}
+
+const clusterUpdateHint = "It arrives with a scheduled update in the cluster's maintenance window."
+
+// withClusterUpdateHint explains a 501: the cluster is too old for the call.
+func withClusterUpdateHint(err error) error {
+	if errors.Is(err, flaps.ErrFlapsNotImplemented) {
+		return flyerr.WithSuggestion(err, clusterUpdateHint)
+	}
+
+	return err
+}
+
+const (
+	allDatabasesOption  = "All databases, including new ones"
+	someDatabasesOption = "Only some databases"
+)
+
+// promptUserDatabases asks which databases a custom user can connect to. It
+// returns nil for every database. current is preselected.
+func promptUserDatabases(ctx context.Context, clusterID string, current []string) ([]string, error) {
+	def := allDatabasesOption
+	if len(current) > 0 {
+		def = someDatabasesOption
+	}
+
+	var choice int
+	if err := prompt.Select(ctx, &choice, "Which databases can the user connect to?", def, allDatabasesOption, someDatabasesOption); err != nil {
+		return nil, err
+	}
+	if choice == 0 {
+		return nil, nil
+	}
+
+	databases, err := listDatabasesPublicFirst(ctx, flapsutil.ClientFromContext(ctx), mpgv2.ClientFromContext(ctx), clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list databases: %w", err)
+	}
+	if len(databases) == 0 {
+		return nil, fmt.Errorf("no databases found in cluster %s", clusterID)
+	}
+
+	names := make([]string, 0, len(databases))
+	var preselected []int
+	for i, database := range databases {
+		names = append(names, database.Name)
+		if slices.Contains(current, database.Name) {
+			preselected = append(preselected, i)
+		}
+	}
+
+	var picked []int
+	if err := prompt.MultiSelect(ctx, &picked, "Select databases:", preselected, names...); err != nil {
+		return nil, err
+	}
+	if len(picked) == 0 {
+		return nil, errors.New("select at least one database")
+	}
+
+	selected := make([]string, 0, len(picked))
+	for _, i := range picked {
+		selected = append(selected, names[i])
+	}
+
+	return selected, nil
+}
+
+// databasesFlag returns --database, or nil when it isn't given. The API
+// rejects an empty list, so nil is what means every database.
+func databasesFlag(ctx context.Context) []string {
+	databases := flag.GetStringArray(ctx, "database")
+	if len(databases) == 0 {
+		return nil
+	}
+
+	return databases
 }
 
 // publicUserToLegacy converts the public response to the legacy output shape.
@@ -158,38 +277,34 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 		}
 	}
 
-	role := flag.GetString(ctx, "role")
-	validRoles := map[string]bool{
-		string(flaps.ManagedPostgresUserRoleSchemaAdmin): true,
-		string(flaps.ManagedPostgresUserRoleWriter):      true,
-		string(flaps.ManagedPostgresUserRoleReader):      true,
+	role, err := promptUserRole(ctx, flag.GetString(ctx, "role"))
+	if err != nil {
+		return err
 	}
 
-	if role == "" {
-		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
-			return prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
-		}
-		// Prompt for role selection
-		var roleIndex int
-		err := prompt.Select(ctx, &roleIndex, "Select user role:", "", managedPostgresUserRoleOptions...)
-		if err != nil {
+	isCustom := role == string(flaps.ManagedPostgresUserRoleCustom)
+	databases := databasesFlag(ctx)
+	if databases != nil && !isCustom {
+		return errors.New("--database needs --role custom: only custom users can be limited to databases")
+	}
+	if isCustom && databases == nil && iostreams.FromContext(ctx).IsInteractive() {
+		if databases, err = promptUserDatabases(ctx, clusterID, nil); err != nil {
 			return err
 		}
-		role = managedPostgresUserRoleOptions[roleIndex]
-	} else if !validRoles[role] {
-		return fmt.Errorf("invalid role %q. Must be one of: %s, %s, %s", role, flaps.ManagedPostgresUserRoleSchemaAdmin, flaps.ManagedPostgresUserRoleWriter, flaps.ManagedPostgresUserRoleReader)
 	}
 
 	fmt.Fprintf(out, "Creating user %s with role %s in cluster %s...\n", username, role, clusterID)
 
 	input := flaps.CreateManagedPostgresUserRequest{
-		Username: username,
-		Role:     role,
+		Username:  username,
+		Role:      role,
+		Databases: databases,
 	}
 
 	response, err := flapsClient.CreateManagedPostgresUser(ctx, clusterID, input)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	// postgresv2 is only a fallback for users with every database: a server
+	// that drops the list there would create an unlimited user.
+	if errors.Is(err, flaps.ErrFlapsNotFound) && databases == nil {
 		legacyInput := mpgv2.CreateUserWithRoleInput{Username: input.Username, Role: input.Role}
 		legacyResponse, legacyErr := mpgv2.ClientFromContext(ctx).CreateUserWithRole(ctx, clusterID, legacyInput)
 		if legacyErr != nil {
@@ -200,12 +315,16 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 			Role:     flaps.ManagedPostgresUserRole(legacyResponse.Data.Role),
 		}
 	} else if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+		return fmt.Errorf("failed to create user: %w", withClusterUpdateHint(err))
 	}
 
 	fmt.Fprintf(out, "User created successfully!\n")
 	fmt.Fprintf(out, "  Name: %s\n", response.Username)
 	fmt.Fprintf(out, "  Role: %s\n", string(response.Role))
+	fmt.Fprintf(out, "  Databases: %s\n", userDatabasesCell(response.DatabasesLimited, response.Databases, string(response.Role)))
+	if isCustom {
+		fmt.Fprintln(out, "custom users can't read or write anything until an admin user grants access with SQL.")
+	}
 
 	return nil
 }
@@ -246,27 +365,9 @@ func RunUsersSetRole(ctx context.Context, clusterID string) error {
 		username = users[userIndex].Name
 	}
 
-	role := flag.GetString(ctx, "role")
-	validRoles := map[string]bool{
-		string(flaps.ManagedPostgresUserRoleSchemaAdmin): true,
-		string(flaps.ManagedPostgresUserRoleWriter):      true,
-		string(flaps.ManagedPostgresUserRoleReader):      true,
-	}
-
-	if role == "" {
-		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
-			return prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
-		}
-		// Prompt for role selection
-		var roleIndex int
-		err := prompt.Select(ctx, &roleIndex, "Select user role:", "", managedPostgresUserRoleOptions...)
-		if err != nil {
-			return err
-		}
-		role = managedPostgresUserRoleOptions[roleIndex]
-	} else if !validRoles[role] {
-		return fmt.Errorf("invalid role %q. Must be one of: %s, %s, %s", role, flaps.ManagedPostgresUserRoleSchemaAdmin, flaps.ManagedPostgresUserRoleWriter, flaps.ManagedPostgresUserRoleReader)
+	role, err := promptUserRole(ctx, flag.GetString(ctx, "role"))
+	if err != nil {
+		return err
 	}
 
 	fmt.Fprintf(out, "Updating user %s role to %s in cluster %s...\n", username, role, clusterID)
@@ -275,17 +376,169 @@ func RunUsersSetRole(ctx context.Context, clusterID string) error {
 		Role: role,
 	}
 
-	err := flapsClient.UpdateManagedPostgresUserRole(ctx, clusterID, username, input)
+	err = flapsClient.UpdateManagedPostgresUserRole(ctx, clusterID, username, input)
 	if errors.Is(err, flaps.ErrFlapsNotFound) {
 		err = mpgv2.ClientFromContext(ctx).UpdateUserRole(ctx, clusterID, username, mpgv2.UpdateUserRoleInput(input))
 	}
 	if err != nil {
-		return fmt.Errorf("failed to update user role: %w", err)
+		return fmt.Errorf("failed to update user role: %w", withClusterUpdateHint(err))
 	}
 
 	fmt.Fprintf(out, "User role updated successfully!\n")
 	fmt.Fprintf(out, "  Name: %s\n", username)
 	fmt.Fprintf(out, "  Role: %s\n", role)
+
+	return nil
+}
+
+// userDatabasesLabel describes a user's databases in a picker.
+func userDatabasesLabel(user mpgv2.User) string {
+	switch {
+	case !user.DatabasesLimited:
+		return "all databases"
+	case len(user.Databases) == 0:
+		return "no databases"
+	default:
+		return strings.Join(user.Databases, ", ")
+	}
+}
+
+// selectCustomUser asks for one of the cluster's custom users, the only ones
+// that can be limited to databases.
+func selectCustomUser(ctx context.Context, clusterID string) (mpgv2.User, error) {
+	users, err := listUsers(ctx, clusterID)
+	if err != nil {
+		return mpgv2.User{}, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	var customUsers []mpgv2.User
+	var options []string
+	for _, user := range users {
+		if user.Role != string(flaps.ManagedPostgresUserRoleCustom) {
+			continue
+		}
+		customUsers = append(customUsers, user)
+		options = append(options, fmt.Sprintf("%s [%s]", user.Name, userDatabasesLabel(user)))
+	}
+	if len(customUsers) == 0 {
+		return mpgv2.User{}, fmt.Errorf("no custom users in cluster %s; create one with fly mpg users create --role custom", clusterID)
+	}
+
+	var index int
+	if err := prompt.Select(ctx, &index, "Select user:", "", options...); err != nil {
+		return mpgv2.User{}, err
+	}
+
+	return customUsers[index], nil
+}
+
+// currentUserDatabases returns the databases a limited user can reach, to
+// preselect them in the prompt.
+func currentUserDatabases(ctx context.Context, clusterID, username string) ([]string, error) {
+	users, err := listUsers(ctx, clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	for _, user := range users {
+		if user.Name == username && user.DatabasesLimited {
+			return user.Databases, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// setDatabasesMayHaveApplied reports whether a failed set-databases call may
+// still have changed the user. The server applies the change before it ends
+// the user's sessions, so a server error can come after the change.
+func setDatabasesMayHaveApplied(err error) bool {
+	var flapsErr *flaps.FlapsError
+	if !errors.As(err, &flapsErr) {
+		return true
+	}
+
+	return flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode != http.StatusNotImplemented
+}
+
+// RunUsersSetDatabases limits a custom user to some databases, or gives it
+// every database. It calls the Machines API only.
+func RunUsersSetDatabases(ctx context.Context, clusterID string) error {
+	io := iostreams.FromContext(ctx)
+	out := io.Out
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	databases := databasesFlag(ctx)
+	allDatabases := flag.GetBool(ctx, "all-databases")
+	if databases != nil && allDatabases {
+		return errors.New("use either --database or --all-databases")
+	}
+	if databases == nil && !allDatabases && !io.IsInteractive() {
+		return prompt.NonInteractiveError("--database or --all-databases must be specified when not running interactively")
+	}
+
+	username := flag.GetString(ctx, "username")
+	var current []string
+	if username == "" {
+		if !io.IsInteractive() {
+			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
+		}
+		user, err := selectCustomUser(ctx, clusterID)
+		if err != nil {
+			return err
+		}
+		username = user.Name
+		if user.DatabasesLimited {
+			current = user.Databases
+		}
+	} else if databases == nil && !allDatabases {
+		var err error
+		if current, err = currentUserDatabases(ctx, clusterID, username); err != nil {
+			return err
+		}
+	}
+
+	if databases == nil && !allDatabases {
+		var err error
+		if databases, err = promptUserDatabases(ctx, clusterID, current); err != nil {
+			return err
+		}
+	}
+
+	req := flaps.SetManagedPostgresUserDatabasesRequest{
+		DatabasesLimited: databases != nil,
+		Databases:        databases,
+	}
+
+	// Only limiting ends sessions, so only limiting asks first.
+	if req.DatabasesLimited && !flag.GetYes(ctx) {
+		switch confirmed, err := prompt.Confirmf(ctx, "Limit %s to %s in cluster %s? Its sessions in other databases will be ended.", username, strings.Join(databases, ", "), clusterID); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	fmt.Fprintf(out, "Updating databases for user %s in cluster %s...\n", username, clusterID)
+
+	if err := flapsClient.SetManagedPostgresUserDatabases(ctx, clusterID, username, req); err != nil {
+		if setDatabasesMayHaveApplied(err) {
+			fmt.Fprintln(io.ErrOut, "Note: the change may already be in place. It is safe to run the same command again.")
+			if req.DatabasesLimited {
+				fmt.Fprintln(io.ErrOut, "Sessions in other databases may still be open; running the command again ends them.")
+			}
+		}
+
+		return fmt.Errorf("failed to update databases for user %s: %w", username, withClusterUpdateHint(err))
+	}
+
+	fmt.Fprintf(out, "User databases updated successfully!\n")
+	fmt.Fprintf(out, "  Name: %s\n", username)
+	fmt.Fprintf(out, "  Databases: %s\n", userDatabasesCell(req.DatabasesLimited, req.Databases, string(flaps.ManagedPostgresUserRoleCustom)))
 
 	return nil
 }
