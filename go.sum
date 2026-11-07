@@ -636,8 +636,6 @@ github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
 github.com/superfly/client-signals/go v0.5.0 h1:BHsCmQomDIliEehaWPqtJ9QHY41BO+yAMPs5g+ydqkY=
 github.com/superfly/client-signals/go v0.5.0/go.mod h1:FTpkC1/boj2Lez8w98k9Zs9ihtvz8a1VeGXDtaq7asY=
-github.com/superfly/fly-go v0.11.8 h1:Bguz5ghKdHzhOC67s/ODCz8HqpagDmTDgJMMol34xxo=
-github.com/superfly/fly-go v0.11.8/go.mod h1:jOFnHC0C9W1hx+vUBCEDy+k2rktSVNCZaPuGpR+YaGw=
 github.com/superfly/fly-go v0.11.10-0.20261106165702-6306ad33aaff h1:H6/RJjxV4nR8mCnkMKYwXI2iq2ucpYc3rQv/zN6lB8o=
 github.com/superfly/fly-go v0.11.10-0.20261106165702-6306ad33aaff/go.mod h1:jOFnHC0C9W1hx+vUBCEDy+k2rktSVNCZaPuGpR+YaGw=
 github.com/superfly/graphql v0.2.6 h1:zppbodNerWecoXEdjkhrqaNaSjGqobhXNlViHFuZzb4=
