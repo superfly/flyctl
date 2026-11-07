@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
@@ -83,6 +84,67 @@ func TestMachineWaitRefetch(t *testing.T) {
 			}
 			require.Equal(t, 2, getCalls)
 			require.Equal(t, 1, waitCalls)
+		})
+	}
+}
+
+func TestMachineWaitCompletionAndDeadlines(t *testing.T) {
+	terminalErr := errors.New("permission denied")
+	for _, tc := range []struct {
+		name    string
+		waitErr error
+		getSlow bool
+		cancel  bool
+		wantErr string
+	}{
+		{name: "already stopped"},
+		{name: "terminal wait error", waitErr: terminalErr, wantErr: "permission denied"},
+		{name: "deadline before next attempt", waitErr: errors.New("connection reset by peer"), wantErr: "did not reach \"stopped\" within 1s"},
+		{name: "deadline during refetch", waitErr: errors.New("connection reset by peer"), getSlow: true, wantErr: "did not reach \"stopped\" within 1s"},
+		{name: "cancel during retry", waitErr: errors.New("connection reset by peer"), cancel: true, wantErr: "context canceled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			getCalls := 0
+			client := &mock.FlapsClient{
+				GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+					getCalls++
+					if getCalls > 1 {
+						if tc.getSlow {
+							time.Sleep(time.Second + 10*time.Millisecond)
+						}
+						if tc.cancel {
+							cancel()
+						}
+					}
+
+					return &fly.Machine{ID: "machine-1"}, nil
+				},
+				WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error { return tc.waitErr },
+			}
+			cmd := newWait()
+			require.NoError(t, cmd.Flags().Parse([]string{"--state=stopped", "--wait-timeout=1s", "machine-1"}))
+			ios, _, out, _ := iostreams.Test()
+			ctx = iostreams.NewContext(ctx, ios)
+			ctx = flag.NewContext(ctx, cmd.Flags())
+			ctx = appconfig.WithName(ctx, "test-app")
+			ctx = flapsutil.NewContextWithClient(ctx, client)
+
+			err := runMachineWait(ctx)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				require.Contains(t, out.String(), "Machine machine-1 reached state \"stopped\"")
+			} else {
+				require.ErrorContains(t, err, tc.wantErr)
+			}
+			if tc.waitErr == terminalErr {
+				require.ErrorIs(t, err, terminalErr)
+				require.Equal(t, 1, getCalls)
+			}
+			if tc.cancel {
+				require.ErrorIs(t, err, context.Canceled)
+			}
 		})
 	}
 }
