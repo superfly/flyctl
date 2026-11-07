@@ -163,9 +163,10 @@ func writeFiles(t *testing.T, dir string, files map[string]string) {
 	}
 }
 
-// Source trees for the scanners that only read files. Rails, Phoenix,
-// Laravel and the JavaScript frameworks run their toolchains while
-// scanning, so they are covered in the scanner package instead.
+// Source trees for scanners that work without a toolchain installed. Django
+// asks python3 for its version but falls back to 3.12 without one, and none
+// of these assertions depend on the version. Rails, Phoenix, Laravel and the
+// JavaScript frameworks need theirs while scanning, so they aren't here.
 var (
 	goApp = map[string]string{
 		"go.mod":  "module example.com/app\n\ngo 1.22\n",
