@@ -116,9 +116,9 @@ func TestConfigurePythonWithoutDependencies(t *testing.T) {
 				}
 				assert.Contains(t, dockerfile, "poetry install", "installs from poetry.lock")
 			}
-    })
-  }
-}         
+		})
+	}
+}
 
 func TestConfigurePythonFallbackProcfile(t *testing.T) {
 	tests := []struct {
