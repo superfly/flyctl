@@ -822,3 +822,26 @@ func TestLoadYAMLAppConfigWithQuotedKeys(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"1": "one", "true": "yes"}, raw["env"])
 }
+
+func TestNormalizeNestedYAMLMaps(t *testing.T) {
+	input := map[any]any{
+		"items": []any{map[any]any{"name": "worker", "enabled": true}},
+		"empty": map[any]any{},
+	}
+	got, err := stringifyYAMLMapKeys(input)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"items": []any{map[string]any{"name": "worker", "enabled": true}},
+		"empty": map[string]any{},
+	}, got)
+
+	for _, input := range []any{
+		map[any]any{"nested": map[any]any{1: "invalid"}},
+		map[string]any{"nested": map[any]any{true: "invalid"}},
+		[]any{map[any]any{nil: "invalid"}},
+	} {
+		got, err := stringifyYAMLMapKeys(input)
+		require.ErrorContains(t, err, "keys must be strings")
+		assert.Nil(t, got)
+	}
+}
