@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +17,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"golang.org/x/time/rate"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -48,8 +48,11 @@ type WsWgProxy struct {
 	lock         sync.RWMutex
 	wrlock       sync.Mutex
 	atime        time.Time
-	reset        chan bool
-	limit        *rate.Limiter
+	reset        chan net.Conn
+
+	// replaced is closed when Connect installs a new connection, waking
+	// every relay waiting on errors from the previous connection.
+	replaced chan struct{}
 
 	// token-authenticated mode: instead of the legacy magic, each
 	// (re-)connection authenticates with a macaroon and the gateway
@@ -72,6 +75,24 @@ type WsWgProxy struct {
 	// into the proxy.
 	onReprovision func(*TokenProvision)
 	onFatal       func(error)
+
+	// refreshReplies carries the gateway's answers to in-band refreshes
+	// from the relay loop to the reconnect loop that sent them.
+	refreshReplies chan refreshReply
+}
+
+// refreshReply is a gateway's answer to an in-band refresh, with the
+// connection it arrived on.
+type refreshReply struct {
+	conn net.Conn
+	res  tokenResult
+}
+
+// pendingRefresh is an in-band refresh awaiting its answer.
+type pendingRefresh struct {
+	conn  net.Conn
+	token string
+	sent  time.Time
 }
 
 var (
@@ -94,9 +115,10 @@ var (
 
 // dialWebsocket dials the gateway's wswg endpoint and wraps it as a
 // net.Conn bound to lifetimeCtx. A non-empty authorization goes out as the
-// upgrade request's Authorization header. A variable so tests can point it
-// at a plain-text local server.
-var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
+// upgrade request's Authorization header. A non-empty serverName is the name
+// TLS verifies the gateway's certificate against, for when endpoint is an IP.
+// A variable so tests can point it at a plain-text local server.
+var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint, serverName string, verifyTLS bool, authorization string) (net.Conn, error) {
 	rurl := websocketURL(endpoint)
 
 	log.Printf("(re-)connecting to %s", rurl)
@@ -117,6 +139,7 @@ var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, 
 				// hostname and we hand them a macaroon, so verify those.
 				TLSClientConfig: &tls.Config{ // skipcq: GO-S1020
 					InsecureSkipVerify: !verifyTLS, // skipcq: GSC-G402
+					ServerName:         serverName,
 				},
 			},
 		},
@@ -162,8 +185,10 @@ func NewWsWgProxy() (*WsWgProxy, error) {
 	return &WsWgProxy{
 		atime:    time.Now(),
 		plugConn: l,
-		reset:    make(chan bool),
-		limit:    rate.NewLimiter(rate.Every(5*time.Second), 2),
+		reset:    make(chan net.Conn),
+		replaced: make(chan struct{}),
+
+		refreshReplies: make(chan refreshReply, 1),
 	}, nil
 }
 
@@ -184,20 +209,26 @@ func (wswg *WsWgProxy) lastIo() time.Duration {
 func (wswg *WsWgProxy) resetConn(ctx context.Context, c net.Conn, err error) {
 	wswg.lock.RLock()
 	cur := wswg.wsConn
+	replaced := wswg.replaced
 	wswg.lock.RUnlock()
 
 	if cur != c || ctx.Err() != nil {
 		return
 	}
 
-	if err := wswg.limit.Wait(ctx); err != nil {
+	select {
+	case wswg.reset <- c:
+		log.Printf("resetting connection due to error: %s", err)
+	case <-replaced:
+		return
+	case <-ctx.Done():
 		return
 	}
 
-	log.Printf("resetting connection due to error: %s", err)
-
+	// The connection owner paces and retries reconnects. Do not spin on
+	// the failed socket or delay use of its replacement with a relay timer.
 	select {
-	case wswg.reset <- true:
+	case <-replaced:
 	case <-ctx.Done():
 	}
 }
@@ -215,6 +246,57 @@ func (wswg *WsWgProxy) Port() (int, error) {
 }
 
 func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint string) error {
+	return wswg.connect(dialCtx, lifetimeCtx, endpoint, "")
+}
+
+// directDialTimeout bounds a reconnect to the gateway's direct IP, so a
+// gateway that's gone doesn't hold up the fallback to the anycast endpoint.
+var directDialTimeout = 10 * time.Second
+
+// reconnect re-establishes the websocket after a drop. A token gateway that
+// gave us its direct IP is tried there first: the anycast endpoint may land
+// us on another gateway, which allocates a new peer address and so breaks
+// every connection through the tunnel. If the direct IP doesn't work, fall
+// back to the anycast endpoint and accept whatever gateway it picks.
+func (wswg *WsWgProxy) reconnect(ctx context.Context, endpoint string) error {
+	if wswg.prov != nil && wswg.prov.Direct != "" {
+		direct := net.JoinHostPort(wswg.prov.Direct, "443")
+
+		// TLS verifies the gateway's name, not the IP we dial
+		serverName := endpoint
+		if host, _, err := net.SplitHostPort(endpoint); err == nil {
+			serverName = host
+		}
+
+		log.Printf("reconnecting to gateway directly at %s (tls name %s)", direct, serverName)
+
+		dialCtx, cancel := context.WithTimeout(ctx, directDialTimeout)
+		err := wswg.connect(dialCtx, ctx, direct, serverName)
+		cancel()
+
+		if err == nil {
+			log.Printf("reconnected to gateway directly at %s", direct)
+
+			return nil
+		}
+
+		// a gateway that rejected our token won't take it via anycast either
+		if permanentTokenFailure(err) {
+			return err
+		}
+
+		log.Printf("reconnect to gateway at %s failed (%s); falling back to %s", direct, err, endpoint)
+	}
+
+	log.Printf("reconnecting to gateway via %s", endpoint)
+
+	return wswg.connect(ctx, ctx, endpoint, "")
+}
+
+// connect dials endpoint and performs the token exchange (or legacy magic),
+// installing the result as the current connection. serverName, if set, is
+// what TLS verifies the gateway's certificate against.
+func (wswg *WsWgProxy) connect(dialCtx, lifetimeCtx context.Context, endpoint, serverName string) error {
 	// one token per connection attempt: the same one goes in the upgrade
 	// request's Authorization header and the auth packet
 	token := wswg.auth.currentToken()
@@ -226,7 +308,7 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 		return fmt.Errorf("token exchange: %w", ErrNoToken)
 	}
 
-	wsConn, err := dialWebsocket(dialCtx, lifetimeCtx, endpoint, wswg.auth != nil, token)
+	wsConn, err := dialWebsocket(dialCtx, lifetimeCtx, endpoint, serverName, wswg.auth != nil, token)
 	if err != nil {
 		return err
 	}
@@ -250,12 +332,14 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 			// own key and allocated us a fresh address. Frames from the new
 			// peer must not be relayed to the old device, which the owner is
 			// about to replace.
-			log.Printf("gateway re-provisioned our peer (%s -> %s)", wswg.prov.PeerIP, prov.PeerIP)
+			log.Printf("gateway re-provisioned our peer (%s -> %s, direct %q)", wswg.prov.PeerIP, prov.PeerIP, prov.Direct)
 
 			reprovisioned = prov
 			wswg.lastPlugAddr = nil
 		} else if wswg.prov != nil {
-			log.Printf("gateway session re-authenticated: peer %s, expires %s", prov.PeerIP, prov.ExpiresAt.Format(time.RFC3339))
+			log.Printf("gateway session re-authenticated: peer %s, direct %q, expires %s", prov.PeerIP, prov.Direct, prov.ExpiresAt.Format(time.RFC3339))
+		} else {
+			log.Printf("gateway provisioned peer %s, direct %q, expires %s", prov.PeerIP, prov.Direct, prov.ExpiresAt.Format(time.RFC3339))
 		}
 		wswg.prov = prov
 		wswg.scheduleRefresh(prov)
@@ -274,6 +358,8 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 		_ = wswg.wsConn.Close()
 	}
 	wswg.wsConn = wsConn
+	close(wswg.replaced)
+	wswg.replaced = make(chan struct{})
 
 	if reprovisioned != nil && wswg.onReprovision != nil {
 		wswg.onReprovision(reprovisioned)
@@ -341,6 +427,78 @@ func (wswg *WsWgProxy) setCallbacks(onReprovision func(*TokenProvision), onFatal
 	wswg.onFatal = onFatal
 }
 
+// sendRefresh presents token on the current connection, returning what to
+// match the gateway's answer against.
+func (wswg *WsWgProxy) sendRefresh(token string) (pendingRefresh, error) {
+	frame, err := jsonFrame(&tokenRefresh{Version: tokenProtoVersion, Type: "refresh", Token: token})
+	if err != nil {
+		return pendingRefresh{}, err
+	}
+
+	wswg.lock.RLock()
+	c := wswg.wsConn
+	wswg.lock.RUnlock()
+
+	if err := wswg.wsWrite(c, frame); err != nil {
+		return pendingRefresh{}, err
+	}
+
+	return pendingRefresh{conn: c, token: token, sent: time.Now()}, nil
+}
+
+// controlFrame hands a control packet from the gateway to the reconnect
+// loop. Once a session is up, the only ones a gateway sends are answers to
+// in-band refreshes.
+func (wswg *WsWgProxy) controlFrame(c net.Conn, pkt []byte) {
+	var res tokenResult
+	if err := json.Unmarshal(pkt, &res); err != nil {
+		log.Printf("ignoring malformed control packet from gateway: %s", err)
+
+		return
+	}
+
+	select {
+	case wswg.refreshReplies <- refreshReply{conn: c, res: res}:
+	default:
+		log.Printf("ignoring unexpected %q control packet from gateway", res.Type)
+	}
+}
+
+// refreshAnswered applies the gateway's answer to an in-band refresh. It
+// returns true when the answer calls for a reconnect.
+func (wswg *WsWgProxy) refreshAnswered(token string, res tokenResult) (reconnect bool) {
+	wswg.lock.Lock()
+	defer wswg.lock.Unlock()
+
+	if res.Type == "refreshed" {
+		prov := *wswg.prov
+		prov.ExpiresAt = time.Unix(res.ExpiresAt, 0)
+		prov.token = token
+		wswg.prov = &prov
+		wswg.scheduleRefresh(&prov)
+
+		log.Printf("gateway session refreshed in band: peer %s, expires %s", prov.PeerIP, prov.ExpiresAt.Format(time.RFC3339))
+
+		return false
+	}
+
+	gwErr := &GatewayError{Code: res.Code, Message: res.Error}
+	if res.Type == "error" && gwErr.Permanent() {
+		// a full exchange gets the definitive verdict, and kills the tunnel
+		// if it stands
+		log.Printf("in-band refresh rejected (%s); reconnecting", gwErr)
+
+		return true
+	}
+
+	// the session is still good until it expires: try again in band
+	// rather than risk landing on another gateway
+	log.Printf("in-band refresh failed (%s %s: %s); retrying", res.Type, res.Code, res.Error)
+	wswg.scheduleRefresh(wswg.prov)
+
+	return false
+}
+
 func isTimeout(e error) bool {
 	var err net.Error
 
@@ -372,6 +530,12 @@ func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
 		}
 
 		wswg.touch()
+
+		if wswg.auth != nil && isControlFrame(pkt) {
+			wswg.controlFrame(c, pkt)
+
+			continue
+		}
 
 		wswg.lock.RLock()
 		addr := wswg.lastPlugAddr
@@ -464,19 +628,33 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 		defer tick.Stop()
 
 		reconnectAt := time.Time{}
+		resetPending := false
+
+		var pending pendingRefresh
 
 		for {
 			select {
 			case <-tick.C:
 				now := time.Now()
 
+				if pending.conn != nil && now.Sub(pending.sent) > tokenExchangeTimeout {
+					log.Printf("no answer to in-band refresh within %s; retrying", tokenExchangeTimeout)
+
+					pending = pendingRefresh{}
+
+					wswg.lock.Lock()
+					wswg.scheduleRefresh(wswg.prov)
+					wswg.lock.Unlock()
+				}
+
 				wswg.lock.RLock()
 				refreshAt, prov := wswg.refreshAt, wswg.prov
 				wswg.lock.RUnlock()
 
-				if !refreshAt.IsZero() && refreshAt.Before(now) && reconnectAt.IsZero() {
+				if !refreshAt.IsZero() && refreshAt.Before(now) && reconnectAt.IsZero() && pending.conn == nil {
 					wswg.lock.Lock()
-					sameToken := wswg.auth.Token() == prov.token
+					token := wswg.auth.currentToken()
+					sameToken := token == prov.token
 					triedAlready := sameToken && wswg.sameTokenTriedFor.Equal(prov.ExpiresAt)
 					if triedAlready {
 						// The unchanged token already got us this expiry:
@@ -493,27 +671,54 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 					if !triedAlready {
 						log.Printf("re-presenting token to extend gateway session (expires %s)", prov.ExpiresAt.Format(time.RFC3339))
 
-						reconnectAt = now
+						if token != "" {
+							var err error
+							if pending, err = wswg.sendRefresh(token); err != nil {
+								log.Printf("in-band refresh: %s", err)
+
+								reconnectAt = now
+							}
+						} else {
+							reconnectAt = now
+						}
 					}
 				}
 
 				if !reconnectAt.IsZero() && !reconnectAt.After(now) {
+					reconnectAt = time.Time{}
+					// a new connection gets a new session; any answer to a
+					// refresh sent on the old one no longer matters
+					pending = pendingRefresh{}
+
 					wswg.lock.Lock()
 					wswg.refreshAt = time.Time{}
-					if err := wswg.Connect(lifetimeCtx, lifetimeCtx, endpoint); err != nil {
-						// After a dropped connection the relay loops keep
-						// failing on the dead conn and ask for another reset.
-						// After a failed refresh the old conn is still fine;
-						// try again before the session expires.
+					if err := wswg.reconnect(lifetimeCtx, endpoint); err != nil {
 						log.Printf("reconnect failed: %s", err)
 
+						// Failed relays wait for replacement, so the owner
+						// must retain their retry until Connect succeeds.
+						if resetPending {
+							reconnectAt = time.Now().Add(reconnectInterval)
+						}
 						if wswg.prov != nil {
 							wswg.scheduleRefresh(wswg.prov)
 						}
+					} else {
+						resetPending = false
 					}
 					wswg.lock.Unlock()
+				}
 
-					reconnectAt = time.Time{}
+			case reply := <-wswg.refreshReplies:
+				if pending.conn == nil || reply.conn != pending.conn {
+					continue // not the answer we're waiting for
+				}
+
+				token := pending.token
+				pending = pendingRefresh{}
+
+				if wswg.refreshAnswered(token, reply.res) && reconnectAt.IsZero() {
+					reconnectAt = time.Now()
 				}
 
 			case <-lifetimeCtx.Done():
@@ -524,7 +729,16 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 					reconnectAt = time.Now().Add(reconnectInterval)
 				}
 
-			case <-wswg.reset:
+			case failed := <-wswg.reset:
+				// Requests can arrive after replacement even if the sender
+				// checked identity before sending. Only reset their socket.
+				wswg.lock.RLock()
+				current := wswg.wsConn
+				wswg.lock.RUnlock()
+				if failed != current {
+					continue
+				}
+				resetPending = true
 				if reconnectAt.IsZero() {
 					reconnectAt = time.Now().Add(reconnectInterval)
 				}

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
@@ -23,6 +24,32 @@ import (
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// The plan is validated when it's built and again when it's launched.
+func TestValidateHighAvailabilityWarnsOnce(t *testing.T) {
+	const warning = "turning off high availability"
+
+	for _, tc := range []struct {
+		name      string
+		billable  bool
+		wantValid bool
+		wantCount int
+	}{
+		{name: "org without a payment method", billable: false, wantValid: false, wantCount: 1},
+		{name: "billable org", billable: true, wantValid: true, wantCount: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ios, _, _, errOut := iostreams.Test()
+			ctx := iostreams.NewContext(context.Background(), ios)
+			cache := &planBuildCache{}
+			p := &plan.LaunchPlan{HighAvailability: true}
+
+			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
+			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
+			assert.Equal(t, tc.wantCount, strings.Count(errOut.String(), warning))
+		})
+	}
+}
 
 func newDetermineOrgCtx(t *testing.T, orgFlag string) context.Context {
 	t.Helper()
@@ -489,4 +516,43 @@ func TestRecoverableErrorsSummary(t *testing.T) {
 	s := long.summary()
 	assert.True(t, utf8.ValidString(s))
 	assert.LessOrEqual(t, len(s), maxSummaryLen+len("…"))
+}
+
+func TestResolveManifestRegion(t *testing.T) {
+	regionData := &flaps.RegionData{
+		Nearest: "ord",
+		Regions: []fly.Region{
+			{Code: "ord", Latitude: 41.9, Longitude: -87.6},
+			{Code: "sin", Latitude: 1.3, Longitude: 103.8},
+			{Code: "fra", Latitude: 50.1, Longitude: 8.7},
+			{Code: "bom", Latitude: 19.1, Longitude: 72.9, Deprecated: true},
+			{Code: "xyz", Latitude: 49.0, Longitude: 2.5, Deprecated: true},
+		},
+	}
+	ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) { return regionData, nil },
+	})
+
+	for _, tc := range []struct{ in, want string }{
+		{"any", "ord"},
+		{"", "ord"},
+		{" ANY ", "ord"},
+		{"fra", "fra"},
+		{"qro", "dfw"}, // retired, with a known replacement
+		{"bom", "sin"}, // retired, closest open region
+		{"xyz", "fra"},
+	} {
+		t.Run(tc.in, func(t *testing.T) {
+			p := &plan.LaunchPlan{RegionCode: tc.in}
+			require.NoError(t, resolveManifestRegion(ctx, p))
+			assert.Equal(t, tc.want, p.RegionCode)
+		})
+	}
+
+	t.Run("unknown region", func(t *testing.T) {
+		p := &plan.LaunchPlan{RegionCode: "nope"}
+		err := resolveManifestRegion(ctx, p)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fly platform regions")
+	})
 }
