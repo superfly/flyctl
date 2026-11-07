@@ -28,8 +28,9 @@ remote exit code and captured stdout and stderr. Empty JSON fields are omitted;
 an absent exit_code means 0. Otherwise, remote stdout and stderr are written
 to the corresponding local streams.
 
-If the remote command exits with a non-zero status, flyctl exits with an error
-after printing its output, including when --json is used.`
+A non-zero remote exit status is printed as "Exit code: N" before the command
+output in text mode, or included in the JSON response. It does not make flyctl
+exit with an error; check the remote exit status explicitly in automation.`
 		usage = "exec [machine-id] <command>"
 	)
 
@@ -114,32 +115,20 @@ func runMachineExec(ctx context.Context) (err error) {
 		return fmt.Errorf("could not exec command on machine %s: %w", current.ID, err)
 	}
 
-	var outputErr error
 	if config.JSONOutput {
-		if err := render.JSON(io.Out, out); err != nil {
-			outputErr = fmt.Errorf("failed writing command JSON response: %w", err)
-		}
-	} else {
-		var stdoutErr, stderrErr error
-		if out.StdOut != "" {
-			if _, err := fmt.Fprint(io.Out, out.StdOut); err != nil {
-				stdoutErr = fmt.Errorf("failed writing command stdout: %w", err)
-			}
-		}
-		if out.StdErr != "" {
-			if _, err := fmt.Fprint(io.ErrOut, out.StdErr); err != nil {
-				stderrErr = fmt.Errorf("failed writing command stderr: %w", err)
-			}
-		}
-		outputErr = errors.Join(stdoutErr, stderrErr)
+		return render.JSON(io.Out, out)
 	}
 
 	if out.ExitCode != 0 {
-		return errors.Join(fmt.Errorf("command on machine %s exited with status %d", current.ID, out.ExitCode), outputErr)
-	}
-	if outputErr != nil {
-		return fmt.Errorf("command on machine %s completed successfully, but its output could not be written: %w", current.ID, outputErr)
+		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
 	}
 
-	return nil
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
+	return
 }

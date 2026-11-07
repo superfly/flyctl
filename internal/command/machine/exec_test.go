@@ -20,7 +20,7 @@ type execOutputErrorWriter struct{ err error }
 
 func (w execOutputErrorWriter) Write([]byte) (int, error) { return 0, w.err }
 
-func TestMachineExecReportsOutputFailures(t *testing.T) {
+func TestMachineExecPreservesLegacyOutputFailureBehavior(t *testing.T) {
 	for _, jsonOutput := range []bool{false, true} {
 		for _, exitCode := range []int32{0, 42} {
 			for _, stream := range []string{"stdout", "stderr"} {
@@ -46,17 +46,20 @@ func TestMachineExecReportsOutputFailures(t *testing.T) {
 					}})
 
 					err := runMachineExec(ctx)
-					require.ErrorIs(t, err, writeErr)
-					if exitCode != 0 {
-						require.ErrorContains(t, err, "exited with status 42")
+					if jsonOutput {
+						require.ErrorIs(t, err, writeErr)
 					} else {
-						require.ErrorContains(t, err, "completed successfully")
+						require.NoError(t, err, "text-mode write errors must retain their existing behavior")
 					}
 					if !jsonOutput {
 						if stream == "stdout" {
 							require.Equal(t, "diagnostic\n", stderr.String())
 						} else {
-							require.Equal(t, "output\n", stdout.String())
+							want := "output\n"
+							if exitCode != 0 {
+								want = "Exit code: 42\n" + want
+							}
+							require.Equal(t, want, stdout.String())
 						}
 					}
 				})
@@ -78,7 +81,7 @@ func (c execTestClient) Exec(context.Context, string, string, *fly.MachineExecRe
 	return c.response, nil
 }
 
-func TestMachineExecReportsRemoteFailure(t *testing.T) {
+func TestMachineExecPreservesLegacyRemoteStatusBehavior(t *testing.T) {
 	for _, jsonOutput := range []bool{false, true} {
 		for _, exitCode := range []int32{0, 42} {
 			t.Run(fmt.Sprintf("json=%t/exit=%d", jsonOutput, exitCode), func(t *testing.T) {
@@ -93,18 +96,18 @@ func TestMachineExecReportsRemoteFailure(t *testing.T) {
 				ctx = flapsutil.NewContextWithClient(ctx, execTestClient{response: response})
 
 				err := runMachineExec(ctx)
-				if exitCode == 0 {
-					require.NoError(t, err)
-				} else {
-					require.EqualError(t, err, "command on machine test-machine exited with status 42")
-				}
+				require.NoError(t, err, "a remote failure must not change flyctl exit status in this PR")
 				if jsonOutput {
 					var got fly.MachineExecResponse
 					require.NoError(t, json.Unmarshal(stdout.Bytes(), &got))
 					require.Equal(t, *response, got)
 					require.Empty(t, stderr.String())
 				} else {
-					require.Equal(t, response.StdOut, stdout.String())
+					want := response.StdOut
+					if exitCode != 0 {
+						want = "Exit code: 42\n" + want
+					}
+					require.Equal(t, want, stdout.String())
 					require.Equal(t, response.StdErr, stderr.String())
 				}
 			})

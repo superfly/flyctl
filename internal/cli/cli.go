@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/task"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
@@ -121,19 +120,20 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	default:
 		printError(io, cs, cmd, err)
 
-		printUsageHint(io, cmd, args, err)
+		printUsageHint(cmd, args)
 
 		return 1
 	}
 }
 
-func printUsageHint(io *iostreams.IOStreams, cmd *cobra.Command, args []string, err error) {
+func printUsageHint(cmd *cobra.Command, args []string) {
 	if cmd == nil {
 		return
 	}
 	_, _, findErr := cmd.Find(args)
-	if findErr != nil || prompt.IsNonInteractive(err) {
-		fmt.Fprintf(io.ErrOut, "Run '%s --help' for usage.\n", cmd.CommandPath())
+	if findErr != nil {
+		fmt.Printf("Run '%v --help' for usage.\n", cmd.CommandPath())
+		fmt.Println()
 	}
 }
 

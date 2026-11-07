@@ -2,15 +2,16 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/internal/flyerr"
-	"github.com/superfly/flyctl/internal/prompt"
 
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -20,13 +21,11 @@ func TestUsageRecoveryHint(t *testing.T) {
 		name    string
 		missing bool
 		args    []string
-		err     error
 		want    bool
 	}{
 		{name: "missing command", missing: true},
 		{name: "unknown command", args: []string{"unknown"}, want: true},
-		{name: "headless prompt", err: fmt.Errorf("wrapped: %w", prompt.ErrNonInteractive), want: true},
-		{name: "ordinary failure", err: errors.New("remote failure")},
+		{name: "known command", args: []string{"deploy"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := &cobra.Command{Use: "fly"}
@@ -34,12 +33,14 @@ func TestUsageRecoveryHint(t *testing.T) {
 			if tc.missing {
 				cmd = nil
 			}
-			ios, _, stdout, stderr := iostreams.Test()
-			printUsageHint(ios, cmd, tc.args, tc.err)
+			_, _, stdout, stderr := iostreams.Test()
+			output := captureProcessStdout(t, func() { printUsageHint(cmd, tc.args) })
 			require.Empty(t, stdout.String())
 			if tc.want {
-				require.Equal(t, "Run 'fly --help' for usage.\n", stderr.String())
+				require.Equal(t, "Run 'fly --help' for usage.\n\n", output)
+				require.Empty(t, stderr.String())
 			} else {
+				require.Empty(t, output)
 				require.Empty(t, stderr.String())
 			}
 		})
@@ -51,11 +52,15 @@ func TestUnknownCommandExitAndStreams(t *testing.T) {
 	t.Setenv("FLY_NO_UPDATE_CHECK", "1")
 	t.Setenv("FLY_NO_PROMPT", "1")
 	ios, _, stdout, stderr := iostreams.Test()
-	exitCode := Run(context.Background(), ios, "not-a-fly-command")
+	var exitCode int
+	output := captureProcessStdout(t, func() {
+		exitCode = Run(context.Background(), ios, "not-a-fly-command")
+	})
 	require.Equal(t, 1, exitCode)
 	require.Empty(t, stdout.String())
 	require.Contains(t, stderr.String(), "unknown command")
-	require.Contains(t, stderr.String(), "--help' for usage.")
+	require.Equal(t, fmt.Sprintf("Run '%s --help' for usage.\n\n", filepath.Base(os.Args[0])), output)
+	require.NotContains(t, stderr.String(), "--help' for usage.")
 }
 
 func TestPrintErrorKeepsRecoveryDetailsOnStderr(t *testing.T) {
@@ -83,4 +88,23 @@ func TestFlyNoPrompt(t *testing.T) {
 
 		assert.Equal(t, interactive, ios.IsInteractive(), "FLY_NO_PROMPT=%q", val)
 	}
+}
+
+// Usage hints historically use process stdout, even when IOStreams is redirected.
+func captureProcessStdout(t *testing.T, run func()) string {
+	t.Helper()
+	file, err := os.CreateTemp(t.TempDir(), "stdout")
+	require.NoError(t, err)
+	original := os.Stdout
+	os.Stdout = file
+	defer func() {
+		os.Stdout = original
+		file.Close()
+	}()
+	run()
+	_, err = file.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+	output, err := io.ReadAll(file)
+	require.NoError(t, err)
+	return string(output)
 }
