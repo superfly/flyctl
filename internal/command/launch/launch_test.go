@@ -102,6 +102,13 @@ func TestLaunchStopsBeforeDeployWhenProvisioningFails(t *testing.T) {
 		assert.ErrorContains(t, err, "regions unavailable")
 		assert.ErrorContains(t, err, "fly redis create")
 	})
+
+	t.Run("invalid secret identifies position without exposing input", func(t *testing.T) {
+		_, _, _, err := launch(t, "--secret", "VALID=private-value", "--secret", "private-invalid-secret")
+		require.ErrorContains(t, err, "--secret position 2")
+		require.NotContains(t, err.Error(), "private-value")
+		require.NotContains(t, err.Error(), "private-invalid-secret")
+	})
 }
 
 // Relaunching over a file a scanner generates (Dockerfile, fly-deploy.yml)

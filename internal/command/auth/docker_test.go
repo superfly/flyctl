@@ -40,6 +40,29 @@ func TestDockerAuthReportsFallbackFailure(t *testing.T) {
 	require.Empty(t, stdout.String())
 }
 
+func TestDockerAuthFallbackWithoutCLI(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	ios, _, stdout, _ := iostreams.Test()
+	ctx := config.NewContext(iostreams.NewContext(context.Background(), ios), newTestConfig())
+	err := runDocker(ctx)
+	if runtime.GOOS == "windows" {
+		require.ErrorContains(t, err, "cannot configure Docker authentication directly on Windows")
+		require.Empty(t, stdout.String())
+
+		return
+	}
+	require.NoError(t, err)
+	require.NotEmpty(t, stdout.String())
+	data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".docker", "config.json"))
+	require.NoError(t, err)
+	var cfg struct {
+		Auths map[string]json.RawMessage `json:"auths"`
+	}
+	require.NoError(t, json.Unmarshal(data, &cfg))
+	require.Contains(t, cfg.Auths, "registry.fly.io")
+}
+
 func newTestConfig() *config.Config {
 	return &config.Config{
 		RegistryHost: "registry.fly.io",

@@ -121,14 +121,19 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	default:
 		printError(io, cs, cmd, err)
 
-		if cmd != nil {
-			_, _, e := cmd.Find(args)
-			if e != nil || prompt.IsNonInteractive(err) {
-				fmt.Fprintf(io.ErrOut, "Run '%s --help' for usage.\n", cmd.CommandPath())
-			}
-		}
+		printUsageHint(io, cmd, args, err)
 
 		return 1
+	}
+}
+
+func printUsageHint(io *iostreams.IOStreams, cmd *cobra.Command, args []string, err error) {
+	if cmd == nil {
+		return
+	}
+	_, _, findErr := cmd.Find(args)
+	if findErr != nil || prompt.IsNonInteractive(err) {
+		fmt.Fprintf(io.ErrOut, "Run '%s --help' for usage.\n", cmd.CommandPath())
 	}
 }
 
