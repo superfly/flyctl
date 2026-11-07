@@ -39,6 +39,7 @@ func TestSelectContainer(t *testing.T) {
 		ID:     "9080e6e2f24d83",
 		Config: &fly.MachineConfig{},
 	}
+	withoutConfig := &fly.Machine{ID: "9080e6e2f24d83"}
 
 	for _, tc := range []struct {
 		name      string
@@ -82,6 +83,29 @@ func TestSelectContainer(t *testing.T) {
 			machine:   withContainers,
 			args:      []string{"--container", "nope"},
 			expectErr: "container named nope is not present in machine 3d8d9d16f14683, try running with --select to see a list",
+		},
+		{
+			name:      "missing configuration",
+			machine:   withoutConfig,
+			expectErr: "machine 9080e6e2f24d83 has no configuration; use --no-container to connect to the machine itself",
+		},
+		{
+			name:      "named container with missing configuration",
+			machine:   withoutConfig,
+			args:      []string{"--container", "app"},
+			expectErr: "machine 9080e6e2f24d83 has no configuration; use --no-container to connect to the machine itself",
+		},
+		{
+			name:    "no container with missing configuration",
+			machine: withoutConfig,
+			args:    []string{"--no-container"},
+			expect:  "",
+		},
+		{
+			name:      "conflicting container flags with missing configuration",
+			machine:   withoutConfig,
+			args:      []string{"--no-container", "--container", "app"},
+			expectErr: "--container and --no-container are mutually exclusive",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

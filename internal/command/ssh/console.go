@@ -417,7 +417,6 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 
 // selectContainer selects a container from the machine's config.
 func selectContainer(ctx context.Context, machine *fly.Machine) (container string, err error) {
-	containers := machine.Config.Containers
 	container = flag.GetString(ctx, "container")
 
 	// --no-container asks for the machine itself, so there is nothing to select.
@@ -428,6 +427,11 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 
 		return "", nil
 	}
+
+	if machine.Config == nil {
+		return "", fmt.Errorf("machine %s has no configuration; use --no-container to connect to the machine itself", machine.ID)
+	}
+	containers := machine.Config.Containers
 
 	if len(containers) == 0 {
 		if container == "" {
