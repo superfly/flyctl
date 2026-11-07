@@ -52,12 +52,19 @@ func runList(ctx context.Context) error {
 		return nil
 	}
 
-	serviceList := [][]string{}
-	serviceToRegion := map[string][]string{}
-	serviceToProcessGroup := map[string][]string{}
-	serviceToMachines := map[string]int{}
+	type serviceKey struct {
+		protocol   string
+		ports      string
+		forceHTTPS string
+		handlers   string
+	}
 
-	services := map[string]struct{}{}
+	serviceList := [][]string{}
+	serviceToRegion := map[serviceKey][]string{}
+	serviceToProcessGroup := map[serviceKey][]string{}
+	serviceToMachines := map[serviceKey]int{}
+
+	services := map[serviceKey]struct{}{}
 
 	for _, machine := range machines {
 		for _, service := range machine.Config.Services {
@@ -69,11 +76,27 @@ func runList(ctx context.Context) error {
 					handlers = append(handlers, strings.ToUpper(handler))
 				}
 
-				ports := fmt.Sprintf("%d => %d", *port.Port, service.InternalPort)
+				var externalPorts string
+				switch {
+				case port.Port != nil:
+					externalPorts = fmt.Sprint(*port.Port)
+				case port.StartPort != nil || port.EndPort != nil:
+					start, end := 0, 65535
+					if port.StartPort != nil {
+						start = *port.StartPort
+					}
+					if port.EndPort != nil {
+						end = *port.EndPort
+					}
+					externalPorts = fmt.Sprintf("%d-%d", start, end)
+				default:
+					return fmt.Errorf("machine %s has a service port without a port or range", machine.ID)
+				}
+				ports := fmt.Sprintf("%s => %d", externalPorts, service.InternalPort)
 				https := cases.Title(language.English, cases.Compact).String(fmt.Sprint(port.ForceHTTPS))
 				h := strings.Join(handlers, ",")
 
-				key := getServiceKey(protocol, ports, https, h)
+				key := serviceKey{protocol: protocol, ports: ports, forceHTTPS: https, handlers: h}
 
 				services[key] = struct{}{}
 
@@ -85,12 +108,10 @@ func runList(ctx context.Context) error {
 	}
 
 	for service := range services {
-		components := strings.Split(service, "-")
-
-		protocol := strings.ToUpper(components[0])
-		ports := strings.ToUpper(components[1])
-		https := components[2]
-		handlers := fmt.Sprintf("[%s]", strings.ToUpper(components[3]))
+		protocol := strings.ToUpper(service.protocol)
+		ports := service.ports
+		https := service.forceHTTPS
+		handlers := fmt.Sprintf("[%s]", strings.ToUpper(service.handlers))
 		processGroup := strings.Join(lo.Uniq(serviceToProcessGroup[service]), ",")
 		regions := strings.Join(lo.Uniq(serviceToRegion[service]), ",")
 		machineCount := fmt.Sprint(serviceToMachines[service])
@@ -101,8 +122,4 @@ func runList(ctx context.Context) error {
 	_ = render.Table(io.Out, "Services", serviceList, "Protocol", "Ports", "Handlers", "Force HTTPS", "Process Group", "Regions", "Machines")
 
 	return nil
-}
-
-func getServiceKey(protocol, ports, forcehttps, handlers string) string {
-	return fmt.Sprintf("%s-%s-%s-%s", protocol, ports, forcehttps, handlers)
 }

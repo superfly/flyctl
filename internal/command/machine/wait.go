@@ -70,11 +70,12 @@ func runMachineWait(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	machineID = machine.ID
 
 	appName := appconfig.NameFromContext(ctx)
 	client := flapsutil.ClientFromContext(ctx)
 
-	fmt.Fprintf(io.Out, "Waiting up to %s for machine %s to reach %q...\n", waitTimeout, machine.ID, desiredState)
+	fmt.Fprintf(io.Out, "Waiting up to %s for machine %s to reach %q...\n", waitTimeout, machineID, desiredState)
 
 	startedWaitAt := time.Now()
 	const maxAttempts = 3
@@ -84,31 +85,31 @@ func runMachineWait(ctx context.Context) error {
 		if waitTimeout > 0 {
 			remainingTimeout = waitTimeout - time.Since(startedWaitAt)
 			if remainingTimeout <= 0 {
-				return fmt.Errorf("machine %s did not reach %q within %s", machine.ID, desiredState, waitTimeout)
+				return fmt.Errorf("machine %s did not reach %q within %s", machineID, desiredState, waitTimeout)
 			}
 		}
 
-		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(remainingTimeout))
+		err = client.Wait(ctx, appName, machineID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(remainingTimeout))
 		if err == nil {
 			break
 		}
 
 		if attempt == maxAttempts || !isRetryableWaitError(err) {
-			return fmt.Errorf("machine %s did not reach %q within %s: %w", machine.ID, desiredState, waitTimeout, err)
+			return fmt.Errorf("machine %s did not reach %q within %s: %w", machineID, desiredState, waitTimeout, err)
 		}
 
-		fmt.Fprintf(io.Out, "Retrying wait for machine %s due to transient error: %v\n", machine.ID, err)
+		fmt.Fprintf(io.Out, "Retrying wait for machine %s due to transient error: %v\n", machineID, err)
 
-		machine, err = client.Get(ctx, appName, machine.ID)
+		_, err = client.Get(ctx, appName, machineID)
 		if err != nil {
-			return fmt.Errorf("machine %s could not be refetched before retrying wait: %w", machine.ID, err)
+			return fmt.Errorf("machine %s could not be refetched before retrying wait: %w", machineID, err)
 		}
 
 		retryDelay := retryDelayForAttempt(attempt)
 		if waitTimeout > 0 {
 			remainingTimeout = waitTimeout - time.Since(startedWaitAt)
 			if remainingTimeout <= 0 {
-				return fmt.Errorf("machine %s did not reach %q within %s", machine.ID, desiredState, waitTimeout)
+				return fmt.Errorf("machine %s did not reach %q within %s", machineID, desiredState, waitTimeout)
 			}
 			if retryDelay > remainingTimeout {
 				retryDelay = remainingTimeout
@@ -123,14 +124,14 @@ func runMachineWait(ctx context.Context) error {
 	}
 
 	if desiredState == "settled" {
-		machine, err = client.Get(ctx, appName, machine.ID)
+		machine, err = client.Get(ctx, appName, machineID)
 		if err != nil {
-			return fmt.Errorf("machine %s reached settled state but could not fetch final state: %w", machine.ID, err)
+			return fmt.Errorf("machine %s reached settled state but could not fetch final state: %w", machineID, err)
 		}
 		desiredState = machine.State
 	}
 
-	fmt.Fprintf(io.Out, "Machine %s reached state %q\n", machine.ID, desiredState)
+	fmt.Fprintf(io.Out, "Machine %s reached state %q\n", machineID, desiredState)
 
 	return nil
 }
