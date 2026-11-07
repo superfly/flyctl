@@ -3,6 +3,7 @@ package cmdv2
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -550,4 +551,97 @@ func TestCreateDatabasePublicFirst(t *testing.T) {
 			require.Equal(t, tt.wantLegacy, legacyCalls == 1)
 		})
 	}
+}
+
+// A user limited to databases is attached only to one of them, so the app
+// never gets a DATABASE_URL that can't connect.
+func TestRunAttach_limitedUser(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		databases []string
+		database  string
+		wantURI   string
+		wantErr   string
+	}{
+		{name: "database in its list", databases: []string{"app1", "appdb"}, database: "appdb", wantURI: "postgres://alice:alice-pass@pooler.fly.dev:5432/appdb"},
+		{name: "database outside its list", databases: []string{"app1"}, database: "appdb", wantErr: "user alice can't connect to database appdb; it is limited to app1"},
+		{name: "cluster default outside its list", databases: []string{"app1"}, wantErr: "user alice can't connect to database default_db; it is limited to app1"},
+		{name: "no databases left", wantErr: "user alice can't connect to any database; give it some with fly mpg users set-databases"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, _, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			require.NoError(t, flags.Set("username", "alice"))
+			if tt.database != "" {
+				require.NoError(t, flags.Set("database", tt.database))
+			}
+
+			attached := false
+			flapsClient := minimalAttachFlapsClient()
+			flapsClient.ListManagedPostgresUsersFunc = func(context.Context, string) ([]flaps.ManagedPostgresUser, error) {
+				return []flaps.ManagedPostgresUser{{Username: "alice", Role: flaps.ManagedPostgresUserRoleCustom, Roles: []string{}, DatabasesLimited: true, Databases: tt.databases}}, nil
+			}
+			flapsClient.CreateManagedPostgresAttachmentFunc = func(context.Context, string, flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+				attached = true
+
+				return flaps.ManagedPostgresAttachment{}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+			ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
+
+			err := RunAttach(ctx, "mpg-123")
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				require.False(t, attached)
+				require.Empty(t, stdout.String())
+
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, attached)
+			require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", tt.wantURI), stdout.String())
+		})
+	}
+}
+
+// attach -u checks the user's database limits, so a users list failure stops
+// it with the reason, and a list without limits lets it through.
+func TestRunAttach_userLimitsCheck(t *testing.T) {
+	t.Run("list failure says why", func(t *testing.T) {
+		ctx, stdout, _, flags := attachTestContext(t)
+		addAttachFlags(flags)
+		require.NoError(t, flags.Set("username", "alice"))
+		flapsClient := minimalAttachFlapsClient()
+		flapsClient.ListManagedPostgresUsersFunc = func(context.Context, string) ([]flaps.ManagedPostgresUser, error) {
+			return nil, &flaps.FlapsError{ResponseStatusCode: 503, OriginalError: errors.New("service unavailable")}
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+		ctx = mpgv2.NewContextWithClient(ctx, minimalAttachLegacyClient())
+
+		require.EqualError(t, RunAttach(ctx, "mpg-123"), "couldn't check alice's database limits: service unavailable")
+		require.Empty(t, stdout.String())
+	})
+
+	t.Run("fallback list without limits attaches", func(t *testing.T) {
+		ctx, stdout, _, flags := attachTestContext(t)
+		addAttachFlags(flags)
+		require.NoError(t, flags.Set("username", "alice"))
+		flapsClient := minimalAttachFlapsClient()
+		flapsClient.ListManagedPostgresUsersFunc = func(context.Context, string) ([]flaps.ManagedPostgresUser, error) {
+			return nil, flaps.ErrFlapsNotFound
+		}
+		legacyClient := minimalAttachLegacyClient()
+		// The body an older postgresv2 sends: no roles or database fields.
+		legacyClient.ListUsersFunc = func(context.Context, string) (mpgv2.ListUsersResponse, error) {
+			var response mpgv2.ListUsersResponse
+			require.NoError(t, json.Unmarshal([]byte(`{"data":[{"name":"alice","role":"custom"}]}`), &response))
+
+			return response, nil
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+		ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
+
+		require.NoError(t, RunAttach(ctx, "mpg-123"))
+		require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", "postgres://alice:alice-pass@pooler.fly.dev:5432/default_db"), stdout.String())
+	})
 }
