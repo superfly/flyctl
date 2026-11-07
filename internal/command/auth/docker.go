@@ -146,13 +146,12 @@ func runDocker(ctx context.Context) error {
 	binary, err := exec.LookPath("docker")
 	if err != nil {
 		// Try configuring the JSON directly.
-		if err := configureDockerJSON(cfg); err == nil {
-			printDockerAuthSuccess(streams.Out, cfg, time.Now())
-
-			return nil
+		if configErr := configureDockerJSON(cfg); configErr != nil {
+			return fmt.Errorf("Docker CLI is unavailable (%v), and configuring authentication directly failed: %w", err, configErr)
 		}
+		printDockerAuthSuccess(streams.Out, cfg, time.Now())
 
-		return fmt.Errorf("docker cli not found - make sure it's installed and try again: %w", err)
+		return nil
 	}
 
 	host := cfg.RegistryHost

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -15,8 +16,29 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon"
 )
+
+func TestDockerAuthReportsFallbackFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("direct Docker configuration is unsupported on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	dockerDir := filepath.Join(home, ".docker")
+	require.NoError(t, os.WriteFile(dockerDir, []byte("not a directory"), 0o600))
+	ios, _, stdout, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	ctx = config.NewContext(ctx, newTestConfig())
+
+	err := runDocker(ctx)
+	require.ErrorContains(t, err, "Docker CLI is unavailable")
+	require.ErrorContains(t, err, dockerDir)
+	require.ErrorContains(t, err, "not a directory")
+	require.Empty(t, stdout.String())
+}
 
 func newTestConfig() *config.Config {
 	return &config.Config{
