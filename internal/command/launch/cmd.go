@@ -319,16 +319,28 @@ func run(ctx context.Context) (err error) {
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil
+	// Problems only the Launch UI can fix, while it hasn't fixed them. The
+	// user saw them listed; launch metrics record them with the error.
+	var unresolved *recoverableErrorBuilder
 
 	if !noCreateApp(ctx) {
 		defer func() {
 			if err != nil {
 				tracing.RecordError(ctx, span, err, "launch failed")
 				status.Error = err.Error()
+				if problems := unresolved.summary(); problems != "" {
+					status.Error += ": " + problems
+				}
 
 				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
 					err = state.sourceInfo.FailureCallback(err)
 				}
+			}
+
+			// Report whatever IDs the state knows, on every exit path.
+			if state != nil {
+				status.OrgID = state.orgID
+				status.AppID = state.appID
 			}
 
 			status.TraceID = span.SpanContext().TraceID().String()
@@ -403,10 +415,20 @@ func run(ctx context.Context) (err error) {
 		normalizeLoadedManifest(ctx, launchManifest)
 	}
 
+	if launchManifest != nil && launchManifest.Plan != nil {
+		if err := resolveManifestRegion(ctx, launchManifest.Plan); err != nil {
+			return err
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := checkLaunchDir(ctx); err != nil {
 		return err
 	}
 
@@ -563,6 +585,7 @@ func run(ctx context.Context) (err error) {
 
 		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
 		incompleteLaunchManifest = true
+		unresolved = &recoverableErrors
 	}
 
 	editInUi := false
@@ -587,14 +610,13 @@ func run(ctx context.Context) (err error) {
 		}
 		// The plan may have reached the UI with a region placements rejected.
 		status.Region = state.Plan.RegionCode
+		unresolved = nil
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
 		return errors.New("launch can not continue with errors present")
 	}
 
 	err = state.Launch(ctx)
-	status.AppID = state.appID
-	status.OrgID = state.orgID
 	if err != nil {
 		return err
 	}

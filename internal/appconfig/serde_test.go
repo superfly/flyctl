@@ -521,7 +521,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 			HTTPOptions: &fly.HTTPOptions{
 				Compress:    new(true),
-				IdleTimeout: UintPointer(600),
+				IdleTimeout: new(uint32(600)),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
@@ -646,7 +646,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
 						HTTPOptions: &fly.HTTPOptions{
-							IdleTimeout: UintPointer(600),
+							IdleTimeout: new(uint32(600)),
 						},
 					},
 				},
@@ -778,9 +778,4 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\napp: foo\n")
 	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
-}
-
-//go:fix inline
-func UintPointer(v uint32) *uint32 {
-	return new(v)
 }

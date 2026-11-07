@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -99,6 +100,27 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 
 	return e
 }
+
+// summary is the problems on one line, for launch metrics: "" for none or a
+// nil builder, and cut short past maxSummaryLen.
+func (r *recoverableErrorBuilder) summary() string {
+	if r == nil {
+		return ""
+	}
+
+	problems := make([]string, 0, len(r.errors))
+	for _, e := range r.errors {
+		problems = append(problems, strings.Join(strings.Fields(e.Error()), " "))
+	}
+	s := strings.Join(problems, "; ")
+	if len(s) > maxSummaryLen {
+		s = strings.ToValidUTF8(s[:maxSummaryLen], "") + "…"
+	}
+
+	return s
+}
+
+const maxSummaryLen = 1000
 
 func (r *recoverableErrorBuilder) build() string {
 	if len(r.errors) == 0 {
@@ -248,9 +270,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		billingChecked:   billingChecked,
 	}
 
-	if planValidateHighAvailability(ctx, lp, org.Billable, true) {
-		buildCache.warnedNoCcHa = true
-	}
+	buildCache.validateHighAvailability(ctx, lp, org.Billable)
 
 	if srcInfo != nil {
 		ldClient, err := launchdarkly.NewServiceClient()
@@ -574,6 +594,10 @@ func validateAppName(appName string) error {
 	return nil
 }
 
+// appNameDerivedFromDir is the plan source of an app name taken from the
+// working directory's name.
+const appNameDerivedFromDir = "derived from your directory name"
+
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appConfig *appconfig.Config, configPath string) (string, string, error) {
 	delimiter := "-"
@@ -629,7 +653,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		}
 		if appName == "" {
 			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
-			cause = "derived from your directory name"
+			cause = appNameDerivedFromDir
 		}
 
 		if parentConfig != nil && parentConfig.AppName != "" {
@@ -637,7 +661,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 			switch cause {
 			case "from your fly.toml":
 				cause = "from parent name and fly.toml"
-			case "derived from your directory name":
+			case appNameDerivedFromDir:
 				if flag.GetString(ctx, "into") != "" {
 					cause = "from parent name and --into"
 				} else if flag.GetString(ctx, "from") != "" {
@@ -931,6 +955,76 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 	return placements[0].Region, explanation, nil
 }
 
+// resolveManifestRegion turns the region of a manifest loaded from a file, or
+// set by --region on `fly launch plan generate`, into one new apps can use.
+// These skip determineRegion, so "any" (what placements takes for "the best
+// region"), an empty region, or a retired one like qro reached the plan as is,
+// and launch failed with "region any not found". "any" and an empty region
+// become the nearest region; a retired one becomes its replacement, or the
+// closest region still open to new apps.
+func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
+	code := strings.ToLower(strings.TrimSpace(p.RegionCode))
+	if replacement, ok := deprecatedRegionReplacements[code]; ok {
+		p.RegionCode = replacement
+		return nil
+	}
+
+	regionData, err := flapsutil.ClientFromContext(ctx).GetRegions(ctx)
+	if err != nil {
+		if code != "" && code != "any" {
+			return nil // keep the region as is rather than fail on the lookup
+		}
+		return fmt.Errorf("failed to look up the nearest region: %w", err)
+	}
+
+	resolved, err := resolveRegionCode(code, regionData)
+	if err != nil {
+		return err
+	}
+	p.RegionCode = resolved
+
+	return nil
+}
+
+func resolveRegionCode(code string, regionData *flaps.RegionData) (string, error) {
+	lookup := code
+	if lookup == "" || lookup == "any" {
+		lookup = regionData.Nearest
+	}
+
+	for _, r := range regionData.Regions {
+		if r.Code != lookup {
+			continue
+		}
+		if !r.Deprecated {
+			return r.Code, nil
+		}
+		if closest := closestOpenRegion(r, regionData.Regions); closest != "" {
+			return closest, nil
+		}
+	}
+
+	return "", fmt.Errorf("region %q can't be used for new apps. Use a region from `fly platform regions`", code)
+}
+
+// closestOpenRegion returns the region nearest to from, as the crow flies, that
+// isn't deprecated.
+func closestOpenRegion(from fly.Region, regions []fly.Region) string {
+	best, bestDist := "", math.Inf(1)
+	for _, r := range regions {
+		if r.Deprecated {
+			continue
+		}
+		dLat := float64(r.Latitude - from.Latitude)
+		dLon := float64(r.Longitude-from.Longitude) * math.Cos(float64(from.Latitude)*math.Pi/180)
+		if dist := dLat*dLat + dLon*dLon; dist < bestDist {
+			best, bestDist = r.Code, dist
+		}
+	}
+
+	return best
+}
+
 // Applies the fields of the guest to the provided compute.
 // Ignores the guest's kernel arguments, host dedication, and GPU config,
 // leaving whatever the given compute originally had.
@@ -998,6 +1092,17 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	}
 
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
+}
+
+// validateHighAvailability reports whether the plan's high availability setting
+// is possible for the org, warning the first time it isn't.
+func (c *planBuildCache) validateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable bool) bool {
+	valid := planValidateHighAvailability(ctx, p, billable, !c.warnedNoCcHa)
+	if !valid {
+		c.warnedNoCcHa = true
+	}
+
+	return valid
 }
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {

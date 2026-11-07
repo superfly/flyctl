@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -201,6 +202,9 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		// Server predates the PKCE flow
 		pkce.close()
 		token, err = waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
+		if err == nil && token != "" {
+			metrics.SetLoginMethod(metrics.LoginMethodPoll)
+		}
 	}
 
 	switch {
