@@ -580,6 +580,10 @@ func validateAppName(appName string) error {
 	return nil
 }
 
+// appNameDerivedFromDir is the plan source of an app name taken from the
+// working directory's name.
+const appNameDerivedFromDir = "derived from your directory name"
+
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appConfig *appconfig.Config, configPath string) (string, string, error) {
 	delimiter := "-"
@@ -635,7 +639,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		}
 		if appName == "" {
 			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
-			cause = "derived from your directory name"
+			cause = appNameDerivedFromDir
 		}
 
 		if parentConfig != nil && parentConfig.AppName != "" {
@@ -643,7 +647,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 			switch cause {
 			case "from your fly.toml":
 				cause = "from parent name and fly.toml"
-			case "derived from your directory name":
+			case appNameDerivedFromDir:
 				if flag.GetString(ctx, "into") != "" {
 					cause = "from parent name and --into"
 				} else if flag.GetString(ctx, "from") != "" {

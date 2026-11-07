@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -465,6 +466,34 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	}
 }
 
+// isAppNameTakenErr reports whether CreateApp failed because the name is in use.
+func isAppNameTakenErr(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "has already been taken")
+}
+
+// appNameIsDerived reports whether the plan's app name was derived from the
+// directory rather than chosen by the user (--name, fly.toml, the web UI).
+func appNameIsDerived(source *launchPlanSource) bool {
+	return source != nil && source.appNameSource == appNameDerivedFromDir
+}
+
+// findFreeAppName returns prefix plus a random suffix that isn't taken.
+func findFreeAppName(ctx context.Context, prefix string) (string, bool) {
+	b := haikunator.Haikunator().Delimiter("-")
+	prefix = b.TrimSuffix(prefix)
+	if prefix != "" {
+		prefix += "-"
+	}
+	for i := 0; i < 4; i++ {
+		name := prefix + b.String()
+		if taken, err := appNameTaken(ctx, name); err == nil && !taken {
+			return name, true
+		}
+	}
+
+	return "", false
+}
+
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 	org, err := state.orgCompact(ctx)
@@ -477,6 +506,26 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		Name: state.Plan.AppName,
 		Org:  org.Slug,
 	})
+	if err != nil && isAppNameTakenErr(err) && appNameIsDerived(state.PlanSource) {
+		// The name came from the directory, not from the user, and app names
+		// are global: pick a free one instead of failing the launch.
+		if name, ok := findFreeAppName(ctx, state.Plan.AppName); ok {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+				"App name %q is already taken, so this app is called %q instead. Use --name to choose one.\n",
+				state.Plan.AppName, name)
+			if pg := state.Plan.Postgres.FlyPostgres; pg != nil && pg.AppName == state.Plan.AppName+"-db" {
+				pg.AppName = name + "-db"
+			}
+			if pg := state.Plan.Postgres.ManagedPostgres; pg != nil && pg.DbName == state.Plan.AppName+"-db" {
+				pg.DbName = name + "-db"
+			}
+			state.Plan.AppName = name
+			state.appConfig.AppName = name
+			state.PlanSource.appNameSource = "generated"
+
+			app, err = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{Name: name, Org: org.Slug})
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

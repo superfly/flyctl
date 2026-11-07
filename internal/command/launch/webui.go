@@ -85,6 +85,9 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
+	if state.PlanSource != nil && state.Plan.AppName != oldPlan.AppName {
+		state.PlanSource.appNameSource = "specified in the web UI"
+	}
 
 	// Handle database plan from form data
 	if pgData, ok := finalSession.Metadata["postgres"].(map[string]any); ok {
