@@ -91,6 +91,7 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 				} else {
 					assert.Len(t, restarted, 1)
 				}
+
 				return
 			}
 			require.NoError(t, err)
