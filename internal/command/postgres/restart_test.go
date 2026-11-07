@@ -26,6 +26,9 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 		force      bool
 		hasLeader  bool
 		single     bool
+		sameRegion bool
+		flex       bool
+		failLeader bool
 		restartErr error
 		wantErr    string
 	}{
@@ -34,6 +37,8 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 		{name: "not forced", wantErr: "no active leader found"},
 		{name: "restart failure", force: true, restartErr: errors.New("restart failed"), wantErr: "restart failed"},
 		{name: "leader present", hasLeader: true},
+		{name: "same-region flex replica", hasLeader: true, sameRegion: true, flex: true},
+		{name: "leader restart failure", hasLeader: true, failLeader: true, restartErr: errors.New("leader restart failed"), wantErr: "leader restart failed"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			makeMachine := func(id, role, region string) *fly.Machine {
@@ -49,7 +54,15 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 			}
 			machines := []*fly.Machine{makeMachine("m1", "readonly", "iad")}
 			if tt.hasLeader {
-				machines = append(machines, makeMachine("m2", "primary", "lhr"))
+				region := "lhr"
+				if tt.sameRegion {
+					region = "iad"
+				}
+				leader := makeMachine("m2", "primary", region)
+				if tt.flex {
+					leader.ImageRef.Labels["fly.pg-manager"] = "repmgr"
+				}
+				machines = append(machines, leader)
 			} else if !tt.single {
 				machines = append(machines, makeMachine("m2", "readonly", "lhr"))
 			}
@@ -65,7 +78,11 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 				RestartFunc: func(ctx context.Context, appName string, in fly.RestartMachineInput, nonce string) error {
 					assert.Equal(t, "test-nonce", nonce)
 					restarted = append(restarted, in.ID)
-					return tt.restartErr
+					if !tt.failLeader || in.ID == "m2" {
+						return tt.restartErr
+					}
+
+					return nil
 				},
 				WaitFunc: func(ctx context.Context, appName, machineID string, opts ...flaps.WaitOption) error {
 					return nil
@@ -86,7 +103,9 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 			err := machinesRestart(ctx, "pg-app", &fly.RestartMachineInput{SkipHealthChecks: true})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
-				if !tt.force {
+				if tt.failLeader {
+					assert.Equal(t, []string{"m1", "m2"}, restarted)
+				} else if !tt.force {
 					assert.Empty(t, restarted)
 				} else {
 					assert.Len(t, restarted, 1)
