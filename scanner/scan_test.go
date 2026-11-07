@@ -3,6 +3,7 @@ package scanner
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,15 @@ import (
 // scanFiles writes files into a fresh directory and scans it as fly launch
 // does, from inside that directory.
 func scanFiles(t *testing.T, files map[string]string) *SourceInfo {
+	t.Helper()
+
+	si, err := scanFilesErr(t, files)
+	require.NoError(t, err)
+
+	return si
+}
+
+func scanFilesErr(t *testing.T, files map[string]string) (*SourceInfo, error) {
 	t.Helper()
 	t.Setenv("OPT_OUT_GITHUB_ACTIONS", "1")
 
@@ -23,10 +33,7 @@ func scanFiles(t *testing.T, files map[string]string) *SourceInfo {
 	}
 	t.Chdir(dir)
 
-	si, err := Scan(dir, &ScannerConfig{Mode: "launch", SkipHealthcheck: true})
-	require.NoError(t, err)
-
-	return si
+	return Scan(dir, &ScannerConfig{Mode: "launch", SkipHealthcheck: true})
 }
 
 // Scan picks the first scanner that recognizes the source, so the order of
@@ -151,12 +158,7 @@ func TestScanGo(t *testing.T) {
 
 func TestScanRustNeedsAPackage(t *testing.T) {
 	t.Run("no [package]", func(t *testing.T) {
-		t.Setenv("OPT_OUT_GITHUB_ACTIONS", "1")
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "Cargo.toml"), []byte("[workspace]\nmembers = [\"a\"]\n"), 0o644))
-		t.Chdir(dir)
-
-		_, err := Scan(dir, &ScannerConfig{Mode: "launch"})
+		_, err := scanFilesErr(t, map[string]string{"Cargo.toml": "[workspace]\nmembers = [\"a\"]\n"})
 		assert.ErrorContains(t, err, "does not contain a valid package section")
 	})
 }
@@ -238,6 +240,10 @@ func TestScanDotnet(t *testing.T) {
 			}
 			require.NotNil(t, si)
 			assert.Equal(t, ".NET", si.Family)
+
+			// The version picks the SDK and runtime images.
+			version := strings.TrimPrefix(tc.framework, "net")
+			assert.Contains(t, string(sourceFile(t, si, "Dockerfile")), "ARG DOTNET_SDK_VERSION="+version+"\n")
 		})
 	}
 }
@@ -259,4 +265,17 @@ func TestDotnetVersionBelow6MatchesStringCheckBelow10(t *testing.T) {
 	for _, v := range []string{"10.0", "10.0-windows", "11.0", "12.0"} {
 		assert.False(t, dotnetVersionBelow6(v), v)
 	}
+}
+
+func sourceFile(t *testing.T, si *SourceInfo, path string) []byte {
+	t.Helper()
+
+	for _, f := range si.Files {
+		if f.Path == path {
+			return f.Contents
+		}
+	}
+	require.Failf(t, "file not generated", "%s", path)
+
+	return nil
 }
