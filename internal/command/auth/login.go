@@ -21,6 +21,10 @@ func newLogin() *cobra.Command {
 		long = `Logs a user into the Fly platform. Supports browser-based,
 email/password and one-time-password authentication. Defaults to using
 browser-based authentication.
+
+Use --code to finish a browser login that is waiting for approval, with
+the one-time code the approval page shows: for example when the browser
+is on another machine, or the waiting command was stopped.
 `
 		short = "Log in a user"
 	)
@@ -45,7 +49,16 @@ browser-based authentication.
 			Name:        "otp",
 			Description: "One time password",
 		},
+		flag.String{
+			Name:        "code",
+			Description: "Finish a login that is waiting for approval, with the one-time code its approval page shows",
+		},
 	)
+
+	// --code finishes a browser login another `fly auth login` started.
+	for _, other := range []string{"interactive", "email", "password", "otp"} {
+		cmd.MarkFlagsMutuallyExclusive("code", other)
+	}
 
 	return cmd
 }
@@ -56,12 +69,20 @@ func runLogin(ctx context.Context) error {
 		email       = flag.GetString(ctx, "email")
 		password    = flag.GetString(ctx, "password")
 		otp         = flag.GetString(ctx, "otp")
+		code        = flag.GetString(ctx, "code")
 
 		err   error
 		token string
 	)
 
 	switch {
+	case code != "":
+		var finish func()
+		if token, finish, err = webauth.RedeemPendingLogin(ctx, code); err == nil {
+			// Runs after SaveToken: a login still waiting elsewhere stops once
+			// the pending login is gone, and expects the new token by then.
+			defer finish()
+		}
 	case interactive, email != "", password != "", otp != "":
 		token, err = runShellLogin(ctx, email, password, otp)
 	default:

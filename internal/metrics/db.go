@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 )
 
 var metrics []metricsMessage = make([]metricsMessage, 0)
@@ -77,11 +78,14 @@ func FlushMetrics(ctx context.Context) error {
 	return nil
 }
 
+// SendMetrics posts jsonData to the metrics collector. Failures are logged at
+// debug level only: headless runs send in-process (see FlushMetrics), so
+// anything printed here would land in the output of whatever command ran.
 func SendMetrics(ctx context.Context, jsonData string) error {
 	cfg := config.FromContext(ctx)
 	metricsToken, err := GetMetricsToken(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Metrics token unavailable: %v\n", err)
+		terminal.Debugf("Metrics token unavailable: %v\n", err)
 
 		return nil
 	}
@@ -95,7 +99,7 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 
 	err = sendMetricsRequest(timeoutCtx, endpoint, metricsToken, userAgent, []byte(jsonData))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Metrics send issue: %v\n", err)
+		terminal.Debugf("Metrics send issue: %v\n", err)
 
 		return err
 	}

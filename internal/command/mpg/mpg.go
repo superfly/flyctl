@@ -45,6 +45,7 @@ func New() *cobra.Command {
 		newDestroy(),
 		newBackup(),
 		newRestore(),
+		newFork(),
 		newDatabases(),
 		newUsers(),
 	)

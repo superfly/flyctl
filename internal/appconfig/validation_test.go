@@ -63,6 +63,18 @@ func _getValidationContext(t *testing.T) context.Context {
 	return ctx
 }
 
+func TestValidateMachineConversionReportsGuestError(t *testing.T) {
+	cfg := &Config{
+		Compute: []*Compute{{Memory: "not-a-size"}},
+	}
+
+	extra, err := cfg.validateMachineConversion()
+
+	require.ErrorIs(t, err, ErrInvalidApplicationConfig)
+	require.Contains(t, extra, "process group 'app'")
+	require.Contains(t, extra, "not-a-size")
+}
+
 func TestConfig_ValidateGroups(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/validate-groups.toml")
 	require.NoError(t, err)

@@ -46,7 +46,6 @@ var (
 	ErrWaitForStoppedState   = errors.New("could not get all blue machines into stopped state")
 	ErrDestroyBlueMachines   = errors.New("failed to destroy previous deployment")
 	ErrValidationError       = errors.New("app not in valid state for bluegreen deployments")
-	ErrOrgLimit              = errors.New("app can't undergo bluegreen deployment due to org limits")
 	ErrMultipleImageVersions = errors.New("found multiple image versions")
 
 	safeToDestroyValue = "safe_to_destroy"
@@ -68,15 +67,10 @@ type RollbackLog struct {
 	disableRollback        bool
 }
 
-type blueGreenWebClient interface {
-	CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error)
-}
-
 type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
 	flaps               flapsutil.FlapsClient
-	apiClient           blueGreenWebClient
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
 	clearLinesAbove     func(count int)
@@ -173,7 +167,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		greenMachines:       machineUpdateEntries{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
-		apiClient:           md.apiClient,
 		appConfig:           md.appConfig,
 		timeout:             md.waitTimeout,
 		stopSignal:          md.stopSignal,
@@ -948,24 +941,9 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
-	if err != nil {
-		tracing.RecordError(ctx, span, err, "failed to validate deployment")
-
-		return err
-	}
-
-	span.SetAttributes(attribute.Bool("can_perform", canPerform))
-
-	if !canPerform {
-		tracing.RecordError(ctx, span, ErrOrgLimit, "failed to deploy, orglimit")
-
-		return ErrOrgLimit
-	}
-
 	fmt.Fprintf(bg.io.ErrOut, "\nVerifying if app can be safely deployed \n")
 
-	err = bg.DetectMultipleImageVersions(ctx)
+	err := bg.DetectMultipleImageVersions(ctx)
 	if err != nil {
 		tracing.RecordError(ctx, span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
 

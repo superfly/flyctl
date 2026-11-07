@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -98,6 +99,22 @@ func TestResolveOutputWriter_CLIArg_Stdout(t *testing.T) {
 		}
 		if mustClose {
 			t.Errorf("expected mustClose=false for stdout, got true")
+		}
+	})
+}
+
+// Without a file argument the filename prompt must go through the prompt
+// package, so a run that can't prompt fails fast instead of reading stdin.
+func TestResolveOutputWriter_NoArg_NonInteractive(t *testing.T) {
+	ctx := withCtx(t, nil)
+
+	runWithDeadline(t, time.Second, func() {
+		w, _, err := resolveOutputWriter(ctx, 0, "test prompt: ")
+		if !prompt.IsNonInteractive(err) {
+			t.Errorf("expected a non-interactive error, got %v", err)
+		}
+		if w != nil {
+			t.Errorf("expected nil writer, got %v", w)
 		}
 	})
 }

@@ -343,7 +343,7 @@ func runSSH(ctx context.Context) error {
 		return fmt.Errorf("failed decoding tokens from API: %w", err)
 	}
 
-	if err := orgAppReadMac.Add(ptr(resset.ActionRead)); err != nil {
+	if err := orgAppReadMac.Add(new(resset.ActionRead)); err != nil {
 		return fmt.Errorf("failed to attenuate org-app-read token: %w", err)
 	}
 
@@ -685,9 +685,4 @@ func getCommandCaveat(ctx context.Context) (macaroon.Caveat, error) {
 	}
 
 	return cav, nil
-}
-
-//go:fix inline
-func ptr[T any](t T) *T {
-	return new(t)
 }

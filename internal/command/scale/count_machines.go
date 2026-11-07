@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/samber/lo"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -53,13 +55,13 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	var regions []string
-	if v := flag.GetRegion(ctx); v != "" {
-		regions = strings.Split(v, ",")
-	}
-	if len(regions) == 0 {
-		regions = lo.Uniq(lo.Map(machines, func(m *fly.Machine, _ int) string { return m.Region }))
-		if len(regions) == 0 {
-			regions = []string{appConfig.PrimaryRegion}
+	if flag.IsSpecified(ctx, "region") {
+		regions = strings.Split(flag.GetRegion(ctx), ",")
+		for i, region := range regions {
+			regions[i] = strings.TrimSpace(region)
+			if regions[i] == "" {
+				return fmt.Errorf("region must not be empty")
+			}
 		}
 	}
 
@@ -184,15 +186,25 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	err = updatePool.Wait()
 	if err != nil {
-		return withVolumePlacementCapacitySuggestion(err)
+		err = withVolumePlacementCapacitySuggestion(err)
+		if machinelimit.Refused(err) {
+			err = machinelimit.WithRequestLink(ctx, err, machinelimit.AppOrgSlug(ctx, appName))
+		}
+
+		return err
 	}
 
 	// Scaling may change the situation of app-scoped egress IPs in affected regions
-	regionMap := make(map[string]any, len(regions))
-	for _, r := range regions {
-		regionMap[r] = nil
+	regionMap := make(map[string]any, len(actions))
+	for _, action := range actions {
+		regionMap[action.Region] = nil
 	}
 	ips.SanityCheckAppScopedEgressIps(ctx, regionMap, nil, nil, "")
+
+	// Scaling down alone never needs the warning.
+	if lo.SomeBy(actions, func(a *planItem) bool { return a.Delta > 0 }) {
+		machinelimit.Warn(ctx, machinelimit.AppOrgSlug(ctx, appName))
+	}
 
 	return nil
 }
@@ -299,14 +311,6 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
-	expectedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, group string) int {
-		count := c.absolute
-		if c.relative != 0 {
-			count = len(machineGroups[group]) + c.relative
-		}
-
-		return max(count, 0)
-	})
 
 	minvers, err := appsecrets.GetMinvers(appName)
 	if err != nil {
@@ -314,7 +318,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	}
 
 	for groupName, groupMachines := range machineGroups {
-		expected, ok := expectedCounts[groupName]
+		expected, ok := expectedGroupCounts[groupName]
 		// Ignore the group if it is not expected to change
 		if !ok {
 			continue
@@ -355,7 +359,7 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	}
 
 	// Fill in the groups without existing machines
-	for groupName, expected := range expectedCounts {
+	for groupName, expected := range expectedGroupCounts {
 		if seenGroups[groupName] {
 			continue
 		}
@@ -365,7 +369,11 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 			return nil, err
 		}
 
-		regionDiffs, err := convergeGroupCounts(expected, nil, regions, maxPerRegion)
+		groupRegions := regions
+		if len(groupRegions) == 0 {
+			groupRegions = []string{defaults.appConfig.PrimaryRegion}
+		}
+		regionDiffs, err := convergeGroupCounts(expected, nil, groupRegions, maxPerRegion)
 		if err != nil {
 			return nil, err
 		}
@@ -386,55 +394,27 @@ func computeActions(appName string, machines []*fly.Machine, expectedGroupCounts
 	return actions, nil
 }
 
-var ErrMaxPerRegion = errors.New("the number of regions by the maximum machines per region is fewer than the expected total")
+var ErrMaxPerRegion = errors.New("requested count exceeds the maximum machines per region")
 
-func convergeGroupCounts(expectedTotal int, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
-	diffs := make(map[string]int)
-
+func convergeGroupCounts(count groupCount, current map[string]int, regions []string, maxPerRegion int) (map[string]int, error) {
 	if len(regions) == 0 {
 		regions = lo.Keys(current)
 	}
-	regions = lo.Uniq(regions)
-
-	if maxPerRegion >= 0 {
-		if len(regions)*maxPerRegion < expectedTotal {
+	diffs := make(map[string]int)
+	for _, region := range regions {
+		expected := count.absolute
+		if count.relative != 0 {
+			if count.relative > 0 && current[region] > math.MaxInt-count.relative {
+				return nil, fmt.Errorf("relative count overflows machine count in region %s", region)
+			}
+			expected = max(current[region]+count.relative, 0)
+		}
+		if maxPerRegion >= 0 && expected > maxPerRegion {
 			return nil, ErrMaxPerRegion
 		}
-
-		// Compute the diff to any region with more machines than the maximum allowed
-		for _, region := range regions {
-			c := current[region]
-			if c > maxPerRegion {
-				diffs[region] = maxPerRegion - c
-			}
+		if delta := expected - current[region]; delta != 0 {
+			diffs[region] = delta
 		}
-	}
-
-	diff := expectedTotal
-	for _, region := range regions {
-		diff -= (current[region] + diffs[region])
-	}
-
-	idx := 0
-	for diff > 0 {
-		region := regions[idx%(len(regions))]
-		if maxPerRegion < 0 || current[region]+diffs[region] < maxPerRegion {
-			diffs[region]++
-			diff--
-		}
-		idx++
-	}
-
-	// Iterate regions in reverse order because the region list
-	// tend to have the primary region first
-	idx = -1
-	for diff < 0 {
-		region := regions[-idx%(len(regions))]
-		if current[region]+diffs[region] > 0 {
-			diffs[region]--
-			diff++
-		}
-		idx--
 	}
 
 	return diffs, nil

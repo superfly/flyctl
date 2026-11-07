@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/shlex"
+	"github.com/oklog/ulid/v2"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -79,6 +80,45 @@ func run() error {
 				}
 				return err
 			}
+		}
+	}
+
+	return removeStalePeers(ctx, apiClient, os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"))
+}
+
+// testPeerPrefix is the name prefix TestFlyWireguardCreate gives its peers,
+// followed by the test env ULID, whose timestamp is the peer's creation time.
+const testPeerPrefix = "test-peer-"
+
+// removeStalePeers removes WireGuard peers left behind by preflight runs that
+// were killed before their cleanup ran. The API has no creation time for
+// peers, so it is read from the ULID in the name.
+func removeStalePeers(ctx context.Context, apiClient *fly.Client, orgSlug string) error {
+	org, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
+	if err != nil {
+		return err
+	}
+	peers, err := apiClient.GetWireGuardPeers(ctx, orgSlug)
+	if err != nil {
+		return err
+	}
+	for _, peer := range peers {
+		if !strings.HasPrefix(peer.Name, testPeerPrefix) {
+			continue
+		}
+		id, err := ulid.ParseStrict(strings.TrimPrefix(peer.Name, testPeerPrefix))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skipping peer %s: name does not end in a ULID: %v\n", peer.Name, err)
+			continue
+		}
+		if time.Since(ulid.Time(id.Time())) < 30*time.Minute {
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "removing stale wireguard peer %s\n", peer.Name)
+		if err := apiClient.RemoveWireGuardPeer(ctx, org.ID, peer.Name); err != nil {
+			// The test's own cleanup or a parallel run may have removed it first.
+			// Keep sweeping so one peer never blocks the rest.
+			fmt.Fprintf(os.Stderr, "removing peer %s failed; continuing cleanup: %v\n", peer.Name, err)
 		}
 	}
 

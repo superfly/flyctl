@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -610,19 +611,25 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 					msg := fmt.Sprintf("Warning! machine %s [%s] has a volume mounted but app config does not specify a volume.\nThis usually indicates a misconfiguration.", m.ID, groupName)
 					fmt.Fprintln(md.io.ErrOut, md.colorize.Red(msg))
 
-					switch confirmed, err := prompt.Confirm(ctx, "Do you still want to continue and detach the volume? This will replace the machine."); {
-					case err == nil:
-						if !confirmed {
-							return fmt.Errorf(
-								"deployment cancelled: machine %s [%s] has a volume mounted but app config does not specify a volume; "+
-									"remove the volume from the machine or add a [mounts] section to fly.toml",
+					if !flag.GetYes(ctx) {
+						switch confirmed, err := prompt.Confirm(ctx, "Do you still want to continue and detach the volume? This will replace the machine."); {
+						case err == nil:
+							if !confirmed {
+								return fmt.Errorf(
+									"deployment cancelled: machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+										"remove the volume from the machine or add a [mounts] section to fly.toml",
+									m.ID, groupName,
+								)
+							}
+						case prompt.IsNonInteractive(err):
+							return prompt.NonInteractiveError(fmt.Sprintf(
+								"machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+									"add a [mounts] section to fly.toml, or run 'fly deploy --yes' to detach the volume and replace the machine",
 								m.ID, groupName,
-							)
+							))
+						default:
+							return err
 						}
-					case prompt.IsNonInteractive(err):
-						return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-					default:
-						return err
 					}
 				}
 

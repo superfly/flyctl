@@ -41,6 +41,7 @@ import (
 // Run runs the command line interface with the given arguments and reports the
 // exit code the application should exit with.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
+	setNeverPromptFromEnv(io)
 	ctx = iostreams.NewContext(ctx, io)
 
 	err := logger.InitLogFile()
@@ -126,6 +127,15 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		}
 
 		return 1
+	}
+}
+
+// setNeverPromptFromEnv turns prompts off when FLY_NO_PROMPT is truthy, for
+// callers such as coding agents that run flyctl under a pseudo-terminal that
+// nobody answers.
+func setNeverPromptFromEnv(io *iostreams.IOStreams) {
+	if env.IsTruthy("FLY_NO_PROMPT") {
+		io.SetNeverPrompt(true)
 	}
 }
 

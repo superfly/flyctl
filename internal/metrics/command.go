@@ -15,10 +15,11 @@ var (
 	commandContext   context.Context
 	mu               sync.Mutex
 
-	// appID, orgID and appName are guarded by mu.
-	appID   string
-	orgID   string
-	appName string
+	// appID, orgID, appName and loginMethod are guarded by mu.
+	appID       string
+	orgID       string
+	appName     string
+	loginMethod string
 )
 
 var IsUsingGPU bool
@@ -37,6 +38,24 @@ type commandStats struct {
 	AppName         string  `json:"app,omitempty"`
 	AppID           string  `json:"app_id,omitempty"`
 	OrgID           string  `json:"org_id,omitempty"`
+	LoginMethod     string  `json:"login_method,omitempty"`
+}
+
+// Ways a browser login can reach the CLI, reported by SetLoginMethod.
+const (
+	LoginMethodCallback     = "callback"      // the browser reached the local callback
+	LoginMethodPaste        = "paste"         // the user pasted the code into the terminal
+	LoginMethodOtherProcess = "other_process" // another flyctl process (e.g. --code) finished it
+	LoginMethodPoll         = "poll"          // a server without PKCE; the CLI polled for the token
+)
+
+// SetLoginMethod records how a browser login reached the CLI, to be reported
+// with the command's stats.
+func SetLoginMethod(method string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	loginMethod = method
 }
 
 // SetAppOrgIDs records the internal numeric IDs of the app and organization the
@@ -108,6 +127,7 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			AppName:         appName,
 			AppID:           appID,
 			OrgID:           orgID,
+			LoginMethod:     loginMethod,
 		})
 	}
 }

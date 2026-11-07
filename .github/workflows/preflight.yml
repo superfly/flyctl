@@ -36,6 +36,7 @@ jobs:
           - tokens
           - wireguard
           - misc
+          - harness
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7
@@ -92,12 +93,3 @@ jobs:
                 }
               ]
             }
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-        if: always()
-      - name: Clean up any un-deleted preflight apps
-        if: always()
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
-          FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-        run: |
-          ./scripts/delete_preflight_apps.sh "$FLY_PREFLIGHT_TEST_APP_PREFIX"

@@ -16,7 +16,9 @@ var _ uiexutil.Client = (*UiexClient)(nil)
 type UiexClient struct {
 	ListOrganizationsFunc      func(ctx context.Context, admin bool) ([]uiex.Organization, error)
 	GetOrganizationFunc        func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
+	GetLaunchChecksFunc        func(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error)
 	PromoteMachineEgressIPFunc func(ctx context.Context, appName string, egressIP string) error
+	SubmitFeedbackFunc         func(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error)
 
 	CreateBuildFunc                        func(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error)
 	FinishBuildFunc                        func(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error)
@@ -51,6 +53,14 @@ func (m *UiexClient) GetOrganization(ctx context.Context, orgSlug string) (*uiex
 	}
 
 	return &uiex.Organization{Slug: orgSlug}, nil
+}
+
+func (m *UiexClient) GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error) {
+	if m.GetLaunchChecksFunc != nil {
+		return m.GetLaunchChecksFunc(ctx, orgSlug)
+	}
+
+	return &uiex.LaunchChecks{}, nil
 }
 
 func (m *UiexClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
@@ -115,6 +125,14 @@ func (m *UiexClient) GetCurrentRelease(ctx context.Context, appName string) (*ui
 	}
 
 	return &uiex.Release{}, nil
+}
+
+func (m *UiexClient) SubmitFeedback(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+	if m.SubmitFeedbackFunc != nil {
+		return m.SubmitFeedbackFunc(ctx, in)
+	}
+
+	return &uiex.FeedbackResponse{}, nil
 }
 
 func (m *UiexClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {

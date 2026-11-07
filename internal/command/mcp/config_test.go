@@ -171,3 +171,33 @@ func TestRemoveConfig_appliesPermsToExistingFile(t *testing.T) {
 		t.Errorf("config mode = %o, want %o", got, want)
 	}
 }
+
+func TestUpdateConfig_rewriteIsInvisibleThroughOldHandle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows refuses to rename over a file that another handle has open")
+	}
+	path := filepath.Join(t.TempDir(), "mcp.json")
+	seed := `{"mcpServers": {}}`
+	if err := os.WriteFile(path, []byte(seed), 0o644); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	// A reader that opened the world-readable file before the rewrite must
+	// not see the token that the rewrite adds.
+	old, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open old: %v", err)
+	}
+	defer old.Close()
+
+	if err := UpdateConfig(context.Background(), path, "", "flyctl", "flyctl", []string{"mcp", "server"}); err != nil {
+		t.Fatalf("UpdateConfig: %v", err)
+	}
+
+	seen, err := io.ReadAll(old)
+	if err != nil {
+		t.Fatalf("read through old handle: %v", err)
+	}
+	if string(seen) != seed {
+		t.Errorf("old handle saw %q, want the seed contents", seen)
+	}
+}

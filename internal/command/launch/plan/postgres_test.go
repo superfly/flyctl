@@ -39,6 +39,10 @@ func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*
 	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
+func (m *mockUIEXClient) GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error) {
+	return &uiex.LaunchChecks{}, nil
+}
+
 func (m *mockUIEXClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
 	return nil
 }
@@ -84,6 +88,10 @@ func (m *mockUIEXClient) ListReleases(ctx context.Context, appName string, count
 
 func (m *mockUIEXClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
 	return &uiex.Release{}, nil
+}
+
+func (m *mockUIEXClient) SubmitFeedback(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+	return &uiex.FeedbackResponse{}, nil
 }
 
 func (m *mockUIEXClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {

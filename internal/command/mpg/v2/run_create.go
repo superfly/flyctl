@@ -68,6 +68,11 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 		return fmt.Errorf("no valid regions found for Managed Postgres")
 	}
 
+	availableCodes := make([]string, len(mpgRegions))
+	for i, region := range mpgRegions {
+		availableCodes[i] = region.Code
+	}
+
 	// Check if region was specified via flag
 	regionCode := flag.GetString(ctx, "region")
 	var selectedRegionCode string
@@ -84,11 +89,6 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 			}
 		}
 		if !matched {
-			availableCodes := make([]string, len(mpgRegions))
-			for i, region := range mpgRegions {
-				availableCodes[i] = region.Code
-			}
-
 			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
 	} else {
@@ -100,6 +100,10 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 
 		var selectedIndex int
 		if err := prompt.Select(ctx, &selectedIndex, "Select a region for your Managed Postgres cluster", "", regionOptions...); err != nil {
+			if prompt.IsNonInteractive(err) {
+				return prompt.NonInteractiveError(fmt.Sprintf("region must be specified with --region when not running interactively. Available regions: %v", availableCodes))
+			}
+
 			return err
 		}
 

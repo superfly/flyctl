@@ -109,14 +109,21 @@ if [[ -n "$group" ]]; then
         misc)
             test_pattern="^Test(ErrOutput|ImageLabel|NoPublicIP)"
             ;;
+        harness)
+            # Offline tests of the testlib harness itself against a fake binary.
+            test_pattern="^TestCollect"
+            ;;
         *)
             echo "Unknown test group: $group"
-            echo "Available groups: apps, deploy, deploy-detach, deploy-fixtures, bluegreen, deploy-machine-checks, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc"
+            echo "Available groups: apps, deploy, deploy-detach, deploy-fixtures, bluegreen, deploy-machine-checks, launch, scale, volume, console, logs, machine, postgres, postgres-flex-failover, tokens, wireguard, misc, harness"
             exit 1
             ;;
     esac
 
     go_test_args=(-tags=integration -v -timeout=15m)
+    if [[ "$group" == "harness" ]]; then
+        go_test_args+=(-race)
+    fi
     if [[ -n "$test_opts" ]]; then
         go_test_args+=("$test_opts")
     fi
