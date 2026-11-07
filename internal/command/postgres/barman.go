@@ -235,7 +235,7 @@ func runBarmanCreate(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
+	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", *volInput.SizeGb)
 
 	vol, err = flapsClient.CreateVolume(ctx, appName, volInput)
 	if err != nil {

@@ -31,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/extensions"
+	"github.com/superfly/flyctl/internal/command/feedback"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
 	"github.com/superfly/flyctl/internal/command/incidents"
@@ -59,6 +60,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/settings"
+	"github.com/superfly/flyctl/internal/command/setup"
+	"github.com/superfly/flyctl/internal/command/skills"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
@@ -116,6 +119,7 @@ func New() *cobra.Command {
 		group(status.New(), "deploy"),
 		group(logs.New(), "upkeep"),
 		group(doctor.New(), "more_help"),
+		group(feedback.New(), "more_help"),
 		group(dig.New(), "upkeep"),
 		group(volumes.New(), "configuring"),
 		agent.New(),
@@ -125,6 +129,8 @@ func New() *cobra.Command {
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
 		group(mcp.New(), "upkeep"),
+		group(setup.New(), "more_help"),
+		group(skills.New(), "more_help"),
 		group(mpg.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
 		group(secrets.New(), "configuring"),

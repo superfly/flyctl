@@ -241,7 +241,7 @@ func TestFlyLaunchHA(t *testing.T) {
 	var ml []*fly.Machine
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml = f.MachinesList(appName)
+		ml = f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 5, len(ml), "want 5 machines, which includes two standbys")
 	}, 10*time.Second, 1*time.Second)
 
@@ -288,12 +288,12 @@ func TestFlyLaunchSingleMount(t *testing.T) {
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(appName)
+		ml := f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 2, len(ml))
 	}, 15*time.Second, 1*time.Second, "want 2 machines, one for each process")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
+		vl := f.Collect(c).VolumeList(appName)
 		assert.Equal(c, 2, len(vl))
 	}, 15*time.Second, 1*time.Second, "want 2 volumes, one for each process")
 }
@@ -308,12 +308,19 @@ func TestFlyLaunchWithBuildSecrets(t *testing.T) {
 RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 `)
 
-	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 
+	// The SSH server on a fresh machine may not be up yet, so a failed attempt
+	// must be retried rather than failing the test. The agent keeps the
+	// WireGuard tunnel between attempts, so only the first one pays for it.
+	// Each attempt is logged by the harness with its exit status and duration.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
-		assert.Equal(c, "SECRET1", ssh.StdOut().String())
-	}, 10*time.Second, 1*time.Second)
+		ssh := f.Collect(c).FlyBestEffort(30*time.Second, "ssh console -C 'cat /tmp/secrets.txt'")
+		if !assert.Equal(c, 0, ssh.ExitCode(), "ssh console failed: %s", ssh.StdErrString()) {
+			return
+		}
+		assert.Equal(c, "SECRET1", ssh.StdOutString())
+	}, 90*time.Second, 2*time.Second)
 }
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
 )
 
@@ -23,6 +24,12 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 
 	if v := logger.MaybeFromContext(ctx); v != nil {
 		opts.Logger = v
+	}
+
+	if opts.AffinityStore == nil {
+		if dir := state.MaybeConfigDirectory(ctx); dir != "" {
+			opts.AffinityStore = newFileAffinityStore(dir)
+		}
 	}
 
 	opts.Transport = tracing.NewTransport(opts.Transport)

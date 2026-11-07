@@ -2340,6 +2340,172 @@ type GetAppsByRoleResponse struct {
 // GetApps returns GetAppsByRoleResponse.Apps, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleResponse) GetApps() GetAppsByRoleAppsAppConnection { return v.Apps }
 
+// GetCurrentUserNumericIDResponse is returned by GetCurrentUserNumericID on success.
+type GetCurrentUserNumericIDResponse struct {
+	Viewer GetCurrentUserNumericIDViewerPrincipal `json:"-"`
+}
+
+// GetViewer returns GetCurrentUserNumericIDResponse.Viewer, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDResponse) GetViewer() GetCurrentUserNumericIDViewerPrincipal {
+	return v.Viewer
+}
+
+func (v *GetCurrentUserNumericIDResponse) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetCurrentUserNumericIDResponse
+		Viewer json.RawMessage `json:"viewer"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetCurrentUserNumericIDResponse = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Viewer
+		src := firstPass.Viewer
+		if len(src) != 0 && string(src) != "null" {
+			err = __unmarshalGetCurrentUserNumericIDViewerPrincipal(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal GetCurrentUserNumericIDResponse.Viewer: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalGetCurrentUserNumericIDResponse struct {
+	Viewer json.RawMessage `json:"viewer"`
+}
+
+func (v *GetCurrentUserNumericIDResponse) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetCurrentUserNumericIDResponse) __premarshalJSON() (*__premarshalGetCurrentUserNumericIDResponse, error) {
+	var retval __premarshalGetCurrentUserNumericIDResponse
+
+	{
+
+		dst := &retval.Viewer
+		src := v.Viewer
+		var err error
+		*dst, err = __marshalGetCurrentUserNumericIDViewerPrincipal(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal GetCurrentUserNumericIDResponse.Viewer: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// GetCurrentUserNumericIDViewerMacaroon includes the requested fields of the GraphQL type Macaroon.
+type GetCurrentUserNumericIDViewerMacaroon struct {
+	Typename string `json:"__typename"`
+}
+
+// GetTypename returns GetCurrentUserNumericIDViewerMacaroon.Typename, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDViewerMacaroon) GetTypename() string { return v.Typename }
+
+// GetCurrentUserNumericIDViewerPrincipal includes the requested fields of the GraphQL interface Principal.
+//
+// GetCurrentUserNumericIDViewerPrincipal is implemented by the following types:
+// GetCurrentUserNumericIDViewerMacaroon
+// GetCurrentUserNumericIDViewerUser
+type GetCurrentUserNumericIDViewerPrincipal interface {
+	implementsGraphQLInterfaceGetCurrentUserNumericIDViewerPrincipal()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() string
+}
+
+func (v *GetCurrentUserNumericIDViewerMacaroon) implementsGraphQLInterfaceGetCurrentUserNumericIDViewerPrincipal() {
+}
+func (v *GetCurrentUserNumericIDViewerUser) implementsGraphQLInterfaceGetCurrentUserNumericIDViewerPrincipal() {
+}
+
+func __unmarshalGetCurrentUserNumericIDViewerPrincipal(b []byte, v *GetCurrentUserNumericIDViewerPrincipal) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "Macaroon":
+		*v = new(GetCurrentUserNumericIDViewerMacaroon)
+		return json.Unmarshal(b, *v)
+	case "User":
+		*v = new(GetCurrentUserNumericIDViewerUser)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing Principal.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for GetCurrentUserNumericIDViewerPrincipal: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalGetCurrentUserNumericIDViewerPrincipal(v *GetCurrentUserNumericIDViewerPrincipal) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *GetCurrentUserNumericIDViewerMacaroon:
+		typename = "Macaroon"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*GetCurrentUserNumericIDViewerMacaroon
+		}{typename, v}
+		return json.Marshal(result)
+	case *GetCurrentUserNumericIDViewerUser:
+		typename = "User"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*GetCurrentUserNumericIDViewerUser
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for GetCurrentUserNumericIDViewerPrincipal: "%T"`, v)
+	}
+}
+
+// GetCurrentUserNumericIDViewerUser includes the requested fields of the GraphQL type User.
+type GetCurrentUserNumericIDViewerUser struct {
+	Typename          string `json:"__typename"`
+	InternalNumericId int    `json:"internalNumericId"`
+}
+
+// GetTypename returns GetCurrentUserNumericIDViewerUser.Typename, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDViewerUser) GetTypename() string { return v.Typename }
+
+// GetInternalNumericId returns GetCurrentUserNumericIDViewerUser.InternalNumericId, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDViewerUser) GetInternalNumericId() int { return v.InternalNumericId }
+
 // GetExtensionSsoLinkOrganization includes the requested fields of the GraphQL type Organization.
 type GetExtensionSsoLinkOrganization struct {
 	// Single sign-on link for the given extension type
@@ -4239,6 +4405,39 @@ func GetAppsByRole(
 	}
 
 	data_ = &GetAppsByRoleResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetCurrentUserNumericID.
+const GetCurrentUserNumericID_Operation = `
+query GetCurrentUserNumericID {
+	viewer {
+		__typename
+		... on User {
+			internalNumericId
+		}
+	}
+}
+`
+
+func GetCurrentUserNumericID(
+	ctx_ context.Context,
+	client_ graphql.Client,
+) (data_ *GetCurrentUserNumericIDResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetCurrentUserNumericID",
+		Query:  GetCurrentUserNumericID_Operation,
+	}
+
+	data_ = &GetCurrentUserNumericIDResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

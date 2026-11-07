@@ -262,14 +262,16 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		return err
 	}
 	if dbExists && !force {
-		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
-		confirm, err := prompt.Confirm(ctx, msg)
-		if err != nil {
+		switch confirm, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirm {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError(fmt.Sprintf("database %q already exists; pass --yes to attach to it when not running interactively", *input.DatabaseName))
+		default:
 			return err
-		}
-		if !confirm {
-			return nil
 		}
 	}
 
