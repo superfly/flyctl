@@ -152,9 +152,14 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	vars["appName"] = cfg.appName
 	var app PyApp
 	for _, dep := range cfg.deps {
-		if slices.Contains(supportedApps, PyApp(dep)) && app == "" {
+		if !slices.Contains(supportedApps, PyApp(dep)) || PyApp(dep) == app {
+			// Not a framework, or one already found: Poetry 2 projects can list
+			// a framework under both [project] and [tool.poetry.dependencies].
+			continue
+		}
+		if app == "" {
 			app = PyApp(dep)
-		} else if slices.Contains(supportedApps, PyApp(dep)) && app != "" {
+		} else {
 			terminal.Warn("Multiple supported Python frameworks found")
 
 			return nil, nil
@@ -231,10 +236,9 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 	pyVersion, _ := deps["python"].(string)
 	if pyVersion == "" {
-		pyVersion = strings.TrimFunc(pyProject.Project.RequiresPython, func(r rune) bool {
-			return !unicode.IsDigit(r) && r != '.'
-		})
+		pyVersion = pyProject.Project.RequiresPython
 	}
+	pyVersion = pythonVersionFromConstraint(pyVersion)
 
 	// Poetry 2 lists dependencies under [project]; [tool.poetry.dependencies]
 	// may then hold only python, or extras and sources for some of them.
@@ -259,8 +263,6 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 			return nil, err
 		}
 	}
-	pyVersion = strings.TrimPrefix(pyVersion, "^")
-	pyVersion = parsePyDep(pyVersion)
 	cfg := PyCfg{pyVersion, appName, depList, Poetry}
 
 	return intoSource(cfg)
@@ -290,17 +292,13 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		depList = append(depList, parsePyDep(dep))
 	}
 	appName := pyProject.Project.Name
-	pyVersion := pyProject.Project.RequiresPython
+	pyVersion := pythonVersionFromConstraint(pyProject.Project.RequiresPython)
 	if pyVersion == "" {
 		extracted, _, err := extractPythonVersion()
 		if err != nil {
 			return nil, err
 		}
 		pyVersion = extracted
-	} else {
-		pyVersion = strings.TrimFunc(pyVersion, func(r rune) bool {
-			return !unicode.IsDigit(r) && r != '.'
-		})
 	}
 
 	cfg := PyCfg{pyVersion, appName, depList, Pep621}
@@ -449,6 +447,29 @@ func pythonWebCommand(sourceDir string) string {
 	for _, entrypoint := range []string{"app.py", "main.py"} {
 		if checksPass(sourceDir, fileExists(entrypoint)) {
 			return "python " + entrypoint
+		}
+	}
+
+	return ""
+}
+
+// pythonVersionFromConstraint returns the Python version for the image tag
+// from a version constraint: its lower bound, e.g. "3.10" for ">=3.10,<4.0",
+// "^3.10" or "3.10.*". It returns "" when the constraint has no lower bound
+// ("<3.13") or isn't a version at all.
+func pythonVersionFromConstraint(constraint string) string {
+	for _, part := range strings.Split(constraint, ",") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "<") || strings.HasPrefix(part, "!=") {
+			continue
+		}
+		part = strings.TrimLeft(part, "^~=> ")
+		end := strings.IndexFunc(part, func(r rune) bool { return !unicode.IsDigit(r) && r != '.' })
+		if end >= 0 {
+			part = part[:end]
+		}
+		if part = strings.Trim(part, "."); part != "" {
+			return part
 		}
 	}
 

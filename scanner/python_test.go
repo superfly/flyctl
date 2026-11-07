@@ -196,3 +196,81 @@ func TestConfigurePythonFallbackProcfile(t *testing.T) {
 		})
 	}
 }
+
+// A framework listed under both [project] and [tool.poetry.dependencies], as
+// Poetry 2 projects do to give it extras or a source, is one framework: the
+// project keeps the Poetry Dockerfile and the Python version it asks for.
+// Python version ranges give a usable image tag.
+func TestConfigurePythonPoetryProjects(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		pyproject  string
+		wantFamily string
+		wantFrom   string
+	}{
+		{
+			name:       "framework in both tables",
+			pyproject:  "[project]\nname = \"app\"\ndependencies = [\"fastapi[standard]>=0.110\"]\n\n[tool.poetry.dependencies]\npython = \"^3.12\"\nfastapi = {extras = [\"standard\"], version = \">=0.110\"}\n",
+			wantFamily: "FastAPI",
+			wantFrom:   "FROM python:3.12 ",
+		},
+		{
+			name:       "framework in both tables with a source",
+			pyproject:  "[project]\nname = \"app\"\ndependencies = [\"flask\"]\nrequires-python = \">=3.11\"\n\n[tool.poetry.dependencies]\nflask = {source = \"internal\"}\n",
+			wantFamily: "Flask",
+			wantFrom:   "FROM python:3.11 ",
+		},
+		{
+			name:       "requires-python range",
+			pyproject:  "[project]\nname = \"app\"\ndependencies = [\"fastapi\"]\nrequires-python = \">=3.10,<4.0\"\n",
+			wantFamily: "FastAPI",
+			wantFrom:   "FROM python:3.10 ",
+		},
+		{
+			name:       "poetry python range",
+			pyproject:  "[tool.poetry]\nname = \"app\"\n\n[tool.poetry.dependencies]\npython = \">=3.9,<3.13\"\nflask = \"^3.0\"\n",
+			wantFamily: "Flask",
+			wantFrom:   "FROM python:3.9 ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			require.NoError(t, os.WriteFile("poetry.lock", nil, 0o644))
+			require.NoError(t, os.WriteFile("pyproject.toml", []byte(tc.pyproject), 0o644))
+
+			srcInfo, err := configurePython(".", &ScannerConfig{})
+
+			require.NoError(t, err)
+			require.NotNil(t, srcInfo)
+			assert.Equal(t, tc.wantFamily, srcInfo.Family)
+			var dockerfile string
+			for _, f := range srcInfo.Files {
+				if f.Path == "Dockerfile" {
+					dockerfile = string(f.Contents)
+				}
+			}
+			assert.Contains(t, dockerfile, "poetry install", "installs from poetry.lock")
+			assert.Contains(t, dockerfile, tc.wantFrom)
+		})
+	}
+}
+
+func TestPythonVersionFromConstraint(t *testing.T) {
+	for constraint, want := range map[string]string{
+		"3.12":           "3.12",
+		"^3.11":          "3.11",
+		"~3.11":          "3.11",
+		">=3.8":          "3.8",
+		">= 3.10, < 4.0": "3.10",
+		">=3.10,<4.0":    "3.10",
+		"<3.13,>=3.9":    "3.9",
+		"==3.11.*":       "3.11",
+		"3.12.0b4":       "3.12.0",
+		"!=3.9,>=3.8":    "3.8",
+		"<3.13":          "",
+		"*":              "",
+		"":               "",
+	} {
+		assert.Equal(t, want, pythonVersionFromConstraint(constraint), "constraint %q", constraint)
+	}
+}
