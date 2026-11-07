@@ -320,6 +320,12 @@ func run(ctx context.Context) (err error) {
 				}
 			}
 
+			// Report whatever IDs the state knows, on every exit path.
+			if state != nil {
+				status.OrgID = state.orgID
+				status.AppID = state.appID
+			}
+
 			status.TraceID = span.SpanContext().TraceID().String()
 			status.Duration = time.Since(startTime)
 			metrics.LaunchStatus(ctx, status)
@@ -591,8 +597,6 @@ func run(ctx context.Context) (err error) {
 	}
 
 	err = state.Launch(ctx)
-	status.AppID = state.appID
-	status.OrgID = state.orgID
 	if err != nil {
 		return err
 	}
