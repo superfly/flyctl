@@ -5,9 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
-
-	"github.com/blang/semver"
 )
 
 func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -26,10 +25,8 @@ func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	}
 
 	// we don't support .NET Framework or .NET version below 6.0
-	// Compare as numbers: as strings, "10.0" sorts before "6.0".
 	isDotnetFramework := !strings.Contains(dotnetSdkVersion, ".")
-	version, versionErr := semver.ParseTolerant(dotnetSdkVersion)
-	if isDotnetFramework || versionErr != nil || version.Major < 6 {
+	if isDotnetFramework || dotnetVersionBelow6(dotnetSdkVersion) {
 		if isDotnetFramework {
 			fmt.Println("The .NET Framework is not supported.")
 		} else {
@@ -93,4 +90,17 @@ func extractDotnetTargetFramework(filePath string) (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to extract .NET version")
+}
+
+// dotnetVersionBelow6 reports whether a TargetFramework version such as
+// "8.0" or "8.0-windows" is older than 6.0. The major version is compared as
+// a number, since as strings "10.0" sorts before "6.0"; anything without a
+// numeric major keeps the string comparison.
+func dotnetVersionBelow6(version string) bool {
+	major, _, _ := strings.Cut(version, ".")
+	if n, err := strconv.Atoi(major); err == nil {
+		return n < 6
+	}
+
+	return version < "6.0"
 }
