@@ -106,5 +106,6 @@ func captureProcessStdout(t *testing.T, run func()) string {
 	require.NoError(t, err)
 	output, err := io.ReadAll(file)
 	require.NoError(t, err)
+
 	return string(output)
 }
