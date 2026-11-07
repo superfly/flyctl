@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/blang/semver"
 )
 
 func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -24,8 +26,10 @@ func configureDotnet(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	}
 
 	// we don't support .NET Framework or .NET version below 6.0
+	// Compare as numbers: as strings, "10.0" sorts before "6.0".
 	isDotnetFramework := !strings.Contains(dotnetSdkVersion, ".")
-	if isDotnetFramework || dotnetSdkVersion < "6.0" {
+	version, versionErr := semver.ParseTolerant(dotnetSdkVersion)
+	if isDotnetFramework || versionErr != nil || version.Major < 6 {
 		if isDotnetFramework {
 			fmt.Println("The .NET Framework is not supported.")
 		} else {
