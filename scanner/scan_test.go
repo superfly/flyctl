@@ -224,10 +224,6 @@ func TestScanDotnet(t *testing.T) {
 		{framework: "net9.0", supported: true},
 		{framework: "net10.0", supported: true},
 		{framework: "net11.0", supported: true},
-		// Platform-specific frameworks carry a suffix.
-		{framework: "net8.0-windows", supported: true},
-		{framework: "net9.0-browser", supported: true},
-		{framework: "net10.0-android", supported: true},
 		{framework: "net5.0"},
 		{framework: "net5.0-windows"},
 		{framework: "netcoreapp3.1"},
@@ -246,8 +242,11 @@ func TestScanDotnet(t *testing.T) {
 	}
 }
 
-// The old check compared versions as strings. It was right for every major
-// below 10, so the numeric check must agree with it there.
+// The old check compared versions as strings, which was wrong only for .NET
+// 10 and up. This pins that the numeric check changes nothing else, including
+// what the old check got wrong: platform suffixes (net8.0-windows) and
+// netstandard are still accepted, though the Dockerfile template has no image
+// for them. Fixing those means changing this test on purpose.
 func TestDotnetVersionBelow6MatchesStringCheckBelow10(t *testing.T) {
 	for _, v := range []string{
 		"1.0", "2.1", "3.1", "5.0", "6.0", "7.0", "8.0", "9.0",

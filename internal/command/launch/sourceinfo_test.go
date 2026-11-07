@@ -45,9 +45,7 @@ func TestDetermineSourceInfoDockerfileDetection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			for name, contents := range tt.files {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(contents), 0o644))
-			}
+			writeFiles(t, dir, tt.files)
 
 			io, _, _, _ := iostreams.Test()
 			ctx := iostreams.NewContext(context.Background(), io)

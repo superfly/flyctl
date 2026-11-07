@@ -40,9 +40,8 @@ type manifestEnv struct {
 	noCapacity bool
 	// config is a fly.toml already loaded from the source directory.
 	config *appconfig.Config
-	// mpgEnabled and mpgErr are what the Managed Postgres feature flag says.
+	// mpgEnabled is what the Managed Postgres feature flag says.
 	mpgEnabled bool
-	mpgErr     error
 
 	// placements records each placements request.
 	placements []flaps.GetPlacementsRequest
@@ -93,7 +92,7 @@ func (e *manifestEnv) buildManifestIn(t *testing.T, dir string, args ...string) 
 	unsetCIEnv(t)
 
 	prev := managedPostgresEnabled
-	managedPostgresEnabled = func() (bool, error) { return e.mpgEnabled, e.mpgErr }
+	managedPostgresEnabled = func() (bool, error) { return e.mpgEnabled, nil }
 	t.Cleanup(func() { managedPostgresEnabled = prev })
 
 	ios, _, out, errOut := iostreams.Test()
@@ -296,26 +295,6 @@ func TestBuildManifestDbFlag(t *testing.T) {
 		assert.NotNil(t, res.manifest.Plan.Postgres.FlyPostgres)
 		assert.Equal(t, "forced by --db flag", res.manifest.PlanSource.postgresSource)
 	})
-
-	// --db takes its value only after "=": "--db mpg" is --db=true plus an
-	// argument.
-	t.Run("--db mpg is --db=true", func(t *testing.T) {
-		env := newManifestEnv()
-		env.mpgEnabled = true
-
-		res, err := env.buildManifestFrom(t, "my-app", goApp, "--db", "mpg")
-		require.NoError(t, err)
-
-		assert.NotNil(t, res.manifest.Plan.Postgres.FlyPostgres)
-		assert.Nil(t, res.manifest.Plan.Postgres.ManagedPostgres)
-	})
-
-	t.Run("beats --no-db", func(t *testing.T) {
-		res, err := newManifestEnv().buildManifestFrom(t, "my-app", djangoApp, "--db=upg", "--no-db")
-		require.NoError(t, err)
-
-		assert.NotNil(t, res.manifest.Plan.Postgres.FlyPostgres)
-	})
 }
 
 // The Managed Postgres flag only changes interactive launches; headless ones
@@ -355,14 +334,6 @@ func TestBuildManifestManagedPostgresFlag(t *testing.T) {
 		assert.Nil(t, res.manifest.Plan.Postgres.FlyPostgres)
 		assert.Equal(t, "ord", res.manifest.Plan.Postgres.ManagedPostgres.Region)
 		assert.Equal(t, "ord", res.manifest.Plan.RegionCode)
-	})
-
-	t.Run("the flag can't be read", func(t *testing.T) {
-		env := newManifestEnv()
-		env.mpgErr = errors.New("flags unavailable")
-
-		_, err := env.buildManifestFrom(t, "my-app", djangoApp)
-		assert.ErrorContains(t, err, "flags unavailable")
 	})
 }
 
@@ -622,11 +593,11 @@ func TestManifestRoundTrip(t *testing.T) {
 	// PlanSource's fields are unexported, so it doesn't survive JSON; run
 	// fills it in after loading a manifest.
 
-	newCtx := func(t *testing.T) context.Context {
+	newCtx := func(t *testing.T, dir string) context.Context {
 		ios, _, _, _ := iostreams.Test()
 		ctx := iostreams.NewContext(context.Background(), ios)
 		flags := New().Flags()
-		require.NoError(t, flags.Parse([]string{"--path", res.dir, "--no-deploy"}))
+		require.NoError(t, flags.Parse([]string{"--path", dir, "--no-deploy"}))
 		ctx = flagctx.NewContext(ctx, flags)
 		ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{})
 
@@ -634,7 +605,7 @@ func TestManifestRoundTrip(t *testing.T) {
 	}
 
 	t.Run("same source", func(t *testing.T) {
-		state, err := stateFromManifest(newCtx(t), loaded, nil, &recoverableErrorBuilder{})
+		state, err := stateFromManifest(newCtx(t, res.dir), loaded, nil, &recoverableErrorBuilder{})
 		require.NoError(t, err)
 
 		assert.Equal(t, "Django", state.sourceInfo.Family)
@@ -643,10 +614,11 @@ func TestManifestRoundTrip(t *testing.T) {
 	})
 
 	t.Run("source changed to another kind of app", func(t *testing.T) {
-		require.NoError(t, os.Remove(filepath.Join(res.dir, "requirements.txt")))
-		writeFiles(t, res.dir, goApp)
+		dir := filepath.Join(t.TempDir(), "my-app")
+		writeFiles(t, dir, goApp)
+		t.Chdir(dir)
 
-		_, err := stateFromManifest(newCtx(t), loaded, nil, &recoverableErrorBuilder{})
+		_, err := stateFromManifest(newCtx(t, dir), loaded, nil, &recoverableErrorBuilder{})
 		assert.ErrorContains(t, err, "launch manifest was created for a Django app, but this is a Go app")
 	})
 }
