@@ -795,13 +795,17 @@ func TestLoadYAMLAppConfigWithNonStringKeys(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "fly.yaml")
 			require.NoError(t, os.WriteFile(path, []byte("app: foo\n"+tt.config), 0o600))
 
-			cfg, err := LoadConfig(path)
-			require.ErrorContains(t, err, "keys must be strings")
-			assert.Nil(t, cfg)
+			t.Run("LoadConfig", func(t *testing.T) {
+				cfg, err := LoadConfig(path)
+				require.ErrorContains(t, err, "keys must be strings")
+				assert.Nil(t, cfg)
+			})
 
-			raw, err := LoadConfigAsMap(path)
-			require.ErrorContains(t, err, "keys must be strings")
-			assert.Nil(t, raw)
+			t.Run("LoadConfigAsMap", func(t *testing.T) {
+				raw, err := LoadConfigAsMap(path)
+				require.ErrorContains(t, err, "keys must be strings")
+				assert.Nil(t, raw)
+			})
 		})
 	}
 }
