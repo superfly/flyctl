@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -20,6 +21,15 @@ func (e *manifestEnv) launchFrom(t *testing.T, files map[string]string, args ...
 	res, err := e.buildManifestFrom(t, "my-app", files, append([]string{"--no-deploy"}, args...)...)
 	require.NoError(t, err)
 
+	out, err := launchPlan(t, res)
+
+	return res, out, err
+}
+
+// launchPlan launches a plan buildManifest made, returning what it printed.
+func launchPlan(t *testing.T, res manifestResult) (string, error) {
+	t.Helper()
+
 	ios, _, out, _ := iostreams.Test()
 	ctx := iostreams.NewContext(res.ctx, ios)
 
@@ -28,7 +38,7 @@ func (e *manifestEnv) launchFrom(t *testing.T, files map[string]string, args ...
 
 	err = state.Launch(ctx)
 
-	return res, out.String(), err
+	return out.String(), err
 }
 
 func loadFlyToml(t *testing.T, dir string) *appconfig.Config {
@@ -165,11 +175,8 @@ kill_signal = 'SIGTERM'
 	res, err := env.buildManifestWithFlyToml(t, files, flyToml, "--copy-config", "--no-deploy")
 	require.NoError(t, err)
 
-	ios, _, _, _ := iostreams.Test()
-	ctx := iostreams.NewContext(res.ctx, ios)
-	state, err := stateFromManifest(ctx, *res.manifest, res.cache, &recoverableErrorBuilder{})
+	_, err = launchPlan(t, res)
 	require.NoError(t, err)
-	require.NoError(t, state.Launch(ctx))
 
 	require.Len(t, env.created, 1)
 	assert.Equal(t, "from-toml", env.created[0].Name)
@@ -182,6 +189,7 @@ kill_signal = 'SIGTERM'
 	require.NotNil(t, cfg.HTTPService)
 	assert.Equal(t, 4000, cfg.HTTPService.InternalPort)
 	require.NotNil(t, cfg.HTTPService.AutoStopMachines)
+	assert.Equal(t, fly.MachineAutostopOff, *cfg.HTTPService.AutoStopMachines)
 	require.Len(t, cfg.Compute, 1)
 	assert.Equal(t, "2gb", cfg.Compute[0].Memory)
 }

@@ -63,8 +63,9 @@ func TestDetermineSourceInfoDockerfileDetection(t *testing.T) {
 	}
 }
 
-// newSourceInfoCtx carries every launch flag, with or without a terminal.
-func newSourceInfoCtx(t *testing.T, terminal bool, args ...string) context.Context {
+// unsetCIEnv hides the CI the tests may be running in, so launch behaves as
+// it would for someone at a machine without a terminal.
+func unsetCIEnv(t *testing.T) {
 	t.Helper()
 
 	// env.IsCI only checks presence, so unset rather than blank them.
@@ -72,6 +73,13 @@ func newSourceInfoCtx(t *testing.T, terminal bool, args ...string) context.Conte
 		t.Setenv(k, "")
 		os.Unsetenv(k)
 	}
+}
+
+// newSourceInfoCtx carries every launch flag, with or without a terminal.
+func newSourceInfoCtx(t *testing.T, terminal bool, args ...string) context.Context {
+	t.Helper()
+
+	unsetCIEnv(t)
 
 	ios, _, _, _ := iostreams.Test()
 	ios.SetStdinTTY(terminal)

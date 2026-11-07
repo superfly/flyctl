@@ -223,6 +223,13 @@ func TestScanDotnet(t *testing.T) {
 		{framework: "net8.0", supported: true},
 		{framework: "net9.0", supported: true},
 		{framework: "net10.0", supported: true},
+		{framework: "net11.0", supported: true},
+		// Platform-specific frameworks carry a suffix.
+		{framework: "net8.0-windows", supported: true},
+		{framework: "net9.0-browser", supported: true},
+		{framework: "net10.0-android", supported: true},
+		{framework: "net5.0"},
+		{framework: "net5.0-windows"},
 		{framework: "netcoreapp3.1"},
 		{framework: "net48"}, // .NET Framework
 	} {
@@ -236,5 +243,21 @@ func TestScanDotnet(t *testing.T) {
 			require.NotNil(t, si)
 			assert.Equal(t, ".NET", si.Family)
 		})
+	}
+}
+
+// The old check compared versions as strings. It was right for every major
+// below 10, so the numeric check must agree with it there.
+func TestDotnetVersionBelow6MatchesStringCheckBelow10(t *testing.T) {
+	for _, v := range []string{
+		"1.0", "2.1", "3.1", "5.0", "6.0", "7.0", "8.0", "9.0",
+		"5.0-windows", "6.0-windows", "8.0-windows", "9.0-browser", "8.0-android34.0",
+		"standard2.0", "standard2.1", "x.y", ".5",
+	} {
+		assert.Equal(t, v < "6.0", dotnetVersionBelow6(v), v)
+	}
+
+	for _, v := range []string{"10.0", "10.0-windows", "11.0", "12.0"} {
+		assert.False(t, dotnetVersionBelow6(v), v)
 	}
 }
