@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -229,4 +230,22 @@ func (state *launchState) validateExtensions(ctx context.Context) error {
 	// that we'll probably need more validation in the future.
 	// When that happens we can just errors.Join(a(), b(), c()...)
 	return nil
+}
+
+// reportTo copies what the state knows about the app and org into the launch
+// metrics, on every exit path. The app name can change after it was first
+// recorded, in the web UI or when the derived name is taken; renamed reports
+// whether it did.
+func (state *launchState) reportTo(status *metrics.LaunchStatusPayload) (renamed bool) {
+	if state == nil {
+		return false
+	}
+	status.OrgID = state.orgID
+	status.AppID = state.appID
+	if state.Plan != nil && state.Plan.AppName != "" && state.Plan.AppName != status.AppName {
+		status.AppName = state.Plan.AppName
+		return true
+	}
+
+	return false
 }
