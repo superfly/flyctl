@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -22,6 +23,32 @@ import (
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// The plan is validated when it's built and again when it's launched.
+func TestValidateHighAvailabilityWarnsOnce(t *testing.T) {
+	const warning = "turning off high availability"
+
+	for _, tc := range []struct {
+		name      string
+		billable  bool
+		wantValid bool
+		wantCount int
+	}{
+		{name: "org without a payment method", billable: false, wantValid: false, wantCount: 1},
+		{name: "billable org", billable: true, wantValid: true, wantCount: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ios, _, _, errOut := iostreams.Test()
+			ctx := iostreams.NewContext(context.Background(), ios)
+			cache := &planBuildCache{}
+			p := &plan.LaunchPlan{HighAvailability: true}
+
+			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
+			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
+			assert.Equal(t, tc.wantCount, strings.Count(errOut.String(), warning))
+		})
+	}
+}
 
 func newDetermineOrgCtx(t *testing.T, orgFlag string) context.Context {
 	t.Helper()

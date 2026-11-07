@@ -47,9 +47,8 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if !planValidateHighAvailability(ctx, state.Plan, org.Billable, !state.warnedNoCcHa) {
+	if !state.validateHighAvailability(ctx, state.Plan, org.Billable) {
 		state.Plan.HighAvailability = false
-		state.warnedNoCcHa = true
 	}
 
 	planStep := plan.GetPlanStep(ctx)

@@ -248,9 +248,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		billingChecked:   billingChecked,
 	}
 
-	if planValidateHighAvailability(ctx, lp, org.Billable, true) {
-		buildCache.warnedNoCcHa = true
-	}
+	buildCache.validateHighAvailability(ctx, lp, org.Billable)
 
 	if srcInfo != nil {
 		ldClient, err := launchdarkly.NewServiceClient()
@@ -990,6 +988,17 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	}
 
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
+}
+
+// validateHighAvailability reports whether the plan's high availability setting
+// is possible for the org, warning the first time it isn't.
+func (c *planBuildCache) validateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable bool) bool {
+	valid := planValidateHighAvailability(ctx, p, billable, !c.warnedNoCcHa)
+	if !valid {
+		c.warnedNoCcHa = true
+	}
+
+	return valid
 }
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
