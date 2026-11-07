@@ -3,6 +3,7 @@ package scanner
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -243,7 +244,8 @@ func TestScanDotnet(t *testing.T) {
 
 			// The version picks the SDK and runtime images.
 			version := strings.TrimPrefix(tc.framework, "net")
-			assert.Contains(t, string(sourceFile(t, si, "Dockerfile")), "ARG DOTNET_SDK_VERSION="+version+"\n")
+			// Windows checkouts give the template CRLF line endings.
+			assert.Regexp(t, `(?m)^ARG DOTNET_SDK_VERSION=`+regexp.QuoteMeta(version)+`\r?$`, string(sourceFile(t, si, "Dockerfile")))
 		})
 	}
 }
