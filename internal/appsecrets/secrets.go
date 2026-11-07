@@ -44,7 +44,7 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 	}
 
 	if err := SetMinvers(ctx, appName, resp.Version); err != nil {
-		return err
+		return fmt.Errorf("secrets were updated remotely, but saving their version failed: %w", err)
 	}
 
 	return nil

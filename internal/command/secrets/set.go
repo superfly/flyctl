@@ -78,5 +78,9 @@ func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient,
 		return fmt.Errorf("update secrets: %w", err)
 	}
 
-	return DeploySecrets(ctx, app.Name, args)
+	if err := DeploySecrets(ctx, app.Name, args); err != nil {
+		return fmt.Errorf("secrets were updated, but deployment failed: %w", err)
+	}
+
+	return nil
 }
