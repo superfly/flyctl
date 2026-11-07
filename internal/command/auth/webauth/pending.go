@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,9 @@ func pendingLoginPath(ctx context.Context) string {
 
 // lockPendingLogin serializes changes to the pending login across flyctl
 // processes, so removing one login can't delete a newer one saved meanwhile.
-// Readers need no lock: the file is replaced atomically.
+// Readers need no lock: the file is replaced atomically. On Windows a read
+// can still fail while a rename over the file is in progress, which
+// loadPendingLogin retries.
 func lockPendingLogin(path string) (filemu.UnlockFunc, error) {
 	return filemu.Lock(context.Background(), path+".lock")
 }
@@ -56,9 +59,24 @@ func savePendingLogin(path string, p pendingLogin) error {
 	return helpers.WriteFileAtomically(path, data, 0o600)
 }
 
-// loadPendingLogin reads the pending login at path. The error wraps
-// os.ErrNotExist when there is none.
+// loadPendingLogin reads the pending login at path, retrying for a moment
+// while another process has the file busy. The error wraps os.ErrNotExist
+// when there is none, and satisfies isReadFailure when the file is there but
+// could not be read.
 func loadPendingLogin(path string) (pendingLogin, error) {
+	var p pendingLogin
+	err := helpers.RetryIfFileBusy(path, func() (err error) {
+		p, err = readPendingLogin(path)
+
+		return err
+	})
+
+	return p, err
+}
+
+// readPendingLogin is loadPendingLogin in a single attempt, for callers that
+// look again on their own schedule.
+func readPendingLogin(path string) (pendingLogin, error) {
 	var p pendingLogin
 
 	data, err := os.ReadFile(path)
@@ -76,8 +94,8 @@ func loadPendingLogin(path string) (pendingLogin, error) {
 }
 
 // removePendingLogin deletes the pending login at path unless it belongs to
-// another session, which means a newer login replaced it. An unreadable file
-// is deleted too: nothing can finish it.
+// another session, which means a newer login replaced it. A file nothing can
+// read or parse is deleted too: nothing can finish it.
 func removePendingLogin(path, id string) {
 	unlock, err := lockPendingLogin(path)
 	if err != nil {
@@ -86,11 +104,16 @@ func removePendingLogin(path, id string) {
 	defer func() { _ = unlock() }()
 
 	p, err := loadPendingLogin(path)
-	if errors.Is(err, os.ErrNotExist) || (err == nil && p.ID != id) {
+	switch {
+	case errors.Is(err, fs.ErrNotExist), err == nil && p.ID != id:
+		return
+	case helpers.IsFileBusy(path, err):
+		// Still held open elsewhere, so the delete would fail too. It
+		// expires, and the next login replaces it.
 		return
 	}
 
-	_ = os.Remove(path)
+	_ = helpers.RetryIfFileBusy(path, func() error { return os.Remove(path) })
 }
 
 var errLoginExpired = errors.New("that login has expired. Run `fly auth login` to start a new one")
@@ -106,9 +129,12 @@ func RedeemPendingLogin(ctx context.Context, code string) (token string, finish 
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return "", nil, errors.New("no login is waiting for a code here. Run `fly auth login` first, then use the code its approval page shows")
+	case helpers.IsFileBusy(path, err):
+		// Held open elsewhere, not broken: leave it for the login that saved it.
+		return "", nil, fmt.Errorf("the saved login is in use by another program (%w). Try again in a moment", err)
 	case err != nil:
-		// An empty id still spares a newer login that replaced the file
-		// meanwhile: only an unreadable file goes.
+		// Nothing can read or parse it, so nothing can finish it. An empty
+		// id still spares a newer login that replaced the file meanwhile.
 		removePendingLogin(path, "")
 
 		return "", nil, fmt.Errorf("the saved login could not be read (%w). Run `fly auth login` to start a new one", err)
@@ -156,9 +182,13 @@ type pendingWatch struct {
 }
 
 // check reports whether the login was finished elsewhere (its token), was
-// replaced or dropped (an error), or is still waiting (done is false).
+// replaced or dropped (an error), or is still waiting (done is false). A
+// file that couldn't be read leaves the login waiting, with the error for the
+// caller to log.
 func (w *pendingWatch) check() (token string, done bool, err error) {
-	p, err := loadPendingLogin(w.path)
+	// One attempt: the next check is the retry, and a pause here would hold
+	// up the waiting login's other work.
+	p, err := readPendingLogin(w.path)
 	switch {
 	case err == nil && p.ID == w.id:
 		return "", false, nil
@@ -167,10 +197,27 @@ func (w *pendingWatch) check() (token string, done bool, err error) {
 	}
 
 	// `fly auth login --code` removes the file only after saving its token,
-	// so a new token means it finished this login.
+	// so a new token means it finished this login. That holds even when the
+	// file can't be read: Windows keeps a removed file around, unopenable,
+	// while anything else still has it open.
 	if token, _ := config.ReadAccessToken(w.configFile); token != "" && token != w.token {
 		return token, true, nil
 	}
 
+	if isReadFailure(err) {
+		// Look again on the next check rather than give up on a live login:
+		// it can still finish in the browser.
+		return "", false, err
+	}
+
 	return "", true, errLoginNotPending
+}
+
+// isReadFailure reports whether loadPendingLogin failed to read the file at
+// all, for a reason other than it being gone. Unlike a file that was read but
+// didn't parse, that says nothing about whose login it holds.
+func isReadFailure(err error) bool {
+	var pathErr *fs.PathError
+
+	return errors.As(err, &pathErr) && !errors.Is(err, fs.ErrNotExist)
 }

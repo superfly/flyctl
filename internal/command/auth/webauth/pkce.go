@@ -166,17 +166,24 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 			if watch == nil {
 				continue
 			}
-			if token, done, err := watch.check(); done {
-				if acceptPaste {
-					fmt.Fprint(io.Out, "\r\x1b[K")
-				}
-				log.Debugf("pending login ended in another process: %v", err)
-				if err == nil && token != "" {
-					metrics.SetLoginMethod(metrics.LoginMethodOtherProcess)
+			token, done, err := watch.check()
+			if !done {
+				if err != nil {
+					log.Debugf("could not check the pending login: %v", err)
 				}
 
-				return token, err
+				continue
 			}
+
+			if acceptPaste {
+				fmt.Fprint(io.Out, "\r\x1b[K")
+			}
+			log.Debugf("pending login ended in another process: %v", err)
+			if err == nil && token != "" {
+				metrics.SetLoginMethod(metrics.LoginMethodOtherProcess)
+			}
+
+			return token, err
 		case attempt := <-p.codes:
 			// An HTTP-delivered code leaves the cursor on the prompt line;
 			// erase it so the flow's output starts clean. Pasted codes ended

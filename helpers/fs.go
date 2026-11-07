@@ -55,6 +55,9 @@ func MkdirAll(pathname string) error {
 // empty file behind on failure (an empty config reads back as a logged-out
 // flyctl) and exposes the new contents through any open handle at the old
 // mode.
+//
+// On Windows the rename fails while another process has path open, so it is
+// retried for a moment before giving up.
 func WriteFileAtomically(path string, data []byte, perm os.FileMode) (err error) {
 	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
 	if err != nil {
@@ -82,5 +85,5 @@ func WriteFileAtomically(path string, data []byte, perm os.FileMode) (err error)
 		return err
 	}
 
-	return os.Rename(tmp, path)
+	return RetryIfFileBusy(path, func() error { return os.Rename(tmp, path) })
 }

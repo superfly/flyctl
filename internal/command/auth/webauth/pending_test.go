@@ -321,6 +321,114 @@ func TestWaitingLoginNoLongerPending(t *testing.T) {
 	}
 }
 
+// A read that fails for another reason than the file being gone, as one does
+// on Windows while a newer login is renamed over it, must not end the login.
+func TestWaitingLoginSurvivesAFailedRead(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir) // the config lock file lands in the working directory under tests
+	configFile := filepath.Join(dir, "config.yml")
+	if err := config.SetAccessToken(configFile, "old-token"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reading a directory fails on every OS, and not with os.ErrNotExist.
+	pendingPath := filepath.Join(dir, "pending-login.json")
+	if err := os.Mkdir(pendingPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	watch := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+	if token, done, err := watch.check(); done || err == nil {
+		t.Fatalf("expected a failed read to keep waiting and report its error, got done=%v, %q, %v", done, token, err)
+	}
+
+	// Once the file reads again, the watch still sees a replacement.
+	if err := os.Remove(pendingPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := savePendingLogin(pendingPath, pendingLogin{ID: "sess2", Verifier: "verifier2", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, done, err := watch.check(); !done || !errors.Is(err, errLoginReplaced) {
+		t.Fatalf("expected errLoginReplaced after the read recovered, got done=%v, %v", done, err)
+	}
+}
+
+// On Windows a removed file can't be opened while anything still holds it, so
+// a login finished with --code can leave the file unreadable rather than
+// gone. The new token in config.yml still ends the wait.
+func TestWaitingLoginFinishedWhileTheFileIsUnreadable(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir) // the config lock file lands in the working directory under tests
+	configFile := filepath.Join(dir, "config.yml")
+	if err := config.SetAccessToken(configFile, "old-token"); err != nil {
+		t.Fatal(err)
+	}
+	pendingPath := filepath.Join(dir, "pending-login.json")
+	if err := os.Mkdir(pendingPath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	watch := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+
+	if err := config.SetAccessToken(configFile, "tok-from-code"); err != nil {
+		t.Fatal(err)
+	}
+	if token, done, err := watch.check(); !done || err != nil || token != "tok-from-code" {
+		t.Fatalf("expected the token saved by --code, got done=%v, %q, %v", done, token, err)
+	}
+}
+
+// A file that reads but doesn't parse won't parse on the next check either,
+// so it ends the login instead of leaving it waiting out its timeout.
+func TestWaitingLoginEndsOnAGarbledFile(t *testing.T) {
+	for name, content := range map[string]string{"garbage": "not json", "incomplete": "{}"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
+			configFile := filepath.Join(dir, "config.yml")
+			if err := config.SetAccessToken(configFile, "old-token"); err != nil {
+				t.Fatal(err)
+			}
+			pendingPath := filepath.Join(dir, "pending-login.json")
+			if err := os.WriteFile(pendingPath, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			watch := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+			if _, done, err := watch.check(); !done || !errors.Is(err, errLoginNotPending) {
+				t.Fatalf("expected errLoginNotPending, got done=%v, %v", done, err)
+			}
+		})
+	}
+}
+
+// A file nothing can read can't be finished by anyone, so cleanup after a
+// login and a failed --code both delete it, as they do one that won't parse.
+func TestUnreadablePendingLoginIsCleanedUp(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	path := filepath.Join(dir, "pending-login.json")
+
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	removePendingLogin(path, "sess1")
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("removePendingLogin left an unreadable file: %v", err)
+	}
+
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx := state.WithConfigDirectory(context.Background(), dir)
+	if _, _, err := RedeemPendingLogin(ctx, "code"); err == nil || !strings.Contains(err.Error(), "could not be read") {
+		t.Fatalf("expected a could-not-be-read error, got %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("RedeemPendingLogin left an unreadable file: %v", err)
+	}
+}
+
 func TestRemovePendingLoginWaitsForAConcurrentSave(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "pending-login.json")
 	if err := savePendingLogin(path, pendingLogin{ID: "sess1", Verifier: "verifier1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
