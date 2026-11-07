@@ -80,8 +80,13 @@ func (c execTestClient) Exec(context.Context, string, string, *fly.MachineExecRe
 
 func TestMachineExecReportsRemoteFailure(t *testing.T) {
 	for _, jsonOutput := range []bool{false, true} {
-		for _, exitCode := range []int32{0, 42} {
-			t.Run(fmt.Sprintf("json=%t/exit=%d", jsonOutput, exitCode), func(t *testing.T) {
+		for _, response := range []*fly.MachineExecResponse{
+			{},
+			{ExitCode: 42},
+			{StdOut: "command output\n", StdErr: "command diagnostic\n"},
+			{ExitCode: 42, StdOut: "command output\n", StdErr: "command diagnostic\n"},
+		} {
+			t.Run(fmt.Sprintf("json=%t/exit=%d/empty=%t", jsonOutput, response.ExitCode, response.StdOut == ""), func(t *testing.T) {
 				cmd := newMachineExec()
 				require.NoError(t, cmd.ParseFlags([]string{"test-machine", "command"}))
 				ios, _, stdout, stderr := iostreams.Test()
@@ -89,11 +94,10 @@ func TestMachineExecReportsRemoteFailure(t *testing.T) {
 				ctx = config.NewContext(ctx, &config.Config{JSONOutput: jsonOutput})
 				ctx = appconfig.WithName(ctx, "test-app")
 				ctx = iostreams.NewContext(ctx, ios)
-				response := &fly.MachineExecResponse{ExitCode: exitCode, StdOut: "output\n", StdErr: "diagnostic\n"}
 				ctx = flapsutil.NewContextWithClient(ctx, execTestClient{response: response})
 
 				err := runMachineExec(ctx)
-				if exitCode == 0 {
+				if response.ExitCode == 0 {
 					require.NoError(t, err)
 				} else {
 					require.EqualError(t, err, "command on machine test-machine exited with status 42")
@@ -110,4 +114,26 @@ func TestMachineExecReportsRemoteFailure(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestMachineExecPreservesBothOutputFailures(t *testing.T) {
+	cmd := newMachineExec()
+	require.NoError(t, cmd.ParseFlags([]string{"test-machine", "command"}))
+	ios, _, _, _ := iostreams.Test()
+	stdoutErr := errors.New("stdout unavailable")
+	stderrErr := errors.New("stderr unavailable")
+	ios.Out = execOutputErrorWriter{stdoutErr}
+	ios.ErrOut = execOutputErrorWriter{stderrErr}
+	ctx := flag.NewContext(context.Background(), cmd.Flags())
+	ctx = config.NewContext(ctx, &config.Config{})
+	ctx = appconfig.WithName(ctx, "test-app")
+	ctx = iostreams.NewContext(ctx, ios)
+	ctx = flapsutil.NewContextWithClient(ctx, execTestClient{response: &fly.MachineExecResponse{
+		ExitCode: 42, StdOut: "output", StdErr: "diagnostic",
+	}})
+
+	err := runMachineExec(ctx)
+	require.ErrorIs(t, err, stdoutErr)
+	require.ErrorIs(t, err, stderrErr)
+	require.ErrorContains(t, err, "exited with status 42")
 }
