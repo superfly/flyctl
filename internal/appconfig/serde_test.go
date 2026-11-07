@@ -779,3 +779,42 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
 }
+
+func TestLoadYAMLAppConfigWithNonStringKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config string
+	}{
+		{"integer", "env:\n  1: one\n"},
+		{"boolean", "env:\n  true: yes\n"},
+		{"null", "env:\n  null: value\n"},
+		{"colliding string", "env:\n  0x1: one\n  \"1\": another\n"},
+		{"nested array", "services:\n  - ports:\n      - 1: one\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "fly.yaml")
+			require.NoError(t, os.WriteFile(path, []byte("app: foo\n"+tt.config), 0o600))
+
+			cfg, err := LoadConfig(path)
+			require.ErrorContains(t, err, "keys must be strings")
+			assert.Nil(t, cfg)
+
+			raw, err := LoadConfigAsMap(path)
+			require.ErrorContains(t, err, "keys must be strings")
+			assert.Nil(t, raw)
+		})
+	}
+}
+
+func TestLoadYAMLAppConfigWithQuotedKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fly.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("app: foo\nenv:\n  \"1\": one\n  \"true\": yes\n"), 0o600))
+
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"1": "one", "true": "yes"}, cfg.Env)
+
+	raw, err := LoadConfigAsMap(path)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"1": "one", "true": "yes"}, raw["env"])
+}
