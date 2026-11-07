@@ -24,8 +24,9 @@ argument, for example: fly machine exec <machine-id> 'ls -l /app'.
 
 For non-interactive use, specify the machine ID. Use --timeout to set the
 remote command timeout in seconds. With --json, the response contains the
-remote exit code and captured stdout and stderr. Otherwise, remote stdout
-and stderr are written to the corresponding local streams.
+remote exit code and captured stdout and stderr. Empty JSON fields are omitted;
+an absent exit_code means 0. Otherwise, remote stdout and stderr are written
+to the corresponding local streams.
 
 If the remote command exits with a non-zero status, flyctl exits with an error
 after printing its output, including when --json is used.`
@@ -113,17 +114,31 @@ func runMachineExec(ctx context.Context) (err error) {
 		return fmt.Errorf("could not exec command on machine %s: %w", current.ID, err)
 	}
 
+	var outputErr error
 	if config.JSONOutput {
 		if err := render.JSON(io.Out, out); err != nil {
-			return err
+			outputErr = fmt.Errorf("failed writing command JSON response: %w", err)
 		}
 	} else {
-		fmt.Fprint(io.Out, out.StdOut)
-		fmt.Fprint(io.ErrOut, out.StdErr)
+		var stdoutErr, stderrErr error
+		if out.StdOut != "" {
+			if _, err := fmt.Fprint(io.Out, out.StdOut); err != nil {
+				stdoutErr = fmt.Errorf("failed writing command stdout: %w", err)
+			}
+		}
+		if out.StdErr != "" {
+			if _, err := fmt.Fprint(io.ErrOut, out.StdErr); err != nil {
+				stderrErr = fmt.Errorf("failed writing command stderr: %w", err)
+			}
+		}
+		outputErr = errors.Join(stdoutErr, stderrErr)
 	}
 
 	if out.ExitCode != 0 {
-		return fmt.Errorf("command on machine %s exited with status %d", current.ID, out.ExitCode)
+		return errors.Join(fmt.Errorf("command on machine %s exited with status %d", current.ID, out.ExitCode), outputErr)
+	}
+	if outputErr != nil {
+		return fmt.Errorf("command on machine %s completed successfully, but its output could not be written: %w", current.ID, outputErr)
 	}
 
 	return nil

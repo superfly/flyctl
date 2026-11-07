@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -14,6 +15,55 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+type execOutputErrorWriter struct{ err error }
+
+func (w execOutputErrorWriter) Write([]byte) (int, error) { return 0, w.err }
+
+func TestMachineExecReportsOutputFailures(t *testing.T) {
+	for _, jsonOutput := range []bool{false, true} {
+		for _, exitCode := range []int32{0, 42} {
+			for _, stream := range []string{"stdout", "stderr"} {
+				if jsonOutput && stream == "stderr" {
+					continue // JSON carries both remote streams on stdout.
+				}
+				t.Run(fmt.Sprintf("json=%t/exit=%d/%s", jsonOutput, exitCode, stream), func(t *testing.T) {
+					cmd := newMachineExec()
+					require.NoError(t, cmd.ParseFlags([]string{"test-machine", "command"}))
+					ios, _, stdout, stderr := iostreams.Test()
+					writeErr := errors.New("output unavailable")
+					if stream == "stdout" {
+						ios.Out = execOutputErrorWriter{writeErr}
+					} else {
+						ios.ErrOut = execOutputErrorWriter{writeErr}
+					}
+					ctx := flag.NewContext(context.Background(), cmd.Flags())
+					ctx = config.NewContext(ctx, &config.Config{JSONOutput: jsonOutput})
+					ctx = appconfig.WithName(ctx, "test-app")
+					ctx = iostreams.NewContext(ctx, ios)
+					ctx = flapsutil.NewContextWithClient(ctx, execTestClient{response: &fly.MachineExecResponse{
+						ExitCode: exitCode, StdOut: "output\n", StdErr: "diagnostic\n",
+					}})
+
+					err := runMachineExec(ctx)
+					require.ErrorIs(t, err, writeErr)
+					if exitCode != 0 {
+						require.ErrorContains(t, err, "exited with status 42")
+					} else {
+						require.ErrorContains(t, err, "completed successfully")
+					}
+					if !jsonOutput {
+						if stream == "stdout" {
+							require.Equal(t, "diagnostic\n", stderr.String())
+						} else {
+							require.Equal(t, "output\n", stdout.String())
+						}
+					}
+				})
+			}
+		}
+	}
+}
 
 type execTestClient struct {
 	flapsutil.FlapsClient
