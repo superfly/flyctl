@@ -92,21 +92,57 @@ func TestRunRestoreDoesNotFallbackOnOtherPublicErrors(t *testing.T) {
 	require.False(t, legacyCalled)
 }
 
-func TestRunRestorePreservesPublic404WhenFallbackFails(t *testing.T) {
+func TestRunRestoreReturnsLegacyErrorWhenFallbackFails(t *testing.T) {
+	for name, body := range map[string]string{
+		"flaps unmatched route":  "404 page not found\n",
+		"empty body":             "",
+		"ui-ex default JSON 404": `{"errors":{"detail":"not found"}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, _ := restoreTestContext()
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				RestoreManagedPostgresClusterFunc: func(context.Context, string, flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+					return flaps.ManagedPostgresCluster{}, &flaps.FlapsError{
+						ResponseStatusCode: 404,
+						OriginalError:      errors.New("not found"),
+						ResponseBody:       []byte(body),
+					}
+				},
+			})
+			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
+				RestoreClusterBackupFunc: func(context.Context, string, mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
+					return mpgv2.RestoreClusterBackupResponse{}, errors.New("legacy restore failed")
+				},
+			})
+
+			err := RunRestore(ctx, "mpg-source", "backup-1", "", "")
+			require.EqualError(t, err, "failed to restore cluster: legacy restore failed")
+		})
+	}
+}
+
+func TestRunRestoreResource404DoesNotFallBack(t *testing.T) {
 	ctx, _ := restoreTestContext()
-	publicErr := &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: errors.New("backup not found")}
+	publicErr := &flaps.FlapsError{
+		ResponseStatusCode: 404,
+		OriginalError:      errors.New("backup not found"),
+		ResponseBody:       []byte(`{"error":"backup not found"}`),
+	}
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		RestoreManagedPostgresClusterFunc: func(context.Context, string, flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
 			return flaps.ManagedPostgresCluster{}, publicErr
 		},
 	})
+	legacyCalled := false
 	ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{
 		RestoreClusterBackupFunc: func(context.Context, string, mpgv2.RestoreClusterBackupInput) (mpgv2.RestoreClusterBackupResponse, error) {
-			return mpgv2.RestoreClusterBackupResponse{}, errors.New("legacy restore failed")
+			legacyCalled = true
+			return mpgv2.RestoreClusterBackupResponse{}, nil
 		},
 	})
 
 	err := RunRestore(ctx, "mpg-source", "backup-1", "", "")
 	require.ErrorIs(t, err, publicErr)
 	require.EqualError(t, err, "failed to restore cluster: backup not found")
+	require.False(t, legacyCalled)
 }
