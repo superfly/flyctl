@@ -362,7 +362,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	for env := range appConfig.Env {
 		if containsCommonSecretSubstring(env) {
-			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/apps/secrets/\n", aurora.Yellow("WARN"), env)
+			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://docs.fly.io/apps/secrets\n", aurora.Yellow("WARN"), env)
 			fmt.Fprintln(io.ErrOut, warning)
 		}
 	}

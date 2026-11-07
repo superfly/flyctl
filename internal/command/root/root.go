@@ -240,7 +240,7 @@ func run(ctx context.Context) error {
 	cmd.Println()
 
 	cmd.Println("If you need help along the way:")
-	cmd.Println("  Use `fly docs` to open the Fly.io documentation, or visit https://fly.io/docs.")
+	cmd.Println("  Use `fly docs` to open the Fly.io documentation, or visit https://docs.fly.io/.")
 	cmd.Println("  Use `fly <command> --help` for more information about a command.")
 	cmd.Println("  Visit https://community.fly.io to get help from the Fly.io community.")
 

@@ -29,8 +29,8 @@ const (
 // Descriptions shown before the corresponding prompt, shared by create and
 // update so both paths explain a setting the same way.
 const (
-	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#auto-upgrade.\n\n"
-	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.\n\n"
+	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#auto-upgrade.\n\n"
+	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo.\n\n"
 )
 
 // Legacy plans that are no longer available for new databases
@@ -149,7 +149,7 @@ func runCreate(ctx context.Context) (err error) {
 	if flag.GetBool(ctx, "enable-eviction") {
 		enableEviction = true
 	} else if !flag.GetBool(ctx, "disable-eviction") {
-		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n\n")
+		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://docs.fly.io/upstash/redis#memory-limits-and-object-eviction-policies\n\n")
 
 		enableEviction, err = prompt.Confirm(ctx, "Would you like to enable eviction?")
 		if err != nil {
@@ -256,7 +256,7 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 
 	fmt.Fprintf(io.Out, "\nYour database %s is ready. Apps in the %s org can connect to Redis at %s\n", colorize.Green(addOn.Name), colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
 	fmt.Fprintf(io.Out, "\nIf you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
-	fmt.Fprintf(io.Out, "\nYour database is billed at %s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://fly.io/docs/reference/redis/#pricing\n", colorize.Green("$0.20 per 100K commands"))
+	fmt.Fprintf(io.Out, "\nYour database is billed at %s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green("$0.20 per 100K commands"))
 
 	return addOn, err
 }
