@@ -417,7 +417,7 @@ func TestBuildManifestRegion(t *testing.T) {
 	}{
 		{name: "nearest", wantAsked: "any", wantRegion: "ord", wantSource: "this is the fastest region for you"},
 		{name: "--region", args: []string{"--region", "lhr"}, wantAsked: "lhr", wantRegion: "lhr", wantSource: "specified on the command line"},
-		{name: "retired --region is replaced", args: []string{"--region", "atl"}, wantAsked: "dfw", wantRegion: "dfw", wantSource: "specified on the command line"},
+		{name: "retired --region is replaced", args: []string{"--region", "atl"}, wantAsked: "dfw", wantRegion: "dfw", wantSource: "specified on the command line; atl is retired"},
 		{
 			name:      "fly.toml primary_region",
 			args:      []string{"--copy-config"},
