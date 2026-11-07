@@ -249,7 +249,7 @@ func newSurveyIO(ctx context.Context, message string) (survey.AskOpt, error) {
 	return survey.WithStdio(in, out, io.ErrOut), nil
 }
 
-var errOrgSlugRequired = NonInteractiveError("organization must be specified with --org when not running interactively; list organizations with `fly orgs list`")
+var errOrgSlugRequired = NonInteractiveError("organization must be specified when not running interactively; set FLY_ORG, or pass --org if the command supports it; list organizations with `fly orgs list`")
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.

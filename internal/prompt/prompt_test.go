@@ -10,8 +10,40 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+type orgPromptTestClient struct{ uiexutil.Client }
+
+func (orgPromptTestClient) ListOrganizations(context.Context, bool) ([]uiex.Organization, error) {
+	return []uiex.Organization{{Name: "Team", Slug: "team"}}, nil
+}
+
+func TestOrgHeadlessRecoveryWithoutOrgFlag(t *testing.T) {
+	// WireGuard commands and MPG status accept no --org flag. FLY_ORG
+	// remains available through the common configuration preparer.
+	ios, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	cfg := &config.Config{}
+	ctx = config.NewContext(ctx, cfg)
+	ctx = uiexutil.NewContextWithClient(ctx, orgPromptTestClient{})
+
+	org, err := Org(ctx)
+	require.Nil(t, org)
+	require.ErrorIs(t, err, ErrNonInteractive)
+	require.ErrorContains(t, err, "set FLY_ORG")
+	require.NotContains(t, err.Error(), "specified with --org")
+
+	// The common preparer maps FLY_ORG to this field, so the suggested
+	// recovery works without adding an unsupported command flag.
+	cfg.Organization = "team"
+	org, err = Org(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "team", org.Slug)
+}
 
 func TestNonInteractivePromptIdentifiesMissingInput(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
