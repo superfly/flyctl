@@ -76,6 +76,17 @@ type planBuildCache struct {
 	billingChecked   bool // true => buildManifest ran checkBillingStatus; manifests loaded with --from-manifest haven't been checked
 }
 
+// managedPostgresEnabled reads the feature flag that lets launch default to
+// Managed Postgres. Tests replace it so they don't call LaunchDarkly.
+var managedPostgresEnabled = func() (bool, error) {
+	ldClient, err := launchdarkly.NewServiceClient()
+	if err != nil {
+		return false, err
+	}
+
+	return ldClient.ManagedPostgresEnabled(), nil
+}
+
 func appNameTakenErr(appName string) error {
 	return flyerr.GenericErr{
 		Err:      fmt.Sprintf("app name %s is already taken", appName),
@@ -272,11 +283,10 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	buildCache.validateHighAvailability(ctx, lp, org.Billable)
 
 	if srcInfo != nil {
-		ldClient, err := launchdarkly.NewServiceClient()
+		mpgEnabled, err := managedPostgresEnabled()
 		if err != nil {
 			return nil, nil, err
 		}
-		mpgEnabled := ldClient.ManagedPostgresEnabled()
 
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
