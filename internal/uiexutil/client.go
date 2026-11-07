@@ -19,6 +19,9 @@ type Client interface {
 	GetOrganization(ctx context.Context, orgSlug string) (*uiex.Organization, error)
 	GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error)
 
+	// Feedback
+	SubmitFeedback(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error)
+
 	// Egress IPs
 	PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error
 

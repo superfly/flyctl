@@ -36,6 +36,7 @@ jobs:
           - tokens
           - wireguard
           - misc
+          - harness
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7

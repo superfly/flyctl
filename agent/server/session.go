@@ -26,7 +26,6 @@ import (
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -577,14 +576,14 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 
 	switch args[0] {
 	case "cfg":
-		tokStr, err := config.ReadAccessToken(args[1])
+		t, err := s.srv.tokensFromFile(args[1])
 		if err != nil {
 			s.error(err)
 
 			return
 		}
 
-		s.tokens = tokens.ParseFromFile(tokStr, args[1])
+		s.tokens = t
 	case "str":
 		s.tokens = tokens.Parse(args[1])
 	}

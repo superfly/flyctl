@@ -407,8 +407,20 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, err
 	}
 
+	files := templates("templates/python")
+	deployDocs := `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`
+	if cmd := pythonWebCommand(sourceDir); cmd != "" {
+		files = append(files, SourceFile{
+			Path:     "Procfile",
+			Contents: []byte("# TODO: Modify this Procfile to fit your needs\nweb: " + cmd + "\n"),
+		})
+	} else {
+		terminal.Warn("Could not determine how to start your Python app: gunicorn isn't in your dependencies and no app.py or main.py was found")
+		deployDocs = `Add a Procfile with a "web:" command that starts your application, then run "fly deploy" to deploy it.`
+	}
+
 	s := &SourceInfo{
-		Files:   templates("templates/python"),
+		Files:   files,
 		Builder: "paketobuildpacks/builder:base",
 		Family:  "Python",
 		Port:    8080,
@@ -416,11 +428,31 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 			"PORT": "8080",
 		},
 		SkipDeploy: true,
-		DeployDocs: `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
+		DeployDocs: deployDocs,
 		Runtime:    plan.RuntimeStruct{Language: "python", Version: pythonVersion},
 	}
 
 	return s, nil
+}
+
+// pythonWebCommand picks the Procfile web command for the buildpack fallback.
+// It only uses gunicorn when the app installs it, since the buildpack image
+// contains nothing beyond the app's own dependencies.
+func pythonWebCommand(sourceDir string) string {
+	depFiles := []string{"requirements.txt", "requirements.in", "pyproject.toml", "Pipfile", "setup.py", "setup.cfg", "environment.yml"}
+	for _, f := range depFiles {
+		if checksPass(sourceDir, dirContains(f, "gunicorn")) {
+			return "gunicorn app:app"
+		}
+	}
+
+	for _, entrypoint := range []string{"app.py", "main.py"} {
+		if checksPass(sourceDir, fileExists(entrypoint)) {
+			return "python " + entrypoint
+		}
+	}
+
+	return ""
 }
 
 func extractPythonVersion() (string, bool, error) {

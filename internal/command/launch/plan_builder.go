@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -850,6 +851,76 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 	}
 
 	return placements[0].Region, explanation, nil
+}
+
+// resolveManifestRegion turns the region of a manifest loaded from a file, or
+// set by --region on `fly launch plan generate`, into one new apps can use.
+// These skip determineRegion, so "any" (what placements takes for "the best
+// region"), an empty region, or a retired one like qro reached the plan as is,
+// and launch failed with "region any not found". "any" and an empty region
+// become the nearest region; a retired one becomes its replacement, or the
+// closest region still open to new apps.
+func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
+	code := strings.ToLower(strings.TrimSpace(p.RegionCode))
+	if replacement, ok := deprecatedRegionReplacements[code]; ok {
+		p.RegionCode = replacement
+		return nil
+	}
+
+	regionData, err := flapsutil.ClientFromContext(ctx).GetRegions(ctx)
+	if err != nil {
+		if code != "" && code != "any" {
+			return nil // keep the region as is rather than fail on the lookup
+		}
+		return fmt.Errorf("failed to look up the nearest region: %w", err)
+	}
+
+	resolved, err := resolveRegionCode(code, regionData)
+	if err != nil {
+		return err
+	}
+	p.RegionCode = resolved
+
+	return nil
+}
+
+func resolveRegionCode(code string, regionData *flaps.RegionData) (string, error) {
+	lookup := code
+	if lookup == "" || lookup == "any" {
+		lookup = regionData.Nearest
+	}
+
+	for _, r := range regionData.Regions {
+		if r.Code != lookup {
+			continue
+		}
+		if !r.Deprecated {
+			return r.Code, nil
+		}
+		if closest := closestOpenRegion(r, regionData.Regions); closest != "" {
+			return closest, nil
+		}
+	}
+
+	return "", fmt.Errorf("region %q can't be used for new apps. Use a region from `fly platform regions`", code)
+}
+
+// closestOpenRegion returns the region nearest to from, as the crow flies, that
+// isn't deprecated.
+func closestOpenRegion(from fly.Region, regions []fly.Region) string {
+	best, bestDist := "", math.Inf(1)
+	for _, r := range regions {
+		if r.Deprecated {
+			continue
+		}
+		dLat := float64(r.Latitude - from.Latitude)
+		dLon := float64(r.Longitude-from.Longitude) * math.Cos(float64(from.Latitude)*math.Pi/180)
+		if dist := dLat*dLat + dLon*dLon; dist < bestDist {
+			best, bestDist = r.Code, dist
+		}
+	}
+
+	return best
 }
 
 // Applies the fields of the guest to the provided compute.

@@ -18,6 +18,7 @@ type UiexClient struct {
 	GetOrganizationFunc        func(ctx context.Context, orgSlug string) (*uiex.Organization, error)
 	GetLaunchChecksFunc        func(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error)
 	PromoteMachineEgressIPFunc func(ctx context.Context, appName string, egressIP string) error
+	SubmitFeedbackFunc         func(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error)
 
 	CreateBuildFunc                        func(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error)
 	FinishBuildFunc                        func(ctx context.Context, in uiex.FinishBuildRequest) (*uiex.BuildResponse, error)
@@ -124,6 +125,14 @@ func (m *UiexClient) GetCurrentRelease(ctx context.Context, appName string) (*ui
 	}
 
 	return &uiex.Release{}, nil
+}
+
+func (m *UiexClient) SubmitFeedback(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+	if m.SubmitFeedbackFunc != nil {
+		return m.SubmitFeedbackFunc(ctx, in)
+	}
+
+	return &uiex.FeedbackResponse{}, nil
 }
 
 func (m *UiexClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
