@@ -17,7 +17,7 @@ func newFiles() *cobra.Command {
 	const (
 		usage = "files"
 		short = "Generate a file listing for a registry image [experimental]"
-		long  = "Genearte a file listing for a registry iamge.\n" +
+		long  = "Generate a file listing for a registry image.\n" +
 			"The image is selected by name, or the image of the app's first machine\n" +
 			"is used unless interactive machine selection or machine ID is specified."
 	)

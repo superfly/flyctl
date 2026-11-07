@@ -59,7 +59,7 @@ func (c *Client) SubmitFeedback(ctx context.Context, in FeedbackRequest) (*Feedb
 	case http.StatusOK, http.StatusCreated:
 		var out FeedbackResponse
 		if err := json.Unmarshal(body, &out); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return &out, nil

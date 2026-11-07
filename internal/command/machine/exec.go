@@ -19,7 +19,16 @@ import (
 func newMachineExec() *cobra.Command {
 	const (
 		short = "Execute a command on a machine"
-		long  = short + "\n"
+		long  = `Execute a command on a machine. Pass the remote command as one quoted
+argument, for example: fly machine exec <machine-id> 'ls -l /app'.
+
+For non-interactive use, specify the machine ID. Use --timeout to set the
+remote command timeout in seconds. With --json, the response contains the
+remote exit code and captured stdout and stderr. Otherwise, remote stdout
+and stderr are written to the corresponding local streams.
+
+If the remote command exits with a non-zero status, flyctl exits with an error
+after printing its output, including when --json is used.`
 		usage = "exec [machine-id] <command>"
 	)
 
@@ -49,6 +58,8 @@ func newMachineExec() *cobra.Command {
 	)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
+	cmd.Example = `  fly machine exec <machine-id> 'ls -l /app'
+  fly machine exec <machine-id> 'uname -a' --json --timeout 30`
 
 	return cmd
 }
@@ -103,19 +114,17 @@ func runMachineExec(ctx context.Context) (err error) {
 	}
 
 	if config.JSONOutput {
-		return render.JSON(io.Out, out)
-	}
-
-	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
-	}
-
-	if out.StdOut != "" {
+		if err := render.JSON(io.Out, out); err != nil {
+			return err
+		}
+	} else {
 		fmt.Fprint(io.Out, out.StdOut)
-	}
-	if out.StdErr != "" {
 		fmt.Fprint(io.ErrOut, out.StdErr)
 	}
 
-	return
+	if out.ExitCode != 0 {
+		return fmt.Errorf("command on machine %s exited with status %d", current.ID, out.ExitCode)
+	}
+
+	return nil
 }

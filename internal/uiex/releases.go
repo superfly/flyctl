@@ -105,7 +105,7 @@ func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context, orgSlug
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &out); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return out, nil
@@ -150,7 +150,7 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return []Release{}, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return []Release{}, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response.Releases, nil
@@ -187,7 +187,7 @@ func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &release); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return release, nil

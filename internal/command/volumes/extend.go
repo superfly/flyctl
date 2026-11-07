@@ -70,7 +70,7 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if sizeGB == 0 {
-		return fmt.Errorf("Volume size must be specified")
+		return fmt.Errorf("volume size must be specified with --size in gigabytes, for example --size 10")
 	}
 
 	if sizeFlag[0] == '+' {

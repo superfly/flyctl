@@ -22,8 +22,13 @@ import (
 
 func newLogout() *cobra.Command {
 	const (
-		long = `Log the currently logged-in user out of the Fly platform.
-To continue interacting with Fly, the user will need to log in again.
+		long = `Revoke and remove the saved login token from 'fly auth login'.
+Tokens supplied by --access-token, FLY_ACCESS_TOKEN, or FLY_API_TOKEN are not
+revoked or removed. Use 'fly tokens revoke supplied' to revoke those tokens.
+Unset token environment variables to stop using them.
+
+If revocation fails, the saved token is kept so you can retry. Use --force to
+remove it locally anyway, then revoke it in the dashboard.
 `
 		short = "Logs out the currently logged in user"
 	)

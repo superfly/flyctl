@@ -42,7 +42,7 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil
@@ -80,7 +80,7 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil
@@ -113,14 +113,14 @@ func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManag
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("Cluster %s not found", id)
 	default:
-		return response, fmt.Errorf("Something went wrong")
+		return response, fmt.Errorf("failed to get cluster %s (status %d)", id, res.StatusCode)
 	}
 }
 func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInput) (CreateUserResponse, error) {
@@ -150,14 +150,14 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 	switch res.StatusCode {
 	case http.StatusCreated:
 		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		if !response.Ok {
 			if response.Errors.Detail != "" {
 				return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
 			} else {
-				return response, fmt.Errorf("Something went wrong creating user. Please try again")
+				return response, fmt.Errorf("failed to create user in cluster %s: server reported failure without error details (status %d)", id, res.StatusCode)
 			}
 		}
 
@@ -165,14 +165,14 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 
 	default:
 		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		if response.Errors.Detail != "" {
 			return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
 		}
 
-		return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
+		return response, fmt.Errorf("failed to create user in cluster %s: server returned no error details (status %d)", id, res.StatusCode)
 	}
 }
 

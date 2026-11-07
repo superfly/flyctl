@@ -342,3 +342,12 @@ func FuzzParseSecrets(f *testing.F) {
 		}
 	})
 }
+
+func TestParseSecretsDoesNotEchoMalformedInput(t *testing.T) {
+	secrets, err := parseSecrets(strings.NewReader("VALID=value\nsensitive-malformed-value"))
+	require.Error(t, err)
+	assert.Nil(t, secrets)
+	assert.Contains(t, err.Error(), "line 2")
+	assert.Contains(t, err.Error(), "NAME=VALUE")
+	assert.NotContains(t, err.Error(), "sensitive-malformed-value")
+}

@@ -9,10 +9,10 @@ import (
 func ParseKVStringsToMap(args []string) (map[string]string, error) {
 	out := make(map[string]string, len(args))
 
-	for _, arg := range args {
+	for i, arg := range args {
 		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("'%s': must be in the format NAME=VALUE", arg)
+			return nil, fmt.Errorf("argument %d must be in the format NAME=VALUE", i+1)
 		}
 		out[parts[0]] = parts[1]
 	}

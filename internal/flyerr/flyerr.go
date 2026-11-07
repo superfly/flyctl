@@ -50,6 +50,10 @@ func (e GenericErr) FlyDocURL() string {
 	return e.DocUrl
 }
 
+func (e GenericErr) DocURL() string {
+	return e.DocUrl
+}
+
 func (e GenericErr) Suggestion() string {
 	return e.Suggest
 }

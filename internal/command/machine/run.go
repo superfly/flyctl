@@ -872,7 +872,7 @@ func determineMachineConfig(
 			}
 		}
 	default:
-		return machineConf, errors.New("invalid restart provided")
+		return machineConf, fmt.Errorf("invalid --restart value %q; use 'no', 'on-failure', or 'always'", flag.GetString(ctx, "restart"))
 	}
 
 	machineConf.Mounts, err = command.DetermineMounts(ctx, input.appName, machineConf.Mounts, input.region)

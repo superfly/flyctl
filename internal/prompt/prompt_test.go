@@ -13,6 +13,16 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+func TestNonInteractivePromptIdentifiesMissingInput(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	var value string
+	err := String(ctx, &value, "Choose a region", "", true)
+	require.ErrorIs(t, err, ErrNonInteractive)
+	require.ErrorContains(t, err, "Choose a region")
+	require.ErrorContains(t, err, "command arguments or flags")
+}
+
 func TestIsNonInteractive(t *testing.T) {
 	cases := []struct {
 		err error

@@ -250,11 +250,11 @@ func checkSelectConditions(ctx context.Context, haveMachineIDs bool) error {
 	case haveSelectFlag && haveMachineIDs:
 		return errors.New("machine IDs can't be used with --select")
 	case haveSelectFlag && appName == "":
-		return errors.New("an app name must be specified to use --select")
+		return errors.New("an app name must be specified with --app to use --select")
 	case !haveMachineIDs && appName == "":
-		return errors.New("a machine ID or an app name is required")
+		return errors.New("a machine ID argument or an app name with --app is required")
 	case shouldPrompt(ctx, haveMachineIDs) && !iostreams.FromContext(ctx).IsInteractive():
-		return errors.New("a machine ID must be specified when not running interactively")
+		return prompt.NonInteractiveError("a machine ID argument must be specified when not running interactively; list IDs with `fly machine list --app <app-name>`")
 	default:
 		return nil
 	}

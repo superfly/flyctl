@@ -26,7 +26,7 @@ func New() *cobra.Command {
 	const (
 		short = "Manage Fly Volumes."
 
-		long = short + " Volumes are persistent storage for Fly Machines. Learn how how volumes work: https://fly.io/docs/volumes/overview/."
+		long = short + " Volumes are persistent storage for Fly Machines. Learn how volumes work: https://fly.io/docs/volumes/overview/."
 
 		usage = "volumes"
 	)
@@ -131,7 +131,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, out io.Writer, showH
 
 func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
-		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
+		return nil, prompt.NonInteractiveError("volume ID argument must be specified when not running interactively; list IDs with `fly volumes list --app <app-name>`")
 	}
 	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {

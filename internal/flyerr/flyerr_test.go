@@ -2,10 +2,21 @@ package flyerr
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestGenericErrDetailsSurviveWrapping(t *testing.T) {
+	err := fmt.Errorf("deploy: %w", GenericErr{
+		Err: "invalid configuration", Descript: "the service has no port",
+		Suggest: "set internal_port", DocUrl: "https://docs.fly.io/reference/configuration/",
+	})
+	require.Equal(t, "the service has no port", GetErrorDescription(err))
+	require.Equal(t, "set internal_port", GetErrorSuggestion(err))
+	require.Equal(t, "https://docs.fly.io/reference/configuration/", GetErrorDocUrl(err))
+}
 
 func TestWithSuggestion(t *testing.T) {
 	underlying := errors.New("launch failed")
