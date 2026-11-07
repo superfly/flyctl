@@ -25,10 +25,12 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 		name       string
 		force      bool
 		hasLeader  bool
+		single     bool
 		restartErr error
 		wantErr    string
 	}{
 		{name: "forced", force: true},
+		{name: "forced single machine", force: true, single: true},
 		{name: "not forced", wantErr: "no active leader found"},
 		{name: "restart failure", force: true, restartErr: errors.New("restart failed"), wantErr: "restart failed"},
 		{name: "leader present", hasLeader: true},
@@ -48,7 +50,7 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 			machines := []*fly.Machine{makeMachine("m1", "readonly", "iad")}
 			if tt.hasLeader {
 				machines = append(machines, makeMachine("m2", "primary", "lhr"))
-			} else {
+			} else if !tt.single {
 				machines = append(machines, makeMachine("m2", "readonly", "lhr"))
 			}
 
@@ -92,7 +94,11 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.ElementsMatch(t, []string{"m1", "m2"}, restarted)
+			wantRestarted := []string{"m1"}
+			if !tt.single {
+				wantRestarted = append(wantRestarted, "m2")
+			}
+			assert.ElementsMatch(t, wantRestarted, restarted)
 			if tt.hasLeader {
 				assert.Equal(t, "m2", restarted[len(restarted)-1])
 			} else {
