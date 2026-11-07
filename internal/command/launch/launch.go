@@ -466,11 +466,6 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	}
 }
 
-// isAppNameTakenErr reports whether CreateApp failed because the name is in use.
-func isAppNameTakenErr(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "has already been taken")
-}
-
 // appNameIsDerived reports whether the plan's app name was derived from the
 // directory rather than chosen by the user (--name, fly.toml, the web UI).
 func appNameIsDerived(source *launchPlanSource) bool {
@@ -506,7 +501,7 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		Name: state.Plan.AppName,
 		Org:  org.Slug,
 	})
-	if err != nil && isAppNameTakenErr(err) && appNameIsDerived(state.PlanSource) {
+	if flaps.IsNameTakenError(err) && appNameIsDerived(state.PlanSource) {
 		// The name came from the directory, not from the user, and app names
 		// are global: pick a free one instead of failing the launch.
 		if name, ok := findFreeAppName(ctx, state.Plan.AppName); ok {

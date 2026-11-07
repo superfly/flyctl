@@ -337,10 +337,8 @@ func run(ctx context.Context) (err error) {
 				}
 			}
 
-			// Report whatever IDs the state knows, on every exit path.
-			if state != nil {
-				status.OrgID = state.orgID
-				status.AppID = state.appID
+			if renamed := state.reportTo(&status); renamed {
+				span.SetAttributes(attribute.String("app.name", status.AppName))
 			}
 
 			status.TraceID = span.SpanContext().TraceID().String()
