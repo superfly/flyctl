@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -29,6 +30,52 @@ func TestHeadlessLaunchBillingErrors(t *testing.T) {
 			require.Empty(t, stdout.String(), "headless billing checks must not prompt or open a browser")
 			require.Empty(t, stderr.String(), "the caller renders the returned error")
 		})
+	}
+}
+
+func TestInteractiveLaunchBillingPayment(t *testing.T) {
+	for _, status := range []uiex.BillingStatus{uiex.BillingStatusTrialEnded, uiex.BillingStatusSourceRequired} {
+		for _, answer := range []string{"decline", "accept", "cancel"} {
+			t.Run(fmt.Sprintf("%s/%s", status, answer), func(t *testing.T) {
+				// Keep the browser path deterministic and prevent opening a real browser.
+				t.Setenv("PATH", t.TempDir())
+				ios, _, stdout, stderr := iostreams.Test()
+				ctx := iostreams.NewContext(context.Background(), ios)
+				promptErr := errors.New("prompt canceled")
+				calls := 0
+				confirm := func(gotCtx context.Context, message string) (bool, error) {
+					calls++
+					require.Equal(t, ctx, gotCtx)
+					require.Equal(t, "Would you like to do this now?", message)
+					if answer == "cancel" {
+						return false, promptErr
+					}
+
+					return answer == "accept", nil
+				}
+				err := checkBillingStatusWithConfirm(ctx, &uiex.Organization{Slug: "example-org", BillingStatus: status}, true, confirm)
+				require.Equal(t, 1, calls)
+				want := "organization example-org needs a payment method to launch apps"
+				if status == uiex.BillingStatusTrialEnded {
+					want = "the trial for organization example-org has ended; a payment method is required to launch apps"
+				}
+				require.Contains(t, stdout.String(), "! "+want)
+				if answer == "cancel" {
+					require.ErrorIs(t, err, promptErr)
+				} else {
+					require.EqualError(t, err, want)
+					require.Equal(t, "Add one at https://fly.io/dashboard/example-org/billing, then run 'fly launch' again.", flyerr.GetErrorSuggestion(err))
+				}
+				if answer == "accept" {
+					require.Contains(t, stdout.String(), "Opening billing dashboard: https://fly.io/dashboard/example-org/billing")
+					require.Contains(t, stdout.String(), "please run 'fly launch' again")
+					require.Contains(t, stderr.String(), "Please visit: https://fly.io/dashboard/example-org/billing")
+				} else {
+					require.NotContains(t, stdout.String(), "Opening billing dashboard")
+					require.Empty(t, stderr.String())
+				}
+			})
+		}
 	}
 }
 

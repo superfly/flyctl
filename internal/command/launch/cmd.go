@@ -715,6 +715,10 @@ func validatePostgresFlags(ctx context.Context) error {
 // Without canPrompt it returns payment errors without opening a browser.
 // Overdue billing is advisory here: the API owns enforcement and exemptions.
 func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt bool) error {
+	return checkBillingStatusWithConfirm(ctx, org, canPrompt, prompt.Confirm)
+}
+
+func checkBillingStatusWithConfirm(ctx context.Context, org *uiex.Organization, canPrompt bool, confirm func(context.Context, string) (bool, error)) error {
 	billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
 	needsPaymentMethod := org.BillingStatus == uiex.BillingStatusSourceRequired || org.BillingStatus == uiex.BillingStatusTrialEnded
 
@@ -756,7 +760,7 @@ func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt b
 		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! "+paymentError.Err))
 		fmt.Fprintln(io.Out)
 
-		addPayment, err := prompt.Confirm(ctx, "Would you like to do this now?")
+		addPayment, err := confirm(ctx, "Would you like to do this now?")
 		if err != nil {
 			return err
 		}
