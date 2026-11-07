@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -45,18 +46,25 @@ type fakeTokenGateway struct {
 	silent       bool // accept, then never speak: a legacy gateway waiting for magic
 	noAuthHeader bool // hello doesn't advertise reading the Authorization header
 
+	// the n-th in-band refresh is answered with refreshAnswers[n]; later
+	// ones go unanswered
+	refreshAnswers []tokenResult
+
 	mu      sync.Mutex
 	n       int
 	auths   []tokenAuthPacket
 	headers []string // Authorization header of each accepted connection
 	drops   []chan struct{}
 	ready   chan struct{} // closed after each accepted connection
+
+	refreshes []tokenRefresh
+	refreshed chan struct{} // signaled after each answered refresh
 }
 
 func newFakeTokenGateway(t *testing.T, pubkeys []string, answers []tokenResult) *fakeTokenGateway {
 	t.Helper()
 
-	g := &fakeTokenGateway{t: t, pubkeys: pubkeys, answers: answers, ready: make(chan struct{}, 16)}
+	g := &fakeTokenGateway{t: t, pubkeys: pubkeys, answers: answers, ready: make(chan struct{}, 16), refreshed: make(chan struct{}, 16)}
 	g.srv = httptest.NewServer(http.HandlerFunc(g.handle))
 	t.Cleanup(g.srv.Close)
 
@@ -121,14 +129,67 @@ func (g *fakeTokenGateway) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		_, _ = io.Copy(io.Discard, conn)
-		cancel()
+		defer cancel()
+
+		g.relay(conn)
 	}()
 
 	select {
 	case <-drop:
 	case <-ctx.Done():
 	}
+}
+
+// relay drains a session's frames, answering refresh packets.
+func (g *fakeTokenGateway) relay(conn net.Conn) {
+	pbuf := make([]byte, 2000)
+
+	for {
+		pkt, err := read(conn, pbuf)
+		if err != nil {
+			return
+		}
+
+		if !isControlFrame(pkt) {
+			continue
+		}
+
+		var req tokenRefresh
+		if err := json.Unmarshal(pkt, &req); err != nil {
+			g.t.Errorf("gateway got malformed control packet: %s", err)
+
+			return
+		}
+
+		g.mu.Lock()
+		n := len(g.refreshes)
+		g.refreshes = append(g.refreshes, req)
+		g.mu.Unlock()
+
+		if n >= len(g.refreshAnswers) {
+			continue // never answered
+		}
+
+		if err := writeJSONFrame(conn, &g.refreshAnswers[n]); err != nil {
+			return
+		}
+
+		g.refreshed <- struct{}{}
+	}
+}
+
+func (g *fakeTokenGateway) refreshFor(n int) tokenRefresh {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.refreshes[n]
+}
+
+func (g *fakeTokenGateway) connections() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.n
 }
 
 // drop closes the n-th accepted connection from the gateway side.
@@ -154,12 +215,33 @@ func (g *fakeTokenGateway) headerFor(n int) string {
 	return g.headers[n]
 }
 
+var (
+	// directRoutes maps a gateway's direct "ip:443" to the fake gateway
+	// serving it; unrouted direct dials fail
+	directRoutes sync.Map
+	// directDials records the TLS server name each direct "ip:443" was
+	// last dialed with
+	directDials sync.Map
+)
+
 // TestMain points every token-mode test at a plain-text local gateway and
 // shortens the proxy's timers. Set once, before any proxy goroutine exists,
 // so the race detector doesn't see per-test restores racing with goroutines
 // still winding down from a previous test.
 func TestMain(m *testing.M) {
-	dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
+	dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint, serverName string, verifyTLS bool, authorization string) (net.Conn, error) {
+		// direct dials arrive as ip:443; fake gateways listen on random
+		// ports, so tests route them here
+		if _, port, _ := net.SplitHostPort(endpoint); port == "443" {
+			directDials.Store(endpoint, serverName)
+
+			to, ok := directRoutes.Load(endpoint)
+			if !ok {
+				return nil, errors.New("connection refused")
+			}
+			endpoint = to.(string)
+		}
+
 		header := http.Header{}
 		if authorization != "" {
 			header.Set("Authorization", authorization)
@@ -326,67 +408,6 @@ func TestConnectTokenRejectedInitially(t *testing.T) {
 	assert.Equal(t, GatewayErrInvalidRequest, gwErr.Code)
 }
 
-func TestConnectTokenRefreshesBeforeExpiry(t *testing.T) {
-	gw, _ := testKeypair(t)
-	const peer = "fdaa:0:18:a7b:1:1111:2222:3302"
-
-	// the first session is short-lived; re-presenting the (refreshed) token
-	// extends it without the peer changing
-	gateway := newFakeTokenGateway(t, []string{gw, gw}, []tokenResult{
-		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(2 * time.Second).Unix()},
-		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(time.Hour).Unix()},
-	})
-
-	var mu sync.Mutex
-	token := "FlyV1 fm2_v1"
-
-	pub, priv := testKeypair(t)
-	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
-
-	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
-		Token: func() string {
-			mu.Lock()
-			defer mu.Unlock()
-
-			return token
-		},
-		OrgSlug: "test-org",
-	})
-	require.NoError(t, err)
-	defer tunnel.Close()
-
-	<-gateway.ready
-
-	// the agent's token monitor refreshed the discharge in the meantime
-	mu.Lock()
-	token = "FlyV1 fm2_v2"
-	mu.Unlock()
-
-	select {
-	case <-gateway.ready:
-	case <-time.After(5 * time.Second):
-		t.Fatal("proxy did not re-present the token before expiry")
-	}
-
-	assert.Equal(t, "FlyV1 fm2_v2", gateway.headerFor(1))
-	assert.Equal(t, "", gateway.authFor(1).Token)
-
-	waitFor(t, "provision update", func() bool {
-		return tunnel.Provision().ExpiresAt.After(time.Now().Add(30 * time.Minute))
-	})
-
-	// same peer: the device was kept, not rebuilt
-	st, _ := tunnel.StateAndConfig()
-	assert.Same(t, state, st)
-	assert.Equal(t, peer, st.Peer.Peerip)
-
-	select {
-	case <-tunnel.Done():
-		t.Fatalf("tunnel died: %v", tunnel.Err())
-	default:
-	}
-}
-
 func TestConnectTokenSilentGateway(t *testing.T) {
 	gateway := newFakeTokenGateway(t, nil, nil)
 	gateway.silent = true
@@ -413,11 +434,13 @@ func TestConnectTokenSameTokenRefreshedOncePerWindow(t *testing.T) {
 	// the expiry might be the gateway's session cap, so the unchanged token
 	// is re-presented once; when that yields the same expiry it's the
 	// token's own limit and there's nothing more to gain
-	gateway := newFakeTokenGateway(t, []string{gw, gw, gw}, []tokenResult{
+	gateway := newFakeTokenGateway(t, []string{gw}, []tokenResult{
 		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: expiry.Unix()},
-		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: expiry.Unix()},
-		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: expiry.Add(time.Hour).Unix()},
 	})
+	gateway.refreshAnswers = []tokenResult{
+		{Type: "refreshed", ExpiresAt: expiry.Unix()},
+		{Type: "refreshed", ExpiresAt: expiry.Add(time.Hour).Unix()},
+	}
 
 	pub, priv := testKeypair(t)
 	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
@@ -432,13 +455,13 @@ func TestConnectTokenSameTokenRefreshedOncePerWindow(t *testing.T) {
 	<-gateway.ready
 
 	select {
-	case <-gateway.ready:
+	case <-gateway.refreshed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("proxy never re-presented the unchanged token")
 	}
 
 	select {
-	case <-gateway.ready:
+	case <-gateway.refreshed:
 		t.Fatal("proxy re-presented the unchanged token again for the same expiry")
 	case <-time.After(2 * time.Second):
 	}
@@ -450,11 +473,13 @@ func TestConnectTokenSameTokenExtendsSessionCap(t *testing.T) {
 
 	// a token with no validity window: every expiry is the gateway's
 	// session cap, and re-presenting the same token keeps extending it
-	gateway := newFakeTokenGateway(t, []string{gw, gw, gw}, []tokenResult{
+	gateway := newFakeTokenGateway(t, []string{gw}, []tokenResult{
 		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(2 * time.Second).Unix()},
-		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(4 * time.Second).Unix()},
-		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(time.Hour).Unix()},
 	})
+	gateway.refreshAnswers = []tokenResult{
+		{Type: "refreshed", ExpiresAt: time.Now().Add(4 * time.Second).Unix()},
+		{Type: "refreshed", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	}
 
 	pub, priv := testKeypair(t)
 	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
@@ -466,17 +491,22 @@ func TestConnectTokenSameTokenExtendsSessionCap(t *testing.T) {
 	require.NoError(t, err)
 	defer tunnel.Close()
 
-	for i := 0; i < 3; i++ {
+	<-gateway.ready
+
+	for i := 0; i < 2; i++ {
 		select {
-		case <-gateway.ready:
+		case <-gateway.refreshed:
 		case <-time.After(6 * time.Second):
-			t.Fatalf("only %d of 3 sessions established", i)
+			t.Fatalf("only %d of 2 refreshes answered", i)
 		}
 	}
 
 	waitFor(t, "extended expiry", func() bool {
 		return tunnel.Provision().ExpiresAt.After(time.Now().Add(30 * time.Minute))
 	})
+
+	assert.Equal(t, 1, gateway.connections())
+	assert.Equal(t, peer, tunnel.Provision().PeerIP)
 
 	select {
 	case <-tunnel.Done():
@@ -557,4 +587,279 @@ func TestConnectTokenPacketTokenForOlderGateway(t *testing.T) {
 	// packet, and the header does no harm
 	assert.Equal(t, "FlyV1 fm2_test", gateway.authFor(0).Token)
 	assert.Equal(t, "FlyV1 fm2_test", gateway.headerFor(0))
+}
+
+func TestConnectTokenReprovisionClosesOpenConns(t *testing.T) {
+	gw1, _ := testKeypair(t)
+	gw2, _ := testKeypair(t)
+
+	gateway := newFakeTokenGateway(t, []string{gw1, gw2}, []tokenResult{
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", DNS: "fdaa:0:18::3", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		{Type: "ok", PeerIP: "fdaa:0:18:c9d:2:3333:4444:5502", DNS: "fdaa:0:18::3", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	})
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
+		Token:   func() string { return "FlyV1 fm2_test" },
+		OrgSlug: "test-org",
+	})
+	require.NoError(t, err)
+	defer tunnel.Close()
+
+	<-gateway.ready
+
+	// a connection to our own address stays inside the netstack, standing
+	// in for an ssh session to a machine behind the gateway
+	gNet, _, err := tunnel.netstack()
+	require.NoError(t, err)
+
+	_, cfg := tunnel.StateAndConfig()
+	ln, err := gNet.ListenTCP(&net.TCPAddr{IP: cfg.LocalNetwork.IP, Port: 2222})
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			defer c.Close()
+			_, _ = io.Copy(io.Discard, c)
+		}
+	}()
+
+	conn, err := tunnel.DialContext(context.Background(), "tcp", net.JoinHostPort(cfg.LocalNetwork.IP.String(), "2222"))
+	require.NoError(t, err)
+	defer conn.Close()
+
+	readErr := make(chan error, 1)
+	go func() {
+		_, err := conn.Read(make([]byte, 1))
+		readErr <- err
+	}()
+
+	// anycast moved us: the connection's source address is gone
+	gateway.drop(0)
+
+	select {
+	case err := <-readErr:
+		assert.Error(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("read through the old netstack still blocked after the tunnel was rebuilt")
+	}
+
+	select {
+	case <-tunnel.Done():
+		t.Fatalf("tunnel died: %v", tunnel.Err())
+	default:
+	}
+}
+
+// connectRefreshing connects to gateway with a token that the test can
+// replace, as the agent's token monitor does.
+func connectRefreshing(t *testing.T, gateway *fakeTokenGateway) (*Tunnel, func(string)) {
+	t.Helper()
+
+	var mu sync.Mutex
+	token := "FlyV1 fm2_v1"
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
+		Token: func() string {
+			mu.Lock()
+			defer mu.Unlock()
+
+			return token
+		},
+		OrgSlug: "test-org",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { tunnel.Close() })
+
+	<-gateway.ready
+
+	return tunnel, func(tok string) {
+		mu.Lock()
+		token = tok
+		mu.Unlock()
+	}
+}
+
+func TestConnectTokenRefreshesInBand(t *testing.T) {
+	gw, _ := testKeypair(t)
+	const peer = "fdaa:0:18:a7b:1:1111:2222:3302"
+
+	gateway := newFakeTokenGateway(t, []string{gw}, []tokenResult{
+		{Type: "ok", PeerIP: peer, ExpiresAt: time.Now().Add(2 * time.Second).Unix()},
+	})
+	gateway.refreshAnswers = []tokenResult{
+		{Type: "refreshed", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	}
+
+	tunnel, setToken := connectRefreshing(t, gateway)
+	setToken("FlyV1 fm2_v2")
+
+	select {
+	case <-gateway.refreshed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("proxy did not refresh before expiry")
+	}
+
+	assert.Equal(t, tokenRefresh{Version: tokenProtoVersion, Type: "refresh", Token: "FlyV1 fm2_v2"}, gateway.refreshFor(0))
+
+	waitFor(t, "provision update", func() bool {
+		return tunnel.Provision().ExpiresAt.After(time.Now().Add(30 * time.Minute))
+	})
+
+	// extended on the same connection: no reconnect, so no chance of
+	// landing on another gateway
+	assert.Equal(t, 1, gateway.connections())
+	assert.Equal(t, peer, tunnel.Provision().PeerIP)
+
+	select {
+	case <-tunnel.Done():
+		t.Fatalf("tunnel died: %v", tunnel.Err())
+	default:
+	}
+}
+
+func TestConnectTokenInBandRefreshRetriesTransientFailure(t *testing.T) {
+	gw, _ := testKeypair(t)
+
+	gateway := newFakeTokenGateway(t, []string{gw}, []tokenResult{
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: time.Now().Add(3 * time.Second).Unix()},
+	})
+	gateway.refreshAnswers = []tokenResult{
+		{Type: "error", Code: GatewayErrTransient, Error: "tkdb unreachable"},
+		{Type: "refreshed", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+	}
+
+	tunnel, setToken := connectRefreshing(t, gateway)
+	setToken("FlyV1 fm2_v2")
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-gateway.refreshed:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %d of 2 refreshes answered", i)
+		}
+	}
+
+	waitFor(t, "provision update", func() bool {
+		return tunnel.Provision().ExpiresAt.After(time.Now().Add(30 * time.Minute))
+	})
+
+	assert.Equal(t, 1, gateway.connections())
+}
+
+func TestConnectTokenInBandRefreshRejectedReconnects(t *testing.T) {
+	gw, _ := testKeypair(t)
+
+	// the refresh is rejected for good; the reconnect's full exchange gives
+	// the verdict, and here it stands
+	gateway := newFakeTokenGateway(t, []string{gw, gw}, []tokenResult{
+		{Type: "ok", PeerIP: "fdaa:0:18:a7b:1:1111:2222:3302", ExpiresAt: time.Now().Add(2 * time.Second).Unix()},
+		{Type: "error", Code: GatewayErrUnauthorized, Error: "token revoked"},
+	})
+	gateway.refreshAnswers = []tokenResult{
+		{Type: "error", Code: GatewayErrUnauthorized, Error: "token revoked"},
+	}
+
+	tunnel, setToken := connectRefreshing(t, gateway)
+	setToken("FlyV1 fm2_v2")
+
+	select {
+	case <-tunnel.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("tunnel survived a rejected token")
+	}
+
+	var gwErr *GatewayError
+	require.ErrorAs(t, tunnel.Err(), &gwErr)
+	assert.Equal(t, GatewayErrUnauthorized, gwErr.Code)
+	assert.Equal(t, 2, gateway.connections())
+}
+
+// routeDirect sends dials to ip:443 to gw for the rest of the test.
+func routeDirect(t *testing.T, ip string, gw *fakeTokenGateway) {
+	t.Helper()
+
+	addr := net.JoinHostPort(ip, "443")
+	directRoutes.Store(addr, gw.endpoint())
+	t.Cleanup(func() {
+		directRoutes.Delete(addr)
+		directDials.Delete(addr)
+	})
+}
+
+func TestConnectTokenReconnectsToDirectIP(t *testing.T) {
+	gw, _ := testKeypair(t)
+
+	const (
+		peerA  = "fdaa:0:18:a7b:1:1111:2222:3302"
+		direct = "192.0.2.10"
+	)
+
+	ok := tokenResult{Type: "ok", PeerIP: peerA, DNS: "fdaa:0:18::3", ExpiresAt: time.Now().Add(time.Hour).Unix(), Direct: direct}
+
+	// the anycast endpoint would pick some gateway; the direct IP reaches
+	// the one we're on. Anycast answers twice: the first connect, and the
+	// fallback once the direct IP stops answering.
+	anycast := newFakeTokenGateway(t, []string{gw, gw}, []tokenResult{ok, ok})
+	edge := newFakeTokenGateway(t, []string{gw}, []tokenResult{ok})
+	routeDirect(t, direct, edge)
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, anycast.endpoint(), &TokenAuth{
+		Token:   func() string { return "FlyV1 fm2_test" },
+		OrgSlug: "test-org",
+	})
+	require.NoError(t, err)
+	defer tunnel.Close()
+
+	<-anycast.ready
+	assert.Equal(t, direct, tunnel.Provision().Direct)
+
+	anycast.drop(0)
+	<-edge.ready
+
+	// TLS verifies the gateway's name, not the IP we dialed
+	serverName, dialed := directDials.Load(net.JoinHostPort(direct, "443"))
+	require.True(t, dialed)
+	anycastHost, _, err := net.SplitHostPort(anycast.endpoint())
+	require.NoError(t, err)
+	assert.Equal(t, anycastHost, serverName)
+
+	assert.Equal(t, 1, anycast.connections(), "reconnect went to the anycast endpoint")
+	assert.Equal(t, "FlyV1 fm2_test", edge.headerFor(0))
+
+	st, _ := tunnel.StateAndConfig()
+	assert.Equal(t, peerA, st.Peer.Peerip)
+
+	// the direct IP stops answering: the next reconnect tries it, then
+	// falls back to the anycast endpoint
+	directAddr := net.JoinHostPort(direct, "443")
+	directDials.Delete(directAddr)
+	directRoutes.Delete(directAddr)
+
+	edge.drop(0)
+	<-anycast.ready
+
+	_, dialed = directDials.Load(directAddr)
+	assert.True(t, dialed, "reconnect didn't try the direct IP first")
+	assert.Equal(t, 1, edge.connections())
+	assert.Equal(t, 2, anycast.connections(), "reconnect didn't fall back to the anycast endpoint")
+
+	st, _ = tunnel.StateAndConfig()
+	assert.Equal(t, peerA, st.Peer.Peerip)
+
+	select {
+	case <-tunnel.Done():
+		t.Fatalf("tunnel died: %v", tunnel.Err())
+	default:
+	}
 }

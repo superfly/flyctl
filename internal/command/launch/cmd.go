@@ -393,10 +393,20 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	if launchManifest != nil && launchManifest.Plan != nil {
+		if err := resolveManifestRegion(ctx, launchManifest.Plan); err != nil {
+			return err
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := checkLaunchDir(ctx); err != nil {
 		return err
 	}
 

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -20,6 +21,7 @@ type FlyctlResult struct {
 	testIoStreams         *iostreams.IOStreams
 	stdIn, stdOut, stdErr *bytes.Buffer
 	exitCode              int
+	duration              time.Duration
 }
 
 func (r *FlyctlResult) CmdString() string {
@@ -62,5 +64,5 @@ func (r *FlyctlResult) AssertSuccessfulExit() {
 
 func (r *FlyctlResult) DebugPrintOutput() {
 	r.t.Helper()
-	fmt.Printf("DBGCMD: %s\nOUTPUT:\n%s\nSTDERR:\n%s\n", r.cmdStr, r.stdOut.String(), r.stdErr.String())
+	fmt.Printf("DBGCMD: %s\nEXIT: %d after %s\nOUTPUT:\n%s\nSTDERR:\n%s\n", r.cmdStr, r.exitCode, r.duration.Round(time.Millisecond), r.stdOut.String(), r.stdErr.String())
 }

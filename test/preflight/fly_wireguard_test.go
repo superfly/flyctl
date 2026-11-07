@@ -49,12 +49,20 @@ CMD ["sleep", "infinity"]
 		machineID := machines[0].ID
 
 		// The backend is eventually consistent. The peer may not be immediately visible.
-		assert.EventuallyWithT(t, func(t *assert.CollectT) {
-			result := f.Fly("machine exec -a %s %s 'dig +short aaaa @fdaa::3 %s._peer.internal'", appName, machineID, peerName)
-			assert.Contains(t, result.StdOutString(), "fdaa:")
+		// Each attempt is logged by the harness with its exit status and duration.
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			// A failed or hung exec must be retried rather than failing the test.
+			result := f.Collect(c).FlyBestEffort(20*time.Second, "machine exec -a %s %s 'dig +short aaaa @fdaa::3 %s._peer.internal'", appName, machineID, peerName)
+			if !assert.Equal(c, 0, result.ExitCode(), "machine exec failed: %s", result.StdErrString()) {
+				return
+			}
+			assert.Contains(c, result.StdOutString(), "fdaa:")
 
-			result = f.Fly("machine exec -a %s %s 'dig +noall +answer txt @fdaa::3 _peer.internal'", appName, machineID)
-			assert.Contains(t, cleanupDigOutput(result.StdOutString()), peerName)
-		}, 10*time.Second, time.Second)
+			result = f.Collect(c).FlyBestEffort(20*time.Second, "machine exec -a %s %s 'dig +noall +answer txt @fdaa::3 _peer.internal'", appName, machineID)
+			if !assert.Equal(c, 0, result.ExitCode(), "machine exec failed: %s", result.StdErrString()) {
+				return
+			}
+			assert.Contains(c, cleanupDigOutput(result.StdOutString()), peerName)
+		}, 90*time.Second, 2*time.Second) // room for two full attempts of both 20s lookups
 	})
 }

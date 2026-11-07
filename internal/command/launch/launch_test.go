@@ -484,3 +484,28 @@ func TestSetupGitHubActionsToken(t *testing.T) {
 		})
 	}
 }
+
+// FLYCTL-12T0: launching from a manifest leaves sourceInfo nil, and building
+// the Tigris request dereferenced it, crashing `fly launch` with a nil
+// pointer panic instead of creating the bucket.
+func TestTigrisExtensionParamsWithoutSourceInfo(t *testing.T) {
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:    "my-app",
+			RegionCode: "iad",
+			ObjectStorage: plan.ObjectStoragePlan{
+				TigrisObjectStorage: &plan.TigrisObjectStoragePlan{Name: "my-bucket"},
+			},
+		}},
+	}
+
+	params := state.tigrisExtensionParams(nil)
+	assert.Equal(t, "tigris", params.Provider)
+	assert.Equal(t, "my-bucket", *params.OverrideName)
+	assert.Nil(t, params.OverrideExtensionSecretKeyNames)
+
+	// Scanners like Laravel rename the Tigris secrets; keep passing that through.
+	overrides := map[string]map[string]string{"tigris": {"BUCKET_NAME": "AWS_BUCKET"}}
+	state.sourceInfo = &scanner.SourceInfo{OverrideExtensionSecretKeyNames: overrides}
+	assert.Equal(t, overrides, state.tigrisExtensionParams(nil).OverrideExtensionSecretKeyNames)
+}

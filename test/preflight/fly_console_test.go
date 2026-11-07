@@ -40,7 +40,7 @@ console_command = "/bin/echo '%s'"
 
 	// Wait for machine to be started and ready
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
-		ml := f.MachinesList(appName)
+		ml := f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 1, len(ml), "should have 1 machine")
 		if len(ml) > 0 {
 			assert.Equal(c, "started", ml[0].State, "machine should be started")
@@ -73,7 +73,7 @@ CMD ["/bin/sleep", "inf"]
 
 	// All the tests above make ephemeral machines. They should be gone eventually.
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		ml := f.MachinesList(appName)
+		ml := f.Collect(t).MachinesList(appName)
 		assert.Equal(t, 1, len(ml))
 	}, 10*time.Second, 1*time.Second, "machines are ephemeral and eventually gone")
 }
