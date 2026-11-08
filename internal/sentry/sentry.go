@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"time"
 
@@ -130,12 +131,44 @@ func CaptureException(err error, opts ...CaptureOption) {
 	}
 
 	sentry.WithScope(func(s *sentry.Scope) {
+		s.SetFingerprint(Fingerprint(err))
+
 		for _, opt := range opts {
 			opt(s)
 		}
 
 		_ = sentry.CaptureException(err)
 	})
+}
+
+var (
+	fingerprintURL    = regexp.MustCompile(`https?://\S+`)
+	fingerprintQuoted = regexp.MustCompile("\"[^\"]*\"|'[^']*'|`[^`]*`")
+	fingerprintID     = regexp.MustCompile(`[0-9A-Za-z_.-]*[0-9][0-9A-Za-z_.-]*`)
+)
+
+const fingerprintMaxLen = 200
+
+// Fingerprint groups an error by its type and its message with the variable
+// parts (URLs, quoted values, and words containing digits, such as machine
+// IDs, request IDs and numbers) replaced. Errors captured here rarely carry a
+// stack trace of their own, so Sentry's default grouping falls back to the
+// capture site: unrelated errors reported from one call site land in one
+// issue, while one error whose message includes an ID splits into many.
+func Fingerprint(err error) []string {
+	if err == nil {
+		return []string{"{{ default }}"}
+	}
+
+	msg := err.Error()
+	msg = fingerprintURL.ReplaceAllString(msg, "<url>")
+	msg = fingerprintQuoted.ReplaceAllString(msg, "<q>")
+	msg = fingerprintID.ReplaceAllString(msg, "<n>")
+	if len(msg) > fingerprintMaxLen {
+		msg = msg[:fingerprintMaxLen]
+	}
+
+	return []string{fmt.Sprintf("%T", err), msg}
 }
 
 func CaptureMessage(msg string, opts ...CaptureOption) {
