@@ -712,19 +712,38 @@ func validatePostgresFlags(ctx context.Context) error {
 
 // checkBillingStatus stops a launch into an organization that needs a payment
 // method before it can run Machines, and displays appropriate messaging.
-// Without canPrompt it only returns an error naming the billing page.
+// Without canPrompt it returns payment errors without opening a browser.
+// Overdue billing is advisory here: the API owns enforcement and exemptions.
 func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt bool) error {
+	return checkBillingStatusWithConfirm(ctx, org, canPrompt, prompt.Confirm)
+}
+
+func checkBillingStatusWithConfirm(ctx context.Context, org *uiex.Organization, canPrompt bool, confirm func(context.Context, string) (bool, error)) error {
 	billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
 	needsPaymentMethod := org.BillingStatus == uiex.BillingStatusSourceRequired || org.BillingStatus == uiex.BillingStatusTrialEnded
 
-	if !canPrompt {
-		if needsPaymentMethod {
-			return flyerr.GenericErr{
-				Err:     fmt.Sprintf("organization %s needs a payment method to launch apps", org.Slug),
-				Suggest: fmt.Sprintf("Add one at %s, then run 'fly launch' again.", billingURL),
-			}
-		}
+	paymentError := flyerr.GenericErr{
+		Err:     fmt.Sprintf("organization %s needs a payment method to launch apps", org.Slug),
+		Suggest: fmt.Sprintf("Add one at %s, then run 'fly launch' again.", billingURL),
+	}
+	if org.BillingStatus == uiex.BillingStatusTrialEnded {
+		paymentError.Err = fmt.Sprintf("the trial for organization %s has ended; a payment method is required to launch apps", org.Slug)
+	}
 
+	if !canPrompt && needsPaymentMethod {
+		return paymentError
+	}
+
+	// These statuses do not by themselves mean a launch must fail. Report the
+	// billing issue without overriding the API's decision to allow an operation.
+	if org.BillingStatus == uiex.BillingStatusPastDue || org.BillingStatus == uiex.BillingStatusDelinquent {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+			"Warning: organization %s has overdue invoices. Review billing and pay any outstanding invoices at %s/invoices. Some billable operations may be blocked until billing is resolved.\n",
+			org.Slug, billingURL)
+		return nil
+	}
+
+	if !canPrompt {
 		return nil
 	}
 
@@ -737,11 +756,17 @@ func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt b
 		fmt.Fprintf(io.Out, "%s\n\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
 
 	case uiex.BillingStatusSourceRequired, uiex.BillingStatusTrialEnded:
-		// User needs to add a payment method
-		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! You'll need to add a payment method in order to proceed."))
+		// User needs to add a payment method. The returned error carries the
+		// full reason and the billing URL, so keep this line short rather than
+		// printing the same sentence twice.
+		promptReason := "! You'll need to add a payment method in order to proceed."
+		if org.BillingStatus == uiex.BillingStatusTrialEnded {
+			promptReason = "! Your free trial has ended. You'll need to add a payment method in order to proceed."
+		}
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow(promptReason))
 		fmt.Fprintln(io.Out)
 
-		addPayment, err := prompt.Confirm(ctx, "Would you like to do this now?")
+		addPayment, err := confirm(ctx, "Would you like to do this now?")
 		if err != nil {
 			return err
 		}
@@ -750,8 +775,6 @@ func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt b
 			// Open billing dashboard URL
 			fmt.Fprintln(io.Out)
 			fmt.Fprintf(io.Out, "Opening billing dashboard: %s\n", colorize.Bold(billingURL))
-			fmt.Fprintln(io.Out)
-			fmt.Fprintf(io.Out, "After adding a payment method, please run %s again.\n", colorize.Purple("'fly launch'"))
 
 			// Try to open the URL in the browser
 			if err := openBrowser(billingURL); err != nil {
@@ -759,11 +782,10 @@ func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt b
 			}
 		}
 
-		return errors.New("payment method required to continue")
+		return paymentError
 
-	case uiex.BillingStatusCurrent, uiex.BillingStatusPastDue, uiex.BillingStatusDelinquent:
-		// User has a payment method configured - say nothing per requirements
-		// Just continue silently
+	case uiex.BillingStatusCurrent:
+		// Billing is current; continue silently.
 
 	default:
 		// Unknown billing status - log but don't block
