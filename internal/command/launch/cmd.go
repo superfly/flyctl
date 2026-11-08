@@ -221,6 +221,17 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	return &manifest, nil
 }
 
+// launchUiAvailable reports whether a recoverable error can wait for the Launch
+// UI. --yes and plan steps never offer the UI, so deferring there would replace
+// the real error with "launch can not continue with errors present".
+func launchUiAvailable(ctx context.Context) bool {
+	return plan.GetPlanStep(ctx) == "" &&
+		!flag.GetYes(ctx) &&
+		!flag.GetBool(ctx, "manifest") &&
+		iostreams.FromContext(ctx).IsInteractive() &&
+		!env.IsCI()
+}
+
 func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
@@ -308,16 +319,26 @@ func run(ctx context.Context) (err error) {
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil
+	// Problems only the Launch UI can fix, while it hasn't fixed them. The
+	// user saw them listed; launch metrics record them with the error.
+	var unresolved *recoverableErrorBuilder
 
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		defer func() {
 			if err != nil {
 				tracing.RecordError(ctx, span, err, "launch failed")
 				status.Error = err.Error()
+				if problems := unresolved.summary(); problems != "" {
+					status.Error += ": " + problems
+				}
 
 				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
 					err = state.sourceInfo.FailureCallback(err)
 				}
+			}
+
+			if renamed := state.reportTo(&status); renamed {
+				span.SetAttributes(attribute.String("app.name", status.AppName))
 			}
 
 			status.TraceID = span.SpanContext().TraceID().String()
@@ -386,10 +407,15 @@ func run(ctx context.Context) (err error) {
 			launchManifest.Plan.RegionCode = regionRequested
 		}
 
-		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
-		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
-		if launchManifest.PlanSource == nil {
-			launchManifest.PlanSource = newDefaultPlanSource("from manifest")
+	}
+
+	if launchManifest != nil {
+		normalizeLoadedManifest(ctx, launchManifest)
+	}
+
+	if launchManifest != nil && launchManifest.Plan != nil {
+		if err := resolveManifestRegion(ctx, launchManifest.Plan); err != nil {
+			return err
 		}
 	}
 
@@ -400,8 +426,12 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	if err := checkLaunchDir(ctx); err != nil {
+		return err
+	}
+
 	incompleteLaunchManifest := false
-	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
+	canEnterUi := launchUiAvailable(ctx)
 
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
@@ -553,6 +583,7 @@ func run(ctx context.Context) (err error) {
 
 		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
 		incompleteLaunchManifest = true
+		unresolved = &recoverableErrors
 	}
 
 	editInUi := false
@@ -575,19 +606,20 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		// The plan may have reached the UI with a region placements rejected.
+		status.Region = state.Plan.RegionCode
+		unresolved = nil
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
 		return errors.New("launch can not continue with errors present")
 	}
 
 	err = state.Launch(ctx)
-	status.AppID = state.appID
-	status.OrgID = state.orgID
 	if err != nil {
 		return err
 	}
 
-	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !noCreateApp(ctx) {
 		ctx, err = command.LoadAppConfigIfPresent(ctx)
 		if err != nil {
 			return err
