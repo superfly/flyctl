@@ -571,6 +571,82 @@ primary_region = 'syd'
 	})
 }
 
+// Copying a config that uses [[services]] instead of [http_service] must not
+// invent an [http_service] from the scanner port. Issue #5381.
+func TestBuildManifestCopyConfigServicesNoHTTPService(t *testing.T) {
+	flyToml := `app = 'example-app'
+primary_region = 'iad'
+
+[processes]
+server = "bin/server.sh"
+
+[[services]]
+  processes = ["server"]
+  internal_port = 8000
+  protocol = "tcp"
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1024mb"
+`
+	env := newManifestEnv()
+	// The source has a Dockerfile so the scanner finds a port, which is the
+	// trigger for the bug: the scanner port overwrites the 0 that the copied
+	// config set because it has no [http_service].
+	res, err := env.buildManifestWithFlyToml(t, map[string]string{"Dockerfile": "FROM nginx\nEXPOSE 8000\n"}, flyToml, "--copy-config")
+	require.NoError(t, err)
+
+	// The plan must have HttpServicePort == 0 because the copied config has
+	// no [http_service]; the scanner port must not override that decision.
+	assert.Equal(t, 0, res.manifest.Plan.HttpServicePort,
+		"scanner must not override HttpServicePort when copied config has no [http_service]")
+}
+
+// Launching a copied config that uses [[services]] without [http_service]
+// must not add an [http_service] block. Issue #5381.
+func TestLaunchCopyConfigServicesNoHTTPService(t *testing.T) {
+	flyToml := `app = 'example-app'
+primary_region = 'iad'
+
+[processes]
+server = "bin/server.sh"
+
+[[services]]
+  processes = ["server"]
+  internal_port = 8000
+  protocol = "tcp"
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1024mb"
+`
+	env := newManifestEnv()
+	files := map[string]string{"Dockerfile": "FROM nginx\nEXPOSE 8000\n"}
+	res, err := env.buildManifestWithFlyToml(t, files, flyToml, "--copy-config", "--no-deploy")
+	require.NoError(t, err)
+
+	_, err = launchPlan(t, res)
+	require.NoError(t, err)
+
+	cfg := loadFlyToml(t, res.dir)
+	assert.Nil(t, cfg.HTTPService,
+		"[http_service] must not be added when the copied config has none")
+	assert.Len(t, cfg.Services, 1,
+		"[[services]] from the copied config must be preserved")
+}
+
 func TestBuildManifestNothingToBuild(t *testing.T) {
 	_, err := newManifestEnv().buildManifestFrom(t, "my-app", map[string]string{"README.md": "hi\n"})
 	assert.ErrorContains(t, err, "found nothing to build")
