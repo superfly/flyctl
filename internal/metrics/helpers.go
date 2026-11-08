@@ -144,6 +144,14 @@ func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
 	Send(ctx, "deploy/status", payload)
 }
 
+// DeployFailedBeforeMachines reports a deploy that failed before any machine
+// was updated, such as a failed image build. It starts the deploy metric if
+// nothing has yet, so the status isn't dropped as unmatched.
+func DeployFailedBeforeMachines(ctx context.Context, payload DeployStatusPayload) {
+	Started(ctx, "deploy")
+	DeployStatus(ctx, payload)
+}
+
 // AgentWireGuardTransport reports which transport the agent used to establish
 // a WireGuard tunnel: "udp", "websocket" or "token". It sends immediately because the
 // agent daemon never reaches the end-of-command metrics flush.

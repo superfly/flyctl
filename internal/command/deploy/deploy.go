@@ -337,6 +337,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID int, forceYes bool) (err error) {
 	span := trace.SpanFromContext(ctx)
+	startTime := time.Now()
 
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
@@ -390,7 +391,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+		err = fmt.Errorf("failed to fetch an image or build from source: %w", err)
+		reportFailureBeforeMachines(ctx, appConfig, app, err, startTime)
+
+		return err
 	}
 
 	if flag.GetBuildOnly(ctx) {
@@ -486,6 +490,28 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	machinelimit.Warn(ctx, app.Organization.Slug)
 
 	return err
+}
+
+// reportFailureBeforeMachines sends a deploy status for a deploy that failed
+// before deployToMachines ran (an image that couldn't be built or fetched).
+// deployToMachines reports its own outcome, so without this a failed build
+// leaves no deploy status at all.
+func reportFailureBeforeMachines(ctx context.Context, cfg *appconfig.Config, app *flaps.App, err error, started time.Time) {
+	status := metrics.DeployStatusPayload{
+		TraceID:       trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+		Error:         err.Error(),
+		Duration:      time.Since(started),
+		AppName:       app.Name,
+		OrgSlug:       app.Organization.Slug,
+		AppID:         fmt.Sprint(app.InternalNumericID),
+		OrgID:         fmt.Sprint(app.Organization.InternalNumericID),
+		PrimaryRegion: cfg.PrimaryRegion,
+		Strategy:      cfg.DeployStrategy(),
+		FlyctlVersion: buildinfo.Info().Version.String(),
+	}
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
+
+	metrics.DeployFailedBeforeMachines(ctx, status)
 }
 
 func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
