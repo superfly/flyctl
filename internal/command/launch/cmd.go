@@ -756,8 +756,14 @@ func checkBillingStatusWithConfirm(ctx context.Context, org *uiex.Organization, 
 		fmt.Fprintf(io.Out, "%s\n\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
 
 	case uiex.BillingStatusSourceRequired, uiex.BillingStatusTrialEnded:
-		// User needs to add a payment method
-		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! "+paymentError.Err))
+		// User needs to add a payment method. The returned error carries the
+		// full reason and the billing URL, so keep this line short rather than
+		// printing the same sentence twice.
+		promptReason := "! You'll need to add a payment method in order to proceed."
+		if org.BillingStatus == uiex.BillingStatusTrialEnded {
+			promptReason = "! Your free trial has ended. You'll need to add a payment method in order to proceed."
+		}
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow(promptReason))
 		fmt.Fprintln(io.Out)
 
 		addPayment, err := confirm(ctx, "Would you like to do this now?")
@@ -769,8 +775,6 @@ func checkBillingStatusWithConfirm(ctx context.Context, org *uiex.Organization, 
 			// Open billing dashboard URL
 			fmt.Fprintln(io.Out)
 			fmt.Fprintf(io.Out, "Opening billing dashboard: %s\n", colorize.Bold(billingURL))
-			fmt.Fprintln(io.Out)
-			fmt.Fprintf(io.Out, "After adding a payment method, please run %s again.\n", colorize.Purple("'fly launch'"))
 
 			// Try to open the URL in the browser
 			if err := openBrowser(billingURL); err != nil {

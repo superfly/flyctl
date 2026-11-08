@@ -59,7 +59,15 @@ func TestInteractiveLaunchBillingPayment(t *testing.T) {
 				if status == uiex.BillingStatusTrialEnded {
 					want = "the trial for organization example-org has ended; a payment method is required to launch apps"
 				}
-				require.Contains(t, stdout.String(), "! "+want)
+				prompt := "! You'll need to add a payment method in order to proceed."
+				if status == uiex.BillingStatusTrialEnded {
+					prompt = "! Your free trial has ended. You'll need to add a payment method in order to proceed."
+				}
+				require.Contains(t, stdout.String(), prompt)
+				// The returned error carries the reason and the recovery step;
+				// the prompt output must not repeat either.
+				require.NotContains(t, stdout.String(), want)
+				require.NotContains(t, stdout.String(), "'fly launch' again")
 				if answer == "cancel" {
 					require.ErrorIs(t, err, promptErr)
 				} else {
@@ -68,7 +76,6 @@ func TestInteractiveLaunchBillingPayment(t *testing.T) {
 				}
 				if answer == "accept" {
 					require.Contains(t, stdout.String(), "Opening billing dashboard: https://fly.io/dashboard/example-org/billing")
-					require.Contains(t, stdout.String(), "please run 'fly launch' again")
 					require.Contains(t, stderr.String(), "Please visit: https://fly.io/dashboard/example-org/billing")
 				} else {
 					require.NotContains(t, stdout.String(), "Opening billing dashboard")
