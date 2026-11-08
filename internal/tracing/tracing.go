@@ -149,6 +149,7 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 
 	tp = sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
+		sdktrace.WithSpanProcessor(deploySpanProcessor{}),
 		sdktrace.WithResource(resource),
 	)
 

@@ -47,7 +47,7 @@ func TestMPG_AttachCreatesAttachmentRecord(t *testing.T) {
 
 	// Wait for cluster to be ready
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		result := f.FlyAllowExitFailure("mpg status %s --json", clusterName)
+		result := f.Collect(t).FlyAllowExitFailure("mpg status %s --json", clusterName)
 		if result.ExitCode() != 0 {
 			t.Errorf("mpg status failed: %s", result.StdErr().String())
 			return
@@ -103,7 +103,7 @@ func TestMPG_AttachWithCustomVariableName(t *testing.T) {
 
 	// Wait for cluster to be ready
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		result := f.FlyAllowExitFailure("mpg status %s --json", clusterName)
+		result := f.Collect(t).FlyAllowExitFailure("mpg status %s --json", clusterName)
 		if result.ExitCode() != 0 {
 			return
 		}
@@ -177,7 +177,7 @@ func TestMPG_AttachFailsWhenSecretExists(t *testing.T) {
 
 	// Wait for cluster to be ready
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		result := f.FlyAllowExitFailure("mpg status %s --json", clusterName)
+		result := f.Collect(t).FlyAllowExitFailure("mpg status %s --json", clusterName)
 		if result.ExitCode() != 0 {
 			return
 		}

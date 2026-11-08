@@ -2,6 +2,7 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
+	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -29,12 +31,21 @@ import (
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
 	planStep := plan.GetPlanStep(ctx)
+	// Hints name the app: plan steps stop before fly.toml is written.
+	app := state.Plan.AppName
+	var errs []error
 
 	if state.Plan.Postgres.FlyPostgres != nil && (planStep == "" || planStep == "postgres") {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Postgres cluster: %s\n", err)
+			if errors.Is(err, errPostgresAttach) {
+				// The cluster exists; err already carries the exact retry.
+				errs = append(errs, err)
+			} else {
+				errs = append(errs, fmt.Errorf("creating Postgres: %w (to add it later, run `fly postgres attach <cluster> -a %s`; if `fly postgres list` doesn't show a cluster from this launch, run `fly postgres create` first)", err, app))
+			}
 		}
 	}
 
@@ -43,6 +54,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
+			errs = append(errs, fmt.Errorf("creating Managed Postgres: %w (to add it later, run `fly mpg attach <cluster> -a %s` for a ready cluster from this launch in `fly mpg list`; if there's none, run `fly mpg create` first, after `fly mpg destroy <cluster> --yes` for one that failed)", err, app))
 		}
 	}
 
@@ -51,6 +63,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
+			errs = append(errs, fmt.Errorf("provisioning Upstash Redis: %w (to add it later, run `fly secrets set REDIS_URL=<its URL> -a %s`; if `fly redis list` doesn't show a database from this launch, run `fly redis create` first)", err, app))
 		}
 	}
 
@@ -59,6 +72,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
+			errs = append(errs, fmt.Errorf("creating Tigris object storage: %w (to add it later, run `fly storage create -a %s`; if `fly storage list` shows a bucket from this launch, remove it with `fly storage destroy <bucket> --yes` first)", err, app))
 		}
 	}
 
@@ -67,13 +81,14 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {
-					return err
+					// Keep the provider errors and their recovery steps.
+					return errors.Join(append(errs, err)...)
 				}
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
@@ -97,8 +112,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		// format, we'll get an error (since that username already exists)
 		// by generating a new username with a sufficiently random number
 		// (in this case, the nanon second that the database is being attached)
-		currentTime := time.Now().Nanosecond()
-		dbUser := fmt.Sprintf("%s-%d", pgPlan.AppName, currentTime)
+		dbUser := newPostgresUser(pgPlan.AppName)
 
 		err := postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: pgPlan.AppName,
@@ -108,10 +122,9 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		})
 
 		if err != nil {
-			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s --database-user %s --yes'\n"
-			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName, dbUser)
+			fmt.Fprintf(io.Out, "Failed attaching %s to the Postgres cluster %s: %s\n", state.Plan.AppName, pgPlan.AppName, err)
 
-			return err
+			return attachFailed(err, postgresAttachRetry(pgPlan.AppName, state.Plan.AppName))
 		} else {
 			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 		}
@@ -147,16 +160,14 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 			})
 
 			if err != nil {
-				msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-				fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
+				fmt.Fprintf(io.Out, "Failed attaching %s to the Postgres cluster %s: %s\n", state.Plan.AppName, pgPlan.AppName, err)
+				err = attachFailed(err, postgresAttachRetry(pgPlan.AppName, state.Plan.AppName))
 			} else {
 				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 			}
 		}
-		if err != nil {
-			const msg = "Error creating Postgres database. Be warned that this may affect deploys"
-			fmt.Fprintln(io.Out, io.ColorScheme().Red(msg))
-		}
+
+		return err
 	}
 
 	return nil
@@ -513,14 +524,28 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 }
 
 func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
-	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
-
 	org, err := state.Org(ctx)
 	if err != nil {
 		return err
 	}
 
-	params := extensions_core.ExtensionParams{
+	_, err = extensions_core.ProvisionExtension(ctx, state.tigrisExtensionParams(org))
+
+	return err
+}
+
+// tigrisExtensionParams builds the Tigris provisioning request from the plan.
+// sourceInfo is nil when launching from a manifest (--from-manifest / plan
+// steps), so it must not be dereferenced unguarded.
+func (state *launchState) tigrisExtensionParams(org *uiex.Organization) extensions_core.ExtensionParams {
+	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
+
+	var overrideSecretKeyNames map[string]map[string]string
+	if state.sourceInfo != nil {
+		overrideSecretKeyNames = state.sourceInfo.OverrideExtensionSecretKeyNames
+	}
+
+	return extensions_core.ExtensionParams{
 		Provider:       "tigris",
 		Organization:   org,
 		AppName:        state.Plan.AppName,
@@ -533,14 +558,24 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 				"domain_name": tigrisPlan.WebsiteDomainName,
 			},
 		},
-		OverrideExtensionSecretKeyNames: state.sourceInfo.OverrideExtensionSecretKeyNames,
+		OverrideExtensionSecretKeyNames: overrideSecretKeyNames,
 	}
+}
 
-	_, err = extensions_core.ProvisionExtension(ctx, params)
+// errPostgresAttach marks a Postgres cluster that exists but isn't attached.
+var errPostgresAttach = errors.New("attaching Postgres failed")
 
-	if err != nil {
-		return err
-	}
+func attachFailed(err error, retry string) error {
+	return fmt.Errorf("%w: %w (to retry, run `%s`)", errPostgresAttach, err, retry)
+}
 
-	return err
+// postgresAttachRetry retries an attach that may have stopped halfway: the
+// app's database can exist (--yes) and so can its default user (a new one).
+func postgresAttachRetry(pgApp, app string) string {
+	return fmt.Sprintf("fly postgres attach --app %s %s --database-user %s --yes", app, pgApp, newPostgresUser(pgApp))
+}
+
+// newPostgresUser is unique enough not to collide with an existing user.
+func newPostgresUser(pgApp string) string {
+	return fmt.Sprintf("%s-%d", pgApp, time.Now().Nanosecond())
 }

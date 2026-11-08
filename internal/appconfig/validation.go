@@ -249,8 +249,8 @@ func (c *Config) validateProcessesSection() (extraInfo string, err error) {
 
 func (c *Config) validateMachineConversion() (extraInfo string, err error) {
 	for _, name := range c.ProcessNames() {
-		if _, vErr := c.ToMachineConfig(name, nil); err != nil {
-			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
+		if _, vErr := c.ToMachineConfig(name, nil); vErr != nil {
+			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s\n", name, vErr)
 			err = ErrInvalidApplicationConfig
 		}
 	}

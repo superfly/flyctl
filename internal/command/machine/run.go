@@ -31,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/internal/watch"
@@ -443,7 +444,7 @@ func runMachineRun(ctx context.Context) error {
 
 	machine, err := flapsClient.Launch(ctx, app.Name, input)
 	if err != nil {
-		return fmt.Errorf("could not launch machine: %w", err)
+		return machinelimit.WithRequestLink(ctx, fmt.Errorf("could not launch machine: %w", err), app.Organization.Slug)
 	}
 
 	id, version, state, privateIP := machine.ID, machine.Version, machine.State, machine.PrivateIP
@@ -462,6 +463,8 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if input.SkipLaunch {
+		machinelimit.Warn(ctx, app.Organization.Slug)
+
 		return nil
 	}
 
@@ -529,6 +532,8 @@ func runMachineRun(ctx context.Context) error {
 	// We created a new machine, this might change how many app-scoped egress IPs are needed
 	// But only check the relevant region
 	ips.SanityCheckAppScopedEgressIps(ctx, map[string]any{machine.Region: nil}, nil, nil, "")
+
+	machinelimit.Warn(ctx, app.Organization.Slug)
 
 	return nil
 }

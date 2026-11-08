@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -56,8 +57,9 @@ type launchState struct {
 	planBuildCache
 	cache map[string]any
 
-	// appID and orgID are the internal numeric IDs of the app and org,
-	// populated once createApp succeeds, for use in metrics reporting.
+	// appID and orgID are the internal numeric IDs of the app and org, for use
+	// in metrics reporting. orgID is set as soon as the org is looked up, appID
+	// once createApp succeeds.
 	appID string
 	orgID string
 }
@@ -80,7 +82,7 @@ func (state *launchState) orgCompact(ctx context.Context) (*uiex.Organization, e
 }
 
 func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
-	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
+	org, err := cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
 		org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, state.Plan.OrgSlug)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
@@ -88,6 +90,16 @@ func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
 
 		return org, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Record the org as soon as it's known, so a launch that fails later
+	// (e.g. in CreateApp: name taken, payment method required) still reports it.
+	if org.InternalNumericID != 0 {
+		state.orgID = strconv.FormatUint(org.InternalNumericID, 10)
+	}
+
+	return org, nil
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
@@ -142,9 +154,15 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	region, err := state.Region(ctx)
-	if err != nil {
-		return "", err
+	// A region left to be chosen in the Launch UI can hold a code that failed
+	// placement ("any", or a region that doesn't exist); it shows as
+	// <unspecified> below, so don't look it up.
+	var region fly.Region
+	if state.PlanSource.regionSource != recoverableSpecifyInUi {
+		region, err = state.Region(ctx)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	postgresStr, err := describePostgresPlan(state.Plan)
@@ -218,4 +236,22 @@ func (state *launchState) validateExtensions(ctx context.Context) error {
 	// that we'll probably need more validation in the future.
 	// When that happens we can just errors.Join(a(), b(), c()...)
 	return nil
+}
+
+// reportTo copies what the state knows about the app and org into the launch
+// metrics, on every exit path. The app name can change after it was first
+// recorded, in the web UI or when the derived name is taken; renamed reports
+// whether it did.
+func (state *launchState) reportTo(status *metrics.LaunchStatusPayload) (renamed bool) {
+	if state == nil {
+		return false
+	}
+	status.OrgID = state.orgID
+	status.AppID = state.appID
+	if state.Plan != nil && state.Plan.AppName != "" && state.Plan.AppName != status.AppName {
+		status.AppName = state.Plan.AppName
+		return true
+	}
+
+	return false
 }
