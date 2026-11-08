@@ -326,7 +326,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
 			planSource.tigrisSource = scannerSource
 		}
-		if srcInfo.Port != 0 {
+		if srcInfo.Port != 0 && (!copiedConfig || appConfig.HTTPService != nil) {
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
 		}
