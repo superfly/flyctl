@@ -12,6 +12,18 @@ Note: Most installations of `flyctl` also alias `flyctl` to `fly` as a command n
 
 ### Using a Package Manager
 
+#### [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/) (Windows)
+
+```powershell
+winget install Fly-io.flyctl
+```
+
+To upgrade to the latest version:
+
+```powershell
+winget upgrade Fly-io.flyctl
+```
+
 #### [Homebrew](https://brew.sh) (macOS, Linux, WSL)
 
 ```bash

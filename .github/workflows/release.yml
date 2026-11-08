@@ -108,6 +108,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: [meta, build]
+    outputs:
+      published: ${{ steps.publish.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -142,6 +144,7 @@ jobs:
           retention-days: 1
           overwrite: true
       - name: Github release
+        id: publish
         if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/master'
         uses: goreleaser/goreleaser-action@v7.3.0
         with:
@@ -152,3 +155,16 @@ jobs:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GGOOS: ${{ matrix.GOOS }}
+
+  winget-publish:
+    name: Publish to WinGet
+    needs: [meta, release]
+    if: needs.release.outputs.published == 'true' && needs.meta.outputs.tag != '' && !contains(needs.meta.outputs.tag, '-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: Fly-io.flyctl
+          installers-regex: '_Windows_(x86_64|arm64)\.zip$'
+          release-tag: ${{ needs.meta.outputs.tag }}
+          token: ${{ secrets.WINGET_TOKEN }}
