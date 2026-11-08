@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -520,8 +521,12 @@ func TestDetermineAppNameChecksNameOnce(t *testing.T) {
 		wantAvailable int
 	}{
 		{name: "not found skips the availability check", getAppErr: notFound, wantName: "some-app", wantGetApp: 1},
+		{name: "wrapped not found skips the availability check", getAppErr: fmt.Errorf("get app: %w", notFound), wantName: "some-app", wantGetApp: 1},
+		{name: "not found sentinel skips the availability check", getAppErr: flaps.ErrFlapsNotFound, wantName: "some-app", wantGetApp: 1},
 		{name: "other errors still check availability", getAppErr: errors.New("flaps is having a day"), available: true, wantName: "some-app", wantGetApp: 1, wantAvailable: 1},
+		{name: "not found text still checks availability", getAppErr: errors.New("app not found (404)"), available: true, wantName: "some-app", wantGetApp: 1, wantAvailable: 1},
 		{name: "forbidden still checks availability", getAppErr: forbidden, wantGetApp: 1, wantAvailable: 2},
+		{name: "wrapped forbidden still checks availability", getAppErr: fmt.Errorf("get app: %w", forbidden), wantGetApp: 1, wantAvailable: 2},
 		{name: "--yes still checks availability", args: []string{"--yes"}, available: true, wantName: "some-app", wantAvailable: 1},
 		{name: "--no-create-app still checks availability", args: []string{"--no-create-app"}, available: true, wantName: "some-app", wantAvailable: 1},
 		{name: "--no-create alias still checks availability", args: []string{"--no-create"}, available: true, wantName: "some-app", wantAvailable: 1},
