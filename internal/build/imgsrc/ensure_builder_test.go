@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -194,6 +195,7 @@ func TestCreateBuilder(t *testing.T) {
 
 	waitForAppShouldFail := false
 	launchShouldFail := false
+	var launched *fly.MachineConfig
 
 	createVolumeShouldFail := false
 	maxCreateVolumeAttempts := 3
@@ -243,6 +245,7 @@ func TestCreateBuilder(t *testing.T) {
 			return nil, nil
 		},
 		LaunchFunc: func(ctx context.Context, appName string, input fly.LaunchMachineInput) (*fly.Machine, error) {
+			launched = input.Config
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")
 			}
@@ -265,6 +268,26 @@ func TestCreateBuilder(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "bigmachine", machine.ID)
 	assert.Equal(t, app.Name, "builder")
+	require.Len(t, launched.Services, 1)
+	service := launched.Services[0]
+	require.Equal(t, 8080, service.InternalPort)
+	require.Len(t, service.Ports, 2)
+	assert.Equal(t, 80, *service.Ports[0].Port)
+	assert.Equal(t, []string{"http"}, service.Ports[0].Handlers)
+	assert.True(t, service.Ports[0].ForceHTTPS)
+	assert.Equal(t, 443, *service.Ports[1].Port)
+	assert.Equal(t, []string{"tls"}, service.Ports[1].Handlers)
+	require.NotNil(t, service.Ports[1].TLSOptions)
+	assert.Equal(t, []string{"http/1.1"}, service.Ports[1].TLSOptions.ALPN)
+	assert.Nil(t, service.Ports[1].HTTPOptions)
+
+	p.buildkitImage = DefaultBuildkitImage
+	_, _, err = p.createBuilder(ctx, "ord", "builder")
+	require.NoError(t, err)
+	require.Len(t, launched.Services, 1)
+	assert.Equal(t, 1234, launched.Services[0].InternalPort)
+	assert.Empty(t, launched.Services[0].Ports[0].Handlers)
+	p.buildkitImage = ""
 
 	createAppShouldFail = true
 	_, _, err = p.createBuilder(ctx, "ord", "builder")
