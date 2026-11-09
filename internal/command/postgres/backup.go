@@ -175,6 +175,7 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	launcher := flypg.NewLauncher(client)
+
 	return launcher.LaunchMachinesPostgres(ctx, input, false)
 }
 
