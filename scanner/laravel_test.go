@@ -76,3 +76,15 @@ func TestLaravelCallbackWithoutComposer(t *testing.T) {
 		assert.Contains(t, srcInfo.DeployDocs, "fly deploy")
 	})
 }
+
+// The dockerfile-laravel Dockerfile builds assets in node:${NODE_VERSION}. The
+// current Laravel skeleton's Vite needs Node 20.19+ and crashes on Node 18.
+func TestConfigureLaravelBuildsAssetsOnNode22(t *testing.T) {
+	dir := writeLaravelApp(t, "^8.3")
+	t.Chdir(dir)
+
+	srcInfo, err := configureLaravel(dir, &ScannerConfig{})
+
+	require.NoError(t, err)
+	assert.Equal(t, "22", srcInfo.BuildArgs["NODE_VERSION"])
+}
