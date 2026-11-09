@@ -96,11 +96,12 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 			ctx := iostreams.NewContext(context.Background(), io)
 			ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 			ctx = agent.DialerWithContext(ctx, restartTestDialer{})
+			// A command-level --force (e.g. config update's) must not leak in.
 			flags := pflag.NewFlagSet("restart", pflag.ContinueOnError)
-			flags.Bool("force", tt.force, "")
+			flags.Bool("force", true, "")
 			ctx = flagctx.NewContext(ctx, flags)
 
-			err := machinesRestart(ctx, "pg-app", &fly.RestartMachineInput{SkipHealthChecks: true})
+			err := machinesRestart(ctx, "pg-app", &fly.RestartMachineInput{SkipHealthChecks: true}, tt.force)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				if tt.failLeader {
@@ -121,10 +122,12 @@ func TestMachinesRestartWithoutLeader(t *testing.T) {
 			assert.ElementsMatch(t, wantRestarted, restarted)
 			if tt.hasLeader {
 				assert.Equal(t, "m2", restarted[len(restarted)-1])
+				assert.Contains(t, out.String(), "Postgres cluster has been successfully restarted!")
 			} else {
 				assert.Contains(t, out.String(), "No leader found, but continuing with restart")
+				assert.Contains(t, out.String(), "the cluster still has no active leader")
+				assert.NotContains(t, out.String(), "successfully restarted")
 			}
-			assert.Contains(t, out.String(), "Postgres cluster has been successfully restarted!")
 		})
 	}
 }
