@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
@@ -93,6 +94,8 @@ func runAttach(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
+	warnIfUnreachable(ctx, pgApp, app)
+
 	// Build context around the postgres app
 	ctx, err = apps.BuildContextForApp(ctx, pgApp)
 	if err != nil {
@@ -141,10 +144,12 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = flapsClient.GetApp(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
+
+	warnIfUnreachable(ctx, pgApp, app)
 
 	flycast, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
@@ -152,6 +157,49 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	return machineAttachCluster(ctx, params, flycast)
+}
+
+// warnIfUnreachable warns when app is on a different private network from
+// pgApp and pgApp has no Flycast address on app's network, because the
+// DATABASE_URL attach sets would then never connect. It only warns: the user
+// may be about to allocate that address, and a failed lookup shouldn't block
+// the attach.
+func warnIfUnreachable(ctx context.Context, pgApp, app *flaps.App) {
+	pgNetwork, appNetwork := flapsutil.NetworkName(pgApp), flapsutil.NetworkName(app)
+	if pgNetwork == appNetwork {
+		return
+	}
+
+	res, err := flapsutil.ClientFromContext(ctx).GetIPAssignments(ctx, pgApp.Name)
+	if err != nil {
+		return
+	}
+	for _, ip := range res.IPs {
+		if ip.IsFlycast() && ip.Network != nil && flapsutil.NormalizeNetworkName(ip.Network.Name) == appNetwork {
+			return
+		}
+	}
+
+	// The default network is selected by leaving --network off.
+	allocate := fmt.Sprintf("fly ips allocate-v6 --private -a %s", pgApp.Name)
+	if appNetwork != "" {
+		allocate = fmt.Sprintf("fly ips allocate-v6 --private --network %s -a %s", appNetwork, pgApp.Name)
+	}
+
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.ErrOut, "%s %s is on network %s and %s is on network %s, so %s won't be able to reach the database. To fix it, give %s a Flycast address on %s's network: %s\n",
+		io.ColorScheme().WarningIcon(),
+		app.Name, displayNetwork(appNetwork), pgApp.Name, displayNetwork(pgNetwork), app.Name,
+		pgApp.Name, app.Name, allocate)
+}
+
+// displayNetwork names a network as users and the CLI flags know it.
+func displayNetwork(name string) string {
+	if name == "" {
+		return flapsutil.DefaultNetwork
+	}
+
+	return name
 }
 
 // flycastAddress returns the postgres app's Flycast (private IPv6) address, if it has one.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -139,7 +140,7 @@ func run(ctx context.Context) (err error) {
 		SnapshotID: flag.GetString(ctx, "snapshot-id"),
 		Detach:     flag.GetDetach(ctx),
 		Autostart:  flag.GetBool(ctx, "autostart"),
-		Network:    flag.GetString(ctx, "network"),
+		Network:    flapsutil.NormalizeNetworkName(flag.GetString(ctx, "network")),
 	}
 
 	pgConfig := &PostgresConfiguration{
@@ -185,6 +186,8 @@ func run(ctx context.Context) (err error) {
 		if !flapsutil.IsPostgresApp(forkApp) {
 			return fmt.Errorf("The fork-from app %q must be a postgres app", forkApp.Name)
 		}
+
+		params.Network = forkNetwork(params.Network, flag.IsSpecified(ctx, "network"), forkApp)
 
 		ctx, err := apps.BuildContextForApp(ctx, forkApp)
 		if err != nil {
@@ -272,7 +275,8 @@ func run(ctx context.Context) (err error) {
 }
 
 // newClusterInput builds the launcher input for CreateCluster. The network
-// comes from params rather than a flag so callers such as fly launch can set it.
+// comes from params rather than the --network flag, so it is only what the
+// caller asked for.
 func newClusterInput(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) *flypg.CreateClusterInput {
 	return &flypg.CreateClusterInput{
 		AppName:        params.Name,
@@ -290,6 +294,40 @@ func newClusterInput(ctx context.Context, org *uiex.Organization, region *fly.Re
 	}
 }
 
+// forkNetwork picks the network for a fork of forkApp. The fork stays on the
+// source cluster's network, so the apps that used the source can reach it,
+// unless the user passed --network. requested is already normalized, so an
+// explicit --network default arrives as "" with specified set.
+func forkNetwork(requested string, specified bool, forkApp *flaps.App) string {
+	if specified {
+		return requested
+	}
+
+	return flapsutil.NetworkName(forkApp)
+}
+
+// warnIfNewNetwork tells the user when no app in the organization is on
+// network yet. Naming a network that doesn't exist creates it, so this is
+// usually a typo and the cluster would be unreachable from the intended apps.
+// It only warns: a brand-new network is a legitimate choice, and a failed
+// lookup shouldn't block cluster creation.
+func warnIfNewNetwork(ctx context.Context, orgSlug, network string) {
+	existing, err := flapsutil.ClientFromContext(ctx).ListApps(ctx, flaps.ListAppsRequest{OrgSlug: orgSlug})
+	if err != nil {
+		return
+	}
+
+	for _, app := range existing {
+		if flapsutil.NetworkName(&app) == network {
+			return
+		}
+	}
+
+	io := iostreams.FromContext(ctx)
+	fmt.Fprintf(io.ErrOut, "%s No apps in %s are on network %q yet, so a new network will be created. If you meant an existing network, check the name.\n",
+		io.ColorScheme().WarningIcon(), orgSlug, network)
+}
+
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
 func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
@@ -298,6 +336,10 @@ func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Regi
 	)
 
 	input := newClusterInput(ctx, org, region, params)
+
+	if input.Network != "" {
+		warnIfNewNetwork(ctx, org.Slug, input.Network)
+	}
 
 	isCustomMachine := false
 	for _, sizeFlag := range flag.VMSizeFlags {

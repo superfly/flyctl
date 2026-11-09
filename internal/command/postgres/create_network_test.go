@@ -32,11 +32,10 @@ func TestCreateNetworkFlagDefaultsEmpty(t *testing.T) {
 }
 
 func TestCreateNetworkFlagHelpSaysName(t *testing.T) {
-	// The API takes a network name, and an unknown name creates a new network,
-	// so the help must not suggest passing an ID.
+	// The API takes a network name, and an unknown name creates a new network.
 	usage := newCreate().Flags().Lookup("network").Usage
 	assert.Contains(t, usage, "Name of the custom private network")
-	assert.NotContains(t, usage, " id")
+	assert.Contains(t, usage, "doesn't exist yet is created")
 }
 
 func TestNewClusterInputNetworkFromParams(t *testing.T) {

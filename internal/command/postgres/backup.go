@@ -161,6 +161,7 @@ func runBackupRestore(ctx context.Context) error {
 	// Build the input for the new cluster using the leader's configuration.
 	input := &flypg.CreateClusterInput{
 		AppName:                   destAppName,
+		Network:                   flapsutil.NetworkName(app),
 		Organization:              org,
 		InitialClusterSize:        1,
 		ImageRef:                  imageRef,
