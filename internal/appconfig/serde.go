@@ -23,7 +23,7 @@ import (
 
 const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
 `

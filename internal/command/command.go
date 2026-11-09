@@ -726,7 +726,7 @@ func reloginError(reason string) error {
 	return errSessionExpired
 }
 
-const ssoTokensHelpURL = "https://fly.io/docs/security/tokens/"
+const ssoTokensHelpURL = "https://docs.fly.io/security/tokens"
 
 // monitorSessionTokens starts token monitoring and fails the command when an
 // SSO sign-in was requested but not completed, rather than letting it go on

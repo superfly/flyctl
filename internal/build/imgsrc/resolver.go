@@ -358,7 +358,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 
-	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
+	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://docs.fly.io/reference/configuration#the-build-section")
 }
 
 // waitForPushedImage holds the deploy until the image it just pushed resolves,

@@ -969,7 +969,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	}
 
 	if totalMachinesWithChecks == 0 && len(bg.blueMachines) != 0 {
-		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
+		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://docs.fly.io/reference/configuration#services-tcp_checks\n")
 
 		return ErrValidationError
 	}
