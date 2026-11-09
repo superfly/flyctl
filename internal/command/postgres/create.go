@@ -271,6 +271,12 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	// Only check a network the user typed. One inherited from --fork-from
+	// already exists, and fly launch never sets one.
+	if params.Network != "" && flag.IsSpecified(ctx, "network") {
+		warnIfNewNetwork(ctx, org.Slug, params.Network)
+	}
+
 	return CreateCluster(ctx, org, region, params)
 }
 
@@ -336,10 +342,6 @@ func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Regi
 	)
 
 	input := newClusterInput(ctx, org, region, params)
-
-	if input.Network != "" {
-		warnIfNewNetwork(ctx, org.Slug, input.Network)
-	}
 
 	isCustomMachine := false
 	for _, sizeFlag := range flag.VMSizeFlags {

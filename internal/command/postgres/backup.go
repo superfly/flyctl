@@ -175,9 +175,7 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	launcher := flypg.NewLauncher(client)
-	launcher.LaunchMachinesPostgres(ctx, input, false)
-
-	return nil
+	return launcher.LaunchMachinesPostgres(ctx, input, false)
 }
 
 func newBackupCreate() *cobra.Command {
