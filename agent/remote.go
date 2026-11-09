@@ -33,7 +33,7 @@ func BringUpAgent(ctx context.Context, client wireguard.WebClient, app *fly.AppC
 	if !quiet {
 		io.StartProgressIndicatorMsg("Connecting to tunnel")
 	}
-	if err := agentclient.WaitForTunnel(ctx, slug, network); err != nil {
+	if err := agentclient.WaitForTunnel(ctx, tunnelOrg(dialer.State(), slug), network); err != nil {
 		captureError(ctx, err, "agent-remote", slug, name)
 
 		return nil, nil, errors.Wrapf(err, "tunnel unavailable")

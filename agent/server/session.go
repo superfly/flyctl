@@ -207,19 +207,48 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 		return nil, err
 	}
 
-	// The personal org is "personal" by Slug and its real name by RawSlug;
-	// clients may send either. Tunnels are keyed by Slug, so remember the
-	// alias for later lookups that only carry the slug the client used.
 	for _, org := range orgs {
 		if org.Slug == slug || org.RawSlug == slug {
-			no := org // copy
-			s.srv.rememberSlug(slug, org.Slug)
+			// "personal" names a different organization for each account.
+			// Use the real slug for both tunnels and persisted peers; never
+			// reuse an old peer cached under the ambiguous alias.
+			if org.Slug == "personal" {
+				if org.RawSlug == "" || org.RawSlug == "personal" {
+					return nil, errors.New("personal organization has no unique slug")
+				}
+				org.Slug = org.RawSlug
+			}
 
-			return &no, nil
+			return &org, nil
 		}
 	}
 
 	return nil, errNoSuchOrg
+}
+
+// tunnelSlug resolves the account-relative alias for control requests. It is
+// not an authorization check: socket clients already share the agent's access.
+func (s *session) tunnelSlug(ctx context.Context, slug string) (string, error) {
+	if slug != "personal" {
+		return slug, nil
+	}
+	org, err := s.fetchOrg(ctx, slug)
+	if err != nil {
+		return "", err
+	}
+	return org.Slug, nil
+}
+
+func (s *session) tunnelFor(ctx context.Context, slug, network string) (*wg.Tunnel, error) {
+	slug, err := s.tunnelSlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	tunnel := s.srv.tunnelFor(slug, network)
+	if tunnel == nil {
+		return nil, agent.ErrTunnelUnavailable
+	}
+	return tunnel, nil
 }
 
 var errMalformedProbe = errors.New("malformed probe command")
@@ -229,7 +258,12 @@ func (s *session) probe(ctx context.Context, args ...string) {
 		return
 	}
 
-	if err := s.srv.probeTunnel(ctx, args[0], args[1]); err != nil {
+	slug, err := s.tunnelSlug(ctx, args[0])
+	if err != nil {
+		s.error(err)
+		return
+	}
+	if err := s.srv.probeTunnel(ctx, slug, args[1]); err != nil {
 		s.error(err)
 
 		return
@@ -245,9 +279,9 @@ func (s *session) instances(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0], "")
-	if tunnel == nil {
-		s.error(agent.ErrTunnelUnavailable)
+	tunnel, err := s.tunnelFor(ctx, args[0], "")
+	if err != nil {
+		s.error(err)
 
 		return
 	}
@@ -279,9 +313,9 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0], args[2])
-	if tunnel == nil {
-		s.error(agent.ErrTunnelUnavailable)
+	tunnel, err := s.tunnelFor(ctx, args[0], args[2])
+	if err != nil {
+		s.error(err)
 
 		return
 	}
@@ -338,9 +372,9 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0], "")
-	if tunnel == nil {
-		s.error(agent.ErrTunnelUnavailable)
+	tunnel, err := s.tunnelFor(ctx, args[0], "")
+	if err != nil {
+		s.error(err)
 
 		return
 	}

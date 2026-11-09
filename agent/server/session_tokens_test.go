@@ -47,7 +47,7 @@ func TestSessionConfigTokens(t *testing.T) {
 	require.NoError(t, config.SetAccessToken(path, "fo1_old"))
 	srv := &server{
 		Options: Options{Logger: log.New(io.Discard, "", 0)},
-		runCtx:  ctx, tokens: tokens.Parse("fo1_env"), slugAliases: map[string]string{},
+		runCtx:  ctx, tokens: tokens.Parse("fo1_env"),
 		cancelTokenMonitoring: func() {},
 	}
 	// Promote an env-backed agent, then exercise its installed sync below.
