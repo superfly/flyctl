@@ -47,15 +47,11 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	// decodes to false and no user is checked.
 	var limitedUser *mpgv2.User
 	if username != "" {
-		// Fail closed: without the list, attach can't tell whether the URL
-		// would connect.
-		users, err := listUsers(ctx, clusterID)
+		found, err := findLimitedUser(ctx, clusterID, username)
 		if err != nil {
-			return fmt.Errorf("couldn't check %s's database limits: %w", username, err)
+			return err
 		}
-		if i := slices.IndexFunc(users, func(user mpgv2.User) bool { return user.Name == username }); i >= 0 && users[i].DatabasesLimited {
-			limitedUser = &users[i]
-		}
+		limitedUser = found
 	} else if io.IsInteractive() {
 		// Prompt for user selection
 		users, err := listUsers(ctx, clusterID)
@@ -118,7 +114,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	// Database selection priority: flag > prompt result (if interactive) > empty (use default credentials from cluster).
 	db := flag.GetString(ctx, "database")
 	if limitedUser != nil && len(limitedUser.Databases) == 0 {
-		return fmt.Errorf("user %s can't connect to any database; give it some with fly mpg users set-databases", limitedUser.Name)
+		return noDatabasesError(limitedUser)
 	}
 	if db == "" && io.IsInteractive() && limitedUser != nil {
 		// Only the user's own databases; a new one would be out of its reach.
@@ -198,6 +194,14 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	} else {
 		user = clusterResp.Credentials.User
 		password = clusterResp.Credentials.Password
+		// The default user can be made custom and limited to some
+		// databases too, so it gets the same checks as -u.
+		if limitedUser, err = findLimitedUser(ctx, clusterID, user); err != nil {
+			return err
+		}
+		if limitedUser != nil && len(limitedUser.Databases) == 0 {
+			return noDatabasesError(limitedUser)
+		}
 	}
 
 	if db == "" {
@@ -253,6 +257,28 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
 
 	return nil
+}
+
+// findLimitedUser returns the user called name when the users list limits
+// it to some databases, and nil when the list doesn't limit it or doesn't
+// have it.
+func findLimitedUser(ctx context.Context, clusterID, name string) (*mpgv2.User, error) {
+	// Fail closed: without the list, attach can't tell whether the URL
+	// would connect.
+	users, err := listUsers(ctx, clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't check %s's database limits: %w", name, err)
+	}
+	if i := slices.IndexFunc(users, func(user mpgv2.User) bool { return user.Name == name }); i >= 0 && users[i].DatabasesLimited {
+		return &users[i], nil
+	}
+
+	return nil, nil
+}
+
+// noDatabasesError is the error for a user limited to no database at all.
+func noDatabasesError(user *mpgv2.User) error {
+	return fmt.Errorf("user %s can't connect to any database; give it some with fly mpg users set-databases", user.Name)
 }
 
 // createUserPublicFirst tries the public Machines API for user creation and
