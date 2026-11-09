@@ -29,8 +29,8 @@ const (
 // Descriptions shown before the corresponding prompt, shared by create and
 // update so both paths explain a setting the same way.
 const (
-	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#auto-upgrade.\n\n"
-	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo.\n\n"
+	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#auto-upgrade\n\n"
+	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo\n\n"
 )
 
 // Legacy plans that are no longer available for new databases

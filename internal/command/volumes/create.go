@@ -23,7 +23,7 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://docs.fly.io/launch/volume-storage."
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://docs.fly.io/launch/volume-storage"
 		usage = "create <volume name>"
 	)
 

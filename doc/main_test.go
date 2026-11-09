@@ -36,3 +36,45 @@ func TestGeneratedCommandDocumentationUsesCanonicalURLs(t *testing.T) {
 		require.True(t, seen[name], "expected generated page %s", name)
 	}
 }
+
+// Runtime messages never reach the generated pages, so scan the source too:
+// no links to the retired fly.io/docs host, and no docs URL followed by a
+// sentence-ending period, which terminals can fold into the link (a 404).
+func TestSourceDocumentationLinks(t *testing.T) {
+	legacy := regexp.MustCompile(`https?://fly\.io/docs\b`)
+	trailingDot := regexp.MustCompile(`https://docs\.fly\.io/[^\s"'` + "`" + `)]*\.(\s|"|'|` + "`" + `|\\n|$)`)
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", "node_modules", "vendor", "out":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		switch filepath.Ext(path) {
+		case ".go", ".yml", ".yaml", ".toml", ".tmpl":
+		default:
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for i, line := range strings.Split(string(data), "\n") {
+			if legacy.MatchString(line) {
+				t.Errorf("%s:%d: link to https://fly.io/docs; use https://docs.fly.io", path, i+1)
+			}
+			if trailingDot.MatchString(line) {
+				t.Errorf("%s:%d: docs URL followed by a period", path, i+1)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+}
