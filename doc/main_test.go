@@ -74,6 +74,7 @@ func TestSourceDocumentationLinks(t *testing.T) {
 				t.Errorf("%s:%d: docs URL followed by a period", path, i+1)
 			}
 		}
+
 		return nil
 	})
 	require.NoError(t, err)
