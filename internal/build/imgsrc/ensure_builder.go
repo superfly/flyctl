@@ -455,12 +455,9 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 					},
 					{
 						Port:     new(443),
-						Handlers: []string{"http", "tls"},
+						Handlers: []string{"tls"},
 						TLSOptions: &fly.TLSOptions{
-							ALPN: []string{"h2"},
-						},
-						HTTPOptions: &fly.HTTPOptions{
-							H2Backend: new(true),
+							ALPN: []string{"http/1.1"},
 						},
 					},
 				},
