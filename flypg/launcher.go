@@ -304,7 +304,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
-	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the above connection string\n", config.Organization.Name)
+	fmt.Fprintln(io.Out, connectHint(config))
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
@@ -312,6 +312,16 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	// TODO: wait for the cluster to be ready
 
 	return nil
+}
+
+// connectHint says which apps can use the printed connection string. A cluster
+// on a custom network is only reachable from apps on that same network.
+func connectHint(config *CreateClusterInput) string {
+	if config.Network != "" {
+		return fmt.Sprintf("Apps on the %s network in the %s organization can connect to this Postgres using the above connection string. Apps on other networks, including the organization's default network, can't reach it.", config.Network, config.Organization.Name)
+	}
+
+	return fmt.Sprintf("Any app within the %s organization can connect to this Postgres using the above connection string", config.Organization.Name)
 }
 
 func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineConfig {

@@ -89,3 +89,20 @@ func TestLaunchMachinesPostgresDefaultNetwork(t *testing.T) {
 	assert.Empty(t, createReq.Network)
 	assert.Equal(t, flaps.AssignIPRequest{Type: flaps.IPAssignmentTypePrivateV6}, assignReq)
 }
+
+func TestConnectHint(t *testing.T) {
+	org := &uiex.Organization{Name: "Acme"}
+
+	t.Run("default network", func(t *testing.T) {
+		assert.Equal(t,
+			"Any app within the Acme organization can connect to this Postgres using the above connection string",
+			connectHint(&CreateClusterInput{Organization: org}))
+	})
+
+	t.Run("custom network", func(t *testing.T) {
+		got := connectHint(&CreateClusterInput{Organization: org, Network: "pgnet"})
+		assert.Contains(t, got, "Apps on the pgnet network in the Acme organization can connect")
+		assert.Contains(t, got, "can't reach it")
+		assert.NotContains(t, got, "Any app within")
+	})
+}

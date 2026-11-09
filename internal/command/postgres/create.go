@@ -66,7 +66,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "network",
-			Description: "Specify custom network id",
+			Description: "Name of the custom private network to create the cluster on. A network that doesn't exist yet is created.",
 		},
 		flag.String{
 			Name:        "consul-url",
@@ -139,6 +139,7 @@ func run(ctx context.Context) (err error) {
 		SnapshotID: flag.GetString(ctx, "snapshot-id"),
 		Detach:     flag.GetDetach(ctx),
 		Autostart:  flag.GetBool(ctx, "autostart"),
+		Network:    flag.GetString(ctx, "network"),
 	}
 
 	pgConfig := &PostgresConfiguration{
@@ -270,16 +271,12 @@ func run(ctx context.Context) (err error) {
 	return CreateCluster(ctx, org, region, params)
 }
 
-// CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
-	var (
-		client = flyutil.ClientFromContext(ctx)
-		io     = iostreams.FromContext(ctx)
-	)
-
-	input := &flypg.CreateClusterInput{
+// newClusterInput builds the launcher input for CreateCluster. The network
+// comes from params rather than a flag so callers such as fly launch can set it.
+func newClusterInput(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) *flypg.CreateClusterInput {
+	return &flypg.CreateClusterInput{
 		AppName:        params.Name,
-		Network:        flag.GetString(ctx, "network"),
+		Network:        params.Network,
 		Organization:   org,
 		ImageRef:       params.ImageRef,
 		Region:         region.Code,
@@ -291,6 +288,16 @@ func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Regi
 		// restore app target for now.
 		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
 	}
+}
+
+// CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
+func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
+	var (
+		client = flyutil.ClientFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
+	)
+
+	input := newClusterInput(ctx, org, region, params)
 
 	isCustomMachine := false
 	for _, sizeFlag := range flag.VMSizeFlags {
@@ -461,6 +468,9 @@ type ClusterParams struct {
 	ForkFrom    string
 	Autostart   bool
 	ScaleToZero *bool
+	// Network is the custom private network to create the cluster on. Empty
+	// means the organization's default network.
+	Network string
 }
 
 func postgresConfigurations(manager string) []PostgresConfiguration {
