@@ -236,6 +236,7 @@ func (s *session) tunnelSlug(ctx context.Context, slug string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return org.Slug, nil
 }
 
@@ -248,6 +249,7 @@ func (s *session) tunnelFor(ctx context.Context, slug, network string) (*wg.Tunn
 	if tunnel == nil {
 		return nil, agent.ErrTunnelUnavailable
 	}
+
 	return tunnel, nil
 }
 

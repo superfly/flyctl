@@ -92,6 +92,7 @@ func TestPersonalAccountsUseDistinctTunnels(t *testing.T) {
 		require.True(t, strings.HasPrefix(reply, "ok "), reply)
 		var response agent.EstablishResponse
 		require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(reply, "ok ")), &response))
+
 		return &response
 	}
 	require.Equal(t, "a", establish("a", "personal").WireGuardState.Name)
@@ -131,5 +132,6 @@ func personalCommand(t *testing.T, ctx context.Context, srv *server, token, verb
 	require.NoError(t, err)
 	reply, err := proto.Read(client)
 	require.NoError(t, err)
+
 	return string(reply)
 }

@@ -144,6 +144,7 @@ func personalTestClient(t *testing.T, response func(string) *wg.WireGuardState, 
 					if err := proto.Write(conn, "ok", string(body)); err != nil {
 						t.Error(err)
 					}
+
 					return
 				}
 				requests <- string(packet)
@@ -170,5 +171,6 @@ func personalTestClient(t *testing.T, response func(string) *wg.WireGuardState, 
 		}
 	}()
 	t.Cleanup(func() { listener.Close(); <-done; workers.Wait() })
+
 	return newClient("unix", listener.Addr().String())
 }
