@@ -49,7 +49,7 @@ require (
 	github.com/kr/text v0.2.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.6.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
-	github.com/mark3labs/mcp-go v1.4.0
+	github.com/mark3labs/mcp-go v1.5.0
 	github.com/mattn/go-colorable v0.1.16
 	github.com/mattn/go-isatty v0.0.24
 	github.com/mattn/go-zglob v0.0.8
