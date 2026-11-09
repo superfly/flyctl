@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/net/publicsuffix"
 )
 
 func New() *cobra.Command {
@@ -523,117 +522,18 @@ func runCertificatesSetup(ctx context.Context) error {
 		return err
 	}
 
+	opts := computeDNSOptions(hostname, resp)
+
 	if config.FromContext(ctx).JSONOutput {
-		return render.JSON(iostreams.FromContext(ctx).Out, resp)
+		return render.JSON(iostreams.FromContext(ctx).Out, CertificatesSetupResponse{
+			CertificateDetailResponse: resp,
+			DNSOptions:                opts,
+		})
 	}
 
-	printDNSOptions(ctx, hostname, resp)
+	printDNSOptions(ctx, opts)
 
 	return nil
-}
-
-func printDNSOptions(ctx context.Context, hostname string, resp *fly.CertificateDetailResponse) {
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-
-	var ipV4, ipV6 string
-	if len(resp.DNSRequirements.A) > 0 {
-		ipV4 = resp.DNSRequirements.A[0]
-	}
-	if len(resp.DNSRequirements.AAAA) > 0 {
-		ipV6 = resp.DNSRequirements.AAAA[0]
-	}
-	cnameTarget := resp.DNSRequirements.CNAME
-
-	isWildcard := strings.HasPrefix(hostname, "*.")
-	hasACME := resp.AcmeRequested
-	hasCustom := false
-	for _, cert := range resp.Certificates {
-		if cert.Source == "custom" {
-			hasCustom = true
-		} else {
-			hasACME = true
-		}
-	}
-	if !hasCustom {
-		hasACME = true
-	}
-
-	eTLD, _ := publicsuffix.EffectiveTLDPlusOne(hostname)
-	isApex := hostname == eTLD
-	showCNAME := cnameTarget != "" && !isApex
-
-	fmt.Fprintf(io.Out, "%s\n", colorize.Bold(fmt.Sprintf("DNS Setup Options for %s", hostname)))
-
-	hasRoutingOptions := (ipV4 != "" || ipV6 != "") || showCNAME
-	if hasRoutingOptions {
-		fmt.Fprintln(io.Out)
-		if showCNAME {
-			fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Route traffic to your app with one of:"))
-		} else {
-			fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Route traffic to your app:"))
-		}
-	}
-
-	optionNum := 1
-	if ipV4 != "" || ipV6 != "" {
-		fmt.Fprintln(io.Out)
-		if showCNAME {
-			fmt.Fprintf(io.Out, "  %s\n", colorize.Green(fmt.Sprintf("%d. A and AAAA Records (recommended)", optionNum)))
-		} else {
-			fmt.Fprintf(io.Out, "  %s\n", colorize.Green("A and AAAA Records"))
-		}
-		if ipV4 != "" {
-			fmt.Fprintf(io.Out, "     %s    %s \u2192 %s\n", colorize.Cyan("A"), hostname, ipV4)
-		}
-		if ipV6 != "" {
-			fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("AAAA"), hostname, ipV6)
-		}
-		optionNum++
-	}
-
-	if showCNAME {
-		fmt.Fprintln(io.Out)
-		fmt.Fprintf(io.Out, "  %s\n", fmt.Sprintf("%d. CNAME Record", optionNum))
-		fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("CNAME"), hostname, cnameTarget)
-	}
-
-	acme := resp.DNSRequirements.ACMEChallenge
-	showACME := hasACME && acme.Name != "" && acme.Target != ""
-
-	ownership := resp.DNSRequirements.Ownership
-	showOwnership := ownership.Name != "" && (!hasACME || hasCustom || !isWildcard)
-
-	if showACME || showOwnership {
-		fmt.Fprintln(io.Out)
-		fmt.Fprintf(io.Out, "%s\n", colorize.Bold("Additional DNS records:"))
-	}
-
-	if showACME {
-		fmt.Fprintln(io.Out)
-		fmt.Fprintf(io.Out, "  ACME DNS Challenge\n")
-		fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("CNAME"), acme.Name, acme.Target)
-		if isWildcard {
-			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Required to issue fly-managed wildcard certificates."))
-		} else {
-			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Only needed if you want to generate the certificate before directing traffic to your application."))
-		}
-	}
-
-	if showOwnership {
-		fmt.Fprintln(io.Out)
-		fmt.Fprintf(io.Out, "  Ownership TXT Record\n")
-		if ownership.AppValue != "" {
-			fmt.Fprintf(io.Out, "     %s %s \u2192 %s\n", colorize.Cyan("TXT"), ownership.Name, ownership.AppValue)
-		}
-		if hasCustom && isWildcard {
-			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Required to verify ownership for custom wildcard certificates."))
-		} else {
-			fmt.Fprintf(io.Out, "     %s\n", colorize.Gray("Required if your app doesn't have an IPv6 address, or if traffic is routed through a CDN or proxy."))
-		}
-	}
-
-	fmt.Fprintln(io.Out)
 }
 
 func printCertificateDetail(ctx context.Context, resp *fly.CertificateDetailResponse) {
