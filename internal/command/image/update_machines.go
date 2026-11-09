@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -15,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
+func updateImageForMachines(ctx context.Context, app *flaps.App) error {
 	var (
 		io = iostreams.FromContext(ctx)
 
@@ -83,7 +84,7 @@ type member struct {
 	TargetConfig fly.MachineConfig
 }
 
-func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err error) {
+func updatePostgresOnMachines(ctx context.Context, app *flaps.App) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -156,6 +157,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 
 	if len(members) == 0 {
 		fmt.Fprintln(io.Out, colorize.Bold("No changes to apply"))
+
 		return nil
 	}
 
@@ -223,6 +225,7 @@ func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err err
 			for _, replica := range members["replicas"] {
 				if replica.Machine.Region == leader.Machine.Region {
 					attemptFailover = true
+
 					break
 				}
 			}
@@ -265,9 +268,11 @@ func machineRole(machine *fly.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+
 			break
 		}
 	}
+
 	return role
 }
 
@@ -284,7 +289,7 @@ func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 			return "", err
 		}
 
-		if latestImage != nil {
+		if latestImage != nil && IsUpdateCandidate(&machine, latestImage) {
 			image = latestImage.FullImageRef()
 		}
 

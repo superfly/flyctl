@@ -2,34 +2,19 @@ package flag
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"slices"
-	"strings"
 
 	"github.com/docker/go-units"
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 )
 
-var (
-	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"}
-	gpuKindAliases = map[string]string{
-		"a100-40gb": "a100-pcie-40gb",
-		"a100-80gb": "a100-sxm4-80gb",
-	}
-)
-
 // Returns a MachineGuest based on the flags provided overwriting a default VM
 func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.MachineGuest, error) {
-	defaultVMSize := fly.DefaultVMSize
-	if IsSpecified(ctx, "vm-gpu-kind") {
-		defaultVMSize = fly.DefaultGPUVMSize
-	}
-
 	if guest == nil {
 		guest = &fly.MachineGuest{}
-		guest.SetSize(defaultVMSize)
+		guest.SetSize(fly.DefaultVMSize)
 	}
 
 	if IsSpecified(ctx, "vm-size") {
@@ -58,6 +43,19 @@ func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.Machine
 		}
 	}
 
+	if IsSpecified(ctx, "vm-max-memory") {
+		rawValue := GetString(ctx, "vm-max-memory")
+		maxMemoryMB, err := helpers.ParseSize(rawValue, units.RAMInBytes, units.MiB)
+		switch {
+		case err != nil:
+			return nil, err
+		case maxMemoryMB == 0:
+			return nil, fmt.Errorf("--vm-max-memory cannot be zero")
+		default:
+			guest.MaxMemoryMB = maxMemoryMB
+		}
+	}
+
 	if IsSpecified(ctx, "vm-cpu-kind") {
 		guest.CPUKind = GetString(ctx, "vm-cpu-kind")
 		if k := guest.CPUKind; k != "shared" && k != "performance" {
@@ -65,33 +63,8 @@ func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.Machine
 		}
 	}
 
-	if IsSpecified(ctx, "vm-gpu-kind") {
-		m := GetString(ctx, "vm-gpu-kind")
-		m = lo.ValueOr(gpuKindAliases, m, m)
-		if !slices.Contains(validGPUKinds, m) {
-			return nil, fmt.Errorf("--vm-gpu-kind must be set to one of: %v", strings.Join(validGPUKinds, ", "))
-		}
-		if m == "none" {
-			guest.GPUs = 0
-			guest.GPUKind = ""
-		} else {
-			guest.GPUKind = m
-			if guest.GPUs == 0 {
-				guest.GPUs = 1
-			}
-		}
-	}
-
-	if IsSpecified(ctx, "vm-gpus") {
-		guest.GPUs = GetInt(ctx, "vm-gpus")
-		switch {
-		case guest.GPUKind != "" && guest.GPUs == 0:
-			return nil, fmt.Errorf("--vm-gpus must be greater than zero, got: %d", guest.GPUs)
-		case guest.GPUKind == "" && guest.GPUs > 0:
-			return nil, fmt.Errorf("--vm-gpus requires a GPU Model to be set, pass --vm-gpu-kind=X where X is one of: %v", strings.Join(validGPUKinds, ", "))
-		case guest.GPUs < 0:
-			return nil, fmt.Errorf("--vm-gpus must be greater than or equal to zero, got: %d", guest.GPUs)
-		}
+	if IsSpecified(ctx, "vm-gpu-kind") || IsSpecified(ctx, "vm-gpus") {
+		return nil, errors.New("GPU machines are no longer supported: --vm-gpu-kind and --vm-gpus are no longer accepted")
 	}
 
 	if IsSpecified(ctx, "host-dedication-id") {
@@ -108,27 +81,36 @@ var VMSizeFlags = Set{
 	},
 	Int{
 		Name:        "vm-cpus",
-		Description: "Number of CPUs",
+		Description: "Number of CPUs (also --cpus)",
 		Aliases:     []string{"cpus"},
 	},
 	String{
 		Name:        "vm-cpu-kind",
-		Description: "The kind of CPU to use ('shared' or 'performance')",
+		Description: "The kind of CPU to use ('shared' or 'performance') (also --vm-cpukind)",
 		Aliases:     []string{"vm-cpukind"},
 	},
 	String{
 		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the VM",
+		Description: "Memory (in megabytes) to attribute to the VM (also --memory)",
 		Aliases:     []string{"memory"},
 	},
+	String{
+		Name:        "vm-max-memory",
+		Description: "Maximum memory (in megabytes) to allow for the VM",
+		Hidden:      true,
+	},
+	// GPU machines are no longer supported. Both flags are kept so that
+	// passing one fails with an explanation rather than "unknown flag".
 	Int{
 		Name:        "vm-gpus",
-		Description: "Number of GPUs. Must also choose the GPU model with --vm-gpu-kind flag",
+		Description: "GPU machines are no longer supported",
+		Hidden:      true,
 	},
 	String{
 		Name:        "vm-gpu-kind",
-		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUKinds, ", ")),
+		Description: "GPU machines are no longer supported",
 		Aliases:     []string{"vm-gpukind"},
+		Hidden:      true,
 	},
 	String{
 		Name:        "host-dedication-id",

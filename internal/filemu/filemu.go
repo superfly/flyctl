@@ -4,6 +4,7 @@ package filemu
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -32,7 +33,7 @@ var errFailed = errors.New("failed acquiring lock")
 type lockFunc func(*flock.Flock, context.Context, time.Duration) (bool, error)
 
 func try(parent context.Context, path string, fn lockFunc) (UnlockFunc, error) {
-	ctx, cancel := context.WithTimeout(parent, timeout)
+	ctx, cancel := context.WithTimeoutCause(parent, timeout, fmt.Errorf("acquiring file lock: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	mu := flock.New(path)

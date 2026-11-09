@@ -139,6 +139,7 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 		if !confirmed {
 			fmt.Fprintf(io.Out, "No changes to apply\n")
+
 			return nil
 		}
 	}
@@ -167,6 +168,7 @@ func runUpdate(ctx context.Context) (err error) {
 				Suggest:  "Try increasing the --wait-timeout",
 			}
 		}
+
 		return err
 	}
 

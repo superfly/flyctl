@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/docker/go-units"
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -22,6 +22,7 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, ipType st
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
+
 	return nil
 }
 
@@ -40,8 +41,6 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		return nil
 	}
 
-	region, network := "", ""
-
 	switch md.appConfig.DetermineIPType(ipType) {
 	case "dedicated":
 		hasUdpService := md.appConfig.HasUdpService()
@@ -52,72 +51,72 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipTy
 		}
 
 		confirmDedicatedIp, err := prompt.Confirmf(ctx, "Would you like to allocate %s now?", ipStuffStr)
-		if confirmDedicatedIp && err == nil {
+		if !confirmDedicatedIp || err != nil {
+			// allocate-v4 refuses to run without a terminal unless --yes
+			// accepts the charge, so say what --yes pays for.
+			fmt.Fprintf(md.io.ErrOut, "No IP addresses allocated, so %s is not reachable from the internet yet. Its services need %s:\n", md.app.Name, ipStuffStr)
+			if !hasUdpService {
+				fmt.Fprintf(md.io.ErrOut, "  fly ips allocate-v6 -a %s\n", md.app.Name)
+			}
+			fmt.Fprintf(md.io.ErrOut, "  fly ips allocate-v4 --yes -a %s   (a dedicated IPv4 costs $2/mo; --yes accepts the charge)\n", md.app.Name)
+		} else {
 			v4Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-				Type:         "v4",
-				Region:       region,
-				Organization: org,
-				Network:      network,
+				Type: flaps.IPAssignmentTypeV4,
 			})
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(md.io.Out, "Allocated dedicated ipv4: %s\n", v4Dedicated.IP)
+			fmt.Fprintf(md.io.Out, "Allocated dedicated ipv4: %s\n", *v4Dedicated.IP)
 
 			if !hasUdpService {
 				v6Dedicated, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-					Type:         "v6",
-					Region:       region,
-					Organization: org,
-					Network:      network,
+					Type: flaps.IPAssignmentTypeV6,
 				})
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(md.io.Out, "Allocated dedicated ipv6: %s\n", v6Dedicated.IP)
+				fmt.Fprintf(md.io.Out, "Allocated dedicated ipv6: %s\n", *v6Dedicated.IP)
 			}
 		}
 
 	case "shared":
 		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
 		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type:         "v6",
-			Region:       region,
-			Organization: org,
-			Network:      network,
+			Type: flaps.IPAssignmentTypeV6,
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(v6Addr.IP))
+		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", md.colorize.Purple(*v6Addr.IP))
 
 		v4Shared, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type:         "shared_v4",
-			Region:       region,
-			Organization: org,
-			Network:      network,
+			Type: flaps.IPAssignmentTypeSharedV4,
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", md.colorize.Purple(v4Shared.IP))
+		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", md.colorize.Purple(*v4Shared.IP))
 		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: %s\n", md.colorize.Purple("fly ips allocate-v4"))
 
 	case "private":
 		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))
+		// Unlike public IPs, private_v6 is organization-scoped and requires
+		// org_slug to select the private network for the allocation. Flaps
+		// reports the default network as "default" but only resolves it by
+		// its empty name, so the app's network name must be normalized.
 		v6Addr, err := md.flapsClient.AssignIP(ctx, md.app.Name, flaps.AssignIPRequest{
-			Type:         "private_v6",
-			Region:       region,
+			Type:         flaps.IPAssignmentTypePrivateV6,
 			Organization: org,
-			Network:      network,
+			Network:      flapsutil.NetworkName(md.app),
 		})
 		if err != nil {
 			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Private ipv6: %s\n", v6Addr.IP)
+		fmt.Fprintf(md.io.Out, "  Private ipv6: %s\n", *v6Addr.IP)
 	}
 
 	fmt.Fprintln(md.io.Out)
+
 	return nil
 }
 
@@ -127,10 +126,9 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		return nil
 	}
 
-	// md.setVolumes already queried for existent unattached volumes, do not create more
-	existentVolumes := lo.MapValues(md.volumes, func(vs []fly.Volume, _ string) int {
-		return len(vs)
-	})
+	// md.setVolumes already counted existent unattached volumes. Reserve those
+	// by name and region before creating anything missing.
+	existentVolumes := cloneAvailableVolumeCounts(md.availableVolumeCounts)
 
 	// The logic here is to provision one volume per process group that needs it only on the primary region
 	for _, groupName := range md.appConfig.ProcessNames() {
@@ -149,8 +147,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		}
 
 		for _, m := range groupConfig.Mounts {
-			if v := existentVolumes[m.Source]; v > 0 {
-				existentVolumes[m.Source]--
+			if consumeAvailableVolumeCount(existentVolumes, m.Source, groupConfig.PrimaryRegion, 1) > 0 {
 				continue
 			}
 
@@ -177,21 +174,28 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			input := fly.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              fly.Pointer(initialSize),
-				Encrypted:           fly.Pointer(true),
+				SizeGb:              new(initialSize),
+				Encrypted:           new(true),
 				ComputeRequirements: guest,
 				ComputeImage:        md.img,
 				SnapshotRetention:   m.SnapshotRetention,
 				AutoBackupEnabled:   m.ScheduledSnapshots,
 			}
 
-			vol, err := md.flapsClient.CreateVolume(ctx, md.app.Name, input)
+			_, err = md.flapsClient.CreateVolume(ctx, md.app.Name, input)
 			if err != nil {
 				return err
 			}
 
-			md.volumes[m.Source] = append(md.volumes[m.Source], *vol)
+			if md.availableVolumeCounts == nil {
+				md.availableVolumeCounts = make(map[string]map[string]int)
+			}
+			if md.availableVolumeCounts[m.Source] == nil {
+				md.availableVolumeCounts[m.Source] = make(map[string]int)
+			}
+			md.availableVolumeCounts[m.Source][input.Region]++
 		}
 	}
+
 	return nil
 }

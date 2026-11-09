@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -21,7 +22,6 @@ import (
 )
 
 type Provisioner struct {
-	orgID                 string
 	orgSlug               string
 	orgTrial              bool
 	orgPaidPlan           bool
@@ -33,7 +33,6 @@ type Provisioner struct {
 
 func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
-		orgID:                 org.ID,
 		orgSlug:               org.Slug,
 		orgTrial:              org.BillingStatus == uiex.BillingStatusTrialActive,
 		orgPaidPlan:           org.PaidPlan,
@@ -44,7 +43,6 @@ func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 
 func NewBuildkitProvisioner(org *uiex.Organization, addr, image string) *Provisioner {
 	return &Provisioner{
-		orgID:                 org.ID,
 		orgSlug:               org.Slug,
 		orgPaidPlan:           org.PaidPlan,
 		orgRemoteBuilderImage: org.RemoteBuilderImage,
@@ -69,6 +67,7 @@ func (p *Provisioner) image() string {
 	if p.orgRemoteBuilderImage != "" {
 		return p.orgRemoteBuilderImage
 	}
+
 	return defaultImage
 }
 
@@ -108,6 +107,7 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		builderMachine, err := p.validateBuilder(ctx, builderApp)
 		if err == nil {
 			span.AddEvent("builder app already exists and is valid")
+
 			return builderMachine, builderApp, nil
 		}
 
@@ -117,13 +117,14 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			err := restartBuilderMachine(ctx, builderApp.Name, builderMachine)
+			err := startOrRestartBuilderMachine(ctx, builderApp.Name, builderMachine)
 			switch {
 			case errors.Is(err, ShouldReplaceBuilderMachine):
 				span.AddEvent("recreating builder due to resource reservation error")
 			case err != nil:
-				tracing.RecordError(span, err, "error restarting builder machine")
-				return nil, nil, err
+				tracing.RecordError(ctx, span, err, "error restarting builder machine")
+
+				return nil, nil, fmt.Errorf("failed to restart builder machine %s: %w", builderMachine.ID, err)
 			default:
 				return builderMachine, builderApp, nil
 
@@ -132,10 +133,11 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 
 		if validateBuilderErr != NoBuilderApp {
 			span.AddEvent(fmt.Sprintf("deleting existing invalid builder due to %s", validateBuilderErr))
-			client := flyutil.ClientFromContext(ctx)
-			err := client.DeleteApp(ctx, builderApp.Name)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			err := flapsClient.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
-				tracing.RecordError(span, err, "error deleting invalid builder app")
+				tracing.RecordError(ctx, span, err, "error deleting invalid builder app")
+
 				return nil, nil, err
 			}
 
@@ -144,10 +146,11 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	} else {
 		span.AddEvent("recreating builder")
 		if builderApp != nil {
-			client := flyutil.ClientFromContext(ctx)
-			err := client.DeleteApp(ctx, builderApp.Name)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			err := flapsClient.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
-				tracing.RecordError(span, err, "error deleting existing builder app")
+				tracing.RecordError(ctx, span, err, "error deleting existing builder app")
+
 				return nil, nil, err
 			}
 
@@ -160,9 +163,11 @@ func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreate
 	// we want to lauch the machine to the builder
 	app, machine, err := p.createBuilder(ctx, region, builderName)
 	if err != nil {
-		tracing.RecordError(span, err, "error creating builder")
+		tracing.RecordError(ctx, span, err, "error creating builder")
+
 		return nil, nil, err
 	}
+
 	return machine, app, nil
 }
 
@@ -172,9 +177,11 @@ func EnsureFlyManagedBuilder(ctx context.Context, orgSlug string, region string)
 
 	app, machine, err := createFlyManagedBuilder(ctx, orgSlug, region)
 	if err != nil {
-		tracing.RecordError(span, err, "error creating fly managed builder")
+		tracing.RecordError(ctx, span, err, "error creating fly managed builder")
+
 		return nil, nil, err
 	}
+
 	return machine, app, nil
 }
 
@@ -224,6 +231,7 @@ func (p *Provisioner) validateBuilder(ctx context.Context, app *flaps.App) (*fly
 	if len(machine.Config.Services) == 1 && machine.Config.Services[0].InternalPort == buildkitGRPCPort {
 		return machine, nil
 	}
+
 	return nil, ShouldReplaceBuilderMachine
 }
 
@@ -236,7 +244,8 @@ func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *flaps.App
 	defer span.End()
 
 	if app == nil {
-		tracing.RecordError(span, NoBuilderApp, "no builder app")
+		tracing.RecordError(ctx, span, NoBuilderApp, "no builder app")
+
 		return nil, NoBuilderApp
 	}
 
@@ -244,18 +253,21 @@ func (p *Provisioner) validateBuilderMachine(ctx context.Context, app *flaps.App
 
 	if p.useVolume {
 		if _, err := validateBuilderVolumes(ctx, flapsClient, app.Name); err != nil {
-			tracing.RecordError(span, err, "error validating builder volumes")
+			tracing.RecordError(ctx, span, err, "error validating builder volumes")
+
 			return nil, err
 		}
 	}
 	machine, err := validateBuilderMachines(ctx, flapsClient, app.Name)
 	if err != nil {
-		tracing.RecordError(span, err, "error validating builder machines")
+		tracing.RecordError(ctx, span, err, "error validating builder machines")
+
 		return nil, err
 	}
 
 	if machine.State != "started" {
-		tracing.RecordError(span, BuilderMachineNotStarted, "builder machine not started")
+		tracing.RecordError(ctx, span, BuilderMachineNotStarted, "builder machine not started")
+
 		return machine, BuilderMachineNotStarted
 	}
 
@@ -284,18 +296,21 @@ func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClie
 			numRetries += 1
 
 			if numRetries >= 3 {
-				tracing.RecordError(span, err, "error getting volumes")
+				tracing.RecordError(ctx, span, err, "error getting volumes")
+
 				return nil, err
 			}
 			time.Sleep(1 * time.Second)
 		} else {
-			tracing.RecordError(span, err, "error getting volumes")
+			tracing.RecordError(ctx, span, err, "error getting volumes")
+
 			return nil, err
 		}
 	}
 
 	if len(volumes) == 0 {
-		tracing.RecordError(span, NoBuilderVolume, "the existing builder app has no volume")
+		tracing.RecordError(ctx, span, NoBuilderVolume, "the existing builder app has no volume")
+
 		return nil, NoBuilderVolume
 	}
 
@@ -323,19 +338,22 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 			numRetries += 1
 
 			if numRetries >= 3 {
-				tracing.RecordError(span, err, "error listing machines")
+				tracing.RecordError(ctx, span, err, "error listing machines")
+
 				return nil, err
 			}
 			time.Sleep(1 * time.Second)
 		} else {
-			tracing.RecordError(span, err, "error listing machines")
+			tracing.RecordError(ctx, span, err, "error listing machines")
+
 			return nil, err
 		}
 	}
 
 	if len(machines) != 1 {
 		span.AddEvent(fmt.Sprintf("invalid machine count %d", len(machines)))
-		tracing.RecordError(span, InvalidMachineCount, "the existing builder app has an invalid number of machines")
+		tracing.RecordError(ctx, span, InvalidMachineCount, "the existing builder app has an invalid number of machines")
+
 		return nil, InvalidMachineCount
 	}
 
@@ -348,7 +366,6 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
-	client := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	app, retErr = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
@@ -357,30 +374,28 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		AppRoleID: appRoleRemoteBuilder,
 	})
 	if retErr != nil {
-		tracing.RecordError(span, retErr, "error creating app")
+		tracing.RecordError(ctx, span, retErr, "error creating app")
+
 		return nil, nil, retErr
 	}
 
 	defer func() {
 		if retErr != nil {
 			span.AddEvent("cleaning up new builder app due to error")
-			client.DeleteApp(ctx, builderName)
+			flapsClient.DeleteApp(ctx, builderName)
 			_ = appsecrets.DeleteMinvers(ctx, builderName)
 		}
 	}()
 
+	ipType := flaps.IPAssignmentTypeSharedV4
 	if buildkit {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "private_v6", "", p.orgID, "")
-		if retErr != nil {
-			tracing.RecordError(span, retErr, "error allocating ip address")
-			return nil, nil, retErr
-		}
-	} else {
-		_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", p.orgID, "")
-		if retErr != nil {
-			tracing.RecordError(span, retErr, "error allocating ip address")
-			return nil, nil, retErr
-		}
+		ipType = flaps.IPAssignmentTypePrivateV6
+	}
+	_, retErr = flapsClient.AssignIP(ctx, app.Name, flaps.AssignIPRequest{Type: ipType})
+	if retErr != nil {
+		tracing.RecordError(ctx, span, retErr, "error allocating ip address")
+
+		return nil, nil, retErr
 	}
 
 	guest := fly.MachineGuest{
@@ -398,7 +413,8 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 
 	retErr = flapsClient.WaitForApp(ctx, app.Name)
 	if retErr != nil {
-		tracing.RecordError(span, retErr, "error waiting for builder")
+		tracing.RecordError(ctx, span, retErr, "error waiting for builder")
+
 		return nil, nil, fmt.Errorf("waiting for app %s: %w", app.Name, retErr)
 	}
 
@@ -415,8 +431,8 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		config.Services = []fly.MachineService{
 			{
 				InternalPort: 1234,
-				Ports:        []fly.MachinePort{{Port: fly.IntPointer(1234)}},
-				Autostart:    fly.BoolPointer(true),
+				Ports:        []fly.MachinePort{{Port: new(1234)}},
+				Autostart:    new(true),
 				Autostop:     fly.Pointer(fly.MachineAutostopStop),
 			},
 		}
@@ -426,25 +442,25 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 				Protocol:           "tcp",
 				InternalPort:       8080,
 				Autostop:           fly.Pointer(fly.MachineAutostopOff),
-				Autostart:          fly.BoolPointer(true),
-				MinMachinesRunning: fly.IntPointer(0),
+				Autostart:          new(true),
+				MinMachinesRunning: new(0),
 				Ports: []fly.MachinePort{
 					{
-						Port:       fly.IntPointer(80),
+						Port:       new(80),
 						Handlers:   []string{"http"},
 						ForceHTTPS: true,
 						HTTPOptions: &fly.HTTPOptions{
-							H2Backend: fly.BoolPointer(true),
+							H2Backend: new(true),
 						},
 					},
 					{
-						Port:     fly.IntPointer(443),
+						Port:     new(443),
 						Handlers: []string{"http", "tls"},
 						TLSOptions: &fly.TLSOptions{
 							ALPN: []string{"h2"},
 						},
 						HTTPOptions: &fly.HTTPOptions{
-							H2Backend: fly.BoolPointer(true),
+							H2Backend: new(true),
 						},
 					},
 				},
@@ -459,13 +475,14 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		for {
 			volume, retErr = flapsClient.CreateVolume(ctx, builderName, fly.CreateVolumeRequest{
 				Name:                "machine_data",
-				SizeGb:              fly.IntPointer(50),
-				AutoBackupEnabled:   fly.BoolPointer(false),
+				SizeGb:              new(50),
+				AutoBackupEnabled:   new(false),
 				ComputeRequirements: &guest,
 				Region:              region,
 			})
 			if retErr == nil {
 				region = volume.Region
+
 				break
 			}
 
@@ -475,12 +492,14 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 				numRetries += 1
 
 				if numRetries >= 5 {
-					tracing.RecordError(span, retErr, "error creating volume")
+					tracing.RecordError(ctx, span, retErr, "error creating volume")
+
 					return nil, nil, retErr
 				}
 				time.Sleep(1 * time.Second)
 			} else {
-				tracing.RecordError(span, retErr, "error creating volume")
+				tracing.RecordError(ctx, span, retErr, "error creating volume")
+
 				return nil, nil, retErr
 			}
 		}
@@ -518,14 +537,16 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 		MinSecretsVersion: minvers,
 	})
 	if retErr != nil {
-		tracing.RecordError(span, retErr, "error launching builder machine")
-		return nil, nil, retErr
+		tracing.RecordError(ctx, span, retErr, "error launching builder machine")
+
+		return nil, nil, fmt.Errorf("launching builder machine for %s: %w", builderName, retErr)
 	}
 
-	retErr = flapsClient.Wait(ctx, builderName, mach, "started", 180*time.Second) // 3 minutes for machine start + DNS propagation
+	retErr = flapsClient.Wait(ctx, builderName, mach.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(180*time.Second)) // 3 minutes for machine start + DNS propagation
 	if retErr != nil {
-		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
-		return nil, nil, retErr
+		tracing.RecordError(ctx, span, retErr, "error waiting for builder machine to start")
+
+		return nil, nil, fmt.Errorf("waiting for builder machine %s to start: %w", mach.ID, retErr)
 	}
 
 	return
@@ -539,7 +560,8 @@ func createFlyManagedBuilder(ctx context.Context, orgSlug string, region string)
 
 	response, error := uiexClient.CreateFlyManagedBuilder(ctx, orgSlug, region)
 	if error != nil {
-		tracing.RecordError(span, retErr, "error creating managed builder")
+		tracing.RecordError(ctx, span, retErr, "error creating managed builder")
+
 		return nil, nil, retErr
 	}
 
@@ -554,28 +576,73 @@ func createFlyManagedBuilder(ctx context.Context, orgSlug string, region string)
 	return builderApp, machine, nil
 }
 
-func restartBuilderMachine(ctx context.Context, appName string, builderMachine *fly.Machine) error {
+func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMachine *fly.Machine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
-		ID: builderMachine.ID,
-	}, ""); err != nil {
+	var err error
+	switch builderMachine.State {
+	case "stopping":
+		// Another caller may finish the stop and start the builder before we
+		// observe it. Start is idempotent for a started Machine.
+		var cancel context.CancelFunc
+		// Bound stop, start retries and readiness together. Each API wait caps at 60s.
+		ctx, cancel = context.WithTimeout(ctx, 180*time.Second)
+		defer cancel()
+		if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("stopped", "started"), flaps.WithWaitTimeout(180*time.Second)); err != nil {
+			tracing.RecordError(ctx, span, err, "error waiting for builder machine to stop")
+			return fmt.Errorf("waiting for builder machine %s to stop: %w", builderMachine.ID, err)
+		}
+		_, err = backoff.Retry(ctx, func() (*fly.MachineStartResponse, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, backoff.Permanent(err)
+			}
+			response, err := flapsClient.Start(ctx, appName, builderMachine.ID, "")
+			if err == nil {
+				return response, nil
+			}
+			var flapsErr *flaps.FlapsError
+			if errors.As(err, &flapsErr) {
+				message := err.Error()
+				if flapsErr.ResponseStatusCode == http.StatusConflict && strings.Contains(message, "machine still attempting to start") {
+					return nil, nil // Join the other caller's start in the readiness wait below.
+				}
+				if flapsErr.ResponseStatusCode == http.StatusPreconditionFailed &&
+					(strings.Contains(message, "machine still stopping, refusing to start") ||
+						strings.Contains(message, "machine still active, refusing to start") ||
+						strings.Contains(message, "unable to start machine from current state: 'stopping'")) {
+					return nil, err // The stopped event can precede stop cleanup.
+				}
+			}
+
+			return nil, backoff.Permanent(err)
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)))
+	case "stopped":
+		_, err = flapsClient.Start(ctx, appName, builderMachine.ID, "")
+	default:
+		err = flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
+			ID: builderMachine.ID,
+		}, "")
+	}
+	if err != nil {
 		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
 			strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
-			span.RecordError(err)
+			tracing.RecordErrorEvent(ctx, span, err)
+
 			return ShouldReplaceBuilderMachine
 		}
 
-		tracing.RecordError(span, err, "error restarting builder machine")
+		tracing.RecordError(ctx, span, err, "error restarting builder machine")
+
 		return err
 	}
 
-	if err := flapsClient.Wait(ctx, appName, builderMachine, "started", time.Second*180); err != nil { // 3 minutes for restart + DNS propagation
-		tracing.RecordError(span, err, "error waiting for builder machine to start")
-		return err
+	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil {
+		tracing.RecordError(ctx, span, err, "error waiting for builder machine to start")
+
+		return fmt.Errorf("waiting for builder machine %s to start after restart: %w", builderMachine.ID, err)
 	}
 
 	return nil

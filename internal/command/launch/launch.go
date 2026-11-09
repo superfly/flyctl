@@ -2,7 +2,9 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -10,20 +12,23 @@ import (
 
 	"github.com/docker/go-units"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
-func (state *launchState) Launch(ctx context.Context) error {
+func (state *launchState) Launch(ctx context.Context) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "state.launch")
 	defer span.End()
 
@@ -43,18 +48,19 @@ func (state *launchState) Launch(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !planValidateHighAvailability(ctx, state.Plan, org.Billable, !state.warnedNoCcHa) {
+	if !state.validateHighAvailability(ctx, state.Plan, org.Billable) {
 		state.Plan.HighAvailability = false
-		state.warnedNoCcHa = true
 	}
 
 	planStep := plan.GetPlanStep(ctx)
+	createdAppName := ""
 
-	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
+	if !noCreateApp(ctx) && (planStep == "" || planStep == "create") {
 		app, err := state.createApp(ctx)
 		if err != nil {
 			return err
 		}
+		createdAppName = app.Name
 
 		colorize := io.ColorScheme()
 		fmt.Fprintf(io.Out, "%s\n\n", colorize.Green(fmt.Sprintf("Created app '%s' in organization '%s'", app.Name, app.Organization.Slug)))
@@ -63,6 +69,12 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 		if planStep == "create" {
 			return nil
+		}
+	}
+
+	if !noCreateApp(ctx) {
+		if err = state.confirmManagedPostgresCreation(ctx, createdAppName, planStep); err != nil {
+			return err
 		}
 	}
 
@@ -84,14 +96,23 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
 
-	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
-		if err = state.createDatabases(ctx); err != nil {
-			return err
-		}
+	// A failed database or storage provider stops the launch just before the
+	// deploy rather than here, so fly.toml still gets written and `fly deploy`
+	// works once the failure is fixed.
+	var dbErr error
+	if !noCreateApp(ctx) && planStep != "generate" {
+		dbErr = state.createDatabases(ctx)
 	}
 
+	// A later step can fail too; keep this error and its recovery steps.
+	defer func() {
+		if dbErr != nil && err != nil && !errors.Is(err, dbErr) {
+			err = errors.Join(err, dbErr)
+		}
+	}()
+
 	if planStep != "" && planStep != "deploy" && planStep != "generate" {
-		return nil
+		return dbErr
 	}
 
 	if planStep == "" || planStep == "generate" {
@@ -104,7 +125,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Sentry
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
 		}
@@ -198,6 +219,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
+	if dbErr != nil {
+		return fmt.Errorf("app %s was created, but provisioning failed:\n%w\n`fly deploy` doesn't provision anything: add what failed with the command above, then run %s, or run it now to deploy without it", state.Plan.AppName, dbErr, deployHint(state.workingDir, configPath))
+	}
+
 	if state.sourceInfo != nil {
 		if state.appConfig.Deploy != nil && state.appConfig.Deploy.SeedCommand != "" {
 			ctx = appconfig.WithSeedCommand(ctx, state.appConfig.Deploy.SeedCommand)
@@ -211,13 +236,76 @@ func (state *launchState) Launch(ctx context.Context) error {
 	return nil
 }
 
+func (state *launchState) confirmManagedPostgresCreation(ctx context.Context, createdAppName, planStep string) error {
+	if !state.willCreateManagedPostgresCluster(planStep) {
+		return nil
+	}
+
+	io := iostreams.FromContext(ctx)
+	if !io.IsInteractive() || flag.GetYes(ctx) {
+		return nil
+	}
+
+	var selectedIndex int
+	if err := prompt.Select(ctx, &selectedIndex, state.managedPostgresCreationPrompt(), "",
+		"Yes, proceed and create the MPG cluster",
+		"No, launch the app without the MPG cluster",
+		"No, cancel this launch and let me start over",
+	); err != nil {
+		return err
+	}
+
+	switch selectedIndex {
+	case 0:
+		return nil
+	case 1:
+		state.launchWithoutManagedPostgresCluster()
+
+		return nil
+	}
+
+	if createdAppName != "" {
+		fmt.Fprintf(io.Out, "Deleting app %s...\n", createdAppName)
+		if err := flapsutil.ClientFromContext(ctx).DeleteApp(ctx, createdAppName); err != nil {
+			return fmt.Errorf("launch canceled, but failed to delete app %s: %w", createdAppName, err)
+		}
+		fmt.Fprintf(io.Out, "Deleted app %s\n", createdAppName)
+	}
+
+	return errors.New("launch canceled")
+}
+
+func (state *launchState) launchWithoutManagedPostgresCluster() {
+	state.Plan.Postgres.ManagedPostgres = nil
+}
+
+func (state *launchState) managedPostgresCreationPrompt() string {
+	pgPlan := state.Plan.Postgres.ManagedPostgres
+	dbName := pgPlan.GetDbName(state.Plan)
+	region := pgPlan.GetRegion(state.Plan)
+
+	if planDetails, ok := mpg.MPGPlans[pgPlan.Plan]; ok {
+		return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on the %s plan ($%d/mo) in %s. This is an additional paid resource. How would you like to proceed?",
+			dbName, planDetails.Name, planDetails.PricePerMo, region)
+	}
+
+	return fmt.Sprintf("This launch will create a new Managed Postgres database, %q, on plan %s in %s. This is an additional paid resource. How would you like to proceed?",
+		dbName, pgPlan.Plan, region)
+}
+
+func (state *launchState) willCreateManagedPostgresCluster(planStep string) bool {
+	return state.Plan.Postgres.ManagedPostgres != nil &&
+		state.Plan.Postgres.ManagedPostgres.ClusterID == "" &&
+		(planStep == "" || planStep == "postgres")
+}
+
 func ParseMountOptions(mount *appconfig.Mount, options string) error {
 	if options == "" {
 		return nil
 	}
 
-	pairs := strings.Split(options, ",")
-	for _, pair := range pairs {
+	pairs := strings.SplitSeq(options, ",")
+	for pair := range pairs {
 		kv := strings.SplitN(pair, "=", 2)
 		if len(kv) != 2 {
 			return fmt.Errorf("invalid mount option: %s", pair)
@@ -320,8 +408,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				if !isComputeValid(compute) {
 					continue
 				}
-				if compute.MachineGuest.GPUKind != "" {
+				if compute.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
+
 					break
 				}
 
@@ -329,6 +418,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
 					if err != nil || mb >= 2048 {
 						autostop = fly.MachineAutostopStop
+
 						break
 					}
 				}
@@ -338,9 +428,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		if appConfig.HTTPService == nil {
 			appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
-				AutoStartMachines:  fly.Pointer(true),
-				AutoStopMachines:   fly.Pointer(autostop),
-				MinMachinesRunning: fly.Pointer(0),
+				AutoStartMachines:  new(true),
+				AutoStopMachines:   new(autostop),
+				MinMachinesRunning: new(0),
 				Processes:          []string{"app"},
 			}
 		}
@@ -376,28 +466,108 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	}
 }
 
+// appNameIsDerived reports whether the plan's app name was derived from the
+// directory rather than chosen by the user (--name, fly.toml, the web UI).
+func appNameIsDerived(source *launchPlanSource) bool {
+	return source != nil && source.appNameSource == appNameDerivedFromDir
+}
+
+// findFreeAppName returns prefix plus a random suffix that isn't taken.
+func findFreeAppName(ctx context.Context, prefix string) (string, bool) {
+	b := haikunator.Haikunator().Delimiter("-")
+	prefix = b.TrimSuffix(prefix)
+	if prefix != "" {
+		prefix += "-"
+	}
+	for i := 0; i < 4; i++ {
+		name := prefix + b.String()
+		if taken, err := appNameTaken(ctx, name); err == nil && !taken {
+			return name, true
+		}
+	}
+
+	return "", false
+}
+
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-
 	org, err := state.orgCompact(ctx)
 	if err != nil {
 		return nil, err
 	}
-	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID:  org.Id,
-		Name:            state.Plan.AppName,
-		PreferredRegion: &state.Plan.RegionCode,
-		Machines:        true,
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+		Name: state.Plan.AppName,
+		Org:  org.Slug,
 	})
+	if flaps.IsNameTakenError(err) && appNameIsDerived(state.PlanSource) {
+		// The name came from the directory, not from the user, and app names
+		// are global: pick a free one instead of failing the launch.
+		if name, ok := findFreeAppName(ctx, state.Plan.AppName); ok {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+				"App name %q is already taken, so this app is called %q instead. Use --name to choose one.\n",
+				state.Plan.AppName, name)
+			if pg := state.Plan.Postgres.FlyPostgres; pg != nil && pg.AppName == state.Plan.AppName+"-db" {
+				pg.AppName = name + "-db"
+			}
+			if pg := state.Plan.Postgres.ManagedPostgres; pg != nil && pg.DbName == state.Plan.AppName+"-db" {
+				pg.DbName = name + "-db"
+			}
+			state.Plan.AppName = name
+			state.appConfig.AppName = name
+			state.PlanSource.appNameSource = "generated"
+
+			app, err = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{Name: name, Org: org.Slug})
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	f := flapsutil.ClientFromContext(ctx)
-	if err := f.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
-	return app, nil
+	state.appID = fmt.Sprint(app.InternalNumericID)
+	state.orgID = fmt.Sprint(app.Organization.InternalNumericID)
+
+	return &fly.App{
+		ID:     app.ID,
+		Name:   app.Name,
+		Status: app.Status,
+		Organization: fly.Organization{
+			Slug: app.Organization.Slug,
+		},
+	}, nil
+}
+
+// deployHint says where to run the `fly deploy` that finds the fly.toml at
+// configPath: with --path or --config, plain `fly deploy` searches the
+// current directory. It runs in workingDir, the build context, wherever the
+// config lives. Paths stay out of the command, since no quoting is safe in
+// every shell (PowerShell expands $ in double quotes, cmd.exe %).
+func deployHint(workingDir, configPath string) string {
+	dir, err := filepath.Abs(workingDir)
+	if err != nil {
+		return "`fly deploy`"
+	}
+	config, err := filepath.Abs(configPath)
+	if err != nil {
+		return "`fly deploy`"
+	}
+
+	hint := "`fly deploy`"
+	if cwd, err := os.Getwd(); err != nil || cwd != dir {
+		hint += " in " + dir
+	}
+	if config != filepath.Join(dir, "fly.toml") {
+		rel, err := filepath.Rel(dir, config)
+		if err != nil {
+			rel = config
+		}
+		hint += " with -c " + rel
+	}
+
+	return hint
 }

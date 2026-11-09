@@ -59,5 +59,6 @@ func (p *LaunchPlan) Guest() *fly.MachineGuest {
 		guest.SetSize(p.VmSize)
 	}
 	guest.MemoryMB = p.MemoryMB
+
 	return &guest
 }

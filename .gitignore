@@ -1,3 +1,5 @@
+internal/config/flyctl.config.lock
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

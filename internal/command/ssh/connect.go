@@ -27,7 +27,10 @@ type ConnectParams struct {
 	Dialer         agent.Dialer
 	DisableSpinner bool
 	Container      string
-	AppNames       []string
+	// Machine connects to the machine itself rather than to one of its
+	// containers. It is mutually exclusive with Container.
+	Machine  bool
+	AppNames []string
 }
 
 type OrganizationImpl interface {
@@ -95,10 +98,12 @@ func singleUseSSHCertificate(ctx context.Context, org OrganizationImpl, appNames
 }
 
 func spin(in, out string) context.CancelFunc {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelCause := context.WithCancelCause(context.Background())
+	cancel := func() { cancelCause(fmt.Errorf("SSH progress spinner stopped: %w", context.Canceled)) }
 
 	if !helpers.IsTerminal() {
 		fmt.Fprintln(os.Stderr, in)
+
 		return cancel
 	}
 

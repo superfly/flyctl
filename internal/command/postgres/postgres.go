@@ -9,10 +9,12 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -126,6 +128,7 @@ func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, clust
 		}
 
 	}
+
 	return nil
 }
 
@@ -142,6 +145,7 @@ func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, f
 	if err != nil && strings.Contains(err.Error(), "Malformed version") {
 		return fmt.Errorf("This image is not compatible with this feature.")
 	}
+
 	return err
 }
 
@@ -169,6 +173,7 @@ func machinesNodeRoles(ctx context.Context, machines []*fly.Machine) (leader *fl
 			replicas = append(replicas, machine)
 		}
 	}
+
 	return leader, replicas
 }
 
@@ -182,9 +187,11 @@ func machineRole(machine *fly.Machine) (role string) {
 			} else {
 				role = "error"
 			}
+
 			break
 		}
 	}
+
 	return role
 }
 
@@ -198,6 +205,7 @@ func pickLeader(ctx context.Context, machines []*fly.Machine) (*fly.Machine, err
 			return machine, nil
 		}
 	}
+
 	return nil, fmt.Errorf("no active leader found")
 }
 
@@ -205,7 +213,7 @@ func hasRequiredMemoryForBackup(machine fly.Machine) bool {
 	return machine.Config.Guest.MemoryMB >= 512
 }
 
-func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) error {
+func UnregisterMember(ctx context.Context, app *flaps.App, org *uiex.Organization, machine *fly.Machine) error {
 	machines, err := mach.ListActive(ctx, app.Name)
 	if err != nil {
 		return err
@@ -216,7 +224,7 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	cmd, err := flypg.NewCommand(ctx, app)
+	cmd, err := flypg.NewCommand(ctx, app, org)
 	if err != nil {
 		return err
 	}

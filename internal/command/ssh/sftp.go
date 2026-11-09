@@ -19,7 +19,9 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	"github.com/chzyer/readline"
 	"github.com/google/shlex"
@@ -132,17 +134,17 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("get app: %w", err)
 	}
 
-	network, err := client.GetAppNetwork(ctx, appName)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return nil, fmt.Errorf("get app network: %w", err)
+		return nil, err
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgentOrgSlug(ctx, client, app.Organization.Slug, flapsutil.NetworkName(app), quiet(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -154,21 +156,27 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 
 	params := &ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		Org:            org,
 		Dialer:         dialer,
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,
 		Container:      container,
+		Machine:        flag.GetBool(ctx, "no-container"),
 		AppNames:       []string{app.Name},
 	}
 
 	conn, err := Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return nil, err
 	}
 
-	return sftp.NewClient(conn.Client,
+	// The target has to reach the subsystem the transfers run over, which is
+	// why this asks the connection for the SFTP client rather than handing the
+	// connection to sftp.NewClient: a session opened without it lands in the
+	// machine's namespace, whatever container was selected above.
+	return conn.SFTP(ctx, SessionTarget{Container: params.Container, Machine: params.Machine},
 		sftp.UseConcurrentReads(true),
 		sftp.UseConcurrentWrites(true),
 	)
@@ -179,6 +187,7 @@ func runLs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	root := "/"
 	args := flag.Args(ctx)
@@ -188,6 +197,9 @@ func runLs(ctx context.Context) error {
 
 	walker := ftp.Walk(root)
 	for walker.Step() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err = walker.Err(); err != nil {
 			return err
 		}
@@ -206,6 +218,7 @@ func runGet(ctx context.Context) error {
 	switch len(args) {
 	case 0:
 		fmt.Printf("get <remote-path> [local-path]\n")
+
 		return nil
 
 	case 1:
@@ -225,6 +238,7 @@ func runGet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	// Check if remote is a directory
 	remoteInfo, err := ftp.Stat(remote)
@@ -237,6 +251,7 @@ func runGet(ctx context.Context) error {
 		if !recursive {
 			return fmt.Errorf("remote path %s is a directory. Use -R/--recursive flag to download directories", remote)
 		}
+
 		return runGetDir(ctx, ftp, remote, local)
 	}
 
@@ -258,6 +273,7 @@ func runGet(ctx context.Context) error {
 	}
 
 	fmt.Printf("%d bytes written to %s\n", bytes, local)
+
 	return f.Sync()
 }
 
@@ -281,6 +297,9 @@ func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) erro
 
 	// Download all files into ZIP
 	for walker.Step() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err = walker.Err(); err != nil {
 			return fmt.Errorf("walk remote directory: %w", err)
 		}
@@ -290,6 +309,7 @@ func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) erro
 		inf, err := ftp.Stat(rfpath)
 		if err != nil {
 			fmt.Printf("warning: stat %s: %s\n", rfpath, err)
+
 			continue
 		}
 
@@ -300,6 +320,7 @@ func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) erro
 		rf, err := ftp.Open(rfpath)
 		if err != nil {
 			fmt.Printf("warning: open %s: %s\n", rfpath, err)
+
 			continue
 		}
 
@@ -314,6 +335,7 @@ func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) erro
 		if err != nil {
 			rf.Close()
 			fmt.Printf("warning: create zip entry %s: %s\n", relPath, err)
+
 			continue
 		}
 
@@ -339,6 +361,7 @@ func runGetDir(ctx context.Context, ftp *sftp.Client, remote, local string) erro
 	}
 
 	fmt.Printf("extracted %d bytes to %s/\n", totalBytes, local)
+
 	return nil
 }
 
@@ -369,6 +392,7 @@ func extractZip(src, dest string) error {
 			if err != nil {
 				return err
 			}
+
 			continue
 		}
 
@@ -387,6 +411,7 @@ func extractZip(src, dest string) error {
 		outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode())
 		if err != nil {
 			rc.Close()
+
 			return err
 		}
 
@@ -410,6 +435,7 @@ func runPut(ctx context.Context) error {
 	switch len(args) {
 	case 0:
 		fmt.Printf("put <local-path> [remote-path]\n")
+
 		return nil
 
 	case 1:
@@ -438,12 +464,14 @@ func runPut(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	if localInfo.IsDir() {
 		recursive := flag.GetBool(ctx, "recursive")
 		if !recursive {
 			return fmt.Errorf("local path %s is a directory. Use -R/--recursive flag to upload directories", local)
 		}
+
 		return runPutDir(ctx, ftp, local, remote, fs.FileMode(mode))
 	}
 
@@ -478,6 +506,7 @@ func runPut(ctx context.Context) error {
 	}
 
 	fmt.Printf("%d bytes uploaded to %s\n", bytes, remote)
+
 	return nil
 }
 
@@ -559,6 +588,7 @@ func runPutDir(ctx context.Context, ftp *sftp.Client, localDir, remoteDir string
 	}
 
 	fmt.Printf("%d files uploaded (%d bytes total) to %s\n", totalFiles, totalBytes, remoteDir)
+
 	return nil
 }
 
@@ -573,12 +603,13 @@ var completer = readline.NewPrefixCompleter(
 type sftpContext struct {
 	ftp *sftp.Client
 	wd  string
-	out func(string, ...interface{})
+	out func(string, ...any)
 }
 
 func (sc *sftpContext) cd(args ...string) error {
 	if len(args) < 2 {
 		sc.wd = "/"
+
 		return nil
 	}
 
@@ -594,11 +625,13 @@ func (sc *sftpContext) cd(args ...string) error {
 	inf, err := sc.ftp.Stat(dir)
 	if err != nil {
 		sc.out("cd %s: %s", dir, err)
+
 		return nil
 	}
 
 	if !inf.IsDir() {
 		sc.out("cd %s: not a directory", dir)
+
 		return nil
 	}
 
@@ -619,6 +652,7 @@ func (sc *sftpContext) ls(args ...string) error {
 
 	if err := fgs.Parse(args[1:]); err != nil {
 		sc.out("ls: invalid arguments: %s", err)
+
 		return nil
 	}
 
@@ -635,6 +669,7 @@ func (sc *sftpContext) ls(args ...string) error {
 	files, err := sc.ftp.ReadDir(rpath)
 	if err != nil {
 		sc.out("ls: %s", err)
+
 		return nil
 	}
 
@@ -671,12 +706,14 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 
 	if _, err := os.Stat(lpath); err == nil {
 		sc.out("get %s -> %s: file exists", rpath, lpath)
+
 		return
 	}
 
 	f, err := os.OpenFile(lpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		sc.out("get %s -> %s: %s", rpath, lpath, err)
+
 		return
 	}
 	defer f.Close()
@@ -689,6 +726,7 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 	for walker.Step() {
 		if err = walker.Err(); err != nil {
 			sc.out("get %s -> %s: walk: %s", rpath, lpath, err)
+
 			break
 		}
 
@@ -697,6 +735,7 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 		inf, err := sc.ftp.Stat(rfpath)
 		if err != nil {
 			sc.out("get %s -> %s: stat %s: %s", rpath, lpath, rfpath, err)
+
 			continue
 		}
 
@@ -707,6 +746,7 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 		rf, err := sc.ftp.Open(rfpath)
 		if err != nil {
 			sc.out("get %s -> %s: open %s: %s", rpath, lpath, rfpath, err)
+
 			continue
 		}
 
@@ -714,6 +754,7 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 		if err != nil {
 			rf.Close()
 			sc.out("get %s -> %s: write %s: %s", rpath, lpath, rfpath, err)
+
 			continue
 		}
 
@@ -738,12 +779,14 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 func (sc *sftpContext) chmod(args ...string) error {
 	if len(args) < 3 {
 		sc.out("chmod <numeric-mode> <file>")
+
 		return nil
 	}
 
 	mode, err := strconv.ParseInt(args[1], 8, 16)
 	if err != nil {
 		sc.out("chmod: invalid permissions (only numeric allowed) '%s': %s", args[1], err)
+
 		return nil
 	}
 
@@ -754,6 +797,7 @@ func (sc *sftpContext) chmod(args ...string) error {
 
 	if err = sc.ftp.Chmod(rpath, fs.FileMode(mode)); err != nil {
 		sc.out("chmod %s: %s", rpath, err)
+
 		return nil
 	}
 
@@ -768,17 +812,20 @@ func (sc *sftpContext) put(args ...string) error {
 	permbits, err := strconv.ParseInt(*perm, 8, 16)
 	if err != nil {
 		sc.out("put: invalid permissions (only numeric allowed) '%s': %s", *perm, err)
+
 		return nil
 	}
 
 	if err := fgs.Parse(args[1:]); err != nil {
 		sc.out("put [-m] <local-filename> [filename]")
+
 		return nil
 	}
 
 	lpath := fgs.Arg(0)
 	if lpath == "" {
 		sc.out("put [-m] <local-filename> [filename]")
+
 		return nil
 	}
 
@@ -793,12 +840,14 @@ func (sc *sftpContext) put(args ...string) error {
 
 	if _, err = sc.ftp.Stat(rpath); err == nil {
 		sc.out("put %s -> %s: file exists on VM", lpath, rpath)
+
 		return nil
 	}
 
 	f, err := os.Open(lpath)
 	if err != nil {
 		sc.out("put %s -> %s: open local file: %s", lpath, rpath, err)
+
 		return nil
 	}
 	// Safe to ignore the error because this file is for reading.
@@ -807,6 +856,7 @@ func (sc *sftpContext) put(args ...string) error {
 	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
 	if err != nil {
 		sc.out("put %s -> %s: create remote file: %s", lpath, rpath, err)
+
 		return nil
 	}
 	defer rf.Close()
@@ -814,6 +864,7 @@ func (sc *sftpContext) put(args ...string) error {
 	bytes, err := rf.ReadFrom(f)
 	if err != nil {
 		sc.out("put %s -> %s: copy file file: %s (%d bytes written)", lpath, rpath, err, bytes)
+
 		return nil
 	}
 
@@ -821,6 +872,7 @@ func (sc *sftpContext) put(args ...string) error {
 
 	if err = sc.ftp.Chmod(rpath, fs.FileMode(permbits)); err != nil {
 		sc.out("put %s -> %s: set permissions: %s", lpath, rpath, err)
+
 		return nil
 	}
 
@@ -830,6 +882,7 @@ func (sc *sftpContext) put(args ...string) error {
 func (sc *sftpContext) get(args ...string) error {
 	if len(args) < 2 {
 		sc.out("get <filename> [local-filename]")
+
 		return nil
 	}
 
@@ -838,11 +891,13 @@ func (sc *sftpContext) get(args ...string) error {
 	inf, err := sc.ftp.Stat(rpath)
 	if err != nil {
 		sc.out("get %s: %s", rpath, err)
+
 		return nil
 	}
 
 	if inf.IsDir() {
 		sc.getDir(rpath, args)
+
 		return nil
 	}
 
@@ -854,6 +909,7 @@ func (sc *sftpContext) get(args ...string) error {
 	_, err = os.Stat(localFile)
 	if err == nil {
 		sc.out("file %s is already there. `fly ssh` doesn't overwrite existing files for safety.", localFile)
+
 		return nil
 	}
 
@@ -861,6 +917,7 @@ func (sc *sftpContext) get(args ...string) error {
 		rf, err := sc.ftp.Open(rpath)
 		if err != nil {
 			sc.out("get %s -> %s: %s", err)
+
 			return
 		}
 		defer rf.Close()
@@ -868,6 +925,7 @@ func (sc *sftpContext) get(args ...string) error {
 		f, err := os.OpenFile(localFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			sc.out("get %s -> %s: %s", rpath, localFile, err)
+
 			return
 		}
 		defer f.Close()
@@ -894,6 +952,7 @@ func runShell(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer ftp.Close()
 
 	l, err := readline.NewEx(&readline.Config{
 		Prompt:          "\033[31m»\033[0m ",
@@ -911,7 +970,7 @@ func runShell(ctx context.Context) error {
 	defer l.Close()
 	l.CaptureExitSignal()
 
-	out := func(format string, args ...interface{}) {
+	out := func(format string, args ...any) {
 		fmt.Printf(format+"\n", args...)
 	}
 
@@ -936,6 +995,7 @@ func runShell(ctx context.Context) error {
 		args, err := shlex.Split(strings.TrimSpace(line))
 		if err != nil {
 			out("read command: %s", err)
+
 			continue
 		}
 

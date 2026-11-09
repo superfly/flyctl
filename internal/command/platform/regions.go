@@ -31,6 +31,7 @@ func newRegions() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 
@@ -69,9 +70,10 @@ func runRegions(ctx context.Context) error {
 			rows = append(rows, []string{
 				region.Name,
 				region.Code,
+				lo.Ternary(region.MPGAvailable, io.ColorScheme().SuccessIcon(), ""),
 			})
 		}
 	}
 
-	return render.Table(out, "", rows, "Name", "Code")
+	return render.Table(out, "", rows, "Name", "Code", "MPG")
 }

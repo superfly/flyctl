@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -47,27 +48,44 @@ func runProxy(ctx context.Context) (err error) {
 
 func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.ConnectParams, string, error) {
 	client := flyutil.ClientFromContext(ctx)
+	orgSlug := flag.GetOrg(ctx)
 
 	var index int
 	var options []string
+	var databaseNames []string
 
-	result, err := gql.ListAddOns(ctx, client.GenqClient(), "upstash_redis")
+	if orgSlug != "" {
+		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
+			return nil, "", err
+		}
+
+		result, err := gql.ListOrganizationAddOns(ctx, client.GenqClient(), orgSlug, "upstash_redis")
+		if err != nil {
+			return nil, "", err
+		}
+
+		for _, database := range result.Organization.AddOns.Nodes {
+			databaseNames = append(databaseNames, database.Name)
+			options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, orgSlug))
+		}
+	} else {
+		result, err := gql.ListAddOns(ctx, client.GenqClient(), "upstash_redis")
+		if err != nil {
+			return nil, "", err
+		}
+
+		for _, database := range result.AddOns.Nodes {
+			databaseNames = append(databaseNames, database.Name)
+			options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, database.Organization.Slug))
+		}
+	}
+
+	err := prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
 	if err != nil {
 		return nil, "", err
 	}
 
-	databases := result.AddOns.Nodes
-
-	for _, database := range databases {
-		options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, database.Organization.Slug))
-	}
-
-	err = prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
-	if err != nil {
-		return nil, "", err
-	}
-
-	response, err := gql.GetAddOn(ctx, client.GenqClient(), databases[index].Name, string(gql.AddOnTypeUpstashRedis))
+	response, err := gql.GetAddOn(ctx, client.GenqClient(), databaseNames[index], string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return nil, "", err
 	}

@@ -29,6 +29,7 @@ ensure it is correct and meaningful to the platform.`
 		Description: "Enable strict validation to check for unrecognized sections and keys",
 		Default:     false,
 	})
+
 	return
 }
 

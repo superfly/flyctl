@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -62,11 +61,12 @@ type DeploymentArgs struct {
 }
 
 // DeploySecrets deploys machines with the new secret if this step is not to be skipped.
-func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args DeploymentArgs) error {
+func DeploySecrets(ctx context.Context, appName string, args DeploymentArgs) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if args.Stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
+
 		return nil
 	}
 
@@ -75,29 +75,28 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 	if flapsClient == nil {
 		return fmt.Errorf("flaps client missing from context")
 	}
-	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appCompact.Name)
+	app, err := flapsClient.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("error getting app: %w", err)
+	}
+
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, app.Name)
 	if err != nil {
 		return err
 	}
-	if !appCompact.Deployed && len(machines) == 0 {
+	if !app.Deployed() && len(machines) == 0 {
 		fmt.Fprintln(out, "Secrets are staged for the first deployment")
+
 		return nil
 	}
 
 	// It would be confusing for setting secrets to deploy the current fly.toml file.
 	// Instead, we always grab the currently deployed app config
-	cfg, err := appconfig.FromRemoteApp(ctx, appCompact.Name)
+	cfg, err := appconfig.FromRemoteApp(ctx, app.Name)
 	if err != nil {
 		return fmt.Errorf("error loading appv2 config: %w", err)
 	}
 	ctx = appconfig.WithConfig(ctx, cfg)
-
-	// Re-fetch app from flaps so it's compatible with deploy.
-	// This won't be needed once we're using the flaps.App everywhere.
-	app, err := flapsClient.GetApp(ctx, appCompact.Name)
-	if err != nil {
-		return fmt.Errorf("error getting app: %w", err)
-	}
 
 	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
 		App:              app,
@@ -107,6 +106,7 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
+
 		return err
 	}
 
@@ -114,5 +114,6 @@ func DeploySecrets(ctx context.Context, appCompact *fly.AppCompact, args Deploym
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 	}
+
 	return err
 }

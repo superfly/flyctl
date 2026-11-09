@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -143,7 +144,11 @@ func runBackupRestore(ctx context.Context) error {
 	restoreSecret += resolveRestoreTarget(ctx)
 
 	// Resolve organization
-	org, err := client.GetOrganizationByApp(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
+	if err != nil {
+		return err
+	}
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -289,17 +294,16 @@ func runBackupEnable(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
@@ -340,14 +344,10 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
 	}
 
-	org, err := client.GetOrganizationByApp(ctx, appName)
-	if err != nil {
-		return err
-	}
-
+	// CreateTigrisBucket provisions against the app, so the organization is
+	// resolved server-side from AppName and is not needed here.
 	pgInput := &flypg.CreateClusterInput{
 		AppName:        appName,
-		Organization:   org,
 		BackupsEnabled: true,
 	}
 
@@ -364,6 +364,7 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Backups enabled. Run `fly secrets deploy -a %s` to restart the cluster with the new configuration.\n", appName)
+
 	return nil
 }
 

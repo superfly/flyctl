@@ -4,22 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -32,11 +35,11 @@ type Extension struct {
 
 type ExtensionParams struct {
 	AppName              string
-	Organization         *fly.Organization
+	Organization         *uiex.Organization
 	Provider             string
 	PlanID               string
 	OrganizationPlanID   string
-	Options              map[string]interface{}
+	Options              map[string]any
 	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
@@ -118,6 +121,12 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		}
 	} else {
 		name = targetApp.Name
+	}
+
+	if params.Provider == "tigris" {
+		if err := validateTigrisBucketName(name); err != nil {
+			return extension, err
+		}
 	}
 
 	input := gql.CreateAddOnInput{
@@ -247,6 +256,32 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	return extension, nil
 }
 
+var tigrisBucketNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
+
+func validateTigrisBucketName(name string) error {
+	var reason string
+	switch {
+	case name == "":
+		return nil
+	case len(name) < 3 || len(name) > 63:
+		reason = fmt.Sprintf("must be between 3 and 63 characters (got %d)", len(name))
+	case !tigrisBucketNamePattern.MatchString(name):
+		reason = "must contain only lowercase letters, numbers, periods, and hyphens, and must begin and end with a letter or number"
+	case strings.Contains(name, ".."):
+		reason = "must not contain adjacent periods"
+	case strings.HasPrefix(name, "xn--"):
+		reason = "must not start with xn--"
+	case strings.HasSuffix(name, "-s3alias"):
+		reason = "must not end with -s3alias"
+	case net.ParseIP(name) != nil:
+		reason = "must not be an IP address"
+	default:
+		return nil
+	}
+
+	return fmt.Errorf("invalid Tigris bucket name %q: %s. See https://www.tigrisdata.com/docs/buckets/bucket-rules/", name, reason)
+}
+
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 	out := iostreams.FromContext(ctx).Out
@@ -283,6 +318,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 		}
 	} else {
 		fmt.Fprintln(out, "By specifying the --yes flag, you have agreed to the terms displayed above.")
+
 		return nil
 	}
 
@@ -382,6 +418,7 @@ func openUrl(ctx context.Context, url string) (err error) {
 	if err := open.Run(url); err != nil {
 		return fmt.Errorf("failed opening %s: %w", url, err)
 	}
+
 	return
 }
 
@@ -460,7 +497,7 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		return nil
 	}
 
-	secrets := extension.Data.Environment.(map[string]interface{})
+	secrets := extension.Data.Environment.(map[string]any)
 
 	if app.Name != "" {
 		appResp, err := gql.GetApp(ctx, client, app.Name)
@@ -520,6 +557,7 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		}
 
 	}
+
 	return err
 }
 

@@ -26,6 +26,7 @@ func newDashboard() (cmd *cobra.Command) {
 
 	flag.Add(cmd)
 	cmd.Args = cobra.ExactArgs(1)
+
 	return cmd
 }
 

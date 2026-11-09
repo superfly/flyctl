@@ -8,7 +8,9 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 
 	"github.com/superfly/flyctl/iostreams"
 
@@ -38,6 +40,7 @@ func newDestroy() *cobra.Command {
 	destroy.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	destroy.Aliases = []string{"delete", "remove", "rm"}
+
 	return destroy
 }
 
@@ -47,6 +50,7 @@ func RunDestroy(ctx context.Context) error {
 	colorize := io.ColorScheme()
 	apps := flag.Args(ctx)
 	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if len(apps) == 0 {
 		return fmt.Errorf("no app names provided")
@@ -70,11 +74,11 @@ func RunDestroy(ctx context.Context) error {
 			}
 		}
 
-		app, err := client.GetApp(ctx, appName)
+		app, err := flapsClient.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
-		org, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
+		org, err := uiexutil.AppOrganization(ctx, app)
 		if err != nil {
 			return err
 		}
@@ -92,7 +96,7 @@ func RunDestroy(ctx context.Context) error {
 			fmt.Fprintf(io.Out, "Destroyed statics bucket %s\n", bucket.Name)
 		}
 
-		if err := client.DeleteApp(ctx, appName); err != nil {
+		if err := flapsClient.DeleteApp(ctx, appName); err != nil {
 			return err
 		}
 

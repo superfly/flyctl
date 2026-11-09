@@ -50,19 +50,19 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				parsedVal.WriteString(strings.TrimPrefix(value, `"""`))
 				parsedVal.WriteString("\n")
 			} else {
-				if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
+				if len(value) >= 2 && strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
 					// Remove double quotes
 					value = value[1 : len(value)-1]
-				} else if strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
+				} else if len(value) >= 2 && strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
 					// Remove single quotes
 					value = value[1 : len(value)-1]
 				}
 				secrets[key] = value
 			}
 		case parserStateMultiline:
-			if strings.HasSuffix(line, `"""`) {
+			if before, ok := strings.CutSuffix(line, `"""`); ok {
 				// End of multiline
-				parsedVal.WriteString(strings.TrimSuffix(line, `"""`))
+				parsedVal.WriteString(before)
 				secrets[parsedKey] = parsedVal.String()
 				parsedVal.Reset()
 				parserState = parserStateSingleline
@@ -72,6 +72,14 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 			}
 
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read secrets: %w", err)
+	}
+
+	if parserState == parserStateMultiline {
+		return nil, fmt.Errorf("Secret %s starts a multiline value with \"\"\" that is never closed", parsedKey)
 	}
 
 	return secrets, nil

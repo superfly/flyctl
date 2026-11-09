@@ -104,6 +104,7 @@ func GetNonEmptyStringSlice(ctx context.Context, name string) []string {
 		for i := range v {
 			v[i] = strings.TrimSpace(v[i])
 		}
+
 		return slices.DeleteFunc(v, func(s string) bool { return s == "" })
 	}
 }
@@ -130,6 +131,7 @@ func GetBool(ctx context.Context, name string) bool {
 // This is useful, for example, when differentiating between 0/"" and unspecified.
 func IsSpecified(ctx context.Context, name string) bool {
 	flag := FromContext(ctx).Lookup(name)
+
 	return flag != nil && flag.Changed
 }
 
@@ -139,6 +141,7 @@ func GetOrg(ctx context.Context) string {
 	if org == "" {
 		org = env.First("FLY_ORG")
 	}
+
 	return org
 }
 
@@ -202,6 +205,7 @@ func GetBuildkitAddr(ctx context.Context) string {
 	if addr == "" {
 		addr = env.First("BUILDKIT_ADDR")
 	}
+
 	return addr
 }
 
@@ -210,5 +214,6 @@ func GetBuildkitImage(ctx context.Context) string {
 	if addr == "" {
 		addr = env.First("BUILDKIT_IMAGE")
 	}
+
 	return addr
 }

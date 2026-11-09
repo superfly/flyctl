@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,11 +12,12 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -26,7 +28,7 @@ type AppChecker struct {
 	checks     map[string]string
 	color      *iostreams.ColorScheme
 	ctx        context.Context
-	app        *fly.AppCompact
+	app        *flaps.App
 	workDir    string
 	appConfig  *appconfig.Config
 	apiClient  flyutil.Client
@@ -38,15 +40,16 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		if !jsonOutput {
 			fmt.Println("No app provided; skipping app specific checks")
 		}
+
 		return nil, nil
 	}
 
 	apiClient := flyutil.ClientFromContext(ctx)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
-	ctx, err = apps.BuildContext(ctx, appCompact)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +65,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		appConfig:  nil,
 	}
 
-	ac.app = appCompact
+	ac.app = app
 	ac.appConfig = appconfig.ConfigFromContext(ctx)
 
 	if ac.appConfig == nil {
@@ -75,7 +78,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	return ac, nil
 }
 
-func (ac *AppChecker) lprint(color func(string) string, fmtstr string, args ...interface{}) {
+func (ac *AppChecker) lprint(color func(string) string, fmtstr string, args ...any) {
 	if ac.jsonOutput {
 		return
 	}
@@ -104,14 +107,16 @@ func (ac *AppChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
+func (ac *AppChecker) checkIpsAllocated() []flaps.IPAssignment {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
-	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
+	res, err := flapsutil.ClientFromContext(ac.ctx).GetIPAssignments(ac.ctx, ac.app.Name)
 	if err != nil {
 		ac.lprint(nil, "API error listing IP addresses for app %s: %v\n", ac.app.Name, err)
+
 		return nil
 	}
+	ipAddresses := res.IPs
 
 	if len(ipAddresses) > 0 {
 		ac.checks["appHasIps"] = "ok"
@@ -124,38 +129,42 @@ func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	https://fly.io/docs/reference/configuration/#the-services-sections
 `)
 	}
+
 	return ipAddresses
 }
 
-func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []flaps.IPAssignment) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
-		switch ip.Type {
-		case "v4", "shared_v4":
-			v4s[ip.Address] = true
-		case "v6":
-			v6s[ip.Address] = true
-		case "private_v6":
-			// This is a valid type, but not of interest here.
+		switch ip.Type() {
+		case flaps.IPAssignmentTypeV4, flaps.IPAssignmentTypeSharedV4:
+			v4s[ip.IP] = true
+		case flaps.IPAssignmentTypeV6:
+			v6s[ip.IP] = true
+		case flaps.IPAssignmentTypePrivateV6, flaps.IPAssignmentTypeEgressV4, flaps.IPAssignmentTypeEgressV6:
+			// These are valid types, but not of interest here.
 		default:
-			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.Address, ip.Type)
+			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.IP, ip.Type())
 		}
 	}
 	if len(v4s) == 0 && len(v6s) == 0 {
 		ac.lprint(nil, "No public ipv4 or ipv6 ip addresses allocated to app %s\n", ac.app.Name)
+
 		return
 	}
 
-	appHostname := ac.app.Hostname
+	// The API derives an app's hostname from its name.
+	appHostname := ac.app.Name + ".fly.dev"
 	appFqdn := dns.Fqdn(appHostname)
 	dnsClient := &dns.Client{}
 	ns, err := getFirstFlyDevNameserver(dnsClient)
 	if err != nil {
 		ac.lprint(nil, "%s. Can't proceed to check A or AAAA records.\n", err.Error())
+
 		return
 	}
-	nsAddr := fmt.Sprintf("%s:53", strings.TrimSuffix(ns, "."))
+	nsAddr := net.JoinHostPort(strings.TrimSuffix(ns, "."), "53")
 
 	if len(v4s) > 0 {
 		ac.lprint(nil, "Checking A record for %s... ", appHostname)
@@ -209,6 +218,7 @@ func getFirstFlyDevNameserver(dnsClient *dns.Client) (string, error) {
 			return ns.Ns, nil
 		}
 	}
+
 	return "", fmt.Errorf("no NS records found for %s", flydev)
 }
 
@@ -226,11 +236,12 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 	}
 	dnsIps := make(map[string]bool)
 	for _, a := range r.Answer {
-		if qType == "A" {
+		switch qType {
+		case "A":
 			if aRec, ok := a.(*dns.A); ok {
 				dnsIps[aRec.A.String()] = true
 			}
-		} else if qType == "AAAA" {
+		case "AAAA":
 			if aRec, ok := a.(*dns.AAAA); ok {
 				dnsIps[aRec.AAAA.String()] = true
 			}
@@ -254,6 +265,7 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 		return nil, ""
 	} else if len(ipsOnAppNotInDns) > 0 {
 		missingIps := strings.Join(ipsOnAppNotInDns, ", ")
+
 		return fmt.Errorf(`Nope
 	These IPs are missing from the %s %s record: %s
 	This likely means we had an operational issue when we tried to create the record.
@@ -261,6 +273,7 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 			appFqdn, qType, missingIps), fmt.Sprintf("missing these ips from the %s record: %s", qType, missingIps)
 	} else { // len(ipsInDnsNotInApp) > 0
 		missingIps := strings.Join(ipsInDnsNotInApp, ", ")
+
 		return fmt.Errorf(`Nope
 	These IPs are set in the %s record for %s, but they are not associated with the %s app: %s
 	This likely means we had an operational issue when we tried to create the record.
@@ -281,6 +294,7 @@ func (ac *AppChecker) checkDockerContext() int {
 		dockerfile, err = filepath.Abs(dockerfile)
 		if err != nil || !helpers.FileExists(dockerfile) {
 			ac.lprint(nil, "Nope, Dockerfile '%s' not found\n", dockerfile)
+
 			return -1
 		}
 	} else {
@@ -291,11 +305,13 @@ func (ac *AppChecker) checkDockerContext() int {
 	}
 	if dockerfile == "" {
 		ac.lprint(nil, "Nope, Dockerfile not found")
+
 		return -1
 	}
 	archiveInfo, err := imgsrc.CreateArchive(dockerfile, ac.workDir, ac.appConfig.Ignorefile(), true)
 	if err != nil {
 		ac.lprint(nil, "Nope, failed to create archive\n\t%s", err.Error())
+
 		return -1
 	}
 
@@ -303,6 +319,7 @@ func (ac *AppChecker) checkDockerContext() int {
 	ac.lprint(ac.color.Green, "PASSED")
 	ac.lprint(nil, " (%s)\n", humanize.Bytes(uint64(archiveSize)))
 	ac.checks[checkKey] = strconv.Itoa(archiveSize)
+
 	return archiveSize
 }
 
@@ -322,6 +339,7 @@ func (ac *AppChecker) checkDockerIgnore(printDetailedMsg bool) {
 			More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-file`)
 			ac.lprint(nil, "\n")
 		}
+
 		return
 	}
 	ac.lprint(ac.color.Green, "PASSED\n")

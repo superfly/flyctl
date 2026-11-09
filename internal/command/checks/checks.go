@@ -20,5 +20,6 @@ func New() *cobra.Command {
 	)
 	flag.Add(listCmd, flag.JSONOutput())
 	cmd.AddCommand(listCmd)
+
 	return cmd
 }

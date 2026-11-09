@@ -58,10 +58,17 @@ func ConfigFile(ctx context.Context) string {
 	return filepath.Join(ConfigDirectory(ctx), config.FileName)
 }
 
-func get(ctx context.Context, key contextKeyType) interface{} {
+func get(ctx context.Context, key contextKeyType) any {
 	return ctx.Value(key)
 }
 
-func set(ctx context.Context, key contextKeyType, val interface{}) context.Context {
+func set(ctx context.Context, key contextKeyType, val any) context.Context {
 	return context.WithValue(ctx, key, val)
+}
+
+// MaybeConfigDirectory returns the config directory ctx carries, or "" when
+// it carries none.
+func MaybeConfigDirectory(ctx context.Context) string {
+	cd, _ := get(ctx, configDirKey).(string)
+	return cd
 }

@@ -14,6 +14,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]PostgresUser, error) {
 	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
 		return nil, err
 	}
+
 	return out.Result, nil
 }
 
@@ -29,6 +30,7 @@ func (c *Client) CreateUser(ctx context.Context, name, password string, superuse
 	if err := c.Do(ctx, http.MethodPost, endpoint, in, nil); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -40,6 +42,7 @@ func (c Client) DeleteUser(ctx context.Context, name string) error {
 	if err := c.Do(ctx, http.MethodDelete, endpoint, nil, nil); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -51,6 +54,7 @@ func (c *Client) ListDatabases(ctx context.Context) ([]PostgresDatabase, error) 
 	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
 		return nil, err
 	}
+
 	return out.Result, nil
 }
 
@@ -64,6 +68,7 @@ func (c *Client) CreateDatabase(ctx context.Context, name string) error {
 	if err := c.Do(ctx, http.MethodPost, endpoint, in, nil); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -78,12 +83,14 @@ func (c *Client) DatabaseExists(ctx context.Context, name string) (bool, error) 
 		if ErrorStatus(err) == 404 {
 			return false, nil
 		}
+
 		return false, err
 	}
 
 	if out.Result.Name == name {
 		return true, nil
 	}
+
 	return false, nil
 }
 
@@ -98,12 +105,14 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 		if ErrorStatus(err) == 404 {
 			return false, nil
 		}
+
 		return false, err
 	}
 
 	if out.Result.Username == name {
 		return true, nil
 	}
+
 	return false, nil
 }
 
@@ -113,6 +122,7 @@ func (c *Client) Failover(ctx context.Context) error {
 	if err := c.Do(ctx, http.MethodGet, endpoint, nil, nil); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -148,5 +158,6 @@ func (c *Client) SyncSettings(ctx context.Context) error {
 	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
 		return err
 	}
+
 	return nil
 }

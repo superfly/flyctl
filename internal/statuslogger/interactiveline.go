@@ -28,7 +28,7 @@ func (line *interactiveLine) Log(s string) {
 	line.updateTimestamp()
 }
 
-func (line *interactiveLine) Logf(format string, args ...interface{}) {
+func (line *interactiveLine) Logf(format string, args ...any) {
 	line.Log(fmt.Sprintf(format, args...))
 }
 
@@ -48,7 +48,7 @@ func (line *interactiveLine) LogStatus(s Status, str string) {
 	line.updateTimestamp()
 }
 
-func (line *interactiveLine) LogfStatus(s Status, format string, args ...interface{}) {
+func (line *interactiveLine) LogfStatus(s Status, format string, args ...any) {
 	line.LogStatus(s, fmt.Sprintf(format, args...))
 }
 

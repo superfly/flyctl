@@ -61,5 +61,6 @@ func runStatus(ctx context.Context) (err error) {
 	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
 		return
 	}
+
 	return
 }

@@ -11,6 +11,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -25,6 +26,13 @@ const (
 	redisPlanPayAsYouGo = "ekQ85Yjkw155ohQ5ALYq0M"
 )
 
+// Descriptions shown before the corresponding prompt, shared by create and
+// update so both paths explain a setting the same way.
+const (
+	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#auto-upgrade.\n\n"
+	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://fly.io/docs/upstash/redis/#prod-pack-200-mo.\n\n"
+)
+
 // Legacy plans that are no longer available for new databases
 // but existing databases can remain on them
 // These match the normalized display names (lowercase, spaces replaced with underscores)
@@ -37,6 +45,7 @@ var legacyPlans = []string{
 
 func isLegacyPlan(planName string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(planName, " ", "_"))
+
 	return slices.Contains(legacyPlans, normalized)
 }
 
@@ -163,7 +172,7 @@ func runCreate(ctx context.Context) (err error) {
 		if flag.IsSpecified(ctx, "enable-auto-upgrade") {
 			enableAutoUpgrade = flag.GetBool(ctx, "enable-auto-upgrade")
 		} else {
-			fmt.Fprintf(io.Out, "\nAuto-upgrade automatically switches to a higher plan when you hit resource limits.\nThis setting can be changed later.\n\n")
+			fmt.Fprint(io.Out, autoUpgradeDescription)
 			enableAutoUpgrade, err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
 			if err != nil {
 				return
@@ -178,7 +187,7 @@ func runCreate(ctx context.Context) (err error) {
 	if flag.IsSpecified(ctx, "enable-prodpack") {
 		enableProdpack = flag.GetBool(ctx, "enable-prodpack")
 	} else {
-		fmt.Fprintf(io.Out, "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\n\n")
+		fmt.Fprint(io.Out, prodPackDescription)
 		enableProdpack, err = prompt.Confirm(ctx, "Would you like to enable ProdPack?")
 		if err != nil {
 			return
@@ -186,10 +195,11 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	_, err = Create(ctx, org, name, primaryRegion, plan, flag.GetBool(ctx, "no-replicas"), enableEviction, enableAutoUpgrade, enableProdpack, nil)
+
 	return err
 }
 
-func Create(ctx context.Context, org *fly.Organization, name string, region *fly.Region, plan *gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, disallowReplicas bool, enableEviction bool, enableAutoUpgrade bool, enableProdpack bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
+func Create(ctx context.Context, org *uiex.Organization, name string, region *fly.Region, plan *gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, disallowReplicas bool, enableEviction bool, enableAutoUpgrade bool, enableProdpack bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -261,7 +271,7 @@ type RedisConfiguration struct {
 	ProdPack      bool
 }
 
-func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
+func ProvisionDatabase(ctx context.Context, org *uiex.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	var readRegionCodes []string
@@ -319,6 +329,7 @@ func DeterminePlan(ctx context.Context, planName string) (*gql.ListAddOnPlansAdd
 				return &plan, nil
 			}
 		}
+
 		return nil, fmt.Errorf("plan %q not found", planName)
 	}
 
@@ -328,5 +339,6 @@ func DeterminePlan(ctx context.Context, planName string) (*gql.ListAddOnPlansAdd
 			return &plan, nil
 		}
 	}
+
 	return nil, errors.New("default plan not found")
 }

@@ -3,8 +3,10 @@ package containerconfig
 import (
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	fly "github.com/superfly/fly-go"
@@ -13,22 +15,22 @@ import (
 
 // ComposeService represents a service definition in Docker Compose
 type ComposeService struct {
-	Image       string                 `yaml:"image"`
-	Build       interface{}            `yaml:"build"`
-	Environment map[string]string      `yaml:"environment"`
-	Volumes     []string               `yaml:"volumes"`
-	Ports       []string               `yaml:"ports"`
-	Command     interface{}            `yaml:"command"`
-	Entrypoint  interface{}            `yaml:"entrypoint"`
-	WorkingDir  string                 `yaml:"working_dir"`
-	User        string                 `yaml:"user"`
-	Restart     string                 `yaml:"restart"`
-	Configs     []interface{}          `yaml:"configs"`
-	Secrets     []interface{}          `yaml:"secrets"`
-	Deploy      map[string]interface{} `yaml:"deploy"`
-	DependsOn   interface{}            `yaml:"depends_on"`
-	Healthcheck *ComposeHealthcheck    `yaml:"healthcheck"`
-	Extra       map[string]interface{} `yaml:",inline"`
+	Image       string              `yaml:"image"`
+	Build       any                 `yaml:"build"`
+	Environment map[string]string   `yaml:"environment"`
+	Volumes     []string            `yaml:"volumes"`
+	Ports       []string            `yaml:"ports"`
+	Command     any                 `yaml:"command"`
+	Entrypoint  any                 `yaml:"entrypoint"`
+	WorkingDir  string              `yaml:"working_dir"`
+	User        string              `yaml:"user"`
+	Restart     string              `yaml:"restart"`
+	Configs     []any               `yaml:"configs"`
+	Secrets     []any               `yaml:"secrets"`
+	Deploy      map[string]any      `yaml:"deploy"`
+	DependsOn   any                 `yaml:"depends_on"`
+	Healthcheck *ComposeHealthcheck `yaml:"healthcheck"`
+	Extra       map[string]any      `yaml:",inline"`
 }
 
 // ComposeDependency represents a service dependency with conditions
@@ -52,21 +54,21 @@ const (
 
 // ComposeHealthcheck represents a health check configuration
 type ComposeHealthcheck struct {
-	Test        interface{} `yaml:"test"`
-	Interval    string      `yaml:"interval"`
-	Timeout     string      `yaml:"timeout"`
-	Retries     int         `yaml:"retries"`
-	StartPeriod string      `yaml:"start_period"`
+	Test        any    `yaml:"test"`
+	Interval    string `yaml:"interval"`
+	Timeout     string `yaml:"timeout"`
+	Retries     int    `yaml:"retries"`
+	StartPeriod string `yaml:"start_period"`
 }
 
 // ComposeFile represents a Docker Compose file structure
 type ComposeFile struct {
 	Version  string                    `yaml:"version"`
 	Services map[string]ComposeService `yaml:"services"`
-	Volumes  map[string]interface{}    `yaml:"volumes"`
-	Networks map[string]interface{}    `yaml:"networks"`
-	Configs  map[string]interface{}    `yaml:"configs"`
-	Secrets  map[string]interface{}    `yaml:"secrets"`
+	Volumes  map[string]any            `yaml:"volumes"`
+	Networks map[string]any            `yaml:"networks"`
+	Configs  map[string]any            `yaml:"configs"`
+	Secrets  map[string]any            `yaml:"secrets"`
 }
 
 // parseComposeFile reads and parses a Docker Compose YAML file
@@ -85,7 +87,7 @@ func parseComposeFile(composePath string) (*ComposeFile, error) {
 }
 
 // parseDependsOn parses both short and long syntax depends_on
-func parseDependsOn(dependsOn interface{}) (ServiceDependencies, error) {
+func parseDependsOn(dependsOn any) (ServiceDependencies, error) {
 	deps := ServiceDependencies{
 		Dependencies: make(map[string]ComposeDependency),
 	}
@@ -95,7 +97,7 @@ func parseDependsOn(dependsOn interface{}) (ServiceDependencies, error) {
 	}
 
 	switch v := dependsOn.(type) {
-	case []interface{}:
+	case []any:
 		// Short syntax: depends_on: [db, redis]
 		for _, dep := range v {
 			if serviceName, ok := dep.(string); ok {
@@ -106,7 +108,7 @@ func parseDependsOn(dependsOn interface{}) (ServiceDependencies, error) {
 				}
 			}
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		// Long syntax: depends_on: { db: { condition: service_healthy } }
 		for serviceName, depConfig := range v {
 			dependency := ComposeDependency{
@@ -115,7 +117,7 @@ func parseDependsOn(dependsOn interface{}) (ServiceDependencies, error) {
 				Restart:   false,
 			}
 
-			if config, ok := depConfig.(map[string]interface{}); ok {
+			if config, ok := depConfig.(map[string]any); ok {
 				if condition, exists := config["condition"]; exists {
 					if condStr, ok := condition.(string); ok {
 						dependency.Condition = condStr
@@ -156,6 +158,7 @@ func parseVolume(volume string) (hostPath, containerPath string, readOnly bool) 
 		if parts[1] == "ro" || parts[1] == "rw" {
 			return "", parts[0], parts[1] == "ro"
 		}
+
 		return parts[0], parts[1], false
 	case 3:
 		// HOST:CONTAINER:ro/rw
@@ -180,7 +183,7 @@ func convertHealthcheck(composeHC *ComposeHealthcheck) *fly.ContainerHealthcheck
 	case string:
 		// HEALTHCHECK test
 		cmd = []string{test}
-	case []interface{}:
+	case []any:
 		// ["CMD", "wget", "--spider", "localhost:80"]
 		for i, t := range test {
 			if str, ok := t.(string); ok {
@@ -215,6 +218,48 @@ func convertHealthcheck(composeHC *ComposeHealthcheck) *fly.ContainerHealthcheck
 	}
 
 	return hc
+}
+
+// parseRestartPolicy converts a Compose service restart policy to the
+// corresponding Fly container restart policy.
+func parseRestartPolicy(policy string) (*fly.MachineRestart, error) {
+	if policy == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(policy, ":")
+	if len(parts) > 2 {
+		return nil, fmt.Errorf("invalid restart policy %q", policy)
+	}
+
+	restart := &fly.MachineRestart{}
+	switch parts[0] {
+	case "no":
+		if len(parts) != 1 {
+			return nil, fmt.Errorf("invalid restart policy %q", policy)
+		}
+		restart.Policy = fly.MachineRestartPolicyNo
+	case "always":
+		if len(parts) != 1 {
+			return nil, fmt.Errorf("invalid restart policy %q", policy)
+		}
+		restart.Policy = fly.MachineRestartPolicyAlways
+	case "on-failure":
+		restart.Policy = fly.MachineRestartPolicyOnFailure
+		if len(parts) == 2 {
+			maxRetries, err := strconv.Atoi(parts[1])
+			if err != nil || maxRetries < 1 {
+				return nil, fmt.Errorf("invalid restart policy %q: max retries must be a positive integer", policy)
+			}
+			restart.MaxRetries = maxRetries
+		}
+	case "unless-stopped":
+		return nil, fmt.Errorf("restart policy %q is not supported by Fly Machines", policy)
+	default:
+		return nil, fmt.Errorf("invalid restart policy %q", policy)
+	}
+
+	return restart, nil
 }
 
 // composeToMachineConfig converts a Docker Compose file to Fly machine configuration
@@ -258,8 +303,14 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 
 	// Process all services as containers
 	for serviceName, service := range compose.Services {
+		restart, err := parseRestartPolicy(service.Restart)
+		if err != nil {
+			return fmt.Errorf("failed to parse restart policy for service '%s': %w", serviceName, err)
+		}
+
 		container := &fly.ContainerConfig{
-			Name: serviceName,
+			Name:    serviceName,
+			Restart: restart,
 		}
 
 		// Set image
@@ -276,9 +327,7 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 		// Handle environment variables
 		if len(service.Environment) > 0 {
 			container.ExtraEnv = make(map[string]string)
-			for k, v := range service.Environment {
-				container.ExtraEnv[k] = v
-			}
+			maps.Copy(container.ExtraEnv, service.Environment)
 		}
 
 		// Handle compose-specific entrypoint/command if specified
@@ -286,7 +335,7 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 			switch ep := service.Entrypoint.(type) {
 			case string:
 				container.EntrypointOverride = []string{ep}
-			case []interface{}:
+			case []any:
 				epSlice := make([]string, 0, len(ep))
 				for _, e := range ep {
 					if str, ok := e.(string); ok {
@@ -301,7 +350,7 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 			switch cmd := service.Command.(type) {
 			case string:
 				container.CmdOverride = []string{cmd}
-			case []interface{}:
+			case []any:
 				cmdSlice := make([]string, 0, len(cmd))
 				for _, c := range cmd {
 					if str, ok := c.(string); ok {
@@ -336,6 +385,7 @@ func composeToMachineConfig(mConfig *fly.MachineConfig, compose *ComposeFile, co
 				if err != nil {
 					// Log warning but continue
 					fmt.Printf("Warning: Could not read volume file %s: %v\n", hostPath, err)
+
 					continue
 				}
 

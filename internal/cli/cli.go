@@ -41,6 +41,7 @@ import (
 // Run runs the command line interface with the given arguments and reports the
 // exit code the application should exit with.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
+	setNeverPromptFromEnv(io)
 	ctx = iostreams.NewContext(ctx, io)
 
 	err := logger.InitLogFile()
@@ -108,11 +109,13 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
 		printError(io, cs, cmd, err)
+
 		return 126
 	case isUnchangedError(err):
 		// This means the deployment was a noop, which is noteworthy but not something we should
 		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
 		printError(io, cs, cmd, err)
+
 		return 0
 	default:
 		printError(io, cs, cmd, err)
@@ -127,6 +130,15 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	}
 }
 
+// setNeverPromptFromEnv turns prompts off when FLY_NO_PROMPT is truthy, for
+// callers such as coding agents that run flyctl under a pseudo-terminal that
+// nobody answers.
+func setNeverPromptFromEnv(io *iostreams.IOStreams) {
+	if env.IsTruthy("FLY_NO_PROMPT") {
+		io.SetNeverPrompt(true)
+	}
+}
+
 // isUnchangedError returns true if the error returned is an UNCHANGED GraphQL error.
 // Remove this once we're fully on Machines!
 func isUnchangedError(err error) bool {
@@ -135,6 +147,7 @@ func isUnchangedError(err error) bool {
 	if errors.As(err, &gqlErr) {
 		return gqlErr.Extensions.Code == "UNCHANGED"
 	}
+
 	return false
 }
 
@@ -143,6 +156,7 @@ func isValidTraceID(id string) bool {
 	if err != nil {
 		return false
 	}
+
 	return t.IsValid()
 }
 

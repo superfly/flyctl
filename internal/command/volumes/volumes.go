@@ -16,7 +16,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/volumes/lsvd"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -34,7 +33,7 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, nil)
 
-	cmd.Aliases = []string{"volume", "vol"}
+	cmd.Aliases = []string{"volume", "vol", "v"}
 
 	cmd.AddCommand(
 		newCreate(),
@@ -44,7 +43,6 @@ func New() *cobra.Command {
 		newExtend(),
 		newShow(),
 		newFork(),
-		lsvd.New(),
 		snapshots.New(),
 	)
 
@@ -92,7 +90,7 @@ func countVolumesMatchingName(ctx context.Context, appName string, volumeName st
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showHostStatus bool) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, out io.Writer, showHostStatus bool) error {
 	rows := make([][]string, 0, len(volumes))
 	unreachableVolumes := false
 	for _, volume := range volumes {
@@ -127,22 +125,23 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	if showHostStatus && unreachableVolumes {
 		fmt.Fprintln(out, "* These volumes' hosts could not be reached.")
 	}
+
 	return nil
 }
 
-func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppBasic) (*fly.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}
-	volumes, err := flapsClient.GetVolumes(ctx, app.Name)
+	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
 	if len(volumes) == 0 {
-		return nil, fmt.Errorf("no volumes found in app '%s'", app.Name)
+		return nil, fmt.Errorf("no volumes found in app '%s'", appName)
 	}
 	out := new(bytes.Buffer)
-	err = renderTable(ctx, volumes, app, out, false)
+	err = renderTable(ctx, volumes, out, false)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +155,7 @@ func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *f
 		}
 		if title == "" {
 			title = text
+
 			continue
 		}
 		volumeLines = append(volumeLines, text)
@@ -165,5 +165,6 @@ func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *f
 	if err != nil {
 		return nil, fmt.Errorf("selecting volume: %w", err)
 	}
+
 	return &volumes[selected], nil
 }

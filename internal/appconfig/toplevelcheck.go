@@ -36,6 +36,7 @@ func topLevelCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *To
 			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
+
 	return &ToplevelCheck{
 		Port:              mc.Port,
 		Type:              mc.Type,
@@ -68,7 +69,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*fly.MachineCheck, error) {
 		HTTPTLSServerName: chk.HTTPTLSServerName,
 	}
 	if chk.HTTPMethod != nil {
-		res.HTTPMethod = fly.Pointer(strings.ToUpper(*chk.HTTPMethod))
+		res.HTTPMethod = new(strings.ToUpper(*chk.HTTPMethod))
 	}
 	if len(chk.HTTPHeaders) > 0 {
 		res.HTTPHeaders = lo.MapToSlice(
@@ -76,6 +77,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*fly.MachineCheck, error) {
 				return fly.MachineHTTPHeader{Name: k, Values: []string{v}}
 			})
 	}
+
 	return res, nil
 }
 
@@ -86,10 +88,10 @@ func (chk *ToplevelCheck) String() string {
 	}
 	switch chkType {
 	case "tcp":
-		return fmt.Sprintf("tcp-%d", chk.Port)
+		return fmt.Sprintf("tcp-%d", lo.FromPtr(chk.Port))
 	case "http":
-		return fmt.Sprintf("http-%d-%v", chk.Port, chk.HTTPMethod)
+		return fmt.Sprintf("http-%d-%v", lo.FromPtr(chk.Port), lo.FromPtr(chk.HTTPMethod))
 	default:
-		return fmt.Sprintf("%s-%d", chkType, chk.Port)
+		return fmt.Sprintf("%s-%d", chkType, lo.FromPtr(chk.Port))
 	}
 }

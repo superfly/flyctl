@@ -35,6 +35,7 @@ const (
 	AppSecretsMinverFileKey    = "app_secrets_minvers"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
+	WireGuardTokenModeFileKey  = "wire_guard_token_mode"
 	LastLoginFileKey           = "last_login"
 	APITokenEnvKey             = "FLY_API_TOKEN"
 	orgEnvKey                  = "FLY_ORG"

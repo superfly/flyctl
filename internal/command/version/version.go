@@ -43,6 +43,7 @@ number and build date.`
 	)
 
 	flag.Add(version, flag.JSONOutput())
+
 	return version
 }
 

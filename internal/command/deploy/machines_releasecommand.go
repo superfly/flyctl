@@ -29,6 +29,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var natsConnectTimeout = 10 * time.Second
+
 func (md *machineDeployment) runReleaseCommands(ctx context.Context) error {
 	err := md.runReleaseCommand(ctx, "release")
 
@@ -48,13 +50,14 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	ctx, span := tracing.GetTracer().Start(ctx, "run_"+commandType+"_cmd")
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to run "+commandType+"_cmd")
+			tracing.RecordError(ctx, span, err, "failed to run "+commandType+"_cmd")
 		}
 		span.End()
 	}()
 
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
 		span.AddEvent("no " + commandType + " command")
+
 		return nil
 	}
 
@@ -82,17 +85,23 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	eg.Go(func() error {
 		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to create "+commandType+" cmd machine")
+			tracing.RecordError(ctx, span, err, "failed to create "+commandType+" cmd machine")
+
 			return fmt.Errorf("error running %s_command machine: %w", commandType, err)
 		}
+
 		return nil
 	})
 	eg.Go(func() error {
+		ctx, cancel := context.WithTimeoutCause(ctx, natsConnectTimeout, fmt.Errorf("connecting release command log stream: %w", context.DeadlineExceeded))
+		defer cancel()
+
 		stream, err = logs.NewNatsStream(ctx, md.apiClient, md.flapsClient, logOpts)
 		if err != nil {
 			// Silently fallback to app logs polling if NATS streaming client is unavailable.
 			stream = logs.NewPollingStream(md.apiClient)
 		}
+
 		return nil
 	})
 	if err = eg.Wait(); err != nil {
@@ -102,14 +111,14 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
 	logOpts.VMID = releaseCmdMachine.Machine().ID
-	logsCtx, cancelLogs := context.WithCancel(ctx)
-	defer cancelLogs()
+	logsCtx, cancelLogs := context.WithCancelCause(ctx)
+	defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 	var buf *ring.Ring
 	if !flag.GetBool(ctx, "verbose") {
 		buf = ring.New(100)
 	}
 	go func() {
-		defer cancelLogs()
+		defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 		if stream == nil {
 			return
 		}
@@ -117,6 +126,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 			var ts time.Time
 			if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
 				err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
+
 				return
 			}
 			msg := fmt.Sprintf("%s %s", aurora.Faint(format.Time(ts)), entry.Message)
@@ -136,13 +146,14 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	if err = releaseCmdMachine.Start(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
+
 		return
 	}
 
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for "+commandType+" cmd machine")
+		tracing.RecordError(ctx, span, err, "failed to wait for "+commandType+" cmd machine")
 
 		return err
 	}
@@ -177,6 +188,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 				}
 			})
 		}
+
 		return fmt.Errorf("machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
 	statuslogger.LogfStatus(ctx,
@@ -185,6 +197,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		commandType,
 		md.colorize.Bold(releaseCmdMachine.Machine().ID),
 	)
+
 	return nil
 }
 
@@ -204,10 +217,22 @@ func waitForLogs(md *machineDeployment, ctx context.Context, stream logs.LogStre
 	}
 }
 
+// machineHostDedicationID resolves the host dedication ID from whichever machine
+// config is available - the full Config, or the partial IncompleteConfig that's
+// all we get for a machine on a non-ok host.
+func machineHostDedicationID(m *fly.Machine) string {
+	cfg := m.GetConfig()
+	if cfg == nil || cfg.Guest == nil {
+		return ""
+	}
+
+	return cfg.Guest.HostDedicationID
+}
+
 // dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
 // a mismatch will result in a delete+recreate op
 func dedicatedHostIdMismatch(m *fly.Machine, ac *appconfig.Config) bool {
-	return strings.TrimSpace(ac.HostDedicationID) != "" && m.Config.Guest.HostDedicationID != ac.HostDedicationID
+	return strings.TrimSpace(ac.HostDedicationID) != "" && machineHostDedicationID(m) != ac.HostDedicationID
 }
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
@@ -222,7 +247,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 			})
 		}
 		if err := mPool.Wait(); err != nil {
-			tracing.RecordError(span, err, "failed to destroy old release_command machine")
+			tracing.RecordError(ctx, span, err, "failed to destroy old release_command machine")
 		}
 	}
 
@@ -240,7 +265,8 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to get ip addresses")
+		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
+
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
 
@@ -250,6 +276,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	lm := md.releaseCommandMachine.GetMachines()[0]
 	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, machine.WithJustCreated()); err != nil {
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 		return err
 	}
 
@@ -279,6 +306,7 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	if err != nil {
 		return nil, err
 	}
+
 	return &fly.LaunchMachineInput{
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
@@ -299,6 +327,7 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 			if m != nil && m.Config != nil && m.Config.Guest != nil {
 				return m.Config.Guest.MemoryMB
 			}
+
 			return 0
 		}
 
@@ -307,12 +336,14 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 			if mach.ProcessGroup() != group {
 				return prevBest
 			}
+
 			return lo.Ternary(ram(mach) > ram(prevBest), mach, prevBest)
 		}, nil)
 		if maxRamMach != nil {
 			desiredGuest = maxRamMach.Config.Guest
 		}
 	}
+
 	return helpers.Clone(desiredGuest)
 }
 
@@ -325,13 +356,16 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 			return nil
 		}
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
+
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	err = releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, machine.WithAllowInfinite(true))
 	if err != nil {
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
+
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	md.releaseCommandMachine.RemoveMachines(ctx, []machine.LeasableMachine{releaseCmdMachine})
+
 	return nil
 }

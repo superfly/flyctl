@@ -9,6 +9,8 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/tracing"
 )
 
 func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps.Client, error) {
@@ -24,6 +26,14 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 		opts.Logger = v
 	}
 
+	if opts.AffinityStore == nil {
+		if dir := state.MaybeConfigDirectory(ctx); dir != "" {
+			opts.AffinityStore = newFileAffinityStore(dir)
+		}
+	}
+
+	opts.Transport = tracing.NewTransport(opts.Transport)
+
 	return flaps.NewWithOptions(ctx, opts)
 }
 
@@ -36,6 +46,7 @@ func Launch(ctx context.Context, client FlapsClient, appName string, builder fly
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Launch(ctx, appName, builder)
 }
 
@@ -48,6 +59,7 @@ func Update(ctx context.Context, client FlapsClient, appName string, builder fly
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Update(ctx, appName, builder, nonce)
 }
 
@@ -56,6 +68,7 @@ func Start(ctx context.Context, client FlapsClient, appName, machineID string, n
 	defer func() {
 		metrics.Status(ctx, "machine_start", err == nil)
 	}()
+
 	return client.Start(ctx, appName, machineID, nonce)
 }
 
@@ -68,6 +81,7 @@ func Cordon(ctx context.Context, client FlapsClient, appName, machineID string, 
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Cordon(ctx, appName, machineID, nonce)
 }
 
@@ -80,5 +94,6 @@ func Uncordon(ctx context.Context, client FlapsClient, appName, machineID string
 			sendUpdateMetrics()
 		}
 	}()
+
 	return client.Uncordon(ctx, appName, machineID, nonce)
 }

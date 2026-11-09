@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 
 	packclient "github.com/buildpacks/pack/pkg/client"
@@ -38,6 +39,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		span.AddEvent(note)
 		terminal.Debug(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -46,6 +48,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		terminal.Debug(note)
 		span.AddEvent(note)
 		build.BuildFinish()
+
 		return nil, note, nil
 	}
 
@@ -60,17 +63,44 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
+
 		return nil, "", err
 	}
 
 	defer docker.Close() // skipcq: GO-S2307
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := packclient.NewClient(packclient.WithDockerClient(docker), packclient.WithLogger(newPackLogger(streams.Out)))
+	// pack v0.40+ uses github.com/moby/moby/client types. Build a moby client
+	// with the same connection config as the docker client (same host, dialer,
+	// auth headers). We can't just forward docker.HTTPClient() to moby because
+	// docker client v27+ wraps its transport in *otelhttp.Transport, and
+	// moby's WithHost only accepts *http.Transport — it fails with "cannot
+	// apply host to transport: *otelhttp.Transport". dockerFactory.mobyBuildFn
+	// is wired up alongside buildFn to produce an equivalent moby client that
+	// gets its own otelhttp wrap inside moby's New().
+	if dockerFactory.mobyBuildFn == nil {
+		err := errors.New("internal: mobyBuildFn not populated for this docker factory mode")
+		build.BuilderInitFinish()
+		build.BuildFinish()
+		tracing.RecordError(ctx, span, err, "missing moby client builder")
+
+		return nil, "", err
+	}
+	mobyClient, err := dockerFactory.mobyBuildFn(ctx)
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to create packet client")
+		tracing.RecordError(ctx, span, err, "failed to create moby client for pack")
+
+		return nil, "", err
+	}
+
+	packClient, err := packclient.NewClient(packclient.WithDockerClient(mobyClient), packclient.WithLogger(newPackLogger(streams.Out)))
+	if err != nil {
+		build.BuilderInitFinish()
+		build.BuildFinish()
+		tracing.RecordError(ctx, span, err, "failed to create packet client")
+
 		return nil, "", err
 	}
 	build.BuilderInitFinish()
@@ -78,7 +108,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ImageBuildStart()
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to fetch docker server info")
+		tracing.RecordError(ctx, span, err, "failed to fetch docker server info")
 		terminal.Debug("error fetching docker server info:", err)
 	} else {
 		build.SetBuilderMetaPart2(false, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
@@ -93,9 +123,10 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ContextBuildStart()
 	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, "")
 	if err != nil {
-		tracing.RecordError(span, err, "error reading .dockerignore")
+		tracing.RecordError(ctx, span, err, "error reading .dockerignore")
 		build.ContextBuildFinish()
 		build.BuildFinish()
+
 		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	build.ContextBuildFinish()
@@ -145,8 +176,9 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
 		buildSpan.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
-		tracing.RecordError(buildSpan, err, "failed to build image")
+		tracing.RecordError(buildCtx, buildSpan, err, "failed to build image")
 		buildSpan.End()
+
 		return nil, "", err
 	}
 
@@ -160,6 +192,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
+
 			return nil, "", err
 		}
 		build.PushFinish()
@@ -172,8 +205,10 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", err
 	}
 	if img == nil {
-		tracing.RecordError(span, err, "no image found")
-		return nil, "", fmt.Errorf("no image found")
+		err := fmt.Errorf("no image found")
+		tracing.RecordError(ctx, span, err, "no image found")
+
+		return nil, "", err
 	}
 
 	di := DeploymentImage{
@@ -190,9 +225,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 func normalizeBuildArgs(buildArgs map[string]string) map[string]string {
 	out := map[string]string{}
 
-	for k, v := range buildArgs {
-		out[k] = v
-	}
+	maps.Copy(out, buildArgs)
 
 	return out
 }
@@ -229,7 +262,7 @@ func (l *packLogger) Debug(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Debugf(format string, v ...interface{}) {
+func (l *packLogger) Debugf(format string, v ...any) {
 	if !l.debug {
 		return
 	}
@@ -240,7 +273,7 @@ func (l *packLogger) Info(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Infof(format string, v ...interface{}) {
+func (l *packLogger) Infof(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -248,7 +281,7 @@ func (l *packLogger) Warn(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Warnf(format string, v ...interface{}) {
+func (l *packLogger) Warnf(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -256,7 +289,7 @@ func (l *packLogger) Error(msg string) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(msg))
 }
 
-func (l *packLogger) Errorf(format string, v ...interface{}) {
+func (l *packLogger) Errorf(format string, v ...any) {
 	fmt.Fprint(l.w, cmdfmt.AppendMissingLineFeed(fmt.Sprintf(format, v...)))
 }
 
@@ -285,5 +318,6 @@ func (w *fdWrapper) Fd() uintptr {
 	if fd, ok := w.src.(fdWriter); ok {
 		return fd.Fd()
 	}
+
 	return ^(uintptr(0))
 }

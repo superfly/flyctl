@@ -36,46 +36,60 @@ func runWireguardList(ctx context.Context) error {
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, peers)
+
 		return nil
 	}
 
-	table := tablewriter.NewWriter(io.Out)
-
-	table.SetHeader([]string{
-		"Name",
-		"Region",
-		"Peer IP",
-	})
+	table := tablewriter.NewTable(io.Out,
+		tablewriter.WithHeader([]string{"Name", "Region", "Peer IP"}),
+	)
 
 	for _, peer := range peers {
-		table.Append([]string{peer.Name, peer.Region, peer.Peerip})
+		table.Append(peer.Name, peer.Region, peer.Peerip) //nolint:errcheck
 	}
 
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	return nil
 }
 
 func runWireguardWebsockets(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
+	return setAgentToggle(ctx, "websockets", flyctl.ConfigWireGuardWebsockets, config.SetWireGuardWebsocketsEnabled)
+}
 
-	var (
-		configPath = state.ConfigFile(ctx)
-		err        error
-	)
-	switch flag.FirstArg(ctx) {
+func runWireguardTokenMode(ctx context.Context) error {
+	return setAgentToggle(ctx, "token-mode", flyctl.ConfigWireGuardTokenMode, config.SetWireGuardTokenModeEnabled)
+}
+
+// setAgentToggle handles an (enable|disable) subcommand that changes how the
+// agent builds tunnels: it persists the setting and restarts the agent so
+// the change takes effect.
+func setAgentToggle(ctx context.Context, name, key string, save func(path string, enabled bool) error) error {
+	var enabled bool
+	switch arg := flag.FirstArg(ctx); arg {
 	case "enable":
-		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
-		err = config.SetWireGuardWebsocketsEnabled(configPath, true)
+		enabled = true
 	case "disable":
-		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
-		err = config.SetWireGuardWebsocketsEnabled(configPath, false)
+		enabled = false
 	default:
-		fmt.Fprintf(io.Out, "bad arg: flyctl wireguard websockets (enable|disable)\n")
+		return fmt.Errorf("bad arg %q: flyctl wireguard %s (enable|disable)", arg, name)
 	}
-	if err != nil {
+
+	viper.Set(key, enabled)
+	if err := save(state.ConfigFile(ctx), enabled); err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
+
+	restartAgentForConfigChange(ctx)
+
+	return nil
+}
+
+// restartAgentForConfigChange stops the running agent so the next command
+// starts one that picks up the new transport setting; if that fails it
+// prints manual instructions.
+func restartAgentForConfigChange(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
 
 	tryKillingAgent := func() error {
 		client, err := agent.DefaultClient(ctx)
@@ -88,13 +102,10 @@ func runWireguardWebsockets(ctx context.Context) error {
 		return client.Kill(ctx)
 	}
 
-	// kill the agent if necessary, if that fails print manual instructions
 	if err := tryKillingAgent(); err != nil {
 		terminal.Debugf("error stopping the agent: %s", err)
 		fmt.Fprintf(io.Out, "Run `flyctl agent restart` to make changes take effect.\n")
 	}
-
-	return nil
 }
 
 func runWireguardReset(ctx context.Context) error {
@@ -117,6 +128,7 @@ func runWireguardReset(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "New WireGuard peer for organization '%s': '%s'\n", org.Slug, conf.WireGuardState.Name)
+
 	return nil
 }
 
@@ -143,19 +155,14 @@ func runWireguardCreate(ctx context.Context) error {
 
 	network := flag.GetString(ctx, "network")
 
-	state, err := wireguard.Create(apiClient, org, region, name, network, "static")
-	if err != nil {
-		return err
-	}
-
-	data := &state.Peer
-
 	fmt.Fprintf(io.Out, `
 !!!! WARNING: Output includes private key. Private keys cannot be recovered !!!!
 !!!! after creating the peer; if you lose the key, you'll need to remove    !!!!
 !!!! and re-add the peering connection.                                     !!!!
 `)
 
+	// Settle where the configuration goes before the peer exists: its private
+	// key is never stored anywhere else, so it must have a destination first.
 	w, shouldClose, err := resolveOutputWriter(ctx, 3, "Filename to store WireGuard configuration in, or 'stdout': ")
 	if err != nil {
 		return err
@@ -163,6 +170,21 @@ func runWireguardCreate(ctx context.Context) error {
 	if shouldClose {
 		defer w.Close() // skipcq: GO-S2307
 	}
+
+	state, err := wireguard.Create(apiClient, org.ID, org.Slug, region, name, network, "static")
+	if err != nil {
+		if shouldClose {
+			// The file was created empty for this peer; remove it so a retry
+			// can use the same name.
+			filename := w.(*os.File).Name()
+			_ = w.Close()
+			_ = os.Remove(filename)
+		}
+
+		return err
+	}
+
+	data := &state.Peer
 
 	generateWgConf(data, state.LocalPrivate, w)
 

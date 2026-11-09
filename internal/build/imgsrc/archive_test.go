@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/pkg/archive"
+	"github.com/moby/go-archive/compression"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -136,13 +136,13 @@ func TestArchiverCompression(t *testing.T) {
 	assert.NoError(t, err)
 	data, err := io.ReadAll(r)
 	assert.NoError(t, err)
-	assert.Equal(t, archive.Gzip, archive.DetectCompression(data))
+	assert.Equal(t, compression.Gzip, compression.Detect(data))
 
 	r, err = archiveDirectory(archiveOptions{sourcePath: testDir, compressed: false})
 	assert.NoError(t, err)
 	data, err = io.ReadAll(r)
 	assert.NoError(t, err)
-	assert.Equal(t, archive.Uncompressed, archive.DetectCompression(data))
+	assert.Equal(t, compression.None, compression.Detect(data))
 }
 
 func TestArchiverNoCompressionWithAdditions(t *testing.T) {
@@ -156,7 +156,7 @@ func TestArchiverNoCompressionWithAdditions(t *testing.T) {
 	assert.NoError(t, err)
 	data, err := io.ReadAll(r)
 	assert.NoError(t, err)
-	assert.Equal(t, archive.Uncompressed, archive.DetectCompression(data))
+	assert.Equal(t, compression.None, compression.Detect(data))
 }
 
 func TestParseDockerignore(t *testing.T) {

@@ -45,6 +45,7 @@ func runConnect(ctx context.Context) (err error) {
 	redisCliPath, err := exec.LookPath("redis-cli")
 	if err != nil {
 		fmt.Fprintf(io.Out, "Could not find redis-cli in your $PATH. Install it or point your redis-cli at: %s", "someurl")
+
 		return
 	}
 

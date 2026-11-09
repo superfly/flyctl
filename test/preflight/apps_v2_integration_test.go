@@ -344,6 +344,11 @@ web = "nginx -g 'daemon off;'"
 		"web": 1,
 	})
 
+	// The deploy above ran with --detach, so the web machine may still be
+	// replacing. Wait for it to settle before issuing another update, otherwise
+	// flaps rejects it with "machine is replacing: concurrent update in progress".
+	f.Fly("machine wait %s --state settled", webMachId).AssertSuccessfulExit()
+
 	// Step 5: Set secrets, to ensure that machine data is kept during a 'restartOnly' deploy.
 	f.Fly("machine update %s -m CUSTOM=META -y", webMachId).AssertSuccessfulExit()
 	f.Fly("secrets set 'SOME=MY_SECRET_TEST_STRING' -a %s", appName).AssertSuccessfulExit()
@@ -439,12 +444,14 @@ func testDeployDetach(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	// With auto-stop on, the proxy stops these idle machines and deploy
+	// leaves them stopped, so they would never reach "started".
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	ml := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started")
@@ -452,7 +459,7 @@ func testDeployDetach(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started")
@@ -462,13 +469,15 @@ func testDeployDetachBatching(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	// With auto-stop on, the proxy stops these idle machines and deploy
+	// leaves them stopped, so they would never reach "started".
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("scale count 6 --yes")
 
 	ml := f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m := ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res := f.Fly("deploy --detach")
 	require.NotContains(f, res.StdOutString(), "started", false)
@@ -476,7 +485,7 @@ func testDeployDetachBatching(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.GreaterOrEqual(f, len(ml), 1)
 	m = ml[0]
-	f.Fly("machine wait %s --state started --wait-timeout 15s", m.ID)
+	waitMachineStarted(f, m.ID)
 
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdOutString(), "started", false)
@@ -497,27 +506,16 @@ func TestErrOutput(t *testing.T) {
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
-	// This should fail on GPU machines because they're performance VMs.
-	if f.IsGpuMachine() {
-		res = f.FlyAllowExitFailure("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "memory size for config is too low")
-	} else {
-		f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
-	}
+	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
 
-	// Not applicable for GPU machines since this size is too small.
-	if !f.IsGpuMachine() {
-		res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "memory size for config is too low")
-	}
+	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "memory size for config is too low")
 
-	if !f.IsGpuMachine() {
-		res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "memory size for config is too high")
+	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "memory size for config is too high")
 
-		res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
-		require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
-	}
+	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
 }
 
 func TestImageLabel(t *testing.T) {
@@ -544,4 +542,18 @@ ENV BUILT_BY_DOCKERFILE=true
 	for _, image := range machineImages {
 		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
 	}
+}
+
+// waitMachineStarted waits up to a minute for the machine to be started. When
+// it isn't, the failure includes the machine's event log, so a machine that
+// was stopped (and by what) shows up in the test output rather than just
+// "currently stopped".
+func waitMachineStarted(f *testlib.FlyctlTestEnv, machineID string) {
+	f.Helper()
+	res := f.FlyAllowExitFailure("machine wait %s --state started --wait-timeout 60s", machineID)
+	if res.ExitCode() == 0 {
+		return
+	}
+	status := f.FlyAllowExitFailure("machine status %s", machineID)
+	f.Fatalf("machine %s did not start: %s\n%s%s", machineID, strings.TrimSpace(res.StdErrString()), status.StdOutString(), status.StdErrString())
 }

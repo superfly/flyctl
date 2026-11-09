@@ -2,6 +2,7 @@ package synthetics
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -15,11 +16,12 @@ func StartSyntheticsMonitoringAgent(clientCtx context.Context) {
 
 	if !shouldRunSyntheticsAgent(clientCtx) {
 		log.Debug("synthetics agent disabled")
+
 		return
 	}
 
 	task.FromContext(clientCtx).Run(func(taskCtx context.Context) {
-		taskCtx, cancelTask := context.WithCancel(taskCtx)
+		taskCtx, cancelTask := context.WithCancelCause(taskCtx)
 
 		log.Debug("starting synthetics agent")
 		go RunAgent(taskCtx)
@@ -30,7 +32,7 @@ func StartSyntheticsMonitoringAgent(clientCtx context.Context) {
 		}
 
 		log.Debug("synthetics agent stopped")
-		cancelTask()
+		cancelTask(fmt.Errorf("synthetics monitoring stopped: %w", context.Canceled))
 	})
 }
 

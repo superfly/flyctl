@@ -28,12 +28,14 @@ func TestLaunchInputForUpdate(t *testing.T) {
 
 	t.Run("Basic", testLaunchInputForBasic)
 	t.Run("HostStatusUnreachable", testLaunchInputForUpdateHostStatusUnreachable)
+	t.Run("HostStatusUnreachableWithDedicationID", testLaunchInputForUpdateHostStatusUnreachableWithDedicationID)
 	t.Run("Mounts", testLaunchInputForOnMounts)
 	t.Run("MountsAndAutoResize", testLaunchInputForOnMountsAndAutoResize)
 	t.Run("UpdateKeepUnmanagedFields", testLaunchInputForUpdateKeepUnmanagedFields)
 	t.Run("UpdateClearStandbysWithServices", testLaunchInputForUpdateClearStandbysWithServices)
 	t.Run("LaunchFiles", testLaunchInputForLaunchFiles)
 	t.Run("LaunchFiles", testLaunchInputForUpdateFiles)
+	t.Run("ImageConfigSubstitution", testUpdateContainerImageConfig)
 }
 
 // Test the basic flow of launching, restarting and updating a machine for default process group
@@ -148,12 +150,9 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "unreachable")
 
-	// Changing the volume name returns a new machine with a different volume attached
-	md.volumes = map[string][]fly.Volume{
-		"data": {
-			{ID: "vol_10001", Name: "data"},
-		},
-	}
+	// Defensive/future behavior: normal deploy validation currently rejects changing
+	// an attached volume's name before launch inputs are built. If this helper is
+	// reached directly, the replacement must still ask flaps to select by name.
 	li, err = md.launchInputForUpdate(&fly.Machine{
 		ID: "ab1234567890",
 		IncompleteConfig: &fly.MachineConfig{
@@ -163,7 +162,31 @@ func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, li.RequiresReplacement)
-	require.Equal(t, li.Config.Mounts, []fly.MachineMount{{Path: "/data", Volume: "vol_10001", Name: "data"}})
+	require.Equal(t, li.Config.Mounts, []fly.MachineMount{{Path: "/data", Volume: "data", Name: "data"}})
+}
+
+// Regression for a nil pointer dereference: deploying an app with a
+// host_dedication_id set while one of its machines is on an unreachable host
+// (so Config is nil) used to panic.
+func testLaunchInputForUpdateHostStatusUnreachableWithDedicationID(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:          "my-cool-app",
+		PrimaryRegion:    "scl",
+		HostDedicationID: "host-a",
+	})
+	require.NoError(t, err)
+
+	li, err := md.launchInputForUpdate(&fly.Machine{
+		ID:     "ab1234567890",
+		Region: "ord",
+		IncompleteConfig: &fly.MachineConfig{
+			Metadata: map[string]string{"fly_process_group": "app"},
+		},
+		HostStatus: fly.HostStatusUnreachable,
+	})
+	require.NoError(t, err)
+	require.True(t, li.RequiresReplacement)
+	require.Equal(t, "ord", li.Region)
 }
 
 // Test Mounts
@@ -172,19 +195,11 @@ func testLaunchInputForOnMounts(t *testing.T) {
 		Mounts: []appconfig.Mount{{Source: "data", Destination: "/data"}},
 	})
 	assert.NoError(t, err)
-	md.volumes = map[string][]fly.Volume{
-		"data": {
-			{ID: "vol_10001", Name: "data"},
-			{ID: "vol_10002", Name: "data"},
-			{ID: "vol_10003", Name: "data"},
-		},
-	}
-
-	// New machine must get a volume attached
+	// New machine must ask flaps to select an available volume by name.
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
-	assert.Equal(t, fly.MachineMount{Volume: "vol_10001", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+	assert.Equal(t, fly.MachineMount{Volume: "data", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// The machine already has a volume that matches fly.toml [mounts] section
 	li, err = md.launchInputForUpdate(&fly.Machine{
@@ -240,7 +255,7 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.True(t, li.RequiresReplacement)
-	assert.Equal(t, fly.MachineMount{Volume: "vol_10002", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+	assert.Equal(t, fly.MachineMount{Volume: "data", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
 	md.appConfig.Mounts = nil
@@ -269,20 +284,12 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 		}},
 	})
 	assert.NoError(t, err)
-	md.volumes = map[string][]fly.Volume{
-		"data": {
-			{ID: "vol_10001", Name: "data"},
-			{ID: "vol_10002", Name: "data"},
-			{ID: "vol_10003", Name: "data"},
-		},
-	}
-
-	// New machine must get a volume attached
+	// New machine must ask flaps to select an available volume by name.
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, fly.MachineMount{
-		Volume:                 "vol_10001",
+		Volume:                 "data",
 		Path:                   "/data",
 		Name:                   "data",
 		ExtendThresholdPercent: 80,
@@ -383,7 +390,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.True(t, li.RequiresReplacement)
 	assert.Equal(t, fly.MachineMount{
-		Volume:                 "vol_10002",
+		Volume:                 "data",
 		Path:                   "/data",
 		Name:                   "data",
 		ExtendThresholdPercent: 80,
@@ -494,7 +501,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 		MergedFiles: []*fly.File{
 			{
 				GuestPath: "/path/to/hello.txt",
-				RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+				RawValue:  new("aGVsbG8gd29ybGQK"),
 			},
 		},
 	})
@@ -521,7 +528,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 			Files: []*fly.File{
 				{
 					GuestPath: "/path/to/hello.txt",
-					RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+					RawValue:  new("aGVsbG8gd29ybGQK"),
 				},
 			},
 		},
@@ -539,11 +546,11 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 		MergedFiles: []*fly.File{
 			{
 				GuestPath:  "/path/to/config/yaml",
-				SecretName: fly.StringPointer("SECRET_CONFIG"),
+				SecretName: new("SECRET_CONFIG"),
 			},
 			{
 				GuestPath: "/path/to/hello.txt",
-				RawValue:  fly.StringPointer("Z29vZGJ5ZQo="),
+				RawValue:  new("Z29vZGJ5ZQo="),
 			},
 		},
 	})
@@ -555,11 +562,11 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 			Files: []*fly.File{
 				{
 					GuestPath: "/path/to/hello.txt",
-					RawValue:  fly.StringPointer("aGVsbG8gd29ybGQK"),
+					RawValue:  new("aGVsbG8gd29ybGQK"),
 				},
 				{
 					GuestPath: "/path/to/be/deleted",
-					RawValue:  fly.StringPointer("ZGVsZXRlIG1lCg=="),
+					RawValue:  new("ZGVsZXRlIG1lCg=="),
 				},
 			},
 		},
@@ -569,4 +576,76 @@ func testLaunchInputForUpdateFiles(t *testing.T) {
 	assert.Equal(t, "SECRET_CONFIG", *li.Config.Files[0].SecretName)
 	assert.Equal(t, "/path/to/hello.txt", li.Config.Files[1].GuestPath)
 	assert.Equal(t, "Z29vZGJ5ZQo=", *li.Config.Files[1].RawValue)
+}
+
+func testUpdateContainerImageConfig(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-cool-app",
+		PrimaryRegion: "scl",
+	})
+	require.NoError(t, err)
+
+	// Test top-level files image_config substitution
+	mConfig := &fly.MachineConfig{
+		Image: "registry.fly.io/myapp:deploy-1234",
+		Files: []*fly.File{
+			{
+				GuestPath:   "/app/image.json",
+				ImageConfig: new("."),
+			},
+			{
+				GuestPath:   "/app/other.json",
+				ImageConfig: new("nginx:latest"),
+			},
+			{
+				GuestPath: "/app/raw.txt",
+				RawValue:  new("aGVsbG8="),
+			},
+		},
+	}
+	err = md.updateContainerImage(mConfig)
+	require.NoError(t, err)
+	assert.Equal(t, "registry.fly.io/myapp:deploy-1234", *mConfig.Files[0].ImageConfig)
+	assert.Equal(t, "nginx:latest", *mConfig.Files[1].ImageConfig)
+	assert.Nil(t, mConfig.Files[2].ImageConfig)
+
+	// Test container-level files image_config substitution
+	mConfig = &fly.MachineConfig{
+		Image: "registry.fly.io/myapp:deploy-5678",
+		Containers: []*fly.ContainerConfig{
+			{
+				Name:  "app",
+				Image: ".",
+				Files: []*fly.File{
+					{
+						GuestPath:   "/app/image.json",
+						ImageConfig: new("."),
+					},
+					{
+						GuestPath:   "/app/sidecar.json",
+						ImageConfig: new("redis:7"),
+					},
+				},
+			},
+			{
+				Name:  "sidecar",
+				Image: "nginx:latest",
+				Files: []*fly.File{
+					{
+						GuestPath:   "/etc/config.json",
+						ImageConfig: new("."),
+					},
+				},
+			},
+		},
+	}
+	err = md.updateContainerImage(mConfig)
+	require.NoError(t, err)
+	// Container image substitution
+	assert.Equal(t, "registry.fly.io/myapp:deploy-5678", mConfig.Containers[0].Image)
+	assert.Equal(t, "nginx:latest", mConfig.Containers[1].Image)
+	// File image_config substitution
+	assert.Equal(t, "registry.fly.io/myapp:deploy-5678", *mConfig.Containers[0].Files[0].ImageConfig)
+	assert.Equal(t, "redis:7", *mConfig.Containers[0].Files[1].ImageConfig)
+	assert.Equal(t, "registry.fly.io/myapp:deploy-5678", *mConfig.Containers[1].Files[0].ImageConfig)
 }

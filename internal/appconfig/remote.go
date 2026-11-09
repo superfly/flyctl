@@ -26,6 +26,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 		return nil, err
 	}
 	cfg.AppName = appName
+
 	return cfg, nil
 }
 
@@ -45,6 +46,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, e
 	if warnings != "" {
 		fmt.Fprintf(io.ErrOut, "WARNINGS:\n%s", warnings)
 	}
+
 	return appConfig, nil
 }
 
@@ -77,5 +79,6 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient flyutil.Client, a
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
 	}
+
 	return appConfig, err
 }

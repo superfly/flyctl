@@ -14,7 +14,7 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 
 	var skipDeploy bool
 

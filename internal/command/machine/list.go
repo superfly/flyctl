@@ -70,6 +70,7 @@ func runMachineList(ctx context.Context) (err error) {
 		if !silence {
 			fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
 		}
+
 		return nil
 	}
 
@@ -173,5 +174,6 @@ func runMachineList(ctx context.Context) (err error) {
 			fmt.Fprintln(io.Out, "* These Machines' hosts could not be reached.")
 		}
 	}
+
 	return nil
 }

@@ -75,5 +75,6 @@ func runFiles(ctx context.Context) error {
 	if _, err := io.Copy(ios.Out, res.Body); err != nil {
 		return fmt.Errorf("failed to read file listing: %w", err)
 	}
+
 	return nil
 }

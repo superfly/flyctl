@@ -10,6 +10,8 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -22,7 +24,14 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 		Tokens: cfg.Tokens,
 	})
 
-	personal, err := apiClient.GetOrganizationBySlug(ctx, "personal")
+	uiexClient, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+		Tokens: cfg.Tokens,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	personal, err := uiexClient.GetOrganization(ctx, "personal")
 	if err != nil {
 		return "", err
 	}
@@ -42,6 +51,7 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed creating identity token: %w", err)
 	}
+
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
@@ -56,6 +66,7 @@ func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 	cfg := config.FromContext(parentCtx)
 	if cfg.MetricsToken != "" {
 		terminal.Debugf("Config has metrics token\n")
+
 		return cfg.MetricsToken, nil
 	}
 
@@ -69,8 +80,10 @@ func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 			return "", err
 		}
 		cfg.MetricsToken = token
+
 		return token, nil
 	}
+
 	return "", errors.New("no metrics token in config")
 }
 
@@ -81,5 +94,6 @@ func persistMetricsToken(ctx context.Context, token string) error {
 		return fmt.Errorf("failed persisting %s in %s: %w\n",
 			config.MetricsTokenFileKey, path, err)
 	}
+
 	return nil
 }

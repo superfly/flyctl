@@ -16,5 +16,6 @@ func New() (cmd *cobra.Command) {
 	cmd.Aliases = []string{"k8s"}
 	cmd.AddCommand(create(), destroy(), list(), kubectlToken(), saveKubeconfig())
 	cmd.Hidden = false
+
 	return cmd
 }

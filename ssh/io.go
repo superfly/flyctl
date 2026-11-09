@@ -43,6 +43,7 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 	}
 
 	fd = int(fdthing.Fd())
+
 	return fd, term.IsTerminal(fd)
 }
 
@@ -68,14 +69,10 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 		}
 	}
 
-	var closeStdin sync.Once
 	stdin, err := sess.StdinPipe()
 	if err != nil {
 		return err
 	}
-	defer closeStdin.Do(func() {
-		stdin.Close()
-	})
 
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
@@ -87,6 +84,21 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 		return err
 	}
 
+	return s.attachPipes(ctx, stdin, stdout, stderr, func() error {
+		if cmd == "" {
+			return sess.Shell()
+		}
+
+		return sess.Run(cmd)
+	})
+}
+
+func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdout, stderr io.Reader, run func() error) error {
+	var closeStdin sync.Once
+	defer closeStdin.Do(func() {
+		stdin.Close()
+	})
+
 	go func() {
 		defer closeStdin.Do(func() {
 			stdin.Close()
@@ -95,29 +107,37 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 			io.Copy(stdin, s.Stdin)
 		}
 	}()
+	var outputCopies sync.WaitGroup
+	copyOutput := func(dst io.Writer, src io.Reader) {
+		defer outputCopies.Done()
+		_, _ = io.Copy(dst, src)
+	}
 	if s.Stdout != nil {
-		go io.Copy(s.Stdout, stdout)
+		outputCopies.Add(1)
+		go copyOutput(s.Stdout, stdout)
 	}
 
 	if s.Stderr != nil {
-		go io.Copy(s.Stderr, stderr)
+		outputCopies.Add(1)
+		go copyOutput(s.Stderr, stderr)
 	}
 
 	cmdC := make(chan error, 1)
 	go func() {
-		defer close(cmdC)
-		if cmd == "" {
-			err = sess.Shell()
-		} else {
-			err = sess.Run(cmd)
+		err := run()
+		if err == io.EOF {
+			err = nil
 		}
-		if err != nil && err != io.EOF {
-			cmdC <- err
-		}
+		cmdC <- err
 	}()
 
 	select {
 	case err := <-cmdC:
+		// The remote command may finish before the output-copy goroutines are
+		// scheduled. Drain both pipes before returning so short-lived commands do
+		// not lose their final output.
+		outputCopies.Wait()
+
 		return err
 	case <-ctx.Done():
 		return errors.New("session forcibly closed; the remote process may still be running")

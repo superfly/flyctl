@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
@@ -101,7 +102,7 @@ func run(ctx context.Context) error {
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
 
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}
@@ -139,8 +140,8 @@ func run(ctx context.Context) error {
 	}
 	mu.Unlock()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("ping finished: %w", context.Canceled))
 
 	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
 		// look up names in the background because I was too
@@ -158,7 +159,7 @@ func run(ctx context.Context) error {
 
 			regions := strings.Join(regionFrags, "")
 
-			for _, region := range strings.Split(regions, ",") {
+			for region := range strings.SplitSeq(regions, ",") {
 				regHost := fmt.Sprintf("%s.%s.internal", region, app)
 				addrs, err := r.LookupHost(ctx, regHost)
 				if err == nil {
@@ -189,10 +190,7 @@ func run(ctx context.Context) error {
 
 	count := flag.GetInt(ctx, "count")
 
-	pad := uint(flag.GetInt(ctx, "size"))
-	if pad > 1000 {
-		pad = 1000
-	}
+	pad := min(uint(flag.GetInt(ctx, "size")), 1000)
 
 	ticker := time.NewTicker(interval)
 
@@ -231,6 +229,7 @@ func run(ctx context.Context) error {
 			}
 			if err != nil || !ok || len(echoRep.Data) < timeLen {
 				fmt.Printf("bogus ICMP from %s: %s", raddr, err)
+
 				continue
 			}
 
@@ -297,7 +296,7 @@ func EchoRequest(id, seq int, t time.Time, pad uint) []byte {
 	buf := &bytes.Buffer{}
 	buf.Write(tbuf)
 	buf.Grow(int(pad))
-	for i := uint(0); i < pad; i++ {
+	for range pad {
 		buf.WriteByte('A')
 	}
 

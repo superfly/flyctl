@@ -18,5 +18,6 @@ func New() *cobra.Command {
 		newScaleShow(),
 		newScaleCount(),
 	)
+
 	return cmd
 }

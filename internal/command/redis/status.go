@@ -52,10 +52,10 @@ func runStatus(ctx context.Context) (err error) {
 		readRegions = strings.Join(addOn.ReadRegions, ",")
 	}
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
 
 	if options == nil {
-		options = make(map[string]interface{})
+		options = make(map[string]any)
 	}
 
 	evictionStatus := "Disabled"

@@ -3,9 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -13,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -32,6 +33,7 @@ func newDb() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -61,27 +63,27 @@ func newListDbs() *cobra.Command {
 
 func runListDbs(ctx context.Context) error {
 	var (
-		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
+
 	return runMachineListDbs(ctx, app)
 }
 
-func runMachineListDbs(ctx context.Context, app *fly.AppCompact) error {
+func runMachineListDbs(ctx context.Context, app *flaps.App) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -124,6 +126,7 @@ func listDBs(ctx context.Context, leaderIP string) error {
 
 	if len(databases) == 0 {
 		fmt.Fprintf(io.Out, "No databases found\n")
+
 		return nil
 	}
 
@@ -133,16 +136,16 @@ func listDBs(ctx context.Context, leaderIP string) error {
 
 	rows := make([][]string, 0, len(databases))
 	for _, db := range databases {
-		var users string
+		var users strings.Builder
 		for index, name := range db.Users {
-			users += name
+			users.WriteString(name)
 			if index < len(db.Users)-1 {
-				users += ", "
+				users.WriteString(", ")
 			}
 		}
 		rows = append(rows, []string{
 			db.Name,
-			users,
+			users.String(),
 		})
 	}
 

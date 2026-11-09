@@ -9,10 +9,10 @@ import (
 
 // extract message printing from ctx until we find a better way to do this
 // TODO: deprecate this package in favor of render.TextBlock
-func PrintBegin(w io.Writer, args ...interface{}) {
+func PrintBegin(w io.Writer, args ...any) {
 	fmt.Fprintln(w, aurora.Green("==> "+fmt.Sprint(args...)))
 }
 
-func PrintDone(w io.Writer, args ...interface{}) {
+func PrintDone(w io.Writer, args ...any) {
 	fmt.Fprintln(w, aurora.Gray(20, "--> "+fmt.Sprint(args...)))
 }

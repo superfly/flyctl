@@ -38,6 +38,7 @@ func v2RunRegionsList(ctx context.Context) error {
 	}
 
 	printApssV2Regions(ctx, machineRegions)
+
 	return nil
 }
 
@@ -66,6 +67,7 @@ func printApssV2Regions(ctx context.Context, machineRegions map[string][]string)
 			ProcessGroupRegions: jsonPg,
 		}
 		render.JSON(io.Out, data)
+
 		return
 	}
 

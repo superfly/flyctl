@@ -74,27 +74,27 @@ func newAttach() *cobra.Command {
 
 func runAttach(ctx context.Context) error {
 	var (
-		pgAppName = flag.FirstArg(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
+		pgAppName   = flag.FirstArg(ctx)
+		appName     = appconfig.NameFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
 
-	if !pgApp.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(pgApp) {
 		return fmt.Errorf("app %s is not a postgres app", pgAppName)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
 	// Build context around the postgres app
-	ctx, err = apps.BuildContext(ctx, pgApp)
+	ctx, err = apps.BuildContextForApp(ctx, pgApp)
 	if err != nil {
 		return err
 	}
@@ -109,17 +109,9 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	flycast, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
-	}
-
-	var flycast *string
-
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
-		}
+		return err
 	}
 
 	return machineAttachCluster(ctx, params, flycast)
@@ -128,45 +120,55 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client = flyutil.ClientFromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 
 		pgAppName = params.PgAppName
 		appName   = params.AppName
 	)
 
-	pgApp, err := client.GetAppCompact(ctx, pgAppName)
+	pgApp, err := flapsClient.GetApp(ctx, pgAppName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
 	}
 
-	if !pgApp.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(pgApp) {
 		return fmt.Errorf("app %s is not a postgres app", pgAppName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, pgApp)
+	ctx, err = apps.BuildContextForApp(ctx, pgApp)
 	if err != nil {
 		return err
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetAppBasic(ctx, appName)
+	_, err = flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	ips, err := client.GetIPAddresses(ctx, pgAppName)
+	flycast, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
+		return err
+	}
+
+	return machineAttachCluster(ctx, params, flycast)
+}
+
+// flycastAddress returns the postgres app's Flycast (private IPv6) address, if it has one.
+func flycastAddress(ctx context.Context, pgAppName string) (*string, error) {
+	res, err := flapsutil.ClientFromContext(ctx).GetIPAssignments(ctx, pgAppName)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
-
-	for _, ip := range ips {
-		if ip.Type == "private_v6" {
-			flycast = &ip.Address
+	for _, ip := range res.IPs {
+		if ip.IsFlycast() {
+			flycast = &ip.IP
 		}
 	}
-	return machineAttachCluster(ctx, params, flycast)
+
+	return flycast, nil
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
@@ -235,9 +237,9 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		AppID:                appName,
 		PostgresClusterAppID: pgAppName,
 		ManualEntry:          true,
-		DatabaseName:         fly.StringPointer(dbName),
-		DatabaseUser:         fly.StringPointer(dbUser),
-		VariableName:         fly.StringPointer(varName),
+		DatabaseName:         new(dbName),
+		DatabaseUser:         new(dbUser),
+		VariableName:         new(varName),
 	}
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)
@@ -260,14 +262,16 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		return err
 	}
 	if dbExists && !force {
-		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
-		confirm, err := prompt.Confirm(ctx, msg)
-		if err != nil {
+		switch confirm, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirm {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError(fmt.Sprintf("database %q already exists; pass --yes to attach to it when not running interactively", *input.DatabaseName))
+		default:
 			return err
-		}
-		if !confirm {
-			return nil
 		}
 	}
 
@@ -297,6 +301,7 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 			if flypg.ErrorStatus(err) >= 500 {
 				return err
 			}
+
 			return fmt.Errorf("error running database-create: %w", err)
 		}
 	}

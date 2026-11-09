@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,7 +16,9 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/go-multierror"
+	"github.com/oklog/ulid/v2"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/superfly/flyctl/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -25,7 +28,6 @@ import (
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -44,10 +46,18 @@ var (
 	ErrWaitForStoppedState   = errors.New("could not get all blue machines into stopped state")
 	ErrDestroyBlueMachines   = errors.New("failed to destroy previous deployment")
 	ErrValidationError       = errors.New("app not in valid state for bluegreen deployments")
-	ErrOrgLimit              = errors.New("app can't undergo bluegreen deployment due to org limits")
 	ErrMultipleImageVersions = errors.New("found multiple image versions")
 
 	safeToDestroyValue = "safe_to_destroy"
+
+	// flyctlBGLaunchIDMetadataKey is a per-launch idempotency tag that flyctl
+	// writes into the machine config's metadata before calling flaps.Launch.
+	// Each intended green machine gets a unique value. When Launch fails with
+	// an ambiguous transient error (like a 408 propagated from flyd via flaps),
+	// the retry loop looks the machine up by this key to detect a silent
+	// success and avoid creating a duplicate machine. The key is intentionally
+	// namespaced under "fly_flyctl_" so it can coexist with any user metadata.
+	flyctlBGLaunchIDMetadataKey = "fly_flyctl_bluegreen_launch_id"
 )
 
 type RollbackLog struct {
@@ -57,15 +67,10 @@ type RollbackLog struct {
 	disableRollback        bool
 }
 
-type blueGreenWebClient interface {
-	CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error)
-}
-
 type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
 	flaps               flapsutil.FlapsClient
-	apiClient           blueGreenWebClient
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
 	clearLinesAbove     func(count int)
@@ -85,6 +90,76 @@ type blueGreen struct {
 
 	waitBeforeStop   time.Duration
 	waitBeforeCordon time.Duration
+
+	uncordonRetryAttempts uint
+	uncordonRetryDelay    time.Duration
+
+	// tagRetryAttempts / tagRetryDelay control the back-off used when
+	// TagBlueMachinesAsSafeForDeletion writes the "safe_to_destroy" metadata
+	// tag on blue machines. Flaps' metadata endpoint can return transient 408
+	// (context.DeadlineExceeded talking to flyd) and we don't want a single
+	// transient failure to strand blue and green versions serving traffic
+	// side-by-side (see: the checkpointing step in Deploy).
+	tagRetryAttempts uint
+	tagRetryDelay    time.Duration
+
+	// launchRetryAttempts / launchRetryDelay control the back-off used when
+	// CreateGreenMachines retries a Launch that failed with a transient error.
+	// Retries are safe because each launch input carries a unique per-machine
+	// idempotency tag (flyctlBGLaunchIDMetadataKey) that lets the retry loop
+	// detect a "silent success" (a Launch that hit an ambiguous 408/5xx but
+	// still committed the machine on the flyd side) by listing machines with
+	// that tag before creating a new one.
+	launchRetryAttempts uint
+	launchRetryDelay    time.Duration
+
+	// launchLookupDelay is the pause between a failed Launch attempt and the
+	// idempotency lookup that follows it. It gives flaps' backing store a
+	// moment to reflect a machine that a silent-success Launch just committed,
+	// which reduces (but does not eliminate) the race where a retry could
+	// otherwise create a duplicate.
+	launchLookupDelay time.Duration
+
+	// imageRefRetryAttempts / imageRefRetryDelay control the back-off used when
+	// DetectMultipleImageVersions re-fetches a machine whose ImageRef came back
+	// empty from the list API (e.g. due to a transient API error).
+	imageRefRetryAttempts uint
+	imageRefRetryDelay    time.Duration
+
+	// teardownRetryAttempts / teardownRetryDelay control the back-off used when
+	// CordonBlueMachines / StopBlueMachines / DestroyBlueMachines hit transient
+	// flaps errors. All three operations are idempotent so retries are safe:
+	//   - Cordon: setting cordon=true twice is a no-op.
+	//   - Stop: stopping an already-stopped machine returns success on flaps.
+	//   - Destroy: destroying an already-destroyed machine returns 404, which
+	//     the destroy wrapper treats as a no-op.
+	teardownRetryAttempts uint
+	teardownRetryDelay    time.Duration
+}
+
+// hostIsOk reports whether the machine's host is confirmed healthy. Anything
+// else — "unreachable", "unknown", or unset — means the host cannot be
+// trusted to respond: such machines are excluded from image verification and
+// from the cordon/stop stages, and are force-destroyed instead.
+func hostIsOk(m *fly.Machine) bool {
+	return m.HostStatus == fly.HostStatusOk
+}
+
+// machineHasConfiguredChecks returns true if the machine config has any health
+// checks defined — either at the top-level or inside a service. This is
+// intentionally based on the *configuration*, not on the runtime Machine.Checks
+// status field, which is empty for freshly-launched machines.
+func machineHasConfiguredChecks(cfg *fly.MachineConfig) bool {
+	if len(cfg.Checks) > 0 {
+		return true
+	}
+	for _, svc := range cfg.Services {
+		if len(svc.Checks) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -92,7 +167,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		greenMachines:       machineUpdateEntries{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
-		apiClient:           md.apiClient,
 		appConfig:           md.appConfig,
 		timeout:             md.waitTimeout,
 		stopSignal:          md.stopSignal,
@@ -123,6 +197,22 @@ func (bg *blueGreen) initialize() {
 
 	bg.waitBeforeStop = 10 * time.Second
 	bg.waitBeforeCordon = 10 * time.Second
+
+	bg.uncordonRetryAttempts = 5
+	bg.uncordonRetryDelay = 500 * time.Millisecond
+
+	bg.tagRetryAttempts = 5
+	bg.tagRetryDelay = 500 * time.Millisecond
+
+	bg.launchRetryAttempts = 3
+	bg.launchRetryDelay = 500 * time.Millisecond
+	bg.launchLookupDelay = 500 * time.Millisecond
+
+	bg.imageRefRetryAttempts = 3
+	bg.imageRefRetryDelay = 1 * time.Second
+
+	bg.teardownRetryAttempts = 5
+	bg.teardownRetryDelay = 500 * time.Millisecond
 }
 
 func (bg *blueGreen) isAborted() bool {
@@ -143,6 +233,53 @@ func (bg *blueGreen) sleepAbortable(d time.Duration) bool {
 	}
 }
 
+// forceStartRepresentatives returns the set of blue-machine indices whose
+// green replacements must be launched with SkipLaunch=false so that each
+// process group with configured health checks has at least one machine that
+// starts and can be health-verified.
+//
+// Rule: for each process group with any configured health check, ensure a
+// representative will start. Machines whose blue counterpart is already going
+// to start naturally (SkipLaunch=false — e.g. it was running when the deploy
+// began) satisfy the invariant for free. If no machine in the group would
+// naturally start (e.g. auto_stop_machines turned them all off), promote the
+// first machine in the group.
+//
+// Machines outside the returned set inherit their blue's SkipLaunch value,
+// so a stopped blue produces a stopped green — mirroring the app's
+// pre-deploy state rather than unnecessarily waking up idle workers.
+func (bg *blueGreen) forceStartRepresentatives() map[int]bool {
+	groupHasChecks := map[string]bool{}
+	groupWillStart := map[string]bool{}
+	groupFirstStopped := map[string]int{} // process group -> lowest index of a machine that would stay stopped
+
+	for i, mach := range bg.blueMachines {
+		cfg := mach.launchInput.Config
+		pg := cfg.ProcessGroup()
+
+		if machineHasConfiguredChecks(cfg) {
+			groupHasChecks[pg] = true
+		}
+		if !mach.launchInput.SkipLaunch {
+			groupWillStart[pg] = true
+		} else if _, seen := groupFirstStopped[pg]; !seen {
+			groupFirstStopped[pg] = i
+		}
+	}
+
+	forceStart := map[int]bool{}
+	for pg := range groupHasChecks {
+		if groupWillStart[pg] {
+			continue
+		}
+		if idx, ok := groupFirstStopped[pg]; ok {
+			forceStart[idx] = true
+		}
+	}
+
+	return forceStart
+}
+
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_create")
 	defer span.End()
@@ -155,13 +292,17 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 		float64(bg.maxConcurrent),
 	)))
 
+	// Decide upfront which green machines must be force-started so each
+	// process group with health checks has at least one machine to poll.
+	// Everything else inherits SkipLaunch from its blue counterpart.
+	forceStart := bg.forceStartRepresentatives()
+
 	var lock sync.Mutex
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
 		WithMaxGoroutines(createConcurrency)
-	for _, mach := range bg.blueMachines {
-		mach := mach
+	for i, mach := range bg.blueMachines {
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -169,11 +310,22 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 			launchInput := mach.launchInput
 			launchInput.SkipServiceRegistration = true
+			if forceStart[i] {
+				launchInput.SkipLaunch = false
+			}
 			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
+			// A per-machine ULID lets us safely retry Launch on ambiguous
+			// transient errors (e.g. 408 from flaps): the retry loop first
+			// looks up any machine flaps has already committed with this key
+			// before attempting another Launch, so a "silent success" doesn't
+			// turn into a duplicate green machine.
+			launchID := ulid.Make().String()
+			launchInput.Config.Metadata[flyctlBGLaunchIDMetadataKey] = launchID
 
-			newMachineRaw, err := bg.flaps.Launch(ctx, bg.app.Name, *launchInput)
+			newMachineRaw, err := bg.launchGreenMachineWithRetry(ctx, launchInput, launchID)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to launch machine")
+				tracing.RecordError(ctx, span, err, "failed to launch machine")
+
 				return err
 			}
 
@@ -186,6 +338,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 			bg.greenMachines = append(bg.greenMachines, &machineUpdateEntry{greenMachine, launchInput})
 
 			fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
+
 			return nil
 		})
 	}
@@ -258,6 +411,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 
 		if gm.launchInput.SkipLaunch {
 			machineIDToState[id] = "started"
+
 			continue
 		}
 
@@ -265,6 +419,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 			err := machine.WaitForStartOrStop(ctx, bg.app.Name, lm.Machine(), "start", bg.timeout)
 			if err != nil {
 				errChan <- err
+
 				return
 			}
 
@@ -277,6 +432,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	for {
 		if bg.allMachinesStarted(machineIDToState) {
 			render()
+
 			return nil
 		}
 
@@ -302,6 +458,7 @@ func (bg *blueGreen) changeDetected(a, b map[string]string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -372,13 +529,14 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	for _, gm := range bg.greenMachines {
 		if gm.launchInput.SkipLaunch {
 			machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &fly.HealthCheckStatus{Total: 1, Passing: 1}
+
 			continue
 		}
 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
-		if len(gm.leasableMachine.Machine().Checks) == 0 {
+		if !machineHasConfiguredChecks(gm.launchInput.Config) {
 			continue
 		}
 
@@ -393,13 +551,14 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
-		if len(gm.leasableMachine.Machine().Checks) == 0 {
+		if !machineHasConfiguredChecks(gm.launchInput.Config) {
 			continue
 		}
 
 		go func(m machine.LeasableMachine) {
-			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
+			waitCtx, cancel := context.WithTimeoutCause(ctx, bg.timeout, fmt.Errorf("waiting for green machine health: %w", context.DeadlineExceeded))
 			defer cancel()
+			defer func() { tracing.RecordCancellation(waitCtx, trace.SpanFromContext(waitCtx)) }()
 
 			interval, gracePeriod := m.GetMinIntervalAndMinGracePeriod()
 
@@ -411,9 +570,18 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 				switch {
 				case waitCtx.Err() != nil:
 					errChan <- waitCtx.Err()
+
 					return
+				case err != nil && flapsutil.IsTransientFlapsError(err):
+					// Transient Get errors during health polling are common
+					// (e.g. flaps' 408 when its call to flyd times out).
+					// Keep polling — the wait context caps total time.
+					time.Sleep(interval)
+
+					continue
 				case err != nil:
 					errChan <- err
+
 					return
 				}
 
@@ -435,6 +603,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 		if bg.allMachinesHealthy(machineIDToHealthStatus) {
 			render()
+
 			break
 		}
 
@@ -465,17 +634,30 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.greenMachines.machines() {
-		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := bg.flaps.Uncordon(ctx, bg.app.Name, gm.Machine().ID, "")
+			err := retry.Do(
+				func() error {
+					return bg.flaps.Uncordon(ctx, bg.app.Name, gm.Machine().ID, "")
+				},
+				retry.Context(ctx),
+				retry.Attempts(bg.uncordonRetryAttempts),
+				retry.Delay(bg.uncordonRetryDelay),
+				retry.MaxDelay(30*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying uncordon for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.FormattedMachineId()), n+2, bg.uncordonRetryAttempts, err)
+				}),
+			)
 			if err != nil {
 				return err
 			}
 
 			fmt.Fprintf(bg.io.ErrOut, "  Machine %s now ready\n", bg.colorize.Bold(gm.FormattedMachineId()))
+
 			return nil
 		})
 	}
@@ -492,22 +674,50 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
-		gm := gm
+		// A machine on a non-ok host can't respond to a cordon; it gets
+		// force-destroyed at the end of the deployment instead.
+		if !hostIsOk(gm.leasableMachine.Machine()) {
+			continue
+		}
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := gm.leasableMachine.Cordon(ctx)
+			// Cordon is idempotent: writing cordon=true twice is a no-op, so
+			// we can retry transient failures freely. Without retries a single
+			// 408 leaves the machine uncordoned, which prolongs the window
+			// where blue is still taking traffic after green went ready.
+			err := retry.Do(
+				func() error { return gm.leasableMachine.Cordon(ctx) },
+				retry.Context(ctx),
+				retry.Attempts(bg.teardownRetryAttempts),
+				retry.Delay(bg.teardownRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying cordon for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), n+2, bg.teardownRetryAttempts, err)
+				}),
+			)
 			if err != nil {
-				// Just let the user know, it's not a critical error
-				fmt.Fprintf(bg.io.ErrOut, "  Failed to cordon machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
+				// Non-fatal: the machine will still be stopped and destroyed
+				// below. Warn the user so they can correlate an unusually long
+				// "two versions live" window with a flaps hiccup.
+				tracing.RecordError(ctx, span, err, "failed to cordon blue machine")
+				fmt.Fprintf(bg.io.ErrOut, "  [warn] Failed to cordon machine %s after %d attempts: %v\n",
+					bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), bg.teardownRetryAttempts, err)
+
 				return nil
 			}
 
 			fmt.Fprintf(bg.io.ErrOut, "  Machine %s cordoned\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+
 			return nil
 		})
 	}
+
 	return p.Wait()
 }
 
@@ -520,21 +730,47 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 		WithFirstError().
 		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
-		gm := gm
+		// A machine on a non-ok host can't react to a stop signal; it gets
+		// force-destroyed at the end of the deployment instead.
+		if !hostIsOk(gm.leasableMachine.Machine()) {
+			continue
+		}
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
 			}
-			err := gm.leasableMachine.Stop(ctx, bg.stopSignal)
+			// Stop is idempotent: stopping an already-stopped machine returns
+			// success. Retrying transient failures gives the app another
+			// chance at a graceful SIGTERM before the destroy step force-kills.
+			err := retry.Do(
+				func() error { return gm.leasableMachine.Stop(ctx, bg.stopSignal) },
+				retry.Context(ctx),
+				retry.Attempts(bg.teardownRetryAttempts),
+				retry.Delay(bg.teardownRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying stop for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), n+2, bg.teardownRetryAttempts, err)
+				}),
+			)
 			if err != nil {
-				// Just let the user know, it's not a critical error as we are gonna destroy the
-				// machines with force later
-				fmt.Fprintf(bg.io.ErrOut, "  Failed to stop machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
+				// Non-fatal: the destroy step below force-kills. Losing the
+				// graceful-shutdown window is a per-machine annoyance, not a
+				// deploy-blocker.
+				tracing.RecordError(ctx, span, err, "failed to stop blue machine")
+				fmt.Fprintf(bg.io.ErrOut, "  [warn] Failed to stop machine %s after %d attempts: %v\n",
+					bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), bg.teardownRetryAttempts, err)
+
 				return nil
 			}
+
 			return nil
 		})
 	}
+
 	return p.Wait()
 }
 
@@ -542,9 +778,18 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "blue_machines_stop_wait")
 	defer span.End()
 
+	// Machines on non-ok hosts were never stopped — waiting on them would only
+	// burn the timeout; they get force-destroyed instead.
+	waitable := machineUpdateEntries{}
+	for _, gm := range bg.blueMachines {
+		if hostIsOk(gm.leasableMachine.Machine()) {
+			waitable = append(waitable, gm)
+		}
+	}
+
 	wait := time.NewTicker(bg.timeout)
 	machineIDToState := map[string]string{}
-	for _, gm := range bg.blueMachines.machines() {
+	for _, gm := range waitable.machines() {
 		machineIDToState[gm.FormattedMachineId()] = gm.Machine().State
 	}
 
@@ -552,7 +797,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 	errChan := make(chan error)
 
 	var done atomic.Uint32
-	for _, gm := range bg.blueMachines {
+	for _, gm := range waitable {
 		id := gm.leasableMachine.FormattedMachineId()
 
 		go func(lm machine.LeasableMachine) {
@@ -570,7 +815,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 
 	var merr *multierror.Error
 	for {
-		if done.Load() == uint32(len(bg.blueMachines)) {
+		if done.Load() == uint32(len(waitable)) {
 			return merr.ErrorOrNil()
 		}
 
@@ -603,29 +848,84 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 
 	var mu sync.Mutex
 	for _, gm := range bg.blueMachines {
-		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
 			}
 
-			err := gm.leasableMachine.Destroy(ctx, true)
+			// Destroy is idempotent from flyctl's perspective: destroying an
+			// already-destroyed machine returns 404, which we treat as success
+			// (the desired state is "machine gone"), and the leasable-wrapper
+			// treats a machine it already destroyed as a no-op. Retrying
+			// transient failures directly translates into fewer "hanging blue
+			// machines" support tickets after otherwise-successful deploys.
+			destroyOp := func() error {
+				var err error
+				if hostIsOk(gm.leasableMachine.Machine()) {
+					err = gm.leasableMachine.Destroy(ctx, true)
+				} else {
+					// No lease exists for a machine on a non-ok host (lease
+					// acquisition skips them), so bypass the leasable wrapper and
+					// issue the destroy straight through the flaps API with
+					// kill=true and no nonce — the exact call behind
+					// `fly machine destroy --force`. A stale nonce from the list
+					// response could otherwise make flaps reject the destroy.
+					err = bg.flaps.Destroy(ctx, bg.app.Name, fly.RemoveMachineInput{
+						ID:   gm.leasableMachine.Machine().ID,
+						Kill: true,
+					}, "")
+				}
+				// 404 after a successful-but-timed-out prior attempt is a silent
+				// success — the machine really is gone, so surface it as such.
+				var flapsErr *flaps.FlapsError
+				if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
+					return nil
+				}
+
+				return err
+			}
+
+			err := retry.Do(
+				destroyOp,
+				retry.Context(ctx),
+				retry.Attempts(bg.teardownRetryAttempts),
+				retry.Delay(bg.teardownRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying destroy for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), n+2, bg.teardownRetryAttempts, err)
+				}),
+			)
 
 			mu.Lock()
 			defer mu.Unlock()
 
 			if err != nil {
+				tracing.RecordError(ctx, span, err, "failed to destroy blue machine")
 				bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
+
 				return nil
 			}
 
 			fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+
 			return nil
 		})
 	}
 
 	if err := p.Wait(); err != nil {
 		return err
+	}
+
+	// Machines that could not be destroyed (typically because their host is
+	// down) would otherwise linger silently. Tell the user how to finish the
+	// cleanup by hand.
+	if len(bg.hangingBlueMachines) > 0 {
+		fmt.Fprintf(bg.io.ErrOut, "\n  Failed to destroy %d machine(s). Remove them manually with:\n\n    %s\n\n",
+			len(bg.hangingBlueMachines), formatDestroyCommand(bg.appConfig.AppName, bg.hangingBlueMachines))
 	}
 
 	return nil
@@ -641,24 +941,12 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
-	if err != nil {
-		tracing.RecordError(span, err, "failed to validate deployment")
-		return err
-	}
-
-	span.SetAttributes(attribute.Bool("can_perform", canPerform))
-
-	if !canPerform {
-		tracing.RecordError(span, ErrOrgLimit, "failed to deploy, orglimit")
-		return ErrOrgLimit
-	}
-
 	fmt.Fprintf(bg.io.ErrOut, "\nVerifying if app can be safely deployed \n")
 
-	err = bg.DetectMultipleImageVersions(ctx)
+	err := bg.DetectMultipleImageVersions(ctx)
 	if err != nil {
-		tracing.RecordError(span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
+		tracing.RecordError(ctx, span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
+
 		return err
 	}
 
@@ -673,6 +961,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 		if machineChecks == 0 {
 			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check its health.", entry.leasableMachine.FormattedMachineId())
+
 			continue
 		}
 
@@ -681,6 +970,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if totalMachinesWithChecks == 0 && len(bg.blueMachines) != 0 {
 		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
+
 		return ErrValidationError
 	}
 
@@ -698,7 +988,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
 	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to wait for start")
+		tracing.RecordError(ctx, span, err, "failed to wait for start")
+
 		return errors.Join(err, ErrWaitForStartedState)
 	}
 
@@ -708,7 +999,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to wait for health")
+		tracing.RecordError(ctx, span, err, "failed to wait for health")
+
 		return errors.Join(err, ErrWaitForHealthy)
 	}
 
@@ -718,7 +1010,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready\n")
 	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to mark as ready for traffic")
+		tracing.RecordError(ctx, span, err, "failed to mark as ready for traffic")
+
 		return errors.Join(err, ErrMarkReadyForTraffic)
 	}
 
@@ -731,7 +1024,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nCheckpointing deployment, this may take a few seconds...\n")
 	if err := bg.TagBlueMachinesAsSafeForDeletion(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to mark as ready for traffic")
+		tracing.RecordError(ctx, span, err, "failed to mark as ready for traffic")
+
 		return errors.Join(err, ErrTagForDeletion)
 	}
 
@@ -747,7 +1041,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	// Stop fly-proxy from sending new traffic to the old machines
 	if err := bg.CordonBlueMachines(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to cordon blue machines")
+		tracing.RecordError(ctx, span, err, "failed to cordon blue machines")
+
 		return errors.Join(err, ErrCordonBlueMachines)
 	}
 
@@ -765,13 +1060,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	// terminate existing connections
 	fmt.Fprintf(bg.io.ErrOut, "\nStopping all blue machines\n")
 	if err := bg.StopBlueMachines(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to stop blue machines")
+		tracing.RecordError(ctx, span, err, "failed to stop blue machines")
+
 		return errors.Join(err, ErrStopBlueMachines)
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all blue machines to stop\n")
 	if err := bg.WaitForBlueMachinesToBeStopped(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to wait for stop")
+		tracing.RecordError(ctx, span, err, "failed to wait for stop")
 		var merr *multierror.Error
 		if errors.As(err, &merr) {
 			fmt.Fprintf(bg.io.ErrOut, "\nFailed to stop some machines:\n")
@@ -785,11 +1081,13 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to destroy blue machines")
+		tracing.RecordError(ctx, span, err, "failed to destroy blue machines")
+
 		return errors.Join(err, ErrDestroyBlueMachines)
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
+
 	return nil
 }
 
@@ -806,6 +1104,7 @@ func getZombies(ids map[string]bool) (map[string]bool, error) {
 	sort.Ints(numbers)
 
 	delete(ids, fmt.Sprint(numbers[len(numbers)-1]))
+
 	return ids, nil
 }
 
@@ -822,6 +1121,7 @@ func (bg *blueGreen) DeleteZombiesFromPreviousDeployment(ctx context.Context) er
 
 	if len(tags) == 1 {
 		fmt.Fprintf(bg.io.ErrOut, "  No hanging machines from a failed previous deployment\n")
+
 		return nil
 	}
 
@@ -908,6 +1208,7 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	if errors.Is(err, ErrDestroyBlueMachines) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
+
 		return nil
 	}
 
@@ -916,7 +1217,8 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 		for _, mach := range bg.greenMachines.machines() {
 			err := mach.Destroy(ctx, true)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to destroy green machine")
+				tracing.RecordError(ctx, span, err, "failed to destroy green machine")
+
 				return err
 			}
 			fmt.Fprintf(bg.io.ErrOut, "  Deleted machine %s\n", bg.colorize.Bold(mach.FormattedMachineId()))
@@ -926,32 +1228,125 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	return nil
 }
 
-// This method aggregates images for machines in an app
-// If they are greater than 1, it suggest how to remove them and unblock the app
-// It also uses the bg_deployment_tag to suggest blue machines that can be safely deleted.
+// imageRefIsEmpty reports whether a machine's ImageRef fields are both empty,
+// which is how the API signals that full machine data is unavailable (e.g. the
+// host is unreachable). ImageRefWithVersion() would return ":" in this case,
+// which is not a real image identifier.
+func imageRefIsEmpty(m *fly.Machine) bool {
+	return m.ImageRef.Repository == "" && m.ImageRef.Tag == ""
+}
+
+// refreshMachineImageRef fetches fresh data for a single machine and retries
+// on transient API errors using exponential backoff (circuit-break after
+// imageRefRetryAttempts). A successful response that still carries an empty
+// ImageRef is a stable platform signal (the host is unreachable) and is
+// returned to the caller as-is — retrying won't change that outcome.
+func (bg *blueGreen) refreshMachineImageRef(ctx context.Context, machineID string) (*fly.Machine, error) {
+	var fresh *fly.Machine
+
+	err := retry.Do(
+		func() error {
+			var apiErr error
+			fresh, apiErr = bg.flaps.Get(ctx, bg.app.Name, machineID)
+
+			return apiErr // only retry on hard API errors, not on empty-ImageRef responses
+		},
+		retry.Context(ctx),
+		retry.Attempts(bg.imageRefRetryAttempts),
+		retry.Delay(bg.imageRefRetryDelay),
+		retry.MaxDelay(5*time.Second),
+		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			fmt.Fprintf(bg.io.ErrOut, "  Retrying image lookup for machine %s (attempt %d/%d): %v\n",
+				machineID, n+1, bg.imageRefRetryAttempts, err)
+		}),
+	)
+
+	return fresh, err
+}
+
+// formatDestroyCommand returns a ready-to-run destroy command for one or more
+// unreachable machines. When there are multiple IDs the command uses backslash
+// continuation so users can copy-paste each ID individually or the whole block.
+func formatDestroyCommand(appName string, machineIDs []string) string {
+	base := fmt.Sprintf("fly machine destroy --force -a %s", appName)
+	if len(machineIDs) == 1 {
+		return base + " " + machineIDs[0]
+	}
+	lines := make([]string, len(machineIDs))
+	for i, id := range machineIDs {
+		lines[i] = "  " + id
+	}
+
+	return base + " \\\n" + strings.Join(lines, " \\\n")
+}
+
 func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
 	imageToMachineIDs := map[string][]string{}
 	safeToDelete := map[string]int{}
+	var unreachableIDs []string // machines whose image could not be determined
 
 	for _, mach := range bg.blueMachines {
-		image := mach.leasableMachine.Machine().ImageRefWithVersion()
-		imageToMachineIDs[image] = append(imageToMachineIDs[image], mach.leasableMachine.Machine().ID)
+		m := mach.leasableMachine.Machine()
+
+		// The platform doesn't report this machine's host as ok: its image
+		// cannot be verified and its config is incomplete. Leave it out of the
+		// image tally — its green replacement runs the new image on a healthy
+		// host regardless of what this machine was running.
+		if !hostIsOk(m) {
+			unreachableIDs = append(unreachableIDs, m.ID)
+
+			continue
+		}
+
+		// If the list API returned incomplete data for this machine (empty ImageRef),
+		// attempt a targeted re-fetch with exponential backoff before drawing any
+		// conclusions. This recovers transient errors and avoids misidentifying a
+		// lookup failure as an image-version conflict.
+		if imageRefIsEmpty(m) {
+			fmt.Fprintf(bg.io.ErrOut, "  Machine %s has no image data — retrying lookup...\n", m.ID)
+			freshMachine, err := bg.refreshMachineImageRef(ctx, m.ID)
+
+			if err != nil || !hostIsOk(freshMachine) || imageRefIsEmpty(freshMachine) {
+				// Still no image data after retries: treat it like an
+				// unreachable host and replace the machine.
+				unreachableIDs = append(unreachableIDs, m.ID)
+
+				continue
+			}
+			m = freshMachine
+		}
+
+		image := m.ImageRefWithVersion()
+		imageToMachineIDs[image] = append(imageToMachineIDs[image], m.ID)
 		if mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] == safeToDestroyValue {
 			safeToDelete[image] = 1
 		}
 	}
 
-	if len(imageToMachineIDs) == 1 {
+	// Unreachable machines never block the deploy: warn and proceed. This is
+	// the "080d92df225538 returned ':' " production scenario — pre-existing
+	// behavior misreported it as an image-version conflict.
+	if len(unreachableIDs) > 0 {
+		bg.warnUnreachableMachines(unreachableIDs)
+	}
+
+	// Clean state: all reachable machines agree on a single image, or every
+	// machine sits on an unreachable host (all get replaced). An app with no
+	// machines at all still falls through to the error below, preserving
+	// long-standing behavior.
+	if len(imageToMachineIDs) == 1 || (len(imageToMachineIDs) == 0 && len(unreachableIDs) > 0) {
 		return nil
 	}
 
+	// Genuine image-version conflict across reachable machines.
 	fmt.Fprintf(bg.io.ErrOut, "\n  Found %d different images in your app (for bluegreen to work, all machines need to run a single image)\n", len(imageToMachineIDs))
 	for image, ids := range imageToMachineIDs {
-		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) (%s)\n", image, len(ids), strings.Join(imageToMachineIDs[image], ","))
+		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) (%s)\n", image, len(ids), strings.Join(ids, ","))
 	}
 
 	if len(safeToDelete) > 0 {
-		fmt.Fprintf(bg.io.ErrOut, "\n  These image(s) can be safely destroyed:\n")
+		fmt.Fprintf(bg.io.ErrOut, "\n  These image(s) are from a previous failed deployment and can be safely destroyed:\n")
 		for image := range safeToDelete {
 			fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) ('fly machines destroy --force --image=%s --app=%s')\n", image, len(imageToMachineIDs[image]), image, bg.appConfig.AppName)
 		}
@@ -967,19 +1362,204 @@ func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
 	return ErrMultipleImageVersions
 }
 
+// warnUnreachableMachines prints a standout warning when some machines could
+// not be reached for image verification. The deployment proceeds: green
+// machines are created on healthy hosts and the unreachable blues are
+// destroyed, or reported as hanging when the platform cannot destroy them.
+func (bg *blueGreen) warnUnreachableMachines(unreachableIDs []string) {
+	sep := bg.colorize.Yellow(strings.Repeat("!", 70))
+	fmt.Fprintf(bg.io.ErrOut, "\n%s\n", sep)
+	fmt.Fprint(bg.io.ErrOut, bg.colorize.Yellow("  WARNING: some machines are on hosts that are not ok — skipping image check for them\n"))
+	fmt.Fprintf(bg.io.ErrOut, "\n  %d machine(s) could not be reached to verify their running image:\n", len(unreachableIDs))
+	for _, id := range unreachableIDs {
+		fmt.Fprintf(bg.io.ErrOut, "    · %s\n", id)
+	}
+	fmt.Fprintf(bg.io.ErrOut, "\n  Deployment proceeding. These machines will be replaced on healthy hosts\n"+
+		"  and force-destroyed at the end of the deployment.\n")
+	fmt.Fprintf(bg.io.ErrOut, "%s\n\n", sep)
+}
+
 // This method tags blue-machines with a safe to destroy value.
 // This way, a user can easily remove blue machines that are hanging around from deployment.
+//
+// The tag is purely informational: it lets operators identify hanging blue
+// machines from a failed previous deployment. The subsequent cordon/stop/
+// destroy stages of the deployment do NOT depend on the tag being set, so a
+// failure here must not abort the deployment. If we returned an error we'd
+// leave the green machines already accepting traffic while the blue machines
+// remain live too — two versions serving traffic side-by-side, exactly what
+// blue-green deploys are supposed to prevent.
+//
+// Every SetMetadata call is retried with exponential back-off on transient
+// errors (408/timeouts from flyd via flaps, 5xx, common network hiccups).
+// SetMetadata is idempotent — writing the same key/value twice is a no-op —
+// so retrying is always safe. Any machine that still can't be tagged after
+// all retries is reported to the user via a warning; the deploy carries on.
 func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "tag_blue_machines")
 	defer span.End()
 
-	p := pool.New().WithErrors().WithFirstError().WithMaxGoroutines(bg.maxConcurrent)
+	var (
+		untaggedMu sync.Mutex
+		untagged   []string
+	)
+
+	p := pool.New().WithMaxGoroutines(bg.maxConcurrent)
 	for _, mach := range bg.blueMachines {
-		mach := mach
-		p.Go(func() error {
-			return mach.leasableMachine.SetMetadata(ctx, fly.MachineConfigMetadataKeyFlyctlBGTag, "safe_to_destroy")
+		p.Go(func() {
+			err := retry.Do(
+				func() error {
+					return mach.leasableMachine.SetMetadata(ctx, fly.MachineConfigMetadataKeyFlyctlBGTag, safeToDestroyValue)
+				},
+				retry.Context(ctx),
+				retry.Attempts(bg.tagRetryAttempts),
+				retry.Delay(bg.tagRetryDelay),
+				retry.MaxDelay(10*time.Second),
+				retry.DelayType(retry.BackOffDelay),
+				retry.RetryIf(flapsutil.IsTransientFlapsError),
+				retry.LastErrorOnly(true),
+				retry.OnRetry(func(n uint, err error) {
+					fmt.Fprintf(bg.io.ErrOut, "  Retrying safe-for-deletion tag for machine %s (attempt %d/%d): %v\n",
+						bg.colorize.Bold(mach.leasableMachine.FormattedMachineId()), n+2, bg.tagRetryAttempts, err)
+				}),
+			)
+			if err == nil {
+				return
+			}
+
+			// Failing to tag a machine is non-fatal — the deployment must proceed
+			// so that green machines are the only ones serving traffic. We just
+			// let the user know so they can manually clean up if a later step
+			// also fails.
+			tracing.RecordError(ctx, span, err, "failed to tag blue machine as safe for deletion")
+			fmt.Fprintf(bg.io.ErrOut,
+				"  [warn] Could not tag machine %s as safe-for-deletion after %d attempts: %v\n",
+				bg.colorize.Bold(mach.leasableMachine.FormattedMachineId()), bg.tagRetryAttempts, err)
+
+			untaggedMu.Lock()
+			untagged = append(untagged, mach.leasableMachine.Machine().ID)
+			untaggedMu.Unlock()
 		})
 	}
 
-	return p.Wait()
+	p.Wait()
+
+	if len(untagged) > 0 {
+		span.SetAttributes(attribute.Int("untagged_blue_machines", len(untagged)))
+		span.SetAttributes(attribute.StringSlice("untagged_blue_machine_ids", untagged))
+		fmt.Fprintf(bg.io.ErrOut,
+			"  [warn] %d blue machine(s) could not be tagged safe-for-deletion. "+
+				"The deployment will still proceed; if a later step fails you may need to remove them manually with:\n    %s\n",
+			len(untagged), formatDestroyCommand(bg.app.Name, untagged))
+	}
+
+	return nil
 }
+
+// launchGreenMachineWithRetry launches a single green machine with client-side
+// pseudo-idempotency. flaps' create-machine endpoint doesn't accept an
+// Idempotency-Key header, so we simulate one by writing a unique ULID into
+// the machine's metadata under flyctlBGLaunchIDMetadataKey before every
+// attempt. If a Launch call fails with a transient error we don't know
+// whether the machine was actually committed on the flyd side, so before
+// retrying we list machines and look for one carrying our launch ID. If we
+// find one, we treat the failed Launch as a silent success and return that
+// machine — no duplicate is created.
+//
+// The race we can't fully close is when flaps commits the machine but the
+// list-lookup runs before that write propagates to the read side flaps'
+// list handler queries (Corrosion). launchLookupDelay gives it a brief
+// window to catch up; in the unlikely event a duplicate does slip through,
+// it will be tagged with the same bg.timestamp as the tracked one and get
+// swept by the normal blue→green cycle on the next deployment. That's a
+// strictly better outcome than aborting the deployment mid-flight.
+func (bg *blueGreen) launchGreenMachineWithRetry(ctx context.Context, launchInput *fly.LaunchMachineInput, launchID string) (*fly.Machine, error) {
+	var lastErr error
+	attempts := bg.launchRetryAttempts
+	if attempts == 0 {
+		attempts = 1
+	}
+
+	delay := bg.launchRetryDelay
+	for attempt := uint(0); attempt < attempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		newMachineRaw, err := bg.flaps.Launch(ctx, bg.app.Name, *launchInput)
+		if err == nil {
+			return newMachineRaw, nil
+		}
+		lastErr = err
+
+		// A non-transient failure (400/404/etc.) isn't going to get better
+		// with another attempt.
+		if !flapsutil.IsTransientFlapsError(err) {
+			return nil, err
+		}
+
+		// This might have been a silent success. Give flaps' backing store a
+		// moment to reflect the commit, then look for a machine with our
+		// launch ID.
+		if bg.launchLookupDelay > 0 {
+			select {
+			case <-time.After(bg.launchLookupDelay):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+
+		if existing, lookupErr := bg.findGreenMachineByLaunchID(ctx, launchID); lookupErr != nil {
+			// A failed lookup shouldn't mask the original Launch error, but we
+			// still want the user to see it so they can debug if the retry
+			// also fails.
+			fmt.Fprintf(bg.io.ErrOut, "  Idempotency lookup after failed launch returned an error: %v\n", lookupErr)
+		} else if existing != nil {
+			fmt.Fprintf(bg.io.ErrOut,
+				"  Launch reported an error but machine %s was already created (idempotency tag matched); reusing it\n",
+				bg.colorize.Bold(existing.ID))
+
+			return existing, nil
+		}
+
+		// Not the last attempt: back off and try again.
+		if attempt+1 < attempts {
+			fmt.Fprintf(bg.io.ErrOut, "  Retrying green machine launch (attempt %d/%d): %v\n",
+				attempt+2, attempts, err)
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			if delay < 5*time.Second {
+				delay *= 2
+			}
+		}
+	}
+
+	return nil, lastErr
+}
+
+// findGreenMachineByLaunchID scans the app's machines and returns the one
+// whose metadata carries the given launch ID, if any. It's a client-side
+// filter because flaps' List does not (yet) expose a metadata query in the
+// fly-go client interface.
+func (bg *blueGreen) findGreenMachineByLaunchID(ctx context.Context, launchID string) (*fly.Machine, error) {
+	machines, err := bg.flaps.List(ctx, bg.app.Name, "")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, m := range machines {
+		if m == nil || m.Config == nil {
+			continue
+		}
+		if m.Config.Metadata[flyctlBGLaunchIDMetadataKey] == launchID {
+			return m, nil
+		}
+	}
+
+	return nil, nil
+}
+
+// This method tags blue-machines with a safe to destroy value.

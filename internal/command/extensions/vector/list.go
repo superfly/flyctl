@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -27,23 +28,38 @@ func list() (cmd *cobra.Command) {
 		flag.Org(),
 		extensions_core.SharedFlags,
 	)
+
 	return cmd
 }
 
 func runList(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx).GenqClient()
-	response, err := gql.ListAddOns(ctx, client, "upstash_vector")
-	if err != nil {
-		return err
-	}
+	apiClient := flyutil.ClientFromContext(ctx)
+	client := apiClient.GenqClient()
+	orgSlug := flag.GetOrg(ctx)
 
 	var rows [][]string
-	for _, extension := range response.AddOns.Nodes {
-		rows = append(rows, []string{
-			extension.Name,
-			extension.Organization.Slug,
-			extension.PrimaryRegion,
-		})
+	if orgSlug != "" {
+		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
+			return err
+		}
+
+		response, err := gql.ListOrganizationAddOns(ctx, client, orgSlug, "upstash_vector")
+		if err != nil {
+			return err
+		}
+
+		for _, extension := range response.Organization.AddOns.Nodes {
+			rows = append(rows, []string{extension.Name, orgSlug, extension.PrimaryRegion})
+		}
+	} else {
+		response, err := gql.ListAddOns(ctx, client, "upstash_vector")
+		if err != nil {
+			return err
+		}
+
+		for _, extension := range response.AddOns.Nodes {
+			rows = append(rows, []string{extension.Name, extension.Organization.Slug, extension.PrimaryRegion})
+		}
 	}
 
 	out := iostreams.FromContext(ctx).Out

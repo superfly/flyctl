@@ -23,6 +23,7 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	for _, path := range []string{"main.ts", "index.ts", "app.ts", "server.ts", "mod.ts"} {
 		if absFileExists(filepath.Join(sourceDir, path)) {
 			entrypoint = path
+
 			break
 		}
 	}

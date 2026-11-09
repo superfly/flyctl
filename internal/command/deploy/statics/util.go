@@ -10,35 +10,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/tokenizer"
 )
 
 func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) func() error {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	workerErr := make(chan error, 1)
+	var firstFailure sync.Once
 
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range n {
+		wg.Go(func() {
 			if err := f(ctx); err != nil {
-				cancel()
-				select {
-				case workerErr <- err:
-				default:
-				}
+				firstFailure.Do(func() {
+					workerErr <- err
+					cancel(err)
+				})
 			}
-		}()
+		})
 	}
 
 	return func() error {
 
-		defer cancel()
+		defer cancel(fmt.Errorf("statics workers finished: %w", context.Canceled))
 		wg.Wait()
 
 		// Check if any of the workers failed.
@@ -51,7 +49,7 @@ func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) fun
 	}
 }
 
-func getPushToken(ctx context.Context, org *fly.Organization) (string, error) {
+func getPushToken(ctx context.Context, org *uiex.Organization) (string, error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	resp, err := gql.CreateLimitedAccessToken(
@@ -66,10 +64,11 @@ func getPushToken(ctx context.Context, org *fly.Organization) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
-func s3ClientWithAuth(ctx context.Context, auth string, org *fly.Organization) (*s3.Client, error) {
+func s3ClientWithAuth(ctx context.Context, auth string, org *uiex.Organization) (*s3.Client, error) {
 
 	s3Config, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("tokenizer-access-key", "tokenizer-secret-key", "")),
@@ -78,7 +77,7 @@ func s3ClientWithAuth(ctx context.Context, auth string, org *fly.Organization) (
 	if err != nil {
 		return nil, err
 	}
-	s3Config.BaseEndpoint = fly.Pointer(tigrisUrl)
+	s3Config.BaseEndpoint = new(tigrisUrl)
 
 	parsedProxyUrl, err := url.Parse(tokenizerUrl)
 	if err != nil {

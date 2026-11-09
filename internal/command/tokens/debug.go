@@ -48,6 +48,7 @@ func runDebug(ctx context.Context) error {
 		m, err := macaroon.Decode(tok)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to decode token at position %d: %s\n", i, err)
+
 			continue
 		}
 		macs = append(macs, m)

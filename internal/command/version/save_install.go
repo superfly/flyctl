@@ -61,5 +61,6 @@ func saveInstall(ctx context.Context, channel string, autoUpdateEnabled bool) er
 	if err := config.SetAutoUpdate(path, autoUpdateEnabled); err != nil {
 		return fmt.Errorf("failed persisting %s in %s: %w", config.AutoUpdateFileKey, path, err)
 	}
+
 	return nil
 }

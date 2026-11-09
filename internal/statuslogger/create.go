@@ -2,6 +2,7 @@ package statuslogger
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -22,7 +23,7 @@ func Create(ctx context.Context, numLines int, showStatusChar bool) StatusLogger
 			done:       false,
 		}
 
-		for i := 0; i < numLines; i++ {
+		for i := range numLines {
 			sl.lines[i] = &interactiveLine{
 				logger:  sl,
 				lineNum: i,
@@ -41,13 +42,14 @@ func Create(ctx context.Context, numLines int, showStatusChar bool) StatusLogger
 			logNumbers: logNumbers,
 			showStatus: showStatusChar,
 		}
-		for i := 0; i < numLines; i++ {
+		for i := range numLines {
 			sl.lines[i] = &noninteractiveLine{
 				logger:  sl,
 				lineNum: i,
 				status:  StatusNone,
 			}
 		}
+
 		return sl
 	}
 }
@@ -81,8 +83,8 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 	logger := Create(ctx, len(items), true)
 	defer logger.Destroy(clearAfter)
 
-	cancelableCtx, done := context.WithCancel(ctx)
-	defer done()
+	cancelableCtx, done := context.WithCancelCause(ctx)
+	defer done(fmt.Errorf("status iteration finished: %w", context.Canceled))
 
 	firstErr := make(chan error, 1)
 	asyncIter(cancelableCtx, logger, clearAfter, items, func(ctx context.Context, i int, item T) {
@@ -99,6 +101,7 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 			FromContext(ctx).setStatus(StatusSuccess)
 		}
 	})
+
 	return nil
 }
 
@@ -108,5 +111,6 @@ func SingleLine(ctx context.Context, showStatusChar bool) (context.Context, func
 	logger := Create(ctx, 1, showStatusChar)
 	line := logger.Line(0)
 	line.setStatus(StatusRunning)
+
 	return NewContext(ctx, line), logger.Destroy
 }

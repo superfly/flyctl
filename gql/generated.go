@@ -2340,6 +2340,172 @@ type GetAppsByRoleResponse struct {
 // GetApps returns GetAppsByRoleResponse.Apps, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleResponse) GetApps() GetAppsByRoleAppsAppConnection { return v.Apps }
 
+// GetCurrentUserNumericIDResponse is returned by GetCurrentUserNumericID on success.
+type GetCurrentUserNumericIDResponse struct {
+	Viewer GetCurrentUserNumericIDViewerPrincipal `json:"-"`
+}
+
+// GetViewer returns GetCurrentUserNumericIDResponse.Viewer, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDResponse) GetViewer() GetCurrentUserNumericIDViewerPrincipal {
+	return v.Viewer
+}
+
+func (v *GetCurrentUserNumericIDResponse) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetCurrentUserNumericIDResponse
+		Viewer json.RawMessage `json:"viewer"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetCurrentUserNumericIDResponse = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Viewer
+		src := firstPass.Viewer
+		if len(src) != 0 && string(src) != "null" {
+			err = __unmarshalGetCurrentUserNumericIDViewerPrincipal(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal GetCurrentUserNumericIDResponse.Viewer: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalGetCurrentUserNumericIDResponse struct {
+	Viewer json.RawMessage `json:"viewer"`
+}
+
+func (v *GetCurrentUserNumericIDResponse) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetCurrentUserNumericIDResponse) __premarshalJSON() (*__premarshalGetCurrentUserNumericIDResponse, error) {
+	var retval __premarshalGetCurrentUserNumericIDResponse
+
+	{
+
+		dst := &retval.Viewer
+		src := v.Viewer
+		var err error
+		*dst, err = __marshalGetCurrentUserNumericIDViewerPrincipal(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal GetCurrentUserNumericIDResponse.Viewer: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// GetCurrentUserNumericIDViewerMacaroon includes the requested fields of the GraphQL type Macaroon.
+type GetCurrentUserNumericIDViewerMacaroon struct {
+	Typename string `json:"__typename"`
+}
+
+// GetTypename returns GetCurrentUserNumericIDViewerMacaroon.Typename, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDViewerMacaroon) GetTypename() string { return v.Typename }
+
+// GetCurrentUserNumericIDViewerPrincipal includes the requested fields of the GraphQL interface Principal.
+//
+// GetCurrentUserNumericIDViewerPrincipal is implemented by the following types:
+// GetCurrentUserNumericIDViewerMacaroon
+// GetCurrentUserNumericIDViewerUser
+type GetCurrentUserNumericIDViewerPrincipal interface {
+	implementsGraphQLInterfaceGetCurrentUserNumericIDViewerPrincipal()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() string
+}
+
+func (v *GetCurrentUserNumericIDViewerMacaroon) implementsGraphQLInterfaceGetCurrentUserNumericIDViewerPrincipal() {
+}
+func (v *GetCurrentUserNumericIDViewerUser) implementsGraphQLInterfaceGetCurrentUserNumericIDViewerPrincipal() {
+}
+
+func __unmarshalGetCurrentUserNumericIDViewerPrincipal(b []byte, v *GetCurrentUserNumericIDViewerPrincipal) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "Macaroon":
+		*v = new(GetCurrentUserNumericIDViewerMacaroon)
+		return json.Unmarshal(b, *v)
+	case "User":
+		*v = new(GetCurrentUserNumericIDViewerUser)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing Principal.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for GetCurrentUserNumericIDViewerPrincipal: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalGetCurrentUserNumericIDViewerPrincipal(v *GetCurrentUserNumericIDViewerPrincipal) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *GetCurrentUserNumericIDViewerMacaroon:
+		typename = "Macaroon"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*GetCurrentUserNumericIDViewerMacaroon
+		}{typename, v}
+		return json.Marshal(result)
+	case *GetCurrentUserNumericIDViewerUser:
+		typename = "User"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*GetCurrentUserNumericIDViewerUser
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for GetCurrentUserNumericIDViewerPrincipal: "%T"`, v)
+	}
+}
+
+// GetCurrentUserNumericIDViewerUser includes the requested fields of the GraphQL type User.
+type GetCurrentUserNumericIDViewerUser struct {
+	Typename          string `json:"__typename"`
+	InternalNumericId int    `json:"internalNumericId"`
+}
+
+// GetTypename returns GetCurrentUserNumericIDViewerUser.Typename, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDViewerUser) GetTypename() string { return v.Typename }
+
+// GetInternalNumericId returns GetCurrentUserNumericIDViewerUser.InternalNumericId, and is useful for accessing the field via an interface.
+func (v *GetCurrentUserNumericIDViewerUser) GetInternalNumericId() int { return v.InternalNumericId }
+
 // GetExtensionSsoLinkOrganization includes the requested fields of the GraphQL type Organization.
 type GetExtensionSsoLinkOrganization struct {
 	// Single sign-on link for the given extension type
@@ -2670,6 +2836,117 @@ type ListAddOnsResponse struct {
 
 // GetAddOns returns ListAddOnsResponse.AddOns, and is useful for accessing the field via an interface.
 func (v *ListAddOnsResponse) GetAddOns() ListAddOnsAddOnsAddOnConnection { return v.AddOns }
+
+// ListOrganizationAddOnsOrganization includes the requested fields of the GraphQL type Organization.
+type ListOrganizationAddOnsOrganization struct {
+	// List third party integrations associated with an organization
+	AddOns ListOrganizationAddOnsOrganizationAddOnsAddOnConnection `json:"addOns"`
+}
+
+// GetAddOns returns ListOrganizationAddOnsOrganization.AddOns, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganization) GetAddOns() ListOrganizationAddOnsOrganizationAddOnsAddOnConnection {
+	return v.AddOns
+}
+
+// ListOrganizationAddOnsOrganizationAddOnsAddOnConnection includes the requested fields of the GraphQL type AddOnConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for AddOn.
+type ListOrganizationAddOnsOrganizationAddOnsAddOnConnection struct {
+	// A list of nodes.
+	Nodes []ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn `json:"nodes"`
+}
+
+// GetNodes returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnection) GetNodes() []ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn {
+	return v.Nodes
+}
+
+// ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
+type ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn struct {
+	Id string `json:"id"`
+	// The service name according to the provider
+	Name string `json:"name"`
+	// The add-on plan
+	AddOnPlan ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan `json:"addOnPlan"`
+	// Private flycast IP address of the add-on
+	PrivateIp string `json:"privateIp"`
+	// Region where the primary instance is deployed
+	PrimaryRegion string `json:"primaryRegion"`
+	// Regions where replica instances are deployed
+	ReadRegions []string `json:"readRegions"`
+	// Add-on options
+	Options interface{} `json:"options"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
+}
+
+// GetId returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Id, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetId() string {
+	return v.Id
+}
+
+// GetName returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetName() string {
+	return v.Name
+}
+
+// GetAddOnPlan returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.AddOnPlan, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetAddOnPlan() ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan {
+	return v.AddOnPlan
+}
+
+// GetPrivateIp returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.PrivateIp, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrivateIp() string {
+	return v.PrivateIp
+}
+
+// GetPrimaryRegion returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string {
+	return v.PrimaryRegion
+}
+
+// GetReadRegions returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.ReadRegions, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string {
+	return v.ReadRegions
+}
+
+// GetOptions returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
+	return v.Options
+}
+
+// GetMetadata returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.Metadata
+}
+
+// ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
+type ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+}
+
+// GetDisplayName returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDisplayName() string {
+	return v.DisplayName
+}
+
+// GetDescription returns ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsOrganizationAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDescription() string {
+	return v.Description
+}
+
+// ListOrganizationAddOnsResponse is returned by ListOrganizationAddOns on success.
+type ListOrganizationAddOnsResponse struct {
+	// Find an organization by ID
+	Organization ListOrganizationAddOnsOrganization `json:"organization"`
+}
+
+// GetOrganization returns ListOrganizationAddOnsResponse.Organization, and is useful for accessing the field via an interface.
+func (v *ListOrganizationAddOnsResponse) GetOrganization() ListOrganizationAddOnsOrganization {
+	return v.Organization
+}
 
 // LogOutLogOutLogOutPayload includes the requested fields of the GraphQL type LogOutPayload.
 // The GraphQL type's documentation follows.
@@ -3018,6 +3295,37 @@ type UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn struct {
 // GetId returns UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn.Id, and is useful for accessing the field via an interface.
 func (v *UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn) GetId() string { return v.Id }
 
+// UpdateRedisAddOnResponse is returned by UpdateRedisAddOn on success.
+type UpdateRedisAddOnResponse struct {
+	UpdateAddOn UpdateRedisAddOnUpdateAddOnUpdateAddOnPayload `json:"updateAddOn"`
+}
+
+// GetUpdateAddOn returns UpdateRedisAddOnResponse.UpdateAddOn, and is useful for accessing the field via an interface.
+func (v *UpdateRedisAddOnResponse) GetUpdateAddOn() UpdateRedisAddOnUpdateAddOnUpdateAddOnPayload {
+	return v.UpdateAddOn
+}
+
+// UpdateRedisAddOnUpdateAddOnUpdateAddOnPayload includes the requested fields of the GraphQL type UpdateAddOnPayload.
+// The GraphQL type's documentation follows.
+//
+// Autogenerated return type of UpdateAddOn.
+type UpdateRedisAddOnUpdateAddOnUpdateAddOnPayload struct {
+	AddOn UpdateRedisAddOnUpdateAddOnUpdateAddOnPayloadAddOn `json:"addOn"`
+}
+
+// GetAddOn returns UpdateRedisAddOnUpdateAddOnUpdateAddOnPayload.AddOn, and is useful for accessing the field via an interface.
+func (v *UpdateRedisAddOnUpdateAddOnUpdateAddOnPayload) GetAddOn() UpdateRedisAddOnUpdateAddOnUpdateAddOnPayloadAddOn {
+	return v.AddOn
+}
+
+// UpdateRedisAddOnUpdateAddOnUpdateAddOnPayloadAddOn includes the requested fields of the GraphQL type AddOn.
+type UpdateRedisAddOnUpdateAddOnUpdateAddOnPayloadAddOn struct {
+	Id string `json:"id"`
+}
+
+// GetId returns UpdateRedisAddOnUpdateAddOnUpdateAddOnPayloadAddOn.Id, and is useful for accessing the field via an interface.
+func (v *UpdateRedisAddOnUpdateAddOnUpdateAddOnPayloadAddOn) GetId() string { return v.Id }
+
 type VMCountInput struct {
 	// The desired count
 	Count int `json:"count"`
@@ -3224,6 +3532,18 @@ type __ListAddOnsInput struct {
 // GetAddOnType returns __ListAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
 
+// __ListOrganizationAddOnsInput is used internally by genqlient
+type __ListOrganizationAddOnsInput struct {
+	OrgSlug   string    `json:"orgSlug"`
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetOrgSlug returns __ListOrganizationAddOnsInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__ListOrganizationAddOnsInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetAddOnType returns __ListOrganizationAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListOrganizationAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
+
 // __ResetAddOnPasswordInput is used internally by genqlient
 type __ResetAddOnPasswordInput struct {
 	Name string `json:"name"`
@@ -3271,6 +3591,34 @@ func (v *__UpdateAddOnInput) GetOptions() interface{} { return v.Options }
 
 // GetMetadata returns __UpdateAddOnInput.Metadata, and is useful for accessing the field via an interface.
 func (v *__UpdateAddOnInput) GetMetadata() interface{} { return v.Metadata }
+
+// __UpdateRedisAddOnInput is used internally by genqlient
+type __UpdateRedisAddOnInput struct {
+	AddOnId     string      `json:"addOnId"`
+	PlanId      string      `json:"planId"`
+	ReadRegions []string    `json:"readRegions"`
+	Options     interface{} `json:"options"`
+	Metadata    interface{} `json:"metadata"`
+	ProdPack    *bool       `json:"prodPack"`
+}
+
+// GetAddOnId returns __UpdateRedisAddOnInput.AddOnId, and is useful for accessing the field via an interface.
+func (v *__UpdateRedisAddOnInput) GetAddOnId() string { return v.AddOnId }
+
+// GetPlanId returns __UpdateRedisAddOnInput.PlanId, and is useful for accessing the field via an interface.
+func (v *__UpdateRedisAddOnInput) GetPlanId() string { return v.PlanId }
+
+// GetReadRegions returns __UpdateRedisAddOnInput.ReadRegions, and is useful for accessing the field via an interface.
+func (v *__UpdateRedisAddOnInput) GetReadRegions() []string { return v.ReadRegions }
+
+// GetOptions returns __UpdateRedisAddOnInput.Options, and is useful for accessing the field via an interface.
+func (v *__UpdateRedisAddOnInput) GetOptions() interface{} { return v.Options }
+
+// GetMetadata returns __UpdateRedisAddOnInput.Metadata, and is useful for accessing the field via an interface.
+func (v *__UpdateRedisAddOnInput) GetMetadata() interface{} { return v.Metadata }
+
+// GetProdPack returns __UpdateRedisAddOnInput.ProdPack, and is useful for accessing the field via an interface.
+func (v *__UpdateRedisAddOnInput) GetProdPack() *bool { return v.ProdPack }
 
 // The query executed by AgentGetInstances.
 const AgentGetInstances_Operation = `
@@ -4068,6 +4416,39 @@ func GetAppsByRole(
 	return data_, err_
 }
 
+// The query executed by GetCurrentUserNumericID.
+const GetCurrentUserNumericID_Operation = `
+query GetCurrentUserNumericID {
+	viewer {
+		__typename
+		... on User {
+			internalNumericId
+		}
+	}
+}
+`
+
+func GetCurrentUserNumericID(
+	ctx_ context.Context,
+	client_ graphql.Client,
+) (data_ *GetCurrentUserNumericIDResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetCurrentUserNumericID",
+		Query:  GetCurrentUserNumericID_Operation,
+	}
+
+	data_ = &GetCurrentUserNumericIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by GetExtensionSsoLink.
 const GetExtensionSsoLink_Operation = `
 query GetExtensionSsoLink ($orgSlug: String!, $provider: String!) {
@@ -4272,6 +4653,56 @@ func ListAddOns(
 	return data_, err_
 }
 
+// The query executed by ListOrganizationAddOns.
+const ListOrganizationAddOns_Operation = `
+query ListOrganizationAddOns ($orgSlug: String!, $addOnType: AddOnType) {
+	organization(slug: $orgSlug) {
+		addOns(type: $addOnType) {
+			nodes {
+				id
+				name
+				addOnPlan {
+					displayName
+					description
+				}
+				privateIp
+				primaryRegion
+				readRegions
+				options
+				metadata
+			}
+		}
+	}
+}
+`
+
+func ListOrganizationAddOns(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	orgSlug string,
+	addOnType AddOnType,
+) (data_ *ListOrganizationAddOnsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ListOrganizationAddOns",
+		Query:  ListOrganizationAddOns_Operation,
+		Variables: &__ListOrganizationAddOnsInput{
+			OrgSlug:   orgSlug,
+			AddOnType: addOnType,
+		},
+	}
+
+	data_ = &ListOrganizationAddOnsResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by LogOut.
 const LogOut_Operation = `
 mutation LogOut {
@@ -4455,6 +4886,52 @@ func UpdateAddOn(
 	}
 
 	data_ = &UpdateAddOnResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by UpdateRedisAddOn.
+const UpdateRedisAddOn_Operation = `
+mutation UpdateRedisAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!, $metadata: JSON!, $prodPack: Boolean) {
+	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions,options:$options,metadata:$metadata,prodPack:$prodPack}) {
+		addOn {
+			id
+		}
+	}
+}
+`
+
+func UpdateRedisAddOn(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	addOnId string,
+	planId string,
+	readRegions []string,
+	options interface{},
+	metadata interface{},
+	prodPack *bool,
+) (data_ *UpdateRedisAddOnResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "UpdateRedisAddOn",
+		Query:  UpdateRedisAddOn_Operation,
+		Variables: &__UpdateRedisAddOnInput{
+			AddOnId:     addOnId,
+			PlanId:      planId,
+			ReadRegions: readRegions,
+			Options:     options,
+			Metadata:    metadata,
+			ProdPack:    prodPack,
+		},
+	}
+
+	data_ = &UpdateRedisAddOnResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

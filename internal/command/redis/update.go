@@ -3,7 +3,9 @@ package redis
 import (
 	"context"
 	"fmt"
+	"io"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
@@ -29,8 +31,17 @@ func newUpdate() (cmd *cobra.Command) {
 		flag.Org(),
 		flag.Region(),
 		flag.ReplicaRegions(),
+		flag.Bool{
+			Name:        "enable-prodpack",
+			Description: "Enable ProdPack add-on for additional features ($200/mo), leaving every other setting untouched",
+		},
+		flag.Bool{
+			Name:        "disable-prodpack",
+			Description: "Disable the ProdPack add-on, leaving every other setting untouched",
+		},
 	)
 	cmd.Args = cobra.ExactArgs(1)
+
 	return cmd
 }
 
@@ -52,76 +63,284 @@ func runUpdate(ctx context.Context) (err error) {
 	// Check if current plan is a legacy plan
 	currentPlanIsLegacy := isLegacyPlan(addOn.AddOnPlan.DisplayName)
 
-	excludedRegions, err := GetExcludedRegions(ctx)
-	if err != nil {
-		return err
-	}
-	excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
+	// A ProdPack flag means "change ProdPack, leave the rest alone": nothing is
+	// asked about replica regions, plan, eviction or auto-upgrade, and nothing
+	// but ProdPack is sent as a change, so the command runs unattended. Other
+	// flags the caller passed explicitly are still honoured.
+	prodPackOnly := flag.GetBool(ctx, "enable-prodpack") || flag.GetBool(ctx, "disable-prodpack")
 
-	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", false, addOn.ReadRegions, excludedRegions, "replica-regions")
-	if err != nil {
-		return
-	}
+	// Copy rather than alias: a database with no replicas has a nil slice, and
+	// the mutation's readRegions is [String!]!, which rejects null.
+	readRegionCodes := append([]string{}, addOn.ReadRegions...)
 
-	var index int
-	var promptOptions []string
-	var promptDefault string
-	var filteredPlans []gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
+	if !prodPackOnly || flag.IsSpecified(ctx, "replica-regions") {
+		excludedRegions, err := GetExcludedRegions(ctx)
+		if err != nil {
+			return err
+		}
+		excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
 
-	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
-	if err != nil {
-		return
-	}
+		readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", false, addOn.ReadRegions, excludedRegions, "replica-regions")
+		if err != nil {
+			return err
+		}
 
-	// Filter plans based on current plan type
-	for _, plan := range result.AddOnPlans.Nodes {
-		isLegacy := isLegacyPlan(plan.DisplayName)
-
-		// Include plan if:
-		// 1. It's not a legacy plan (always include new plans), OR
-		// 2. It's the current plan (so user can stay on their legacy plan)
-		if !isLegacy || addOn.AddOnPlan.Id == plan.Id {
-			filteredPlans = append(filteredPlans, plan)
-			promptOptions = append(promptOptions, fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description))
-			if addOn.AddOnPlan.Id == plan.Id {
-				promptDefault = fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description)
-			}
+		readRegionCodes = []string{}
+		for _, region := range *readRegions {
+			readRegionCodes = append(readRegionCodes, region.Code)
 		}
 	}
 
-	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", promptDefault, promptOptions...)
+	selectedPlanID, selectedPlanName := addOn.AddOnPlan.Id, addOn.AddOnPlan.DisplayName
 
-	if err != nil {
-		return fmt.Errorf("failed to select a plan: %w", err)
+	if !prodPackOnly {
+		if selectedPlanID, selectedPlanName, err = selectPlan(ctx, client, addOn); err != nil {
+			return err
+		}
 	}
 
-	selectedPlan := filteredPlans[index]
-	selectedPlanIsLegacy := isLegacyPlan(selectedPlan.DisplayName)
-	selectedPlanIsFixed := isFixedPlan(selectedPlan.DisplayName)
+	selectedPlanIsLegacy := isLegacyPlan(selectedPlanName)
+	selectedPlanIsFixed := isFixedPlan(selectedPlanName)
 
-	options, _ := addOn.Options.(map[string]interface{})
+	options, _ := addOn.Options.(map[string]any)
 
 	if options == nil {
-		options = make(map[string]interface{})
+		options = make(map[string]any)
 	}
 
-	metadata, _ := addOn.Metadata.(map[string]interface{})
+	metadata, _ := addOn.Metadata.(map[string]any)
 
 	if metadata == nil {
-		metadata = make(map[string]interface{})
+		metadata = make(map[string]any)
 	}
 
-	// Eviction prompt (always available)
+	if !prodPackOnly {
+		if err = promptOptionChanges(ctx, out, options, selectedPlanIsFixed, selectedPlanIsLegacy); err != nil {
+			return err
+		}
+	}
+
+	// ProdPack available for both pay-as-you-go and fixed plans (but not
+	// legacy), and can be toggled on its own — the provider does not require a
+	// plan change to go with it.
+	//
+	// The locally stored prod_pack option can be stale in either direction, so
+	// the update payload only ever carries a value the user chose in this
+	// invocation; otherwise the key is omitted and the provider preserves the
+	// database's current state. Deriving the sent value from the stored copy is
+	// what allowed an ordinary plan change to disable an active ProdPack.
+	prodPack, err := resolveProdPack(
+		flag.GetBool(ctx, "enable-prodpack"),
+		flag.GetBool(ctx, "disable-prodpack"),
+		options["prod_pack"],
+		selectedPlanIsLegacy,
+		func() (bool, error) {
+			fmt.Fprint(out, prodPackDescription)
+
+			return prompt.Confirm(ctx, "Would you like to disable ProdPack?")
+		},
+		func() (bool, error) {
+			fmt.Fprint(out, prodPackDescription)
+
+			return prompt.Confirm(ctx, "Would you like to enable ProdPack?")
+		},
+	)
+	if err != nil {
+		return
+	}
+
+	// Read the stored value before it is stripped: it is the only state we
+	// have to fall back on for the summary when the user made no decision.
+	storedProdPack, _ := options["prod_pack"].(bool)
+
+	stripProdPack(options)
+
+	if currentPlanIsLegacy && selectedPlanIsLegacy {
+		fmt.Fprintf(out, "\nNote: Auto-upgrade and ProdPack are not available for legacy plans.\nTo access these features, please upgrade to a current plan.\n\n")
+	}
+
+	_, err = gql.UpdateRedisAddOn(ctx, client, addOn.Id, selectedPlanID, readRegionCodes, options, metadata, prodPack)
+
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintf(out, "\nYour Upstash Redis database %s was updated.\n", addOn.Name)
+	fmt.Fprintf(out, "  Plan:         %s\n", selectedPlanName)
+	fmt.Fprintf(out, "  Eviction:     %s\n", optionState(options, "eviction"))
+
+	if selectedPlanIsFixed {
+		fmt.Fprintf(out, "  Auto-upgrade: %s\n", optionState(options, "auto_upgrade"))
+	} else {
+		fmt.Fprintf(out, "  Auto-upgrade: not available on this plan\n")
+	}
+
+	if selectedPlanIsLegacy {
+		fmt.Fprintf(out, "  ProdPack:     not available on legacy plans\n")
+	} else {
+		fmt.Fprintf(out, "  ProdPack:     %s\n", prodPackState(prodPack, storedProdPack))
+	}
+
+	return
+}
+
+// optionState reports the state a boolean option is left in. A key is only
+// dropped from the payload after the user declined to enable it, so an absent
+// key means the setting stays off.
+func optionState(options map[string]any, key string) string {
+	on, _ := options[key].(bool)
+
+	return enabledOrDisabled(on)
+}
+
+// prodPackState reports the state ProdPack is left in, falling back to the
+// stored value when the user made no decision this invocation.
+func prodPackState(decision *bool, stored bool) string {
+	if decision == nil {
+		return enabledOrDisabled(stored)
+	}
+
+	return enabledOrDisabled(*decision)
+}
+
+func enabledOrDisabled(on bool) string {
+	if on {
+		return "enabled"
+	}
+
+	return "disabled"
+}
+
+// resolveProdPack determines the user's explicit ProdPack decision for this
+// invocation. A nil result means no decision was made and the prod_pack key
+// must be omitted from the update payload.
+//
+// The stored option is intentionally never echoed back as the sent value: it
+// only decides which of the two prompts is offered. Declining means "leave it
+// alone" rather than "set the opposite", so a stale stored copy can never flip
+// a setting the user did not ask to change. A non-interactive session makes no
+// decision at all unless a flag was passed.
+func resolveProdPack(enableFlag, disableFlag bool, stored any, selectedPlanIsLegacy bool, confirmDisable, confirmEnable func() (bool, error)) (*bool, error) {
+	if enableFlag && disableFlag {
+		return nil, fmt.Errorf("--enable-prodpack and --disable-prodpack are mutually exclusive")
+	}
+
+	if selectedPlanIsLegacy {
+		if enableFlag {
+			return nil, fmt.Errorf("ProdPack is not available for legacy plans")
+		}
+		if disableFlag {
+			return boolPtr(false), nil
+		}
+
+		return nil, nil
+	}
+
+	if enableFlag {
+		return boolPtr(true), nil
+	}
+	if disableFlag {
+		return boolPtr(false), nil
+	}
+
+	// The stored copy only picks the question. Whichever one is asked, "no"
+	// means "leave ProdPack alone", never "set it to the opposite".
+	storedOn, _ := stored.(bool)
+
+	confirm, decision := confirmEnable, true
+	if storedOn {
+		confirm, decision = confirmDisable, false
+	}
+
+	answer, err := confirm()
+	switch {
+	case prompt.IsNonInteractive(err):
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case !answer:
+		return nil, nil
+	}
+
+	return boolPtr(decision), nil
+}
+
+// stripProdPack removes the legacy ProdPack option from the options blob.
+// ProdPack intent travels only through the typed prodPack GraphQL argument;
+// the provider must never receive it in the legacy options map.
+func stripProdPack(options map[string]any) {
+	delete(options, "prod_pack")
+}
+
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+// selectPlan asks which plan the database should end up on, returning the
+// chosen plan's id and display name. Legacy plans are offered only when the
+// database is already on one, so its owner can update without being forced to
+// migrate.
+func selectPlan(ctx context.Context, client graphql.Client, addOn gql.GetAddOnAddOn) (id string, displayName string, err error) {
+	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
+	if err != nil {
+		return "", "", err
+	}
+
+	var (
+		index         int
+		promptOptions []string
+		promptDefault string
+		filteredPlans []gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
+	)
+
+	for _, plan := range result.AddOnPlans.Nodes {
+		if isLegacyPlan(plan.DisplayName) && addOn.AddOnPlan.Id != plan.Id {
+			continue
+		}
+
+		filteredPlans = append(filteredPlans, plan)
+		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description))
+
+		if addOn.AddOnPlan.Id == plan.Id {
+			promptDefault = fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description)
+		}
+	}
+
+	if err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", promptDefault, promptOptions...); err != nil {
+		return "", "", fmt.Errorf("failed to select a plan: %w", err)
+	}
+
+	selected := filteredPlans[index]
+
+	return selected.Id, selected.DisplayName, nil
+}
+
+// promptOptionChanges asks about eviction and auto-upgrade, recording answers
+// in the options blob that will be sent. Declining to enable a setting deletes
+// its key rather than sending an explicit false: the stored copy can be stale,
+// and an explicit false would turn off a feature that is actually on.
+func promptOptionChanges(ctx context.Context, out io.Writer, options map[string]any, selectedPlanIsFixed, selectedPlanIsLegacy bool) error {
 	if options["eviction"] != nil && options["eviction"].(bool) {
-		if disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?"); disableEviction || err != nil {
+		disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?")
+		if err != nil {
+			return err
+		}
+		if disableEviction {
 			options["eviction"] = false
 		}
 	} else {
-		options["eviction"], err = prompt.Confirm(ctx, "Would you like to enable eviction?")
-	}
-
-	if err != nil {
-		return
+		enableEviction, err := prompt.Confirm(ctx, "Would you like to enable eviction?")
+		if err != nil {
+			return err
+		}
+		if enableEviction {
+			options["eviction"] = true
+		} else {
+			// Declining to enable must not send an explicit false: if the
+			// add-on metadata is stale, that would disable a feature that is
+			// actually enabled. Omit the key so the server keeps its state.
+			delete(options, "eviction")
+		}
 	}
 
 	// Auto-upgrade only available for fixed plans (not pay-as-you-go or legacy)
@@ -131,16 +350,26 @@ func runUpdate(ctx context.Context) (err error) {
 			currentAutoUpgrade, _ = options["auto_upgrade"].(bool)
 		}
 
+		fmt.Fprint(out, autoUpgradeDescription)
+
 		if currentAutoUpgrade {
-			if disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?"); disableAutoUpgrade || err != nil {
+			disableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to disable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if disableAutoUpgrade {
 				options["auto_upgrade"] = false
 			}
 		} else {
-			options["auto_upgrade"], err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
-		}
-
-		if err != nil {
-			return
+			enableAutoUpgrade, err := prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			if err != nil {
+				return err
+			}
+			if enableAutoUpgrade {
+				options["auto_upgrade"] = true
+			} else {
+				delete(options, "auto_upgrade")
+			}
 		}
 	} else if !selectedPlanIsLegacy {
 		// Pay-as-you-go plan - auto-upgrade not available but we should clear it if it was set
@@ -149,41 +378,5 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
-	// ProdPack available for both pay-as-you-go and fixed plans (but not legacy)
-	if !selectedPlanIsLegacy {
-		currentProdPack := false
-		if options["prod_pack"] != nil {
-			currentProdPack, _ = options["prod_pack"].(bool)
-		}
-
-		if currentProdPack {
-			if disableProdPack, err := prompt.Confirm(ctx, "Would you like to disable ProdPack?"); disableProdPack || err != nil {
-				options["prod_pack"] = false
-			}
-		} else {
-			options["prod_pack"], err = prompt.Confirm(ctx, "Would you like to enable ProdPack ($200/mo)?")
-		}
-
-		if err != nil {
-			return
-		}
-	} else if currentPlanIsLegacy {
-		fmt.Fprintf(out, "\nNote: Auto-upgrade and ProdPack are not available for legacy plans.\nTo access these features, please upgrade to a current plan.\n\n")
-	}
-
-	readRegionCodes := []string{}
-
-	for _, region := range *readRegions {
-		readRegionCodes = append(readRegionCodes, region.Code)
-	}
-
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, selectedPlan.Id, readRegionCodes, options, metadata)
-
-	if err != nil {
-		return
-	}
-
-	fmt.Fprintf(out, "Your Upstash Redis database %s was updated.\n", addOn.Name)
-
-	return
+	return nil
 }

@@ -10,6 +10,7 @@ var PlatformCommands = []FlyCommand{
 
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"platform", "regions", "--json"}
+
 			return cmdArgs, nil
 		},
 	},
@@ -21,6 +22,7 @@ var PlatformCommands = []FlyCommand{
 
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"platform", "status", "--json"}
+
 			return cmdArgs, nil
 		},
 	},
@@ -32,6 +34,7 @@ var PlatformCommands = []FlyCommand{
 
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"platform", "vm-sizes", "--json"}
+
 			return cmdArgs, nil
 		},
 	},

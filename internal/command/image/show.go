@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -44,11 +45,10 @@ func newShow() *cobra.Command {
 
 func runShow(ctx context.Context) error {
 	var (
-		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
@@ -56,7 +56,7 @@ func runShow(ctx context.Context) error {
 	return showMachineImage(ctx, app)
 }
 
-func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
+func showMachineImage(ctx context.Context, app *flaps.App) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -158,15 +158,18 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 			latest = latestImage
 		}
 
-		if app.IsPostgresApp() {
+		if flapsutil.IsPostgresApp(app) {
 			// Abort if we detect a postgres machine running a different major version.
 			if latest.Tag != latestImage.Tag {
 				return fmt.Errorf("major version mismatch detected")
 			}
 		}
 
-		// Exclude machines that are already running the latest version
-		if machine.ImageRef.Digest == latest.Digest {
+		// Exclude machines that are already running the latest version, and
+		// skip cases where the resolver returned an older or non-newer build
+		// (e.g. a stale pinned minor tag at a lower fly.version than the
+		// machine's current rolling tag) to avoid suggesting downgrades.
+		if !IsUpdateCandidate(machine, latest) {
 			continue
 		}
 		updatable = append(updatable, machine)

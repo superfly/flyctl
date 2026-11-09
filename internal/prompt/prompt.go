@@ -18,9 +18,11 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -64,6 +66,7 @@ func StringWithHelp(ctx context.Context, dst *string, msg, def, help string, req
 	if required {
 		opts = append(opts, survey.WithValidator(survey.Required))
 	}
+
 	return survey.AskOne(p, dst, opts...)
 }
 
@@ -83,13 +86,15 @@ func Int(ctx context.Context, dst *int, msg string, def int, required bool) erro
 		opts = append(opts, survey.WithValidator(survey.Required))
 	}
 	// add a validator to ensure that the input is an integer
-	opts = append(opts, survey.WithValidator(func(val interface{}) error {
+	opts = append(opts, survey.WithValidator(func(val any) error {
 		_, err := strconv.Atoi(val.(string))
 		if err != nil {
 			return errors.New("must be an integer")
 		}
+
 		return nil
 	}))
+
 	return survey.AskOne(p, dst, opts...)
 }
 
@@ -146,7 +151,7 @@ func Select(ctx context.Context, index *int, msg, def string, options ...string)
 	return survey.AskOne(p, index, opt)
 }
 
-func Confirmf(ctx context.Context, format string, a ...interface{}) (bool, error) {
+func Confirmf(ctx context.Context, format string, a ...any) (bool, error) {
 	return Confirm(ctx, fmt.Sprintf(format, a...))
 }
 
@@ -182,12 +187,17 @@ func ConfirmYes(ctx context.Context, message string) (confirm bool, err error) {
 }
 
 func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
+	var opt survey.AskOpt
+	if opt, err = newSurveyIO(ctx); err != nil {
+		return
+	}
+
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	prompt := &survey.Confirm{
 		Message: colorize.Yellow(fmt.Sprintf(`Overwrite "%s"?`, filename)),
 	}
-	err = survey.AskOne(prompt, &confirm)
+	err = survey.AskOne(prompt, &confirm, opt)
 
 	return
 }
@@ -206,6 +216,7 @@ func (NonInteractiveError) Unwrap() error { return ErrNonInteractive }
 
 func isInteractive(ctx context.Context) bool {
 	io := iostreams.FromContext(ctx)
+
 	return io.IsInteractive()
 }
 
@@ -241,12 +252,12 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
-func Org(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
+func Org(ctx context.Context) (*uiex.Organization, error) {
+	client := uiexutil.ClientFromContext(ctx)
 
 	slug := config.FromContext(ctx).Organization
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := client.ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -255,9 +266,8 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	io := iostreams.FromContext(ctx)
 
 	switch {
-	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":
-		fmt.Fprintf(io.ErrOut, "automatically selected %s organization: %s\n",
-			strings.ToLower(orgs[0].Type), orgs[0].Name)
+	case slug == "" && len(orgs) == 1 && orgs[0].Personal:
+		fmt.Fprintf(io.ErrOut, "automatically selected personal organization: %s\n", orgs[0].Name)
 
 		return &orgs[0], nil
 	case slug != "":
@@ -280,11 +290,11 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	}
 }
 
-func SelectOrg(ctx context.Context, orgs []fly.Organization) (org *fly.Organization, err error) {
+func SelectOrg(ctx context.Context, orgs []uiex.Organization) (org *uiex.Organization, err error) {
 	var options []string
 	for _, org := range orgs {
 		personalCallout := ""
-		if org.Type == "PERSONAL" && org.Slug != "personal" {
+		if org.Personal && org.Slug != "personal" {
 			personalCallout = " [personal]"
 		}
 		options = append(options, fmt.Sprintf("%s (%s)%s", org.Name, org.Slug, personalCallout))
@@ -320,10 +330,18 @@ var (
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := flyutil.ClientFromContext(ctx)
-			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			flapsClient := flapsutil.ClientFromContext(ctx)
+			regionData, err := flapsClient.GetRegions(ctx)
 			if err != nil {
 				return RegionInfo{}, err
+			}
+			regions := regionData.Regions
+
+			var defaultRegion *fly.Region
+			if regionData.Nearest != "" {
+				if nearest, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == regionData.Nearest }); ok {
+					defaultRegion = &nearest
+				}
 			}
 
 			// Filter out deprecated regions
@@ -335,6 +353,7 @@ func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 				Regions:       regions,
 				DefaultRegion: defaultRegion,
 			}
+
 			return regionInfo, err
 		})
 	})
@@ -396,6 +415,7 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 				return regionCode == region.Code
 			})
 		})
+
 		return &regions, nil
 	default:
 
@@ -539,6 +559,7 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []fly.Region, regio
 			selectedRegions = append(selectedRegions, regions[index])
 		}
 	}
+
 	return
 }
 
@@ -558,11 +579,13 @@ func SelectVMSize(ctx context.Context, vmSizes []fly.VMSize) (vmSize *fly.VMSize
 	if err := Select(ctx, &index, "Select VM size:", "", options...); err != nil {
 		return nil, err
 	}
+
 	return &vmSizes[index], nil
 }
 
 func SelectAppName(ctx context.Context) (name string, err error) {
 	const msg = "Choose an app name (leave blank to generate one):"
+
 	return SelectAppNameWithMsg(ctx, msg)
 }
 
@@ -570,5 +593,6 @@ func SelectAppNameWithMsg(ctx context.Context, msg string) (name string, err err
 	if err = String(ctx, &name, msg, "", false); IsNonInteractive(err) {
 		err = NonInteractiveError("name argument or flag must be specified when not running interactively")
 	}
+
 	return
 }

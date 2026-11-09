@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -87,7 +88,7 @@ destination = "/data"
 	t.Logf("scale up %s to %d machines", appName, n)
 	f.Fly("scale count -y %d", n)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assertMachineCount(c, f, appName, n)
+		assertMachineCount(c, f.Collect(c), appName, n)
 	}, 1*time.Minute, 1*time.Second)
 
 	// Ideally n, but right now we can't guarantee that.
@@ -117,30 +118,40 @@ primary_region = "%s"
 
 	// Extend the volume because if not found, scaling will default to 1GB.
 	f.Fly("volume extend %s --size 4 --app %s", ml[0].Config.Mounts[0].Volume, appName)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		result := f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", ml[0].Config.Mounts[0].Volume, appName)
+		if !assert.Zero(c, result.ExitCode(), result.StdErrString()) {
+			return
+		}
+
+		var volume fly.Volume
+		result.StdOutJSON(&volume)
+		assert.Equal(c, 4, volume.SizeGb)
+	}, time.Minute, 2*time.Second, "volume %s never reached 4 GB", ml[0].Config.Mounts[0].Volume)
 
 	f.Fly("scale count -y 2")
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml = f.MachinesList(appName)
+		ml = f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 2, len(ml))
 	}, 10*time.Second, 2*time.Second)
 
 	if f.SecondaryRegion() != "" {
 		f.Fly("scale count -y 1 --region %s", f.SecondaryRegion())
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
-			ml = f.MachinesList(appName)
+			ml = f.Collect(c).MachinesList(appName)
 			assert.Equal(c, 3, len(ml))
 		}, 10*time.Second, 2*time.Second)
 	}
 
 	f.Fly("scale count -y 0")
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml = f.MachinesList(appName)
+		ml = f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 0, len(ml))
 	}, 10*time.Second, 1*time.Second)
 
 	f.Fly("scale count -y 2")
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml = f.MachinesList(appName)
+		ml = f.Collect(c).MachinesList(appName)
 		assert.Equal(c, 2, len(ml))
 	}, 10*time.Second, 1*time.Second)
 

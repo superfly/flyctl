@@ -10,5 +10,6 @@ func newResume() *cobra.Command {
 	resume := command.New("resume <APPNAME>", "", "", nil)
 	resume.Hidden = true
 	resume.Deprecated = "use `fly scale count` instead"
+
 	return resume
 }

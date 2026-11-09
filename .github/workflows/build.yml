@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: '21 */2 * * *'
   push:
+    branches:
+      - master
   pull_request:
 
 concurrency:
@@ -13,17 +15,17 @@ jobs:
   test_build:
     runs-on: ubuntu-latest-m
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
           check-latest: true
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: build
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@v7.3.0
         env:
           BUILD_ENV: "development"
         with:
@@ -38,7 +40,7 @@ jobs:
 
   preflight:
     # Only run preflight on master pushes, scheduled runs, or pull requests
-    if: ${{ github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request' }}
+    if: ${{ (github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request') && github.actor != 'dependabot[bot]' }}
     needs: test_build
     uses: ./.github/workflows/preflight.yml
     secrets: inherit

@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -59,6 +58,7 @@ func newFork() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -67,7 +67,6 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -77,12 +76,10 @@ func runFork(ctx context.Context) error {
 		err error
 	)
 	if volID == "" {
-		var app *fly.AppBasic
-		app, err = client.GetAppBasic(ctx, appName)
-		if err != nil {
+		if _, err = flapsClient.GetApp(ctx, appName); err != nil {
 			return err
 		}
-		vol, err = selectVolume(ctx, flapsClient, app)
+		vol, err = selectVolume(ctx, flapsClient, appName)
 		if err != nil {
 			return err
 		}
@@ -100,6 +97,21 @@ func runFork(ctx context.Context) error {
 
 	region := flag.GetString(ctx, "region")
 
+	// A volume lives on a single host, so if that host is unavailable the volume
+	// can't be forked. Report this directly and suggest restoring from a snapshot
+	// as an alternative.
+	if vol.HostStatus != string(fly.HostStatusOk) {
+		return fmt.Errorf(
+			"can't fork volume %s: it's on a host that is currently unavailable or unreachable (host status: %q).\n"+
+				"If the host doesn't recover, you can create a new volume from a recent snapshot instead:\n"+
+				"  fly volume snapshots list %s -a %s\n"+
+				"  fly volume create %s --snapshot-id <snapshot id> -a %s",
+			vol.ID, vol.HostStatus,
+			vol.ID, appName,
+			name, appName,
+		)
+	}
+
 	var attachedMachineImage string
 	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
@@ -107,7 +119,11 @@ func runFork(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		attachedMachineGuest = m.Config.Guest
+		// Guard against a nil config (e.g. the machine's host went unhealthy
+		// between fetching the volume and the machine) so we never panic here.
+		if m.Config != nil {
+			attachedMachineGuest = m.Config.Guest
+		}
 		attachedMachineImage = m.FullImageRef()
 	}
 
@@ -118,8 +134,8 @@ func runFork(ctx context.Context) error {
 
 	input := fly.CreateVolumeRequest{
 		Name:                name,
-		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
-		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
+		RequireUniqueZone:   new(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   new(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,

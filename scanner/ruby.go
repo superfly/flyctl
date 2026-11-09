@@ -24,7 +24,7 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, errors.Wrap(err, "failure extracting Ruby version")
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 	vars["rubyVersion"] = rubyVersion
 	s.Files = templatesExecute("templates/ruby", vars)
 
@@ -55,6 +55,7 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 		for i, name := range re.SubexpNames() {
 			if len(m) > 0 && name == "version" {
 				version = m[i]
+
 				break
 			}
 		}
@@ -93,6 +94,7 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 			for i, name := range re.SubexpNames() {
 				if len(m) > 0 && name == "version" {
 					version = m[i]
+
 					break
 				}
 			}

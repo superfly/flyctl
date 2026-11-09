@@ -86,7 +86,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		// Run asdf install with one retry on failure
 		var cmd *exec.Cmd
 		var err error
-		for attempt := 0; attempt < 2; attempt++ {
+		for range 2 {
 			cmd = exec.Command("asdf", "install")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -347,6 +347,7 @@ func install_litestream() error {
 	// If we didn't complete the insertion, return without writing to file
 	if !insertedLitestreamInstall || !insertedEntrypoint || !copiedLitestream {
 		fmt.Println("Failed to insert Litestream installation commands. Skipping Litestream installation.")
+
 		return nil
 	} else {
 		fmt.Fprintln(os.Stdout, "Updating Dockerfile to install Litestream")

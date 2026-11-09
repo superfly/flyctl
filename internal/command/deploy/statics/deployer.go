@@ -12,8 +12,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
-	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -40,8 +41,8 @@ const staticsKeepVersions = 3
 
 type DeployerState struct {
 	// State that's pulled from the larger machines deployment
-	app            *fly.App
-	org            *fly.Organization
+	app            *flaps.App
+	org            *uiex.Organization
 	appConfig      *appconfig.Config
 	releaseVersion int
 
@@ -52,7 +53,7 @@ type DeployerState struct {
 	originalStatics []appconfig.Static
 }
 
-func Deployer(appConfig *appconfig.Config, app *fly.App, org *fly.Organization, releaseVersion int) *DeployerState {
+func Deployer(appConfig *appconfig.Config, app *flaps.App, org *uiex.Organization, releaseVersion int) *DeployerState {
 	return &DeployerState{
 		app:            app,
 		appConfig:      appConfig,
@@ -108,6 +109,7 @@ func (deployer *DeployerState) Configure(ctx context.Context) error {
 	}
 
 	deployer.root = fmt.Sprintf("fly-statics/%s/%d", deployer.appConfig.AppName, deployer.releaseVersion)
+
 	return nil
 }
 
@@ -119,8 +121,8 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 	// List `fly-statics/<app_name>/` to get a list of all versions.
 	paginator := s3.NewListObjectsV2Paginator(deployer.s3, &s3.ListObjectsV2Input{
 		Bucket:    &deployer.bucket,
-		Prefix:    fly.Pointer(fmt.Sprintf("fly-statics/%s/", appName)),
-		Delimiter: fly.Pointer("/"),
+		Prefix:    new(fmt.Sprintf("fly-statics/%s/", appName)),
+		Delimiter: new("/"),
 	})
 
 	versionSet := map[int]struct{}{}
@@ -143,6 +145,7 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 			if err != nil {
 				return 0, false
 			}
+
 			return num, true
 		})
 		for _, version := range versions {
@@ -252,7 +255,7 @@ func (deployer *DeployerState) CleanupAfterFailure(_ context.Context) {
 
 	terminal.Debugf("Cleaning up failed statics push\n")
 
-	deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	deleteCtx, cancel := context.WithTimeoutCause(context.Background(), 5*time.Second, fmt.Errorf("deleting failed statics deployment: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	err := deployer.deleteDirectory(deleteCtx, deployer.root)

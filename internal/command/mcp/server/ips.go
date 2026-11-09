@@ -171,7 +171,7 @@ var IPCommands = []FlyCommand{
 
 			if addresses, ok := args["addresses"]; ok {
 				// Split comma-separated addresses and add each as a separate argument
-				for _, addr := range strings.Split(addresses, ",") {
+				for addr := range strings.SplitSeq(addresses, ",") {
 					addr = strings.TrimSpace(addr)
 					if addr != "" {
 						cmdArgs = append(cmdArgs, addr)

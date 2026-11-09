@@ -10,8 +10,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
@@ -37,8 +39,8 @@ func newCreate() *cobra.Command {
 		newMachineExec(),
 		newOrg(),
 		newOrgRead(),
-		newLiteFSCloud(),
 		newSSH(),
+		newWireGuard(),
 	)
 
 	return cmd
@@ -137,6 +139,7 @@ func newOrgRead() *cobra.Command {
 			Description: "Token name",
 			Default:     "Read-only org token",
 		},
+		flag.Org(),
 	)
 
 	return cmd
@@ -169,42 +172,6 @@ func newDeploy() *cobra.Command {
 			Shorthand:   "x",
 			Description: "The duration that the token will be valid",
 			Default:     time.Hour * 24 * 365 * 20,
-		},
-	)
-
-	return cmd
-}
-
-func newLiteFSCloud() *cobra.Command {
-	const (
-		short = "Create LiteFS Cloud tokens"
-		long  = "Create an API token limited to a single LiteFS Cloud cluster."
-		usage = "litefs-cloud"
-	)
-
-	cmd := command.New(usage, short, long, runLiteFSCloud,
-		command.RequireSession,
-	)
-
-	flag.Add(cmd,
-		flag.JSONOutput(),
-		flag.Org(),
-		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "Token name",
-			Default:     "LiteFS Cloud token",
-		},
-		flag.Duration{
-			Name:        "expiry",
-			Shorthand:   "x",
-			Description: "The duration that the token will be valid",
-			Default:     time.Hour * 24 * 365 * 20,
-		},
-		flag.String{
-			Name:        "cluster",
-			Shorthand:   "c",
-			Description: "Cluster name",
 		},
 	)
 
@@ -254,6 +221,37 @@ func newMachineExec() *cobra.Command {
 	return cmd
 }
 
+func newWireGuard() *cobra.Command {
+	const (
+		short = "Create a WireGuard token"
+		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		usage = "wireguard"
+	)
+
+	cmd := command.New(usage, short, long, runWireGuard,
+		command.RequireSession,
+	)
+
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "WireGuard token",
+		},
+		flag.Org(),
+	)
+
+	return cmd
+}
+
 func makeToken(ctx context.Context, apiClient flyutil.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
@@ -267,6 +265,7 @@ func makeToken(ctx context.Context, apiClient flyutil.Client, orgID string, expi
 	if err != nil {
 		return nil, fmt.Errorf("failed creating token: %w", err)
 	}
+
 	return resp, nil
 }
 
@@ -312,14 +311,19 @@ func runSSH(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
 	// start with app deploy token and then pare it down.
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -339,7 +343,7 @@ func runSSH(ctx context.Context) error {
 		return fmt.Errorf("failed decoding tokens from API: %w", err)
 	}
 
-	if err := orgAppReadMac.Add(ptr(resset.ActionRead)); err != nil {
+	if err := orgAppReadMac.Add(new(resset.ActionRead)); err != nil {
 		return fmt.Errorf("failed to attenuate org-app-read token: %w", err)
 	}
 
@@ -481,13 +485,18 @@ func runDeploy(ctx context.Context) (err error) {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -516,13 +525,18 @@ func runMachineExec(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.Name,
 	})
 	if err != nil {
 		return err
@@ -535,6 +549,52 @@ func runMachineExec(ctx context.Context) error {
 	}
 
 	token, err = attenuate(token, cmdCav)
+	if err != nil {
+		return err
+	}
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
+func runWireGuard(ctx context.Context) error {
+	var token string
+	apiClient := flyutil.ClientFromContext(ctx)
+
+	expiry := ""
+	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving org %w", err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	token, err = attenuate(token, &resset.IfPresent{
+		Ifs: macaroon.NewCaveatSet(
+			&flyio.Apps{Apps: resset.ResourceSet[uint64, resset.Action]{}},
+			&flyio.FeatureSet{
+				Features: resset.ResourceSet[string, resset.Action]{
+					flyio.FeatureWireGuard: resset.ActionAll,
+				},
+			},
+		),
+		Else: resset.ActionRead,
+	})
 	if err != nil {
 		return err
 	}
@@ -571,6 +631,7 @@ func attenuate(token string, cavs ...macaroon.Caveat) (string, error) {
 	}
 
 	atoken = macaroon.ToAuthorizationHeader(append([][]byte{perm}, disToks...)...)
+
 	return atoken, nil
 }
 
@@ -624,46 +685,4 @@ func getCommandCaveat(ctx context.Context) (macaroon.Caveat, error) {
 	}
 
 	return cav, nil
-}
-
-func runLiteFSCloud(ctx context.Context) (err error) {
-	var token string
-	apiClient := flyutil.ClientFromContext(ctx)
-
-	expiry := ""
-	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
-		expiry = expiryDuration.String()
-	}
-
-	cluster := flag.GetString(ctx, "cluster")
-	if cluster == "" {
-		return fmt.Errorf("cluster name is not provided")
-	}
-
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving org %w", err)
-	}
-
-	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "litefs_cloud", &gql.LimitedAccessTokenOptions{
-		"cluster": cluster,
-	})
-	if err != nil {
-		return err
-	}
-
-	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-
-	io := iostreams.FromContext(ctx)
-	if config.FromContext(ctx).JSONOutput {
-		render.JSON(io.Out, map[string]string{"token": token})
-	} else {
-		fmt.Fprintln(io.Out, token)
-	}
-
-	return nil
-}
-
-func ptr[T any](t T) *T {
-	return &t
 }

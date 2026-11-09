@@ -11,11 +11,11 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/ping"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
-	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
@@ -23,7 +23,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 		return fmt.Errorf("wireguard ping gateway: can't establish agent client: %w", err)
 	}
 
-	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
+	org, err := uiexClient.GetOrganization(ctx, orgSlug)
 	if err != nil {
 		// shouldn't happen, already verified auth token
 		return fmt.Errorf("wireguard ping gateway: can't get org %s: %w", orgSlug, err)
@@ -43,7 +43,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 
 	replyBuf := make([]byte, 1000)
 
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		_, err = pinger.WriteTo(ping.EchoRequest(0, i, time.Now(), 12), &net.IPAddr{IP: net.ParseIP(ns)})
 
 		pinger.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
@@ -59,7 +59,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 }
 
 func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
-	client := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
@@ -67,7 +67,7 @@ func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 		return fmt.Errorf("wireguard dialer: can't establish agent client: %w", err)
 	}
 
-	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
+	org, err := uiexClient.GetOrganization(ctx, orgSlug)
 	if err != nil {
 		// shouldn't happen, already verified auth token
 		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
@@ -82,7 +82,7 @@ func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 }
 
 func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
-	apiClient := flyutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	// Set up the agent connection
 	ac, err := agent.DefaultClient(ctx)
@@ -92,7 +92,7 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 	}
 
 	// Connect to the personal org via WireGuard
-	org, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
+	org, err := uiexClient.GetOrganization(ctx, orgSlug)
 	if err != nil {
 		// shouldn't happen, already verified auth token
 		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
@@ -131,6 +131,7 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: failed to read HTTP response: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 404 {
 		return fmt.Errorf("wireguard dialer: expected 404, got %d", resp.StatusCode)

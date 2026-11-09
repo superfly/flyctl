@@ -30,6 +30,7 @@ func buildkitEnabled(docker *dockerclient.Client) (buildkitEnabled bool, err err
 			return false, fmt.Errorf("DOCKER_BUILDKIT environment variable expects boolean value: %w", err)
 		}
 	}
+
 	return buildkitEnabled, nil
 }
 
@@ -87,6 +88,7 @@ func newDisplay(statusCh chan *client.SolveStatus) func() error {
 		//
 		// See https://github.com/superfly/flyctl/pull/2682 for the context.
 		_, err = display.UpdateFrom(context.Background(), statusCh)
+
 		return err
 
 	}

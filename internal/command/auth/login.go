@@ -3,14 +3,17 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newLogin() *cobra.Command {
@@ -18,6 +21,10 @@ func newLogin() *cobra.Command {
 		long = `Logs a user into the Fly platform. Supports browser-based,
 email/password and one-time-password authentication. Defaults to using
 browser-based authentication.
+
+Use --code to finish a browser login that is waiting for approval, with
+the one-time code the approval page shows: for example when the browser
+is on another machine, or the waiting command was stopped.
 `
 		short = "Log in a user"
 	)
@@ -42,7 +49,16 @@ browser-based authentication.
 			Name:        "otp",
 			Description: "One time password",
 		},
+		flag.String{
+			Name:        "code",
+			Description: "Finish a login that is waiting for approval, with the one-time code its approval page shows",
+		},
 	)
+
+	// --code finishes a browser login another `fly auth login` started.
+	for _, other := range []string{"interactive", "email", "password", "otp"} {
+		cmd.MarkFlagsMutuallyExclusive("code", other)
+	}
 
 	return cmd
 }
@@ -53,12 +69,20 @@ func runLogin(ctx context.Context) error {
 		email       = flag.GetString(ctx, "email")
 		password    = flag.GetString(ctx, "password")
 		otp         = flag.GetString(ctx, "otp")
+		code        = flag.GetString(ctx, "code")
 
 		err   error
 		token string
 	)
 
 	switch {
+	case code != "":
+		var finish func()
+		if token, finish, err = webauth.RedeemPendingLogin(ctx, code); err == nil {
+			// Runs after SaveToken: a login still waiting elsewhere stops once
+			// the pending login is gone, and expects the new token by then.
+			defer finish()
+		}
 	case interactive, email != "", password != "", otp != "":
 		token, err = runShellLogin(ctx, email, password, otp)
 	default:
@@ -68,7 +92,48 @@ func runLogin(ctx context.Context) error {
 		return err
 	}
 
-	return webauth.SaveToken(ctx, token)
+	if err := webauth.SaveToken(ctx, token); err != nil {
+		return err
+	}
+
+	if warning := loginTokenOverrideWarning(); warning != "" {
+		io := iostreams.FromContext(ctx)
+		colorize := io.ColorScheme()
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "\n%s %s\n", colorize.WarningIcon(), colorize.Yellow(warning))
+	}
+
+	return nil
+}
+
+func loginTokenOverrideWarning() string {
+	warnFor := func(envVar string) string {
+		return fmt.Sprintf(
+			"Environment variable %s is set, so flyctl will continue using it instead of the access token just saved. Unset %s to use the new access token.",
+			envVar, envVar,
+		)
+	}
+
+	// Keep this precedence in sync with config.applyEnv. An explicitly empty
+	// FLY_ACCESS_TOKEN prevents FLY_API_TOKEN from being selected.
+	if token, ok := os.LookupEnv(config.AccessTokenEnvKey); ok {
+		if token == "" {
+			return ""
+		}
+		if apiToken := os.Getenv(config.APITokenEnvKey); apiToken != "" {
+			return fmt.Sprintf(
+				"Environment variables %s and %s are set. flyctl will continue using these instead of the access token just saved. Unset both variables to use the new access token.",
+				config.AccessTokenEnvKey, config.APITokenEnvKey,
+			)
+		}
+
+		return warnFor(config.AccessTokenEnvKey)
+	}
+
+	if token := os.Getenv(config.APITokenEnvKey); token != "" {
+		return warnFor(config.APITokenEnvKey)
+	}
+
+	return ""
 }
 
 type requiredWhenNonInteractive string

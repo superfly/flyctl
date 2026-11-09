@@ -9,8 +9,12 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 )
 
 func CompleteApps(
@@ -19,44 +23,52 @@ func CompleteApps(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	var (
-		client = flyutil.ClientFromContext(ctx)
+	type appInfo struct {
+		name, orgName, status string
+	}
 
-		apps []fly.App
-		err  error
-	)
+	var apps []appInfo
 
 	orgFiltered := false
 
 	// We can't use `flag.*` here because of import cycles. *sigh*
 	orgFlag := cmd.Flag(flagnames.Org)
 	if orgFlag != nil && orgFlag.Changed {
-		var org *fly.Organization
-		org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
+		flapsClient := flapsutil.ClientFromContext(ctx)
+		flapsApps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{OrgSlug: orgFlag.Value.String()})
 		if err != nil {
 			return nil, err
 		}
-		apps, err = client.GetAppsForOrganization(ctx, org.ID)
+		for _, app := range flapsApps {
+			apps = append(apps, appInfo{name: app.Name, orgName: app.Organization.Name, status: app.Status})
+		}
 		orgFiltered = true
 	} else {
-		apps, err = client.GetApps(ctx, nil)
-	}
-	if err != nil {
-		return nil, err
+		client := flyutil.ClientFromContext(ctx)
+		gqlApps, err := client.GetApps(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, app := range gqlApps {
+			apps = append(apps, appInfo{name: app.Name, orgName: app.Organization.Name, status: app.Status})
+		}
 	}
 
-	ret := lo.FilterMap(apps, func(app fly.App, _ int) (string, bool) {
-		if strings.HasPrefix(app.Name, partial) {
+	ret := lo.FilterMap(apps, func(app appInfo, _ int) (string, bool) {
+		if strings.HasPrefix(app.name, partial) {
 			var info []string
 			if !orgFiltered {
-				info = append(info, app.Organization.Name)
+				info = append(info, app.orgName)
 			}
-			info = append(info, app.Status)
-			return fmt.Sprintf("%s\t%s", app.Name, strings.Join(info, ", ")), true
+			info = append(info, app.status)
+
+			return fmt.Sprintf("%s\t%s", app.name, strings.Join(info, ", ")), true
 		}
+
 		return "", false
 	})
 	slices.Sort(ret)
+
 	return ret, nil
 }
 
@@ -66,13 +78,11 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := flyutil.ClientFromContext(ctx)
-
-	format := func(org fly.Organization) string {
+	format := func(org uiex.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := uiexutil.ClientFromContext(ctx).ListOrganizations(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +94,7 @@ func CompleteOrgs(
 		return strings.HasPrefix(name, partial)
 	})
 	slices.Sort(ret)
+
 	return ret, nil
 }
 
@@ -93,16 +104,22 @@ func CompleteRegions(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	format := func(org fly.Region) string {
 		return fmt.Sprintf("%s\t%s", org.Code, org.Name)
 	}
 
 	// TODO(ali): Do we need to worry about which ones are marked as "gateway"?
-	regions, reqRegion, err := client.PlatformRegions(ctx)
+	regionData, err := flapsClient.GetRegions(ctx)
 	if err != nil {
 		return nil, err
+	}
+	regions := regionData.Regions
+
+	var reqRegion *fly.Region
+	if nearest, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == regionData.Nearest }); ok {
+		reqRegion = &nearest
 	}
 
 	// Filter out deprecated regions
@@ -114,6 +131,7 @@ func CompleteRegions(
 		if strings.HasPrefix(region.Code, partial) {
 			return format(region), true
 		}
+
 		return "", false
 	})
 	slices.Sort(regionNames)
@@ -125,5 +143,6 @@ func CompleteRegions(
 			regionNames = append([]string{regionNames[idx]}, append(regionNames[:idx], regionNames[idx+1:]...)...)
 		}
 	}
+
 	return regionNames, nil
 }

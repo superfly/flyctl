@@ -32,6 +32,7 @@ func Finish() {
 	harJson, err := json.MarshalIndent(har.Container, "", "    ")
 	if err != nil {
 		terminal.Warnf("error serializing HAR: %v\n", err)
+
 		return
 	}
 

@@ -3,22 +3,26 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -89,28 +93,31 @@ func newConfigUpdate() (cmd *cobra.Command) {
 }
 
 func runConfigUpdate(ctx context.Context) error {
-	var (
-		client  = flyutil.ClientFromContext(ctx)
-		appName = appconfig.NameFromContext(ctx)
-	)
+	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
 		return err
 	}
-	return runMachineConfigUpdate(ctx, app)
+
+	ctx, err = apps.BuildContextForApp(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	return runMachineConfigUpdate(ctx, app, org)
 }
 
-func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
+func runMachineConfigUpdate(ctx context.Context, app *flaps.App, org *uiex.Organization) error {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -150,7 +157,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 			return err
 		}
 	default:
-		requiresRestart, err = updateStolonConfig(ctx, app, leader.PrivateIP)
+		requiresRestart, err = updateStolonConfig(ctx, app, org, leader.PrivateIP)
 		if err != nil {
 			return err
 		}
@@ -183,7 +190,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 	return nil
 }
 
-func updateStolonConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
+func updateStolonConfig(ctx context.Context, app *flaps.App, org *uiex.Organization, leaderIP string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 
 	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.StolonManager, leaderIP)
@@ -192,7 +199,7 @@ func updateStolonConfig(ctx context.Context, app *fly.AppCompact, leaderIP strin
 	}
 
 	fmt.Fprintln(io.Out, "Performing update...")
-	cmd, err := flypg.NewCommand(ctx, app)
+	cmd, err := flypg.NewCommand(ctx, app, org)
 	if err != nil {
 		return false, err
 	}
@@ -206,7 +213,7 @@ func updateStolonConfig(ctx context.Context, app *fly.AppCompact, leaderIP strin
 	return restartRequired, nil
 }
 
-func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
+func updateFlexConfig(ctx context.Context, app *flaps.App, leaderIP string) (bool, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -249,7 +256,7 @@ func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string)
 	return restartRequired, nil
 }
 
-func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) (bool, map[string]string, error) {
+func resolveConfigChanges(ctx context.Context, app *flaps.App, manager string, leaderIP string) (bool, map[string]string, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -365,11 +372,10 @@ func isRestartRequired(pgSettings *flypg.PGSettings, name string) bool {
 func validateConfigValue(setting flypg.PGSetting, key, val string) error {
 	switch setting.VarType {
 	case "enum":
-		for _, enumVal := range setting.EnumVals {
-			if enumVal == val {
-				return nil
-			}
+		if slices.Contains(setting.EnumVals, val) {
+			return nil
 		}
+
 		return fmt.Errorf("invalid value specified for %s. Received: %s, Accepted values: [%s]", key, val, strings.Join(setting.EnumVals, ", "))
 	case "integer":
 		min, err := strconv.Atoi(setting.MinVal)

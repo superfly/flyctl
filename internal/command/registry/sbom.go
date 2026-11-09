@@ -75,5 +75,6 @@ func runSbom(ctx context.Context) error {
 	if _, err := io.Copy(ios.Out, res.Body); err != nil {
 		return fmt.Errorf("failed to read SBOM: %w", err)
 	}
+
 	return nil
 }

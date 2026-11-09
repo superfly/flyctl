@@ -36,22 +36,6 @@ func NewClient(s *Server) *Client {
 	}
 }
 
-func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error) {
-	panic("TODO")
-}
-
-func (m *Client) AllocateAppScopedEgressIPAddress(ctx context.Context, appName string, region string) (net.IP, net.IP, error) {
-	panic("TODO")
-}
-
-func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
-	panic("TODO")
-}
-
-func (m *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error) {
-	panic("TODO")
-}
-
 func (m *Client) AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error) {
 	panic("TODO")
 }
@@ -72,31 +56,7 @@ func (m *Client) CanPerformBluegreenDeployment(ctx context.Context, appName stri
 	panic("TODO")
 }
 
-func (m *Client) CheckAppCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error) {
-	panic("TODO")
-}
-
 func (m *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*fly.Region, error) {
-	panic("TODO")
-}
-
-func (m *Client) CreateApp(ctx context.Context, input fly.CreateAppInput) (*fly.App, error) {
-	panic("TODO")
-}
-
-func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error) {
-	build, err := m.server.CreateBuild(ctx, input.AppName)
-	if err != nil {
-		return nil, err
-	}
-
-	var resp fly.CreateBuildResponse
-	resp.CreateBuild.Id = build.ID
-	resp.CreateBuild.Status = build.Status
-	return &resp, nil
-}
-
-func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, orgID string, name string) (*fly.DelegatedWireGuardToken, error) {
 	panic("TODO")
 }
 
@@ -112,31 +72,7 @@ func (m *Client) CreateOrganizationInvite(ctx context.Context, id, email string)
 	panic("TODO")
 }
 
-func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error) {
-	release, err := m.server.CreateRelease(ctx, input.AppId, input.ClientMutationId, input.Image, input.PlatformVersion, string(input.Strategy))
-	if err != nil {
-		return nil, err
-	}
-
-	var resp fly.CreateReleaseResponse
-	resp.CreateRelease.Release.Id = release.ID
-	resp.CreateRelease.Release.Version = release.Version
-	return &resp, nil
-}
-
 func (m *Client) CreateWireGuardPeer(ctx context.Context, orgID string, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
-	panic("TODO")
-}
-
-func (m *Client) DeleteApp(ctx context.Context, appName string) error {
-	panic("TODO")
-}
-
-func (m *Client) DeleteCertificate(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error) {
-	panic("TODO")
-}
-
-func (m *Client) DeleteDelegatedWireGuardToken(ctx context.Context, orgID string, name, token *string) error {
 	panic("TODO")
 }
 
@@ -156,14 +92,6 @@ func (m *Client) EnablePostgresConsul(ctx context.Context, appName string) (*fly
 	panic("TODO")
 }
 
-func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error) {
-	panic("TODO")
-}
-
-func (m *Client) EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error) {
-	panic("TODO")
-}
-
 func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error) {
 	build, err := m.server.FinishBuild(ctx, input.BuildId, input.Status)
 	if err != nil {
@@ -173,18 +101,11 @@ func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*
 	var resp fly.FinishBuildResponse
 	resp.FinishBuild.Id = build.ID
 	resp.FinishBuild.Status = build.Status
+
 	return &resp, nil
 }
 
 func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error) {
 	panic("TODO")
 }
 
@@ -200,14 +121,6 @@ func (m *Client) GetAppCompact(ctx context.Context, appName string) (*fly.AppCom
 	return app.Compact(), nil
 }
 
-func (m *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetAppCNAMETarget(ctx context.Context, appName string) (string, error) {
-	panic("TODO")
-}
-
 func (m *Client) GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error) {
 	panic("TODO")
 }
@@ -216,27 +129,11 @@ func (m *Client) GetAppLimitedAccessTokens(ctx context.Context, appName string) 
 	panic("TODO")
 }
 
-func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.App, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error) {
-	panic("TODO")
-}
-
 func (m *Client) GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error) {
 	panic("TODO")
 }
 
 func (m *Client) GetAppNameFromVolume(ctx context.Context, volID string) (*string, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetAppNameStateFromVolume(ctx context.Context, volID string) (*string, *string, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetAppNetwork(ctx context.Context, appName string) (*string, error) {
 	panic("TODO")
 }
 
@@ -252,28 +149,12 @@ func (m *Client) GetApps(ctx context.Context, role *string) ([]fly.App, error) {
 	panic("TODO")
 }
 
-func (m *Client) GetAppsForOrganization(ctx context.Context, orgID string) ([]fly.App, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetAppScopedEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
-	return make(map[string][]fly.EgressIPAddress), nil
-}
-
 func (m *Client) GetCurrentUser(ctx context.Context) (*fly.User, error) {
 	return m.CurrentUser, nil
 }
 
-func (m *Client) GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error) {
-	panic("TODO")
-}
-
 func (m *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*fly.OrganizationDetails, error) {
 	panic("TODO")
-}
-
-func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error) {
-	return nil, nil // TODO
 }
 
 func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
@@ -296,23 +177,7 @@ func (m *Client) GetMachine(ctx context.Context, machineId string) (*fly.GqlMach
 	panic("TODO")
 }
 
-func (m *Client) GetNearestRegion(ctx context.Context) (*fly.Region, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
-	app, err := m.GetAppCompact(ctx, appName)
-	if err != nil {
-		return nil, err
-	}
-	return &fly.Organization{ID: app.Organization.ID}, nil
-}
-
-func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
-	panic("TODO")
-}
-
-func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
+func (m *Client) GetOrgLimitedAccessTokens(ctx context.Context, orgSlug string) ([]fly.LimitedAccessToken, error) {
 	panic("TODO")
 }
 
@@ -332,11 +197,11 @@ func (m *Client) RemoveAllowedReplaySourceOrgs(ctx context.Context, orgSlug stri
 	panic("TODO")
 }
 
-func (m *Client) GetSnapshotsFromVolume(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error) {
+func (m *Client) GetAllowAllCrossNetworkReplays(ctx context.Context, slug string) (bool, error) {
 	panic("TODO")
 }
 
-func (m *Client) GetWireGuardPeer(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error) {
+func (m *Client) SetAllowAllCrossNetworkReplays(ctx context.Context, orgSlug string, allow bool) (*fly.Organization, error) {
 	panic("TODO")
 }
 
@@ -345,10 +210,6 @@ func (m *Client) GetWireGuardPeers(ctx context.Context, slug string) ([]*fly.Wir
 }
 
 func (m *Client) GenqClient() genq.Client {
-	panic("TODO")
-}
-
-func (m *Client) LatestImage(ctx context.Context, appName string) (string, error) {
 	panic("TODO")
 }
 
@@ -376,15 +237,7 @@ func (m *Client) PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region
 	panic("TODO")
 }
 
-func (m *Client) ReleaseAppScopedEgressIPAddress(ctx context.Context, appName, ip string) error {
-	panic("TODO")
-}
-
 func (m *Client) ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error) {
-	panic("TODO")
-}
-
-func (m *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string) error {
 	panic("TODO")
 }
 
@@ -400,6 +253,7 @@ func (m *Client) ResolveImageForApp(ctx context.Context, appName, imageRef strin
 	if image == nil {
 		return nil, fmt.Errorf("image not found for app %q: %s", appName, imageRef)
 	}
+
 	return image, nil
 }
 
@@ -421,16 +275,6 @@ func (m *Client) SetGenqClient(client genq.Client) {
 
 func (m *Client) SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error) {
 	panic("TODO")
-}
-
-func (m *Client) UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error) {
-	if err := m.server.UpdateRelease(ctx, input.ReleaseId, input.ClientMutationId, input.Status); err != nil {
-		return nil, err
-	}
-
-	var resp fly.UpdateReleaseResponse
-	resp.UpdateRelease.Release.Id = input.ReleaseId
-	return &resp, nil
 }
 
 func (m *Client) UnsetSecrets(ctx context.Context, appName string, keys []string) (*fly.Release, error) {

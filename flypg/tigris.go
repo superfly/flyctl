@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -22,11 +23,11 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 	)
 	fmt.Fprintln(io.Out, "Creating Tigris bucket for backup storage")
 
-	options := map[string]interface{}{
+	options := map[string]any{
 		"Public":     false,
 		"Accelerate": false,
 	}
-	options["website"] = map[string]interface{}{
+	options["website"] = map[string]any{
 		"domain_name": "",
 	}
 	name := config.AppName + "-postgres"
@@ -46,7 +47,14 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 		var err error
 		extension, err = extensions_core.ProvisionExtension(ctx, params)
 		if err != nil {
-			if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "Name has already been taken") {
+			// The bucket's app name is derived from the cluster's, so a
+			// collision here is expected rather than exceptional: retry under
+			// a numbered name. flaps.IsNameTakenError reads the API's
+			// name_taken code where there is one and falls back to the message
+			// otherwise -- which is what happens here, since extensions are
+			// provisioned over GraphQL and never see a Machines API status
+			// code.
+			if strings.Contains(err.Error(), "unavailable") || flaps.IsNameTakenError(err) {
 				name := fmt.Sprintf("%s-postgres-%d", config.AppName, index)
 				params.OverrideName = &name
 				index++
@@ -63,7 +71,7 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 		return nil
 	}
 
-	env := extension.Data.Environment.(map[string]interface{})
+	env := extension.Data.Environment.(map[string]any)
 
 	accessKeyId, ok := env["AWS_ACCESS_KEY_ID"].(string)
 	if !ok || accessKeyId == "" {

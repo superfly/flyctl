@@ -7,10 +7,37 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"github.com/superfly/flyctl/internal/config"
 )
+
+// StatusError is returned when api.fly.io answers with an unexpected status
+// code. It carries the code so callers can tell a transient server-side failure
+// apart from a request that will never succeed.
+type StatusError struct {
+	// Op describes the attempted operation, e.g. "update release".
+	Op string
+	// StatusCode is the HTTP status returned by api.fly.io.
+	StatusCode int
+	// Body is the raw response body, included in the error message.
+	Body string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("failed to %s (status %d): %s", e.Op, e.StatusCode, e.Body)
+}
+
+// Retryable reports whether the failure is worth another attempt. 5xx responses
+// are transient by definition, and include the 504s served by the proxy in front
+// of api.fly.io when it gives up waiting on the backend. 4xx responses mean the
+// request itself is wrong and will fail identically on a retry.
+//
+// Callers must only retry when the request is idempotent.
+func (e *StatusError) Retryable() bool {
+	return e.StatusCode >= 500
+}
 
 type DeploymentStrategy string
 
@@ -49,9 +76,12 @@ type CreateReleaseRequest struct {
 	Strategy   DeploymentStrategy `json:"strategy"`
 }
 
-func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *map[string]time.Time, err error) {
+func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context, orgSlug string) (out *map[string]time.Time, err error) {
 	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/releases/all_current", c.baseUrl)
+	if orgSlug != "" {
+		url += "?org=" + neturl.QueryEscape(orgSlug)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -77,6 +107,7 @@ func (c *Client) GetAllAppsCurrentReleaseTimestamps(ctx context.Context) (out *m
 		if err = json.Unmarshal(body, &out); err != nil {
 			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return out, nil
 	default:
 		return nil, fmt.Errorf("failed to get current release timestamps (status %d): %s", res.StatusCode, string(body))
@@ -121,6 +152,7 @@ func (c *Client) ListReleases(ctx context.Context, appName string, limit int) ([
 		if err = json.Unmarshal(body, &response); err != nil {
 			return []Release{}, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return response.Releases, nil
 	default:
 		return []Release{}, fmt.Errorf("failed to list releases (status %d): %s", res.StatusCode, string(body))
@@ -157,6 +189,7 @@ func (c *Client) GetCurrentRelease(ctx context.Context, appName string) (release
 		if err = json.Unmarshal(body, &release); err != nil {
 			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
+
 		return release, nil
 	case http.StatusNotFound:
 		return nil, nil
@@ -202,6 +235,7 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 		if err = json.Unmarshal(body, &response); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return &response.Release, nil
 	default:
 		return nil, fmt.Errorf("failed to create release (status %d): %s", res.StatusCode, string(body))
@@ -246,8 +280,9 @@ func (c *Client) UpdateRelease(ctx context.Context, releaseID, status string, me
 		if err = json.Unmarshal(body, &response); err != nil {
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
+
 		return response, nil
 	default:
-		return nil, fmt.Errorf("failed to update release (status %d): %s", res.StatusCode, string(body))
+		return nil, &StatusError{Op: "update release", StatusCode: res.StatusCode, Body: string(body)}
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -23,8 +24,10 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 var (
@@ -58,6 +61,7 @@ func newBarman() *cobra.Command {
 	cmd.Hidden = true
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
@@ -95,7 +99,6 @@ func newCreateBarman() *cobra.Command {
 func runBarmanCreate(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -104,22 +107,27 @@ func runBarmanCreate(ctx context.Context) error {
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
 
 	var region *fly.Region
-	region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
+	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
 	})
 	if err != nil {
@@ -153,22 +161,22 @@ func runBarmanCreate(ctx context.Context) error {
 
 	machineConfig.Checks = map[string]fly.MachineCheck{
 		"connection": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathConnection,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"role": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathRole,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"vm": {
-			Port:     fly.Pointer(5500),
-			Type:     fly.Pointer("http"),
+			Port:     new(5500),
+			Type:     new("http"),
 			HTTPPath: &CheckPathVm,
 			Interval: &fly.Duration{Duration: Duration15s},
 			Timeout:  &fly.Duration{Duration: Duration10s},
@@ -191,7 +199,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	imageRepo := "flyio/postgres-flex"
 
-	imageRef, err := client.GetLatestImageTag(ctx, imageRepo, nil)
+	imageRef, err := flyutil.ClientFromContext(ctx).GetLatestImageTag(ctx, imageRepo, nil)
 	if err != nil {
 		return err
 	}
@@ -202,9 +210,9 @@ func runBarmanCreate(ctx context.Context) error {
 	volInput := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              fly.Pointer(flag.GetInt(ctx, "volume-size")),
-		Encrypted:           fly.Pointer(true),
-		RequireUniqueZone:   fly.Pointer(true),
+		SizeGb:              new(flag.GetInt(ctx, "volume-size")),
+		Encrypted:           new(true),
+		RequireUniqueZone:   new(true),
 		ComputeRequirements: machineConfig.Guest,
 		ComputeImage:        machineConfig.Image,
 	}
@@ -227,7 +235,7 @@ func runBarmanCreate(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
+	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", *volInput.SizeGb)
 
 	vol, err = flapsClient.CreateVolume(ctx, appName, volInput)
 	if err != nil {
@@ -388,9 +396,10 @@ func newBarmanRecover() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *fly.AppCompact) {
-	// ignore cancelled errors
-	if errors.Is(err, context.Canceled) {
+func captureError(ctx context.Context, err error, app *flaps.App) {
+	// A remote command failure is not a failure of the SSH client.
+	var exitErr *gossh.ExitError
+	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
 		return
 	}
 
@@ -398,10 +407,10 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": app.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": app.Organization.Slug,
 			},
 		}),
@@ -410,11 +419,13 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 
 func runBarmanCheck(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman check pg")
 }
 
 func runBarmanListBackup(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman list-backup pg")
 }
 
@@ -425,6 +436,7 @@ func runBarmanShowBackup(ctx context.Context) error {
 	backupId := flag.FirstArg(ctx)
 	fmt.Printf("barman show-backup pg %s", backupId)
 	fmt.Fprintf(io.Out, "barman show-backup pg %s", backupId)
+
 	return runConsole(ctx, fmt.Sprintf("barman show-backup pg %s", backupId))
 }
 
@@ -434,6 +446,7 @@ func runBarmanBackup(ctx context.Context) error {
 
 func runBarmanSwitchWal(ctx context.Context) error {
 	printDeprecationWarning(ctx)
+
 	return runConsole(ctx, "barman switch-wal pg --force --archive")
 }
 
@@ -463,12 +476,17 @@ func runConsole(ctx context.Context, cmd string) error {
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, "", false)
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	agentclient, dialer, err := agent.BringUpAgentOrgSlug(ctx, client, app.Organization.Slug, flapsutil.NetworkName(app), false)
 	if err != nil {
 		return err
 	}
@@ -480,7 +498,7 @@ func runConsole(ctx context.Context, cmd string) error {
 
 	params := &ssh.ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		Org:            org,
 		Dialer:         dialer,
 		Username:       "root",
 		DisableSpinner: false,
@@ -489,18 +507,20 @@ func runConsole(ctx context.Context, cmd string) error {
 	sshc, err := ssh.Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
-	if err := ssh.Console(ctx, sshc, cmd, false, ""); err != nil {
+	if err := ssh.Console(ctx, sshc, cmd, false, ssh.SessionTarget{}); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
 	return nil
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, err error) {
 	addr, err = addrForMachines(ctx, app, console)
 
 	if err != nil {
@@ -511,6 +531,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
@@ -518,7 +539,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	return
 }
 
-func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *flaps.App, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
 	flapsClient := flapsutil.ClientFromContext(ctx)
 

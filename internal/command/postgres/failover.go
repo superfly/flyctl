@@ -12,6 +12,7 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -20,8 +21,9 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -64,20 +66,24 @@ func runFailover(ctx context.Context) (err error) {
 		MinPostgresStandaloneVersion = "0.0.7"
 
 		io      = iostreams.FromContext(ctx)
-		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a Postgres app", app.Name)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	org, err := uiexutil.AppOrganization(ctx, app)
+	if err != nil {
+		return err
+	}
+
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
@@ -106,10 +112,11 @@ func runFailover(ctx context.Context) (err error) {
 		force := flag.GetBool(ctx, "force")
 		allowSecondaryRegion := flag.GetBool(ctx, "allow-secondary-region")
 
-		if failoverErr := flexFailover(ctx, machines, app, force, allowSecondaryRegion); failoverErr != nil {
+		if failoverErr := flexFailover(ctx, machines, app, org, force, allowSecondaryRegion); failoverErr != nil {
 			if err := handleFlexFailoverFail(ctx, app, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
+
 			return fmt.Errorf("Failed to run failover: %s", failoverErr)
 		} else {
 			return nil
@@ -136,6 +143,7 @@ func runFailover(ctx context.Context) (err error) {
 			} else if machineRole(leader) == "leader" {
 				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
 			}
+
 			return nil
 		},
 		retry.Context(ctx), retry.Attempts(30), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay),
@@ -149,10 +157,11 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "Failover complete\n")
+
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force, allowSecondaryRegion bool) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *flaps.App, org *uiex.Organization, force, allowSecondaryRegion bool) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
 	}
@@ -203,7 +212,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		return fmt.Errorf("Could not find primary region for app")
 	}
 
-	newLeader, err := pickNewLeader(ctx, app, primaryCandidates, secondaryCandidates, allowSecondaryRegion)
+	newLeader, err := pickNewLeader(ctx, app, org, primaryCandidates, secondaryCandidates, allowSecondaryRegion)
 	if err != nil {
 		return err
 	}
@@ -235,7 +244,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	fmt.Println("Promoting new leader... ", newLeader.ID)
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		Org:      org,
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),
@@ -249,7 +258,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	fmt.Println("Waiting 30 seconds for the old leader to stop...")
-	err = flapsClient.Wait(ctx, app.Name, oldLeader, "stopped", time.Second*30)
+	err = flapsClient.Wait(ctx, app.Name, oldLeader.ID, flaps.WithWaitStates("stopped"), flaps.WithWaitTimeout(time.Second*30))
 	if err != nil {
 		return err
 	}
@@ -289,10 +298,11 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	}
 
 	fmt.Fprintf(io.Out, "Failover complete\n")
+
 	return nil
 }
 
-func handleFlexFailoverFail(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) (err error) {
+func handleFlexFailoverFail(ctx context.Context, app *flaps.App, machines []*fly.Machine) (err error) {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
@@ -314,11 +324,12 @@ func handleFlexFailoverFail(ctx context.Context, app *fly.AppCompact, machines [
 			//  it's possible that the leader hasn't even been stopped yet before failure
 			// (due to pickNewLeader failing). If that happens, there's no reason to try and
 			// stop that machine again, just to start it.
-			if leader.State == "stopped" || leader.State == "started" {
+			switch leader.State {
+			case "stopped", "started":
 				return nil
-			} else if leader.State == "stopping" {
+			case "stopping":
 				return fmt.Errorf("Old leader hasn't finished stopping")
-			} else {
+			default:
 				return fmt.Errorf("Old leader is in an unexpected state: %s", leader.State)
 			}
 		},
@@ -361,7 +372,7 @@ func handleFlexFailoverFail(ctx context.Context, app *fly.AppCompact, machines [
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
+func pickNewLeader(ctx context.Context, app *flaps.App, org *uiex.Organization, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
 	// We should go for the primary canddiates first, but the secondary candidates are also valid
@@ -380,7 +391,7 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 		} else if !machine.AllHealthChecks().AllPassing() {
 			isValid = false
 			machineReasons[machine.ID] = "1+ health checks are not passing"
-		} else if !passesDryRun(ctx, app, machine) {
+		} else if !passesDryRun(ctx, app, org, machine) {
 			isValid = false
 			machineReasons[machine.ID] = fmt.Sprintf("Running a dry run of `repmgr standby switchover` failed. Try running `fly ssh console -u postgres -C 'repmgr standby switchover -f /data/repmgr.conf --dry-run' -s -a %s` for more information. This was most likely due to the requirements for quorum not being met.", app.Name)
 		}
@@ -405,10 +416,10 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 }
 
 // Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks
-func passesDryRun(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) bool {
+func passesDryRun(ctx context.Context, app *flaps.App, org *uiex.Organization, machine *fly.Machine) bool {
 	err := ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
-		Org:      app.Organization,
+		Org:      org,
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),

@@ -6,7 +6,9 @@ package preflight
 import (
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
@@ -34,7 +36,16 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	require.Nil(f, m.Config.DisableMachineAutostart)
 	require.Equal(f, want, m.Config.Services)
 
-	f.Fly("machine update -a %s %s --autostart -y", appName, m.ID)
+	// The lease taken by the previous command can linger for a moment, in
+	// which case update fails with "lease currently held"; retry rather than
+	// fail the test on that.
+	updateMachine := func(flags string) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			f.Collect(c).Fly("machine update -a %s %s %s -y", appName, m.ID, flags)
+		}, 2*time.Minute, 2*time.Second, "machine update %s never succeeded", flags)
+	}
+
+	updateMachine("--autostart")
 	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "tcp",
@@ -49,7 +60,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	require.Nil(f, m.Config.DisableMachineAutostart)
 	require.Equal(f, want, m.Config.Services)
 
-	f.Fly("machine update -a %s %s --autostart=false --autostop=false -y", appName, m.ID)
+	updateMachine("--autostart=false --autostop=false")
 	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "tcp",
@@ -127,26 +138,18 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	require.Equal(f, []string{s1.ID}, s2.Config.Standbys)
 }
 
-// test --rootfs-size and --rootfs-fs-size flags
+// test --rootfs-size flag
 func TestFlyMachineRun_rootfsSize(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
-	// Run with --rootfs-size only
+	// Run with --rootfs-size
 	f.Fly("machine run -a %s nginx --rootfs-size 5 --region %s", appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 	m := ml[0]
 	require.NotNil(f, m.Config.Rootfs)
 	require.Equal(f, uint64(5), m.Config.Rootfs.SizeGB)
-	require.Equal(f, uint64(0), m.Config.Rootfs.FsSizeGB)
-
-	// Update with --rootfs-fs-size, must be <= rootfs-size
-	f.Fly("machine update -a %s %s --rootfs-fs-size 3 -y", appName, m.ID)
-	m = f.MachinesList(appName)[0]
-	require.NotNil(f, m.Config.Rootfs)
-	require.Equal(f, uint64(5), m.Config.Rootfs.SizeGB)
-	require.Equal(f, uint64(3), m.Config.Rootfs.FsSizeGB)
 
 	// Update with human-readable size
 	f.Fly("machine update -a %s %s --rootfs-size 10gb -y", appName, m.ID)
@@ -155,34 +158,22 @@ func TestFlyMachineRun_rootfsSize(t *testing.T) {
 	require.Equal(f, uint64(10), m.Config.Rootfs.SizeGB)
 }
 
-func TestFlyMachineRun_rootfsSize2(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppMachines()
-
-	// Run with --rootfs-fs-size only, should default rootfs-size to match
-	f.Fly("machine run -a %s nginx --rootfs-fs-size 4 --region %s", appName, f.PrimaryRegion())
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
-	m := ml[0]
-	require.NotNil(f, m.Config.Rootfs)
-	require.Equal(f, uint64(4), m.Config.Rootfs.SizeGB)
-	require.Equal(f, uint64(4), m.Config.Rootfs.FsSizeGB)
-
-	// Unset rootfs-fs-size by passing 0
-	f.Fly("machine update -a %s %s --rootfs-fs-size 0 -y", appName, m.ID)
-	m = f.MachinesList(appName)[0]
-	require.NotNil(f, m.Config.Rootfs)
-	require.Equal(f, uint64(0), m.Config.Rootfs.FsSizeGB)
-
-	// Error: rootfs-fs-size > rootfs-size
-	result := f.FlyAllowExitFailure("machine run -a %s nginx --rootfs-size 2 --rootfs-fs-size 5 --region %s", appName, f.PrimaryRegion())
-	require.NotEqual(f, 0, result.ExitCode())
-}
-
 // test --port (add, update, remove services and ports)
 func TestFlyMachineRun_port(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
+
+	// The machines list can lag a completed update for a moment, so retry
+	// the read instead of asserting on the first response.
+	requireServices := func(want []fly.MachineService) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			ml := f.Collect(c).MachinesList(appName)
+			if !assert.Len(c, ml, 1) {
+				return
+			}
+			assert.Equal(c, want, ml[0].Config.Services)
+		}, 30*time.Second, 2*time.Second, "machine services never matched the update")
+	}
 
 	f.Fly("machine run -a %s nginx --port 443:80/tcp:http:tls --region %s", appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
@@ -201,7 +192,6 @@ func TestFlyMachineRun_port(t *testing.T) {
 	require.Contains(f, []string{"created", "started"}, m.State)
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:http --port 1001/udp", appName, m.ID)
-	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 80,
@@ -219,10 +209,9 @@ func TestFlyMachineRun_port(t *testing.T) {
 			Port: fly.Pointer(1001),
 		}},
 	}}
-	require.Equal(f, want, m.Config.Services)
+	requireServices(want)
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:- --port 1001/udp:tls", appName, m.ID)
-	m = f.MachinesList(appName)[0]
 	want = []fly.MachineService{{
 		Protocol:     "udp",
 		InternalPort: 1001,
@@ -231,5 +220,5 @@ func TestFlyMachineRun_port(t *testing.T) {
 			Handlers: []string{"tls"},
 		}},
 	}}
-	require.Equal(f, want, m.Config.Services)
+	requireServices(want)
 }

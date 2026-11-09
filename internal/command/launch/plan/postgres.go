@@ -7,14 +7,14 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type PostgresPlan struct {
-	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
-	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
-	ManagedPostgres  *ManagedPostgresPlan  `json:"managed_postgres"`
+	FlyPostgres     *FlyPostgresPlan     `json:"fly_postgres"`
+	ManagedPostgres *ManagedPostgresPlan `json:"managed_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -24,12 +24,10 @@ func (p *PostgresPlan) Provider() any {
 	if p.FlyPostgres != nil {
 		return p.FlyPostgres
 	}
-	if p.SupabasePostgres != nil {
-		return p.SupabasePostgres
-	}
 	if p.ManagedPostgres != nil {
 		return p.ManagedPostgres
 	}
+
 	return nil
 }
 
@@ -65,10 +63,9 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 	}
 
 	// Normal flow: prefer managed if enabled and available
-	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
-	if err == nil && mpgEnabled {
+	if _, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug); err == nil && mpgEnabled {
 		// 2025-08-06: only default to MPG in interactive for now, we should update this down the road
-		validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+		validRegion, err := mpgutil.IsValidRegion(ctx, plan.RegionCode)
 		if isInteractive {
 			if err == nil && validRegion {
 				// Managed postgres is available in this region, use it
@@ -76,7 +73,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 			}
 
 			// Offer to switch to a nearby region that supports managed postgres
-			return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
+			return handleInteractiveRegionSwitch(ctx, plan)
 		} else {
 			// Non-interactive: log warning and fall back to FlyPostgres
 			if io != nil && err == nil {
@@ -91,6 +88,7 @@ func DefaultPostgres(ctx context.Context, plan *LaunchPlan, mpgEnabled bool) (Po
 
 	// Default to FlyPostgres
 	fmt.Fprintf(io.ErrOut, "Deprecation Warning: We will soon default to Managed Postgres when launching new apps in compatible regions. Pass --db=mpg to use Managed Postgres now and --db=upg to use Unmanaged Postgres.\n")
+
 	return createFlyPostgresPlan(plan), nil
 }
 
@@ -142,12 +140,11 @@ func createManagedPostgresPlan(ctx context.Context, plan *LaunchPlan, planType s
 func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
 
-	orgSlug, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug)
-	if err != nil {
+	if _, err := mpg.ResolveOrganizationSlug(ctx, plan.OrgSlug); err != nil {
 		return createFlyPostgresPlan(plan), nil
 	}
 
-	validRegion, err := mpg.IsValidMPGRegion(ctx, orgSlug, plan.RegionCode)
+	validRegion, err := mpgutil.IsValidRegion(ctx, plan.RegionCode)
 
 	if err == nil && validRegion {
 		// Region supports managed postgres
@@ -158,25 +155,27 @@ func handleForcedManagedPostgres(ctx context.Context, plan *LaunchPlan) (Postgre
 	isInteractive := io != nil && io.IsInteractive()
 	if isInteractive {
 		// Interactive: suggest switching to a supported region
-		return handleInteractiveRegionSwitch(ctx, plan, orgSlug)
+		return handleInteractiveRegionSwitch(ctx, plan)
 	} else {
 		// Non-interactive: fail with error
-		availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, orgSlug)
+		availableCodes, _ := mpgutil.AvailableRegionCodes(ctx)
+
 		return PostgresPlan{}, fmt.Errorf("managed postgres is not available in region %s. Available regions: %v", plan.RegionCode, availableCodes)
 	}
 }
 
 // handleInteractiveRegionSwitch prompts user to switch to a region that supports managed postgres
-func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlug string) (PostgresPlan, error) {
+func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan) (PostgresPlan, error) {
 	io := iostreams.FromContext(ctx)
 
 	// Get available MPG regions
-	availableRegions, err := mpg.GetAvailableMPGRegions(ctx, orgSlug)
+	availableRegions, err := mpgutil.AvailableRegions(ctx)
 	if err != nil || len(availableRegions) == 0 {
 		if io != nil {
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "Warning: Unable to find regions that support Managed Postgres. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -192,6 +191,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "%s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -207,6 +207,7 @@ func handleInteractiveRegionSwitch(ctx context.Context, plan *LaunchPlan, orgSlu
 			colorize := io.ColorScheme()
 			fmt.Fprintf(io.ErrOut, "Failed to select region. %s\n", colorize.Yellow(fmt.Sprintf("Using Unmanaged Postgres in region %s", plan.RegionCode)))
 		}
+
 		return createFlyPostgresPlan(plan), nil
 	}
 
@@ -238,26 +239,8 @@ func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
 	if p.VmRam != 0 {
 		guest.MemoryMB = p.VmRam
 	}
+
 	return &guest
-}
-
-type SupabasePostgresPlan struct {
-	DbName string `json:"db_name"`
-	Region string `json:"region"`
-}
-
-func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
-	if p.DbName == "" {
-		return plan.AppName + "-db"
-	}
-	return p.DbName
-}
-
-func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
-	if p.Region == "" {
-		return plan.RegionCode
-	}
-	return p.Region
 }
 
 type ManagedPostgresPlan struct {
@@ -272,6 +255,7 @@ func (p *ManagedPostgresPlan) GetDbName(plan *LaunchPlan) string {
 	if p.DbName == "" {
 		return plan.AppName + "-db"
 	}
+
 	return p.DbName
 }
 
@@ -279,5 +263,6 @@ func (p *ManagedPostgresPlan) GetRegion(plan *LaunchPlan) string {
 	if p.Region == "" {
 		return plan.RegionCode
 	}
+
 	return p.Region
 }

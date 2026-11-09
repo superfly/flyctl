@@ -23,7 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -44,6 +44,7 @@ func New() (cmd *cobra.Command) {
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return
 }
 
@@ -78,17 +79,16 @@ func run(ctx context.Context) error {
 }
 
 func fetchRegionCodes(ctx context.Context) (codes []string, err error) {
-	client := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	var regions []fly.Region
-	if regions, _, err = client.PlatformRegions(ctx); err != nil {
-		err = fmt.Errorf("failed retrieving regions: %w", err)
+	regionData, err := flapsClient.GetRegions(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving regions: %w", err)
+	}
 
-		return
-	} else if len(regions) == 0 {
-		err = errors.New("no regions could be retrieved")
-
-		return
+	regions := regionData.Regions
+	if len(regions) == 0 {
+		return nil, errors.New("no regions could be retrieved")
 	}
 
 	// Filter out deprecated regions
@@ -236,6 +236,7 @@ type timing struct {
 
 func (t *timing) formatedHTTPCode(cs *iostreams.ColorScheme) string {
 	text := strconv.Itoa(t.HTTPCode)
+
 	return colorize(cs, text, float64(t.HTTPCode), 299, 399)
 }
 
@@ -246,6 +247,7 @@ func (t *timing) formattedDNS() string {
 func (t *timing) formattedConnect(cs *iostreams.ColorScheme) string {
 	timing := t.TimeConnect * 1000
 	text := humanize.FtoaWithDigits(timing, 1) + "ms"
+
 	return colorize(cs, text, timing, 200, 500)
 }
 
@@ -256,11 +258,13 @@ func (t *timing) formattedTLS() string {
 func (t *timing) formattedTTFB(cs *iostreams.ColorScheme) string {
 	timing := t.TimeStartTransfer * 1000
 	text := humanize.FtoaWithDigits(timing, 1) + "ms"
+
 	return colorize(cs, text, timing, 400, 1000)
 }
 
 func (t *timing) formattedTotal() string {
 	timing := t.TimeTotal * 1000
+
 	return humanize.FtoaWithDigits(timing, 1) + "ms"
 }
 
@@ -318,13 +322,13 @@ func renderTextTimings(w io.Writer, cs *iostreams.ColorScheme, timings []*timing
 }
 
 func renderJSONTimings(w io.Writer, timings []*timing) {
-	items := make(map[string]interface{}, len(timings))
+	items := make(map[string]any, len(timings))
 	for _, t := range timings {
 		if t.error != nil {
 			items[t.region] = struct {
 				Error string `json:"error"`
 			}{
-				Error: t.error.Error(),
+				Error: t.Error(),
 			}
 		} else {
 			items[t.region] = t

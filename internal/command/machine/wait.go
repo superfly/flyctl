@@ -88,7 +88,7 @@ func runMachineWait(ctx context.Context) error {
 			}
 		}
 
-		err = client.Wait(ctx, appName, machine, desiredState, remainingTimeout)
+		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(remainingTimeout))
 		if err == nil {
 			break
 		}

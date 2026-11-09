@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -110,6 +109,7 @@ func runMachineDestroy(ctx context.Context) (err error) {
 
 	if len(machinesToBeDeleted) == 0 {
 		fmt.Fprint(iostreams.FromContext(ctx).Out, "No machine to destroy, exiting\n")
+
 		return nil
 	}
 
@@ -140,8 +140,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
-	client := flyutil.ClientFromContext(ctx)
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
@@ -188,6 +187,7 @@ func Destroy(ctx context.Context, appName string, machine *fly.Machine, force bo
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
+
 		return fmt.Errorf("could not destroy machine %s: %w", machine.ID, err)
 	}
 

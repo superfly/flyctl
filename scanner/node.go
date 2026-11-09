@@ -27,7 +27,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		return nil, nil
 	}
 
-	var packageJson map[string]interface{}
+	var packageJson map[string]any
 	err = json.Unmarshal(data, &packageJson)
 	if err != nil {
 		return nil, nil
@@ -50,7 +50,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		s.Family += "/Prisma"
 	}
 
-	vars := make(map[string]interface{})
+	vars := make(map[string]any)
 
 	var yarnVersion = "latest"
 
@@ -149,7 +149,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	vars["devDependencies"] = packageJson["devDependencies"] != nil
 
-	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	scripts, ok := packageJson["scripts"].(map[string]any)
 
 	vars["build"] = scripts["build"] != nil
 

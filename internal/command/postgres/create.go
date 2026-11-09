@@ -15,8 +15,10 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/haikunator"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -44,6 +46,10 @@ func newCreate() *cobra.Command {
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "The name of your Postgres app",
+		},
+		flag.Bool{
+			Name:        "generate-name",
+			Description: "Generate an app name",
 		},
 		flag.String{
 			Name:        "password",
@@ -99,22 +105,26 @@ func newCreate() *cobra.Command {
 // be safely passed through from other commands.
 func run(ctx context.Context) (err error) {
 	var (
-		appName  = flag.GetString(ctx, "name")
-		client   = flyutil.ClientFromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		appName     = flag.GetString(ctx, "name")
+		flapsClient = flapsutil.ClientFromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 	)
 
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
 	if appName == "" {
-		if appName, err = prompt.SelectAppName(ctx); err != nil {
+		if flag.GetBool(ctx, "generate-name") {
+			appName = haikunator.GeneratedAppNameWithPrefix("upg")
+		} else if appName, err = prompt.SelectAppName(ctx); err != nil {
 			return
+		} else if appName == "" {
+			appName = haikunator.GeneratedAppNameWithPrefix("upg")
 		}
 	}
 
-	var org *fly.Organization
+	var org *uiex.Organization
 	org, err = prompt.Org(ctx)
 	if err != nil {
 		return
@@ -161,17 +171,17 @@ func run(ctx context.Context) (err error) {
 		}
 
 		// Resolve specified fork-from app
-		forkApp, err := client.GetAppCompact(ctx, forkSlice[0])
+		forkApp, err := flapsClient.GetApp(ctx, forkSlice[0])
 		if err != nil {
 			return fmt.Errorf("Failed to resolve the specified fork-from app %s: %w", forkSlice[0], err)
 		}
 
 		// Confirm fork-app is a postgres app
-		if !forkApp.IsPostgresApp() {
+		if !flapsutil.IsPostgresApp(forkApp) {
 			return fmt.Errorf("The fork-from app %q must be a postgres app", forkApp.Name)
 		}
 
-		ctx, err := apps.BuildContext(ctx, forkApp)
+		ctx, err := apps.BuildContextForApp(ctx, forkApp)
 		if err != nil {
 			return err
 		}
@@ -196,20 +206,11 @@ func run(ctx context.Context) (err error) {
 
 		flapsClient := flapsutil.ClientFromContext(ctx)
 
-		// Resolve the volume
+		// Resolve the volume. The lookup is scoped to the fork-from app, so it
+		// also confirms the volume is associated with that app.
 		vol, err := flapsClient.GetVolume(ctx, forkApp.Name, params.ForkFrom)
 		if err != nil {
-			return fmt.Errorf("Failed to resolve the specified fork-from volume %s: %w", params.ForkFrom, err)
-		}
-
-		appName, err := client.GetAppNameFromVolume(ctx, vol.ID)
-		if err != nil {
-			return err
-		}
-
-		// Confirm that the volume is associated with the fork-from app
-		if *appName != forkApp.Name {
-			return fmt.Errorf("The volume %q specified must be associated with the fork-from app %q", vol.ID, forkApp.Name)
+			return fmt.Errorf("Failed to resolve the specified fork-from volume %s on app %s: %w", params.ForkFrom, forkApp.Name, err)
 		}
 
 		// If the region isn't specified, set the region of the fork target
@@ -266,7 +267,7 @@ func run(ctx context.Context) (err error) {
 }
 
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
+func CreateCluster(ctx context.Context, org *uiex.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
@@ -275,7 +276,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	input := &flypg.CreateClusterInput{
 		AppName:        params.Name,
 		Organization:   org,
-		ImageRef:       params.PostgresConfiguration.ImageRef,
+		ImageRef:       params.ImageRef,
 		Region:         region.Code,
 		Manager:        params.Manager,
 		Autostart:      params.Autostart,
@@ -298,6 +299,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 
 			if flag.IsSpecified(ctx, name) {
 				isCustomMachine = true
+
 				break
 			}
 		}
@@ -343,7 +345,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 
 	if customConfig {
 		// Resolve cluster size
-		if params.PostgresConfiguration.InitialClusterSize == 0 {
+		if params.InitialClusterSize == 0 {
 			clusterSizePrompt := "Initial cluster size"
 			defaultClusterSize := 2
 
@@ -357,7 +359,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 				return err
 			}
 		}
-		input.InitialClusterSize = params.PostgresConfiguration.InitialClusterSize
+		input.InitialClusterSize = params.InitialClusterSize
 
 		if isCustomMachine {
 			guest, err := flag.GetMachineGuest(ctx, nil)
@@ -389,7 +391,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 				return err
 			}
 		}
-		input.VolumeSize = fly.IntPointer(params.DiskGb)
+		input.VolumeSize = new(params.DiskGb)
 		input.Autostart = params.Autostart
 	} else if input.BarmanRemoteRestoreConfig == "" {
 		// Resolve configuration from pre-defined configuration.
@@ -399,7 +401,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 
 		input.VMSize = vmSize
-		input.VolumeSize = fly.IntPointer(config.DiskGb)
+		input.VolumeSize = new(config.DiskGb)
 		input.InitialClusterSize = config.InitialClusterSize
 		input.ImageRef = params.ImageRef
 		input.Autostart = params.Autostart
@@ -460,6 +462,7 @@ func postgresConfigurations(manager string) []PostgresConfiguration {
 	if manager == flypg.StolonManager {
 		return stolonConfigurations()
 	}
+
 	return flexConfigurations()
 }
 

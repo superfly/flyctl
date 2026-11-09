@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/dockerfileurl"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -45,14 +47,15 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, config, appConfig.ConfigFilePath())
+		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, dockerfileurl.ForDisplay(config), appConfig.ConfigFilePath())
 	}
+
 	return nil
 }
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, usedWireguard bool, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -69,7 +72,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		depotBool = false
 	case "auto":
 	default:
-		return nil, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
+		return nil, false, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
 	}
 
 	switch flag.GetString(ctx, "builder-pool") {
@@ -81,7 +84,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	case "auto":
 		// nothing
 	default:
-		return nil, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
+		return nil, false, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
@@ -107,7 +110,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var provisioner *imgsrc.Provisioner
@@ -125,11 +128,14 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		daemonType, client, appConfig.AppName, io,
 		useWG, recreateBuilder,
 		imgsrc.WithProvisioner(provisioner),
+		imgsrc.WithDockerfileMaterializer(dockerfileMaterializer),
 	)
+	defer func() { usedWireguard = resolver.UsedWireguard() }()
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
-		tracing.RecordError(span, err, "failed to fetch image ref")
+		tracing.RecordError(ctx, span, err, "failed to fetch image ref")
+
 		return
 	}
 
@@ -146,7 +152,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		span.SetAttributes(opts.ToSpanAttributes()...)
 		img, err = resolver.ResolveReference(ctx, io, opts)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
+			tracing.RecordError(ctx, span, err, "failed to resolve reference for prebuilt docker image")
 			if trigger := os.Getenv("DEPLOY_TRIGGER"); trigger == "" {
 				return
 			} else {
@@ -160,6 +166,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		}
 
 		span.AddEvent("using pre-built docker image")
+
 		return
 	}
 
@@ -170,78 +177,10 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	span.AddEvent("building from source")
 
-	// We're building from source
-	opts := imgsrc.ImageOptions{
-		AppName:              appConfig.AppName,
-		WorkingDir:           state.WorkingDirectory(ctx),
-		Publish:              flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
-		ImageLabel:           flag.GetString(ctx, "image-label"),
-		NoCache:              flag.GetBool(ctx, "no-cache"),
-		BuiltIn:              build.Builtin,
-		BuiltInSettings:      build.Settings,
-		Builder:              build.Builder,
-		Buildpacks:           build.Buildpacks,
-		BuildpacksDockerHost: flag.GetString(ctx, flag.BuildpacksDockerHost),
-		BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
-	}
-
-	if appConfig.Experimental != nil {
-		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
-	}
-
-	// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
-	opts.Compression, opts.CompressionLevel = appConfig.DetermineCompression(ctx)
-
-	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.
-	// https://docs.docker.com/engine/reference/commandline/buildx_build/#secret
-	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
+	opts, err := validateImageInputs(ctx, appConfig, build)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to generate cliBuildSecrets")
-		return
-	}
-
-	if cliBuildSecrets != nil {
-		opts.BuildSecrets = cliBuildSecrets
-	}
-
-	arrLabels := flag.GetStringArray(ctx, "label")
-	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
-	if err != nil {
-		tracing.RecordError(span, err, "failed to parse labels")
-		return
-	}
-	if env.IS_GH_ACTION() {
-		labels["GH_SHA"] = env.GitCommitSHA()
-		labels["GH_ACTION_NAME"] = env.GitActionName()
-		labels["GH_REPO"] = env.GitRepoAndOwner()
-		labels["GH_EVENT_NAME"] = env.GitActionEventName()
-	}
-	if labels != nil {
-		opts.Label = labels
-	}
-
-	var buildArgs map[string]string
-	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
-		tracing.RecordError(span, err, "failed to merge build args")
-		return
-	}
-
-	opts.BuildArgs = buildArgs
-
-	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
-		tracing.RecordError(span, err, "failed to resolveDockerfilePath")
-		return
-	}
-
-	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
-		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
-		return
-	}
-
-	if target := appConfig.DockerBuildTarget(); target != "" {
-		opts.Target = target
-	} else if target := flag.GetString(ctx, "build-target"); target != "" {
-		opts.Target = target
+		tracing.RecordError(ctx, span, err, "failed to validate image inputs")
+		return nil, false, err
 	}
 
 	span.SetAttributes(opts.ToSpanAttributes()...)
@@ -250,8 +189,9 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
-		tracing.RecordError(span, err, "failed to start heartbeat")
-		return nil, err
+		tracing.RecordError(ctx, span, err, "failed to start heartbeat")
+
+		return nil, false, err
 	}
 	defer heartbeat.Stop()
 
@@ -260,7 +200,9 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
-		tracing.RecordError(span, err, "no image specified")
+		tracing.RecordError(ctx, span, err, "no image specified")
+	} else if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to build image")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
 	if err == nil {
@@ -275,22 +217,28 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	return
 }
 
-// resolveDockerfilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
+// resolveDockerfilePath returns HTTP(S) URLs from app config unchanged and
+// makes local Dockerfile paths absolute.
 func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
 	if path = appConfig.Dockerfile(); path != "" {
+		if dockerfileurl.IsURL(path) {
+			return path, nil
+		}
+		if dockerfileurl.LooksLikeURL(path) {
+			return "", errors.New("invalid Dockerfile URL")
+		}
+
 		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-	} else {
-		path = flag.GetString(ctx, "dockerfile")
+
+		return filepath.Abs(path)
 	}
 
-	return
+	path = flag.GetString(ctx, "dockerfile")
+	if path == "" {
+		return path, nil
+	}
+
+	return filepath.Abs(path)
 }
 
 // resolveIgnorefilePath returns the absolute path to the Dockerfile
@@ -322,9 +270,8 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 		return nil, fmt.Errorf("invalid build args: %w", err)
 	}
 
-	for k, v := range cliBuildArgs {
-		args[k] = v
-	}
+	maps.Copy(args, cliBuildArgs)
+
 	return args, nil
 }
 
@@ -340,4 +287,90 @@ func fetchImageRef(ctx context.Context, cfg *appconfig.Config) (ref string, err 
 	}
 
 	return ref, nil
+}
+
+// validateImageInputs resolves source build options before starting a builder.
+func validateImageInputs(ctx context.Context, appConfig *appconfig.Config, build *appconfig.Build) (opts imgsrc.ImageOptions, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_image_inputs")
+	defer span.End()
+	// We're building from source
+	opts = imgsrc.ImageOptions{
+		AppName:              appConfig.AppName,
+		WorkingDir:           state.WorkingDirectory(ctx),
+		Publish:              flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
+		ImageLabel:           flag.GetString(ctx, "image-label"),
+		NoCache:              flag.GetBool(ctx, "no-cache"),
+		BuiltIn:              build.Builtin,
+		BuiltInSettings:      build.Settings,
+		Builder:              build.Builder,
+		Buildpacks:           build.Buildpacks,
+		BuildpacksDockerHost: flag.GetString(ctx, flag.BuildpacksDockerHost),
+		BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
+	}
+
+	if appConfig.Experimental != nil && appConfig.Experimental.LazyLoadImages {
+		terminal.Warnf("[experimental] lazy_load_images is no longer supported (the overlaybd platform feature was removed May 2025). Remove it from fly.toml.\n")
+	}
+
+	// Determine compression based on CLI flags, then app config, then LaunchDarkly, then default to gzip
+	opts.Compression, opts.CompressionLevel = appConfig.DetermineCompression(ctx)
+
+	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.
+	// https://docs.docker.com/engine/reference/commandline/buildx_build/#secret
+	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
+	if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to generate cliBuildSecrets")
+
+		return
+	}
+
+	if cliBuildSecrets != nil {
+		opts.BuildSecrets = cliBuildSecrets
+	}
+
+	arrLabels := flag.GetStringArray(ctx, "label")
+	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
+	if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to parse labels")
+
+		return
+	}
+	if env.IS_GH_ACTION() {
+		labels["GH_SHA"] = env.GitCommitSHA()
+		labels["GH_ACTION_NAME"] = env.GitActionName()
+		labels["GH_REPO"] = env.GitRepoAndOwner()
+		labels["GH_EVENT_NAME"] = env.GitActionEventName()
+	}
+	if labels != nil {
+		opts.Label = labels
+	}
+
+	var buildArgs map[string]string
+	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
+		tracing.RecordError(ctx, span, err, "failed to merge build args")
+
+		return
+	}
+
+	opts.BuildArgs = buildArgs
+
+	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
+		tracing.RecordError(ctx, span, err, "failed to resolveDockerfilePath")
+
+		return
+	}
+
+	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
+		tracing.RecordError(ctx, span, err, "failed to resolveIgnorefilePath")
+
+		return
+	}
+
+	if target := appConfig.DockerBuildTarget(); target != "" {
+		opts.Target = target
+	} else if target := flag.GetString(ctx, "build-target"); target != "" {
+		opts.Target = target
+	}
+
+	return opts, nil
 }

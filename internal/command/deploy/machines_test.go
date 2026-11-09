@@ -1,15 +1,23 @@
 package deploy
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, error) {
@@ -24,7 +32,24 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		appConfig:  appConfig,
 		machineSet: machine.NewMachineSet(nil, nil, "", nil, true),
 	}
+
 	return md, nil
+}
+
+type volumeListFlapsClient struct {
+	flapsutil.FlapsClient
+	volumes        []fly.Volume
+	createRequests []fly.CreateVolumeRequest
+}
+
+func (c *volumeListFlapsClient) GetVolumes(context.Context, string) ([]fly.Volume, error) {
+	return c.volumes, nil
+}
+
+func (c *volumeListFlapsClient) CreateVolume(_ context.Context, _ string, request fly.CreateVolumeRequest) (*fly.Volume, error) {
+	c.createRequests = append(c.createRequests, request)
+
+	return &fly.Volume{Name: request.Name, Region: request.Region, State: "created", HostStatus: "ok"}, nil
 }
 
 func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
@@ -59,6 +84,131 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 	}, li)
 }
 
+func TestSetMachinesForDeploymentRejectsDetachedProcessGroupMachinesForBluegreen(t *testing.T) {
+	detachedMachine := testProcessGroupMachine("detached-app", "", map[string]string{
+		fly.MachineConfigMetadataKeyFlyProcessGroup: fly.MachineProcessGroupApp,
+	})
+	md := testMachineDeploymentForSetMachines(t, "bluegreen", nil, []*fly.Machine{detachedMachine})
+
+	err := md.setMachinesForDeployment(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "detached-app")
+	assert.Contains(t, err.Error(), fly.MachineConfigMetadataKeyFlyPlatformVersion)
+}
+
+func TestSetMachinesForDeploymentRejectsDetachedDefaultProcessGroupMachinesForBluegreen(t *testing.T) {
+	detachedMachine := testProcessGroupMachine("detached-app", "", nil)
+	md := testMachineDeploymentForSetMachines(t, "bluegreen", nil, []*fly.Machine{detachedMachine})
+
+	err := md.setMachinesForDeployment(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "detached-app")
+	assert.Contains(t, err.Error(), fly.MachineConfigMetadataKeyFlyProcessGroup)
+}
+
+func TestSetMachinesForDeploymentAllowsDetachedProcessGroupMachinesForBluegreenWithManagedMachines(t *testing.T) {
+	managedMachine := testFlyLaunchMachine("managed-app")
+	detachedMachine := testProcessGroupMachine("detached-app", "", map[string]string{
+		fly.MachineConfigMetadataKeyFlyProcessGroup: fly.MachineProcessGroupApp,
+	})
+	md := testMachineDeploymentForSetMachines(t, "bluegreen", []*fly.Machine{managedMachine}, []*fly.Machine{managedMachine, detachedMachine})
+
+	err := md.setMachinesForDeployment(context.Background())
+
+	require.NoError(t, err)
+	machines := md.machineSet.GetMachines()
+	require.Len(t, machines, 1)
+	assert.Equal(t, "managed-app", machines[0].Machine().ID)
+}
+
+func TestSetMachinesForDeploymentAllowsDetachedProcessGroupMachinesForRolling(t *testing.T) {
+	detachedMachine := testProcessGroupMachine("detached-app", "", map[string]string{
+		fly.MachineConfigMetadataKeyFlyProcessGroup: fly.MachineProcessGroupApp,
+	})
+	md := testMachineDeploymentForSetMachines(t, "rolling", nil, []*fly.Machine{detachedMachine})
+
+	err := md.setMachinesForDeployment(context.Background())
+
+	require.NoError(t, err)
+	assert.True(t, md.isFirstDeploy)
+}
+
+func TestSetMachinesForDeploymentDoesNotReportFilteredFlyLaunchMachinesAsDetached(t *testing.T) {
+	managedMachine := testFlyLaunchMachine("managed-app")
+	managedMachine.Region = "ord"
+	detachedMachine := testProcessGroupMachine("detached-app", "iad", map[string]string{
+		fly.MachineConfigMetadataKeyFlyProcessGroup: fly.MachineProcessGroupApp,
+	})
+	md := testMachineDeploymentForSetMachines(t, "bluegreen", []*fly.Machine{managedMachine}, []*fly.Machine{managedMachine, detachedMachine})
+	md.onlyRegions = map[string]bool{"iad": true}
+
+	err := md.setMachinesForDeployment(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "detached-app")
+	assert.NotContains(t, err.Error(), "managed-app")
+}
+
+func TestSetMachinesForDeploymentIgnoresDetachedProcessGroupMachinesOutsideBluegreenFilters(t *testing.T) {
+	detachedMachine := testProcessGroupMachine("detached-app", "lax", map[string]string{
+		fly.MachineConfigMetadataKeyFlyProcessGroup: fly.MachineProcessGroupApp,
+	})
+	md := testMachineDeploymentForSetMachines(t, "bluegreen", nil, []*fly.Machine{detachedMachine})
+	md.onlyRegions = map[string]bool{"iad": true}
+
+	err := md.setMachinesForDeployment(context.Background())
+
+	require.NoError(t, err)
+	assert.True(t, md.isFirstDeploy)
+}
+
+func testFlyLaunchMachine(id string) *fly.Machine {
+	return testProcessGroupMachine(id, "", map[string]string{
+		fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
+		fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupApp,
+	})
+}
+
+func testProcessGroupMachine(id, region string, metadata map[string]string) *fly.Machine {
+	return &fly.Machine{
+		ID:     id,
+		Region: region,
+		State:  fly.MachineStateStarted,
+		Config: &fly.MachineConfig{
+			Metadata: metadata,
+		},
+	}
+}
+
+func testMachineDeploymentForSetMachines(t *testing.T, strategy string, flyLaunchMachines, activeMachines []*fly.Machine) *machineDeployment {
+	t.Helper()
+
+	ios, _, _, _ := iostreams.Test()
+	client := &mock.FlapsClient{
+		ListFlyAppsMachinesFunc: func(ctx context.Context, appName string) ([]*fly.Machine, *fly.Machine, error) {
+			return flyLaunchMachines, nil, nil
+		},
+		ListActiveFunc: func(ctx context.Context, appName string) ([]*fly.Machine, error) {
+			return activeMachines, nil
+		},
+	}
+
+	return &machineDeployment{
+		app:         &flaps.App{Name: "my-cool-app"},
+		io:          ios,
+		colorize:    ios.ColorScheme(),
+		flapsClient: client,
+		strategy:    strategy,
+		appConfig: &appconfig.Config{
+			HTTPService: &appconfig.HTTPService{
+				Processes: []string{fly.MachineProcessGroupApp},
+			},
+		},
+	}
+}
+
 // Test any LaunchMachineInput field that must not be set on a machine
 // used to run release command.
 func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
@@ -85,8 +235,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 		Checks: map[string]*appconfig.ToplevelCheck{
 			"alive": {
-				Port: fly.Pointer(8080),
-				Type: fly.Pointer("tcp"),
+				Port: new(8080),
+				Type: new("tcp"),
 			},
 		},
 		Statics: []appconfig.Static{{
@@ -99,10 +249,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-
-	md.volumes = map[string][]fly.Volume{
-		"data": {{ID: "vol_12345"}},
-	}
 
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil, nil)
@@ -129,7 +275,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Mounts: []fly.MachineMount{{
 				Name:   "data",
-				Volume: "vol_12345",
+				Volume: "data",
 				Path:   "/data",
 			}},
 			Statics: []*fly.Static{{
@@ -142,8 +288,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			}},
 			Checks: map[string]fly.MachineCheck{
 				"alive": {
-					Port: fly.Pointer(8080),
-					Type: fly.Pointer("tcp"),
+					Port: new(8080),
+					Type: new("tcp"),
 				},
 			},
 		},
@@ -248,10 +394,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	md.volumes = map[string][]fly.Volume{
-		"data": {{ID: "vol_12345"}},
-	}
-
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
@@ -270,7 +412,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"FLY_PROCESS_GROUP": "app",
 			},
 			Mounts: []fly.MachineMount{{
-				Volume: "vol_12345",
+				Volume: "data",
 				Path:   "/data",
 				Name:   "data",
 			}},
@@ -313,6 +455,213 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}, li)
+}
+
+// A machine with a volume that fly.toml no longer mounts is replaced only
+// once the user confirms. Without a terminal the error asked for --yes, but
+// --yes was never consulted, so a headless deploy had no way through.
+func TestValidateVolumeConfigVolumeNotInConfig(t *testing.T) {
+	run := func(t *testing.T, args ...string) error {
+		t.Helper()
+
+		md, err := stabMachineDeployment(&appconfig.Config{})
+		require.NoError(t, err)
+
+		ios, _, _, _ := iostreams.Test()
+		md.io = ios
+		md.colorize = ios.ColorScheme()
+		md.machineSet = machine.NewMachineSet(nil, ios, "", []*fly.Machine{{
+			ID:     "machine-with-volume",
+			Region: "qmx",
+			Config: &fly.MachineConfig{
+				Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"},
+				Mounts:   []fly.MachineMount{{Volume: "vol_data", Path: "/data"}},
+			},
+		}}, true)
+
+		flags := pflag.NewFlagSet("deploy", pflag.ContinueOnError)
+		flags.BoolP("yes", "y", false, "")
+		require.NoError(t, flags.Parse(args))
+		ctx := flagctx.NewContext(iostreams.NewContext(context.Background(), ios), flags)
+
+		return md.validateVolumeConfig(ctx)
+	}
+
+	t.Run("headless without --yes says how to fix it", func(t *testing.T) {
+		err := run(t)
+		require.ErrorIs(t, err, prompt.ErrNonInteractive)
+		require.ErrorContains(t, err, "[mounts]")
+	})
+
+	t.Run("--yes confirms", func(t *testing.T) {
+		require.NoError(t, run(t, "--yes"))
+	})
+}
+
+func TestValidateVolumeConfigNewGroupRequiresVolumeInPrimaryRegion(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes:     map[string]string{"worker": "/bin/worker"},
+		Mounts: []appconfig.Mount{{
+			Source:      "data",
+			Destination: "/data",
+			Processes:   []string{"worker"},
+		}},
+	})
+	require.NoError(t, err)
+	md.availableVolumeCounts = map[string]map[string]int{"data": {"syd": 1}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "requires an unattached 'data' volume in region 'qmx'")
+	require.ErrorContains(t, err, "fly volume create data --region qmx")
+
+	md.availableVolumeCounts["data"]["qmx"] = 1
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
+func TestValidateVolumeConfigReservesSharedVolumesAcrossNewGroups(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes: map[string]string{
+			"alpha": "/bin/alpha",
+			"beta":  "/bin/beta",
+		},
+		Mounts: []appconfig.Mount{{
+			Source:      "shared_data",
+			Destination: "/data",
+			Processes:   []string{"alpha", "beta"},
+		}},
+	})
+	require.NoError(t, err)
+	md.availableVolumeCounts = map[string]map[string]int{"shared_data": {"qmx": 1}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "group 'beta' requires an unattached 'shared_data' volume")
+
+	md.availableVolumeCounts["shared_data"]["qmx"] = 2
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
+func TestValidateVolumeConfigReservesSharedVolumesAcrossExistingAndNewGroups(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes: map[string]string{
+			"alpha": "/bin/alpha",
+			"beta":  "/bin/beta",
+		},
+		Mounts: []appconfig.Mount{{
+			Source:      "shared_data",
+			Destination: "/data",
+			Processes:   []string{"alpha", "beta"},
+		}},
+	})
+	require.NoError(t, err)
+	ios, _, _, _ := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.machineSet = machine.NewMachineSet(nil, ios, "", []*fly.Machine{{
+		ID:     "machine-alpha",
+		Region: "qmx",
+		Config: &fly.MachineConfig{
+			Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "alpha"},
+		},
+	}}, true)
+	md.availableVolumeCounts = map[string]map[string]int{"shared_data": {"qmx": 1}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "group 'beta' requires an unattached 'shared_data' volume")
+
+	md.availableVolumeCounts["shared_data"]["qmx"] = 2
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
+func TestSetVolumesOnlyCountsResolvableVolumes(t *testing.T) {
+	attachedMachine := "machine-id"
+	attachedAllocation := "allocation-id"
+	client := &volumeListFlapsClient{volumes: []fly.Volume{
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "syd", State: "created", HostStatus: "ok"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "unreachable"},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedMachine: &attachedMachine},
+		{Name: "data", Region: "qmx", State: "created", HostStatus: "ok", AttachedAllocation: &attachedAllocation},
+	}}
+	md, err := stabMachineDeployment(&appconfig.Config{Mounts: []appconfig.Mount{{Source: "data", Destination: "/data"}}})
+	require.NoError(t, err)
+	md.flapsClient = client
+
+	require.NoError(t, md.setVolumes(context.Background()))
+	require.Equal(t, map[string]map[string]int{"data": {"qmx": 1, "syd": 1}}, md.availableVolumeCounts)
+}
+
+func TestProvisionVolumesOnFirstDeployReservesByNameAndRegion(t *testing.T) {
+	client := &volumeListFlapsClient{}
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes: map[string]string{
+			"alpha": "/bin/alpha",
+			"beta":  "/bin/beta",
+		},
+		Mounts: []appconfig.Mount{{
+			Source:      "shared_data",
+			Destination: "/data",
+			Processes:   []string{"alpha", "beta"},
+		}},
+	})
+	require.NoError(t, err)
+	ios, _, _, _ := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.flapsClient = client
+	md.isFirstDeploy = true
+	md.availableVolumeCounts = map[string]map[string]int{"shared_data": {"qmx": 1, "syd": 1}}
+
+	require.NoError(t, md.provisionVolumesOnFirstDeploy(context.Background()))
+	require.Len(t, client.createRequests, 1)
+	require.Equal(t, "shared_data", client.createRequests[0].Name)
+	require.Equal(t, "qmx", client.createRequests[0].Region)
+	require.Equal(t, 2, md.availableVolumeCounts["shared_data"]["qmx"])
+}
+
+func TestValidateVolumeConfigReplacementChecksCountByRegion(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		PrimaryRegion: "qmx",
+		Processes:     map[string]string{"worker": "/bin/worker"},
+		Mounts: []appconfig.Mount{{
+			Source:      "data",
+			Destination: "/data",
+			Processes:   []string{"worker"},
+		}},
+	})
+	require.NoError(t, err)
+	machines := []*fly.Machine{
+		{ID: "machine-1", Region: "qmx", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "worker"}}},
+		{ID: "machine-2", Region: "qmx", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "worker"}}},
+	}
+	ios, _, _, _ := iostreams.Test()
+	md.io = ios
+	md.colorize = ios.ColorScheme()
+	md.machineSet = machine.NewMachineSet(nil, ios, "", machines, true)
+	md.availableVolumeCounts = map[string]map[string]int{"data": {"qmx": 1, "syd": 2}}
+
+	err = md.validateVolumeConfig(context.Background())
+	require.ErrorContains(t, err, "Process group 'worker' needs volumes with name 'data'")
+	require.ErrorContains(t, err, "qmx=1")
+
+	md.availableVolumeCounts["data"]["qmx"] = 2
+	require.NoError(t, md.validateVolumeConfig(context.Background()))
+}
+
+func Test_launchInputForRestart_nilConfig(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{})
+	assert.NoError(t, err)
+
+	got, err := md.launchInputForRestart(&fly.Machine{
+		ID:               "unreachable",
+		HostStatus:       fly.HostStatusUnreachable,
+		IncompleteConfig: &fly.MachineConfig{},
+	})
+	assert.Nil(t, got)
+	assert.ErrorContains(t, err, `can't restart machine unreachable: its host status is "unreachable"`)
 }
 
 // Test machineDeployment.restartOnly
@@ -405,4 +754,115 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}, got)
+}
+
+// Services that need a dedicated IP (UDP, or TCP off 80/443) are allocated one
+// only if the user says yes. Without a terminal nobody can, and the deploy
+// used to finish with no IPs, no message and exit 0: an unreachable app.
+func TestProvisionIpsOnFirstDeployDedicatedNonInteractive(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		service appconfig.Service
+		wantV6  bool
+	}{
+		{
+			name:    "udp needs a dedicated ipv4",
+			service: appconfig.Service{Protocol: "udp", InternalPort: 5000, Ports: []fly.MachinePort{{Port: new(5000)}}},
+		},
+		{
+			name:    "tcp off 80/443 needs dedicated ipv4 and ipv6",
+			service: appconfig.Service{Protocol: "tcp", InternalPort: 5432, Ports: []fly.MachinePort{{Port: new(5432)}}},
+			wantV6:  true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			md, err := stabMachineDeployment(&appconfig.Config{
+				AppName:  "my-cool-app",
+				Services: []appconfig.Service{tc.service},
+			})
+			require.NoError(t, err)
+
+			ios, _, _, errOut := iostreams.Test()
+			md.io = ios
+			md.colorize = ios.ColorScheme()
+			md.isFirstDeploy = true
+
+			assigned := 0
+			md.flapsClient = &mock.FlapsClient{
+				GetIPAssignmentsFunc: func(context.Context, string) (*flaps.ListIPAssignmentsResponse, error) {
+					return &flaps.ListIPAssignmentsResponse{}, nil
+				},
+				AssignIPFunc: func(context.Context, string, flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+					assigned++
+
+					return nil, errors.New("unexpected")
+				},
+			}
+
+			ctx := iostreams.NewContext(context.Background(), ios)
+			require.NoError(t, md.provisionIpsOnFirstDeploy(ctx, "", "my-org"))
+			require.Zero(t, assigned, "dedicated IPs cost money and need a yes")
+
+			// The commands have to work without a terminal too: allocate-v4
+			// refuses without --yes, and --yes is agreeing to a charge.
+			notice := errOut.String()
+			require.Contains(t, notice, "fly ips allocate-v4 --yes -a my-cool-app")
+			require.Contains(t, notice, "$2/mo")
+			if tc.wantV6 {
+				require.Contains(t, notice, "fly ips allocate-v6 -a my-cool-app")
+			} else {
+				require.NotContains(t, notice, "allocate-v6")
+			}
+		})
+	}
+}
+
+func TestProvisionIpsOnFirstDeployPrivateNetwork(t *testing.T) {
+	tests := []struct {
+		name        string
+		appNetwork  string
+		wantNetwork string
+	}{
+		{name: "default network is sent by its empty name", appNetwork: flapsutil.DefaultNetwork, wantNetwork: ""},
+		{name: "unset network", appNetwork: "", wantNetwork: ""},
+		{name: "custom network", appNetwork: "preview", wantNetwork: "preview"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			md, err := stabMachineDeployment(&appconfig.Config{
+				AppName: "my-cool-app",
+				Services: []appconfig.Service{{
+					Protocol:     "tcp",
+					InternalPort: 8080,
+				}},
+			})
+			require.NoError(t, err)
+
+			var requests []flaps.AssignIPRequest
+			ios, _, _, _ := iostreams.Test()
+			md.io = ios
+			md.colorize = ios.ColorScheme()
+			md.isFirstDeploy = true
+			md.app.Network = tt.appNetwork
+			md.flapsClient = &mock.FlapsClient{
+				GetIPAssignmentsFunc: func(context.Context, string) (*flaps.ListIPAssignmentsResponse, error) {
+					return &flaps.ListIPAssignmentsResponse{}, nil
+				},
+				AssignIPFunc: func(_ context.Context, _ string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+					requests = append(requests, req)
+					ip := "fdaa:0:1::3"
+
+					return &flaps.AssignIPResponse{IP: &ip}, nil
+				},
+			}
+
+			require.NoError(t, md.provisionIpsOnFirstDeploy(context.Background(), "private", "my-org"))
+			require.Equal(t, []flaps.AssignIPRequest{{
+				Type:         flaps.IPAssignmentTypePrivateV6,
+				Organization: "my-org",
+				Network:      tt.wantNetwork,
+			}}, requests)
+		})
+	}
 }

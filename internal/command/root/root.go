@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/kr/text"
-	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flyctl"
@@ -31,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/extensions"
+	"github.com/superfly/flyctl/internal/command/feedback"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
 	"github.com/superfly/flyctl/internal/command/incidents"
@@ -38,14 +39,12 @@ import (
 	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/command/jobs"
 	"github.com/superfly/flyctl/internal/command/launch"
-	"github.com/superfly/flyctl/internal/command/lfsc"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/mcp"
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
 	"github.com/superfly/flyctl/internal/command/mpg"
-	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -61,6 +60,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/settings"
+	"github.com/superfly/flyctl/internal/command/setup"
+	"github.com/superfly/flyctl/internal/command/skills"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
@@ -118,17 +119,18 @@ func New() *cobra.Command {
 		group(status.New(), "deploy"),
 		group(logs.New(), "upkeep"),
 		group(doctor.New(), "more_help"),
+		group(feedback.New(), "more_help"),
 		group(dig.New(), "upkeep"),
 		group(volumes.New(), "configuring"),
-		group(lfsc.New(), "dbs_and_extensions"),
 		agent.New(),
 		group(image.New(), "configuring"),
 		group(incidents.New(), "upkeep"),
-		group(mysql.New(), "dbs_and_extensions"),
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
 		group(mcp.New(), "upkeep"),
+		group(setup.New(), "more_help"),
+		group(skills.New(), "more_help"),
 		group(mpg.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
 		group(secrets.New(), "configuring"),
@@ -232,7 +234,7 @@ func run(ctx context.Context) error {
 		if err != nil {
 			panic(err)
 		}
-		cmd.Printf("  %s %s\n", tablewriter.PadRight(c.CommandPath(), " ", 16), c.Short)
+		cmd.Printf("  %s %s\n", tw.PadRight(c.CommandPath(), " ", 16), c.Short)
 	}
 
 	cmd.Println()
@@ -252,5 +254,6 @@ func run(ctx context.Context) error {
 
 func group(cmd *cobra.Command, id string) *cobra.Command {
 	cmd.GroupID = id
+
 	return cmd
 }

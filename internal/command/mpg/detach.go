@@ -7,8 +7,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
+	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -25,6 +28,7 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 	cmd := command.New(usage, short, long, runDetach,
 		command.RequireSession,
 		command.RequireAppName,
+		requireMacaroonToken,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -37,25 +41,24 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 }
 
 func runDetach(ctx context.Context) error {
-	// Check token compatibility early
-	if err := validateMPGTokenCompatibility(ctx); err != nil {
-		return err
-	}
-
 	var (
 		clusterId = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		client    = flyutil.ClientFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
 	// Get app details to determine which org it belongs to
-	app, err := client.GetAppBasic(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	appOrgSlug := app.Organization.RawSlug
+	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("failed retrieving organization for app %s: %w", appName, err)
+	}
+
+	appOrgSlug := appOrg.RawSlug
 	if appOrgSlug != "" && clusterId == "" {
 		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
 	}
@@ -69,22 +72,14 @@ func runDetach(ctx context.Context) error {
 	clusterOrgSlug := cluster.Organization.Slug
 
 	// Verify that the app and cluster are in the same organization
-	if appOrgSlug != clusterOrgSlug {
+	if !organizationSlugMatches(appOrg, clusterOrgSlug) {
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization",
 			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
 	}
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
-	// Delete the attachment record
-	_, err = uiexClient.DeleteAttachment(ctx, cluster.Id, appName)
-	if err != nil {
-		return fmt.Errorf("failed to detach: %w", err)
+	if cluster.Version == mpg.VersionV1 {
+		return cmdv1.RunDetach(ctx, cluster.Id, appName)
 	}
 
-	fmt.Fprintf(io.Out, "\nPostgres cluster %s has been detached from %s\n", cluster.Id, appName)
-	fmt.Fprintf(io.Out, "Note: This only removes the attachment record. Any secrets (like DATABASE_URL) are still set on the app.\n")
-	fmt.Fprintf(io.Out, "Use 'fly secrets unset DATABASE_URL -a %s' to remove the connection string.\n", appName)
-
-	return nil
+	return cmdv2.RunDetach(ctx, cluster.Id, appName)
 }

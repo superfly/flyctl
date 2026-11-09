@@ -38,7 +38,7 @@ func QueryHostIssues(ctx context.Context) {
 
 	statusCh := make(chan []fly.HostIssue, 1)
 	logger.Debug("started querying for host issues")
-	statusCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	statusCtx, cancel := context.WithTimeoutCause(context.WithoutCancel(ctx), time.Second, fmt.Errorf("querying host issues: %w", context.DeadlineExceeded))
 	go func() {
 		defer cancel()
 		defer close(statusCh)

@@ -1,19 +1,26 @@
 package apps
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/sort"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -24,6 +31,7 @@ func newList() *cobra.Command {
 available to this user. The list includes applications
 from all the organizations the user is a member of. The list shows
 the name, owner (org), status, and date/time of latest deploy for each app.
+Apps on a non-default network also show the network name.
 `
 		short = "List applications."
 	)
@@ -41,34 +49,29 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 	})
 
 	cmd.Aliases = []string{"ls"}
+
 	return cmd
 }
 
 func runList(ctx context.Context) (err error) {
-	client := flyutil.ClientFromContext(ctx)
 	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
-	org, err := getOrg(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting organization: %w", err)
-	}
-
-	var apps []fly.App
-	if org != nil {
-		apps, err = client.GetAppsForOrganization(ctx, org.ID)
-	} else {
-		apps, err = client.GetApps(ctx, nil)
-	}
-
+	apps, err := getApps(ctx, flag.GetOrg(ctx))
 	if err != nil {
 		return
 	}
 
 	out := iostreams.FromContext(ctx).Out
 	if cfg.JSONOutput {
-		_ = render.JSON(out, apps)
+		return render.JSON(out, apps)
+	}
 
-		return
+	if len(apps) == 0 {
+		if !silence {
+			fmt.Fprintln(out, "No apps found")
+		}
+
+		return nil
 	}
 
 	verbose := flag.GetBool(ctx, "verbose")
@@ -79,8 +82,18 @@ func runList(ctx context.Context) (err error) {
 			rows = append(rows, []string{app.Name})
 		}
 		_ = render.Table(out, "", rows)
+
 		return
 	}
+	showNetwork := false
+	for _, app := range apps {
+		if app.Network != "" {
+			showNetwork = true
+
+			break
+		}
+	}
+
 	for _, app := range apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {
@@ -91,27 +104,104 @@ func runList(ctx context.Context) (err error) {
 			app.Name = "(interactive shells app)"
 		}
 
-		rows = append(rows, []string{
+		row := []string{
 			app.Name,
 			app.Organization.Slug,
 			app.Status,
-			latestDeploy,
-		})
+		}
+		if showNetwork {
+			row = append(row, app.Network)
+		}
+		rows = append(rows, append(row, latestDeploy))
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
+	headers := []string{"Name", "Owner", "Status"}
+	if showNetwork {
+		headers = append(headers, "Network")
+	}
+	headers = append(headers, "Latest Deploy")
+
+	_ = render.Table(out, "", rows, headers...)
 
 	return
 }
 
-func getOrg(ctx context.Context) (*fly.Organization, error) {
-	client := flyutil.ClientFromContext(ctx)
+// getApps lists the apps the user can see, or only those in orgSlug when it
+// is set, through Flaps. The latest deploy time comes from the ui-ex
+// current-release timestamps, one request for every app in the listed orgs.
+func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	uiexClient := uiexutil.ClientFromContext(ctx)
 
-	orgName := flag.GetOrg(ctx)
-
-	if orgName == "" {
-		return nil, nil
+	// Flaps reports raw org slugs; show the slug the user knows the org by,
+	// which is "personal" for their personal org, as the GraphQL listing did.
+	//
+	// releaseOrgSlug narrows the current-release timestamps request to one
+	// org. It stays empty when listing every org. It is the org's raw slug
+	// because "personal" is a flyctl alias, not a slug the API knows.
+	var orgs []uiex.Organization
+	var releaseOrgSlug string
+	if orgSlug == "" {
+		var err error
+		if orgs, err = uiexClient.ListOrganizations(ctx, false); err != nil {
+			return nil, err
+		}
+	} else {
+		org, err := uiexClient.GetOrganization(ctx, orgSlug)
+		if err != nil {
+			return nil, err
+		}
+		orgs = []uiex.Organization{*org}
+		releaseOrgSlug = org.RawSlug
+	}
+	// The GraphQL listing grouped apps by org, personal org first, and
+	// sorted by name within each org; keep that order.
+	sort.OrganizationsByTypeAndName(orgs)
+	slugByRawSlug := make(map[string]string, len(orgs))
+	for _, org := range orgs {
+		slugByRawSlug[org.RawSlug] = org.Slug
 	}
 
-	return client.GetOrganizationBySlug(ctx, orgName)
+	// Without the org filter the server computes timestamps for every app on
+	// the token, which for a member of a very large org can take longer than
+	// the API's request timeout. The timestamps only fill the "Latest Deploy"
+	// column, so if the request fails anyway, warn and list the apps without
+	// it rather than fail.
+	releaseTimes, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx, releaseOrgSlug)
+	if err != nil {
+		terminal.Warnf("Could not fetch latest deploy times: %v\n", err)
+		releaseTimes = nil
+	}
+
+	apps := []fly.App{}
+	for _, org := range orgs {
+		flapsApps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{OrgSlug: org.Slug})
+		if err != nil {
+			return nil, err
+		}
+		slices.SortFunc(flapsApps, func(a, b flaps.App) int { return cmp.Compare(a.Name, b.Name) })
+
+		for _, app := range flapsApps {
+			// The GraphQL app ID is the app name.
+			out := fly.App{
+				ID:       app.Name,
+				Name:     app.Name,
+				Deployed: app.Deployed(),
+				Status:   app.Status,
+				Network:  flapsutil.NetworkName(&app),
+				Organization: fly.Organization{
+					Slug: cmp.Or(slugByRawSlug[app.Organization.Slug], app.Organization.Slug),
+					Name: app.Organization.Name,
+				},
+			}
+			if releaseTimes != nil {
+				if createdAt, ok := (*releaseTimes)[app.Name]; ok && !createdAt.IsZero() {
+					out.CurrentRelease = &fly.Release{CreatedAt: createdAt}
+				}
+			}
+			apps = append(apps, out)
+		}
+	}
+
+	return apps, nil
 }

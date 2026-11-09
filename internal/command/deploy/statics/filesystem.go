@@ -15,7 +15,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -40,6 +39,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 			return nil
 		}
 		files = append(files, name)
+
 		return nil
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 			// Upload the file to the bucket.
 			_, err = deployer.s3.PutObject(ctx, &s3.PutObjectInput{
 				Bucket:      &deployer.bucket,
-				Key:         fly.Pointer(path.Join(dest, file)),
+				Key:         new(path.Join(dest, file)),
 				Body:        reader,
 				ContentType: &mimeType,
 			})
@@ -100,6 +100,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 				terminal.Debugf("failed to close file %s: %v", file, err)
 			}
 		}
+
 		return nil
 	})
 
@@ -119,8 +120,8 @@ func (deployer *DeployerState) deleteDirectory(ctx context.Context, dir string) 
 
 	paginator := s3.NewListObjectsV2Paginator(deployer.s3, &s3.ListObjectsV2Input{
 		Bucket:    &deployer.bucket,
-		Prefix:    fly.Pointer(dir),
-		Delimiter: fly.Pointer("/"),
+		Prefix:    new(dir),
+		Delimiter: new("/"),
 	})
 
 	for paginator.HasMorePages() {

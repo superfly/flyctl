@@ -223,9 +223,10 @@ func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspec
 		if proxyInfo.Instance != "" {
 			args = append(args, "--instance", proxyInfo.Instance)
 		}
-		if proxyInfo.Mode == "sse" {
+		switch proxyInfo.Mode {
+		case "sse":
 			args = append(args, "--sse")
-		} else if proxyInfo.Mode == "stream" {
+		case "stream":
 			args = append(args, "--stream")
 		}
 		if proxyInfo.Timeout > 0 {
@@ -243,6 +244,7 @@ func runProxyOrInspect(ctx context.Context, proxyInfo mcpProxy.ProxyInfo, inspec
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to launch MCP inspector: %w", err)
 		}
+
 		return nil
 	}
 
@@ -326,9 +328,10 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 
 	remotePort := parsedURL.Port()
 	if remotePort == "" {
-		if parsedURL.Scheme == "http" {
+		switch parsedURL.Scheme {
+		case "http":
 			remotePort = "80"
-		} else if parsedURL.Scheme == "https" {
+		case "https":
 			remotePort = "443"
 		}
 	}
@@ -351,7 +354,7 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 
 	bindAddr := flag.GetBindAddr(ctx)
 
-	parsedURL.Host = fmt.Sprintf("%s:%d", bindAddr, localPort)
+	parsedURL.Host = net.JoinHostPort(bindAddr, fmt.Sprintf("%d", localPort))
 
 	return parsedURL.String(), cmd, nil
 }

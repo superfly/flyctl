@@ -2,20 +2,18 @@ package launch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
-	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -57,10 +55,16 @@ type launchState struct {
 	LaunchManifest
 	env map[string]string
 	planBuildCache
-	cache map[string]interface{}
+	cache map[string]any
+
+	// appID and orgID are the internal numeric IDs of the app and org, for use
+	// in metrics reporting. orgID is set as soon as the org is looked up, appID
+	// once createApp succeeds.
+	appID string
+	orgID string
 }
 
-func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
+func cacheGrab[T any](cache map[string]any, key string, cb func() (T, error)) (T, error) {
 	if val, ok := cache[key]; ok {
 		return val.(T), nil
 	}
@@ -69,36 +73,48 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 		return val, err
 	}
 	cache[key] = val
+
 	return val, nil
 }
 
-func (state *launchState) orgCompact(ctx context.Context) (*gql.GetOrganizationOrganization, error) {
-	client := flyutil.ClientFromContext(ctx).GenqClient()
-	res, err := gql.GetOrganization(ctx, client, state.Plan.OrgSlug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
-	}
-	return &res.Organization, nil
+func (state *launchState) orgCompact(ctx context.Context) (*uiex.Organization, error) {
+	return state.Org(ctx)
 }
 
-func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
-		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
+func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
+	org, err := cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*uiex.Organization, error) {
+		org, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, state.Plan.OrgSlug)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get org %q for state: %w", state.Plan.OrgSlug, err)
+		}
+
+		return org, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Record the org as soon as it's known, so a launch that fails later
+	// (e.g. in CreateApp: name taken, payment method required) still reports it.
+	if org.InternalNumericID != 0 {
+		state.orgID = strconv.FormatUint(org.InternalNumericID, 10)
+	}
+
+	return org, nil
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	regions, err := cacheGrab(state.cache, "regions", func() ([]fly.Region, error) {
-		regions, _, err := apiClient.PlatformRegions(ctx)
+		regionData, err := flapsClient.GetRegions(ctx)
 		if err != nil {
 			return nil, err
 		}
+		regions := regionData.Regions
 		// Filter out deprecated regions
 		regions = lo.Filter(regions, func(r fly.Region, _ int) bool {
 			return !r.Deprecated
 		})
+
 		return regions, nil
 	})
 	if err != nil {
@@ -111,6 +127,7 @@ func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
 	if !ok {
 		return region, fmt.Errorf("region %s not found. Is this a valid region according to `fly platform regions`?", state.Plan.RegionCode)
 	}
+
 	return region, nil
 }
 
@@ -137,9 +154,15 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	region, err := state.Region(ctx)
-	if err != nil {
-		return "", err
+	// A region left to be chosen in the Launch UI can hold a code that failed
+	// placement ("any", or a region that doesn't exist); it shows as
+	// <unspecified> below, so don't look it up.
+	var region fly.Region
+	if state.PlanSource.regionSource != recoverableSpecifyInUi {
+		region, err = state.Region(ctx)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	postgresStr, err := describePostgresPlan(state.Plan)
@@ -192,7 +215,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	ret := ""
+	var ret strings.Builder
 	for _, row := range rows {
 
 		label := row[0]
@@ -202,78 +225,33 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		labelSpaces := strings.Repeat(" ", colLengths[0]-len(label))
 		valueSpaces := strings.Repeat(" ", colLengths[1]-len(value))
 
-		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
+		fmt.Fprintf(&ret, "%s: %s%s %s(%s)\n", label, labelSpaces, colorize.Purple(value), valueSpaces, colorize.Yellow(source))
 	}
-	return ret, nil
+
+	return ret.String(), nil
 }
 
 func (state *launchState) validateExtensions(ctx context.Context) error {
 	// This is written a little awkwardly with the expectation
 	// that we'll probably need more validation in the future.
 	// When that happens we can just errors.Join(a(), b(), c()...)
+	return nil
+}
 
-	io := iostreams.FromContext(ctx)
-	noConfirm := !io.IsInteractive() || flag.GetBool(ctx, "now")
-
-	org, err := state.orgCompact(ctx)
-	if err != nil {
-		return err
+// reportTo copies what the state knows about the app and org into the launch
+// metrics, on every exit path. The app name can change after it was first
+// recorded, in the web UI or when the derived name is taken; renamed reports
+// whether it did.
+func (state *launchState) reportTo(status *metrics.LaunchStatusPayload) (renamed bool) {
+	if state == nil {
+		return false
+	}
+	status.OrgID = state.orgID
+	status.AppID = state.appID
+	if state.Plan != nil && state.Plan.AppName != "" && state.Plan.AppName != status.AppName {
+		status.AppName = state.Plan.AppName
+		return true
 	}
 
-	validateSupabase := func() error {
-		supabase := state.Plan.Postgres.SupabasePostgres
-		if supabase == nil {
-			return nil
-		}
-
-		// We're using Supabase. Ensure that we're within plan limits.
-		client := flyutil.ClientFromContext(ctx).GenqClient()
-
-		response, err := gql.ListAddOns(ctx, client, "supabase")
-		if err != nil {
-			return fmt.Errorf("failed to list Supabase databases: %w", err)
-		}
-
-		// TODO: We'd like to be able to query the user's plan to see if they're on a paid plan.
-		//       For now, we'll just nag when they create their second database, every time.
-
-		if len(response.AddOns.Nodes) != 1 {
-			// If we're at zero databases, we're within the free plan.
-			// If we're at >=2 databases, we know we're on a paid plan.
-			// It's only 1 existing database where we need to validate the plan.
-			return nil
-		}
-
-		if noConfirm {
-			// We can't validate this any further until we can query the plan info.
-			// Assume it's okay, and let the launch fail if it's not.
-
-			// TODO: Once we can query whether or not the user is on a paid plan,
-			//       we'll be able to early-exit in non-interactive mode and prevent a failed launch.
-			return nil
-		}
-
-		fmt.Fprintf(io.Out, "You're about to create a second Supabase database. This requires a paid plan.\n")
-		fmt.Fprintf(io.Out, "Please check to ensure that your plan supports this, otherwise your launch may fail.\n")
-		openDashboard, err := prompt.Confirm(ctx, "Open the dashboard to check your plan?")
-		if err != nil {
-			return err
-		}
-		if openDashboard {
-			if err = extensions_core.OpenOrgDashboard(ctx, org.Slug, "supabase"); err != nil {
-				return err
-			}
-		}
-		confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Continue launching %s?", state.Plan.AppName))
-		if err != nil {
-			return err
-		}
-		if !confirm {
-			return errors.New("aborted by user")
-		}
-
-		return nil
-	}
-
-	return validateSupabase()
+	return false
 }

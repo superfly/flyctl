@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -17,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -32,56 +35,116 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 
 	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
 
-	if state.sourceInfo.GitHubActions.Secrets {
+	// The deploy token is for an app; with --no-create-app there isn't one yet.
+	if state.sourceInfo.GitHubActions.Secrets && !noCreateApp(ctx) {
+		ios := iostreams.FromContext(ctx)
+		colorize := ios.ColorScheme()
+		quiet := plan.GetPlanStep(ctx) != ""
+
 		gh, err := exec.LookPath("gh")
-
 		if err != nil {
-			if plan.GetPlanStep(ctx) == "" {
-				io := iostreams.FromContext(ctx)
-				colorize := io.ColorScheme()
-				fmt.Fprintln(io.Out, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
-				fmt.Fprintln(io.Out, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
-				fmt.Fprintln(io.Out)
-			}
-		} else {
-			apiClient := flyutil.ClientFromContext(ctx)
-
-			expiry := "999999h"
-
-			app, err := apiClient.GetAppCompact(ctx, appName)
-			if err != nil {
-				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			if !quiet {
+				printDeployTokenSteps(ios.Out, colorize)
 			}
 
-			resp, err := gql.CreateLimitedAccessToken(
-				ctx,
-				apiClient.GenqClient(),
-				appName,
-				app.Organization.ID,
-				"deploy",
-				&gql.LimitedAccessTokenOptions{
-					"app_id": app.ID,
-				},
-				expiry,
-			)
-			if err != nil {
-				return fmt.Errorf("failed creating token: %w", err)
-			} else {
-				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+			return nil
+		}
 
-				fmt.Println("Setting FLY_API_TOKEN secret in GitHub repository settings")
-				cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
-				cmd.Stdin = strings.NewReader(token)
-				err = cmd.Run()
+		token, err := state.createGitHubDeployToken(ctx, appName)
+		if err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
 
-				if err != nil {
-					fmt.Println("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
+			// The app exists by now, so this mustn't fail the launch: the
+			// workflow works once the secret is set by hand. Plan steps get
+			// the warning too, so their caller knows the secret isn't set.
+			fmt.Fprintln(ios.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf("Couldn't create a deploy token for GitHub Actions: %v", err)))
+			if !quiet {
+				if errors.Is(err, errCantCreateTokens) {
+					fmt.Fprintln(ios.ErrOut, needTokenThatCanCreateTokens())
 				}
+				printDeployTokenSteps(ios.ErrOut, colorize)
+			}
+
+			return nil
+		}
+
+		if !quiet {
+			fmt.Fprintln(ios.Out, "Setting FLY_API_TOKEN secret in GitHub repository settings")
+		}
+		cmd := exec.CommandContext(ctx, gh, "secret", "set", "FLY_API_TOKEN")
+		cmd.Stdin = strings.NewReader(token)
+		cmd.Stderr = ios.ErrOut
+		if err := cmd.Run(); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
+			fmt.Fprintln(ios.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf("Couldn't set the FLY_API_TOKEN secret in GitHub repository settings: %v", err)))
+			if !quiet {
+				printDeployTokenSteps(ios.ErrOut, colorize)
 			}
 		}
 	}
 
 	return nil
+}
+
+// errCantCreateTokens is the API refusing CreateLimitedAccessToken, which it
+// does for tokens that can't create tokens, such as deploy tokens.
+var errCantCreateTokens = errors.New("the token you're using isn't allowed to create tokens")
+
+// needTokenThatCanCreateTokens says how to run the manual steps with a token
+// that can: a token in the environment overrides the one fly auth login saves.
+func needTokenThatCanCreateTokens() string {
+	for _, key := range []string{config.AccessTokenEnvKey, config.APITokenEnvKey} {
+		if os.Getenv(key) != "" {
+			return fmt.Sprintf("%s is set; without it, logged in as yourself (`fly auth login`):", key)
+		}
+	}
+
+	return "Logged in as yourself (`fly auth login`), not with a deploy token:"
+}
+
+// createGitHubDeployToken creates the deploy token GitHub Actions deploys the
+// app with.
+func (state *launchState) createGitHubDeployToken(ctx context.Context, appName string) (string, error) {
+	org, err := state.Org(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := gql.CreateLimitedAccessToken(
+		ctx,
+		flyutil.ClientFromContext(ctx).GenqClient(),
+		appName,
+		org.ID,
+		"deploy",
+		&gql.LimitedAccessTokenOptions{
+			"app_id": appName,
+		},
+		"999999h",
+	)
+	if err != nil {
+		// The API says "input:3:2: createLimitedAccessToken Not authorized to
+		// access this createlimitedaccesstoken".
+		if strings.Contains(err.Error(), "Not authorized") {
+			return "", errCantCreateTokens
+		}
+
+		return "", err
+	}
+
+	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
+}
+
+// printDeployTokenSteps says how to give GitHub Actions a deploy token when
+// launch can't set one up itself.
+func printDeployTokenSteps(w io.Writer, colorize *iostreams.ColorScheme) {
+	fmt.Fprintln(w, "Run", colorize.Purple("`fly tokens create deploy -x 999999h`"), "to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+	fmt.Fprintln(w, "See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+	fmt.Fprintln(w)
 }
 
 // satisfyScannerBeforeDb performs operations that the scanner requests that must be done before databases are created
@@ -92,6 +155,7 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 	if err := state.scannerCreateSecrets(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -106,6 +170,7 @@ func (state *launchState) satisfyScannerAfterDb(ctx context.Context) error {
 	if err := state.scannerSetAppconfig(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -121,10 +186,14 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 		if helpers.FileExists(path) {
 			if flag.GetBool(ctx, "now") {
 				fmt.Fprintf(io.Out, "You specified --now, so not overwriting %s\n", path)
+
 				continue
 			}
 			if !flag.GetBool(ctx, "yes") {
 				confirm, err := prompt.ConfirmOverwrite(ctx, path)
+				if prompt.IsNonInteractive(err) {
+					fmt.Fprintf(io.Out, "Not overwriting %s when not running interactively; pass --yes to overwrite it\n", path)
+				}
 				if !confirm || err != nil {
 					continue
 				}
@@ -146,6 +215,7 @@ func (state *launchState) scannerCreateFiles(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -180,6 +250,16 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 		}
 	}
 
+	if len(secrets) > 0 && noCreateApp(ctx) {
+		// There's no app to set them on yet. Generated values aren't shown:
+		// any fresh random value works.
+		keys := lo.Keys(secrets)
+		sort.Strings(keys)
+		fmt.Fprintf(io.Out, "Set these secrets once the app exists, with `fly secrets set NAME=VALUE -a %s`: %s\n", state.Plan.AppName, strings.Join(keys, ", "))
+
+		return nil
+	}
+
 	if len(secrets) > 0 {
 		flapsClient := flapsutil.ClientFromContext(ctx)
 		err := appsecrets.Update(ctx, flapsClient, state.Plan.AppName, secrets, nil)
@@ -188,6 +268,7 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 		}
 		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.Plan.AppName, strings.Join(lo.Keys(secrets), ", "))
 	}
+
 	return nil
 }
 
@@ -280,6 +361,7 @@ func execInitCommand(ctx context.Context, command scanner.InitCommand) (err erro
 	if err = cmd.Wait(); err != nil {
 		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
 	}
+
 	return err
 }
 
@@ -301,11 +383,12 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 	}
 
 	for envName, envVal := range srcInfo.Env {
-		if envVal == "APP_FQDN" {
+		switch envVal {
+		case "APP_FQDN":
 			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
-		} else if envVal == "APP_URL" {
+		case "APP_URL":
 			appConfig.SetEnvVariable(envName, "https://"+appConfig.AppName+".fly.dev")
-		} else {
+		default:
 			appConfig.SetEnvVariable(envName, envVal)
 		}
 	}
@@ -387,5 +470,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		}
 		appConfig.Build.Args = srcInfo.BuildArgs
 	}
+
 	return nil
 }

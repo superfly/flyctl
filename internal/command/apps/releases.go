@@ -68,6 +68,7 @@ func runReleases(ctx context.Context) error {
 	}
 
 	rows, headers := formatMachinesReleases(releases, flag.GetBool(ctx, "image"))
+
 	return render.Table(out, "", rows, headers...)
 }
 

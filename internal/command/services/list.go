@@ -48,6 +48,7 @@ func runList(ctx context.Context) error {
 
 	if len(machines) == 0 {
 		fmt.Fprintf(io.ErrOut, "No machines found")
+
 		return nil
 	}
 

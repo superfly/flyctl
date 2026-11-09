@@ -12,10 +12,11 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -88,13 +89,13 @@ func newCreate() *cobra.Command {
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
+
 	return cmd
 }
 
 func runCreate(ctx context.Context) error {
 	var (
-		cfg    = config.FromContext(ctx)
-		client = flyutil.ClientFromContext(ctx)
+		cfg = config.FromContext(ctx)
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
@@ -106,9 +107,14 @@ func runCreate(ctx context.Context) error {
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)
 
-	// fetch AppBasic in the background while we prompt for confirmation
-	appFuture := future.Spawn(func() (*fly.AppBasic, error) {
-		return client.GetAppBasic(ctx, appName)
+	// fetch the app's organization in the background while we prompt for confirmation
+	orgFuture := future.Spawn(func() (*uiex.Organization, error) {
+		app, err := flapsClient.GetApp(ctx, appName)
+		if err != nil {
+			return nil, err
+		}
+
+		return uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
 	})
 
 	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
@@ -117,13 +123,13 @@ func runCreate(ctx context.Context) error {
 		return nil
 	}
 
-	app, err := appFuture.Get()
+	org, err := orgFuture.Get()
 	if err != nil {
 		return err
 	}
 
 	var region *fly.Region
-	if region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
+	if region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
 		return err
@@ -131,7 +137,7 @@ func runCreate(ctx context.Context) error {
 
 	var snapshotID *string
 	if flag.GetString(ctx, "snapshot-id") != "" {
-		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
+		snapshotID = new(flag.GetString(ctx, "snapshot-id"))
 	}
 
 	var fsType *string
@@ -151,22 +157,22 @@ func runCreate(ctx context.Context) error {
 	input := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              fly.Pointer(flag.GetInt(ctx, "size")),
-		Encrypted:           fly.Pointer(!flag.GetBool(ctx, "no-encryption")),
-		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
-		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
+		SizeGb:              new(flag.GetInt(ctx, "size")),
+		Encrypted:           new(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone:   new(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   new(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
-		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		SnapshotRetention:   new(flag.GetInt(ctx, "snapshot-retention")),
 		FSType:              fsType,
 	}
 
 	if flag.IsSpecified(ctx, "scheduled-snapshots") {
-		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
+		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	for i := 0; i < count; i++ {
+	for range count {
 		volume, err := flapsClient.CreateVolume(ctx, appName, input)
 		if err != nil {
 			return err
@@ -181,6 +187,7 @@ func runCreate(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }
 

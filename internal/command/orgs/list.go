@@ -3,15 +3,16 @@ package orgs
 import (
 	"bytes"
 	"context"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -28,13 +29,12 @@ func newList() *cobra.Command {
 
 	flag.Add(cmd, flag.JSONOutput())
 	cmd.Aliases = []string{"ls"}
+
 	return cmd
 }
 
 func runList(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
-
-	orgs, err := client.GetOrganizations(ctx)
+	orgs, err := uiexutil.ClientFromContext(ctx).ListOrganizations(ctx, false)
 	if err != nil {
 		return err
 	}
@@ -57,11 +57,13 @@ func runList(ctx context.Context) error {
 		b     bytes.Buffer
 		first = true
 	)
+	table := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 
 	for _, org := range orgs {
-		printOrg(&b, &org, first)
+		printOrg(table, &org, first)
 		first = false
 	}
+	_ = table.Flush()
 
 	b.WriteTo(out)
 

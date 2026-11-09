@@ -3,6 +3,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -30,6 +32,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -37,6 +40,7 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/macaroon/flyio"
 )
 
 type Runner func(context.Context) error
@@ -287,7 +291,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	queryRelease := func(parent context.Context) {
 		logger.Debug("started querying for new release")
 
-		ctx, cancel := context.WithTimeout(parent, time.Second)
+		ctx, cancel := context.WithTimeoutCause(parent, time.Second, fmt.Errorf("checking for a new flyctl release: %w", context.DeadlineExceeded))
 		defer cancel()
 
 		switch r, err := update.LatestRelease(ctx, channel); {
@@ -301,6 +305,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 			if update.IsUnderHomebrew() {
 				if relErr := update.ValidateRelease(ctx, r.Version); relErr != nil {
 					logger.Debugf("latest release %s is invalid: %v", r.Version, relErr)
+
 					break
 				}
 			}
@@ -351,6 +356,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 		for i := len(ignoredCmd) - 1; i >= 0; i-- {
 			if !currentCmd.HasParent() || currentCmd.Use != ignoredCmd[i] {
 				match = false
+
 				break
 			}
 			currentCmd = currentCmd.Parent()
@@ -362,6 +368,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -403,6 +410,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	latest, err := version.Parse(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
+
 		return ctx, err
 	}
 
@@ -411,6 +419,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			// Continuing from versionInvalidMsg above
 			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
 		}
+
 		return ctx, nil
 	}
 
@@ -430,6 +439,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			}
 			// Does not return on success
 			err = update.Relaunch(ctx, silent)
+
 			return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
 		} else if runtime.GOOS != "windows" {
 			// Background auto-update has terrible UX on windows,
@@ -508,12 +518,33 @@ func killOldAgent(ctx context.Context) (context.Context, error) {
 
 func startMetrics(ctx context.Context) (context.Context, error) {
 	metrics.RecordCommandContext(ctx)
+	recordTokenScopedIDs(ctx)
 
 	task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
 		metrics.FlushPending()
 	})
 
 	return ctx, nil
+}
+
+// recordTokenScopedIDs attributes this command to an org, and where possible an
+// app, using only what our tokens are already scoped to. Doing it from the
+// tokens rather than by looking the app up keeps this free, and covers the many
+// commands that only ever deal in an app name. Tokens spanning several orgs
+// report nothing instead of guessing, so these are frequently empty.
+func recordTokenScopedIDs(ctx context.Context) {
+	orgID, appID := config.ScopedIDs(config.Tokens(ctx))
+
+	var orgStr, appStr string
+	if orgID != 0 {
+		orgStr = strconv.FormatUint(orgID, 10)
+	}
+
+	if appID != 0 {
+		appStr = strconv.FormatUint(appID, 10)
+	}
+
+	metrics.SetAppOrgIDs(appStr, orgStr)
 }
 
 func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
@@ -553,6 +584,7 @@ func notifyHostIssues(ctx context.Context) (context.Context, error) {
 
 func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 	metrics.Enabled = false
+
 	return ctx, nil
 }
 
@@ -566,28 +598,42 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		return handleReLogin(ctx, "not_authenticated")
 	}
 
-	// Skip timestamp validation if token is from environment variable (CI/CD use case)
-	// This allows automated pipelines to continue working without session timeout
-	tokenFromEnv := env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != ""
-
-	if !tokenFromEnv {
+	if !hasExternallySuppliedToken(ctx) {
 		// Check if the token has expired due to age
 		// If LastLogin is zero, it means the user has an old config without the timestamp
 		if cfg.LastLogin.IsZero() {
 			logger.FromContext(ctx).Debug("no login timestamp found, prompting for re-login")
+
 			return handleReLogin(ctx, "no_timestamp")
 		}
 
 		// Check if the token has expired based on the timeout
 		if time.Since(cfg.LastLogin) > TokenTimeout {
 			logger.FromContext(ctx).Debugf("token expired (%v since login, timeout is %v)", time.Since(cfg.LastLogin), TokenTimeout)
+
 			return handleReLogin(ctx, "expired")
 		}
 	}
 
-	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+	if err := monitorSessionTokens(ctx); err != nil {
+		return nil, err
+	}
 
 	return ctx, nil
+}
+
+// hasExternallySuppliedToken reports whether the user supplied an auth token
+// via the FLY_ACCESS_TOKEN / FLY_API_TOKEN env vars or the --access-token
+// flag. These are non-interactive auth paths (CI/CD use cases) and must
+// bypass the interactive session-age re-login prompt — otherwise CI runs
+// without a LastLogin timestamp fail with ErrNoAuthToken even when the
+// caller explicitly provided a valid token.
+func hasExternallySuppliedToken(ctx context.Context) bool {
+	if env.First(config.AccessTokenEnvKey, config.APITokenEnvKey) != "" {
+		return true
+	}
+
+	return flag.GetString(ctx, flagnames.AccessToken) != ""
 }
 
 // handleReLogin prompts the user to log in and handles the re-login flow
@@ -620,12 +666,12 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			promptMessage = "Would you like to sign in?"
 		}
 
-		confirmed, err := prompt.Confirm(ctx, promptMessage)
+		confirmed, err := prompt.ConfirmYes(ctx, promptMessage)
 		if err != nil {
 			return nil, err
 		}
 		if !confirmed {
-			return nil, fly.ErrNoAuthToken
+			return nil, reloginError(reason)
 		}
 
 		// Attempt to log the user in
@@ -654,21 +700,103 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
+		// Fetch organization tokens and discharge any third-party caveats
+		if err := monitorSessionTokens(ctx); err != nil {
+			return nil, err
+		}
+
 		return ctx, nil
 	} else {
-		return nil, fly.ErrNoAuthToken
+		return nil, reloginError(reason)
 	}
 }
 
+// errSessionExpired stands in for fly.ErrNoAuthToken when a token is saved
+// but its login is too old, or predates login timestamps: "no access token
+// available" would be wrong, and logging in again fixes it.
+var errSessionExpired = errors.New("your flyctl session has expired. Run `fly auth login` to log in again")
+
+// reloginError is the error for a command that needs a login and won't get
+// one interactively.
+func reloginError(reason string) error {
+	if reason == "not_authenticated" {
+		return fly.ErrNoAuthToken
+	}
+
+	return errSessionExpired
+}
+
+const ssoTokensHelpURL = "https://fly.io/docs/security/tokens/"
+
+// monitorSessionTokens starts token monitoring and fails the command when an
+// SSO sign-in was requested but not completed, rather than letting it go on
+// to an unauthorized API call.
+func monitorSessionTokens(ctx context.Context) error {
+	var (
+		mu    sync.Mutex
+		shown string
+	)
+
+	config.MonitorTokens(ctx, config.Tokens(ctx), func(ctx context.Context, url string) error {
+		mu.Lock()
+		shown = url
+		mu.Unlock()
+
+		return tryOpenUserURL(ctx, url)
+	})
+
+	mu.Lock()
+	url := shown
+	mu.Unlock()
+
+	return incompleteSSO(ctx, url, func() (bool, error) {
+		return flyio.DischargeClient().NeedsDischarge(config.Tokens(ctx).All())
+	})
+}
+
+// incompleteSSO returns an error when url was shown for an SSO sign-in and the
+// tokens still need a discharge.
+func incompleteSSO(ctx context.Context, url string, needsDischarge func() (bool, error)) error {
+	if url == "" {
+		return nil
+	}
+
+	needs, err := needsDischarge()
+	if err != nil {
+		logger.FromContext(ctx).Debugf("failed checking for undischarged tokens: %s", err)
+
+		return nil
+	}
+	if !needs {
+		return nil
+	}
+
+	return fmt.Errorf("SSO sign-in was not completed. Open %s in a browser and run this command again, or set FLY_API_TOKEN to a token instead: %s", url, ssoTokensHelpURL)
+}
+
+// tryOpenUserURL is the UserURLCallback for SSO discharges. Returning nil keeps
+// the discharge client polling for the sign-in; returning an error stops it.
 func tryOpenUserURL(ctx context.Context, url string) error {
 	io := iostreams.FromContext(ctx)
 
-	if !io.IsInteractive() || env.IsCI() {
-		return errors.New("failed opening browser")
+	if env.IsCI() {
+		fmt.Fprintf(io.ErrOut, "This organization requires SSO, which needs a sign-in in a browser at:\n\n    %s\n\n", url)
+
+		return fmt.Errorf("SSO sign-in cannot complete on CI. Set FLY_API_TOKEN to a token instead: %s", ssoTokensHelpURL)
 	}
 
-	if err := open.Run(url); err != nil {
-		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
+	// The URL gets a line of its own so the reader can pass it on to someone.
+	fmt.Fprintf(io.ErrOut, "This organization requires SSO. Open this URL in a browser and sign in:\n\n    %s\n\n", url)
+	fmt.Fprintf(io.ErrOut,
+		"Finishing in a browser on any machine completes this command, within %d minutes.\n"+
+			"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n\n",
+		int(config.InteractiveDischargeTimeout.Minutes()),
+	)
+
+	if io.IsInteractive() {
+		if err := open.Run(url); err != nil {
+			fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url above into a browser and continue\n")
+		}
 	}
 
 	return nil
@@ -682,25 +810,39 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	// LoadAppConfigIfPresent is chained with RequireAppName
 	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
 		metrics.IsUsingGPU = cfg.IsUsingGPU()
+
 		return ctx, nil
 	}
 
 	logger := logger.FromContext(ctx)
-	for _, path := range appConfigFilePaths(ctx) {
+	configPaths := appConfigFilePaths(ctx)
+	for _, path := range configPaths {
 		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				var typeErr *json.UnmarshalTypeError
+				if strings.HasSuffix(path, ".json") && flag.FromContext(ctx).Lookup("machine-config") != nil &&
+					errors.As(err, &typeErr) && typeErr.Field == "restart" && typeErr.Value == "object" {
+					logger.Warn("--config expects app configuration; use --machine-config for Machine JSON.")
+				}
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
+
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
+
 			continue
 		default:
 			return nil, fmt.Errorf("failed loading app config from %s: %w", path, err)
 		}
+	}
+
+	// If the user explicitly specified a config file path and we couldn't find it, return an error
+	if configPath := flag.GetAppConfigFilePath(ctx); configPath != "" {
+		return nil, fmt.Errorf("config file not found at specified path: %s (also tried: %s)", configPath, filepath.Join(configPath, appconfig.DefaultConfigFileName))
 	}
 
 	return ctx, nil
@@ -752,6 +894,8 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 		return nil, ErrRequireAppName
 	}
 
+	metrics.SetAppName(name)
+
 	return appconfig.WithName(ctx, name), nil
 }
 
@@ -778,6 +922,8 @@ func RequireAppNameNoFlag(ctx context.Context) (context.Context, error) {
 	if name == "" {
 		return nil, ErrRequireAppName
 	}
+
+	metrics.SetAppName(name)
 
 	return appconfig.WithName(ctx, name), nil
 }
@@ -810,6 +956,7 @@ func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Con
 	if wd == "" {
 		return ctx, nil
 	}
+
 	return ChangeWorkingDirectory(ctx, wd)
 }
 

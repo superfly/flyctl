@@ -151,6 +151,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 			if optOutGithubActions == "" {
 				github_actions(sourceDir, &si.GitHubActions)
 			}
+
 			return si, nil
 		}
 	}
@@ -164,11 +165,12 @@ type sourceScanner func(sourceDir string, config *ScannerConfig) (*SourceInfo, e
 // will panic on errors since these files are embedded and should work
 func templates(name string) (files []SourceFile) {
 	filter := func(input []byte) []byte { return input }
+
 	return templatesFilter(name, filter)
 }
 
 // same thing as templates (above) but with template execution given a map of variables
-func templatesExecute(name string, vars map[string]interface{}) (files []SourceFile) {
+func templatesExecute(name string, vars map[string]any) (files []SourceFile) {
 	filter := func(input []byte) []byte {
 		template := template.Must(template.New("name").Parse(string(input)))
 		result := strings.Builder{}
@@ -206,6 +208,7 @@ func templatesFilter(name string, filter func(input []byte) []byte) (files []Sou
 		}
 
 		files = append(files, f)
+
 		return nil
 	})
 	if err != nil {

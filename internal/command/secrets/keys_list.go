@@ -54,6 +54,7 @@ func compareSecrets(a, b fly.SecretKey) int {
 	}
 
 	diff = CompareKeyver(aver, bver)
+
 	return diff
 }
 

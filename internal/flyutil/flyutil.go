@@ -18,5 +18,6 @@ func NewClientFromOptions(ctx context.Context, opts fly.ClientOptions) *fly.Clie
 	if v := logger.MaybeFromContext(ctx); v != nil && opts.Logger == nil {
 		opts.Logger = v
 	}
+
 	return fly.NewClientFromOptions(opts)
 }

@@ -30,13 +30,13 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	// TODO(Allison): Do we want to make the executive decision to just *always* deploy?
 	// Feedback(Sam): scanners need the abiiity to abort the deploy if they detect a problem
 
-	deployNow := !(state.sourceInfo.SkipDeploy || flag.GetBool(ctx, "no-deploy"))
+	deployNow := !state.sourceInfo.SkipDeploy && !flag.GetBool(ctx, "no-deploy")
 
 	if flag.GetBool(ctx, "now") {
 		deployNow = true
 	}
 
-	if flag.GetBool(ctx, "no-create") {
+	if noCreateApp(ctx) {
 		deployNow = false
 	}
 
@@ -83,6 +83,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 		}
 		// Mark this as a first launch to show celebratory output
 		ctx = context.WithValue(ctx, deploycontext.IsFirstLaunchKey, true)
+
 		return deploy.DeployWithConfig(ctx, state.appConfig, 0, flag.GetBool(ctx, "now"))
 	}
 

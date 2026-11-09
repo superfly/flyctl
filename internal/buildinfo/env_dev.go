@@ -19,6 +19,7 @@ func loadBuildTime() (err error) {
 		buildDate = time.Now().Format(time.RFC3339)
 	}
 	cachedBuildTime, err = time.Parse(time.RFC3339, buildDate)
+
 	return
 }
 
@@ -28,5 +29,6 @@ func loadVersion() error {
 		branchName = "dev"
 	}
 	cachedVersion = version.New(cachedBuildTime, branchName, int(cachedBuildTime.Unix()))
+
 	return nil
 }

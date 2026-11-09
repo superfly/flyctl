@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -74,7 +75,7 @@ func run(ctx context.Context) error {
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)
 
-		app, err := client.GetAppBasic(ctx, appName)
+		app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("get app: %w", err)
 		}
@@ -131,8 +132,8 @@ func run(ctx context.Context) error {
 		}
 
 		if flag.GetBool(ctx, "short") {
-			if reply.MsgHdr.Rcode != dns.RcodeSuccess {
-				return fmt.Errorf("lookup failed: %s", dns.RcodeToString[reply.MsgHdr.Rcode])
+			if reply.Rcode != dns.RcodeSuccess {
+				return fmt.Errorf("lookup failed: %s", dns.RcodeToString[reply.Rcode])
 			}
 
 			switch dtype {
@@ -269,5 +270,6 @@ func fixNameError(err error, ns string) error {
 	if err == nil {
 		return err
 	}
+
 	return errors.New(nameErrorRx.ReplaceAllString(err.Error(), fmt.Sprintf("[%s]:53", ns)))
 }

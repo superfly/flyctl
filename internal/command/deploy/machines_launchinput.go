@@ -16,6 +16,11 @@ import (
 )
 
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
+	// Config is nil when the machine's host isn't reachable.
+	if origMachineRaw.Config == nil {
+		return nil, fmt.Errorf("can't restart machine %s: its host status is %q; try again later or check `fly machine status %s -a %s`", origMachineRaw.ID, origMachineRaw.HostStatus, origMachineRaw.ID, md.app.Name)
+	}
+
 	minvers, err := appsecrets.GetMinvers(md.appConfig.AppName)
 	if err != nil {
 		return nil, err
@@ -28,7 +33,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 		ID:                origMachineRaw.ID,
 		Config:            mConfig,
 		Region:            origMachineRaw.Region,
-		SkipLaunch:        skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:        shouldSkipLaunch(origMachineRaw, mConfig),
 		MinSecretsVersion: minvers,
 	}, nil
 }
@@ -46,17 +51,11 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
-	// Get the final process group and prevent empty string
-	processGroup = mConfig.ProcessGroup()
 	region := md.appConfig.PrimaryRegion
 
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
-		vol := md.popVolumeFor(mount0.Name, region)
-		if vol == nil {
-			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, region)
-		}
-		mount0.Volume = vol.ID
+		mount0.Volume = mount0.Name
 	}
 
 	if len(standbyFor) > 0 {
@@ -81,7 +80,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	return &fly.LaunchMachineInput{
 		Region:            region,
 		Config:            mConfig,
-		SkipLaunch:        skipLaunch(nil, mConfig),
+		SkipLaunch:        shouldSkipLaunch(nil, mConfig),
 		MinSecretsVersion: minvers,
 	}, nil
 }
@@ -103,8 +102,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	}
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
-	// Get the final process group and prevent empty string
-	processGroup = mConfig.ProcessGroup()
 
 	// Update container image
 	if err = md.updateContainerImage(mConfig); err != nil {
@@ -164,11 +161,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 			// way is to destroy the current machine and launch a new one with the new volume attached
 			mount0 := &mMounts[0]
 			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mount0.Name)
-			vol := md.popVolumeFor(mount0.Name, origMachineRaw.Region)
-			if vol == nil {
-				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, origMachineRaw.Region)
-			}
-			mount0.Volume = vol.ID
+			mount0.Volume = mount0.Name
 			machineShouldBeReplaced = true
 		case mMounts[0].Path != oMounts[0].Path:
 			// The volume is the same but its mount path changed. Not a big deal.
@@ -193,11 +186,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		// and it is not possible to attach a volume to an existing machine.
 		// The volume could be in a different zone than the machine.
 		mount0 := &mMounts[0]
-		vol := md.popVolumeFor(mount0.Name, origMachineRaw.Region)
-		if vol == nil {
-			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mMounts[0].Name, origMachineRaw.Region)
-		}
-		mount0.Volume = vol.ID
+		mount0.Volume = mount0.Name
 		machineShouldBeReplaced = true
 	}
 
@@ -218,7 +207,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		delete(mConfig.Env, "FLY_STANDBY_FOR")
 	}
 
-	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != oConfig.Guest.HostDedicationID {
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != machineHostDedicationID(origMachineRaw) {
 		if len(oMounts) > 0 && len(mMounts) > 0 {
 			// Attempting to rellocate a machine with a volume attached to a different host
 			return nil, fmt.Errorf("can't rellocate machine '%s' to dedication id '%s' because it has an attached volume."+
@@ -229,6 +218,10 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		// but sets it as a top level directive.
 		// This also works when top level HDID is different than [compute.host_dedication_id]
 		// because a flatten config also overrides the top level directive
+		if mConfig.Guest == nil {
+			// No existing guest config to inherit (unreachable host + no [[compute]] section)
+			mConfig.Guest = &fly.MachineGuest{}
+		}
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
@@ -241,7 +234,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
+		SkipLaunch:          shouldSkipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
 		MinSecretsVersion:   minvers,
 	}, nil
@@ -255,6 +248,7 @@ func hasContainerFiles(mConfig *fly.MachineConfig) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -291,7 +285,7 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 // Skip launching currently-stopped or suspended machines if:
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
-func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+func shouldSkipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	state := "<not-set>"
 	if origMachineRaw != nil {
 		state = origMachineRaw.State
@@ -305,15 +299,26 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	case origMachineRaw == nil:
 		return false
 	}
+
 	return true
 }
 
 // updateContainerImage sets container.Image = mConfig.Image in any container where image == "."
+// It also substitutes image_config references of "." in files with the build image.
 func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
-	if len(mConfig.Containers) != 0 {
-		for i := range mConfig.Containers {
-			if mConfig.Containers[i].Image == "." {
-				mConfig.Containers[i].Image = mConfig.Image
+	for j := range mConfig.Files {
+		if mConfig.Files[j].ImageConfig != nil && *mConfig.Files[j].ImageConfig == "." {
+			mConfig.Files[j].ImageConfig = &mConfig.Image
+		}
+	}
+
+	for i := range mConfig.Containers {
+		if mConfig.Containers[i].Image == "." {
+			mConfig.Containers[i].Image = mConfig.Image
+		}
+		for j := range mConfig.Containers[i].Files {
+			if mConfig.Containers[i].Files[j].ImageConfig != nil && *mConfig.Containers[i].Files[j].ImageConfig == "." {
+				mConfig.Containers[i].Files[j].ImageConfig = &mConfig.Image
 			}
 		}
 	}

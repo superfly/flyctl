@@ -22,6 +22,7 @@ func absFileExists(filenames ...string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -75,6 +76,7 @@ func dirContains(glob string, patterns ...string) checkFn {
 				}
 			}
 		}
+
 		return false
 	}
 }
@@ -87,18 +89,20 @@ func checksPass(sourceDir string, checks ...checkFn) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
-func readTomlFile(file string) (map[string]interface{}, error) {
+func readTomlFile(file string) (map[string]any, error) {
 	doc, err := os.ReadFile(file)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading  "+file)
 	}
-	tomlData := make(map[string]interface{})
+	tomlData := make(map[string]any)
 	readErr := toml.Unmarshal(doc, &tomlData)
 	if readErr != nil {
 		return nil, errors.Wrap(readErr, "Error parsing "+file)
 	}
+
 	return tomlData, nil
 }

@@ -51,6 +51,7 @@ func scantronReq(ctx context.Context, imgPath, token, accept string) (*http.Resp
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching data from scantron: %w", err)
 	}
+
 	return res, nil
 }
 
@@ -113,6 +114,7 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 		if msg == "" {
 			msg = "undetermined"
 		}
+
 		return nil, fmt.Errorf("status code %d: %q", res.StatusCode, msg)
 	}
 
@@ -123,6 +125,7 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 	if scan.SchemaVersion != 2 {
 		return nil, fmt.Errorf("unknown scan schema %d", scan.SchemaVersion)
 	}
+
 	return scan, nil
 }
 
@@ -133,5 +136,6 @@ func makeScantronToken(ctx context.Context, orgId string) (string, error) {
 	}
 
 	token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
 	return token, nil
 }

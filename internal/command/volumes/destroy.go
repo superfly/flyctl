@@ -61,11 +61,10 @@ func runDestroy(ctx context.Context) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if len(volIDs) == 0 {
-		app, err := client.GetAppBasic(ctx, appName)
-		if err != nil {
+		if _, err := flapsClient.GetApp(ctx, appName); err != nil {
 			return err
 		}
-		volume, err := selectVolume(ctx, flapsClient, app)
+		volume, err := selectVolume(ctx, flapsClient, appName)
 		if err != nil {
 			return err
 		}

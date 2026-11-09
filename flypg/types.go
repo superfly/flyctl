@@ -129,6 +129,7 @@ func ErrorStatus(err error) int {
 	if errors.As(err, &e) {
 		return e.StatusCode
 	}
+
 	return http.StatusInternalServerError
 }
 

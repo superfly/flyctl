@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -36,19 +37,36 @@ func list() (cmd *cobra.Command) {
 
 func runList(ctx context.Context) (err error) {
 	var (
-		out    = iostreams.FromContext(ctx).Out
-		client = flyutil.ClientFromContext(ctx).GenqClient()
+		out       = iostreams.FromContext(ctx).Out
+		apiClient = flyutil.ClientFromContext(ctx)
+		client    = apiClient.GenqClient()
+		orgSlug   = flag.GetOrg(ctx)
 	)
-
-	response, err := gql.ListAddOns(ctx, client, "sentry")
 
 	var rows [][]string
 
-	for _, extension := range response.AddOns.Nodes {
-		rows = append(rows, []string{
-			extension.Name,
-			extension.Organization.Slug,
-		})
+	if orgSlug != "" {
+		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
+			return err
+		}
+
+		response, err := gql.ListOrganizationAddOns(ctx, client, orgSlug, "sentry")
+		if err != nil {
+			return err
+		}
+
+		for _, extension := range response.Organization.AddOns.Nodes {
+			rows = append(rows, []string{extension.Name, orgSlug})
+		}
+	} else {
+		response, err := gql.ListAddOns(ctx, client, "sentry")
+		if err != nil {
+			return err
+		}
+
+		for _, extension := range response.AddOns.Nodes {
+			rows = append(rows, []string{extension.Name, extension.Organization.Slug})
+		}
 	}
 
 	_ = render.Table(out, "", rows, "Name", "Org")

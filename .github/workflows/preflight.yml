@@ -21,6 +21,10 @@ jobs:
         group:
           - apps
           - deploy
+          - deploy-detach
+          - deploy-fixtures
+          - deploy-machine-checks
+          - bluegreen
           - launch
           - scale
           - volume
@@ -28,12 +32,14 @@ jobs:
           - logs
           - machine
           - postgres
+          - postgres-flex-failover
           - tokens
           - wireguard
           - misc
+          - harness
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -55,6 +61,9 @@ jobs:
         if: steps.download-flyctl.outcome == 'failure'
       - name: Run preflight tests
         id: preflight
+        # Fork pull requests cannot access the credentials needed by live tests.
+        # Keep running the offline harness tests for those contributions.
+        if: ${{ matrix.group == 'harness' || github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         env:
           # Use user token if available (required for deploy token tests), otherwise fall back to limited token
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN || secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
@@ -71,7 +80,7 @@ jobs:
           ./scripts/preflight.sh -r "${{ github.ref }}" -g "${{ matrix.group }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d
         with:
           webhook: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
@@ -87,12 +96,3 @@ jobs:
                 }
               ]
             }
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-        if: always()
-      - name: Clean up any un-deleted preflight apps
-        if: always()
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
-          FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-        run: |
-          ./scripts/delete_preflight_apps.sh "$FLY_PREFLIGHT_TEST_APP_PREFIX"

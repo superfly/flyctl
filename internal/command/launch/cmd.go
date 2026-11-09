@@ -15,7 +15,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
@@ -30,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -166,7 +167,7 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "command",
-			Description: "The command to override the Docker CND.",
+			Description: "The command to override the Docker CMD.",
 		},
 		flag.StringSlice{
 			Name:        "volume",
@@ -216,7 +217,19 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &manifest, nil
+}
+
+// launchUiAvailable reports whether a recoverable error can wait for the Launch
+// UI. --yes and plan steps never offer the UI, so deferring there would replace
+// the real error with "launch can not continue with errors present".
+func launchUiAvailable(ctx context.Context) bool {
+	return plan.GetPlanStep(ctx) == "" &&
+		!flag.GetYes(ctx) &&
+		!flag.GetBool(ctx, "manifest") &&
+		iostreams.FromContext(ctx).IsInteractive() &&
+		!env.IsCI()
 }
 
 func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
@@ -277,6 +290,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 	ctx = appconfig.WithConfig(ctx, nil)
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
+
 	return ctx, parentConfig, err
 }
 
@@ -286,11 +300,12 @@ func run(ctx context.Context) (err error) {
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+
 		return err
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		shutdownCtx, cancel := context.WithTimeoutCause(context.Background(), 500*time.Millisecond, fmt.Errorf("flushing launch traces: %w", context.DeadlineExceeded))
 		defer cancel()
 		tp.Shutdown(shutdownCtx)
 	}()
@@ -300,19 +315,30 @@ func run(ctx context.Context) (err error) {
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
 	metrics.Started(ctx, "launch")
 
 	var state *launchState = nil
+	// Problems only the Launch UI can fix, while it hasn't fixed them. The
+	// user saw them listed; launch metrics record them with the error.
+	var unresolved *recoverableErrorBuilder
 
-	if !flag.GetBool(ctx, "no-create") {
+	if !noCreateApp(ctx) {
 		defer func() {
 			if err != nil {
-				tracing.RecordError(span, err, "launch failed")
+				tracing.RecordError(ctx, span, err, "launch failed")
 				status.Error = err.Error()
+				if problems := unresolved.summary(); problems != "" {
+					status.Error += ": " + problems
+				}
 
 				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
 					err = state.sourceInfo.FailureCallback(err)
 				}
+			}
+
+			if renamed := state.reportTo(&status); renamed {
+				span.SetAttributes(attribute.String("app.name", status.AppName))
 			}
 
 			status.TraceID = span.SpanContext().TraceID().String()
@@ -381,10 +407,15 @@ func run(ctx context.Context) (err error) {
 			launchManifest.Plan.RegionCode = regionRequested
 		}
 
-		// Initialize PlanSource if nil (happens when loading from JSON because fields are unexported)
-		// This prevents nil pointer dereference in PlanSummary and other code that accesses PlanSource
-		if launchManifest.PlanSource == nil {
-			launchManifest.PlanSource = newDefaultPlanSource("from manifest")
+	}
+
+	if launchManifest != nil {
+		normalizeLoadedManifest(ctx, launchManifest)
+	}
+
+	if launchManifest != nil && launchManifest.Plan != nil {
+		if err := resolveManifestRegion(ctx, launchManifest.Plan); err != nil {
+			return err
 		}
 	}
 
@@ -395,8 +426,12 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	if err := checkLaunchDir(ctx); err != nil {
+		return err
+	}
+
 	incompleteLaunchManifest := false
-	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
+	canEnterUi := launchUiAvailable(ctx)
 
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
@@ -405,6 +440,16 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			var recoverableErr recoverableInUiError
 			if !errors.As(err, &recoverableErr) || !canEnterUi {
+				// Populate status from partial manifest so metrics
+				// events carry org/app context even on early failures.
+				if launchManifest != nil && launchManifest.Plan != nil {
+					status.AppName = launchManifest.Plan.AppName
+					status.OrgSlug = launchManifest.Plan.OrgSlug
+					status.Region = launchManifest.Plan.RegionCode
+					status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
+					status.ScannerFamily = launchManifest.Plan.ScannerFamily
+				}
+
 				return err
 			}
 		}
@@ -427,6 +472,7 @@ func run(ctx context.Context) (err error) {
 			}
 			jsonEncoder.SetIndent("", "  ")
 			encodeErr := jsonEncoder.Encode(launchManifest)
+
 			return encodeErr
 		}
 	}
@@ -450,7 +496,7 @@ func run(ctx context.Context) (err error) {
 		status.VM.ProcessN = len(vm.Processes)
 	}
 
-	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.SupabasePostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil || launchManifest.Plan.Postgres.ManagedPostgres != nil
 	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
 	status.HasSentry = launchManifest.Plan.Sentry
 
@@ -476,10 +522,9 @@ func run(ctx context.Context) (err error) {
 		colorize := io.ColorScheme()
 
 		// Get terminal width for responsive borders
-		termWidth := io.TerminalWidth()
-		if termWidth > 120 {
-			termWidth = 120 // Cap at 120 for readability
-		}
+		termWidth := min(io.TerminalWidth(),
+			// Cap at 120 for readability
+			120)
 		border := strings.Repeat("═", termWidth)
 
 		// Print top border
@@ -538,17 +583,7 @@ func run(ctx context.Context) (err error) {
 
 		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
 		incompleteLaunchManifest = true
-	}
-
-	// Check billing status and display appropriate message
-	if planStep == "" {
-		shouldContinue, err := checkBillingStatus(ctx, state)
-		if err != nil {
-			return err
-		}
-		if !shouldContinue {
-			return errors.New("payment method required to continue")
-		}
+		unresolved = &recoverableErrors
 	}
 
 	editInUi := false
@@ -571,6 +606,9 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		// The plan may have reached the UI with a region placements rejected.
+		status.Region = state.Plan.RegionCode
+		unresolved = nil
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
 		return errors.New("launch can not continue with errors present")
@@ -581,7 +619,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !noCreateApp(ctx) {
 		ctx, err = command.LoadAppConfigIfPresent(ctx)
 		if err != nil {
 			return err
@@ -619,6 +657,7 @@ func familyToAppType(family string) string {
 	case "":
 		return "app"
 	}
+
 	return fmt.Sprintf("%s app", family)
 }
 
@@ -632,6 +671,7 @@ func warnLegacyBehavior(ctx context.Context) error {
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
 		}
 	}
+
 	return nil
 }
 
@@ -670,71 +710,89 @@ func validatePostgresFlags(ctx context.Context) error {
 	return nil
 }
 
-// checkBillingStatus checks the organization's billing status and displays appropriate messaging
-// Returns (shouldContinue, error)
-func checkBillingStatus(ctx context.Context, state *launchState) (bool, error) {
+// checkBillingStatus stops a launch into an organization that needs a payment
+// method before it can run Machines, and displays appropriate messaging.
+// Without canPrompt it returns payment errors without opening a browser.
+// Overdue billing is advisory here: the API owns enforcement and exemptions.
+func checkBillingStatus(ctx context.Context, org *uiex.Organization, canPrompt bool) error {
+	return checkBillingStatusWithConfirm(ctx, org, canPrompt, prompt.Confirm)
+}
+
+func checkBillingStatusWithConfirm(ctx context.Context, org *uiex.Organization, canPrompt bool, confirm func(context.Context, string) (bool, error)) error {
+	billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
+	needsPaymentMethod := org.BillingStatus == uiex.BillingStatusSourceRequired || org.BillingStatus == uiex.BillingStatusTrialEnded
+
+	paymentError := flyerr.GenericErr{
+		Err:     fmt.Sprintf("organization %s needs a payment method to launch apps", org.Slug),
+		Suggest: fmt.Sprintf("Add one at %s, then run 'fly launch' again.", billingURL),
+	}
+	if org.BillingStatus == uiex.BillingStatusTrialEnded {
+		paymentError.Err = fmt.Sprintf("the trial for organization %s has ended; a payment method is required to launch apps", org.Slug)
+	}
+
+	if !canPrompt && needsPaymentMethod {
+		return paymentError
+	}
+
+	// These statuses do not by themselves mean a launch must fail. Report the
+	// billing issue without overriding the API's decision to allow an operation.
+	if org.BillingStatus == uiex.BillingStatusPastDue || org.BillingStatus == uiex.BillingStatusDelinquent {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+			"Warning: organization %s has overdue invoices. Review billing and pay any outstanding invoices at %s/invoices. Some billable operations may be blocked until billing is resolved.\n",
+			org.Slug, billingURL)
+		return nil
+	}
+
+	if !canPrompt {
+		return nil
+	}
+
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	// Skip billing check if running in non-interactive mode or CI
-	if !io.IsInteractive() || env.IsCI() {
-		return true, nil
-	}
-
-	// Fetch organization data including billing status
-	org, err := state.orgCompact(ctx)
-	if err != nil {
-		// If we can't fetch org data, log the error but don't block the launch
-		fmt.Fprintf(io.ErrOut, "Warning: Could not check billing status: %v\n", err)
-		return true, nil
-	}
-
-	fmt.Fprintln(io.Out)
-
 	switch org.BillingStatus {
-	case gql.BillingStatusTrialActive:
+	case uiex.BillingStatusTrialActive:
 		// User is on active free trial - celebrate!
-		fmt.Fprintf(io.Out, "%s\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
+		fmt.Fprintf(io.Out, "%s\n\n", colorize.Purple("✓ Your free trial has you covered - ship it! ✨"))
 
-	case gql.BillingStatusSourceRequired, gql.BillingStatusTrialEnded:
-		// User needs to add a payment method
-		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow("! You'll need to add a payment method in order to proceed."))
+	case uiex.BillingStatusSourceRequired, uiex.BillingStatusTrialEnded:
+		// User needs to add a payment method. The returned error carries the
+		// full reason and the billing URL, so keep this line short rather than
+		// printing the same sentence twice.
+		promptReason := "! You'll need to add a payment method in order to proceed."
+		if org.BillingStatus == uiex.BillingStatusTrialEnded {
+			promptReason = "! Your free trial has ended. You'll need to add a payment method in order to proceed."
+		}
+		fmt.Fprintf(io.Out, "%s\n", colorize.Yellow(promptReason))
 		fmt.Fprintln(io.Out)
 
-		addPayment, err := prompt.Confirm(ctx, "Would you like to do this now?")
+		addPayment, err := confirm(ctx, "Would you like to do this now?")
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if addPayment {
 			// Open billing dashboard URL
-			billingURL := fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)
 			fmt.Fprintln(io.Out)
 			fmt.Fprintf(io.Out, "Opening billing dashboard: %s\n", colorize.Bold(billingURL))
-			fmt.Fprintln(io.Out)
-			fmt.Fprintf(io.Out, "After adding a payment method, please run %s again.\n", colorize.Purple("'fly launch'"))
 
 			// Try to open the URL in the browser
 			if err := openBrowser(billingURL); err != nil {
 				fmt.Fprintf(io.ErrOut, "Could not open browser automatically. Please visit: %s\n", billingURL)
 			}
-
-			return false, nil
-		} else {
-			return false, nil
 		}
 
-	case gql.BillingStatusCurrent, gql.BillingStatusPastDue, gql.BillingStatusDelinquent:
-		// User has a payment method configured - say nothing per requirements
-		// Just continue silently
+		return paymentError
+
+	case uiex.BillingStatusCurrent:
+		// Billing is current; continue silently.
 
 	default:
 		// Unknown billing status - log but don't block
 		fmt.Fprintf(io.ErrOut, "Warning: Unknown billing status: %s\n", org.BillingStatus)
 	}
 
-	fmt.Fprintln(io.Out)
-	return true, nil
+	return nil
 }
 
 // openBrowser attempts to open the given URL in the default browser

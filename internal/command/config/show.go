@@ -38,6 +38,7 @@ in JSON format. The configuration data is retrieved from the Fly service.`
 			Description: "Show configuration in TOML format",
 		},
 	)
+
 	return
 }
 

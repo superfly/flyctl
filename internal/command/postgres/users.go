@@ -3,9 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -13,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -63,27 +64,27 @@ func newListUsers() *cobra.Command {
 
 func runListUsers(ctx context.Context) error {
 	var (
-		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.IsPostgresApp() {
+	if !flapsutil.IsPostgresApp(app) {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	ctx, err = apps.BuildContext(ctx, app)
+	ctx, err = apps.BuildContextForApp(ctx, app)
 	if err != nil {
 		return err
 	}
+
 	return runMachineListUsers(ctx, app)
 }
 
-func runMachineListUsers(ctx context.Context, app *fly.AppCompact) (err error) {
+func runMachineListUsers(ctx context.Context, app *flaps.App) (err error) {
 	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"
@@ -124,6 +125,7 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 
 	if len(users) == 0 {
 		fmt.Fprintf(io.Out, "No users found\n")
+
 		return nil
 	}
 
@@ -134,13 +136,13 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 	rows := make([][]string, 0, len(users))
 
 	for _, user := range users {
-		var databases string
+		var databases strings.Builder
 
 		for i, database := range user.Databases {
-			databases += database
+			databases.WriteString(database)
 
 			if i < len(user.Databases)-1 {
-				databases += ", "
+				databases.WriteString(", ")
 			}
 		}
 
@@ -152,7 +154,7 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 		rows = append(rows, []string{
 			user.Username,
 			superuser,
-			databases,
+			databases.String(),
 		})
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -29,7 +28,11 @@ func (m *FlapsClient) AcquireLease(ctx context.Context, appName, machineID strin
 	panic("TODO")
 }
 
-func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.IPAssignment, err error) {
+func (m *FlapsClient) AppNameAvailable(ctx context.Context, name string) (bool, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) AssignIP(ctx context.Context, appName string, req flaps.AssignIPRequest) (res *flaps.AssignIPResponse, err error) {
 	panic("TODO")
 }
 
@@ -73,6 +76,22 @@ func (m *FlapsClient) DeleteCustomCertificate(ctx context.Context, appName, host
 	panic("TODO")
 }
 
+func (m *FlapsClient) DeleteManagedPostgresAttachment(ctx context.Context, id, appName string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteManagedPostgresCluster(ctx context.Context, id string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteManagedPostgresUser(ctx context.Context, id, username string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DisableManagedPostgresExtension(ctx context.Context, id, database, name string, force bool) error {
+	panic("TODO")
+}
+
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, appName, machineID, key string) error {
 	panic("TODO")
 }
@@ -106,6 +125,10 @@ func (m *FlapsClient) ExtendVolume(ctx context.Context, appName, volumeId string
 }
 
 func (m *FlapsClient) FindLease(ctx context.Context, appName, machineID string) (*fly.MachineLease, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
 	panic("TODO")
 }
 
@@ -144,6 +167,38 @@ func (m *FlapsClient) GetCertificate(ctx context.Context, appName, hostname stri
 
 func (m *FlapsClient) GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error) {
 	return &flaps.ListIPAssignmentsResponse{}, nil
+}
+
+func (m *FlapsClient) CreateManagedPostgresCluster(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateManagedPostgresDatabase(ctx context.Context, id string, req flaps.CreateManagedPostgresDatabaseRequest) (flaps.ManagedPostgresDatabase, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateManagedPostgresUser(ctx context.Context, id string, req flaps.CreateManagedPostgresUserRequest) (flaps.ManagedPostgresUser, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateManagedPostgresBackup(ctx context.Context, id string, req flaps.CreateManagedPostgresBackupRequest) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) CreateManagedPostgresAttachment(ctx context.Context, id string, req flaps.CreateManagedPostgresAttachmentRequest) (flaps.ManagedPostgresAttachment, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, database string, req flaps.EnableManagedPostgresExtensionRequest) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+	panic("TODO")
 }
 
 func (m *FlapsClient) GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error) {
@@ -204,6 +259,7 @@ func (m *FlapsClient) ListActive(ctx context.Context, appName string) ([]*fly.Ma
 			a = append(a, machine)
 		}
 	}
+
 	return a, nil
 }
 
@@ -231,14 +287,39 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context, appName string) (
 			releaseCmdMachine = machine
 		}
 	}
+
 	return machines, releaseCmdMachine, nil
+}
+
+func (m *FlapsClient) ListManagedPostgresClusters(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresDatabases(ctx context.Context, id string) ([]flaps.ManagedPostgresDatabase, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
+	panic("TODO")
 }
 
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	panic("TODO")
 }
 
-func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error) {
 	panic("TODO")
 }
 
@@ -247,6 +328,10 @@ func (m *FlapsClient) RefreshLease(ctx context.Context, appName, machineID strin
 }
 
 func (m *FlapsClient) ReleaseLease(ctx context.Context, appName, machineID, nonce string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) RestoreManagedPostgresCluster(ctx context.Context, id string, req flaps.RestoreManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
 	panic("TODO")
 }
 
@@ -290,21 +375,19 @@ func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, appName string, valu
 	panic("TODO")
 }
 
+func (m *FlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
 	panic("TODO")
 }
 
-func (m *FlapsClient) Wait(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-	if state == "" {
-		state = "started"
-	}
-	mach, err := m.server.GetMachine(ctx, appName, machine.ID)
-	if err != nil {
-		return err
-	}
-	if mach.State != state {
-		return fmt.Errorf("machine did not reach state %q, current state is %q", state, mach.State)
-	}
+func (m *FlapsClient) Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 	return nil
 }
 

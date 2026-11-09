@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 
-	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/secrets"
 )
@@ -19,7 +18,7 @@ func (state *launchState) launchSentry(ctx context.Context, app_name string) err
 		}
 
 		if extension.SetsSecrets {
-			if err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), secrets.DeploymentArgs{
+			if err = secrets.DeploySecrets(ctx, extension.App.Name, secrets.DeploymentArgs{
 				Stage:    false,
 				Detach:   false,
 				CheckDNS: true,

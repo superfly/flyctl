@@ -13,6 +13,8 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func WaitForState(ctx context.Context, appName string, machine *fly.Machine, desiredState string, timeout time.Duration) (string, error) {
@@ -26,16 +28,19 @@ func WaitForState(ctx context.Context, appName string, machine *fly.Machine, des
 		if err != nil {
 			return "", fmt.Errorf("failed to get machine after waiting for it to settle: %w", err)
 		}
+
 		return m.State, nil
 	}
+
 	return desiredState, nil
 }
 
 func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine start or stop: %w", context.DeadlineExceeded))
 	defer cancel()
+	defer func() { tracing.RecordCancellation(waitCtx, trace.SpanFromContext(waitCtx)) }()
 
 	var waitOnAction string
 	switch action {
@@ -56,7 +61,7 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine, waitOnAction, 60*time.Second)
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
 		if err == nil {
 			return nil
 		}

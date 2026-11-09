@@ -63,6 +63,7 @@ func runUpgrade(ctx context.Context) error {
 
 	if !latest.Newer(buildinfo.Version()) {
 		fmt.Fprintf(io.Out, "Already running latest flyctl v%s\n", buildinfo.Version().String())
+
 		return nil
 	}
 
@@ -80,6 +81,7 @@ func runUpgrade(ctx context.Context) error {
 	if err != nil {
 		terminal.Debugf("Error printing version upgrade: %v", err)
 	}
+
 	return nil
 }
 
@@ -116,10 +118,12 @@ func printVersionUpgrade(ctx context.Context, oldVersion version.Version, homebr
 		}
 		fmt.Fprintf(io.ErrOut, "Flyctl was upgraded, but the flyctl pointed to by %s is still version %s.\n", source, currentVer.String())
 		fmt.Fprintf(io.ErrOut, "Please ensure that your PATH is set correctly!")
+
 		return nil
 	}
 
 	fmt.Fprintf(io.Out, "Upgraded flyctl v%s -> v%s\n", oldVersion.String(), currentVer.String())
+
 	return nil
 }
 
@@ -146,6 +150,7 @@ func getNewVersionHomebrew(ctx context.Context) (version.Version, error) {
 		if !ok {
 			return nil
 		}
+
 		return lo.FilterMap(installed, func(defAny any, _ int) (*version.Version, bool) {
 			v, ok := defAny.(map[string]any)["version"].(string)
 			if !ok {
@@ -155,6 +160,7 @@ func getNewVersionHomebrew(ctx context.Context) (version.Version, error) {
 			if err != nil {
 				return nil, false
 			}
+
 			return &parsed, true
 		})
 	})
@@ -164,6 +170,7 @@ func getNewVersionHomebrew(ctx context.Context) (version.Version, error) {
 	if len(versionsFlat) == 0 {
 		return ver, errors.New("brew reports no installed flyctl version")
 	}
+
 	return versionsFlat[len(versionsFlat)-1], nil
 }
 
@@ -189,5 +196,6 @@ func getNewVersionFlyInstaller(ctx context.Context) (version.Version, error) {
 	if err != nil {
 		return ver, fmt.Errorf("failed to parse version of new flyctl binary: %w", err)
 	}
+
 	return ver, nil
 }

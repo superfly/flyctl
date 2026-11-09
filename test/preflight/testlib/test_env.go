@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,11 +31,39 @@ type FlyctlTestEnv struct {
 	primaryRegion       string
 	otherRegions        []string
 	env                 map[string]string
-	cmdHistory          []*FlyctlResult
+	history             *cmdHistory // shared with Collect views
+	retrying            bool        // set on Collect views: log each command as a retry attempt
 	noHistoryOnFail     bool
 	id                  string
 	VMSize              string
 }
+
+// cmdHistory is the list of commands a test has run. It lives behind a
+// pointer so Collect views share it with the parent env, and it is locked
+// because a retry goroutine that outlives an EventuallyWithT call can still
+// append to it.
+type cmdHistory struct {
+	mu      sync.Mutex
+	results []*FlyctlResult
+}
+
+func (h *cmdHistory) add(r *FlyctlResult) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.results = append(h.results, r)
+}
+
+func (h *cmdHistory) snapshot() []*FlyctlResult {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return append([]*FlyctlResult(nil), h.results...)
+}
+
+// Preflight flyctl commands are not supposed to take more than five minutes.
+// If they do take more time, we cancel them, to give the remaining tests more
+// time against the 15m Go package test timeout.
+const defaultFlyctlCommandTimeout = 5 * time.Minute
 
 func (f *FlyctlTestEnv) OrgSlug() string {
 	return f.orgSlug
@@ -144,6 +173,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 	}
 	testEnv := &FlyctlTestEnv{
 		id:                  ulid.Make().String(),
+		history:             &cmdHistory{},
 		t:                   t,
 		flyctlBin:           flyctlBin,
 		primaryRegion:       primaryReg,
@@ -193,17 +223,37 @@ func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult
 		}
 	}
 
-	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultFlyctlCommandTimeout)
+	defer cancel()
+
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
 // FlyAllowExitFailure runs flyctl command and returns the result.
 // It does not fail the test even if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
-	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultFlyctlCommandTimeout)
+	defer cancel()
+
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
+}
+
+// FlyBestEffort runs flyctl command with the given timeout and returns the result.
+// It does not fail the test because of the command's outcome: a non-zero exit
+// is reported by ExitCode, and a command that exceeds the timeout is killed and
+// reported with exit code -1. This makes it safe for retry loops and cleanup.
+func (f *FlyctlTestEnv) FlyBestEffort(timeout time.Duration, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true, NoAssertDeadline: true}, flyctlCmd, vals...)
 }
 
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
+	// NoAssertDeadline reports a command that exceeds its context deadline
+	// with exit code -1 instead of failing the test.
+	NoAssertDeadline bool
 }
 
 func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfig, flyctlCmd string, vals ...interface{}) *FlyctlResult {
@@ -236,19 +286,37 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	cmd.Stdin = testIostreams.In
 	cmd.Stdout = testIostreams.Out
 	cmd.Stderr = testIostreams.ErrOut
+	start := time.Now()
 	err = cmd.Start()
 	if err != nil {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
 	err = cmd.Wait()
-	if err == nil {
+	res.duration = time.Since(start)
+	if err != nil && ctx.Err() != nil {
+		if !cfg.NoAssertDeadline {
+			f.Fatalf("command exceeded its deadline: %s [context error]: %v [stdout]: %s [stderr]: %s", res.cmdStr, ctx.Err(), res.stdOut.String(), res.stdErr.String())
+		}
+		// Record the timeout in stderr so it travels with the result. This may run
+		// in a retry goroutine after the test has finished, where failing the test
+		// would panic.
+		fmt.Fprintf(res.stdErr, "\ncommand exceeded its deadline: %v", ctx.Err())
+		res.exitCode = -1
+	} else if err == nil {
 		res.exitCode = 0
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
 		res.exitCode = exitErr.ExitCode()
 	} else {
 		f.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
-	f.cmdHistory = append(f.cmdHistory, res)
+	f.history.add(res)
+	if f.retrying {
+		// Every command inside a retry loop is logged with its exit status and
+		// duration, so slow or repeatedly failing retries are visible. Written to
+		// stdout rather than t.Logf: this runs on the retry goroutine, which can
+		// outlive the test, and t.Logf panics after the test has finished.
+		fmt.Printf("    attempt: %s exited %d after %s\n", res.argsStr, res.exitCode, res.duration.Round(time.Millisecond))
+	}
 	if !cfg.NoAssertSuccessfulExit {
 		res.AssertSuccessfulExit()
 	}
@@ -268,7 +336,7 @@ func (f *FlyctlTestEnv) DebugPrintHistory() {
 	if f.Failed() || f.noHistoryOnFail {
 		return
 	}
-	for i, r := range f.cmdHistory {
+	for i, r := range f.history.snapshot() {
 		fmt.Printf("%3d:\n", i+1)
 		r.DebugPrintOutput()
 	}
@@ -472,8 +540,4 @@ func (f *FlyctlTestEnv) Skipped() bool {
 
 func (f *FlyctlTestEnv) TempDir() string {
 	return f.t.TempDir()
-}
-
-func (f *FlyctlTestEnv) IsGpuMachine() bool {
-	return strings.Contains(f.VMSize, "a10") || strings.Contains(f.VMSize, "l40s")
 }

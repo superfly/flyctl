@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -22,10 +23,12 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 func stdArgsSSH(cmd *cobra.Command) {
@@ -66,6 +69,10 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Description: "Container to connect to",
 		},
 		flag.Bool{
+			Name:        "no-container",
+			Description: "Connect to the machine itself rather than to one of its containers",
+		},
+		flag.Bool{
 			Name:        "pty",
 			Description: "Allocate a pseudo-terminal (default: on when no command is provided)",
 		},
@@ -83,7 +90,7 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, container string, err error) {
+func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, container string, err error) {
 	selectedMachine, err := selectMachine(ctx, app)
 	if err != nil {
 		return "", "", err
@@ -110,6 +117,7 @@ func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer ag
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
+
 			return "", "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
@@ -133,9 +141,13 @@ func newConsole() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *fly.AppCompact) {
-	// ignore cancelled errors
-	if errors.Is(err, context.Canceled) {
+// SessionTarget selects where a session runs on the remote machine.
+type SessionTarget = ssh.SessionTarget
+
+func captureError(ctx context.Context, err error, app *flaps.App) {
+	// A remote command failure is not a failure of the SSH client.
+	var exitErr *gossh.ExitError
+	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
 		return
 	}
 
@@ -143,10 +155,10 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]interface{}{
+			"app": map[string]any{
 				"name": app.Name,
 			},
-			"organization": map[string]interface{}{
+			"organization": map[string]any{
 				"name": app.Organization.Slug,
 			},
 		}),
@@ -161,17 +173,17 @@ func runConsole(ctx context.Context) error {
 		terminal.Debugf("Retrieving app info for %s\n", appName)
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	network, err := client.GetAppNetwork(ctx, app.Name)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return fmt.Errorf("get app network: %w", err)
+		return err
 	}
 
-	agentclient, dialer, err := agent.BringUpAgent(ctx, client, app, *network, quiet(ctx))
+	agentclient, dialer, err := agent.BringUpAgentOrgSlug(ctx, client, app.Organization.Slug, flapsutil.NetworkName(app), quiet(ctx))
 	if err != nil {
 		return err
 	}
@@ -194,35 +206,37 @@ func runConsole(ctx context.Context) error {
 
 	params := &ConnectParams{
 		Ctx:            ctx,
-		Org:            app.Organization,
+		Org:            org,
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),
 		Container:      container,
+		Machine:        flag.GetBool(ctx, "no-container"),
 		AppNames:       []string{app.Name},
 	}
 	sshc, err := Connect(params, addr)
 	if err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
-	if err := Console(ctx, sshc, cmd, allocPTY, params.Container); err != nil {
+	target := SessionTarget{Container: params.Container, Machine: params.Machine}
+
+	if err := Console(ctx, sshc, cmd, allocPTY, target); err != nil {
 		captureError(ctx, err, app)
+
 		return err
 	}
 
 	return nil
 }
 
-func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, container string) error {
-	currentStdin, currentStdout, currentStderr, err := setupConsole()
-	defer func() error {
-		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
-			return err
-		}
-		return nil
-	}()
+func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) error {
+	cleanup, setupErr := setupConsole()
+	if cleanup != nil {
+		defer cleanup()
+	}
 
 	sessIO := &ssh.SessionIO{
 		Stdin: os.Stdin,
@@ -236,20 +250,59 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		TermEnv:  determineTermEnv(),
 	}
 
-	if err := sshClient.Shell(ctx, sessIO, cmd, container); err != nil {
+	if err := sshClient.Shell(ctx, sessIO, cmd, target); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
-	return err
+	return setupErr
 }
 
-func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machine, err error) {
+// findRequestedMachine resolves the --machine flag against the app's active
+// machines. When the machine can't be used it returns an error that says why:
+// not started, in a different app, or not found.
+func findRequestedMachine(ctx context.Context, appName, machineID string, machines []*fly.Machine) (*fly.Machine, error) {
+	for _, m := range machines {
+		if m.ID != machineID {
+			continue
+		}
+		if m.State != "started" {
+			return nil, fmt.Errorf("machine %s is not started", machineID)
+		}
+
+		return m, nil
+	}
+
+	// Not in this app's active machines. Ask the API whether it belongs to a
+	// different app. Anything else (including a destroyed machine in this app)
+	// is reported as not found.
+	gqlMachine, err := flyutil.ClientFromContext(ctx).GetMachine(ctx, machineID)
+	if err == nil && gqlMachine != nil && gqlMachine.App != nil && gqlMachine.App.Name != "" && gqlMachine.App.Name != appName {
+		return nil, fmt.Errorf("machine %s belongs to app %s, not selected app %s", machineID, gqlMachine.App.Name, appName)
+	}
+	if err != nil {
+		terminal.Debugf("looking up machine %s: %v\n", machineID, err)
+	}
+
+	return nil, fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+}
+
+func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
 		return nil, err
+	}
+
+	machineID := flag.GetString(ctx, "machine")
+	var selectedMachine *fly.Machine
+
+	if machineID != "" {
+		selectedMachine, err = findRequestedMachine(ctx, app.Name, machineID, machines)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
@@ -267,6 +320,9 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 		if len(machines) < 1 {
 			return nil, fmt.Errorf("app %s has no VMs in region %s", app.Name, region)
 		}
+		if selectedMachine != nil && selectedMachine.Region != region {
+			return nil, fmt.Errorf("machine %s is in region %s, not selected region %s", machineID, selectedMachine.Region, region)
+		}
 	}
 
 	if group := flag.GetProcessGroup(ctx); group != "" {
@@ -276,18 +332,18 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 		if len(machines) < 1 {
 			return nil, fmt.Errorf("app %s has no VMs in process group %s", app.Name, group)
 		}
+		if selectedMachine != nil && selectedMachine.ProcessGroup() != group {
+			if selectedMachine.ProcessGroup() == "" {
+				return nil, fmt.Errorf("machine %s has no process group, not selected process group %s", machineID, group)
+			}
+			return nil, fmt.Errorf("machine %s is in process group %s, not selected process group %s", machineID, selectedMachine.ProcessGroup(), group)
+		}
 	}
 
 	var namesWithRegion []string
-	machineID := flag.GetString(ctx, "machine")
-	var selectedMachine *fly.Machine
 	multipleGroups := len(lo.UniqBy(machines, func(m *fly.Machine) string { return m.ProcessGroup() })) > 1
 
 	for _, machine := range machines {
-		if machine.ID == machineID {
-			selectedMachine = machine
-		}
-
 		nameWithRegion := fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name)
 
 		role := ""
@@ -309,10 +365,6 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 			nameWithRegion += fmt.Sprintf(" (%s)", machine.ProcessGroup())
 		}
 		namesWithRegion = append(namesWithRegion, nameWithRegion)
-	}
-
-	if machineID != "" && selectedMachine == nil {
-		return nil, fmt.Errorf("--machine=%q not found/started", machineID)
 	}
 
 	if flag.GetBool(ctx, "select") {
@@ -341,7 +393,7 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 				return nil, err
 			}
 
-			err = flapsClient.Wait(ctx, app.Name, selectedMachine, "started", 60*time.Second)
+			err = flapsClient.Wait(ctx, app.Name, selectedMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(60*time.Second))
 
 			if err != nil {
 				return nil, err
@@ -367,6 +419,15 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 func selectContainer(ctx context.Context, machine *fly.Machine) (container string, err error) {
 	containers := machine.Config.Containers
 	container = flag.GetString(ctx, "container")
+
+	// --no-container asks for the machine itself, so there is nothing to select.
+	if flag.GetBool(ctx, "no-container") {
+		if container != "" {
+			return "", errors.New("--container and --no-container are mutually exclusive")
+		}
+
+		return "", nil
+	}
 
 	if len(containers) == 0 {
 		if container == "" {
@@ -397,6 +458,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 					fmt.Printf("No container specified, using %s\n", availableContainers[0])
 				}
 			}
+
 			return availableContainers[selected], nil
 		} else {
 			if slices.Contains(availableContainers, container) {

@@ -23,6 +23,7 @@ import (
 func testingContext(t *testing.T) context.Context {
 	ctx := context.Background()
 	ctx = state.WithConfigDirectory(ctx, t.TempDir())
+
 	return ctx
 }
 
@@ -96,6 +97,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 					}
 				}
 			}
+
 			return []fly.Volume{{
 				ID: "bigvolume",
 			}}, nil
@@ -112,6 +114,7 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 					}
 				}
 			}
+
 			return []*fly.Machine{{
 				ID:    "bigmachine",
 				State: "started",
@@ -187,25 +190,7 @@ func TestCreateBuilder(t *testing.T) {
 
 	createAppShouldFail := false
 	allocateIPAddressShouldFail := false
-	apiClient := mock.Client{
-		CreateAppFunc: func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error) {
-			if createAppShouldFail {
-				return nil, errors.New("create app failed")
-			}
-			return &fly.App{
-				Name: input.Name,
-			}, nil
-		},
-		DeleteAppFunc: func(ctx context.Context, appName string) error {
-			return nil
-		},
-		AllocateIPAddressFunc: func(ctx context.Context, appName string, addrType string, region string, orgID string, network string) (*fly.IPAddress, error) {
-			if allocateIPAddressShouldFail {
-				return nil, errors.New("allocate ip address failed")
-			}
-			return &fly.IPAddress{}, nil
-		},
-	}
+	apiClient := mock.Client{}
 
 	waitForAppShouldFail := false
 	launchShouldFail := false
@@ -219,14 +204,23 @@ func TestCreateBuilder(t *testing.T) {
 			if createAppShouldFail {
 				return nil, errors.New("create app failed")
 			}
+
 			return &flaps.App{
 				Name: req.Name,
 			}, nil
+		},
+		AssignIPFunc: func(ctx context.Context, appName string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+			if allocateIPAddressShouldFail {
+				return nil, errors.New("allocate ip address failed")
+			}
+
+			return &flaps.AssignIPResponse{}, nil
 		},
 		WaitForAppFunc: func(ctx context.Context, name string) error {
 			if waitForAppShouldFail {
 				return errors.New("wait for app failed")
 			}
+
 			return nil
 		},
 		CreateVolumeFunc: func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
@@ -240,6 +234,7 @@ func TestCreateBuilder(t *testing.T) {
 					}
 				}
 			}
+
 			return &fly.Volume{
 				ID: "bigvolume",
 			}, nil
@@ -251,13 +246,15 @@ func TestCreateBuilder(t *testing.T) {
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")
 			}
+
 			return &fly.Machine{
 				ID:    "bigmachine",
 				State: "started",
 			}, nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			time.Sleep(1 * time.Second)
+
 			return nil
 		},
 	}
@@ -299,31 +296,41 @@ func TestCreateBuilder(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestRestartBuilderMachine(t *testing.T) {
+func TestStartOrRestartBuilderMachine(t *testing.T) {
 	t.Parallel()
 	ctx := testingContext(t)
 
 	couldNotReserveResources := false
+	started := false
 	flapsClient := mock.FlapsClient{
+		StartFunc: func(ctx context.Context, appName, machineID string, nonce string) (*fly.MachineStartResponse, error) {
+			started = true
+
+			return nil, nil
+		},
 		RestartFunc: func(ctx context.Context, appName string, input fly.RestartMachineInput, nonce string) error {
 			if couldNotReserveResources {
 				return &flaps.FlapsError{
 					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
 				}
 			}
+
 			return nil
 		},
-		WaitFunc: func(ctx context.Context, appName string, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+		WaitFunc: func(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error) {
 			return nil
 		},
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
-	err := restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
+	err := startOrRestartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.NoError(t, err)
+	err = startOrRestartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine", State: "stopped"})
+	assert.NoError(t, err)
+	assert.True(t, started)
 
 	couldNotReserveResources = true
-	err = restartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
+	err = startOrRestartBuilderMachine(ctx, "", &fly.Machine{ID: "bigmachine"})
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
 }

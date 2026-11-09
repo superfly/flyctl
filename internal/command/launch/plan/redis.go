@@ -11,6 +11,7 @@ func (p *RedisPlan) Provider() any {
 	if p.UpstashRedis != nil {
 		return p.UpstashRedis
 	}
+
 	return nil
 }
 

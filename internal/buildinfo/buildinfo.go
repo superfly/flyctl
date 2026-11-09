@@ -48,6 +48,7 @@ func loadCachedName() error {
 		return err
 	}
 	cachedName = filepath.Base(execName)
+
 	return nil
 }
 
@@ -78,6 +79,7 @@ func (i info) String() string {
 	if i.BranchName != "" {
 		res += fmt.Sprintf(" BranchName: %s", i.BranchName)
 	}
+
 	return res
 }
 
@@ -130,6 +132,7 @@ func Commit() string {
 			}
 		}
 	}
+
 	return rev + dirty
 }
 

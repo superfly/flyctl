@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -26,13 +29,16 @@ type commandResponse struct {
 }
 
 type Command struct {
-	ctx    context.Context
-	app    *fly.AppCompact
-	dialer agent.Dialer
-	io     *iostreams.IOStreams
+	ctx     context.Context
+	appName string
+	org     *uiex.Organization
+	dialer  agent.Dialer
+	io      *iostreams.IOStreams
 }
 
-func NewCommand(ctx context.Context, app *fly.AppCompact) (*Command, error) {
+// NewCommand prepares to run flypg commands over SSH on app, which belongs
+// to org. The org is needed to issue the SSH certificate.
+func NewCommand(ctx context.Context, app *flaps.App, org *uiex.Organization) (*Command, error) {
 	client := flyutil.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -40,16 +46,17 @@ func NewCommand(ctx context.Context, app *fly.AppCompact) (*Command, error) {
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, flapsutil.NetworkName(app))
 	if err != nil {
 		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
 
 	return &Command{
-		ctx:    ctx,
-		app:    app,
-		dialer: dialer,
-		io:     iostreams.FromContext(ctx),
+		ctx:     ctx,
+		appName: app.Name,
+		org:     org,
+		dialer:  dialer,
+		io:      iostreams.FromContext(ctx),
 	}, nil
 }
 
@@ -63,7 +70,7 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	subCmd := fmt.Sprintf("update --patch '%s'", string(configBytes))
 	cmd := fmt.Sprintf("stolonctl-run %s", encodeCommand(subCmd))
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIp, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.org, pc.appName, pc.dialer, leaderIp, cmd, ssh.DefaultSshUsername)
 	if err != nil {
 		return err
 	}
@@ -84,7 +91,7 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	payload := encodeCommand(standbyNodeName)
 	cmd := fmt.Sprintf("pg_unregister %s", payload)
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.org, pc.appName, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
 	if err != nil {
 		return err
 	}
@@ -102,15 +109,16 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 }
 
 func (pc *Command) ListEvents(ctx context.Context, leaderIP string, flagsName []string) error {
-	cmd := "gosu postgres repmgr -f /data/repmgr.conf cluster event "
+	var cmd strings.Builder
+	cmd.WriteString("gosu postgres repmgr -f /data/repmgr.conf cluster event ")
 
 	// Loops through flagsName to add selected options to the command. The format will look like this -->
 	// gosu postgres repmgr -f /data/repmgr.conf cluster event --compact --event primary_register --limit 5 --node-id 34244738
 	for _, flagName := range flagsName {
-		cmd += fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName))
+		fmt.Fprintf(&cmd, "--%s %s ", flagName, flag.GetString(ctx, flagName))
 	}
 
-	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	resp, err := ssh.RunSSHCommand(ctx, pc.org, pc.appName, pc.dialer, leaderIP, cmd.String(), ssh.DefaultSshUsername)
 	if err != nil {
 		return err
 	}

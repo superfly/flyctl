@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,7 +10,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/client-signals/go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -24,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
+	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -51,6 +53,7 @@ var CommonFlags = flag.Set{
 	flag.BuildArg(),
 	flag.BuildSecret(),
 	flag.BuildTarget(),
+	flag.BuildContextWarnSize(),
 	flag.NoCache(),
 	flag.Depot(),
 	flag.DepotScope(),
@@ -258,21 +261,25 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	tp, err := tracing.InitTraceProvider(ctx, appName)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+
 		return err
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		shutdownCtx, cancel := context.WithTimeoutCause(context.Background(), 500*time.Millisecond, fmt.Errorf("flushing deployment traces: %w", context.DeadlineExceeded))
 		defer cancel()
 		tp.Shutdown(shutdownCtx)
 	}()
 
-	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
+	ctx = tracing.WithDeployTrace(ctx)
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy",
+		trace.WithAttributes(attribute.Bool("deploy.build_only", flag.GetBuildOnly(ctx))),
+	)
 	defer span.End()
 
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "error deploying")
+			tracing.RecordError(ctx, span, err, "error deploying")
 		}
 	}()
 
@@ -292,12 +299,14 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+
 		return deployFromManifest(ctx, manifest)
 	case manifestPath != "":
 		manifest, err := manifestFromFile(manifestPath)
 		if err != nil {
 			return err
 		}
+
 		return deployFromManifest(ctx, manifest)
 	}
 
@@ -306,14 +315,15 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		if strings.Contains(err.Error(), "Could not find App") {
 			return fmt.Errorf("the app name %s could not be found, did you create the app or misspell it in the fly.toml file or via -a?", appName)
 		}
+
 		return err
 	}
 
 	var gpuKinds, cpuKinds []string
 	for _, compute := range appConfig.Compute {
 		if compute != nil && compute.MachineGuest != nil {
-			gpuKinds = append(gpuKinds, compute.MachineGuest.GPUKind)
-			cpuKinds = append(cpuKinds, compute.MachineGuest.CPUKind)
+			gpuKinds = append(gpuKinds, compute.GPUKind)
+			cpuKinds = append(cpuKinds, compute.CPUKind)
 		}
 	}
 
@@ -321,6 +331,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
 	err = DeployWithConfig(ctx, appConfig, 0, flag.GetYes(ctx))
+
 	return err
 }
 
@@ -334,6 +345,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	if err != nil {
 		return err
 	}
+
+	recordDeployIdentity(ctx, app)
 
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {
@@ -359,15 +372,21 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder)
+	dockerfileMaterializer := imgsrc.NewDockerfileMaterializer()
+	img, usedWireguard, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder, dockerfileMaterializer)
 	if err != nil {
 		noBuilder := strings.Contains(err.Error(), "Could not find App")
 		recreateBuilder = recreateBuilder || noBuilder
-		if noBuilder || (usingWireguard && httpFailover) {
+		// Failing over to HTTPS only helps a build that went to its builder over
+		// WireGuard; any other build would just run again unchanged.
+		if noBuilder || (usedWireguard && httpFailover) {
 			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
 			span.AddEvent("using http failover")
-			img, err = determineImage(ctx, app, appConfig, false, recreateBuilder)
+			img, _, err = determineImage(ctx, app, appConfig, false, recreateBuilder, dockerfileMaterializer)
 		}
+	}
+	if cleanupErr := dockerfileMaterializer.Close(); cleanupErr != nil {
+		err = errors.Join(err, cleanupErr)
 	}
 
 	if err != nil {
@@ -381,7 +400,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "\nWatch your deployment at %s\n\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)))
 	if err := deployToMachines(ctx, appConfig, app, img); err != nil {
-		return err
+		return machinelimit.WithRequestLink(ctx, err, app.Organization.Slug)
 	}
 	var ip = "public"
 	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
@@ -397,10 +416,9 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		if isFirstLaunch {
 			// First launch: Show celebratory ASCII art and borders
 			// Get terminal width for responsive borders
-			termWidth := io.TerminalWidth()
-			if termWidth > 120 {
-				termWidth = 120 // Cap at 120 for readability
-			}
+			termWidth := min(io.TerminalWidth(),
+				// Cap at 120 for readability
+				120)
 			border := strings.Repeat("═", termWidth)
 
 			// Print success box with ASCII art
@@ -465,6 +483,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		fmt.Fprintf(io.Out, "\nYour app is deployed but does not have a public or private IP address\n")
 	}
 
+	machinelimit.Warn(ctx, app.Organization.Slug)
+
 	return err
 }
 
@@ -476,6 +496,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 	v := flag.GetString(ctx, flagName)
 	if v == "none" {
 		d := time.Duration(0)
+
 		return &d, nil
 	}
 
@@ -488,6 +509,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 		asInt, err := strconv.Atoi(v)
 		if err == nil {
 			duration = time.Duration(asInt) * time.Second
+
 			return &duration, nil
 		}
 	}
@@ -511,6 +533,7 @@ func deployToMachines(
 
 	startTime := time.Now()
 	var status metrics.DeployStatusPayload
+	status.Operator, status.AgentName = metrics.OperatorFromSignals(clientsignals.DetectOnce())
 
 	metrics.Started(ctx, "deploy")
 	// TODO: remove this once there is nothing upstream using it
@@ -581,7 +604,7 @@ func deployToMachines(
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
 	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = fly.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		maxUnavailable = new(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")
@@ -596,6 +619,8 @@ func deployToMachines(
 
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
+	status.AppID = fmt.Sprint(app.InternalNumericID)
+	status.OrgID = fmt.Sprint(app.Organization.InternalNumericID)
 	status.Image = img.Tag
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
@@ -690,12 +715,14 @@ func deployToMachines(
 			return err
 		}
 		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
+
 		return nil
 	}
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
+
 		return err
 	}
 
@@ -707,11 +734,18 @@ func deployToMachines(
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "deploy", app)
 	}
+
 	return err
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
+	ctx, configurationSpan := tracing.GetTracer().Start(ctx, "deployment_configuration")
+	defer func() {
+		tracing.RecordError(ctx, configurationSpan, err, "failed to configure deployment")
+		configurationSpan.End()
+	}()
+
 	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	appName := appconfig.NameFromContext(ctx)
@@ -721,7 +755,8 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
-			tracing.RecordError(span, err, "get config from remote")
+			tracing.RecordError(ctx, span, err, "get config from remote")
+
 			return nil, err
 		}
 	}
@@ -729,7 +764,8 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
 		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
 		if err != nil {
-			tracing.RecordError(span, err, "parse env")
+			tracing.RecordError(ctx, span, err, "parse env")
+
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
@@ -745,7 +781,8 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		fmt.Fprint(io.Out, extraInfo)
 	}
 	if err != nil {
-		tracing.RecordError(span, err, "validate config")
+		tracing.RecordError(ctx, span, err, "validate config")
+
 		return nil, err
 	}
 
@@ -756,5 +793,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	tb.Done("Verified app config")
+
 	return cfg, nil
 }

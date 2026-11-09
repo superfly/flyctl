@@ -42,5 +42,6 @@ func ReadStdin(maxLength int) (string, error) {
 // HasPipedStdin returns if stdin has piped input
 func HasPipedStdin() bool {
 	stat, _ := os.Stdin.Stat()
+
 	return (stat.Mode() & os.ModeCharDevice) == 0
 }

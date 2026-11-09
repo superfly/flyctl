@@ -9,17 +9,19 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func JSON(w io.Writer, v interface{}) error {
+func JSON(w io.Writer, v any) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "    ")
+
 	return enc.Encode(v)
 }
 
-func TitledJSON(w io.Writer, title string, v interface{}) error {
-	return JSON(w, map[string]interface{}{
+func TitledJSON(w io.Writer, title string, v any) error {
+	return JSON(w, map[string]any{
 		title: v,
 	})
 }
@@ -32,23 +34,27 @@ func NewTable(w io.Writer, title string, rows [][]string, cols ...string) *table
 		fmt.Fprintln(w, aurora.Bold(title))
 	}
 
-	table := tablewriter.NewWriter(w)
+	table := tablewriter.NewTable(w,
+		tablewriter.WithHeaderAlignment(tw.AlignLeft),
+		tablewriter.WithRowAlignment(tw.AlignLeft),
+		tablewriter.WithRendition(tw.Rendition{
+			Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off},
+			Settings: tw.Settings{
+				Lines: tw.Lines{ShowHeaderLine: tw.Off},
+			},
+		}),
+	)
 
 	if len(cols) > 0 {
-		table.SetHeader(cols)
+		table.Options(tablewriter.WithHeader(cols))
 	}
 
-	table.SetBorder(false)
-	table.SetHeaderLine(false)
-	table.SetAutoWrapText(false)
-	table.SetAutoFormatHeaders(true)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetColumnSeparator(" ")
-	table.SetNoWhiteSpace(true)
-	table.SetTablePadding("\t")
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Header.Formatting.AutoFormat = tw.On
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
-	table.AppendBulk(rows)
+	table.Bulk(rows) //nolint:errcheck
 
 	return table
 }
@@ -58,7 +64,7 @@ func NewTable(w io.Writer, title string, rows [][]string, cols ...string) *table
 func Table(w io.Writer, title string, rows [][]string, cols ...string) error {
 	table := NewTable(w, title, rows, cols...)
 
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	fmt.Fprintln(w)
 
@@ -70,19 +76,20 @@ func VerticalTable(w io.Writer, title string, objects [][]string, cols ...string
 		fmt.Fprintln(w, aurora.Bold(title))
 	}
 
-	table := tablewriter.NewWriter(w)
-	table.SetBorder(false)
-	table.SetAutoWrapText(false)
-	table.SetColumnSeparator("=")
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table := tablewriter.NewTable(w,
+		tablewriter.WithRowAlignment(tw.AlignLeft),
+		tablewriter.WithHeaderAlignment(tw.AlignLeft),
+		tablewriter.WithRendition(tw.Rendition{
+			Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off},
+		}),
+	)
 
 	for _, obj := range objects {
 		for i, col := range cols {
-			table.Append([]string{col, obj[i]})
+			table.Append(col, obj[i]) //nolint:errcheck
 		}
 
-		table.Render()
+		table.Render() //nolint:errcheck
 
 		fmt.Fprintln(w)
 	}
@@ -95,32 +102,36 @@ func ReusableTable(w io.Writer, title string, rows [][]string, cols ...string) (
 		fmt.Fprintln(w, aurora.Bold(title))
 	}
 
-	table := tablewriter.NewWriter(w)
+	table := tablewriter.NewTable(w,
+		tablewriter.WithHeaderAlignment(tw.AlignLeft),
+		tablewriter.WithRowAlignment(tw.AlignLeft),
+		tablewriter.WithRendition(tw.Rendition{
+			Borders: tw.Border{Left: tw.Off, Right: tw.Off, Top: tw.Off, Bottom: tw.Off},
+			Settings: tw.Settings{
+				Lines: tw.Lines{ShowHeaderLine: tw.Off},
+			},
+		}),
+	)
 
 	if len(cols) > 0 {
-		table.SetHeader(cols)
+		table.Options(tablewriter.WithHeader(cols))
 	}
 
-	table.SetBorder(false)
-	table.SetHeaderLine(false)
-	table.SetAutoWrapText(false)
-	table.SetAutoFormatHeaders(true)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-	table.SetColumnSeparator(" ")
-	table.SetNoWhiteSpace(true)
-	table.SetTablePadding("\t")
+	table.Configure(func(cfg *tablewriter.Config) {
+		cfg.Header.Formatting.AutoFormat = tw.On
+		cfg.Row.Formatting.AutoWrap = tw.WrapNone
+	})
 
-	table.AppendBulk(rows)
+	table.Bulk(rows) //nolint:errcheck
 
-	table.Render()
+	table.Render() //nolint:errcheck
 
 	fmt.Fprintln(w)
 
 	return
 }
 
-func NewTextBlock(ctx context.Context, v ...interface{}) (tb *TextBlock) {
+func NewTextBlock(ctx context.Context, v ...any) (tb *TextBlock) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -141,25 +152,25 @@ type TextBlock struct {
 	colorize *iostreams.ColorScheme
 }
 
-func (tb *TextBlock) Print(v ...interface{}) {
+func (tb *TextBlock) Print(v ...any) {
 	fmt.Fprint(tb.out, v...)
 }
 
-func (tb *TextBlock) Println(v ...interface{}) {
+func (tb *TextBlock) Println(v ...any) {
 	fmt.Fprintln(tb.out, v...)
 }
 
-func (tb *TextBlock) Printf(format string, v ...interface{}) {
+func (tb *TextBlock) Printf(format string, v ...any) {
 	fmt.Fprintf(tb.out, format, v...)
 }
 
 // Detail prints to the output ctx carries. It behaves similarly to log.Print.
-func (tb *TextBlock) Detail(v ...interface{}) {
+func (tb *TextBlock) Detail(v ...any) {
 	tb.Println("> ", fmt.Sprint(v...))
 }
 
 // Detailf prints to the output ctx carries. It behaves similarly to log.Printf.
-func (tb *TextBlock) Detailf(format string, v ...interface{}) {
+func (tb *TextBlock) Detailf(format string, v ...any) {
 	tb.Detail(fmt.Sprintf(format, v...))
 }
 
@@ -167,10 +178,10 @@ func (tb *TextBlock) Overwrite() {
 	tb.Print(aec.Up(1), aec.EraseLine(aec.EraseModes.All))
 }
 
-func (tb *TextBlock) Done(v ...interface{}) {
+func (tb *TextBlock) Done(v ...any) {
 	tb.Println(tb.colorize.Green("--> " + fmt.Sprint(v...)))
 }
 
-func (tb *TextBlock) Donef(format string, v ...interface{}) {
+func (tb *TextBlock) Donef(format string, v ...any) {
 	tb.Done(fmt.Sprintf(format, v...))
 }

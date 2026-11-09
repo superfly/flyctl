@@ -16,8 +16,8 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	state2 "github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -85,11 +85,14 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
+	if state.PlanSource != nil && state.Plan.AppName != oldPlan.AppName {
+		state.PlanSource.appNameSource = "specified in the web UI"
+	}
 
 	// Handle database plan from form data
-	if pgData, ok := finalSession.Metadata["postgres"].(map[string]interface{}); ok {
+	if pgData, ok := finalSession.Metadata["postgres"].(map[string]any); ok {
 		logger.Debugf("Postgres form data: %+v", pgData)
-		if mpgData, ok := pgData["managed_postgres"].(map[string]interface{}); ok {
+		if mpgData, ok := pgData["managed_postgres"].(map[string]any); ok {
 			logger.Debugf("Managed Postgres form data: %+v", mpgData)
 			// Validate region for managed Postgres
 			region := "iad" // Default region
@@ -97,19 +100,19 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 				region = r
 			}
 
-			org, err := state.orgCompact(ctx)
-			if err != nil {
+			if _, err := state.orgCompact(ctx); err != nil {
 				return fmt.Errorf("failed to get organization: %w", err)
 			}
 
 			// Check if region is supported for managed Postgres
-			validRegion, err := mpg.IsValidMPGRegion(ctx, org.RawSlug, region)
+			validRegion, err := mpgutil.IsValidRegion(ctx, region)
 			if err != nil {
 				return fmt.Errorf("failed to validate MPG region: %w", err)
 			}
 
 			if !validRegion {
-				availableCodes, _ := mpg.GetAvailableMPGRegionCodes(ctx, org.Slug)
+				availableCodes, _ := mpgutil.AvailableRegionCodes(ctx)
+
 				return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", region, availableCodes)
 			}
 
@@ -177,12 +180,13 @@ outer:
 			iface[name] = num
 		}
 	}
+
 	return nil
 }
 
 // TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (session fly.CLISession, err error) {
-	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for launch UI session: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)

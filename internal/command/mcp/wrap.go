@@ -274,6 +274,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		clientIP := r.Header.Get("Fly-Client-Ip")
 		if clientIP != "" && !strings.HasPrefix(clientIP, "fdaa:") {
 			http.Error(w, "Forbidden", http.StatusForbidden)
+
 			return
 		}
 	}
@@ -283,6 +284,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		bearerToken := r.Header.Get("Authorization")
 		if bearerToken == "" || !strings.HasPrefix(bearerToken, "Bearer ") || strings.TrimSpace(bearerToken[7:]) != s.token {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+
 			return
 		}
 	} else if s.user != "" {
@@ -290,6 +292,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		user, password, ok := r.BasicAuth()
 		if !ok || user != s.user || password != s.password {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+
 			return
 		}
 	}
@@ -303,6 +306,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("MCP Server"))
+
 			return
 		}
 
@@ -317,6 +321,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		if s.client != responseCh {
 			// If we already have a client, return an error
 			http.Error(w, "Another client is already connected", http.StatusConflict)
+
 			return
 		}
 
@@ -339,6 +344,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 				s.mutex.Lock()
 				s.client = nil
 				s.mutex.Unlock()
+
 				return
 			}
 		}
@@ -361,6 +367,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 				if _, werr := s.stdin.Write(buf[:n]); werr != nil {
 					log.Printf("Error writing to program: %v", werr)
 					http.Error(w, fmt.Sprintf("Error writing to program: %v", werr), http.StatusInternalServerError)
+
 					return
 				}
 			}
@@ -370,6 +377,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("Error reading request body: %v", err)
 				http.Error(w, fmt.Sprintf("Error reading request body: %v", err), http.StatusBadRequest)
+
 				return
 			}
 		}
@@ -392,6 +400,7 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Method not allowed
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+
 		return
 	}
 }
