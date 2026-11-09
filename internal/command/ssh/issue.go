@@ -165,52 +165,9 @@ func runSSHIssue(ctx context.Context) (err error) {
 !!!! should just sort of work like magic if you do.                                    !!!!
 `)
 
-	var (
-		pf *os.File
-		cf *os.File
-	)
-
-	for pf == nil && cf == nil {
-		if rootname == "" {
-			message := "Path to store private key: "
-			if err := prompt.String(ctx, &rootname, message, "", true); err != nil {
-				return err
-			}
-
-		}
-
-		if flag.GetBool(ctx, "dotssh") {
-			rootname = fmt.Sprintf("%s/.ssh/%s", os.Getenv("HOME"), rootname)
-		}
-
-		mode := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
-		if !flag.GetBool(ctx, "overwrite") {
-			mode |= os.O_EXCL
-		} else if _, err = os.Stat(rootname); err == nil {
-			if buf, err := os.ReadFile(rootname); err != nil {
-				fmt.Fprintf(out, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
-
-				continue
-			} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
-				fmt.Fprintf(out, "File exists, but isn't a fly.io ed25519 private key\n")
-
-				continue
-			}
-		}
-
-		pf, err = os.OpenFile(rootname, mode, 0o600)
-		if err != nil {
-			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
-			rootname = ""
-
-			continue
-		}
-
-		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0o600)
-		if err != nil {
-			pf.Close()
-			fmt.Fprintf(out, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
-		}
+	pf, cf, rootname, err := openCredentialFiles(ctx, out, rootname)
+	if err != nil {
+		return err
 	}
 
 	io.WriteString(cf, icert.Certificate)
@@ -223,6 +180,71 @@ func runSSHIssue(ctx context.Context) (err error) {
 	fmt.Printf("Wrote %d-hour SSH credential to %s, %s-cert.pub\n", hours, rootname, rootname)
 
 	return nil
+}
+
+// openCredentialFiles opens the private key file at rootname and its
+// "-cert.pub" certificate file, prompting for a path when rootname is empty
+// or can't be used. With --overwrite, an existing file is only replaced if it
+// looks like a fly.io key.
+//
+// A path that can't be used is dropped so the next pass asks for another.
+// When flyctl can't prompt, the reason the path was rejected is returned
+// instead: retrying the same path would never succeed.
+func openCredentialFiles(ctx context.Context, out io.Writer, rootname string) (pf, cf *os.File, path string, err error) {
+	var rejected error
+
+	for pf == nil && cf == nil {
+		if rootname == "" {
+			message := "Path to store private key: "
+			if err := prompt.String(ctx, &rootname, message, "", true); err != nil {
+				if rejected != nil && prompt.IsNonInteractive(err) {
+					return nil, nil, "", rejected
+				}
+
+				return nil, nil, "", err
+			}
+		}
+
+		if flag.GetBool(ctx, "dotssh") {
+			rootname = fmt.Sprintf("%s/.ssh/%s", os.Getenv("HOME"), rootname)
+		}
+
+		mode := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
+		if !flag.GetBool(ctx, "overwrite") {
+			mode |= os.O_EXCL
+		} else if _, err = os.Stat(rootname); err == nil {
+			if buf, err := os.ReadFile(rootname); err != nil {
+				fmt.Fprintf(out, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
+				rejected = fmt.Errorf("%s exists, but we can't read it to make sure it's safe to overwrite: %w", rootname, err)
+				rootname = ""
+
+				continue
+			} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
+				fmt.Fprintf(out, "File exists, but isn't a fly.io ed25519 private key\n")
+				rejected = fmt.Errorf("%s exists, but isn't a fly.io ed25519 private key, so it won't be overwritten", rootname)
+				rootname = ""
+
+				continue
+			}
+		}
+
+		pf, err = os.OpenFile(rootname, mode, 0o600)
+		if err != nil {
+			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
+			rejected = fmt.Errorf("can't open private key file: %w", err)
+			rootname = ""
+
+			continue
+		}
+
+		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0o600)
+		if err != nil {
+			pf.Close()
+			fmt.Fprintf(out, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
+		}
+	}
+
+	return pf, cf, rootname, nil
 }
 
 // stolen from `mikesmitty`, thanks, you are a mikesmitty and a scholar

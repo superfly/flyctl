@@ -265,10 +265,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", "--recurse-submodules", from, into)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd := gitCloneCmd(iostreams.FromContext(ctx).IsInteractive(), from, into)
 	if err := cmd.Run(); err != nil {
 		return ctx, nil, err
 	}
@@ -815,4 +812,24 @@ func openBrowser(url string) error {
 	}
 
 	return cmd.Start()
+}
+
+// gitCloneCmd builds the `git clone` for `fly launch --from`. When flyctl
+// can't prompt, git is told not to either: it asks for credentials on
+// /dev/tty, not stdin, so an agent or CI job that has a terminal but no one
+// at it would otherwise hang on a private repo. A GIT_TERMINAL_PROMPT the
+// caller set themselves is left alone.
+func gitCloneCmd(interactive bool, from, into string) *exec.Cmd {
+	cmd := exec.Command("git", "clone", "--recurse-submodules", from, into)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if !interactive {
+		if _, set := os.LookupEnv("GIT_TERMINAL_PROMPT"); !set {
+			cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		}
+	}
+
+	return cmd
 }

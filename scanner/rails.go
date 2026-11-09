@@ -571,7 +571,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	if generatorInstalled {
 		fmt.Printf("Running: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(ruby, args...)
-		cmd.Stdin = os.Stdin
+		cmd.Stdin = generatorStdin(os.Stdin)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 

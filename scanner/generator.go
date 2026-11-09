@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 )
 
 // How much of a failed generator's stderr goes into its error.
@@ -17,13 +19,14 @@ const (
 )
 
 // runGenerator runs a Dockerfile generator, or the package manager installing
-// one, attached to the terminal. Its stderr still reaches the user as it is
+// one, attached to the terminal. Its stdin is the terminal only when flyctl's
+// own stdin is one (see generatorStdin). Its stderr still reaches the user as it is
 // written; on failure the last lines of it are added to the error too, so
 // launch telemetry records why it failed instead of just "exit status 1".
 // The *exec.ExitError stays wrapped for errors.As.
 func runGenerator(cmd *exec.Cmd) error {
 	tail := &tailWriter{max: generatorErrBytes}
-	cmd.Stdin = os.Stdin
+	cmd.Stdin = generatorStdin(os.Stdin)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, tail)
 	// stderr is a pipe, so don't hang if a grandchild keeps it open after
@@ -40,6 +43,20 @@ func runGenerator(cmd *exec.Cmd) error {
 	}
 
 	return err
+}
+
+// generatorStdin returns the stdin a generator subprocess gets: in, when it
+// is a terminal a person can answer prompts on, and nil (an empty stdin)
+// otherwise. A generator that asks whether to overwrite a file would
+// otherwise wait forever on a pipe that an agent or CI runner never closes;
+// on an empty stdin it reads EOF, exactly as it already does under
+// `fly launch < /dev/null`.
+func generatorStdin(in *os.File) io.Reader {
+	if in != nil && term.IsTerminal(int(in.Fd())) {
+		return in
+	}
+
+	return nil
 }
 
 // tailWriter keeps the last max bytes written to it.

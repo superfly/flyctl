@@ -2,9 +2,11 @@ package scanner
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +27,57 @@ func TestRunGeneratorAddsStderrToError(t *testing.T) {
 	assert.Equal(t, 3, exitErr.ExitCode())
 
 	assert.NoError(t, runGenerator(exec.Command("sh", "-c", "echo fine >&2")))
+}
+
+// An agent or CI runner often gives flyctl a stdin pipe it never closes. A
+// generator asking "overwrite Dockerfile?" used to wait on that pipe forever;
+// it should read EOF instead, as it does under `fly launch < /dev/null`.
+func TestRunGeneratorDoesNotWaitOnOpenStdinPipe(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh")
+	}
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer r.Close()
+	defer w.Close() // held open for the whole test, like an agent's stdin
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	done := make(chan error, 1)
+	go func() {
+		// `read` fails on EOF; exit 0 then, so only a hang fails the test.
+		done <- runGenerator(exec.Command("sh", "-c", `read answer; exit 0`))
+	}()
+
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("generator is waiting on flyctl's open stdin pipe")
+	}
+}
+
+func TestGeneratorStdin(t *testing.T) {
+	assert.Nil(t, generatorStdin(nil))
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer r.Close()
+	defer w.Close()
+	assert.Nil(t, generatorStdin(r), "a pipe is not a terminal")
+
+	f, err := os.CreateTemp(t.TempDir(), "stdin")
+	require.NoError(t, err)
+	defer f.Close()
+	assert.Nil(t, generatorStdin(f), "a redirected file is not a terminal")
+
+	if tty, err := os.Open("/dev/tty"); err == nil {
+		defer tty.Close()
+		assert.Equal(t, tty, generatorStdin(tty), "a terminal is passed through so people can answer prompts")
+	}
 }
 
 func TestTailWriterKeepsLastBytes(t *testing.T) {
