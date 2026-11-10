@@ -201,7 +201,7 @@ func (e InvalidConfigErr) Suggestion() string {
 }
 
 func (e InvalidConfigErr) DocURL() string {
-	return "https://fly.io/docs/machines/guides-examples/machine-sizing/"
+	return "https://docs.fly.io/machines/guides-examples/machine-sizing"
 }
 
 func (e InvalidConfigErr) Error() string {
