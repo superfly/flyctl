@@ -138,18 +138,11 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = postgres.CreateCluster(ctx, org, &region, &postgres.ClusterParams{
-			PostgresConfiguration: postgres.PostgresConfiguration{
-				Name:               pgPlan.AppName,
-				DiskGb:             pgPlan.DiskSizeGB,
-				InitialClusterSize: pgPlan.Nodes,
-				VMSize:             pgPlan.VmSize,
-				MemoryMb:           pgPlan.VmRam,
-			},
-			ScaleToZero: &pgPlan.AutoStop,
-			Autostart:   true, // TODO(Ali): Do we want this?
-			Manager:     flypg.ReplicationManager,
-		})
+		params, err := newFlyPostgresClusterParams(ctx, pgPlan, state.Plan.AppName)
+		if err != nil {
+			return err
+		}
+		err = postgres.CreateCluster(ctx, org, &region, params)
 		if err != nil {
 			fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s\n", pgPlan.AppName, err)
 		} else {
@@ -578,4 +571,28 @@ func postgresAttachRetry(pgApp, app string) string {
 // newPostgresUser is unique enough not to collide with an existing user.
 func newPostgresUser(pgApp string) string {
 	return fmt.Sprintf("%s-%d", pgApp, time.Now().Nanosecond())
+}
+
+// newFlyPostgresClusterParams builds the cluster parameters for a Postgres
+// cluster created by launch. The cluster goes on the same private network as
+// the app it is attached to, otherwise the app couldn't reach its database.
+func newFlyPostgresClusterParams(ctx context.Context, pgPlan *plan.FlyPostgresPlan, appName string) (*postgres.ClusterParams, error) {
+	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	return &postgres.ClusterParams{
+		PostgresConfiguration: postgres.PostgresConfiguration{
+			Name:               pgPlan.AppName,
+			DiskGb:             pgPlan.DiskSizeGB,
+			InitialClusterSize: pgPlan.Nodes,
+			VMSize:             pgPlan.VmSize,
+			MemoryMb:           pgPlan.VmRam,
+		},
+		ScaleToZero: &pgPlan.AutoStop,
+		Autostart:   true, // TODO(Ali): Do we want this?
+		Manager:     flypg.ReplicationManager,
+		Network:     flapsutil.NetworkName(app),
+	}, nil
 }
