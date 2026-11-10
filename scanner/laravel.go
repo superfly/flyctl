@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/blang/semver"
@@ -251,11 +252,93 @@ func extractPhpVersion() (string, error) {
 		match = re.FindStringSubmatch(string(out))
 	}
 
+	version := ""
 	if len(match) > 1 {
-		return match[1], nil
+		version = match[1]
+	}
+
+	// composer.json gives the oldest PHP the app allows, but composer.lock may
+	// pin packages that need a newer one (a lock resolved on PHP 8.4 can pin
+	// symfony/console 8, which needs PHP 8.4). Composer can't install anything
+	// into that lock on an older PHP, so use the newest floor of the two.
+	if locked := lockedPhpFloor("composer.lock"); locked != "" && (version == "" || phpVersionLess(version, locked)) {
+		version = locked
+	}
+
+	if version != "" {
+		return version, nil
 	}
 
 	return "", fmt.Errorf("could not find php version")
+}
+
+var phpMajorMinor = regexp.MustCompile(`([0-9]+)\.([0-9]+)`)
+
+// lockedPhpFloor returns the oldest PHP major.minor that every package in a
+// composer.lock accepts, or "" when the lock is missing or names no PHP floor.
+func lockedPhpFloor(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+
+	var lock struct {
+		Packages    []struct{ Require map[string]string } `json:"packages"`
+		PackagesDev []struct{ Require map[string]string } `json:"packages-dev"`
+	}
+	if err := json.Unmarshal(data, &lock); err != nil {
+		return ""
+	}
+
+	floor := ""
+	for _, pkg := range append(lock.Packages, lock.PackagesDev...) {
+		if v := phpConstraintFloor(pkg.Require["php"]); v != "" && (floor == "" || phpVersionLess(floor, v)) {
+			floor = v
+		}
+	}
+
+	return floor
+}
+
+// phpConstraintFloor returns the oldest PHP major.minor a Composer constraint
+// accepts: "8.4" for ">=8.4.1", "7.4" for "^7.4|^8.0". It returns "" when the
+// constraint, or any of its alternatives, has no lower bound.
+func phpConstraintFloor(constraint string) string {
+	floor := ""
+	for _, alternative := range strings.Split(strings.ReplaceAll(constraint, "||", "|"), "|") {
+		lower := ""
+		for _, term := range strings.FieldsFunc(alternative, func(r rune) bool { return r == ' ' || r == ',' }) {
+			if strings.HasPrefix(term, "<") || strings.HasPrefix(term, "!=") {
+				continue
+			}
+			if m := phpMajorMinor.FindString(term); m != "" {
+				lower = m
+				break
+			}
+		}
+		if lower == "" {
+			return ""
+		}
+		if floor == "" || phpVersionLess(lower, floor) {
+			floor = lower
+		}
+	}
+
+	return floor
+}
+
+// phpVersionLess compares two major.minor versions.
+func phpVersionLess(a, b string) bool {
+	am, bm := phpMajorMinor.FindStringSubmatch(a), phpMajorMinor.FindStringSubmatch(b)
+	if am == nil || bm == nil {
+		return false
+	}
+	aMajor, _ := strconv.Atoi(am[1])
+	aMinor, _ := strconv.Atoi(am[2])
+	bMajor, _ := strconv.Atoi(bm[1])
+	bMinor, _ := strconv.Atoi(bm[2])
+
+	return aMajor < bMajor || (aMajor == bMajor && aMinor < bMinor)
 }
 
 var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *= *(\"|')? *[a-zA-Z]+(\"|')?"
