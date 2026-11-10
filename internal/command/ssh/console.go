@@ -428,10 +428,17 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 		return "", nil
 	}
 
-	if machine.Config == nil {
-		return "", fmt.Errorf("machine %s has no configuration; use --no-container to connect to the machine itself", machine.ID)
+	// Config is nil when the machine's host isn't reporting ok; GetConfig falls
+	// back to IncompleteConfig, which usually still lists the containers.
+	cfg := machine.GetConfig()
+	if cfg == nil {
+		// Nothing is known about this machine's containers, so a named container
+		// can't be checked: pass it through and let the SSH server decide.
+		// Without one, connect to the machine itself, as for a machine with no
+		// containers.
+		return container, nil
 	}
-	containers := machine.Config.Containers
+	containers := cfg.Containers
 
 	if len(containers) == 0 {
 		if container == "" {

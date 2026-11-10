@@ -39,7 +39,19 @@ func TestSelectContainer(t *testing.T) {
 		ID:     "9080e6e2f24d83",
 		Config: &fly.MachineConfig{},
 	}
-	withoutConfig := &fly.Machine{ID: "9080e6e2f24d83"}
+	// Config is nil when the host isn't reporting ok; IncompleteConfig still
+	// carries the containers.
+	withIncompleteConfig := &fly.Machine{
+		ID:         "4d891de2f66587",
+		HostStatus: fly.HostStatusUnknown,
+		IncompleteConfig: &fly.MachineConfig{
+			Containers: []*fly.ContainerConfig{
+				{Name: "app"},
+				{Name: "sidecar"},
+			},
+		},
+	}
+	withoutConfig := &fly.Machine{ID: "e2865013b10d86"}
 
 	for _, tc := range []struct {
 		name      string
@@ -85,15 +97,34 @@ func TestSelectContainer(t *testing.T) {
 			expectErr: "container named nope is not present in machine 3d8d9d16f14683, try running with --select to see a list",
 		},
 		{
-			name:      "missing configuration",
-			machine:   withoutConfig,
-			expectErr: "machine 9080e6e2f24d83 has no configuration; use --no-container to connect to the machine itself",
+			name:    "incomplete configuration defaults to the first container",
+			machine: withIncompleteConfig,
+			expect:  "app",
 		},
 		{
-			name:      "named container with missing configuration",
-			machine:   withoutConfig,
-			args:      []string{"--container", "app"},
-			expectErr: "machine 9080e6e2f24d83 has no configuration; use --no-container to connect to the machine itself",
+			name:    "named container from incomplete configuration",
+			machine: withIncompleteConfig,
+			args:    []string{"--container", "sidecar"},
+			expect:  "sidecar",
+		},
+		{
+			name:      "unknown container in incomplete configuration",
+			machine:   withIncompleteConfig,
+			args:      []string{"--container", "nope"},
+			expectErr: "container named nope is not present in machine 4d891de2f66587, try running with --select to see a list",
+		},
+		{
+			// Nothing is known about the containers, so connect to the machine.
+			name:    "missing configuration",
+			machine: withoutConfig,
+			expect:  "",
+		},
+		{
+			// The name can't be checked, so it's passed through to the SSH server.
+			name:    "named container with missing configuration",
+			machine: withoutConfig,
+			args:    []string{"--container", "app"},
+			expect:  "app",
 		},
 		{
 			name:    "no container with missing configuration",
