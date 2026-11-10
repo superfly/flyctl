@@ -116,6 +116,9 @@ func personalTestClient(t *testing.T, response func(string) *wg.WireGuardState, 
 			go func() {
 				defer workers.Done()
 				defer conn.Close()
+				// An empty last argument is a zero-length write after the frame
+				// is complete; closing first fails it. Let the client hang up.
+				defer io.Copy(io.Discard, conn)
 				conn.SetDeadline(time.Now().Add(5 * time.Second))
 				packet, err := proto.Read(conn)
 				if err != nil {
@@ -166,7 +169,6 @@ func personalTestClient(t *testing.T, response func(string) *wg.WireGuardState, 
 						return
 					}
 				}
-				io.Copy(io.Discard, conn)
 			}()
 		}
 	}()
