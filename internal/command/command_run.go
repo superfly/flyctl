@@ -98,7 +98,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 			opts.DockerfilePath = dockerfilePath
 		}
 
-		extraArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
+		extraArgs, err := cmdutil.ParseKVFlagToMap("build-arg", flag.GetStringArray(ctx, "build-arg"))
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid build-arg")
 		}

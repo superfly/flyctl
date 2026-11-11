@@ -68,7 +68,7 @@ func (c *Client) ListOrganizations(ctx context.Context, admin bool) ([]Organizat
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return []Organization{}, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return []Organization{}, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response.Organizations, nil
@@ -109,7 +109,7 @@ func (c *Client) GetOrganization(ctx context.Context, orgSlug string) (*Organiza
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return &response.Organization, nil

@@ -56,7 +56,7 @@ func (c *Client) GetLaunchChecks(ctx context.Context, orgSlug string) (*LaunchCh
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return &response.Data, nil

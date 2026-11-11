@@ -19,7 +19,9 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 	parsedKey := ""
 	parsedVal := strings.Builder{}
 
+	lineNumber := 0
 	for scanner.Scan() {
+		lineNumber++
 		line := scanner.Text()
 		switch parserState {
 		case parserStateSingleline:
@@ -30,7 +32,7 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 
 			key, value, ok := strings.Cut(line, "=")
 			if !ok {
-				return nil, fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", line)
+				return nil, fmt.Errorf("invalid secret on line %d: expected NAME=VALUE", lineNumber)
 			}
 			key = strings.TrimSpace(key)
 			value = strings.TrimLeft(value, " ")

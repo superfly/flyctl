@@ -64,13 +64,16 @@ func runExtend(ctx context.Context) error {
 	}
 
 	sizeFlag := flag.GetString(ctx, "size")
+	if sizeFlag == "" {
+		return fmt.Errorf("volume size must be specified with --size in gigabytes, for example --size 10")
+	}
 	sizeGB, err := helpers.ParseSize(sizeFlag, units.FromHumanSize, units.GB)
 	if err != nil {
 		return err
 	}
 
 	if sizeGB == 0 {
-		return fmt.Errorf("Volume size must be specified")
+		return fmt.Errorf("volume size must be specified with --size in gigabytes, for example --size 10")
 	}
 
 	if sizeFlag[0] == '+' {

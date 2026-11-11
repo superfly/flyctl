@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -15,8 +16,52 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon"
 )
+
+func TestDockerAuthReportsFallbackFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("direct Docker configuration is unsupported on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	dockerDir := filepath.Join(home, ".docker")
+	require.NoError(t, os.WriteFile(dockerDir, []byte("not a directory"), 0o600))
+	ios, _, stdout, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), ios)
+	ctx = config.NewContext(ctx, newTestConfig())
+
+	err := runDocker(ctx)
+	require.ErrorContains(t, err, "Docker CLI is unavailable")
+	require.ErrorContains(t, err, dockerDir)
+	require.ErrorContains(t, err, "not a directory")
+	require.Empty(t, stdout.String())
+}
+
+func TestDockerAuthFallbackWithoutCLI(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("PATH", t.TempDir())
+	ios, _, stdout, _ := iostreams.Test()
+	ctx := config.NewContext(iostreams.NewContext(context.Background(), ios), newTestConfig())
+	err := runDocker(ctx)
+	if runtime.GOOS == "windows" {
+		require.ErrorContains(t, err, "cannot configure Docker authentication directly on Windows")
+		require.Empty(t, stdout.String())
+
+		return
+	}
+	require.NoError(t, err)
+	require.NotEmpty(t, stdout.String())
+	data, err := os.ReadFile(filepath.Join(os.Getenv("HOME"), ".docker", "config.json"))
+	require.NoError(t, err)
+	var cfg struct {
+		Auths map[string]json.RawMessage `json:"auths"`
+	}
+	require.NoError(t, json.Unmarshal(data, &cfg))
+	require.Contains(t, cfg.Auths, "registry.fly.io")
+}
 
 func newTestConfig() *config.Config {
 	return &config.Config{

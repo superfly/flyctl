@@ -25,9 +25,11 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `Show the application's current status including application
-details, tasks, most recent deployment details and in which regions it is
-currently allocated.
+		long = `Show application details and Machines, including their process groups,
+release versions, regions, states, and health checks.
+
+Use --json for structured output. Use --watch to refresh the display in an
+interactive terminal; --watch cannot be combined with --json.
 `
 		short = "Show app status"
 	)

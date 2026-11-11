@@ -762,7 +762,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		parsedEnv, err := cmdutil.ParseKVFlagToMap("env", env)
 		if err != nil {
 			tracing.RecordError(ctx, span, err, "parse env")
 

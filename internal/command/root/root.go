@@ -78,7 +78,24 @@ import (
 // New initializes and returns a reference to a new root command.
 func New() *cobra.Command {
 	const (
-		long  = `This is flyctl, the Fly.io command line interface.`
+		long = `This is flyctl, the Fly.io command line interface.
+
+Use 'fly <command> --help' for command usage, flags, and defaults.
+
+For scripts and coding agents, set FLY_NO_PROMPT=1 to disable terminal prompts,
+including in a pseudo-terminal. Supply required arguments and flags explicitly.
+Use --yes only when you intend to accept a command's confirmations.
+Set FLY_API_TOKEN for token authentication and NO_COLOR=1 for plain output.
+Existing FLY_ACCESS_TOKEN or --access-token settings take precedence over
+FLY_API_TOKEN.
+Set FLY_NO_UPDATE_CHECK=1 to disable update checks and automatic updates.
+
+Use --json on commands that support it, and check the exit status for failures.
+The --json flag on 'fly launch' selects the configuration file format.
+'fly logs' streams until interrupted; use --no-tail for a finite result.
+
+Run 'fly setup agent' to install Fly skills and configure the hosted MCP server
+for local coding agents.`
 		short = "The Fly.io command line interface"
 	)
 
@@ -92,6 +109,9 @@ func New() *cobra.Command {
 	}
 
 	root := command.New(exe, short, long, run)
+	root.Example = `  FLY_NO_PROMPT=1 fly status --app my-app --json
+  fly logs --app my-app --no-tail
+  fly setup agent --skip-login`
 	root.Version = buildinfo.Version().String()
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
@@ -99,7 +119,7 @@ func New() *cobra.Command {
 	}
 
 	fs := root.PersistentFlags()
-	_ = fs.StringP(flagnames.AccessToken, "t", "", "Fly API Access Token")
+	_ = fs.StringP(flagnames.AccessToken, "t", "", "Fly API access token (or set FLY_API_TOKEN)")
 	_ = fs.BoolP(flagnames.Verbose, "", false, "Verbose output")
 	_ = fs.BoolP(flagnames.Debug, "", false, "Print additional logs and traces")
 

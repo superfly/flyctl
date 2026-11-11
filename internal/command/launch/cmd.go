@@ -37,12 +37,30 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Create and configure a new app from source code or a Docker image.  Options passed after double dashes ("--") will be passed to the language specific scanner/dockerfile generator.`
+		long = `Create and configure a new app from source code or a Docker image.
+Launch can create databases and storage, write configuration files, and deploy
+the app. Use 'fly deploy' to deploy an existing app.
+
+For non-interactive use, set FLY_NO_PROMPT=1 and pass --name (or --generate-name),
+--org, and --region. If a configuration file already exists, pass --copy-config
+to use it or --copy-config=false to replace it. Use --yes to accept confirmations.
+Use --no-db, --no-redis, and --no-object-storage to skip automatic provisioning
+of those resources. --no-deploy skips deployment, but can still create resources
+and write files; it is not a dry run.
+
+The --json and --yaml flags select the generated configuration file format;
+they do not select structured command output.
+
+Options after double dashes ("--") are passed to the language-specific scanner
+or Dockerfile generator.`
 		short = `Create and configure a new app from source code or a Docker image`
 	)
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
+	cmd.Example = `  fly launch --name my-app --org my-org --region ord
+  FLY_NO_PROMPT=1 fly launch --generate-name --org my-org --region ord --yes --no-db --no-redis --no-object-storage --no-deploy
+  fly launch --copy-config --yes`
 
 	flags := []flag.Flag{
 		// Since launch can perform a deployment, we offer the full set of deployment flags for those using

@@ -53,7 +53,7 @@ func ensureDockerConfigDir(home string) error {
 			return err
 		}
 	} else if !fi.IsDir() {
-		return errors.New("~/.docker is not a dir")
+		return fmt.Errorf("Docker configuration path %q is not a directory", dockerDir)
 	}
 
 	return nil
@@ -117,7 +117,7 @@ func addFlyAuthToDockerConfig(cfg *config.Config, configJSON []byte) ([]byte, er
 // configureDockerJSON adds the fly registry to the docker config.json.
 func configureDockerJSON(cfg *config.Config) error {
 	if runtime.GOOS == "windows" {
-		return errors.New("unsuppported")
+		return errors.New("cannot configure Docker authentication directly on Windows; install the Docker CLI and run `fly auth docker` again")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -146,13 +146,12 @@ func runDocker(ctx context.Context) error {
 	binary, err := exec.LookPath("docker")
 	if err != nil {
 		// Try configuring the JSON directly.
-		if err := configureDockerJSON(cfg); err == nil {
-			printDockerAuthSuccess(streams.Out, cfg, time.Now())
-
-			return nil
+		if configErr := configureDockerJSON(cfg); configErr != nil {
+			return fmt.Errorf("Docker CLI is unavailable (%v), and configuring authentication directly failed: %w", err, configErr)
 		}
+		printDockerAuthSuccess(streams.Out, cfg, time.Now())
 
-		return fmt.Errorf("docker cli not found - make sure it's installed and try again: %w", err)
+		return nil
 	}
 
 	host := cfg.RegistryHost

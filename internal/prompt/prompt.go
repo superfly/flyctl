@@ -18,6 +18,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
@@ -32,7 +33,7 @@ type RegionParams struct {
 }
 
 func String(ctx context.Context, dst *string, msg, def string, required bool) error {
-	opt, err := newSurveyIO(ctx)
+	opt, err := newSurveyIO(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func String(ctx context.Context, dst *string, msg, def string, required bool) er
 }
 
 func StringWithHelp(ctx context.Context, dst *string, msg, def, help string, required bool) error {
-	opt, err := newSurveyIO(ctx)
+	opt, err := newSurveyIO(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func StringWithHelp(ctx context.Context, dst *string, msg, def, help string, req
 }
 
 func Int(ctx context.Context, dst *int, msg string, def int, required bool) error {
-	opt, err := newSurveyIO(ctx)
+	opt, err := newSurveyIO(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func Int(ctx context.Context, dst *int, msg string, def int, required bool) erro
 }
 
 func Password(ctx context.Context, dst *string, msg string, required bool) error {
-	opt, err := newSurveyIO(ctx)
+	opt, err := newSurveyIO(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -117,7 +118,7 @@ func Password(ctx context.Context, dst *string, msg string, required bool) error
 }
 
 func MultiSelect(ctx context.Context, indices *[]int, msg string, def []int, options ...string) error {
-	opt, err := newSurveyIO(ctx)
+	opt, err := newSurveyIO(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func MultiSelect(ctx context.Context, indices *[]int, msg string, def []int, opt
 }
 
 func Select(ctx context.Context, index *int, msg, def string, options ...string) error {
-	opt, err := newSurveyIO(ctx)
+	opt, err := newSurveyIO(ctx, msg)
 	if err != nil {
 		return err
 	}
@@ -157,7 +158,7 @@ func Confirmf(ctx context.Context, format string, a ...any) (bool, error) {
 
 func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 	var opt survey.AskOpt
-	if opt, err = newSurveyIO(ctx); err != nil {
+	if opt, err = newSurveyIO(ctx, message); err != nil {
 		return
 	}
 
@@ -172,7 +173,7 @@ func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 
 func ConfirmYes(ctx context.Context, message string) (confirm bool, err error) {
 	var opt survey.AskOpt
-	if opt, err = newSurveyIO(ctx); err != nil {
+	if opt, err = newSurveyIO(ctx, message); err != nil {
 		return
 	}
 
@@ -188,21 +189,22 @@ func ConfirmYes(ctx context.Context, message string) (confirm bool, err error) {
 
 func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
 	var opt survey.AskOpt
-	if opt, err = newSurveyIO(ctx); err != nil {
+	message := fmt.Sprintf("Overwrite %q?", filename)
+	if opt, err = newSurveyIO(ctx, message); err != nil {
 		return
 	}
 
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	prompt := &survey.Confirm{
-		Message: colorize.Yellow(fmt.Sprintf(`Overwrite "%s"?`, filename)),
+		Message: colorize.Yellow(message),
 	}
 	err = survey.AskOne(prompt, &confirm, opt)
 
 	return
 }
 
-var ErrNonInteractive = errors.New("prompt: non interactive")
+var ErrNonInteractive = errors.New("interactive input is unavailable; supply required values with command arguments or flags")
 
 func IsNonInteractive(err error) bool {
 	return errors.Is(err, ErrNonInteractive)
@@ -220,20 +222,21 @@ func isInteractive(ctx context.Context) bool {
 	return io.IsInteractive()
 }
 
-func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
+func newSurveyIO(ctx context.Context, message string) (survey.AskOpt, error) {
+	err := fmt.Errorf("cannot prompt for %q: %w", message, ErrNonInteractive)
 	io := iostreams.FromContext(ctx)
 	if !io.IsInteractive() {
-		return nil, ErrNonInteractive
+		return nil, err
 	}
 
 	in, ok := io.In.(terminal.FileReader)
 	if !ok {
-		return nil, ErrNonInteractive
+		return nil, err
 	}
 
 	out, ok := io.Out.(terminal.FileWriter)
 	if !ok {
-		return nil, ErrNonInteractive
+		return nil, err
 	}
 
 	surveyCore.TemplateFuncsWithColor["color"] = func(style string) string {
@@ -248,7 +251,19 @@ func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	return survey.WithStdio(in, out, io.ErrOut), nil
 }
 
-var errOrgSlugRequired = NonInteractiveError("org slug must be specified when not running interactively")
+// inputHint says how to supply a value a prompt would have asked for: the
+// command's own flag when it has one, and the environment variable flyctl
+// reads as a fallback.
+func inputHint(ctx context.Context, flagName, envKey string) string {
+	if flag.Defined(ctx, flagName) {
+		return fmt.Sprintf("pass --%s or set %s", flagName, envKey)
+	}
+	return "set " + envKey
+}
+
+func orgRequiredError(ctx context.Context) error {
+	return NonInteractiveError(fmt.Sprintf("organization must be specified when not running interactively; %s; list organizations with `fly orgs list`", inputHint(ctx, flagnames.Org, "FLY_ORG")))
+}
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
@@ -283,7 +298,7 @@ func Org(ctx context.Context) (*uiex.Organization, error) {
 		case err == nil:
 			return org, nil
 		case IsNonInteractive(err):
-			return nil, errOrgSlugRequired
+			return nil, orgRequiredError(ctx)
 		default:
 			return nil, err
 		}
@@ -308,10 +323,9 @@ func SelectOrg(ctx context.Context, orgs []uiex.Organization) (org *uiex.Organiz
 	return
 }
 
-var (
-	errRegionCodeRequired  = NonInteractiveError("region code must be specified when not running interactively")
-	errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
-)
+func regionRequiredError(ctx context.Context) error {
+	return NonInteractiveError(fmt.Sprintf("region must be specified when not running interactively; %s; list regions with `fly platform regions`", inputHint(ctx, flagnames.Region, "FLY_REGION")))
+}
 
 type RegionInfo struct {
 	Regions       []fly.Region
@@ -423,7 +437,7 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 		case err == nil:
 			return &regions, nil
 		case IsNonInteractive(err):
-			return nil, errRegionCodesRequired
+			return nil, NonInteractiveError(fmt.Sprintf("region codes must be specified with --%s as a comma-separated list when not running interactively; list regions with `fly platform regions`", flagName))
 		default:
 			return nil, err
 		}
@@ -483,7 +497,7 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Regi
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):
-			return nil, errRegionCodeRequired
+			return nil, regionRequiredError(ctx)
 		default:
 			return nil, err
 		}

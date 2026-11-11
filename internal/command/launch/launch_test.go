@@ -98,9 +98,16 @@ func TestLaunchStopsBeforeDeployWhenProvisioningFails(t *testing.T) {
 	t.Run("a later failure keeps the provisioning error", func(t *testing.T) {
 		_, _, _, err := launch(t, "--secret", "no-equals-sign")
 
-		assert.ErrorContains(t, err, "invalid secret format")
+		assert.ErrorContains(t, err, "--secret value 1 must be in the format NAME=VALUE")
 		assert.ErrorContains(t, err, "regions unavailable")
 		assert.ErrorContains(t, err, "fly redis create")
+	})
+
+	t.Run("invalid secret identifies position without exposing input", func(t *testing.T) {
+		_, _, _, err := launch(t, "--secret", "VALID=private-value", "--secret", "private-invalid-secret")
+		require.ErrorContains(t, err, "--secret value 2 must be in the format NAME=VALUE")
+		require.NotContains(t, err.Error(), "private-value")
+		require.NotContains(t, err.Error(), "private-invalid-secret")
 	})
 }
 

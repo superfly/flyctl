@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/flag"
@@ -203,15 +204,13 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 
 	// Add secrets to the app
 	if secretsFlag := flag.GetStringArray(ctx, "secret"); len(secretsFlag) > 0 {
-		secrets := make(map[string]string, len(secretsFlag))
-		for _, secret := range secretsFlag {
-			kv := strings.SplitN(secret, "=", 2)
-			if len(kv) != 2 {
-				return fmt.Errorf("invalid secret format: %s, expected NAME=VALUE", secret)
-			}
-			key := strings.TrimSpace(kv[0])
-			value := strings.TrimSpace(kv[1])
-			secrets[key] = value
+		parsed, err := cmdutil.ParseKVFlagToMap("secret", secretsFlag)
+		if err != nil {
+			return err
+		}
+		secrets := make(map[string]string, len(parsed))
+		for key, value := range parsed {
+			secrets[strings.TrimSpace(key)] = strings.TrimSpace(value)
 		}
 
 		if err := appsecrets.Update(ctx, flapsClient, state.appConfig.AppName, secrets, nil); err != nil {

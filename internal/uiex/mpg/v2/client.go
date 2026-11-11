@@ -283,7 +283,7 @@ func (c *Client) GetCluster(ctx context.Context, orgSlug string, id string) (Get
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil
@@ -322,14 +322,14 @@ func (c *Client) GetClusterById(ctx context.Context, id string) (GetClusterRespo
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil
 	case http.StatusNotFound:
 		return response, fmt.Errorf("Cluster %s not found", id)
 	default:
-		return response, fmt.Errorf("Something went wrong")
+		return response, fmt.Errorf("failed to get cluster %s (status %d)", id, res.StatusCode)
 	}
 }
 
@@ -361,7 +361,7 @@ func (c *Client) ListRegions(ctx context.Context, orgSlug string) (ListRegionsRe
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil

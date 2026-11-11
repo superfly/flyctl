@@ -23,6 +23,13 @@ func FromContext(ctx context.Context) *pflag.FlagSet {
 	return flagctx.FromContext(ctx)
 }
 
+// Defined reports whether the FlagSet ctx carries defines the named flag. It
+// returns false when ctx carries no FlagSet.
+func Defined(ctx context.Context, name string) bool {
+	fs := flagctx.TryFromContext(ctx)
+	return fs != nil && fs.Lookup(name) != nil
+}
+
 // Args is shorthand for FromContext(ctx).Args().
 func Args(ctx context.Context) []string {
 	return FromContext(ctx).Args()
