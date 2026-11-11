@@ -111,6 +111,8 @@ func TestWithSkip(t *testing.T) {
 	assert.Equal(t, []string{"--skip"}, withSkip(nil))
 	assert.Equal(t, []string{"--postgres", "--skip"}, withSkip([]string{"--postgres"}))
 	assert.Equal(t, []string{"--skip", "--postgres"}, withSkip([]string{"--skip", "--postgres"}), "--skip isn't added twice")
+	assert.Equal(t, []string{"--force"}, withSkip([]string{"--force"}), "the user's --force wins")
+	assert.Equal(t, []string{"--force=true"}, withSkip([]string{"--force=true"}))
 }
 
 func TestTailWriterKeepsLastBytes(t *testing.T) {

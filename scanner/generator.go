@@ -60,10 +60,12 @@ func generatorStdin(interactive bool) io.Reader {
 
 // withSkip adds --skip to a generator's args unless it's already there. All
 // three generators (dockerfile-node, dockerfile-rails, dockerfile-laravel)
-// take it to mean "keep files that already exist".
+// take it to mean "keep files that already exist", and still create missing
+// ones. A --force the user passed (fly launch -- --force) is left to win:
+// dockerfile-node would otherwise let --skip override it.
 func withSkip(args []string) []string {
 	for _, a := range args {
-		if a == "--skip" {
+		if a == "--skip" || a == "--force" || strings.HasPrefix(a, "--force=") {
 			return args
 		}
 	}
