@@ -27,7 +27,8 @@ func newStatus() (cmd *cobra.Command) {
 --json, print the status page's data instead. The optional kind argument
 chooses what --json fetches: brief (the default, overall status), summary,
 incidents (unresolved incidents) or maintenance (active scheduled
-maintenance). Without --json, the kind is ignored.`
+maintenance). Without --json the kind has no effect, but it must still be one
+of those values.`
 		short = "Show Fly.io platform status"
 	)
 

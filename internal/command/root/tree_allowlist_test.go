@@ -9,18 +9,25 @@ var missingLongAllowlist []string
 
 // Destructive commands with no --yes. Some may never prompt; add --yes anyway so scripts can pass it uniformly, or move the command out of this list with a comment saying why it is exempt.
 var destructiveWithoutYesAllowlist = []string{
+	"consul detach",
 	"ips release",
+	"ips release-egress",
 	"machine destroy",
+	"machine kill",
+	"machine leases clear",
 	"mcp remove",
+	"mpg detach",
 	"orgs remove",
+	"postgres detach",
 	"redis reset",
 	"secrets unset",
 	"skills remove",
+	"tokens revoke",
 	"wireguard remove",
 	"wireguard reset",
 }
 
-// Runnable commands with no --json. Add --json to mutating commands first (deploy, secrets, scale, machine lifecycle); see docs/json-output.md for the output rules.
+// Runnable commands with no --json. Add --json to mutating commands first (deploy, secrets, scale, machine lifecycle).
 var missingJSONAllowlist = []string{
 	"agent restart",
 	"agent run",
@@ -42,6 +49,7 @@ var missingJSONAllowlist = []string{
 	"console",
 	"consul attach",
 	"consul detach",
+	"dashboard",
 	"dashboard metrics",
 	"deploy",
 	"dig",
@@ -81,6 +89,7 @@ var missingJSONAllowlist = []string{
 	"ips allocate-v6",
 	"ips release",
 	"ips release-egress",
+	"jobs",
 	"jobs open",
 	"machine api-proxy",
 	"machine clone",
@@ -166,10 +175,13 @@ var missingJSONAllowlist = []string{
 	"secrets sync",
 	"secrets unset",
 	"services list",
+	"settings analytics",
 	"settings analytics disable",
 	"settings analytics enable",
+	"settings autoupdate",
 	"settings autoupdate disable",
 	"settings autoupdate enable",
+	"settings synthetics",
 	"settings synthetics disable",
 	"settings synthetics enable",
 	"sftp find",
@@ -199,6 +211,7 @@ var missingJSONAllowlist = []string{
 	"tokens attenuate",
 	"tokens debug",
 	"tokens list",
+	"tokens revoke",
 	"tokens revoke supplied",
 	"version upgrade",
 	"volumes destroy",

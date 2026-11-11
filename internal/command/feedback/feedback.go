@@ -43,7 +43,11 @@ both; at least one is required.
 
 The note can be given as an argument or piped through stdin; in a terminal
 you are prompted for it otherwise. Notes are limited to 4000 characters. The
-command prints the feedback ID, or the full response with ` + "`--json`" + `.`
+command prints the feedback ID, or the full response with ` + "`--json`" + `.
+
+Reports are filed under the organization of the access token in use. A token
+scoped to one organization files under that organization; any other token
+files under your personal organization.`
 		usage = "feedback [note]"
 	)
 

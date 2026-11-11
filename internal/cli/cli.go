@@ -237,8 +237,10 @@ func wrapText(s string) string {
 
 // wrapParagraphs reflows each blank-line-separated paragraph of s to width,
 // keeping the blank lines between them. A paragraph with a line that is
-// indented or starts like a list item is laid out by line instead, so lists
-// and code keep their shape; only lines longer than width are wrapped.
+// indented or starts like a list item is laid out line by line instead:
+// list items longer than width wrap with a hanging indent under the item
+// text, other indented lines (code, commands, tables) are never wrapped so
+// they stay copyable, and other lines wrap normally.
 func wrapParagraphs(s string, width int) string {
 	var out []string
 	for _, para := range paragraphBreak.Split(strings.TrimSpace(s), -1) {
@@ -254,10 +256,7 @@ func wrapParagraphs(s string, width int) string {
 		}
 
 		for i, line := range lines {
-			if len(line) > width {
-				indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
-				lines[i] = text.Indent(text.Wrap(strings.TrimLeft(line, " \t"), width-len(indent)), indent)
-			}
+			lines[i] = wrapLine(line, width)
 		}
 		out = append(out, strings.Join(lines, "\n"))
 	}
@@ -265,14 +264,38 @@ func wrapParagraphs(s string, width int) string {
 	return strings.Join(out, "\n\n")
 }
 
+// wrapLine lays out one line of a line-based paragraph.
+func wrapLine(line string, width int) string {
+	if len(line) <= width {
+		return line
+	}
+
+	if marker := listItem.FindString(line); marker != "" {
+		hang := strings.Repeat(" ", len(marker))
+		body := text.Wrap(line[len(marker):], width-len(marker))
+
+		return marker + strings.ReplaceAll(body, "\n", "\n"+hang)
+	}
+
+	if isIndented(line) {
+		return line
+	}
+
+	return text.Wrap(line, width)
+}
+
 var (
 	paragraphBreak = regexp.MustCompile(`\n[ \t]*\n`)
-	listItem       = regexp.MustCompile(`^([-*•]|\d+[.)])\s`)
+	listItem       = regexp.MustCompile(`^[ \t]*(?:[-*•]|\d+[.)])[ \t]+`)
 )
+
+func isIndented(line string) bool {
+	return strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+}
 
 func isLineBased(lines []string) bool {
 	for _, line := range lines {
-		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") || listItem.MatchString(line) {
+		if isIndented(line) || listItem.MatchString(line) {
 			return true
 		}
 	}
