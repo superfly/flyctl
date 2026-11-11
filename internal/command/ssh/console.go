@@ -417,7 +417,6 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 
 // selectContainer selects a container from the machine's config.
 func selectContainer(ctx context.Context, machine *fly.Machine) (container string, err error) {
-	containers := machine.Config.Containers
 	container = flag.GetString(ctx, "container")
 
 	// --no-container asks for the machine itself, so there is nothing to select.
@@ -428,6 +427,27 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 
 		return "", nil
 	}
+
+	// Config is nil when the machine's host isn't reporting ok. IncompleteConfig
+	// may still list the containers, but it can be partial, so it's only used
+	// to pick a default: a named container is never rejected because of it.
+	if machine.Config == nil && container != "" {
+		// The name can't be checked reliably: pass it through and let the SSH
+		// server decide.
+		return container, nil
+	}
+
+	cfg := machine.GetConfig()
+	if cfg == nil {
+		// Nothing is known about this machine's containers. The session names no
+		// container, so the SSH server connects to its default target.
+		if flag.GetBool(ctx, "select") {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Couldn't read the containers of machine %s, connecting to its default target\n", machine.ID)
+		}
+
+		return "", nil
+	}
+	containers := cfg.Containers
 
 	if len(containers) == 0 {
 		if container == "" {
