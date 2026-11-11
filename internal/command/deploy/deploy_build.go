@@ -212,6 +212,11 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
 		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+		if !opts.Publish {
+			// --build-only leaves the image on the builder, so a later
+			// `fly deploy --image` of this tag finds nothing in the registry.
+			terminal.Warnf("%s was built but not pushed to the registry; add --push to deploy it later with --image\n", img.Tag)
+		}
 	}
 
 	return

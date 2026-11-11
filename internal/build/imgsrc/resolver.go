@@ -346,6 +346,10 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			}
 			img.BuilderID = bld.BuilderMeta.RemoteMachineId
 
+			if opts.Publish {
+				r.waitForPushedImage(ctx, streams, img.Tag)
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -354,7 +358,29 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 
-	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
+	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://docs.fly.io/reference/configuration#the-build-section")
+}
+
+// waitForPushedImage holds the deploy until the image it just pushed resolves,
+// so machines are not updated to an image the registry does not serve yet.
+// It only warns when the image never appears: the lookup is a safeguard, and
+// a deploy that would succeed should not fail on it.
+func (r *Resolver) waitForPushedImage(ctx context.Context, streams *iostreams.IOStreams, ref string) {
+	if r.apiClient == nil || ref == "" {
+		return
+	}
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_pushed_image", trace.WithAttributes(attribute.String("tag", ref)))
+	defer span.End()
+
+	img, err := resolveImageWithRetry(ctx, r.apiClient, r.appName, ref, defaultImageWait, streams.ErrOut)
+	switch {
+	case err != nil:
+		tracing.RecordError(ctx, span, err, "failed to resolve pushed image")
+		terminal.Warnf("Could not confirm that the registry has %s: %v\n", ref, err)
+	case img == nil:
+		span.AddEvent("pushed image not found")
+		terminal.Warnf("Could not confirm that the registry has %s\n", ref)
+	}
 }
 
 func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResolver, opts RefOptions) (*build, error) {

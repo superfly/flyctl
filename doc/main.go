@@ -53,26 +53,13 @@ func main() {
 	// Otherwise it could be `main`, `flyctl` or whatever name is set to the executable
 	cmd.Use = "fly"
 
-	// The slug these pages had on the old Sitepress site. Still used for the
-	// source_url frontmatter, which every imported docs page carries.
-	legacySlug := func(name string) string {
-		base := strings.TrimSuffix(filepath.Base(name), path.Ext(name))
-		base = strings.Replace(base, "fly_", "", 1)
-		if base == "fly" {
-			base = "help"
-		}
-		base = strings.ReplaceAll(base, "_", "-") + "/"
-
-		return strings.ToLower(base)
-	}
-
 	// Mintlify reads title from frontmatter. sidebarTitle is deliberately not
 	// emitted: on 36 pages it is a hand-written nav label that cobra's Short
 	// does not match, so scripts/publish_docs.sh carries the existing value
 	// through instead of this overwriting it.
 	filePrepender := func(cmd *cobra.Command, filename string) string {
-		return fmt.Sprintf("---\ntitle: %s\nsource_url: https://fly.io/docs/flyctl/%s\n---\n\n",
-			cmd.CommandPath(), legacySlug(filename))
+		return fmt.Sprintf("---\ntitle: %s\nsource_url: https://docs.fly.io/flyctl/cmd/%s\n---\n\n",
+			cmd.CommandPath(), pageName(filename))
 	}
 
 	// Pages live at /flyctl/cmd/<file basename> on docs.fly.io, so the link is
