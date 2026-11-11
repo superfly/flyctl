@@ -80,6 +80,42 @@ func TestGeneratorStdin(t *testing.T) {
 	}
 }
 
+// `fly launch < answers.txt` used to feed the file to the generator. Only a
+// terminal is passed through now, so the generator sees an empty stdin.
+func TestRunGeneratorDoesNotReadRedirectedFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh")
+	}
+
+	f, err := os.CreateTemp(t.TempDir(), "stdin")
+	require.NoError(t, err)
+	defer f.Close()
+	_, err = f.WriteString("y\n")
+	require.NoError(t, err)
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	oldStdin := os.Stdin
+	os.Stdin = f
+	defer func() { os.Stdin = oldStdin }()
+
+	// Fails if the generator read anything at all.
+	err = runGenerator(exec.Command("sh", "-c", `read answer; [ -z "$answer" ]`))
+	assert.NoError(t, err, "the generator should get an empty stdin, not the redirected file")
+}
+
+// exec.Cmd treats a non-nil io.Reader holding a nil *os.File differently from
+// a nil io.Reader, so generatorStdin must return a true nil.
+func TestGeneratorStdinReturnsUntypedNil(t *testing.T) {
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer r.Close()
+	defer w.Close()
+
+	assert.True(t, generatorStdin(r) == nil)
+	assert.True(t, generatorStdin(nil) == nil)
+}
+
 func TestTailWriterKeepsLastBytes(t *testing.T) {
 	w := &tailWriter{max: 4}
 	_, _ = w.Write([]byte("abc"))

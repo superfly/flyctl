@@ -3,9 +3,11 @@ package ssh
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,10 +88,13 @@ func TestOpenCredentialFilesRejectsUnreadableFileWithoutLooping(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "id_ed25519")
 	require.NoError(t, os.WriteFile(path, []byte("fly.io"), 0o200))
 
-	_, _, _, _, err := openWithin(t, issueContext(t, true), path)
+	_, _, _, out, err := openWithin(t, issueContext(t, true), path)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "can't read it")
+	assert.Contains(t, err.Error(), path)
+	assert.ErrorIs(t, err, fs.ErrPermission, "the underlying read error stays reachable")
+	assert.Equal(t, 1, strings.Count(out, "can't read it"), "the rejection should be reported once")
 }
 
 func TestOpenCredentialFilesExistingFileWithoutOverwrite(t *testing.T) {
@@ -133,4 +138,107 @@ func TestOpenCredentialFilesNoPathNonInteractive(t *testing.T) {
 	_, _, _, _, err := openWithin(t, issueContext(t, false), "")
 
 	assert.True(t, prompt.IsNonInteractive(err))
+}
+
+// dotsshContext is issueContext with --dotssh set and HOME pointed at a temp
+// dir holding an empty .ssh directory, which it returns.
+func dotsshContext(t *testing.T, overwrite bool) (context.Context, string) {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sshDir := filepath.Join(home, ".ssh")
+	require.NoError(t, os.Mkdir(sshDir, 0o700))
+
+	ctx := issueContext(t, overwrite)
+	require.NoError(t, flag.FromContext(ctx).Set("dotssh", "true"))
+
+	return ctx, sshDir
+}
+
+func TestOpenCredentialFilesOverwriteTruncatesFlyKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	require.NoError(t, os.WriteFile(path, []byte("an old, much longer fly.io key"), 0o600))
+	require.NoError(t, os.WriteFile(path+"-cert.pub", []byte("an old, much longer cert"), 0o600))
+
+	pf, cf, _, _, err := openWithin(t, issueContext(t, true), path)
+	require.NoError(t, err)
+
+	_, err = pf.WriteString("new key")
+	require.NoError(t, err)
+	_, err = cf.WriteString("new cert")
+	require.NoError(t, err)
+	require.NoError(t, pf.Close())
+	require.NoError(t, cf.Close())
+
+	key, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "new key", string(key), "the old key is replaced, not partly overwritten")
+
+	cert, err := os.ReadFile(path + "-cert.pub")
+	require.NoError(t, err)
+	assert.Equal(t, "new cert", string(cert))
+}
+
+func TestOpenCredentialFilesWithoutOverwriteLeavesNonFlyKeyAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	require.NoError(t, os.WriteFile(path, []byte("someone else's key"), 0o600))
+
+	_, _, _, _, err := openWithin(t, issueContext(t, false), path)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, os.ErrExist)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "someone else's key", string(data))
+	assert.NoFileExists(t, path+"-cert.pub", "no certificate is written next to a key that was refused")
+}
+
+func TestOpenCredentialFilesNewFilesArePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows ignores unix permission bits")
+	}
+
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+
+	pf, cf, _, _, err := openWithin(t, issueContext(t, false), path)
+	require.NoError(t, err)
+	defer pf.Close()
+	defer cf.Close()
+
+	for _, p := range []string{path, path + "-cert.pub"} {
+		info, err := os.Stat(p)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "%s must only be readable by its owner", p)
+	}
+}
+
+func TestOpenCredentialFilesDotSSH(t *testing.T) {
+	ctx, sshDir := dotsshContext(t, false)
+
+	pf, cf, got, _, err := openWithin(t, ctx, "id_fly")
+
+	require.NoError(t, err)
+	defer pf.Close()
+	defer cf.Close()
+	assert.Equal(t, filepath.Join(sshDir, "id_fly"), filepath.Clean(got), "--dotssh puts the key under ~/.ssh")
+	assert.FileExists(t, filepath.Join(sshDir, "id_fly-cert.pub"))
+}
+
+func TestOpenCredentialFilesDotSSHRejectsNonFlyKeyWithoutLooping(t *testing.T) {
+	ctx, sshDir := dotsshContext(t, true)
+	path := filepath.Join(sshDir, "id_ed25519")
+	require.NoError(t, os.WriteFile(path, []byte("someone else's key"), 0o600))
+
+	_, _, _, out, err := openWithin(t, ctx, "id_ed25519")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "isn't a fly.io ed25519 private key")
+	assert.Contains(t, filepath.ToSlash(err.Error()), filepath.ToSlash(sshDir), "the error names the full path under ~/.ssh")
+	assert.Equal(t, 1, strings.Count(out, "isn't a fly.io"))
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "someone else's key", string(data))
 }
