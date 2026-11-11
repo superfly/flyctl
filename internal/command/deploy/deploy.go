@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
+	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -270,6 +271,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		tp.Shutdown(shutdownCtx)
 	}()
 
+	ctx = tracing.WithDeployTrace(ctx)
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy",
 		trace.WithAttributes(attribute.Bool("deploy.build_only", flag.GetBuildOnly(ctx))),
 	)
@@ -360,7 +362,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	for env := range appConfig.Env {
 		if containsCommonSecretSubstring(env) {
-			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/apps/secrets/\n", aurora.Yellow("WARN"), env)
+			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://docs.fly.io/apps/secrets\n", aurora.Yellow("WARN"), env)
 			fmt.Fprintln(io.ErrOut, warning)
 		}
 	}
@@ -371,14 +373,16 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	dockerfileMaterializer := imgsrc.NewDockerfileMaterializer()
-	img, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder, dockerfileMaterializer)
+	img, usedWireguard, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder, dockerfileMaterializer)
 	if err != nil {
 		noBuilder := strings.Contains(err.Error(), "Could not find App")
 		recreateBuilder = recreateBuilder || noBuilder
-		if noBuilder || (usingWireguard && httpFailover) {
+		// Failing over to HTTPS only helps a build that went to its builder over
+		// WireGuard; any other build would just run again unchanged.
+		if noBuilder || (usedWireguard && httpFailover) {
 			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
 			span.AddEvent("using http failover")
-			img, err = determineImage(ctx, app, appConfig, false, recreateBuilder, dockerfileMaterializer)
+			img, _, err = determineImage(ctx, app, appConfig, false, recreateBuilder, dockerfileMaterializer)
 		}
 	}
 	if cleanupErr := dockerfileMaterializer.Close(); cleanupErr != nil {
@@ -396,7 +400,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	colorize := io.ColorScheme()
 	fmt.Fprintf(io.Out, "\nWatch your deployment at %s\n\n", colorize.Purple(fmt.Sprintf("https://fly.io/apps/%s/monitoring", appName)))
 	if err := deployToMachines(ctx, appConfig, app, img); err != nil {
-		return err
+		return machinelimit.WithRequestLink(ctx, err, app.Organization.Slug)
 	}
 	var ip = "public"
 	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
@@ -478,6 +482,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	} else if ip == "none" {
 		fmt.Fprintf(io.Out, "\nYour app is deployed but does not have a public or private IP address\n")
 	}
+
+	machinelimit.Warn(ctx, app.Organization.Slug)
 
 	return err
 }
@@ -734,6 +740,12 @@ func deployToMachines(
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
+	ctx, configurationSpan := tracing.GetTracer().Start(ctx, "deployment_configuration")
+	defer func() {
+		tracing.RecordError(ctx, configurationSpan, err, "failed to configure deployment")
+		configurationSpan.End()
+	}()
+
 	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	appName := appconfig.NameFromContext(ctx)

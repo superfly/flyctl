@@ -54,7 +54,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		ConsoleCommand: "php /var/www/html/artisan tinker",
 	}
 
-	// Min PHP version to use generator
+	// Oldest PHP the dockerfile-laravel generator supports
 	minVersion, err := semver.Make("8.1.0")
 	if err != nil {
 		panic(err)
@@ -63,9 +63,12 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	// The detected PHP version
 	phpVersion, err := extractPhpVersion()
 	if err != nil || phpVersion == "" {
-		// Fallback to 8.0, which has
-		// the broadest compatibility
 		phpVersion = "8.1"
+	}
+
+	phpNVersion, err := semver.Make(phpVersion + ".0")
+	if err != nil || phpNVersion.LT(minVersion) {
+		return nil, fmt.Errorf("Laravel apps on Fly.io need PHP 8.1 or newer; detected PHP %s. Update the php requirement in composer.json and run fly launch again", phpVersion)
 	}
 
 	s.Runtime = plan.RuntimeStruct{Language: "php", Version: phpVersion}
@@ -75,14 +78,8 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		"NODE_VERSION": "18",
 	}
 
-	// Use default scanner templates if < min version(8.1.0)
-	phpNVersion, err := semver.Make(phpVersion + ".0")
-	if err != nil || phpNVersion.LT(minVersion) {
-		s.Files = templates("templates/laravel")
-	} else {
-		// Else use dockerfile-laravel generator
-		s.Callback = LaravelCallback
-	}
+	// The Dockerfile comes from the dockerfile-laravel generator
+	s.Callback = LaravelCallback
 
 	// Extract DB, Redis config from dotenv
 	db, redis, skipDB := extractConnections(".env")
@@ -168,33 +165,41 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
 		fmt.Printf("installing: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil && !dockerfileExists {
-			return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
+		if err := runGenerator(cmd); err != nil {
+			switch {
+			case dockerfileExists:
+				// The existing Dockerfile will do; the generator only adds to it.
+				fmt.Printf("Couldn't install fly-apps/dockerfile-laravel; using your existing Dockerfile.\n")
+			case errors.Is(err, exec.ErrNotFound):
+				return fmt.Errorf("fly launch needs Composer to generate a Dockerfile for a Laravel app, and composer isn't on your PATH. Install PHP and Composer (https://getcomposer.org), or add a Dockerfile, and run fly launch again")
+			default:
+				return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
+			}
 		}
 	}
 
-	args := []string{vendorPath, "generate"}
-	if dockerfileExists {
-		args = append(args, "--skip")
-	}
+	// The install above can fail with a Dockerfile already present; there is
+	// then no generator to run.
+	if _, err := os.Stat(vendorPath); err == nil {
+		args := []string{vendorPath, "generate"}
+		if dockerfileExists {
+			args = append(args, "--skip")
+		}
 
-	// add additional flags from launch command
-	if len(flags) > 0 {
-		args = append(args, flags...)
-	}
+		// add additional flags from launch command
+		if len(flags) > 0 {
+			args = append(args, flags...)
+		}
 
-	fmt.Printf("Running: %s\n", strings.Join(args, " "))
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+		fmt.Printf("Running: %s\n", strings.Join(args, " "))
+		cmd := exec.Command(args[0], args[1:]...)
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		if err := runGenerator(cmd); err != nil {
+			return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		}
+	} else if !dockerfileExists {
+		return fmt.Errorf("failed to generate Dockerfile: %s is missing; run composer install and fly launch again", vendorPath)
 	}
 
 	// provide some advice
@@ -247,23 +252,93 @@ func extractPhpVersion() (string, error) {
 		match = re.FindStringSubmatch(string(out))
 	}
 
+	version := ""
 	if len(match) > 1 {
-		// If the PHP version is below 7.4, we won't have a
-		// container for it, so we'll use PHP 7.4
-		if match[1][0:1] == "7" {
-			vers, err := strconv.ParseFloat(match[1], 32)
-			if err != nil {
-				return "7.4", nil
-			}
-			if vers < 7.4 {
-				return "7.4", nil
-			}
-		}
+		version = match[1]
+	}
 
-		return match[1], nil
+	// composer.json gives the oldest PHP the app allows, but composer.lock may
+	// pin packages that need a newer one (a lock resolved on PHP 8.4 can pin
+	// symfony/console 8, which needs PHP 8.4). Composer can't install anything
+	// into that lock on an older PHP, so use the newest floor of the two.
+	if locked := lockedPhpFloor("composer.lock"); locked != "" && (version == "" || phpVersionLess(version, locked)) {
+		version = locked
+	}
+
+	if version != "" {
+		return version, nil
 	}
 
 	return "", fmt.Errorf("could not find php version")
+}
+
+var phpMajorMinor = regexp.MustCompile(`([0-9]+)\.([0-9]+)`)
+
+// lockedPhpFloor returns the oldest PHP major.minor that every package in a
+// composer.lock accepts, or "" when the lock is missing or names no PHP floor.
+func lockedPhpFloor(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+
+	var lock struct {
+		Packages    []struct{ Require map[string]string } `json:"packages"`
+		PackagesDev []struct{ Require map[string]string } `json:"packages-dev"`
+	}
+	if err := json.Unmarshal(data, &lock); err != nil {
+		return ""
+	}
+
+	floor := ""
+	for _, pkg := range append(lock.Packages, lock.PackagesDev...) {
+		if v := phpConstraintFloor(pkg.Require["php"]); v != "" && (floor == "" || phpVersionLess(floor, v)) {
+			floor = v
+		}
+	}
+
+	return floor
+}
+
+// phpConstraintFloor returns the oldest PHP major.minor a Composer constraint
+// accepts: "8.4" for ">=8.4.1", "7.4" for "^7.4|^8.0". It returns "" when the
+// constraint, or any of its alternatives, has no lower bound.
+func phpConstraintFloor(constraint string) string {
+	floor := ""
+	for _, alternative := range strings.Split(strings.ReplaceAll(constraint, "||", "|"), "|") {
+		lower := ""
+		for _, term := range strings.FieldsFunc(alternative, func(r rune) bool { return r == ' ' || r == ',' }) {
+			if strings.HasPrefix(term, "<") || strings.HasPrefix(term, "!=") {
+				continue
+			}
+			if m := phpMajorMinor.FindString(term); m != "" {
+				lower = m
+				break
+			}
+		}
+		if lower == "" {
+			return ""
+		}
+		if floor == "" || phpVersionLess(lower, floor) {
+			floor = lower
+		}
+	}
+
+	return floor
+}
+
+// phpVersionLess compares two major.minor versions.
+func phpVersionLess(a, b string) bool {
+	am, bm := phpMajorMinor.FindStringSubmatch(a), phpMajorMinor.FindStringSubmatch(b)
+	if am == nil || bm == nil {
+		return false
+	}
+	aMajor, _ := strconv.Atoi(am[1])
+	aMinor, _ := strconv.Atoi(am[2])
+	bMajor, _ := strconv.Atoi(bm[1])
+	bMinor, _ := strconv.Atoi(bm[2])
+
+	return aMajor < bMajor || (aMajor == bMajor && aMinor < bMinor)
 }
 
 var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *= *(\"|')? *[a-zA-Z]+(\"|')?"

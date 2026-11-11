@@ -304,16 +304,16 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 			}
 
 			currentState, err := md.appState(ctx, oldAppState)
-			// sort machines by id so we always have the same order when retrying
-			// This is needed for rolling deploys so we can start from the same machine
-			sort.Slice(currentState.Machines, func(i, j int) bool {
-				return currentState.Machines[i].ID < currentState.Machines[j].ID
-			})
 			if err != nil {
 				tracing.RecordErrorEvent(ctx, span, updateErr)
 
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
+			// sort machines by id so we always have the same order when retrying
+			// This is needed for rolling deploys so we can start from the same machine
+			sort.Slice(currentState.Machines, func(i, j int) bool {
+				return currentState.Machines[i].ID < currentState.Machines[j].ID
+			})
 			err = md.updateMachinesWRecovery(ctx, originalAppState, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,
@@ -599,6 +599,20 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 		return err
 	}
+
+	return md.checkUpdatedMachine(ctx, oldMachine, machine, skipLaunch, sl, io, healthcheckResult)
+}
+
+func (md *machineDeployment) checkUpdatedMachine(ctx context.Context, oldMachine, machine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "deployment_readiness", trace.WithAttributes(
+		attribute.String("machine.ID", machine.ID),
+		attribute.Bool("deployment.skip_health_checks", md.skipHealthChecks),
+		attribute.Bool("deployment.skip_smoke_checks", md.skipSmokeChecks),
+	))
+	defer func() {
+		tracing.RecordError(ctx, span, err, "machine readiness failed")
+		span.End()
+	}()
 
 	lm := mach.NewLeasableMachine(md.flapsClient, io, md.app.Name, machine, false)
 

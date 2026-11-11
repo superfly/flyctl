@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -453,12 +455,9 @@ func (p *Provisioner) createBuilder(ctx context.Context, region, builderName str
 					},
 					{
 						Port:     new(443),
-						Handlers: []string{"http", "tls"},
+						Handlers: []string{"tls"},
 						TLSOptions: &fly.TLSOptions{
-							ALPN: []string{"h2"},
-						},
-						HTTPOptions: &fly.HTTPOptions{
-							H2Backend: new(true),
+							ALPN: []string{"http/1.1"},
 						},
 					},
 				},
@@ -581,9 +580,45 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var err error
-	if builderMachine.State == "stopped" {
+	switch builderMachine.State {
+	case "stopping":
+		// Another caller may finish the stop and start the builder before we
+		// observe it. Start is idempotent for a started Machine.
+		var cancel context.CancelFunc
+		// Bound stop, start retries and readiness together. Each API wait caps at 60s.
+		ctx, cancel = context.WithTimeout(ctx, 180*time.Second)
+		defer cancel()
+		if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("stopped", "started"), flaps.WithWaitTimeout(180*time.Second)); err != nil {
+			tracing.RecordError(ctx, span, err, "error waiting for builder machine to stop")
+			return fmt.Errorf("waiting for builder machine %s to stop: %w", builderMachine.ID, err)
+		}
+		_, err = backoff.Retry(ctx, func() (*fly.MachineStartResponse, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, backoff.Permanent(err)
+			}
+			response, err := flapsClient.Start(ctx, appName, builderMachine.ID, "")
+			if err == nil {
+				return response, nil
+			}
+			var flapsErr *flaps.FlapsError
+			if errors.As(err, &flapsErr) {
+				message := err.Error()
+				if flapsErr.ResponseStatusCode == http.StatusConflict && strings.Contains(message, "machine still attempting to start") {
+					return nil, nil // Join the other caller's start in the readiness wait below.
+				}
+				if flapsErr.ResponseStatusCode == http.StatusPreconditionFailed &&
+					(strings.Contains(message, "machine still stopping, refusing to start") ||
+						strings.Contains(message, "machine still active, refusing to start") ||
+						strings.Contains(message, "unable to start machine from current state: 'stopping'")) {
+					return nil, err // The stopped event can precede stop cleanup.
+				}
+			}
+
+			return nil, backoff.Permanent(err)
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)))
+	case "stopped":
 		_, err = flapsClient.Start(ctx, appName, builderMachine.ID, "")
-	} else {
+	default:
 		err = flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
 			ID: builderMachine.ID,
 		}, "")
@@ -601,7 +636,7 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 		return err
 	}
 
-	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil { // 3 minutes for restart + DNS propagation
+	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil {
 		tracing.RecordError(ctx, span, err, "error waiting for builder machine to start")
 
 		return fmt.Errorf("waiting for builder machine %s to start after restart: %w", builderMachine.ID, err)

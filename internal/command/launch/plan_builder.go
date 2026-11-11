@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -72,6 +74,18 @@ type planBuildCache struct {
 	// used to skip double-validating in stateFromManifest
 	appNameValidated bool
 	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	billingChecked   bool // true => buildManifest ran checkBillingStatus; manifests loaded with --from-manifest haven't been checked
+}
+
+// managedPostgresEnabled reads the feature flag that lets launch default to
+// Managed Postgres. Tests replace it so they don't call LaunchDarkly.
+var managedPostgresEnabled = func() (bool, error) {
+	ldClient, err := launchdarkly.NewServiceClient()
+	if err != nil {
+		return false, err
+	}
+
+	return ldClient.ManagedPostgresEnabled(), nil
 }
 
 func appNameTakenErr(appName string) error {
@@ -98,6 +112,27 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
+// summary is the problems on one line, for launch metrics: "" for none or a
+// nil builder, and cut short past maxSummaryLen.
+func (r *recoverableErrorBuilder) summary() string {
+	if r == nil {
+		return ""
+	}
+
+	problems := make([]string, 0, len(r.errors))
+	for _, e := range r.errors {
+		problems = append(problems, strings.Join(strings.Fields(e.Error()), " "))
+	}
+	s := strings.Join(problems, "; ")
+	if len(s) > maxSummaryLen {
+		s = strings.ToValidUTF8(s[:maxSummaryLen], "") + "…"
+	}
+
+	return s
+}
+
+const maxSummaryLen = 1000
+
 func (r *recoverableErrorBuilder) build() string {
 	if len(r.errors) == 0 {
 		return ""
@@ -120,10 +155,21 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
 	org, orgExplanation, err := determineOrg(ctx, parentConfig)
+	billingChecked := false
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
+	} else if plan.GetPlanStep(ctx) == "" {
+		// Before determineRegion: placements fail for an org that can't run
+		// Machines, with an error that doesn't say why.
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			partial := &LaunchManifest{Plan: &plan.LaunchPlan{OrgSlug: org.Slug, FlyctlVersion: buildinfo.Info().Version}}
+
+			return partial, nil, err
+		}
+		billingChecked = true
 	}
 
 	httpServicePort := 8080
@@ -232,18 +278,16 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		sourceInfo:       srcInfo,
 		appNameValidated: true, // validated in determineAppName
 		warnedNoCcHa:     false,
+		billingChecked:   billingChecked,
 	}
 
-	if planValidateHighAvailability(ctx, lp, org.Billable, true) {
-		buildCache.warnedNoCcHa = true
-	}
+	buildCache.validateHighAvailability(ctx, lp, org.Billable)
 
 	if srcInfo != nil {
-		ldClient, err := launchdarkly.NewServiceClient()
+		mpgEnabled, err := managedPostgresEnabled()
 		if err != nil {
 			return nil, nil, err
 		}
-		mpgEnabled := ldClient.ManagedPostgresEnabled()
 
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
@@ -256,11 +300,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 				}
 				planSource.postgresSource = scannerSource
 
-				// We offer switching to MPG if interactive session and the region is not the same as the MPG region
-				// App should launch in the MPG region
-				if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
-					lp.RegionCode = lp.Postgres.ManagedPostgres.Region
-				}
+				followManagedPostgresRegion(lp, planSource, regionCode)
 			case scanner.DatabaseKindMySQL:
 				// TODO
 			case scanner.DatabaseKindSqlite:
@@ -276,11 +316,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			}
 			planSource.postgresSource = "forced by --db flag"
 
-			// We offer switching to MPG if interactive session and the region is not the same as the MPG region
-			// App should launch in the MPG region
-			if lp.Postgres.ManagedPostgres != nil && lp.Postgres.ManagedPostgres.Region != regionCode {
-				lp.RegionCode = lp.Postgres.ManagedPostgres.Region
-			}
+			followManagedPostgresRegion(lp, planSource, regionCode)
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
@@ -290,7 +326,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
 			planSource.tigrisSource = scannerSource
 		}
-		if srcInfo.Port != 0 {
+		if srcInfo.Port != 0 && (!copiedConfig || appConfig.HTTPService != nil) {
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
 		}
@@ -309,19 +345,20 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 // Check to see if they own the named app, and if so, prompt them to try deploying instead.
 // Returns a whether or not the app is known to be taken.
 // false doesn't necessarily mean available, just not visible to the user, while true means the app name is definitively taken.
+// free is true only when the lookup came back 404, which means nobody holds the name, so callers need not ask again.
 // Returns an error only if the prompt library encounters an error. (this should never occur)
-func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
+func nudgeTowardsDeploy(ctx context.Context, appName string) (taken bool, free bool, err error) {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	if flag.GetYes(ctx) {
-		return false, nil
+		return false, false, nil
 	}
 
 	if _, err := flapsClient.GetApp(ctx, appName); err != nil {
 		// The user can't see the app. Let them proceed.
-		return false, nil
+		return false, errors.Is(err, flaps.ErrFlapsNotFound), nil
 	}
 
 	// The user can see the app. Prompt them to deploy.
@@ -337,13 +374,18 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 			os.Exit(0)
 		}
 	case prompt.IsNonInteractive(err):
-		// Should be impossible - we're only called if recoverableErrors.canEnterUi is true
-		return true, nil
+		// Plan steps (the deployer) run without a terminal and keep getting a
+		// generated name. Anyone else would silently get a second app.
+		if plan.GetPlanStep(ctx) != "" {
+			return true, false, nil
+		}
+
+		return true, false, prompt.NonInteractiveError(fmt.Sprintf("app %s already exists; to deploy to it, run 'fly deploy'. To launch a new app instead, pass --name with a new name or --generate-name", appName))
 	default:
-		return true, err
+		return true, false, err
 	}
 
-	return true, nil
+	return true, false, nil
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
@@ -353,6 +395,15 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	org, err := uiexClient.GetOrganization(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
+	}
+
+	// A manifest loaded with --from-manifest skipped buildManifest and its
+	// billing check, so check here, before warming up a remote builder.
+	if plan.GetPlanStep(ctx) == "" && (optionalCache == nil || !optionalCache.billingChecked) {
+		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
+		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
+			return nil, err
+		}
 	}
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
@@ -486,14 +537,22 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 		// copy-config so we never prompt and never fall back to source scanning.
 		explicitConfig := flag.IsSpecified(ctx, "config")
 		copyConfig := flag.GetBool(ctx, "copy-config") || attach || explicitConfig
+		decided := flag.IsSpecified(ctx, "copy-config") || attach || explicitConfig
 
-		if !flag.IsSpecified(ctx, "copy-config") && !attach && !explicitConfig && !flag.GetYes(ctx) {
+		// --yes skips the question below but can't answer it: replacing
+		// fly.toml launched a second app named after the directory. Plan
+		// steps (the deployer) keep replacing it.
+		if !decided && flag.GetYes(ctx) && plan.GetPlanStep(ctx) == "" {
+			return nil, false, errors.New("an existing fly.toml was found: pass --copy-config to launch with it, or --copy-config=false to replace it. To deploy the app it describes, run 'fly deploy'")
+		}
+
+		if !decided && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, colorize.Yellow("Would you like to use this fly.toml configuration for this app?"))
 			fmt.Fprintln(io.Out)
 			switch {
-			case prompt.IsNonInteractive(err) && !flag.GetYes(ctx):
-				return nil, false, err
+			case prompt.IsNonInteractive(err):
+				return nil, false, prompt.NonInteractiveError("--copy-config must be specified when not running interactively: --copy-config launches with the existing fly.toml, --copy-config=false replaces it. To deploy the app it describes, run 'fly deploy'")
 			case err != nil:
 				return nil, false, err
 			}
@@ -545,6 +604,10 @@ func validateAppName(appName string) error {
 
 	return nil
 }
+
+// appNameDerivedFromDir is the plan source of an app name taken from the
+// working directory's name.
+const appNameDerivedFromDir = "derived from your directory name"
 
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appConfig *appconfig.Config, configPath string) (string, string, error) {
@@ -601,7 +664,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		}
 		if appName == "" {
 			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
-			cause = "derived from your directory name"
+			cause = appNameDerivedFromDir
 		}
 
 		if parentConfig != nil && parentConfig.AppName != "" {
@@ -609,7 +672,7 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 			switch cause {
 			case "from your fly.toml":
 				cause = "from parent name and fly.toml"
-			case "derived from your directory name":
+			case appNameDerivedFromDir:
 				if flag.GetString(ctx, "into") != "" {
 					cause = "from parent name and --into"
 				} else if flag.GetString(ctx, "from") != "" {
@@ -626,17 +689,20 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
 		taken = false
 	} else {
-		if !taken && !flag.GetBool(ctx, "no-create") {
+		// free means nudgeTowardsDeploy's lookup already found the name unused; asking
+		// again is the same request, and each 404 costs flaps several seconds.
+		var free bool
+		if !taken && !noCreateApp(ctx) {
 			var err error
 			// If the user can see an app with the same name as what they're about to launch,
 			// they *probably* want to deploy to that app instead.
-			taken, err = nudgeTowardsDeploy(ctx, appName)
+			taken, free, err = nudgeTowardsDeploy(ctx, appName)
 			if err != nil {
 				return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
 			}
 		}
 
-		if !taken {
+		if !taken && !free {
 			taken, _ = appNameTaken(ctx, appName)
 		}
 	}
@@ -765,6 +831,75 @@ var deprecatedRegionReplacements = map[string]string{
 	"scl": "gru",
 	"eze": "gru",
 	"hkg": "sin",
+	"bom": "sin",
+}
+
+// replaceRetiredRegion returns the region that took over from a retired one.
+// It warns on stderr because --manifest and plan steps never print the summary.
+func replaceRetiredRegion(ctx context.Context, code string) (string, bool) {
+	replacement, ok := deprecatedRegionReplacements[code]
+	if ok {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Warning: region %s is retired, using %s instead\n", code, replacement)
+	}
+
+	return replacement, ok
+}
+
+// normalizeLoadedManifest prepares a manifest read from a file. It skipped
+// buildManifest and its determineRegion, so it can still name retired regions,
+// and a hand-written one may have no plan_source.
+func normalizeLoadedManifest(ctx context.Context, m *LaunchManifest) {
+	if m.PlanSource == nil {
+		m.PlanSource = newDefaultPlanSource("from manifest")
+	}
+
+	if m.Plan == nil {
+		return
+	}
+
+	primaryMoved := false
+	if replacement, ok := replaceRetiredRegion(ctx, m.Plan.RegionCode); ok {
+		m.PlanSource.regionSource = fmt.Sprintf("from manifest; %s is retired", m.Plan.RegionCode)
+		m.Plan.RegionCode = replacement
+		primaryMoved = true
+	}
+
+	if pg := m.Plan.Postgres.ManagedPostgres; pg != nil {
+		if replacement, ok := replaceRetiredRegion(ctx, pg.Region); ok {
+			pg.Region = replacement
+		}
+	}
+
+	if redis := m.Plan.Redis.UpstashRedis; redis != nil {
+		moved := primaryMoved
+		for i, code := range redis.ReadReplicas {
+			if replacement, ok := replaceRetiredRegion(ctx, code); ok {
+				redis.ReadReplicas[i] = replacement
+				moved = true
+			}
+		}
+
+		// Moving regions can land a replica on the primary, which Redis
+		// rejects, or on another replica.
+		if moved {
+			redis.ReadReplicas = lo.Without(lo.Uniq(redis.ReadReplicas), m.Plan.RegionCode)
+		}
+	}
+}
+
+// followManagedPostgresRegion launches the app in its Managed Postgres region
+// when that differs from the region picked for the app. We offer switching to
+// MPG in an interactive session. A region still left for the UI stays that way.
+func followManagedPostgresRegion(lp *plan.LaunchPlan, planSource *launchPlanSource, regionCode string) {
+	pg := lp.Postgres.ManagedPostgres
+	if pg == nil || pg.Region == regionCode {
+		return
+	}
+
+	lp.RegionCode = pg.Region
+	if planSource.regionSource != recoverableSpecifyInUi {
+		planSource.regionSource = "chosen for Managed Postgres"
+	}
 }
 
 // determineRegion returns the region to use for a new app. It uses the
@@ -782,13 +917,30 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		explanation = "from your fly.toml"
 	}
 
-	if replacement, ok := deprecatedRegionReplacements[regionCode]; ok {
+	// Errors name the region as the user gave it, and where: an invalid one is
+	// usually a stale primary_region in fly.toml.
+	var described string
+	if regionCode != "" {
+		described = fmt.Sprintf("region %s %s", regionCode, explanation)
+	}
+
+	if replacement, ok := replaceRetiredRegion(ctx, regionCode); ok {
+		described += fmt.Sprintf(" (retired, using %s)", replacement)
+		explanation += fmt.Sprintf("; %s is retired", regionCode)
 		regionCode = replacement
 	}
 
 	if regionCode == "" {
 		regionCode = "any"
 		explanation = "this is the fastest region for you"
+	}
+
+	nameRegion := func(err error) error {
+		if described == "" {
+			return err
+		}
+
+		return fmt.Errorf("%s: %w", described, err)
 	}
 
 	count := uint64(1)
@@ -804,17 +956,87 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 	})
 	if err != nil {
 		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
-			fmt.Errorf("failed to determine region: %w", err),
+			fmt.Errorf("failed to determine region: %w", nameRegion(err)),
 		}
 	}
 
 	if len(placements) == 0 {
-		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
-			fmt.Errorf("no regions with capacity for the requested configuration"),
-		}
+		err := errors.New("no regions with capacity for the requested configuration")
+
+		return regionCode, recoverableSpecifyInUi, recoverableInUiError{nameRegion(err)}
 	}
 
 	return placements[0].Region, explanation, nil
+}
+
+// resolveManifestRegion turns the region of a manifest loaded from a file, or
+// set by --region on `fly launch plan generate`, into one new apps can use.
+// These skip determineRegion, so "any" (what placements takes for "the best
+// region"), an empty region, or a retired one like qro reached the plan as is,
+// and launch failed with "region any not found". "any" and an empty region
+// become the nearest region; a retired one becomes its replacement, or the
+// closest region still open to new apps.
+func resolveManifestRegion(ctx context.Context, p *plan.LaunchPlan) error {
+	code := strings.ToLower(strings.TrimSpace(p.RegionCode))
+	if replacement, ok := deprecatedRegionReplacements[code]; ok {
+		p.RegionCode = replacement
+		return nil
+	}
+
+	regionData, err := flapsutil.ClientFromContext(ctx).GetRegions(ctx)
+	if err != nil {
+		if code != "" && code != "any" {
+			return nil // keep the region as is rather than fail on the lookup
+		}
+		return fmt.Errorf("failed to look up the nearest region: %w", err)
+	}
+
+	resolved, err := resolveRegionCode(code, regionData)
+	if err != nil {
+		return err
+	}
+	p.RegionCode = resolved
+
+	return nil
+}
+
+func resolveRegionCode(code string, regionData *flaps.RegionData) (string, error) {
+	lookup := code
+	if lookup == "" || lookup == "any" {
+		lookup = regionData.Nearest
+	}
+
+	for _, r := range regionData.Regions {
+		if r.Code != lookup {
+			continue
+		}
+		if !r.Deprecated {
+			return r.Code, nil
+		}
+		if closest := closestOpenRegion(r, regionData.Regions); closest != "" {
+			return closest, nil
+		}
+	}
+
+	return "", fmt.Errorf("region %q can't be used for new apps. Use a region from `fly platform regions`", code)
+}
+
+// closestOpenRegion returns the region nearest to from, as the crow flies, that
+// isn't deprecated.
+func closestOpenRegion(from fly.Region, regions []fly.Region) string {
+	best, bestDist := "", math.Inf(1)
+	for _, r := range regions {
+		if r.Deprecated {
+			continue
+		}
+		dLat := float64(r.Latitude - from.Latitude)
+		dLon := float64(r.Longitude-from.Longitude) * math.Cos(float64(from.Latitude)*math.Pi/180)
+		if dist := dLat*dLat + dLon*dLon; dist < bestDist {
+			best, bestDist = r.Code, dist
+		}
+	}
+
+	return best
 }
 
 // Applies the fields of the guest to the provided compute.
@@ -884,6 +1106,17 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	}
 
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
+}
+
+// validateHighAvailability reports whether the plan's high availability setting
+// is possible for the org, warning the first time it isn't.
+func (c *planBuildCache) validateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable bool) bool {
+	valid := planValidateHighAvailability(ctx, p, billable, !c.warnedNoCcHa)
+	if !valid {
+		c.warnedNoCcHa = true
+	}
+
+	return valid
 }
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {

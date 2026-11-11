@@ -22,6 +22,36 @@ import (
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
+// useShortLivedDeployToken creates an app-scoped token for a deploy test and
+// makes that token the test environment's active credential. Cleanup revokes
+// the token before restoring the shared preflight credential, so failed tests
+// do not leave long-lived tokens behind. The one-hour expiry is a fallback for
+// process termination or any other situation where testing.Cleanup cannot run.
+func useShortLivedDeployToken(t *testing.T, f *testlib.FlyctlTestEnv) {
+	t.Helper()
+
+	tokenName := fmt.Sprintf("flyctl-preflight-%s", f.ID())
+	tokenResult := f.Fly("tokens deploy --expiry 1h --name %s", tokenName)
+	token := strings.TrimSpace(tokenResult.StdOutString())
+
+	t.Cleanup(func() {
+		f.OverrideAuthAccessToken(token)
+		defer f.ResetAuthAccessToken()
+
+		revokeResult := f.FlyAllowExitFailure("tokens revoke supplied")
+
+		if revokeResult.ExitCode() != 0 {
+			t.Errorf(
+				"failed to revoke preflight deploy token %q: %s",
+				tokenName,
+				revokeResult.StdErrString(),
+			)
+		}
+	})
+
+	f.OverrideAuthAccessToken(token)
+}
+
 func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	if f.SecondaryRegion() == "" {
@@ -51,8 +81,8 @@ func TestFlyDeployHA(t *testing.T) {
 		result := f.Fly("volume create -a %s -r %s -s 1 data -y --json", appName, region)
 		result.StdOutJSON(&volume)
 
-		require.Eventually(t, func() bool {
-			return f.FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode() == 0
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode())
 		}, time.Minute, 2*time.Second, "volume %s never became readable", volume.ID)
 	}
 	f.Fly("deploy --buildkit --remote-only")
@@ -85,8 +115,8 @@ func TestFlyDeploy_AddNewMount(t *testing.T) {
 	var volume *fly.Volume
 	result := f.Fly("volume create -a %s -r %s -s 1 data -y --json", appName, f.PrimaryRegion())
 	result.StdOutJSON(&volume)
-	require.Eventually(t, func() bool {
-		return f.FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode() == 0
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", volume.ID, appName).ExitCode())
 	}, time.Minute, 2*time.Second, "volume %s never became readable", volume.ID)
 	f.Fly("deploy --buildkit --remote-only")
 }
@@ -108,8 +138,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOutString())
+	useShortLivedDeployToken(t, f)
 	f.Fly("deploy --buildkit --remote-only")
 }
 
@@ -125,8 +154,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 `
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOutString())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 	output := deployRes.StdErrString()
 	require.Contains(f, output, "the app appears to be crashing")
@@ -145,8 +173,7 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 `
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.FlyAllowExitFailure("deploy --buildkit --remote-only")
 	output := deployRes.StdErrString()
 	require.Contains(f, output, "exited with non-zero status of 1")
@@ -161,14 +188,15 @@ ENV PREFLIGHT_TEST=true`)
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// Use FlyAllowExitFailure to handle transient WireGuard API failures (HTTP 500)
-		sshResult := f.FlyAllowExitFailure("ssh console -C 'printenv PREFLIGHT_TEST'")
+		// A failed attempt (transient WireGuard API 500, SSH server not up yet)
+		// is retried, and a hung one is killed so the loop gets another try.
+		sshResult := f.Collect(c).FlyBestEffort(30*time.Second, "ssh console -C 'printenv PREFLIGHT_TEST'")
 		if sshResult.ExitCode() != 0 {
 			assert.Fail(c, "ssh command failed, will retry", "exit code: %d, stderr: %s", sshResult.ExitCode(), sshResult.StdErrString())
 			return
 		}
 		assert.Equal(c, "true", strings.TrimSpace(sshResult.StdOutString()), "expected PREFLIGHT_TEST env var to be set in machine")
-	}, 30*time.Second, 2*time.Second)
+	}, 90*time.Second, 2*time.Second)
 }
 
 // TestFlyDeploy_SlowBind_NoFalseListenWarning is the regression test for
@@ -370,11 +398,12 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.Fly("deploy --buildkit --remote-only")
 	output := deployRes.StdOutString()
-	require.Contains(f, output, "Test Machine")
+	// The "Test Machine <id>: <state>" summary is skipped once the test
+	// machine has been destroyed, so check for the success line instead.
+	require.Regexp(f, `Test machine \S+ completed successfully`, output)
 }
 
 func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
@@ -391,11 +420,12 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 		`
 	f.WriteFlyToml("%s", appConfig)
 
-	tokenResult := f.Fly("tokens deploy")
-	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+	useShortLivedDeployToken(t, f)
 	deployRes := f.Fly("deploy --buildkit --remote-only")
 	output := deployRes.StdOutString()
-	require.Contains(f, output, "Test Machine")
+	// The "Test Machine <id>: <state>" summary is skipped once the test
+	// machine has been destroyed, so check for the success line instead.
+	require.Regexp(f, `Test machine \S+ completed successfully`, output)
 }
 
 // TODO: This test times out after ~15 minutes in CI (hangs at deploy command)
@@ -416,8 +446,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 // 		`
 // 	f.WriteFlyToml("%s", appConfig)
 //
-// 	tokenResult := f.Fly("tokens deploy")
-// 	f.OverrideAuthAccessToken(tokenResult.StdOut().String())
+// 	useShortLivedDeployToken(t, f)
 // 	deployRes := f.Fly("deploy --buildkit --remote-only")
 // 	output := deployRes.StdOutString()
 // 	require.Contains(f, output, "Test Machine")
@@ -432,8 +461,7 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 //
 // 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
 //
-// 	tokenResult := f.Fly("tokens deploy")
-// 	f.OverrideAuthAccessToken(tokenResult.StdOutString())
+// 	useShortLivedDeployToken(t, f)
 // 	f.Fly("deploy --buildkit --remote-only")
 // }
 
@@ -472,10 +500,15 @@ func testDeploy(t *testing.T, appDir string, builderFlag string) {
 
 	var result *testlib.FlyctlResult
 	if builderFlag != "" {
-		result = f.Fly("deploy %s --app %s %s", builderFlag, app, appDir)
+		result = f.FlyAllowExitFailure("deploy %s --app %s %s", builderFlag, app, appDir)
 	} else {
-		result = f.Fly("deploy --app %s %s", app, appDir)
+		result = f.FlyAllowExitFailure("deploy --app %s %s", app, appDir)
 	}
+	// Some GitHub runner images ship a Docker that can't export pack's images (#5360).
+	if result.ExitCode() != 0 && strings.Contains(result.StdOutString()+result.StdErrString(), "no suitable export target found") {
+		t.Skip("runner's Docker daemon can't export the buildpack image; not a flyctl failure")
+	}
+	result.AssertSuccessfulExit()
 	t.Log(result.StdOutString())
 
 	var resp *http.Response
@@ -558,13 +591,14 @@ func TestFlyDeploy_BlueGreen_StoppedMachines(t *testing.T) {
 		for _, m := range machines {
 			f.Fly("machine stop -a %s %s", appName, m.ID)
 		}
-		require.Eventually(t, func() bool {
-			for _, m := range f.MachinesList(appName) {
-				if m.State != fly.MachineStateStopped {
-					return false
-				}
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			ml := f.Collect(c).MachinesList(appName)
+			if !assert.NotEmpty(c, ml, "machines list came back empty") {
+				return
 			}
-			return true
+			for _, m := range ml {
+				assert.Equal(c, fly.MachineStateStopped, m.State, "machine %s", m.ID)
+			}
 		}, 30*time.Second, 2*time.Second, "timed out waiting for all machines to reach stopped state")
 
 		return f, appName

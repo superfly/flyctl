@@ -36,7 +36,10 @@ type Options struct {
 
 	// TokenMode makes the agent build tunnels by authenticating to
 	// TokenGateway with the session's macaroons instead of registering
-	// peers through the API.
+	// peers through the API. It's the local config's say: the
+	// wireguard-token-mode feature flag, evaluated for the user each time a
+	// tunnel is built, can turn token mode on for a user whose local config
+	// has it off (see server.tokenModeFor).
 	TokenMode    bool
 	TokenGateway string
 }
@@ -64,7 +67,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 	monitorCtx, cancelMonitorCause := context.WithCancelCause(ctx)
 
 	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring stopped: %w", context.Canceled)) }
-	config.MonitorTokens(monitorCtx, toks, nil)
+	syncTokens := config.MonitorTokens(monitorCtx, toks, nil)
 
 	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
@@ -76,6 +79,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
 		slugAliases:           make(map[string]string),
 		tokens:                toks,
+		syncTokens:            syncTokens,
 		cancelTokenMonitoring: cancelMonitor,
 	}).serve(ctx, l)
 
@@ -158,11 +162,17 @@ type server struct {
 	// its raw slug (as Flaps does) or by the "personal" alias (as web does).
 	slugAliases map[string]string
 
-	// tokMu guards the two below, separately from mu so that code running
+	// tokMu guards the three below, separately from mu so that code running
 	// under mu (tunnel construction, which presents tokens) can read them.
 	tokMu                 sync.RWMutex
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
+	syncTokens            func() error
+
+	// tokenModeFlag evaluates the wireguard-token-mode feature flag for a
+	// user; nil selects evaluateTokenModeFlag. Tests inject a stub.
+	tokenModeFlag func(ctx context.Context, userID int) (bool, error)
+	flagClients   flagClients
 }
 
 type terminateError struct{ error }
@@ -276,7 +286,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	}
 
 	var transport string
-	if s.TokenMode {
+	if s.tokenModeFor(ctx, client) {
 		transport = "token"
 
 		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks); err != nil {
@@ -608,12 +618,34 @@ func (s *server) GetTokens() *tokens.Tokens {
 	return s.tokens
 }
 
+// tokensFromFile synchronizes the shared monitored tokens before a session
+// uses them. Other config files remain independent of the server's tokens.
+func (s *server) tokensFromFile(file string) (*tokens.Tokens, error) {
+	s.tokMu.RLock()
+	current, syncTokens := s.tokens, s.syncTokens
+	s.tokMu.RUnlock()
+	// A file-backed token source is never replaced by client promotion.
+	if file != "" && file == current.FromFile() {
+		if err := syncTokens(); err != nil {
+			return nil, err
+		}
+		return current, nil
+	}
+	token, err := config.ReadAccessToken(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return tokens.ParseFromFile(token, file), nil
+}
+
 // tokensFor returns the tokens to act with on behalf of a client that sent
 // sessionToks (nil if it sent none): the client's, except that a client
 // reading the same config file the server monitors gets the server's
 // current copy. The client's is a one-shot snapshot, while the server's is
 // kept fresh (refreshed discharges, new org tokens, replacement via
 // UpdateTokensFromClient) for as long as a tunnel built from it lives.
+// set-token synchronizes same-file credentials before this selection.
 func (s *server) tokensFor(sessionToks *tokens.Tokens) *tokens.Tokens {
 	cur := s.GetTokens()
 
@@ -646,9 +678,10 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	monitorCtx, cancelMonitorCause := context.WithCancelCause(s.runCtx)
 
 	cancelMonitor := func() { cancelMonitorCause(fmt.Errorf("agent token monitoring replaced: %w", context.Canceled)) }
-	config.MonitorTokens(monitorCtx, t, nil)
+	syncTokens := config.MonitorTokens(monitorCtx, t, nil)
 
 	s.tokens = t
+	s.syncTokens = syncTokens
 	s.cancelTokenMonitoring = cancelMonitor
 }
 

@@ -3,6 +3,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -38,6 +40,7 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/macaroon/flyio"
 )
 
 type Runner func(context.Context) error
@@ -612,7 +615,9 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+	if err := monitorSessionTokens(ctx); err != nil {
+		return nil, err
+	}
 
 	return ctx, nil
 }
@@ -666,7 +671,7 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 		if !confirmed {
-			return nil, fly.ErrNoAuthToken
+			return nil, reloginError(reason)
 		}
 
 		// Attempt to log the user in
@@ -696,23 +701,102 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 		}
 
 		// Fetch organization tokens and discharge any third-party caveats
-		config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+		if err := monitorSessionTokens(ctx); err != nil {
+			return nil, err
+		}
 
 		return ctx, nil
 	} else {
-		return nil, fly.ErrNoAuthToken
+		return nil, reloginError(reason)
 	}
 }
 
+// errSessionExpired stands in for fly.ErrNoAuthToken when a token is saved
+// but its login is too old, or predates login timestamps: "no access token
+// available" would be wrong, and logging in again fixes it.
+var errSessionExpired = errors.New("your flyctl session has expired. Run `fly auth login` to log in again")
+
+// reloginError is the error for a command that needs a login and won't get
+// one interactively.
+func reloginError(reason string) error {
+	if reason == "not_authenticated" {
+		return fly.ErrNoAuthToken
+	}
+
+	return errSessionExpired
+}
+
+const ssoTokensHelpURL = "https://docs.fly.io/security/tokens"
+
+// monitorSessionTokens starts token monitoring and fails the command when an
+// SSO sign-in was requested but not completed, rather than letting it go on
+// to an unauthorized API call.
+func monitorSessionTokens(ctx context.Context) error {
+	var (
+		mu    sync.Mutex
+		shown string
+	)
+
+	config.MonitorTokens(ctx, config.Tokens(ctx), func(ctx context.Context, url string) error {
+		mu.Lock()
+		shown = url
+		mu.Unlock()
+
+		return tryOpenUserURL(ctx, url)
+	})
+
+	mu.Lock()
+	url := shown
+	mu.Unlock()
+
+	return incompleteSSO(ctx, url, func() (bool, error) {
+		return flyio.DischargeClient().NeedsDischarge(config.Tokens(ctx).All())
+	})
+}
+
+// incompleteSSO returns an error when url was shown for an SSO sign-in and the
+// tokens still need a discharge.
+func incompleteSSO(ctx context.Context, url string, needsDischarge func() (bool, error)) error {
+	if url == "" {
+		return nil
+	}
+
+	needs, err := needsDischarge()
+	if err != nil {
+		logger.FromContext(ctx).Debugf("failed checking for undischarged tokens: %s", err)
+
+		return nil
+	}
+	if !needs {
+		return nil
+	}
+
+	return fmt.Errorf("SSO sign-in was not completed. Open %s in a browser and run this command again, or set FLY_API_TOKEN to a token instead: %s", url, ssoTokensHelpURL)
+}
+
+// tryOpenUserURL is the UserURLCallback for SSO discharges. Returning nil keeps
+// the discharge client polling for the sign-in; returning an error stops it.
 func tryOpenUserURL(ctx context.Context, url string) error {
 	io := iostreams.FromContext(ctx)
 
-	if !io.IsInteractive() || env.IsCI() {
-		return errors.New("failed opening browser")
+	if env.IsCI() {
+		fmt.Fprintf(io.ErrOut, "This organization requires SSO, which needs a sign-in in a browser at:\n\n    %s\n\n", url)
+
+		return fmt.Errorf("SSO sign-in cannot complete on CI. Set FLY_API_TOKEN to a token instead: %s", ssoTokensHelpURL)
 	}
 
-	if err := open.Run(url); err != nil {
-		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
+	// The URL gets a line of its own so the reader can pass it on to someone.
+	fmt.Fprintf(io.ErrOut, "This organization requires SSO. Open this URL in a browser and sign in:\n\n    %s\n\n", url)
+	fmt.Fprintf(io.ErrOut,
+		"Finishing in a browser on any machine completes this command, within %d minutes.\n"+
+			"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n\n",
+		int(config.InteractiveDischargeTimeout.Minutes()),
+	)
+
+	if io.IsInteractive() {
+		if err := open.Run(url); err != nil {
+			fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url above into a browser and continue\n")
+		}
 	}
 
 	return nil
@@ -738,6 +822,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				var typeErr *json.UnmarshalTypeError
+				if strings.HasSuffix(path, ".json") && flag.FromContext(ctx).Lookup("machine-config") != nil &&
+					errors.As(err, &typeErr) && typeErr.Field == "restart" && typeErr.Value == "object" {
+					logger.Warn("--config expects app configuration; use --machine-config for Machine JSON.")
+				}
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
 

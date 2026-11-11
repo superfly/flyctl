@@ -55,7 +55,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Config, useWG, recreateBuilder bool, dockerfileMaterializer *imgsrc.DockerfileMaterializer) (img *imgsrc.DeploymentImage, usedWireguard bool, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -72,7 +72,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		depotBool = false
 	case "auto":
 	default:
-		return nil, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
+		return nil, false, fmt.Errorf("invalid value for the 'depot' flag. must be 'true', 'false', or ''")
 	}
 
 	switch flag.GetString(ctx, "builder-pool") {
@@ -84,7 +84,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 	case "auto":
 		// nothing
 	default:
-		return nil, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
+		return nil, false, fmt.Errorf("invalid value for the 'builder-pool' flag. must be 'true', 'false', or ''")
 	}
 
 	tb := render.NewTextBlock(ctx, "Building image")
@@ -110,7 +110,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var provisioner *imgsrc.Provisioner
@@ -130,6 +130,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		imgsrc.WithProvisioner(provisioner),
 		imgsrc.WithDockerfileMaterializer(dockerfileMaterializer),
 	)
+	defer func() { usedWireguard = resolver.UsedWireguard() }()
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -176,8 +177,129 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	span.AddEvent("building from source")
 
+	opts, err := validateImageInputs(ctx, appConfig, build)
+	if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to validate image inputs")
+		return nil, false, err
+	}
+
+	span.SetAttributes(opts.ToSpanAttributes()...)
+
+	// finally, build the image
+	heartbeat, err := resolver.StartHeartbeat(ctx)
+	if err != nil {
+		metrics.SendNoData(ctx, "remote_builder_failure")
+		tracing.RecordError(ctx, span, err, "failed to start heartbeat")
+
+		return nil, false, err
+	}
+	defer heartbeat.Stop()
+
+	metrics.Started(ctx, "remote_build_image")
+	sendDurationMetrics := metrics.StartTiming(ctx, "remote_build_image/duration")
+
+	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
+		err = errors.New("no image specified")
+		tracing.RecordError(ctx, span, err, "no image specified")
+	} else if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to build image")
+	}
+	metrics.Status(ctx, "remote_build_image", err == nil)
+	if err == nil {
+		sendDurationMetrics()
+	}
+
+	if err == nil {
+		tb.Printf("image: %s\n", img.Tag)
+		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
+		if !opts.Publish {
+			// --build-only leaves the image on the builder, so a later
+			// `fly deploy --image` of this tag finds nothing in the registry.
+			terminal.Warnf("%s was built but not pushed to the registry; add --push to deploy it later with --image\n", img.Tag)
+		}
+	}
+
+	return
+}
+
+// resolveDockerfilePath returns HTTP(S) URLs from app config unchanged and
+// makes local Dockerfile paths absolute.
+func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
+	if path = appConfig.Dockerfile(); path != "" {
+		if dockerfileurl.IsURL(path) {
+			return path, nil
+		}
+		if dockerfileurl.LooksLikeURL(path) {
+			return "", errors.New("invalid Dockerfile URL")
+		}
+
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+
+		return filepath.Abs(path)
+	}
+
+	path = flag.GetString(ctx, "dockerfile")
+	if path == "" {
+		return path, nil
+	}
+
+	return filepath.Abs(path)
+}
+
+// resolveIgnorefilePath returns the absolute path to the Dockerfile
+// if one was specified in the app config or a command line argument
+func resolveIgnorefilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
+	defer func() {
+		if err == nil && path != "" {
+			path, err = filepath.Abs(path)
+		}
+	}()
+
+	if path = appConfig.Ignorefile(); path != "" {
+		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
+	} else {
+		path = flag.GetString(ctx, "ignorefile")
+	}
+
+	return
+}
+
+func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
+	if args == nil {
+		args = make(map[string]string)
+	}
+
+	// set additional Docker build args from the command line, overriding similar ones from the config
+	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid build args: %w", err)
+	}
+
+	maps.Copy(args, cliBuildArgs)
+
+	return args, nil
+}
+
+func fetchImageRef(ctx context.Context, cfg *appconfig.Config) (ref string, err error) {
+	if ref = flag.GetString(ctx, "image"); ref != "" {
+		return
+	}
+
+	if cfg != nil && cfg.Build != nil {
+		if ref = cfg.Build.Image; ref != "" {
+			return
+		}
+	}
+
+	return ref, nil
+}
+
+// validateImageInputs resolves source build options before starting a builder.
+func validateImageInputs(ctx context.Context, appConfig *appconfig.Config, build *appconfig.Build) (opts imgsrc.ImageOptions, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_image_inputs")
+	defer span.End()
 	// We're building from source
-	opts := imgsrc.ImageOptions{
+	opts = imgsrc.ImageOptions{
 		AppName:              appConfig.AppName,
 		WorkingDir:           state.WorkingDirectory(ctx),
 		Publish:              flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
@@ -255,106 +377,5 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 		opts.Target = target
 	}
 
-	span.SetAttributes(opts.ToSpanAttributes()...)
-
-	// finally, build the image
-	heartbeat, err := resolver.StartHeartbeat(ctx)
-	if err != nil {
-		metrics.SendNoData(ctx, "remote_builder_failure")
-		tracing.RecordError(ctx, span, err, "failed to start heartbeat")
-
-		return nil, err
-	}
-	defer heartbeat.Stop()
-
-	metrics.Started(ctx, "remote_build_image")
-	sendDurationMetrics := metrics.StartTiming(ctx, "remote_build_image/duration")
-
-	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
-		err = errors.New("no image specified")
-		tracing.RecordError(ctx, span, err, "no image specified")
-	}
-	metrics.Status(ctx, "remote_build_image", err == nil)
-	if err == nil {
-		sendDurationMetrics()
-	}
-
-	if err == nil {
-		tb.Printf("image: %s\n", img.Tag)
-		tb.Printf("image size: %s\n", humanize.Bytes(uint64(img.Size)))
-	}
-
-	return
-}
-
-// resolveDockerfilePath returns HTTP(S) URLs from app config unchanged and
-// makes local Dockerfile paths absolute.
-func resolveDockerfilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	if path = appConfig.Dockerfile(); path != "" {
-		if dockerfileurl.IsURL(path) {
-			return path, nil
-		}
-		if dockerfileurl.LooksLikeURL(path) {
-			return "", errors.New("invalid Dockerfile URL")
-		}
-
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-
-		return filepath.Abs(path)
-	}
-
-	path = flag.GetString(ctx, "dockerfile")
-	if path == "" {
-		return path, nil
-	}
-
-	return filepath.Abs(path)
-}
-
-// resolveIgnorefilePath returns the absolute path to the Dockerfile
-// if one was specified in the app config or a command line argument
-func resolveIgnorefilePath(ctx context.Context, appConfig *appconfig.Config) (path string, err error) {
-	defer func() {
-		if err == nil && path != "" {
-			path, err = filepath.Abs(path)
-		}
-	}()
-
-	if path = appConfig.Ignorefile(); path != "" {
-		path = filepath.Join(filepath.Dir(appConfig.ConfigFilePath()), path)
-	} else {
-		path = flag.GetString(ctx, "ignorefile")
-	}
-
-	return
-}
-
-func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]string, error) {
-	if args == nil {
-		args = make(map[string]string)
-	}
-
-	// set additional Docker build args from the command line, overriding similar ones from the config
-	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid build args: %w", err)
-	}
-
-	maps.Copy(args, cliBuildArgs)
-
-	return args, nil
-}
-
-func fetchImageRef(ctx context.Context, cfg *appconfig.Config) (ref string, err error) {
-	if ref = flag.GetString(ctx, "image"); ref != "" {
-		return
-	}
-
-	if cfg != nil && cfg.Build != nil {
-		if ref = cfg.Build.Image; ref != "" {
-			return
-		}
-	}
-
-	return ref, nil
+	return opts, nil
 }
