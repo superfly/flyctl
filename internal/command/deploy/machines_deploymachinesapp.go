@@ -454,12 +454,12 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			continue
 		case len(services) > 0:
 			fmt.Fprintf(md.io.Out, "Creating a second machine for high availability and zero downtime deployments.\n")
-			fmt.Fprintln(md.io.Out, singleMachineHint(md.app.Name, name, md.colorize.Purple))
 			if _, err := md.spawnMachineInGroup(ctx, name, nil); err != nil {
 				statuslogger.Failed(ctx, err)
 
 				return err
 			}
+			fmt.Fprintln(md.io.Out, singleMachineHint(md.app.Name, name, md.colorize.Purple))
 		default:
 			fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(leasableMachine.Machine().ID))
 			standbyFor := []string{leasableMachine.Machine().ID}
@@ -498,17 +498,18 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 // singleMachineHint says how to end up with one machine instead of the second
 // one created for high availability. min_machines_running doesn't do that: it
 // only keeps machines running, and the second machine is created regardless.
-// The second machine already exists by the time a deploy could be rerun, so
-// scaling down is the fix now and --ha=false only helps the next app. The scale
-// command names the app, since this deploy may not have used the fly.toml in
-// the current directory.
+// It's printed once the second machine exists, so scaling down is the fix for
+// this deploy; --ha=false only helps the next time a group gets its first
+// machines (a new app, or a new process group). The scale command names the
+// app, since this deploy may not have used the fly.toml in the current
+// directory.
 func singleMachineHint(app, group string, highlight func(string) string) string {
 	count := "1"
 	if group != fly.MachineProcessGroupApp {
 		count = group + "=1"
 	}
 	scale := fmt.Sprintf("fly scale count %s -a %s", count, app)
-	return fmt.Sprintf("To run a single machine, run %s. To skip the second machine on a new app, launch or deploy it with %s.",
+	return fmt.Sprintf("To run a single machine, run %s. To skip it next time, deploy with %s.",
 		highlight(scale), highlight("--ha=false"))
 }
 

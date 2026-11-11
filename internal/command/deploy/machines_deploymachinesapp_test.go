@@ -203,9 +203,9 @@ func TestSingleMachineHint(t *testing.T) {
 	mark := func(s string) string { return "<" + s + ">" }
 
 	assert.Equal(t,
-		"To run a single machine, run <fly scale count 1 -a my-app>. To skip the second machine on a new app, launch or deploy it with <--ha=false>.",
+		"To run a single machine, run <fly scale count 1 -a my-app>. To skip it next time, deploy with <--ha=false>.",
 		singleMachineHint("my-app", "app", mark))
 	assert.Equal(t,
-		"To run a single machine, run <fly scale count web=1 -a my-app>. To skip the second machine on a new app, launch or deploy it with <--ha=false>.",
+		"To run a single machine, run <fly scale count web=1 -a my-app>. To skip it next time, deploy with <--ha=false>.",
 		singleMachineHint("my-app", "web", mark))
 }
