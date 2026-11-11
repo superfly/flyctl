@@ -60,14 +60,19 @@ type SourceInfo struct {
 	Buildpacks       []string
 	Secrets          []Secret
 
-	Files                           []SourceFile
-	Port                            int
-	Env                             map[string]string
-	Statics                         []Static
-	Processes                       map[string]string
-	DeployDocs                      string
-	Notice                          string
-	SkipDeploy                      bool
+	Files      []SourceFile
+	Port       int
+	Env        map[string]string
+	Statics    []Static
+	Processes  map[string]string
+	DeployDocs string
+	Notice     string
+	SkipDeploy bool
+	// Interactive is whether someone can answer a Dockerfile generator's
+	// questions. fly launch sets it from IOStreams.IsInteractive() before
+	// running Callback. When it's false, generators get an empty stdin and
+	// --skip, so they keep existing files instead of overwriting them.
+	Interactive                     bool
 	SkipDatabase                    bool
 	Volumes                         []Volume
 	DockerfileAppendix              []string

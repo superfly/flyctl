@@ -520,10 +520,16 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// base generate command
 	args := []string{binrails, "generate", "dockerfile", "--label=fly_launch_runtime:rails"}
 
+	// keep existing files when no one can answer the generator's
+	// "overwrite?" questions
+	if !srcInfo.Interactive {
+		args = withSkip(args)
+	}
+
 	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
 	if !errors.Is(err, fs.ErrNotExist) {
-		args = append(args, "--skip")
+		args = withSkip(args)
 
 		if !generatorInstalled {
 			return errors.Wrap(pendingError, "No Dockerfile found")
@@ -571,7 +577,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	if generatorInstalled {
 		fmt.Printf("Running: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(ruby, args...)
-		cmd.Stdin = generatorStdin(os.Stdin)
+		cmd.Stdin = generatorStdin(srcInfo.Interactive)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 

@@ -242,3 +242,40 @@ func TestOpenCredentialFilesDotSSHRejectsNonFlyKeyWithoutLooping(t *testing.T) {
 	require.NoError(t, readErr)
 	assert.Equal(t, "someone else's key", string(data))
 }
+
+// Before, failing to open the certificate file ended the loop anyway: the key
+// had already been emptied, and runSSHIssue reported success.
+func TestOpenCredentialFilesCertFailureKeepsExistingKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	require.NoError(t, os.WriteFile(path, []byte("my current fly.io key"), 0o600))
+	require.NoError(t, os.Mkdir(path+"-cert.pub", 0o700)) // can't be opened as a file
+
+	pf, cf, _, out, err := openWithin(t, issueContext(t, true), path)
+
+	require.Error(t, err)
+	assert.Nil(t, pf)
+	assert.Nil(t, cf)
+	assert.Contains(t, err.Error(), "can't open certificate file")
+	assert.Contains(t, err.Error(), path+"-cert.pub")
+	assert.Equal(t, 1, strings.Count(out, "Can't open certificate file"))
+	assert.True(t, strings.HasSuffix(out, "\n"), "the message ends its line")
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "my current fly.io key", string(data), "the key must not be emptied when the certificate can't be written")
+}
+
+func TestOpenCredentialFilesCertFailureRemovesNewKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	require.NoError(t, os.WriteFile(path+"-cert.pub", []byte("someone's cert"), 0o600))
+
+	_, _, _, _, err := openWithin(t, issueContext(t, false), path)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, os.ErrExist)
+	assert.NoFileExists(t, path, "an empty key file created on the way shouldn't be left behind")
+
+	data, readErr := os.ReadFile(path + "-cert.pub")
+	require.NoError(t, readErr)
+	assert.Equal(t, "someone's cert", string(data))
+}

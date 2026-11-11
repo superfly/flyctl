@@ -3,6 +3,8 @@ package scanner
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,4 +77,50 @@ func TestLaravelCallbackWithoutComposer(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, srcInfo.DeployDocs, "fly deploy")
 	})
+}
+
+// writeFakeLaravelGenerator installs a vendor/bin/dockerfile-laravel that
+// records its args and writes a Dockerfile, and returns the args file.
+func writeFakeLaravelGenerator(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("fake generator is a shell script")
+	}
+
+	composer := `{"require": {"php": "^8.2"}, "require-dev": {"fly-apps/dockerfile-laravel": "*"}}`
+	require.NoError(t, os.WriteFile("composer.json", []byte(composer), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join("vendor", "bin"), 0o755))
+
+	argsFile := filepath.Join(t.TempDir(), "args")
+	script := "#!/bin/sh\necho \"$@\" > " + argsFile + "\necho 'FROM php:8.2' > Dockerfile\n"
+	require.NoError(t, os.WriteFile(filepath.Join("vendor", "bin", "dockerfile-laravel"), []byte(script), 0o755))
+
+	return argsFile
+}
+
+func TestLaravelCallbackSkipsExistingFilesWhenNonInteractive(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		interactive bool
+		wantSkip    bool
+	}{
+		{"non-interactive", false, true},
+		{"interactive", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Chdir(writeLaravelApp(t, "^8.2"))
+			argsFile := writeFakeLaravelGenerator(t)
+
+			err := LaravelCallback("my-app", &SourceInfo{Family: "Laravel", Interactive: tc.interactive}, nil, nil)
+			require.NoError(t, err)
+
+			args, err := os.ReadFile(argsFile)
+			require.NoError(t, err)
+			if tc.wantSkip {
+				assert.Contains(t, strings.Fields(string(args)), "--skip", "with no one to answer, the generator must keep existing files")
+			} else {
+				assert.NotContains(t, strings.Fields(string(args)), "--skip", "a person at the terminal gets asked as before")
+			}
+		})
+	}
 }

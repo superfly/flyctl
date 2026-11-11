@@ -190,10 +190,13 @@ func runSSHIssue(ctx context.Context) (err error) {
 // A path that can't be used is dropped so the next pass asks for another.
 // When flyctl can't prompt, the reason the path was rejected is returned
 // instead: retrying the same path would never succeed.
+//
+// Neither file is truncated until both are open, so failing to open the
+// certificate file never empties an existing key.
 func openCredentialFiles(ctx context.Context, out io.Writer, rootname string) (pf, cf *os.File, path string, err error) {
 	var rejected error
 
-	for pf == nil && cf == nil {
+	for pf == nil || cf == nil {
 		if rootname == "" {
 			message := "Path to store private key: "
 			if err := prompt.String(ctx, &rootname, message, "", true); err != nil {
@@ -209,7 +212,7 @@ func openCredentialFiles(ctx context.Context, out io.Writer, rootname string) (p
 			rootname = fmt.Sprintf("%s/.ssh/%s", os.Getenv("HOME"), rootname)
 		}
 
-		mode := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
+		mode := os.O_WRONLY | os.O_CREATE
 		if !flag.GetBool(ctx, "overwrite") {
 			mode |= os.O_EXCL
 		} else if _, err = os.Stat(rootname); err == nil {
@@ -228,19 +231,43 @@ func openCredentialFiles(ctx context.Context, out io.Writer, rootname string) (p
 			}
 		}
 
+		_, statErr := os.Stat(rootname)
+		keyExisted := statErr == nil
+
 		pf, err = os.OpenFile(rootname, mode, 0o600)
 		if err != nil {
 			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
 			rejected = fmt.Errorf("can't open private key file: %w", err)
+			pf = nil
 			rootname = ""
 
 			continue
 		}
 
-		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0o600)
+		certname := rootname + "-cert.pub"
+		cf, err = os.OpenFile(certname, mode, 0o600)
 		if err != nil {
 			pf.Close()
-			fmt.Fprintf(out, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
+			pf, cf = nil, nil
+			if !keyExisted {
+				// Don't leave behind the empty key file we just created.
+				os.Remove(rootname)
+			}
+			fmt.Fprintf(out, "Can't open certificate file %s: %s\n", certname, err)
+			rejected = fmt.Errorf("can't open certificate file %s: %w", certname, err)
+			rootname = ""
+
+			continue
+		}
+
+		if err = pf.Truncate(0); err == nil {
+			err = cf.Truncate(0)
+		}
+		if err != nil {
+			pf.Close()
+			cf.Close()
+
+			return nil, nil, "", fmt.Errorf("can't truncate credential files at %s: %w", rootname, err)
 		}
 	}
 
