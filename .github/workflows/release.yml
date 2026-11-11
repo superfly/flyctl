@@ -25,14 +25,14 @@ permissions:
 
 jobs:
   debug:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - run: echo "$GITHUB_CONTEXT"
         env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
 
   meta:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       sha_short: ${{ steps.gen.outputs.sha_short }}
       json: ${{ steps.gen.outputs.json }}
@@ -106,7 +106,7 @@ jobs:
           GGOOS: ${{ matrix.GOOS }}
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [meta, build]
     steps:
       - uses: actions/checkout@v7.0.1

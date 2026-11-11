@@ -11,7 +11,7 @@ permissions:
 jobs:
   release:
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout master branch
         uses: actions/checkout@v7.0.1
