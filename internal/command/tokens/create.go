@@ -25,10 +25,13 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
+// tokenFormatNote is appended to the help of every command that prints a token.
+const tokenFormatNote = " The token is printed with its authorization scheme, as in \"FlyV1 fm2_...\". The \"FlyV1 \" prefix and the space after it are part of the token: copy the whole string, and quote it when you set it in a shell or a secret."
+
 func newCreate() *cobra.Command {
 	const (
 		short = "Create Fly.io API tokens"
-		long  = "Create Fly.io API tokens"
+		long  = "Create Fly.io API tokens" + tokenFormatNote
 		usage = "create"
 	)
 
@@ -49,7 +52,7 @@ func newCreate() *cobra.Command {
 func newOrg() *cobra.Command {
 	const (
 		short = "Create org deploy tokens"
-		long  = "Create an API token limited to managing a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = "Create an API token limited to managing a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "org"
 	)
 
@@ -80,7 +83,7 @@ func newOrg() *cobra.Command {
 func newSSH() *cobra.Command {
 	const (
 		short = "Create token for SSH'ing to a single app"
-		long  = "Create token for SSH'ing to a single app. To be able to SSH to an app, this token is also allowed to connect to the org's wireguard network."
+		long  = "Create token for SSH'ing to a single app. To be able to SSH to an app, this token is also allowed to connect to the org's wireguard network." + tokenFormatNote
 		usage = "ssh"
 	)
 
@@ -113,7 +116,7 @@ func newSSH() *cobra.Command {
 func newOrgRead() *cobra.Command {
 	const (
 		short = "Create read-only org tokens"
-		long  = "Create an API token limited to reading a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = "Create an API token limited to reading a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "readonly"
 	)
 
@@ -148,7 +151,7 @@ func newOrgRead() *cobra.Command {
 func newDeploy() *cobra.Command {
 	const (
 		short = "Create deploy tokens"
-		long  = "Create an API token limited to managing a single app and its resources. Also available as TOKENS DEPLOY. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = "Create an API token limited to managing a single app and its resources. Also available as TOKENS DEPLOY. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "deploy"
 	)
 
@@ -181,7 +184,7 @@ func newDeploy() *cobra.Command {
 func newMachineExec() *cobra.Command {
 	const (
 		short = "Create a machine exec token"
-		long  = "Create an API token that can execute a restricted set of commands on a machine. Commands can be specified on the command line or with the command and command-prefix flags. If no command is provided, all commands are allowed. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = "Create an API token that can execute a restricted set of commands on a machine. Commands can be specified on the command line or with the command and command-prefix flags. If no command is provided, all commands are allowed. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "machine-exec [command...]"
 	)
 
@@ -224,7 +227,7 @@ func newMachineExec() *cobra.Command {
 func newWireGuard() *cobra.Command {
 	const (
 		short = "Create a WireGuard token"
-		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "wireguard"
 	)
 
