@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -291,6 +292,27 @@ func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 	assert.Equal(t, "`fly deploy` in "+dir+" with -c staging.toml", deployHint(dir, filepath.Join(dir, "staging.toml")))
 	// The source directory is the build context, wherever the config lives.
 	assert.Equal(t, "`fly deploy` in "+dir+" with -c "+filepath.Join("deploy", "staging.toml"), deployHint(dir, filepath.Join(dir, "deploy", "staging.toml")))
+}
+
+// A failed first deploy leaves the app and fly.toml behind: the advice is to
+// run `fly deploy`, and the error's message (what launch metrics record) stays
+// the same.
+func TestWithRedeployHint(t *testing.T) {
+	buildErr := errors.New("failed to fetch an image or build from source: error building: failed to receive status")
+
+	err := withRedeployHint(buildErr, "my-app", "`fly deploy`")
+	assert.ErrorIs(t, err, buildErr)
+	assert.Equal(t, buildErr.Error(), err.Error())
+	assert.Contains(t, flyerr.GetErrorSuggestion(err), "App my-app was created")
+	assert.Contains(t, flyerr.GetErrorSuggestion(err), "`fly deploy`")
+
+	// Advice the deploy already gave wins.
+	advised := flyerr.WithSuggestion(errors.New("volume placement"), "Try again later")
+	assert.Equal(t, advised, withRedeployHint(advised, "my-app", "`fly deploy`"))
+
+	// Nothing to add to a launch the user cancelled.
+	assert.Same(t, context.Canceled, withRedeployHint(context.Canceled, "my-app", "`fly deploy`"))
+	assert.Same(t, flyerr.ErrAbort, withRedeployHint(flyerr.ErrAbort, "my-app", "`fly deploy`"))
 }
 
 // A cluster that exists but failed to attach may already have the app's

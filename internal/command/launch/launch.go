@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -229,7 +230,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 		}
 
 		if err := state.firstDeploy(ctx); err != nil {
-			return err
+			return withRedeployHint(err, state.Plan.AppName, deployHint(state.workingDir, configPath))
 		}
 	}
 
@@ -540,6 +541,20 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 			Slug: app.Organization.Slug,
 		},
 	}, nil
+}
+
+// withRedeployHint tells someone whose first deploy failed that the app and its
+// fly.toml already exist, so `fly deploy` is the way to try again, not another
+// `fly launch`. The error's message is unchanged; an error that already carries
+// advice, or a cancelled launch, is returned as is.
+func withRedeployHint(err error, appName, hint string) error {
+	if errors.Is(err, context.Canceled) || errors.Is(err, flyerr.ErrAbort) || flyerr.GetErrorSuggestion(err) != "" {
+		return err
+	}
+	return flyerr.WithSuggestion(err, fmt.Sprintf(
+		"App %s was created, but its first deploy failed. Fix the error above if it needs fixing, then run %s to try again.",
+		appName, hint,
+	))
 }
 
 // deployHint says where to run the `fly deploy` that finds the fly.toml at
