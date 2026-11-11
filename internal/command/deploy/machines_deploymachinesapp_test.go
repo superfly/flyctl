@@ -200,13 +200,12 @@ func TestVolumePlacementCapacitySuggestion(t *testing.T) {
 }
 
 func TestSingleMachineHint(t *testing.T) {
-	plain := func(s string) string { return s }
+	mark := func(s string) string { return "<" + s + ">" }
 
-	hint := singleMachineHint("app", plain)
-	assert.Contains(t, hint, "--ha=false")
-	assert.Contains(t, hint, "fly scale count 1")
-	assert.NotContains(t, hint, "min_machines_running")
-
-	assert.Contains(t, singleMachineHint("", plain), "fly scale count 1")
-	assert.Contains(t, singleMachineHint("web", plain), "fly scale count web=1")
+	assert.Equal(t,
+		"To run a single machine, run <fly scale count 1 -a my-app>. To skip the second machine on a new app, launch or deploy it with <--ha=false>.",
+		singleMachineHint("my-app", "app", mark))
+	assert.Equal(t,
+		"To run a single machine, run <fly scale count web=1 -a my-app>. To skip the second machine on a new app, launch or deploy it with <--ha=false>.",
+		singleMachineHint("my-app", "web", mark))
 }
