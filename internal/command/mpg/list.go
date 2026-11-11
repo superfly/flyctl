@@ -51,6 +51,10 @@ func runList(ctx context.Context) error {
 	}
 	orgSlug := org.Slug
 
+	if ctx, err = withOrgScopedTokens(ctx, org.InternalNumericID); err != nil {
+		return err
+	}
+
 	deleted := flag.GetBool(ctx, "deleted")
 	// For ui-ex request we need the real org slug
 	clusters, err := listManagedClusters(ctx, org.RawSlug, deleted)

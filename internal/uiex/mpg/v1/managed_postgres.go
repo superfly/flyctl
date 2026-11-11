@@ -8,13 +8,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
 func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, deleted bool) (ListManagedClustersResponse, error) {
 	var response ListManagedClustersResponse
 
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.BaseURL(), orgSlug)
 	if deleted {
 		url = fmt.Sprintf("%s/api/v1/organizations/%s/postgres/deleted", c.BaseURL(), orgSlug)
@@ -25,7 +24,7 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -55,7 +54,6 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string, delete
 
 func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error) {
 	var response GetManagedClusterResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.BaseURL(), orgSlug, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -63,7 +61,7 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -93,7 +91,6 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 
 func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManagedClusterResponse, error) {
 	var response GetManagedClusterResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s", c.BaseURL(), id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -101,7 +98,7 @@ func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManag
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -125,7 +122,6 @@ func (c *Client) GetManagedClusterById(ctx context.Context, id string) (GetManag
 }
 func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInput) (CreateUserResponse, error) {
 	var response CreateUserResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.BaseURL(), id)
 
 	var buf bytes.Buffer
@@ -138,7 +134,7 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -178,7 +174,6 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 
 func (c *Client) CreateUserWithRole(ctx context.Context, id string, input CreateUserWithRoleInput) (CreateUserWithRoleResponse, error) {
 	var response CreateUserWithRoleResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.BaseURL(), id)
 
 	var buf bytes.Buffer
@@ -191,7 +186,7 @@ func (c *Client) CreateUserWithRole(ctx context.Context, id string, input Create
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -223,7 +218,6 @@ func (c *Client) CreateUserWithRole(ctx context.Context, id string, input Create
 
 func (c *Client) UpdateUserRole(ctx context.Context, id string, username string, input UpdateUserRoleInput) (UpdateUserRoleResponse, error) {
 	var response UpdateUserRoleResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.BaseURL(), id, username)
 
 	var buf bytes.Buffer
@@ -236,7 +230,7 @@ func (c *Client) UpdateUserRole(ctx context.Context, id string, username string,
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -267,7 +261,6 @@ func (c *Client) UpdateUserRole(ctx context.Context, id string, username string,
 }
 
 func (c *Client) DeleteUser(ctx context.Context, id string, username string) error {
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s", c.BaseURL(), id, username)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
@@ -275,7 +268,7 @@ func (c *Client) DeleteUser(ctx context.Context, id string, username string) err
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -303,7 +296,6 @@ func (c *Client) DeleteUser(ctx context.Context, id string, username string) err
 
 func (c *Client) GetUserCredentials(ctx context.Context, id string, username string) (GetUserCredentialsResponse, error) {
 	var response GetUserCredentialsResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/users/%s/credentials", c.BaseURL(), id, username)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -311,7 +303,7 @@ func (c *Client) GetUserCredentials(ctx context.Context, id string, username str
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -343,7 +335,6 @@ func (c *Client) GetUserCredentials(ctx context.Context, id string, username str
 
 func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, error) {
 	var response ListUsersResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/users", c.BaseURL(), id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -351,7 +342,7 @@ func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, e
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -383,7 +374,6 @@ func (c *Client) ListUsers(ctx context.Context, id string) (ListUsersResponse, e
 
 func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesResponse, error) {
 	var response ListDatabasesResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases", c.BaseURL(), id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -391,7 +381,7 @@ func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesRes
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -423,7 +413,6 @@ func (c *Client) ListDatabases(ctx context.Context, id string) (ListDatabasesRes
 
 func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateDatabaseInput) (CreateDatabaseResponse, error) {
 	var response CreateDatabaseResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases", c.BaseURL(), id)
 
 	var buf bytes.Buffer
@@ -436,7 +425,7 @@ func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateData
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -469,7 +458,6 @@ func (c *Client) CreateDatabase(ctx context.Context, id string, input CreateData
 // ListManagedClusterBackups returns the list of backups for a managed Postgres cluster
 func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string) (ListManagedClusterBackupsResponse, error) {
 	var response ListManagedClusterBackupsResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.BaseURL(), clusterID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -477,7 +465,7 @@ func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -510,7 +498,6 @@ func (c *Client) ListManagedClusterBackups(ctx context.Context, clusterID string
 // CreateManagedClusterBackup creates a new backup for a managed Postgres cluster
 func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID string, input CreateManagedClusterBackupInput) (CreateManagedClusterBackupResponse, error) {
 	var response CreateManagedClusterBackupResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/backups", c.BaseURL(), clusterID)
 
 	var buf bytes.Buffer
@@ -523,7 +510,7 @@ func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID strin
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -556,7 +543,6 @@ func (c *Client) CreateManagedClusterBackup(ctx context.Context, clusterID strin
 // RestoreManagedClusterBackup restores a managed Postgres cluster from a backup
 func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID string, input RestoreManagedClusterBackupInput) (RestoreManagedClusterBackupResponse, error) {
 	var response RestoreManagedClusterBackupResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/restore", c.BaseURL(), clusterID)
 
 	var buf bytes.Buffer
@@ -569,7 +555,7 @@ func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID stri
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -601,7 +587,6 @@ func (c *Client) RestoreManagedClusterBackup(ctx context.Context, clusterID stri
 
 // DestroyCluster permanently destroys a managed Postgres cluster
 func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) error {
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres/%s", c.BaseURL(), orgSlug, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
@@ -609,7 +594,7 @@ func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) 
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -638,7 +623,6 @@ func (c *Client) DestroyCluster(ctx context.Context, orgSlug string, id string) 
 // CreateAttachment creates a ManagedServiceAttachment record linking an app to a managed Postgres cluster
 func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input CreateAttachmentInput) (CreateAttachmentResponse, error) {
 	var response CreateAttachmentResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments", c.BaseURL(), clusterId)
 
 	var buf bytes.Buffer
@@ -651,7 +635,7 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -685,7 +669,6 @@ func (c *Client) CreateAttachment(ctx context.Context, clusterId string, input C
 // given database, along with whether each one is currently installed.
 func (c *Client) ListExtensions(ctx context.Context, id, database string) (ListExtensionsResponse, error) {
 	var response ListExtensionsResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases/%s/extensions", c.BaseURL(), id, database)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -693,7 +676,7 @@ func (c *Client) ListExtensions(ctx context.Context, id, database string) (ListE
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -725,7 +708,6 @@ func (c *Client) ListExtensions(ctx context.Context, id, database string) (ListE
 
 // EnableExtension installs a Postgres extension in the given database.
 func (c *Client) EnableExtension(ctx context.Context, id, database string, input EnableExtensionInput) error {
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases/%s/extensions", c.BaseURL(), id, database)
 
 	var buf bytes.Buffer
@@ -738,7 +720,7 @@ func (c *Client) EnableExtension(ctx context.Context, id, database string, input
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -770,7 +752,6 @@ func (c *Client) EnableExtension(ctx context.Context, id, database string, input
 
 // DisableExtension drops a Postgres extension from the given database.
 func (c *Client) DisableExtension(ctx context.Context, id, database, name string, force bool) error {
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/databases/%s/extensions/%s", c.BaseURL(), id, database, name)
 	if force {
 		url += "?force=true"
@@ -781,7 +762,7 @@ func (c *Client) DisableExtension(ctx context.Context, id, database, name string
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
 	res, err := c.HTTPClient().Do(req)
@@ -825,7 +806,6 @@ func decodeError(body []byte) string {
 // DeleteAttachment removes a ManagedServiceAttachment record linking an app to a managed Postgres cluster
 func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName string) (DeleteAttachmentResponse, error) {
 	var response DeleteAttachmentResponse
-	cfg := config.FromContext(ctx)
 	url := fmt.Sprintf("%s/api/v1/postgres/%s/attachments/%s", c.BaseURL(), clusterId, appName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
@@ -833,7 +813,7 @@ func (c *Client) DeleteAttachment(ctx context.Context, clusterId string, appName
 		return response, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Authorization", "Bearer "+mpg.TokensFromContext(ctx).GraphQL())
 
 	res, err := c.HTTPClient().Do(req)
 	if err != nil {
