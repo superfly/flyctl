@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/superfly/fly-go/tokens"
@@ -50,6 +51,31 @@ func TestSendMetricsIsSilentWithoutToken(t *testing.T) {
 	}
 	if stderr != "" {
 		t.Fatalf("SendMetrics() wrote to stderr: %q", stderr)
+	}
+}
+
+// FlushMetrics runs as a task finalizer with the command's context after it's
+// cancelled. A user with no saved metrics token must still get one from the
+// API, or the whole batch (launch and deploy status included) is dropped.
+func TestSendMetricsQueriesTokenWithCancelledContext(t *testing.T) {
+	var tokenQueries atomic.Int32
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenQueries.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer api.Close()
+	t.Setenv("FLY_UIEX_BASE_URL", api.URL)
+
+	ctx, cancel := context.WithCancel(config.NewContext(context.Background(), &config.Config{
+		Tokens:         tokens.Parse("test-user-token"),
+		MetricsBaseURL: "http://127.0.0.1:0",
+	}))
+	cancel()
+
+	captureStderr(t, func() { _ = SendMetrics(ctx, "[]") })
+
+	if tokenQueries.Load() == 0 {
+		t.Fatal("SendMetrics() never asked the API for a metrics token when its context was cancelled")
 	}
 }
 

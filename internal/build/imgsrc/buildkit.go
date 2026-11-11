@@ -3,8 +3,11 @@ package imgsrc
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
@@ -92,4 +95,18 @@ func newDisplay(statusCh chan *client.SolveStatus) func() error {
 		return err
 
 	}
+}
+
+// Keep recovery advice at the failed upgrade: classic Docker and buildpacks
+// can still use an older builder's HTTP service without BuildKit RPCs.
+func dialDockerBuildkit(ctx context.Context, docker *dockerclient.Client) (net.Conn, error) {
+	conn, err := docker.DialHijack(ctx, "/grpc", "h2c", nil)
+	if err != nil && err.Error() == "unable to upgrade to h2c, received 500" {
+		host, parseErr := url.Parse(docker.DaemonHost())
+		if parseErr == nil && host.Scheme == "https" && strings.HasSuffix(host.Hostname(), ".fly.dev") {
+			err = fmt.Errorf("%w; if this is an older organization builder, try WireGuard (--wg=true where supported) if it was not already tried; otherwise resolve the original WireGuard failure first. For an organization-builder deploy, add --build-only --recreate-builder to the same fly deploy command after other builds finish; this replaces the builder and discards its build cache", err)
+		}
+	}
+
+	return conn, err
 }

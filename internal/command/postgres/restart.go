@@ -70,10 +70,14 @@ func runRestart(ctx context.Context) error {
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
 
-	return machinesRestart(ctx, appName, &input)
+	return machinesRestart(ctx, appName, &input, flag.GetBool(ctx, "force"))
 }
 
-func machinesRestart(ctx context.Context, appName string, input *fly.RestartMachineInput) (err error) {
+// machinesRestart restarts every member of the cluster, replicas first. force
+// lets the restart continue without an active leader and past a failed
+// failover; callers pass it explicitly because other commands define their own
+// unrelated --force flag.
+func machinesRestart(ctx context.Context, appName string, input *fly.RestartMachineInput, force bool) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.20"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -82,8 +86,6 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 		dialer   = agent.DialerFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-
-		force = flag.GetBool(ctx, "force")
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx, appName)
@@ -123,9 +125,11 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 
 	// Don't attempt to failover unless we have in-region replicas
 	inRegionReplicas := 0
-	for _, replica := range replicas {
-		if replica.Region == leader.Region {
-			inRegionReplicas++
+	if leader != nil {
+		for _, replica := range replicas {
+			if replica.Region == leader.Region {
+				inRegionReplicas++
+			}
 		}
 	}
 
@@ -141,6 +145,15 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 
 			fmt.Fprintln(io.Out, colorize.Red(msg))
 		}
+	}
+
+	// There is no leader to restart when --force continued without one.
+	if leader == nil {
+		fmt.Fprintln(io.Out, colorize.Yellow(fmt.Sprintf(
+			"Restarted %d replica(s), but the cluster still has no active leader. Check its health with `fly checks list`.",
+			len(replicas),
+		)))
+		return
 	}
 
 	if err = mach.Restart(ctx, appName, leader, input, leader.LeaseNonce); err != nil {

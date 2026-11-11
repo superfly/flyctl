@@ -63,7 +63,7 @@ func TestSessionConfigTokens(t *testing.T) {
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests <- r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, `{"data":{"organizations":{"nodes":[{"id":"test","slug":"test","name":"Test","type":"SHARED","internalNumericId":"1"}]}}}`)
+		io.WriteString(w, `{"data":{"organization":{"id":"test","slug":"test","name":"Test","type":"SHARED","internalNumericId":"1"}}}`)
 	}))
 	defer api.Close()
 	fly.SetBaseURL(api.URL)

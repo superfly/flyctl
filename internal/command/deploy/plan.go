@@ -304,16 +304,16 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 			}
 
 			currentState, err := md.appState(ctx, oldAppState)
-			// sort machines by id so we always have the same order when retrying
-			// This is needed for rolling deploys so we can start from the same machine
-			sort.Slice(currentState.Machines, func(i, j int) bool {
-				return currentState.Machines[i].ID < currentState.Machines[j].ID
-			})
 			if err != nil {
 				tracing.RecordErrorEvent(ctx, span, updateErr)
 
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
+			// sort machines by id so we always have the same order when retrying
+			// This is needed for rolling deploys so we can start from the same machine
+			sort.Slice(currentState.Machines, func(i, j int) bool {
+				return currentState.Machines[i].ID < currentState.Machines[j].ID
+			})
 			err = md.updateMachinesWRecovery(ctx, originalAppState, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,

@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/wg"
+	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -202,28 +203,34 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 var errNoSuchOrg = errors.New("no such organization")
 
 func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization, error) {
-	orgs, err := s.getClient(ctx).GetOrganizations(ctx)
+	// Listing every organization can fail for tokens restricted to one org.
+	// Tunnel setup only needs the organization the client requested.
+	org, err := s.getClient(ctx).GetOrganizationBySlug(ctx, slug)
+	if isOrgNotFound(err) || (err == nil && org == nil) {
+		return nil, errNoSuchOrg
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	for _, org := range orgs {
-		if org.Slug == slug || org.RawSlug == slug {
-			// "personal" names a different organization for each account.
-			// Use the real slug for both tunnels and persisted peers; never
-			// reuse an old peer cached under the ambiguous alias.
-			if org.Slug == "personal" {
-				if org.RawSlug == "" || org.RawSlug == "personal" {
-					return nil, errors.New("personal organization has no unique slug")
-				}
-				org.Slug = org.RawSlug
-			}
-
-			return &org, nil
+	// "personal" names a different organization for each account.
+	// Use the real slug for both tunnels and persisted peers; never
+	// reuse an old peer cached under the ambiguous alias.
+	if org.Slug == "personal" {
+		if org.RawSlug == "" || org.RawSlug == "personal" {
+			return nil, errors.New("personal organization has no unique slug")
 		}
+		org.Slug = org.RawSlug
 	}
 
-	return nil, errNoSuchOrg
+	return org, nil
+}
+
+// isOrgNotFound reports whether err is the API saying the organization does
+// not exist. It answers with a NOT_FOUND GraphQL error, not a null result.
+func isOrgNotFound(err error) bool {
+	var gqlErr *graphql.GraphQLError
+	return errors.As(err, &gqlErr) && gqlErr.Extensions.Code == "NOT_FOUND"
 }
 
 // tunnelSlug resolves the account-relative alias for control requests. It is
@@ -639,7 +646,7 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 
 // getClient returns an API client that uses any API tokens sent by the client.
 // If none have been sent, it falls back to using the server's tokens.
-func (s *session) getClient(ctx context.Context) flyutil.Client {
+func (s *session) getClient(ctx context.Context) *fly.Client {
 	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.getTokens()})
 }
 

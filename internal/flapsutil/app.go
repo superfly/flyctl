@@ -1,6 +1,10 @@
 package flapsutil
 
-import "github.com/superfly/fly-go/flaps"
+import (
+	"strings"
+
+	"github.com/superfly/fly-go/flaps"
+)
 
 // PostgresAppRole is the app role Flaps reports for Fly Postgres clusters.
 const PostgresAppRole = "postgres_cluster"
@@ -24,4 +28,16 @@ func NetworkName(app *flaps.App) string {
 	}
 
 	return app.Network
+}
+
+// NormalizeNetworkName turns a user-supplied network name into the form
+// NetworkName returns: surrounding whitespace is dropped, and both an empty
+// value and "default" mean the organization's default network ("").
+func NormalizeNetworkName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == DefaultNetwork {
+		return ""
+	}
+
+	return name
 }

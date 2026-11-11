@@ -48,16 +48,24 @@ func TestPersonalAccountsUseDistinctTunnels(t *testing.T) {
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		var request struct {
-			Query string `json:"query"`
+			Query     string                `json:"query"`
+			Variables struct{ Slug string } `json:"variables"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Error(err)
 			return
 		}
-		if strings.Contains(request.Query, "organizations(") {
+		if strings.Contains(request.Query, "organization(slug:") {
 			account := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer fo1_")
 			raw := "personal-" + account
-			fmt.Fprintf(w, `{"data":{"organizations":{"nodes":[{"id":%q,"slug":"personal","rawSlug":%q,"type":"PERSONAL","internalNumericId":"1"},{"id":"shared-id","slug":"shared","rawSlug":"shared","type":"SHARED","internalNumericId":"2"}]}}}`, account, raw)
+			switch request.Variables.Slug {
+			case "personal", raw:
+				fmt.Fprintf(w, `{"data":{"organization":{"id":%q,"slug":"personal","rawSlug":%q,"type":"PERSONAL","internalNumericId":"1"}}}`, account, raw)
+			case "shared":
+				io.WriteString(w, `{"data":{"organization":{"id":"shared-id","slug":"shared","rawSlug":"shared","type":"SHARED","internalNumericId":"2"}}}`)
+			default:
+				io.WriteString(w, `{"data":{"organization":null}}`)
+			}
 		} else {
 			// A token viewer makes feature-flag evaluation keep local legacy mode.
 			io.WriteString(w, `{"data":{"viewer":{"__typename":"Macaroon"}}}`)
