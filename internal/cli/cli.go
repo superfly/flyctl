@@ -238,9 +238,21 @@ func wrapFlagUsages(cmd *pflag.FlagSet) string {
 }
 
 func wrapText(s string) string {
-	width := helpWidth()
+	return wrapParagraphs(heredoc.Doc(s), helpWidth()-1)
+}
 
-	return strings.TrimSpace(text.Wrap(heredoc.Doc(s), width-1))
+// wrapParagraphs wraps each blank-line-separated paragraph of s to width,
+// keeping the blank lines between them. text.Wrap on its own would join every
+// paragraph into one.
+func wrapParagraphs(s string, width int) string {
+	var paragraphs []string
+	for _, p := range strings.Split(strings.TrimSpace(s), "\n\n") {
+		if p = strings.TrimSpace(p); p != "" {
+			paragraphs = append(paragraphs, text.Wrap(p, width))
+		}
+	}
+
+	return strings.Join(paragraphs, "\n\n")
 }
 
 func helpWidth() int {

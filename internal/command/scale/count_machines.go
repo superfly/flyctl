@@ -85,7 +85,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	// Add env variable overrides to launch configs
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		parsedEnv, err := cmdutil.ParseKVFlagToMap("env", env)
 		if err != nil {
 			return fmt.Errorf("failed parsing environment: %w", err)
 		}

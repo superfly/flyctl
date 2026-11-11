@@ -23,6 +23,9 @@ import (
 func newLogout() *cobra.Command {
 	const (
 		long = `Revoke and remove the saved login token from 'fly auth login'.
+Logout also clears the saved metrics token and WireGuard peer state, and stops
+the background agent, which closes any open WireGuard tunnels.
+
 Tokens supplied by --access-token, FLY_ACCESS_TOKEN, or FLY_API_TOKEN are not
 revoked or removed. Use 'fly tokens revoke supplied' to revoke those tokens.
 Unset token environment variables to stop using them.

@@ -375,7 +375,7 @@ func runLaunch(ctx context.Context) error {
 
 	// Add secrets to the app
 	if secrets := flag.GetStringArray(ctx, "secret"); len(secrets) > 0 {
-		parsedSecrets, err := cmdutil.ParseKVStringsToMap(secrets)
+		parsedSecrets, err := cmdutil.ParseKVFlagToMap("secret", secrets)
 		if err != nil {
 			return fmt.Errorf("failed parsing secrets: %w", err)
 		}

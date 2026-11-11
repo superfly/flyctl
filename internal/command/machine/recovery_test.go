@@ -21,7 +21,7 @@ func TestMachineSelectionRecovery(t *testing.T) {
 	}{
 		{name: "selection requires app", selectFlag: true, want: "specified with --app"},
 		{name: "missing target", want: "a machine ID argument or an app name with --app"},
-		{name: "headless discovery", app: "app", want: "fly machine list --app <app-name>", headless: true},
+		{name: "headless discovery", app: "app", want: "fly machine list --app app`", headless: true},
 		{name: "explicit target", app: "app", id: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

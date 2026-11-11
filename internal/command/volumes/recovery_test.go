@@ -19,7 +19,7 @@ func TestHeadlessVolumeDiscovery(t *testing.T) {
 	volume, err := selectVolume(iostreams.NewContext(context.Background(), ios), nil, "test-app")
 	require.Nil(t, volume)
 	require.ErrorIs(t, err, prompt.ErrNonInteractive)
-	require.ErrorContains(t, err, "fly volumes list --app <app-name>")
+	require.ErrorContains(t, err, "fly volumes list --app test-app`")
 }
 
 func TestMissingVolumeSizeNamesFlagAndUnits(t *testing.T) {

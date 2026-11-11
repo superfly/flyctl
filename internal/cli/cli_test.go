@@ -109,3 +109,8 @@ func captureProcessStdout(t *testing.T, run func()) string {
 
 	return string(output)
 }
+
+func TestWrapParagraphsKeepsBlankLines(t *testing.T) {
+	got := wrapParagraphs("First paragraph\nstill first.\n\n\nSecond paragraph is long enough to wrap.\n", 20)
+	require.Equal(t, "First paragraph\nstill first.\n\nSecond paragraph is\nlong enough to wrap.", got)
+}

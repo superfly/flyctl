@@ -21,3 +21,9 @@ func NewContext(ctx context.Context, fs *pflag.FlagSet) context.Context {
 func FromContext(ctx context.Context) *pflag.FlagSet {
 	return ctx.Value(contextKey{}).(*pflag.FlagSet)
 }
+
+// TryFromContext returns the FlagSet ctx carries, or nil if it carries none.
+func TryFromContext(ctx context.Context) *pflag.FlagSet {
+	fs, _ := ctx.Value(contextKey{}).(*pflag.FlagSet)
+	return fs
+}

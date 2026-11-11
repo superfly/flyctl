@@ -254,7 +254,7 @@ func checkSelectConditions(ctx context.Context, haveMachineIDs bool) error {
 	case !haveMachineIDs && appName == "":
 		return errors.New("a machine ID argument or an app name with --app is required")
 	case shouldPrompt(ctx, haveMachineIDs) && !iostreams.FromContext(ctx).IsInteractive():
-		return prompt.NonInteractiveError("a machine ID argument must be specified when not running interactively; list IDs with `fly machine list --app <app-name>`")
+		return prompt.NonInteractiveError(fmt.Sprintf("a machine ID argument must be specified when not running interactively; list IDs with `fly machine list --app %s`", appName))
 	default:
 		return nil
 	}

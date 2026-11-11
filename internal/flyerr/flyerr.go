@@ -46,10 +46,6 @@ func (e GenericErr) Error() string {
 	return e.Err
 }
 
-func (e GenericErr) FlyDocURL() string {
-	return e.DocUrl
-}
-
 func (e GenericErr) DocURL() string {
 	return e.DocUrl
 }

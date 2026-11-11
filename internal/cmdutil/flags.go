@@ -5,16 +5,29 @@ import (
 	"strings"
 )
 
-// ParseKVStringsToMap converts a slice of NAME=VALUE strings into a map[string]string
+// ParseKVStringsToMap converts a slice of NAME=VALUE positional arguments into
+// a map[string]string. Errors identify the argument by position and never echo
+// its contents, since values may be secrets.
 func ParseKVStringsToMap(args []string) (map[string]string, error) {
+	return parseKVStrings(args, "argument %d")
+}
+
+// ParseKVFlagToMap converts the NAME=VALUE values of a repeatable flag into a
+// map[string]string. Errors name the flag and which of its values is
+// malformed, and never echo the value, since it may be a secret.
+func ParseKVFlagToMap(flagName string, values []string) (map[string]string, error) {
+	return parseKVStrings(values, "--"+flagName+" value %d")
+}
+
+func parseKVStrings(args []string, position string) (map[string]string, error) {
 	out := make(map[string]string, len(args))
 
 	for i, arg := range args {
-		parts := strings.SplitN(arg, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("argument %d must be in the format NAME=VALUE", i+1)
+		name, value, ok := strings.Cut(arg, "=")
+		if !ok {
+			return nil, fmt.Errorf(position+" must be in the format NAME=VALUE", i+1)
 		}
-		out[parts[0]] = parts[1]
+		out[name] = value
 	}
 
 	return out, nil

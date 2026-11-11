@@ -105,3 +105,35 @@ func TestMultiRegionRecoveryUsesRequestedFlag(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, *regions, 2)
 }
+
+func TestRequiredInputHintsMatchCommandFlags(t *testing.T) {
+	bare := context.Background()
+	withFlags := func(names ...string) context.Context {
+		fs := pflag.NewFlagSet("cmd", pflag.ContinueOnError)
+		for _, n := range names {
+			fs.String(n, "", "")
+		}
+		return flag.NewContext(bare, fs)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		err     error
+		want    string
+		notWant string
+	}{
+		{"org without flag set", orgRequiredError(bare), "; set FLY_ORG;", "--org"},
+		{"org without --org", orgRequiredError(withFlags("region")), "; set FLY_ORG;", "--org"},
+		{"org with --org", orgRequiredError(withFlags("org")), "pass --org or set FLY_ORG", ""},
+		{"region without --region", regionRequiredError(withFlags("org")), "; set FLY_REGION;", "--region"},
+		{"region with --region", regionRequiredError(withFlags("region")), "pass --region or set FLY_REGION", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.True(t, IsNonInteractive(tc.err))
+			require.ErrorContains(t, tc.err, tc.want)
+			if tc.notWant != "" {
+				require.NotContains(t, tc.err.Error(), tc.notWant)
+			}
+		})
+	}
+}

@@ -18,6 +18,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
@@ -188,14 +189,15 @@ func ConfirmYes(ctx context.Context, message string) (confirm bool, err error) {
 
 func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
 	var opt survey.AskOpt
-	if opt, err = newSurveyIO(ctx, fmt.Sprintf("Overwrite %q?", filename)); err != nil {
+	message := fmt.Sprintf("Overwrite %q?", filename)
+	if opt, err = newSurveyIO(ctx, message); err != nil {
 		return
 	}
 
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	prompt := &survey.Confirm{
-		Message: colorize.Yellow(fmt.Sprintf(`Overwrite "%s"?`, filename)),
+		Message: colorize.Yellow(message),
 	}
 	err = survey.AskOne(prompt, &confirm, opt)
 
@@ -249,7 +251,19 @@ func newSurveyIO(ctx context.Context, message string) (survey.AskOpt, error) {
 	return survey.WithStdio(in, out, io.ErrOut), nil
 }
 
-var errOrgSlugRequired = NonInteractiveError("organization must be specified when not running interactively; set FLY_ORG, or pass --org if the command supports it; list organizations with `fly orgs list`")
+// inputHint says how to supply a value a prompt would have asked for: the
+// command's own flag when it has one, and the environment variable flyctl
+// reads as a fallback.
+func inputHint(ctx context.Context, flagName, envKey string) string {
+	if flag.Defined(ctx, flagName) {
+		return fmt.Sprintf("pass --%s or set %s", flagName, envKey)
+	}
+	return "set " + envKey
+}
+
+func orgRequiredError(ctx context.Context) error {
+	return NonInteractiveError(fmt.Sprintf("organization must be specified when not running interactively; %s; list organizations with `fly orgs list`", inputHint(ctx, flagnames.Org, "FLY_ORG")))
+}
 
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
@@ -284,7 +298,7 @@ func Org(ctx context.Context) (*uiex.Organization, error) {
 		case err == nil:
 			return org, nil
 		case IsNonInteractive(err):
-			return nil, errOrgSlugRequired
+			return nil, orgRequiredError(ctx)
 		default:
 			return nil, err
 		}
@@ -309,7 +323,9 @@ func SelectOrg(ctx context.Context, orgs []uiex.Organization) (org *uiex.Organiz
 	return
 }
 
-var errRegionCodeRequired = NonInteractiveError("region code must be specified with --region when not running interactively; list regions with `fly platform regions`")
+func regionRequiredError(ctx context.Context) error {
+	return NonInteractiveError(fmt.Sprintf("region must be specified when not running interactively; %s; list regions with `fly platform regions`", inputHint(ctx, flagnames.Region, "FLY_REGION")))
+}
 
 type RegionInfo struct {
 	Regions       []fly.Region
@@ -481,7 +497,7 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*fly.Regi
 		case err == nil:
 			return region, nil
 		case IsNonInteractive(err):
-			return nil, errRegionCodeRequired
+			return nil, regionRequiredError(ctx)
 		default:
 			return nil, err
 		}

@@ -131,7 +131,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, out io.Writer, showH
 
 func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, appName string) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
-		return nil, prompt.NonInteractiveError("volume ID argument must be specified when not running interactively; list IDs with `fly volumes list --app <app-name>`")
+		return nil, prompt.NonInteractiveError(fmt.Sprintf("volume ID argument must be specified when not running interactively; list IDs with `fly volumes list --app %s`", appName))
 	}
 	volumes, err := flapsClient.GetVolumes(ctx, appName)
 	if err != nil {

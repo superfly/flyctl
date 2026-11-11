@@ -265,7 +265,7 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	}
 
 	// set additional Docker build args from the command line, overriding similar ones from the config
-	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
+	cliBuildArgs, err := cmdutil.ParseKVFlagToMap("build-arg", flag.GetStringArray(ctx, "build-arg"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid build args: %w", err)
 	}
@@ -317,7 +317,7 @@ func validateImageInputs(ctx context.Context, appConfig *appconfig.Config, build
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.
 	// https://docs.docker.com/engine/reference/commandline/buildx_build/#secret
-	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
+	cliBuildSecrets, err := cmdutil.ParseKVFlagToMap("build-secret", flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
 		tracing.RecordError(ctx, span, err, "failed to generate cliBuildSecrets")
 
@@ -329,7 +329,7 @@ func validateImageInputs(ctx context.Context, appConfig *appconfig.Config, build
 	}
 
 	arrLabels := flag.GetStringArray(ctx, "label")
-	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
+	labels, err := cmdutil.ParseKVFlagToMap("label", arrLabels)
 	if err != nil {
 		tracing.RecordError(ctx, span, err, "failed to parse labels")
 

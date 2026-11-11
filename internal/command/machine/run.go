@@ -628,9 +628,9 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 	parsed = initialMap
 
 	if value := flag.GetStringArray(ctx, flagName); len(value) > 0 {
-		parsed, err = cmdutil.ParseKVStringsToMap(value)
+		parsed, err = cmdutil.ParseKVFlagToMap(flagName, value)
 		if err != nil {
-			return nil, fmt.Errorf("invalid key/value pairs specified for flag %s", flagName)
+			return nil, err
 		}
 	}
 

@@ -438,9 +438,9 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	var envVars map[string]string
 	envFlags := flag.GetStringArray(ctx, "env")
 	if len(envFlags) > 0 {
-		envVars, err = cmdutil.ParseKVStringsToMap(envFlags)
+		envVars, err = cmdutil.ParseKVFlagToMap("env", envFlags)
 		if err != nil {
-			return nil, fmt.Errorf("failed parsing --env flags: %w", err)
+			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 	}
 

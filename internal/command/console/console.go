@@ -352,7 +352,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *flaps.App, appConfig 
 	}
 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		parsedEnv, err := cmdutil.ParseKVFlagToMap("env", env)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
