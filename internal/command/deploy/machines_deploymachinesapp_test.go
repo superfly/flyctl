@@ -198,3 +198,15 @@ func TestVolumePlacementCapacitySuggestion(t *testing.T) {
 		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
 	})
 }
+
+func TestSingleMachineHint(t *testing.T) {
+	plain := func(s string) string { return s }
+
+	hint := singleMachineHint("app", plain)
+	assert.Contains(t, hint, "--ha=false")
+	assert.Contains(t, hint, "fly scale count 1")
+	assert.NotContains(t, hint, "min_machines_running")
+
+	assert.Contains(t, singleMachineHint("", plain), "fly scale count 1")
+	assert.Contains(t, singleMachineHint("web", plain), "fly scale count web=1")
+}

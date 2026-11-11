@@ -454,7 +454,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			continue
 		case len(services) > 0:
 			fmt.Fprintf(md.io.Out, "Creating a second machine for high availability and zero downtime deployments.\n")
-			fmt.Fprintf(md.io.Out, "To disable this, set %s in your fly.toml.\n", md.colorize.Purple("\"min_machines_running = 0\""))
+			fmt.Fprintln(md.io.Out, singleMachineHint(name, md.colorize.Purple))
 			if _, err := md.spawnMachineInGroup(ctx, name, nil); err != nil {
 				statuslogger.Failed(ctx, err)
 
@@ -493,6 +493,18 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// singleMachineHint says how to end up with one machine instead of the second
+// one created for high availability. min_machines_running doesn't do that: it
+// only keeps machines running, and the second machine is created regardless.
+func singleMachineHint(group string, highlight func(string) string) string {
+	scale := "fly scale count 1"
+	if group != "" && group != fly.MachineProcessGroupApp {
+		scale = fmt.Sprintf("fly scale count %s=1", group)
+	}
+	return fmt.Sprintf("To run a single machine instead, deploy with %s, or run %s afterwards.",
+		highlight("--ha=false"), highlight(scale))
 }
 
 // deployMachinesApp executes the following flow:
