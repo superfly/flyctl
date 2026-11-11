@@ -29,12 +29,22 @@ func TestFetchOrg(t *testing.T) {
 			response: `{"data":{"organization":{"id":"org-id","slug":"team","rawSlug":"team"}}}`,
 		},
 		{
-			name: "personal alias", slug: "personal", canonical: "personal",
+			name: "personal alias", slug: "personal", canonical: "my-personal-org",
 			response: `{"data":{"organization":{"id":"org-id","slug":"personal","rawSlug":"my-personal-org"}}}`,
 		},
 		{
-			name: "personal raw slug", slug: "my-personal-org", canonical: "personal",
+			name: "personal raw slug", slug: "my-personal-org", canonical: "my-personal-org",
 			response: `{"data":{"organization":{"id":"org-id","slug":"personal","rawSlug":"my-personal-org"}}}`,
+		},
+		{
+			name: "missing personal raw slug", slug: "personal",
+			response:  `{"data":{"organization":{"id":"org-id","slug":"personal","rawSlug":""}}}`,
+			wantError: "personal organization has no unique slug",
+		},
+		{
+			name: "ambiguous personal raw slug", slug: "personal",
+			response:  `{"data":{"organization":{"id":"org-id","slug":"personal","rawSlug":"personal"}}}`,
+			wantError: "personal organization has no unique slug",
 		},
 		{
 			// What the API actually returns for an organization that doesn't exist.
@@ -82,7 +92,7 @@ func TestFetchOrg(t *testing.T) {
 			fly.SetBaseURL(api.URL)
 			defer fly.SetBaseURL("")
 
-			srv := &server{tokens: tokens.Parse("fo1_server"), slugAliases: map[string]string{}}
+			srv := &server{tokens: tokens.Parse("fo1_server")}
 			sess := &session{srv: srv}
 			if !tc.serverTokens {
 				sess.tokens = tokens.Parse("fo1_session")
@@ -91,14 +101,12 @@ func TestFetchOrg(t *testing.T) {
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
 				require.Nil(t, org)
-				require.Empty(t, srv.slugAliases)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, "org-id", org.ID)
 			require.Equal(t, tc.canonical, org.Slug)
-			require.Equal(t, tc.canonical, srv.slugAliases[tc.slug])
-			if tc.canonical == "personal" {
+			if tc.canonical == "my-personal-org" {
 				require.Equal(t, "my-personal-org", org.RawSlug, "token gateway needs the real slug")
 			}
 		})
