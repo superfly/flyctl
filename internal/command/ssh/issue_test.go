@@ -279,3 +279,13 @@ func TestOpenCredentialFilesCertFailureRemovesNewKey(t *testing.T) {
 	require.NoError(t, readErr)
 	assert.Equal(t, "someone's cert", string(data))
 }
+
+func TestOpenCredentialFilesOverwriteCertFailureRemovesNewKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "id_ed25519")
+	require.NoError(t, os.Mkdir(path+"-cert.pub", 0o700)) // can't be opened as a file
+
+	_, _, _, _, err := openWithin(t, issueContext(t, true), path)
+
+	require.Error(t, err)
+	assert.NoFileExists(t, path, "a key file this run created is removed when the certificate can't be written")
+}

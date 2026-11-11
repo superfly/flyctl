@@ -46,31 +46,14 @@ func runGenerator(cmd *exec.Cmd, interactive bool) error {
 // generatorStdin returns the stdin a generator subprocess gets: flyctl's own
 // when someone can answer its prompts, and nil (an empty stdin) otherwise. A
 // generator that asks whether to overwrite a file would otherwise wait
-// forever on a pipe that an agent or CI runner never closes.
-//
-// An empty stdin alone isn't enough: on EOF the generators take "overwrite"
-// as the answer. Callers also pass --skip (see withSkip) when not interactive.
+// forever on a pipe that an agent or CI runner never closes. On an empty
+// stdin it takes its default answer, exactly as under `fly launch < /dev/null`.
 func generatorStdin(interactive bool) io.Reader {
 	if interactive {
 		return os.Stdin
 	}
 
 	return nil
-}
-
-// withSkip adds --skip to a generator's args unless it's already there. All
-// three generators (dockerfile-node, dockerfile-rails, dockerfile-laravel)
-// take it to mean "keep files that already exist", and still create missing
-// ones. A --force the user passed (fly launch -- --force) is left to win:
-// dockerfile-node would otherwise let --skip override it.
-func withSkip(args []string) []string {
-	for _, a := range args {
-		if a == "--skip" || a == "--force" || strings.HasPrefix(a, "--force=") {
-			return args
-		}
-	}
-
-	return append(args, "--skip")
 }
 
 // tailWriter keeps the last max bytes written to it.

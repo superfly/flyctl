@@ -340,10 +340,9 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 	if errors.Is(err, fs.ErrNotExist) || srcInfo.DatabaseDesired == DatabaseKindSqlite || srcInfo.DatabaseDesired == DatabaseKindPostgres {
 		var args []string
 
-		// add --skip flag if Dockerfile already exists, or if no one can
-		// answer the generator's "overwrite?" questions
-		if err == nil || !srcInfo.Interactive {
-			flags = withSkip(flags)
+		// add --skip flag if Dockerfile already exists
+		if err == nil {
+			flags = append([]string{"--skip"}, flags...)
 		}
 
 		_, err = os.Stat("node_modules")
@@ -399,7 +398,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 			cmd := exec.Command(args[0], args[1:]...)
 
-			if err := runGenerator(cmd, srcInfo.Interactive); err != nil {
+			if err := runGenerator(cmd, !srcInfo.NonInteractive); err != nil {
 				var exitError *exec.ExitError
 				if errors.As(err, &exitError) && exitError.ExitCode() == 42 {
 					// generator exited with code 42, which means existing
@@ -458,7 +457,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
 
-			if err := runGenerator(cmd, srcInfo.Interactive); err != nil {
+			if err := runGenerator(cmd, !srcInfo.NonInteractive); err != nil {
 				var exitError *exec.ExitError
 				if errors.As(err, &exitError) && exitError.ExitCode() == 42 {
 					// generator exited with code 42, which means existing

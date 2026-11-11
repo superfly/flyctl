@@ -80,7 +80,8 @@ func TestLaravelCallbackWithoutComposer(t *testing.T) {
 }
 
 // writeFakeLaravelGenerator installs a vendor/bin/dockerfile-laravel that
-// records its args and writes a Dockerfile, and returns the args file.
+// records its args and the first line of its stdin, writes a Dockerfile, and
+// returns the file it records to.
 func writeFakeLaravelGenerator(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -91,36 +92,35 @@ func writeFakeLaravelGenerator(t *testing.T) string {
 	require.NoError(t, os.WriteFile("composer.json", []byte(composer), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join("vendor", "bin"), 0o755))
 
-	argsFile := filepath.Join(t.TempDir(), "args")
-	script := "#!/bin/sh\necho \"$@\" > " + argsFile + "\necho 'FROM php:8.2' > Dockerfile\n"
+	recordFile := filepath.Join(t.TempDir(), "record")
+	script := "#!/bin/sh\nread answer\necho \"args=$* stdin=$answer\" > " + recordFile + "\necho 'FROM php:8.2' > Dockerfile\n"
 	require.NoError(t, os.WriteFile(filepath.Join("vendor", "bin", "dockerfile-laravel"), []byte(script), 0o755))
 
-	return argsFile
+	return recordFile
 }
 
-func TestLaravelCallbackSkipsExistingFilesWhenNonInteractive(t *testing.T) {
+// When no one can answer, the generator gets an empty stdin and so takes its
+// default answers, as under `fly launch < /dev/null`. Its args don't change.
+func TestLaravelCallbackGeneratorStdin(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		interactive bool
-		wantSkip    bool
+		name           string
+		nonInteractive bool
+		want           string
 	}{
-		{"non-interactive", false, true},
-		{"interactive", true, false},
+		{"non-interactive", true, "args=generate stdin="},
+		{"interactive", false, "args=generate stdin=y"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Chdir(writeLaravelApp(t, "^8.2"))
-			argsFile := writeFakeLaravelGenerator(t)
+			recordFile := writeFakeLaravelGenerator(t)
+			redirectStdin(t, "y\n")
 
-			err := LaravelCallback("my-app", &SourceInfo{Family: "Laravel", Interactive: tc.interactive}, nil, nil)
+			err := LaravelCallback("my-app", &SourceInfo{Family: "Laravel", NonInteractive: tc.nonInteractive}, nil, nil)
 			require.NoError(t, err)
 
-			args, err := os.ReadFile(argsFile)
+			got, err := os.ReadFile(recordFile)
 			require.NoError(t, err)
-			if tc.wantSkip {
-				assert.Contains(t, strings.Fields(string(args)), "--skip", "with no one to answer, the generator must keep existing files")
-			} else {
-				assert.NotContains(t, strings.Fields(string(args)), "--skip", "a person at the terminal gets asked as before")
-			}
+			assert.Equal(t, tc.want, strings.TrimSpace(string(got)))
 		})
 	}
 }

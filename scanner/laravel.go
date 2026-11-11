@@ -165,7 +165,7 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		fmt.Printf("installing: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(args[0], args[1:]...)
 
-		if err := runGenerator(cmd, srcInfo.Interactive); err != nil {
+		if err := runGenerator(cmd, !srcInfo.NonInteractive); err != nil {
 			switch {
 			case dockerfileExists:
 				// The existing Dockerfile will do; the generator only adds to it.
@@ -182,8 +182,8 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	// then no generator to run.
 	if _, err := os.Stat(vendorPath); err == nil {
 		args := []string{vendorPath, "generate"}
-		if dockerfileExists || !srcInfo.Interactive {
-			args = withSkip(args)
+		if dockerfileExists {
+			args = append(args, "--skip")
 		}
 
 		// add additional flags from launch command
@@ -194,7 +194,7 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		fmt.Printf("Running: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(args[0], args[1:]...)
 
-		if err := runGenerator(cmd, srcInfo.Interactive); err != nil {
+		if err := runGenerator(cmd, !srcInfo.NonInteractive); err != nil {
 			return fmt.Errorf("failed to generate Dockerfile: %w", err)
 		}
 	} else if !dockerfileExists {

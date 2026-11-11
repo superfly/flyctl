@@ -265,7 +265,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := gitCloneCmd(iostreams.FromContext(ctx).IsInteractive(), from, into)
+	cmd := gitCloneCmd(iostreams.FromContext(ctx).CanPromptSubprocess(), from, into)
 	if err := cmd.Run(); err != nil {
 		return ctx, nil, err
 	}

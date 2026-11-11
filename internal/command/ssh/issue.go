@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/rand"
 	"net"
 	"net/mail"
@@ -231,10 +232,16 @@ func openCredentialFiles(ctx context.Context, out io.Writer, rootname string) (p
 			}
 		}
 
-		_, statErr := os.Stat(rootname)
-		keyExisted := statErr == nil
-
-		pf, err = os.OpenFile(rootname, mode, 0o600)
+		// Try to create the key file first, so we know whether it's ours to
+		// remove if the certificate file can't be opened. A separate Stat
+		// would race with another run writing the same path.
+		var createdKey bool
+		pf, err = os.OpenFile(rootname, mode|os.O_EXCL, 0o600)
+		if err == nil {
+			createdKey = true
+		} else if mode&os.O_EXCL == 0 && errors.Is(err, fs.ErrExist) {
+			pf, err = os.OpenFile(rootname, mode, 0o600)
+		}
 		if err != nil {
 			fmt.Fprintf(out, "Can't open private key file: %s\n", err)
 			rejected = fmt.Errorf("can't open private key file: %w", err)
@@ -249,7 +256,7 @@ func openCredentialFiles(ctx context.Context, out io.Writer, rootname string) (p
 		if err != nil {
 			pf.Close()
 			pf, cf = nil, nil
-			if !keyExisted {
+			if createdKey {
 				// Don't leave behind the empty key file we just created.
 				os.Remove(rootname)
 			}

@@ -68,11 +68,12 @@ type SourceInfo struct {
 	DeployDocs string
 	Notice     string
 	SkipDeploy bool
-	// Interactive is whether someone can answer a Dockerfile generator's
-	// questions. fly launch sets it from IOStreams.IsInteractive() before
-	// running Callback. When it's false, generators get an empty stdin and
-	// --skip, so they keep existing files instead of overwriting them.
-	Interactive                     bool
+	// NonInteractive is set when no one can answer a Dockerfile generator's
+	// questions. fly launch sets it from IOStreams.CanPromptSubprocess() before
+	// running Callback. Generators then get an empty stdin and take their
+	// default answers, as under `fly launch < /dev/null`, instead of waiting
+	// on a stdin that never closes. The zero value keeps flyctl's stdin.
+	NonInteractive                  bool
 	SkipDatabase                    bool
 	Volumes                         []Volume
 	DockerfileAppendix              []string
