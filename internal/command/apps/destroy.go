@@ -22,9 +22,13 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = "Delete one or more applications from the Fly platform."
+		long = `Permanently destroy the apps named as arguments. This can't be undone. If an
+app has a Tigris bucket for statics, the bucket is deleted too.
 
-		short = "Permanently destroy one or more apps."
+You're asked to confirm each app, and declining stops the command. Pass
+--yes to skip the prompts; without a terminal, --yes is required.`
+
+		short = "Permanently destroy one or more apps"
 		usage = "destroy <app name(s)>"
 	)
 

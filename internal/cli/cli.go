@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -231,9 +232,52 @@ func wrapFlagUsages(cmd *pflag.FlagSet) string {
 }
 
 func wrapText(s string) string {
-	width := helpWidth()
+	return wrapParagraphs(heredoc.Doc(s), helpWidth()-1)
+}
 
-	return strings.TrimSpace(text.Wrap(heredoc.Doc(s), width-1))
+// wrapParagraphs reflows each blank-line-separated paragraph of s to width,
+// keeping the blank lines between them. A paragraph with a line that is
+// indented or starts like a list item is laid out by line instead, so lists
+// and code keep their shape; only lines longer than width are wrapped.
+func wrapParagraphs(s string, width int) string {
+	var out []string
+	for _, para := range paragraphBreak.Split(strings.TrimSpace(s), -1) {
+		para = strings.Trim(para, "\n")
+		if para == "" {
+			continue
+		}
+
+		lines := strings.Split(para, "\n")
+		if !isLineBased(lines) {
+			out = append(out, text.Wrap(para, width))
+			continue
+		}
+
+		for i, line := range lines {
+			if len(line) > width {
+				indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+				lines[i] = text.Indent(text.Wrap(strings.TrimLeft(line, " \t"), width-len(indent)), indent)
+			}
+		}
+		out = append(out, strings.Join(lines, "\n"))
+	}
+
+	return strings.Join(out, "\n\n")
+}
+
+var (
+	paragraphBreak = regexp.MustCompile(`\n[ \t]*\n`)
+	listItem       = regexp.MustCompile(`^([-*•]|\d+[.)])\s`)
+)
+
+func isLineBased(lines []string) bool {
+	for _, line := range lines {
+		if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") || listItem.MatchString(line) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func helpWidth() int {

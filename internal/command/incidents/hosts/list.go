@@ -19,8 +19,10 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List hosts' issues affecting the application`
-		short = long
+		long = `List active issues on the hosts that run the app's Machines, with each
+issue's message and when it started and was last updated. The app comes from
+--app or fly.toml. For platform-wide incidents, run ` + "`fly incidents list`" + `.`
+		short = `List host issues affecting an app`
 		usage = "list"
 	)
 

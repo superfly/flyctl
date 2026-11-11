@@ -21,8 +21,12 @@ import (
 
 func newShow() *cobra.Command {
 	const (
-		short = "Show image details."
-		long  = short + "\n"
+		short = "Show image details for an app's Machines"
+		long  = `Show the registry, repository, tag, version, digest and labels of the image
+each of the app's Machines runs. Pass a Machine ID as an argument to show
+only that Machine. For images whose versions Fly.io tracks, such as Fly
+Postgres, it also lists Machines that have a newer version available; apply
+it with ` + "`fly image update`" + `.`
 
 		usage = "show"
 	)

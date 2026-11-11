@@ -25,8 +25,17 @@ import (
 
 func newImport() *cobra.Command {
 	const (
-		short = "Imports database from a specified Postgres URI"
-		long  = short + "\n"
+		short = "Import a database from a Postgres URI"
+		long  = `Copy a database from another Postgres server, given as a connection URI,
+into a Fly Postgres cluster. The target Postgres app comes from --app or
+fly.toml.
+
+This starts a temporary machine in the target app that dumps the source
+and restores it into the cluster, and destroys the machine when it's done.
+The source URI is stored as a secret on the target app while the import
+runs. Pass --region and --vm-size for that machine, or pick them in a
+terminal. With --clean, existing objects in the target are dropped before
+they're recreated.`
 		usage = "import <source-uri>"
 	)
 

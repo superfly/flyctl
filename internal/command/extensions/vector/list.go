@@ -16,8 +16,10 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List your Upstash Vector index`
-		short = long
+		short = "List your Upstash Vector indexes"
+		long  = `List the Upstash Vector indexes you have access to, with each index's
+organization and region. Pass ` + "`--org`" + ` to list only one organization's
+indexes.`
 		usage = "list"
 	)
 

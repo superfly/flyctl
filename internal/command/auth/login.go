@@ -18,15 +18,20 @@ import (
 
 func newLogin() *cobra.Command {
 	const (
-		long = `Logs a user into the Fly platform. Supports browser-based,
-email/password and one-time-password authentication. Defaults to using
-browser-based authentication.
+		long = `Log in to Fly.io and save the access token to your fly config. By
+default, it opens a login page in your browser (or prints its URL if it
+can't) and waits up to 15 minutes for you to approve.
 
-Use --code to finish a browser login that is waiting for approval, with
+Use ` + "`--code`" + ` to finish a browser login that is waiting for approval, with
 the one-time code the approval page shows: for example when the browser
 is on another machine, or the waiting command was stopped.
-`
-		short = "Log in a user"
+
+With ` + "`--interactive`" + ` or any of ` + "`--email`" + `, ` + "`--password`" + ` and ` + "`--otp`" + `, it logs
+in with email and password instead, prompting for missing values in a
+terminal. Browser login can't run in CI without a terminal; set
+` + "`FLY_API_TOKEN`" + ` there instead. If ` + "`FLY_ACCESS_TOKEN`" + ` or ` + "`FLY_API_TOKEN`" + ` is
+set, fly keeps using it instead of the saved login, and warns you.`
+		short = "Log in to Fly.io"
 	)
 
 	cmd := command.New("login", short, long, runLogin)

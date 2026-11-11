@@ -21,7 +21,17 @@ import (
 func newUpdate() *cobra.Command {
 	const (
 		short = "Update a machine"
-		long  = short + "\n"
+		long  = `Change the configuration of a Fly Machine: its image, command, size,
+environment, services, files and so on. Settings you don't pass are kept,
+including the image unless you give ` + "`--image`" + ` or ` + "`--dockerfile`" + `. With no
+machine ID, you pick a machine of the app from a list in a terminal;
+without a terminal, the ID is required.
+
+fly shows a diff of the config changes and asks you to confirm. Pass
+` + "`--yes`" + ` to skip the prompt; it's required without a terminal. After the
+update, fly waits for the machine to settle and, if it started, for its
+health checks to pass (skip this with ` + "`--skip-health-checks`" + `).
+` + "`--skip-start`" + ` applies the update without starting the machine.`
 
 		usage = "update [machine_id]"
 	)

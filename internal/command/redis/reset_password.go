@@ -16,9 +16,11 @@ import (
 
 func newReset() (cmd *cobra.Command) {
 	const (
-		long = `Reset the password for an Upstash Redis database`
+		short = "Reset the password for an Upstash Redis database"
+		long  = `Reset the password for the Upstash Redis database given by name as the
+argument, and print the new connection URL. There's no confirmation
+prompt. Update any app secrets or configuration that use the old URL.`
 
-		short = long
 		usage = "reset <name>"
 	)
 

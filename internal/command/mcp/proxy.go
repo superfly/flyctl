@@ -70,7 +70,19 @@ var sharedProxyFlags = flag.Set{
 func NewProxy() *cobra.Command {
 	const (
 		short = "[experimental] Start an MCP proxy client"
-		long  = short + "\n"
+		long  = `Connect a local stdio MCP client to a remote MCP server over HTTP. MCP
+clients run this command from the entries ` + "`fly mcp add`" + ` writes; you
+rarely run it by hand.
+
+The server URL comes from ` + "`--url`" + `, or else from the public URL of the
+app in fly.toml. For a .internal or .flycast URL, or when ` + "`--app`" + ` is
+set, the connection goes through ` + "`fly proxy`" + ` over WireGuard, which
+supports only http:// URLs. Requests are passed through as is unless you
+choose ` + "`--sse`" + ` or ` + "`--stream`" + `.
+
+With ` + "`--inspector`" + `, it opens the MCP Inspector through ` + "`npx`" + `
+instead, which needs Node.js installed.
+`
 		usage = "proxy"
 	)
 
@@ -92,8 +104,16 @@ func NewProxy() *cobra.Command {
 
 func NewInspect() *cobra.Command {
 	const (
-		short = "[experimental] Inspect a MCP stdio server"
-		long  = short + "\n"
+		short = "[experimental] Inspect an MCP server with the MCP Inspector"
+		long  = `Open the MCP Inspector, a tool for testing and debugging MCP servers,
+connected to a remote MCP server through ` + "`fly mcp proxy`" + `. The Inspector
+runs through ` + "`npx`" + `, which needs Node.js installed.
+
+The URL and credentials are read from an entry in an MCP client config file,
+chosen like ` + "`fly mcp remove`" + ` does: by ` + "`--server`" + ` and a client flag, or
+from a list when there is more than one choice. Flags such as ` + "`--url`" + `
+and ` + "`--bearer-token`" + ` override the values in the entry.
+`
 		usage = "inspect"
 	)
 

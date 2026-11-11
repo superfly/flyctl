@@ -24,10 +24,13 @@ import (
 
 func newUpgrade() *cobra.Command {
 	const (
-		short = "Checks for available updates and automatically upgrades"
+		short = "Upgrade flyctl to the latest version"
 
-		long = `Checks for an update and if one is available, runs the appropriate
-command to upgrade the application.`
+		long = `Check for a newer flyctl release on your update channel and, if there is
+one, install it. Homebrew installs run ` + "`brew upgrade flyctl`" + `; other installs
+run the Fly.io install script, and flyctl must be in the install directory
+(FLYCTL_INSTALL, or ~/.fly by default). Nothing changes when you already
+have the latest version.`
 	)
 
 	cmd := command.New("upgrade", short, long, runUpgrade)

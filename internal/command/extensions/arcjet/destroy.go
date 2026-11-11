@@ -18,9 +18,15 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy an Arcjet site`
+		short = "Permanently destroy an Arcjet site"
+		long  = `Permanently destroy an Arcjet site. This can't be undone. Name the site
+as an argument, or run the command in an app directory (or with ` + "`--app`" + `)
+to destroy the app's site.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required. The site's secrets are not removed from
+the app; unset them with ` + "`fly secrets unset`" + `.`
+
 		usage = "destroy [name]"
 	)
 

@@ -16,7 +16,12 @@ import (
 
 func newReplaySourcesList() *cobra.Command {
 	const (
-		long  = `List organizations allowed to replay requests to this organization.`
+		long = `List the slugs of other organizations allowed to replay requests to apps
+in an organization.
+
+Choose the organization with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise you pick
+from the organizations you administer in a terminal, and without a
+terminal the organization is required.`
 		short = "List allowed replay source organizations"
 		usage = "list"
 	)

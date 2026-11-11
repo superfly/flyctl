@@ -15,7 +15,16 @@ import (
 
 func newImport() (cmd *cobra.Command) {
 	const (
-		long  = `Set one or more encrypted secrets for an application. Values are read from stdin as NAME=VALUE pairs`
+		long = `Set one or more encrypted secrets for an app from standard input, one
+NAME=VALUE pair per line, for example ` + "`fly secrets import < .env`" + `.
+Blank lines and lines starting with # are skipped. Values can be wrapped in
+single or double quotes, and triple double quotes (""") allow multi-line
+values.
+
+Like ` + "`fly secrets set`" + `, it then updates all of the app's existing Machines
+with the currently deployed configuration and image, which restarts them.
+With ` + "`--stage`" + `, the secrets are saved but no Machines are updated; run
+` + "`fly secrets deploy`" + ` or ` + "`fly deploy`" + ` to apply them.`
 		short = `Set secrets as NAME=VALUE pairs from stdin`
 		usage = "import [flags]"
 	)

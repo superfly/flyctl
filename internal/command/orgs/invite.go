@@ -19,10 +19,14 @@ import (
 
 func newInvite() *cobra.Command {
 	const (
-		long = `Invite a user, by email, to join organization. The invitation will be
-sent, and the user will be pending until they respond.
-`
-		short = "Invite user (by email) to organization"
+		long = `Invite a user by email to join an organization. The invitation is sent
+by email, and the user stays pending until they accept it.
+
+Pass the organization slug and the email address as arguments. With no
+slug, you pick from the organizations you administer in a terminal, and
+with no email you're prompted for one; without a terminal, both are
+required.`
+		short = "Invite a user to an organization by email"
 		usage = "invite [slug] [email]"
 	)
 

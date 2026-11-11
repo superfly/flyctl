@@ -19,8 +19,17 @@ import (
 // New initializes and returns a new agent Command.
 func New() (cmd *cobra.Command) {
 	const (
-		short = "Commands that manage the Fly agent, a background process that manages flyctl wireguard connections"
-		long  = "The Fly agent is a background process that manages wireguard connections started by flyctl.\nCommands such as 'fly ssh' and 'fly proxy' use this agent.\nGenerally, the agent starts and stops automatically. These commands are useful for debugging.\n"
+		short = "Manage the Fly agent, the background WireGuard process"
+		long  = `The Fly agent is a local background process that holds the WireGuard
+tunnels flyctl opens into your Fly.io private network. Commands such as
+` + "`fly ssh console`" + `, ` + "`fly proxy`" + ` and ` + "`fly ping`" + ` use it, and
+start it when it isn't running. It is unrelated to AI coding agents; for
+those, see ` + "`fly setup agent`" + `.
+
+You don't normally need these commands. Use them for debugging:
+` + "`fly agent ping`" + ` checks the running agent and ` + "`fly agent restart`" + `
+replaces it.
+`
 		usage = "agent <command>"
 	)
 

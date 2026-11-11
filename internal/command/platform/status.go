@@ -23,9 +23,12 @@ const StatusURL = "https://status.fly.io/"
 
 func newStatus() (cmd *cobra.Command) {
 	const (
-		long = `Show current Fly platform status in a browser or via json with the json flag
-`
-		short = "Show current platform status with an optional filter for maintenance or incidents in json mode (eg. incidents, maintenance)"
+		long = `Open the Fly.io status page, https://status.fly.io/, in your browser. With
+--json, print the status page's data instead. The optional kind argument
+chooses what --json fetches: brief (the default, overall status), summary,
+incidents (unresolved incidents) or maintenance (active scheduled
+maintenance). Without --json, the kind is ignored.`
+		short = "Show Fly.io platform status"
 	)
 
 	cmd = command.New("status [kind]", short, long, runStatus)

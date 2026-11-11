@@ -17,8 +17,21 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Provision a Upstash Vector index"
-		long  = short + "\n"
+		short = "Provision an Upstash Vector index"
+		long  = `Provision an Upstash Vector index on the pay-as-you-go plan. In an app
+directory, or with ` + "`--app`" + `, the index is attached to that app, and the
+command fails if the app already has one. Otherwise the index belongs to
+an organization, which you pick from a list unless you pass ` + "`--org`" + `.
+
+You pick a similarity function and an embedding model from lists. If you
+provide your own embeddings, you're asked for the number of dimensions
+(default 128). There are no flags for these choices, so this command
+needs a terminal. The first time you use Upstash Vector you must also
+accept its terms of service; ` + "`--yes`" + ` accepts them.
+
+For an app's index, the credentials are set as secrets on the app and
+its machines restart to pick them up. If any of those secrets already
+exist, none are set, and the values are printed for you to set yourself.`
 	)
 
 	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.LoadAppNameIfPresent)

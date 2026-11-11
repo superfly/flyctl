@@ -18,12 +18,15 @@ import (
 
 func newAttenuate() *cobra.Command {
 	const (
-		short = "Attenuate Fly.io API tokens"
-		long  = `Attenuate a Fly.io API token by appending caveats to it. The
-				token to be attenuated may either be passed in the -t argument
-				or in FLY_API_TOKEN. Caveats must be JSON encoded. See
-				https://github.com/superfly/macaroon for details on
-				macaroons and caveats.`
+		short = "Restrict a Fly.io API token by adding caveats"
+		long  = `Restrict a Fly.io API token by appending caveats to it, and print the new
+token. The original token keeps working; the new one can do only what both
+the original and the caveats allow. This happens locally, with no API call.
+
+The token to restrict is the one fly is using, normally passed with ` + "`-t`" + `
+or ` + "`FLY_API_TOKEN`" + `. Caveats are a JSON-encoded caveat set read from
+` + "`--file`" + ` or standard input. See https://github.com/superfly/macaroon
+for the caveat format.`
 		usage = "attenuate"
 	)
 

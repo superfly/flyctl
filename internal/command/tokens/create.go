@@ -28,7 +28,12 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create Fly.io API tokens"
-		long  = "Create Fly.io API tokens"
+		long  = `Create a Fly.io API token limited to one app or one organization. Each
+subcommand creates a token with a different scope and prints it to stdout.
+Tokens are valid for 20 years unless you pass a shorter ` + "`--expiry`" + `.
+
+Use ` + "`deploy`" + ` for an app's CI token, ` + "`org`" + ` for an organization-wide
+token, and ` + "`readonly`" + ` for read-only access to an organization.`
 		usage = "create"
 	)
 
@@ -49,7 +54,14 @@ func newCreate() *cobra.Command {
 func newOrg() *cobra.Command {
 	const (
 		short = "Create org deploy tokens"
-		long  = "Create an API token limited to managing a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = `Create an API token that can manage one organization and all of its apps
+and resources, and print it. The token is valid for 20 years unless you
+pass a shorter ` + "`--expiry`" + `, which is recommended.
+
+With no ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `), you pick an organization from a list
+in a terminal; without a terminal, the organization is required.
+
+For a token limited to one app, use ` + "`fly tokens create deploy`" + `.`
 		usage = "org"
 	)
 
@@ -79,8 +91,14 @@ func newOrg() *cobra.Command {
 
 func newSSH() *cobra.Command {
 	const (
-		short = "Create token for SSH'ing to a single app"
-		long  = "Create token for SSH'ing to a single app. To be able to SSH to an app, this token is also allowed to connect to the org's wireguard network."
+		short = "Create a token for SSH access to one app"
+		long  = `Create an API token that can SSH into one app's Machines, and print it.
+The token has read-only access to the app, plus permission to issue SSH
+certificates and add WireGuard peers, so it can reach the app over the
+organization's private network.
+
+The app comes from ` + "`--app`" + ` or fly.toml. The token is valid for 20 years
+unless you pass a shorter ` + "`--expiry`" + `.`
 		usage = "ssh"
 	)
 
@@ -113,7 +131,17 @@ func newSSH() *cobra.Command {
 func newOrgRead() *cobra.Command {
 	const (
 		short = "Create read-only org tokens"
-		long  = "Create an API token limited to reading a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = `Create an API token with read-only access to one organization and its
+apps and resources, and print it. The token is valid for 20 years unless
+you pass a shorter ` + "`--expiry`" + `, which is recommended.
+
+With no ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `), you pick an organization from a list
+in a terminal; without a terminal, the organization is required.
+
+With ` + "`--from-existing`" + `, no new token is created on the server; instead
+the token fly is currently using (for example from ` + "`FLY_API_TOKEN`" + `) is
+restricted to read-only access locally. That token must be limited to a
+single organization.`
 		usage = "readonly"
 	)
 
@@ -148,7 +176,12 @@ func newOrgRead() *cobra.Command {
 func newDeploy() *cobra.Command {
 	const (
 		short = "Create deploy tokens"
-		long  = "Create an API token limited to managing a single app and its resources. Also available as TOKENS DEPLOY. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = `Create an API token that can manage and deploy one app and its
+resources, and print it. Use it as ` + "`FLY_API_TOKEN`" + ` in CI to run
+` + "`fly deploy`" + `. Also available as ` + "`fly tokens deploy`" + `.
+
+The app comes from ` + "`--app`" + ` or fly.toml. The token is valid for 20 years
+unless you pass a shorter ` + "`--expiry`" + `, which is recommended.`
 		usage = "deploy"
 	)
 
@@ -180,8 +213,17 @@ func newDeploy() *cobra.Command {
 
 func newMachineExec() *cobra.Command {
 	const (
-		short = "Create a machine exec token"
-		long  = "Create an API token that can execute a restricted set of commands on a machine. Commands can be specified on the command line or with the command and command-prefix flags. If no command is provided, all commands are allowed. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		short = "Create a token for running commands on an app's Machines"
+		long  = `Create an API token that can run a restricted set of commands on one
+app's Machines, and print it. Beyond those commands, the token has
+read-only access to the app.
+
+Pass one allowed command as arguments, or use ` + "`--command`" + ` (exact match)
+and ` + "`--command-prefix`" + ` (prefix match), which can be repeated. With no
+command at all, any command is allowed.
+
+The app comes from ` + "`--app`" + ` or fly.toml. The token is valid for 20 years
+unless you pass a shorter ` + "`--expiry`" + `.`
 		usage = "machine-exec [command...]"
 	)
 
@@ -224,7 +266,14 @@ func newMachineExec() *cobra.Command {
 func newWireGuard() *cobra.Command {
 	const (
 		short = "Create a WireGuard token"
-		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		long  = `Create an API token that can manage WireGuard peers for one
+organization, and print it. The token has no access to the organization's
+apps and read-only access to everything else.
+
+With no ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `), you pick an organization from a list
+in a terminal; without a terminal, the organization is required.
+
+The token is valid for 20 years unless you pass a shorter ` + "`--expiry`" + `.`
 		usage = "wireguard"
 	)
 

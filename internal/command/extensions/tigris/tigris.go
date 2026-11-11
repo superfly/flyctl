@@ -9,7 +9,12 @@ import (
 func New() (cmd *cobra.Command) {
 	const (
 		short = "Provision and manage Tigris object storage buckets"
-		long  = short + "\n"
+		long  = `Provision and manage Tigris object storage buckets. A bucket can be
+attached to an app, which then gets the bucket's credentials as secrets,
+or belong only to an organization.
+
+Create a bucket with ` + "`fly storage create`" + `, and see its settings with
+` + "`fly storage status`" + `.`
 	)
 
 	cmd = command.New("storage", short, long, nil)

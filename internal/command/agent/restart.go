@@ -11,7 +11,11 @@ import (
 func newRestart() (cmd *cobra.Command) {
 	const (
 		short = "Restart the Fly agent"
-		long  = short + "\n"
+		long  = `Stop the running Fly agent, if there is one, and start a new one in the
+background. Restarting closes the agent's open WireGuard tunnels, so any
+` + "`fly proxy`" + ` or ` + "`fly ssh`" + ` sessions using it are interrupted. Requires
+you to be logged in.
+`
 	)
 
 	cmd = command.New("restart", short, long, runRestart,

@@ -22,8 +22,9 @@ import (
 
 func newUsers() *cobra.Command {
 	const (
-		short = "Manage users in a postgres cluster"
-		long  = short + "\n"
+		short = "Manage users in a Fly Postgres cluster"
+		long  = `Work with the database users in a Fly Postgres cluster. Use
+` + "`fly postgres users list`" + ` to see them.`
 
 		usage = "users"
 	)
@@ -39,8 +40,10 @@ func newUsers() *cobra.Command {
 
 func newListUsers() *cobra.Command {
 	const (
-		short = "List users"
-		long  = short + "\n"
+		short = "List users in a Fly Postgres cluster"
+		long  = `List the database users in a Fly Postgres cluster, whether each is a
+superuser, and the databases each can access. The Postgres app comes from
+--app or fly.toml.`
 
 		usage = "list"
 	)

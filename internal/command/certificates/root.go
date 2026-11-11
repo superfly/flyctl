@@ -25,10 +25,13 @@ import (
 func New() *cobra.Command {
 	const (
 		short = "Manage certificates"
-		long  = `Manages the certificates associated with a deployed application.
-Certificates are created by associating a hostname/domain with the application.
-When Fly is then able to validate that hostname/domain, the platform gets
-certificates issued for the hostname/domain by Let's Encrypt.`
+		long  = `Manage TLS certificates for the custom hostnames an app serves. Add a
+hostname with ` + "`fly certs add`" + `, point its DNS at the app, and the platform
+issues a certificate for it once it can validate the hostname.
+You can also upload your own certificate with ` + "`fly certs import`" + `.
+
+Check progress and DNS problems with ` + "`fly certs check`" + `, and see DNS
+record options with ` + "`fly certs setup`" + `.`
 	)
 	cmd := command.New("certs", short, long, nil)
 	cmd.AddCommand(
@@ -46,7 +49,10 @@ certificates issued for the hostname/domain by Let's Encrypt.`
 func newCertificatesList() *cobra.Command {
 	const (
 		short = "List certificates for an app"
-		long  = `List the certificates associated with a deployed application.`
+		long  = `List the certificates of the app from ` + "`--app`" + ` or fly.toml, with each
+hostname, its source (Fly-managed or custom) and its status. Only the first
+50 certificates are shown. See one hostname in detail with
+` + "`fly certs check`" + `.`
 	)
 	cmd := command.New("list", short, long, runCertificatesList,
 		command.RequireSession,
@@ -65,8 +71,14 @@ func newCertificatesList() *cobra.Command {
 func newCertificatesAdd() *cobra.Command {
 	const (
 		short = "Add a certificate for an app"
-		long  = `Add a certificate for an application. Takes a hostname
-as a parameter for the certificate.`
+		long  = `Request a Fly-managed TLS certificate for a hostname, such as
+www.example.com or *.example.com. fly prints the DNS records to create:
+A and AAAA records pointing at the app's IPs, plus a CNAME for the ACME
+DNS challenge for wildcard hostnames. If the app has no public IPs, run
+` + "`fly ips allocate`" + ` first.
+
+After creating the records, follow validation with ` + "`fly certs check`" + `,
+and see other DNS setups with ` + "`fly certs setup`" + `.`
 	)
 	cmd := command.New("add <hostname>", short, long, runCertificatesAdd,
 		command.RequireSession,
@@ -86,10 +98,12 @@ as a parameter for the certificate.`
 func newCertificatesImport() *cobra.Command {
 	const (
 		short = "Import a custom certificate"
-		long  = `Import a custom TLS certificate for a hostname.
+		long  = `Upload your own TLS certificate for a hostname. Pass the certificate chain and private key as PEM files
+with ` + "`--fullchain`" + ` and ` + "`--private-key`" + `.
 
-Upload your own certificate and private key in PEM format. Requires domain
-ownership verification via DNS before the certificate becomes active.`
+If the certificate isn't active yet, fly prints the DNS record that proves
+you own the domain; add it, then run ` + "`fly certs check`" + `. Remove only the
+custom certificate later with ` + "`fly certs remove --custom`" + `.`
 	)
 	cmd := command.New("import <hostname>", short, long, runCertificatesImport,
 		command.RequireSession,
@@ -192,12 +206,14 @@ func runCertificatesImport(ctx context.Context) error {
 
 func newCertificatesRemove() *cobra.Command {
 	const (
-		short = "Removes a certificate from an app"
-		long  = `Removes a certificate from an application. Takes hostname
-as a parameter to locate the certificate.
+		short = "Remove a certificate from an app"
+		long  = `Remove the certificates for a hostname from the app. Pass
+` + "`--custom`" + ` to remove only an imported certificate and keep the
+Fly-managed (ACME) one, or ` + "`--acme`" + ` to stop ACME issuance and keep the
+custom one.
 
-Use --custom to remove only the custom certificate while keeping ACME certificates.
-Use --acme to stop ACME certificate issuance while keeping custom certificates.`
+fly asks you to confirm. Pass ` + "`--yes`" + ` to skip the prompt; it's required
+without a terminal.`
 	)
 	cmd := command.New("remove <hostname>", short, long, runCertificatesRemove,
 		command.RequireSession,
@@ -227,8 +243,11 @@ Use --acme to stop ACME certificate issuance while keeping custom certificates.`
 func newCertificatesCheck() *cobra.Command {
 	const (
 		short = "Show certificate and DNS status"
-		long  = `Shows detailed certificate information and checks the DNS configuration
-for the specified hostname.`
+		long  = `Ask the platform to check a hostname's certificates and DNS, then show
+each certificate's status and any validation problems with suggested
+fixes. If no certificate is active yet, fly prints the TXT record to add
+when ownership still needs verifying, or points you to
+` + "`fly certs setup`" + ` for DNS instructions. Run it again after changing DNS.`
 	)
 	cmd := command.New("check <hostname>", short, long, runCertificatesCheck,
 		command.RequireSession,
@@ -247,9 +266,12 @@ for the specified hostname.`
 
 func newCertificatesSetup() *cobra.Command {
 	const (
-		short = "Shows certificate setup instructions"
-		long  = `Shows setup instructions for configuring DNS records for a certificate.
-Takes hostname as a parameter to show the setup instructions for that certificate.`
+		short = "Show certificate setup instructions"
+		long  = `Show the DNS records you can create to point a hostname at the app and
+get its certificate validated: A and AAAA records, a CNAME alternative, the
+ACME DNS challenge record and the ownership TXT record, with notes on when
+each is needed. Run it after adding the hostname with ` + "`fly certs add`" + `
+or ` + "`fly certs import`" + `.`
 	)
 	cmd := command.New("setup <hostname>", short, long, runCertificatesSetup,
 		command.RequireSession,

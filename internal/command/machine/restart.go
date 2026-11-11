@@ -16,8 +16,15 @@ import (
 
 func newRestart() *cobra.Command {
 	const (
-		short = "Restart one or more Fly machines"
-		long  = short + "\n"
+		short = "Restart one or more Fly Machines"
+		long  = `Restart one or more Fly Machines, one at a time. Pass machine IDs as
+arguments; the app is looked up from the first ID unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it.
+With no IDs, you pick machines of the app from a list in a terminal;
+without a terminal, IDs are required.
+
+For each machine, the command waits up to five minutes for it to start and
+then waits for its health checks to pass, unless you pass
+` + "`--skip-health-checks`" + `. It stops at the first machine that fails.`
 
 		usage = "restart [<id>...]"
 	)

@@ -13,8 +13,13 @@ import (
 
 func newStatus() *cobra.Command {
 	const (
-		long  = `Show status and details of a specific Managed Postgres cluster using its ID.`
-		short = "Show MPG cluster status."
+		long = `Show the status of a Managed Postgres cluster: its ID, name,
+organization, region, status, storage used and allocated, replica count
+and direct IP address.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.`
+		short = "Show the status of a Managed Postgres cluster"
 		usage = "status [CLUSTER_ID]"
 	)
 

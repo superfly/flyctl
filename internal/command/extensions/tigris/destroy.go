@@ -18,9 +18,15 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy a Tigris object storage bucket`
+		short = "Permanently destroy a Tigris object storage bucket"
+		long  = `Permanently destroy a Tigris object storage bucket. This can't be
+undone. Name the bucket as an argument, or run the command in an app
+directory (or with ` + "`--app`" + `) to use the app's bucket.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required. The bucket's secrets are not removed
+from the app; unset them with ` + "`fly secrets unset`" + `.`
+
 		usage = "destroy [storage-bucket-name]"
 	)
 

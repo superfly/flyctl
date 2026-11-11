@@ -13,12 +13,25 @@ import (
 )
 
 func newAutoUpdate() *cobra.Command {
-	autoupdateRoot := command.New("autoupdate", "Control automatic updates", "", runAutoupdateStatus)
+	const (
+		long = `Show whether fly updates itself automatically. Automatic updates are on
+by default. Change the setting with ` + "`fly settings autoupdate enable`" + ` or
+` + "`fly settings autoupdate disable`" + `.`
+		enableLong = `Turn on automatic updates for fly, and save the setting in your fly
+config file. When a newer release is available, fly updates itself in the
+background (except on Windows), or before running your command if the
+installed version is far behind. Updates never run in CI or for
+installations fly can't update itself.`
+		disableLong = `Turn off automatic updates for fly, and save the setting in your fly
+config file. Update manually with ` + "`fly version upgrade`" + `.`
+	)
 
-	optIn := command.New("enable", "Enable automatic updates", "", func(ctx context.Context) error {
+	autoupdateRoot := command.New("autoupdate", "Control automatic updates", long, runAutoupdateStatus)
+
+	optIn := command.New("enable", "Enable automatic updates", enableLong, func(ctx context.Context) error {
 		return setAutoupdateEnabled(ctx, true)
 	})
-	optOut := command.New("disable", "Disable automatic updates", "", func(ctx context.Context) error {
+	optOut := command.New("disable", "Disable automatic updates", disableLong, func(ctx context.Context) error {
 		return setAutoupdateEnabled(ctx, false)
 	})
 

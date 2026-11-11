@@ -13,8 +13,9 @@ import (
 
 func newDatabases() *cobra.Command {
 	const (
-		short = "Manage databases in a managed postgres cluster"
-		long  = short + "\n"
+		short = "Manage databases in a Managed Postgres cluster"
+		long  = `List and create databases in a Managed Postgres cluster, and manage
+their Postgres extensions with ` + "`fly mpg databases extensions`" + `.`
 	)
 
 	cmd := command.New("databases", short, long, nil)
@@ -31,8 +32,11 @@ func newDatabases() *cobra.Command {
 
 func newDatabasesList() *cobra.Command {
 	const (
-		long  = `List databases in a Managed Postgres cluster.`
-		short = "List databases in an MPG cluster."
+		long = `List the databases in a Managed Postgres cluster by name.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.`
+		short = "List databases in a Managed Postgres cluster"
 		usage = "list <CLUSTER_ID>"
 	)
 
@@ -65,8 +69,16 @@ func runDatabasesList(ctx context.Context) error {
 
 func newDatabasesCreate() *cobra.Command {
 	const (
-		long  = `Create a new database in a Managed Postgres cluster.`
-		short = "Create a database in an MPG cluster."
+		long = `Create a database in a Managed Postgres cluster. Pass the name with
+--name, or enter it when asked in a terminal; without a terminal, --name
+is required.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.
+
+To give an app a connection string for the new database, use
+` + "`fly mpg attach --database`" + `.`
+		short = "Create a database in a Managed Postgres cluster"
 		usage = "create <CLUSTER_ID>"
 	)
 

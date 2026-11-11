@@ -19,7 +19,11 @@ const (
 func newAttach() *cobra.Command {
 	const (
 		short = "Attach Consul cluster to an app"
-		long  = "Attach Consul cluster to an app, and setting the " + consulUrlDefaultVariableName + " secret"
+		long  = "Enable a Fly.io-managed Consul cluster for the app and store its URL in\n" +
+			"the " + consulUrlDefaultVariableName + " secret, or in the secret named by `--variable-name`.\n\n" +
+			"Setting the secret restarts the app's Machines so they pick it up. If the\n" +
+			"app has never been deployed and has no Machines, the secret is staged for\n" +
+			"the first deploy instead."
 		usage = "attach"
 	)
 	cmd := command.New(usage, short, long, runAttach,

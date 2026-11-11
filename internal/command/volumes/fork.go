@@ -17,9 +17,16 @@ import (
 
 func newFork() *cobra.Command {
 	const (
-		short = "Fork the specified volume."
+		short = "Fork the specified volume"
 
-		long = short + ` Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
+		long = `Create a new Fly Volume that is an independent copy of an existing one,
+for backup, testing or experiments, without changing the original. The new
+volume gets the source volume's name unless you pass ` + "`--name`" + `, and
+isn't attached to any machine. With no volume ID, you pick a volume of the
+app from a list in a terminal; without a terminal, the ID is required.
+
+A volume on an unreachable host can't be forked; create a new volume from
+a snapshot with ` + "`fly volumes create --snapshot-id`" + ` instead.`
 
 		usage = "fork <volume id>"
 	)

@@ -18,8 +18,14 @@ import (
 
 func newSuspend() *cobra.Command {
 	const (
-		short = "Suspend one or more Fly machines"
-		long  = short + "\n"
+		short = "Suspend one or more Fly Machines"
+		long  = `Suspend one or more Fly Machines. Pass machine IDs as arguments; the app
+is looked up from the first ID unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you
+pick machines of the app from a list in a terminal; without a terminal, IDs
+are required.
+
+The command doesn't wait for machines to reach the suspended state unless
+you set ` + "`--wait-timeout`" + `.`
 
 		usage = "suspend [<id>...]"
 	)

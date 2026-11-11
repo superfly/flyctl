@@ -15,7 +15,10 @@ import (
 func status() *cobra.Command {
 	const (
 		short = "Show details about an Upstash Vector index"
-		long  = short + "\n"
+		long  = `Show an Upstash Vector index's name, status and region. Name the index
+as an argument, or run the command in an app directory (or with ` + "`--app`" + `)
+to use the app's index. When the index is found through an app, the
+app's name is shown too.`
 
 		usage = "status [name]"
 	)

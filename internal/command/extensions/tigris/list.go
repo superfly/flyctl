@@ -18,8 +18,10 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List your Tigris object storage buckets`
-		short = long
+		short = "List your Tigris object storage buckets"
+		long  = `List the Tigris object storage buckets you have access to, with the
+organization each one belongs to. Pass ` + "`--org`" + ` to list only one
+organization's buckets.`
 		usage = "list"
 	)
 

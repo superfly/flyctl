@@ -20,8 +20,18 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Create a new Managed Postgres cluster"
-		long  = short + "\n"
+		short = "Create a Managed Postgres cluster"
+		long  = `Create a Managed Postgres cluster and wait until it's ready, then print
+its connection string, including the password. The plan sets the
+cluster's CPU, memory and monthly price.
+
+The name comes from --name; if that's not set, it's the name of the app in
+the current fly.toml with -db appended, and otherwise you're asked for one. The organization, region and plan come from --org, --region and
+--plan, or you pick them from lists in a terminal. Without a terminal,
+--region is required, and the plan defaults to Basic.
+
+You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
+` + "`fly mpg status`" + ` to check on it and ` + "`fly mpg attach`" + ` to connect an app.`
 	)
 
 	cmd := command.New("create", short, long, runCreate,

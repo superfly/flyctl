@@ -18,9 +18,10 @@ import (
 
 func newVMSizes() (cmd *cobra.Command) {
 	const (
-		long = `View a list of VM sizes which can be used with the FLYCTL SCALE VM command
-`
-		short = "List VM Sizes"
+		long = `List the preset Machine sizes, with their CPU cores and memory, for shared
+and performance CPUs. The list is built into flyctl. Use a size name with
+` + "`fly scale vm`" + ` or the --vm-size flag. --json prints the sizes as JSON.`
+		short = "List VM sizes"
 	)
 
 	cmd = command.New("vm-sizes", short, long, runMachineVMSizes,

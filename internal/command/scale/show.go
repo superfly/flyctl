@@ -9,7 +9,10 @@ import (
 func newScaleShow() *cobra.Command {
 	const (
 		short = "Show current resources"
-		long  = `Show current VM size and counts`
+		long  = `Show the VM size (CPU kind, CPUs and memory) and Machine count of each of
+the app's process groups, with the count per region. The size shown for
+a group comes from one of its Machines. Change these with
+` + "`fly scale count`" + ` and ` + "`fly scale vm`" + `.`
 	)
 	cmd := command.New("show", short, long, runMachinesScaleShow,
 		command.RequireSession,
