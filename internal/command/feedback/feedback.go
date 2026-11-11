@@ -34,12 +34,16 @@ var categories = []string{"bug", "documentation", "feature_request", "other"}
 func New() *cobra.Command {
 	const (
 		short = "Send feedback to Fly.io"
-		long  = `Send a bug report, documentation issue, or feature request to Fly.io.
+		long  = `Send a bug report, documentation issue, feature request or other note to
+Fly.io. ` + "`--category`" + ` is required.
 
-The note can be given as an argument, piped through stdin, or typed at the
-prompt when running in a terminal. Tell us what you are reporting with
---request-id (the fly-request-id header of the API response in question) or
---url (the page or endpoint). At least one of them is required.
+Say what you are reporting with ` + "`--request-id`" + ` (the fly-request-id header
+of the API response in question), ` + "`--url`" + ` (the page or endpoint), or
+both; at least one is required.
+
+The note can be given as an argument or piped through stdin; in a terminal
+you are prompted for it otherwise. Notes are limited to 4000 characters. The
+command prints the feedback ID, or the full response with ` + "`--json`" + `.
 
 Reports are filed under the organization of the access token in use. A token
 scoped to one organization files under that organization; any other token

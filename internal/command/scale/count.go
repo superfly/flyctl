@@ -20,15 +20,18 @@ import (
 func newScaleCount() *cobra.Command {
 	const (
 		short = "Change an app's VM count to the given value"
-		long  = `Change an app's VM count to the given value.
+		long  = `Create or destroy Machines so a process group has the given count in each
+selected region. For example, ` + "`fly scale count 4 --region ord,sjc`" + ` leaves
+four Machines in ord and four in sjc. Without ` + "`--region`" + `, the count applies
+to each region where the group has Machines; groups without Machines use
+the primary region. Relative counts adjust each selected region, as in
+` + "`fly scale count +1`" + ` or ` + "`fly scale count -- -1`" + `. Set several groups at
+once with ` + "`fly scale count web=2 worker=1`" + `. Targets above
+` + "`--max-per-region`" + ` are rejected.
 
-The count applies to each selected region. For example:
-  fly scale count 4 --region ord,sjc
-sets four machines in ord and four in sjc, creating or destroying machines as needed.
-Without --region, the count applies to each region where the group has machines.
-Groups without machines use the primary region.
-Relative counts adjust each selected region, for example: fly scale count +1 or fly scale count -- -1.
-Targets above --max-per-region are rejected.
+fly prints the plan, including any volumes it will create or reuse, and
+asks you to confirm. Pass ` + "`--yes`" + ` to skip the prompt; it's required without
+a terminal. Scaling down destroys Machines.
 
 For pricing, see https://docs.fly.io/about/pricing`
 	)

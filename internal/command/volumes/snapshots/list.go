@@ -23,8 +23,11 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long  = "List snapshots associated with the specified volume."
-		short = "List snapshots."
+		long = `List the snapshots of a Fly Volume, oldest first, with each snapshot's
+ID, status, size and creation time. Unless ` + "`--app`" + ` or ` + "`fly.toml`" + `
+sets the app, it's looked up from the volume ID. Use a snapshot ID with
+` + "`fly volumes create --snapshot-id`" + ` to restore it to a new volume.`
+		short = "List snapshots"
 
 		usage = "list <volume id>"
 	)

@@ -11,10 +11,13 @@ import (
 
 func newSignup() *cobra.Command {
 	const (
-		long = `Creates a new fly account. The command opens the browser
-and sends the user to a form to provide appropriate credentials.
-`
-		short = "Create a new fly account"
+		long = `Create a new Fly.io account. The command opens a sign-up page in your
+browser (or prints its URL if it can't) and waits for you to finish. When
+you do, you're logged in and the access token is saved to your fly config.
+
+It can't run in CI without a terminal; set ` + "`FLY_API_TOKEN`" + ` there
+instead. If you already have an account, use ` + "`fly auth login`" + `.`
+		short = "Create a new Fly.io account"
 	)
 
 	return command.New("signup", short, long, runSignup)

@@ -7,10 +7,14 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = "Manage Fly Machines."
-		long  = short + ` Fly Machines are super-fast, lightweight VMs that can be created,
-and then quickly started and stopped as needed with flyctl commands or with the
-Machines REST fly.`
+		short = "Manage Fly Machines"
+		long  = `Manage the Fly Machines (VMs) that make up an app: list them, create and
+run new ones, change their configuration, and start, stop or destroy them.
+
+Most subcommands act on the app from ` + "`--app`" + ` or fly.toml. Commands that
+take machine IDs let you pick machines from a list when you run them in a
+terminal without IDs. Start with ` + "`fly machine list`" + ` or
+` + "`fly machine run`" + `.`
 		usage = "machine <command>"
 	)
 

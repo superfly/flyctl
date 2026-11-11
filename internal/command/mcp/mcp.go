@@ -13,9 +13,17 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = `flyctl Model Context Protocol.`
+		short = `Run, deploy and connect Model Context Protocol (MCP) servers`
 
-		long = short + "\n"
+		long = `Experimental commands for Model Context Protocol (MCP) servers, which AI
+clients such as Claude, Cursor and VS Code use to call tools.
+
+` + "`fly mcp server`" + ` runs flyctl itself as an MCP server. ` + "`fly mcp launch`" + `
+deploys an stdio MCP program as a Fly app, and ` + "`fly mcp add`" + `,
+` + "`fly mcp remove`" + ` and ` + "`fly mcp list`" + ` manage the entries in local MCP
+client config files. To connect coding agents to the hosted Fly MCP server
+instead, use ` + "`fly setup agent`" + `.
+`
 	)
 
 	cmd := command.New("mcp", short, long, nil)

@@ -19,7 +19,11 @@ import (
 func newPing() (cmd *cobra.Command) {
 	const (
 		short = "Ping the Fly agent"
-		long  = short + "\n"
+		long  = `Check that the Fly agent is running and responding, and print its process
+ID, version and whether it runs in the background. Fails if no agent is
+running; this command does not start one. Use ` + "`--json`" + ` for
+machine-readable output.
+`
 	)
 
 	cmd = command.New("ping", short, long, runPing)

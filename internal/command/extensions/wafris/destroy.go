@@ -16,9 +16,15 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy a Wafris WAF`
+		short = "Permanently destroy a Wafris WAF"
+		long  = `Permanently destroy a Wafris WAF. This can't be undone. Name the WAF as
+an argument, or run the command in an app directory (or with ` + "`--app`" + `) to
+destroy the app's WAF.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required. The WAF's secrets are not removed from
+the app; unset them with ` + "`fly secrets unset`" + `.`
+
 		usage = "destroy [name]"
 	)
 

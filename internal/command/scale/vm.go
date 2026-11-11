@@ -14,14 +14,18 @@ import (
 
 func newScaleVm() *cobra.Command {
 	const (
-		short = "Change an app's VM to a named size (eg. shared-cpu-1x, performance-1x, performance-2x...)"
-		long  = `Change an application's VM size to one of the named VM sizes.
+		short = "Change an app's VM to a named size"
+		long  = `Change every active Machine in a process group to a named VM size, such
+as shared-cpu-1x or performance-2x. List the sizes with
+` + "`fly platform vm-sizes`" + `. Set memory at the same time with
+` + "`--vm-memory`" + ` in MB, for example
+` + "`fly scale vm shared-cpu-1x --vm-memory=2048`" + `.
 
-For a full list of supported sizes use the command ` + "`flyctl platform vm-sizes`" + `.
-
-Memory size can be set with the ` + "`--vm-memory`" + ` flag followed by the number of MB.
-
-For example: ` + "`flyctl scale vm shared-cpu-1x --vm-memory=2048`" + `.
+Each Machine is updated in turn without a confirmation prompt; fly waits
+for each one to settle and, if it's running, to pass its health checks.
+Apps with more than one process group need ` + "`--process-group`" + `. If
+` + "`fly.toml`" + ` has a ` + "`[[vm]]`" + ` section with different settings, fly warns you,
+because the next ` + "`fly deploy`" + ` applies the ` + "`fly.toml`" + ` values.
 
 For pricing, see https://docs.fly.io/about/pricing`
 	)

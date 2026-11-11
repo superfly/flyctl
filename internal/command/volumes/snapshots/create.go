@@ -14,8 +14,11 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Create a volume snapshot."
-		long  = "Snapshot a volume\n"
+		short = "Create a volume snapshot"
+		long  = `Request an on-demand snapshot of a Fly Volume. The command returns once
+the snapshot is scheduled, not when it's complete; check progress with
+` + "`fly volumes snapshots list`" + `. Unless ` + "`--app`" + ` or ` + "`fly.toml`" + `
+sets the app, it's looked up from the volume ID.`
 		usage = "create <volume id>"
 	)
 

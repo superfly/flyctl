@@ -127,8 +127,18 @@ func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer ag
 
 func newConsole() *cobra.Command {
 	const (
-		long  = `Connect to a running instance of the current app.`
-		short = long
+		short = `Open a shell or run a command on a Machine over SSH`
+		long  = `Open an interactive shell on one of the app's started Machines, or run a
+single command with ` + "`--command`" + `. A shell gets a pseudo-terminal; a
+command does not unless you pass ` + "`--pty`" + `. You connect as root unless
+you set ` + "`--user`" + `.
+
+By default the first started Machine is used (filtered by ` + "`--region`" + `
+or ` + "`--process-group`" + ` if set). Pick one with ` + "`--machine`" + `, or choose
+from a list with ` + "`--select`" + `. On a Machine with several containers,
+the first is used unless you pass ` + "`--container`" + ` or ` + "`--select`" + `.
+To reach a specific host, pass its address as the argument or with
+` + "`--address`" + `.`
 		usage = "console"
 	)
 

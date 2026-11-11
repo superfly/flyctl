@@ -22,10 +22,15 @@ import (
 
 func newLogout() *cobra.Command {
 	const (
-		long = `Log the currently logged-in user out of the Fly platform.
-To continue interacting with Fly, the user will need to log in again.
-`
-		short = "Logs out the currently logged in user"
+		long = `Log out by revoking the access token saved by ` + "`fly auth login`" + ` and
+removing it from your fly config. It also stops the fly agent if it's running.
+
+If the token can't be revoked, the command fails and keeps the token so
+you can retry; ` + "`--force`" + ` removes it anyway, leaving it valid until you
+revoke it in the dashboard. Tokens supplied by ` + "`FLY_ACCESS_TOKEN`" + ` or
+` + "`FLY_API_TOKEN`" + ` are not revoked; use ` + "`fly tokens revoke supplied`" + ` for
+those. Run ` + "`fly auth login`" + ` to log in again.`
+		short = "Log out and revoke the saved access token"
 	)
 
 	cmd := command.New("logout", short, long, runLogout)

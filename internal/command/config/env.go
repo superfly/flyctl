@@ -18,8 +18,11 @@ import (
 func newEnv() (cmd *cobra.Command) {
 	const (
 		short = "Display an app's runtime environment variables"
-		long  = `Display an app's runtime environment variables. It displays a section for
-secrets and another for config file defined environment variables.`
+		long  = `Show the app's secrets and environment variables, in two tables. Secrets are
+listed by name and digest only, never by value. Environment variables come
+from the [env] section of the app's deployed configuration, not your local
+fly.toml. The app comes from --app or fly.toml. Manage secrets with
+` + "`fly secrets`" + `.`
 	)
 	cmd = command.New("env", short, long, runEnv,
 		command.RequireSession,

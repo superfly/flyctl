@@ -11,7 +11,8 @@ import (
 func New() *cobra.Command {
 	const (
 		short = "Synthetic monitoring"
-		long  = `Synthetic monitoring management.`
+		long  = `Commands for Fly.io synthetic monitoring. ` + "`fly synthetics agent`" + ` runs the
+agent that performs probes.`
 	)
 	cmd := command.New("synthetics", short, long, nil)
 	cmd.AddCommand(
@@ -23,8 +24,12 @@ func New() *cobra.Command {
 
 func newAgent() *cobra.Command {
 	const (
-		short = "Runs the Synthetics agent"
-		long  = "Runs the Synthetics agent in the foreground."
+		short = "Run the synthetics agent"
+		long  = `Run the synthetics agent in the foreground until you interrupt it. The agent
+connects to the Fly.io synthetics service over a WebSocket, runs the HTTP
+probes it's sent against Fly.io infrastructure (hosts under fly.io,
+flyio.net and machines.dev; other targets are skipped), and sends back the
+results.`
 	)
 	cmd := command.New("agent", short, long, runAgent,
 		command.RequireSession,

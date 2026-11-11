@@ -14,7 +14,10 @@ import (
 func status() *cobra.Command {
 	const (
 		short = "Show details about an Arcjet site setup"
-		long  = short + "\n"
+		long  = `Show an Arcjet site's name, primary region and status. Name the site as
+an argument, or run the command in an app directory (or with ` + "`--app`" + `) to
+use the app's site. When the site is found through an app, the app's
+name is shown too.`
 
 		usage = "status [name]"
 	)

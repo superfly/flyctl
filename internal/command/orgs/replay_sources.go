@@ -7,7 +7,11 @@ import (
 
 func newReplaySources() *cobra.Command {
 	const (
-		long  = `Commands for managing cross-organization replay permissions.`
+		long = `Manage which other organizations may replay requests to apps in an
+organization.
+
+See the current list with ` + "`fly orgs replay-sources list`" + `, and change it
+with ` + "`add`" + ` and ` + "`remove`" + `.`
 		short = "Manage allowed replay source organizations"
 	)
 

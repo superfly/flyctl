@@ -18,8 +18,8 @@ import (
 
 func newEvents() *cobra.Command {
 	const (
-		short = "Track major cluster events"
-		long  = short + "\n"
+		short = "View Fly Postgres cluster events"
+		long  = `View major events recorded by a Fly Postgres cluster. Use ` + "`fly postgres events list`" + ` to see them.`
 
 		usage = "events"
 	)
@@ -37,8 +37,12 @@ func newEvents() *cobra.Command {
 
 func newListEvents() *cobra.Command {
 	const (
-		short = "Outputs a formatted list of cluster events"
-		long  = short + "\n"
+		short = "List events for a Fly Postgres cluster"
+		long  = `List events recorded by a Fly Postgres cluster, read from its primary.
+The Postgres app comes from --app or fly.toml. Narrow the list by event
+type or node with the flags, or pass --all to see every entry. This works
+only on clusters managed by repmgr (Flex), the default for
+` + "`fly postgres create`" + `.`
 
 		usage = "list"
 	)

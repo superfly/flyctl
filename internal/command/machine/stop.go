@@ -19,8 +19,16 @@ import (
 
 func newStop() *cobra.Command {
 	const (
-		short = "Stop one or more Fly machines"
-		long  = short + "\n"
+		short = "Stop one or more Fly Machines"
+		long  = `Stop one or more Fly Machines. Pass machine IDs as arguments; the app is
+looked up from the first ID unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you
+pick machines of the app from a list in a terminal; without a terminal, IDs
+are required.
+
+Each machine gets ` + "`--signal`" + ` (SIGINT by default) and is killed if it hasn't
+exited after ` + "`--timeout`" + ` seconds. The command doesn't wait for machines to
+reach the stopped state unless you set ` + "`--wait-timeout`" + `. Start them again
+with ` + "`fly machine start`" + `.`
 
 		usage = "stop [<id>...]"
 	)

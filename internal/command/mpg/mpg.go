@@ -23,9 +23,16 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = `Manage Managed Postgres clusters.`
+		short = `Manage Managed Postgres clusters`
 
-		long = short + "\n"
+		long = `Manage Managed Postgres (MPG) clusters, the Postgres service that Fly.io
+operates for you. You don't run its machines yourself; you work with
+clusters, databases, users and backups through these commands.
+
+Start with ` + "`fly mpg create`" + `, then give an app its connection string
+with ` + "`fly mpg attach`" + ` or open a psql session with ` + "`fly mpg connect`" + `.
+For the older, unmanaged Fly Postgres that runs as an app in your
+organization, use ` + "`fly postgres`" + `.`
 	)
 
 	cmd := command.New("mpg", short, long, nil)

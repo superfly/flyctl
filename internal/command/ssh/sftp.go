@@ -29,8 +29,12 @@ import (
 
 func NewSFTP() *cobra.Command {
 	const (
-		long  = `Get or put files from a remote VM.`
-		short = long
+		short = `Transfer files to and from a Machine over SFTP`
+		long  = `Copy files between your computer and one of the app's started Machines over
+SFTP, through a WireGuard tunnel. Use ` + "`get`" + ` and ` + "`put`" + ` for single
+transfers, ` + "`find`" + ` to list remote files, and ` + "`shell`" + ` for an
+interactive session. The Machine is chosen as in ` + "`fly ssh console`" + `: the
+first started one unless you pass ` + "`--machine`" + ` or ` + "`--select`" + `.`
 		usage = "sftp"
 	)
 
@@ -48,8 +52,9 @@ func NewSFTP() *cobra.Command {
 
 func newSFTPShell() *cobra.Command {
 	const (
-		long  = `The SFTP SHELL command brings up an interactive SFTP session to fetch and push files from/to a VM.`
-		short = long
+		short = `Start an interactive SFTP session on a Machine`
+		long  = `Start an interactive SFTP session on one of the app's Machines, starting in
+/. The session accepts cd, ls, get, put and chmod. Press Ctrl+D to leave.`
 		usage = "shell"
 	)
 
@@ -62,8 +67,9 @@ func newSFTPShell() *cobra.Command {
 
 func newFind() *cobra.Command {
 	const (
-		long  = `The SFTP FIND command lists files (from an optional root directory) on a remote VM.`
-		short = long
+		short = `List files on a Machine`
+		long  = `Print the path of every file and directory under a path on one of the
+app's Machines, recursively. With no path, it starts at /.`
 		usage = "find [path]"
 	)
 
@@ -76,8 +82,11 @@ func newFind() *cobra.Command {
 
 func newGet() *cobra.Command {
 	const (
-		long  = `The SFTP GET retrieves a file from a remote VM.`
-		short = long
+		short = `Download a file or directory from a Machine`
+		long  = `Download a file from one of the app's Machines. The local path defaults to
+the remote file's name in the current directory. Existing local files are
+never overwritten; the command fails instead. Downloading a directory needs
+` + "`--recursive`" + `, and the local directory must not exist yet.`
 		usage = "get <remote-path> [local-path]"
 	)
 
@@ -101,8 +110,12 @@ func newGet() *cobra.Command {
 
 func newPut() *cobra.Command {
 	const (
-		long  = `The SFTP PUT uploads a file to a remote VM.`
-		short = long
+		short = `Upload a file or directory to a Machine`
+		long  = `Upload a local file to one of the app's Machines. The remote path defaults
+to the local file's name. Existing remote files are never overwritten; the
+command fails instead. New files get mode 0644 unless you set ` + "`--mode`" + `.
+Uploading a directory needs ` + "`--recursive`" + `, and the remote directory
+must not exist yet.`
 		usage = "put <local-path> [remote-path]"
 	)
 

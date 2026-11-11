@@ -17,9 +17,17 @@ import (
 
 func newReplaySourcesRemove() *cobra.Command {
 	const (
-		long = `Remove organizations from the list of allowed replay sources for this organization.
+		long = `Stop other organizations from replaying requests to apps in an
+organization. Pass the source organizations' slugs as arguments; with no
+slugs, you pick from the current list in a terminal.
 
-If no slugs are provided, an interactive selector will be shown.`
+If you aren't a member of an organization you remove, you can't add it back
+yourself, so you're asked to confirm unless you pass ` + "`--yes`" + `.
+
+Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); without
+it, the first argument is used as that organization, so always pass
+` + "`--org`" + ` when you list slugs. With neither, you pick from the
+organizations you administer in a terminal.`
 		short = "Remove allowed replay source organizations"
 		usage = "remove [<slug>...]"
 	)

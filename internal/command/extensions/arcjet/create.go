@@ -16,7 +16,18 @@ import (
 func create() (cmd *cobra.Command) {
 	const (
 		short = "Create an Arcjet site"
-		long  = short + "\n"
+		long  = `Create an Arcjet site. In an app directory, or with ` + "`--app`" + `, the site is
+attached to that app, and the command fails if the app already has one.
+Otherwise the site belongs to an organization, which you pick from a
+list unless you pass ` + "`--org`" + `.
+
+The first time you use Arcjet you must accept its terms of service;
+` + "`--yes`" + ` accepts them, and is required to do so without a terminal.
+
+For an app's site, the values Arcjet provides are set as secrets on the
+app and its machines restart to pick them up. If any of those secrets
+already exist, none are set, and the values are printed for you to set
+yourself.`
 	)
 
 	cmd = command.New("create",

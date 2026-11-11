@@ -18,9 +18,14 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy a Kubernetes cluster`
+		short = "Permanently destroy a Kubernetes cluster"
+		long  = `Permanently destroy a Fly Kubernetes cluster, given by name as the
+argument. This can't be undone.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required. Find cluster names with
+` + "`fly ext k8s list`" + `.`
+
 		usage = "destroy [name]"
 	)
 

@@ -15,10 +15,17 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `Extensions are additional functionality that can be added to your Fly apps`
+		short = "Provision and manage extensions for Fly apps"
+		long  = `Provision and manage services from Fly.io extension partners, such as
+Tigris object storage, Sentry, Upstash Vector, Arcjet and Wafris, as well as
+Fly Kubernetes clusters. Many extensions can be attached to an app, which
+then gets the extension's credentials as secrets.
+
+Each extension has its own subcommand, such as ` + "`fly ext storage`" + ` or
+` + "`fly ext sentry`" + `. Most start with a create command.`
 	)
 
-	cmd = command.New("extensions", long, long, nil)
+	cmd = command.New("extensions", short, long, nil)
 	cmd.Aliases = []string{"extensions", "ext"}
 
 	cmd.Args = cobra.NoArgs

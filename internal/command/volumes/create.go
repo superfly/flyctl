@@ -22,8 +22,20 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Create a new volume for an app."
-		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://docs.fly.io/launch/volume-storage"
+		short = "Create a new volume for an app"
+		long  = `Create a Fly Volume for the app from ` + "`--app`" + ` or fly.toml. The volume
+name is required. The region comes from
+` + "`--region`" + `; without it you pick one in a terminal, and without a
+terminal the region is required. By default the volume is 1GB, encrypted,
+and keeps snapshots for 5 days.
+
+If the app has no other volume with this name, fly warns that each volume
+lives on a single host and asks you to confirm. Pass ` + "`--yes`" + ` to skip
+the prompt; it's required without a terminal. ` + "`--count`" + ` creates
+several volumes with the same name, without the prompt.
+
+Learn how to add a volume to your app:
+https://docs.fly.io/launch/volume-storage`
 		usage = "create <volume name>"
 	)
 

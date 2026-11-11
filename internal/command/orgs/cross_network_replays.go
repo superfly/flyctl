@@ -17,7 +17,11 @@ import (
 
 func newCrossNetworkReplays() *cobra.Command {
 	const (
-		long  = `Commands for managing cross-network replay permissions.`
+		long = `Control whether apps in an organization can replay requests to apps on a
+different private network in the same organization. When disabled, replays
+are limited to apps on the same network.
+
+Check the current setting with ` + "`fly orgs cross-network-replays status`" + `.`
 		short = "Manage cross-network replay settings"
 	)
 
@@ -34,7 +38,12 @@ func newCrossNetworkReplays() *cobra.Command {
 
 func newCrossNetworkReplaysStatus() *cobra.Command {
 	const (
-		long  = `Show whether cross-network replays are allowed for this organization.`
+		long = `Show whether apps in an organization can replay requests to apps on other
+networks in the same organization.
+
+Choose the organization with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise
+you pick from the organizations you administer in a terminal, and without
+a terminal the organization is required.`
 		short = "Show cross-network replay status"
 		usage = "status"
 	)
@@ -79,7 +88,13 @@ func runCrossNetworkReplaysStatus(ctx context.Context) error {
 
 func newCrossNetworkReplaysEnable() *cobra.Command {
 	const (
-		long  = `Enable cross-network replays for this organization. Apps will be able to replay requests to apps in different networks within the same org.`
+		long = `Allow apps in an organization to replay requests to apps on different
+networks within the same organization.
+
+Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise
+you pick from the organizations you administer in a terminal, and without
+a terminal the organization is required. You're asked to confirm unless you pass ` + "`--yes`" + `, which is
+required without a terminal.`
 		short = "Enable cross-network replays"
 		usage = "enable"
 	)
@@ -130,7 +145,13 @@ func runCrossNetworkReplaysEnable(ctx context.Context) error {
 
 func newCrossNetworkReplaysDisable() *cobra.Command {
 	const (
-		long  = `Disable cross-network replays for this organization. Replays will be scoped to apps within the same network.`
+		long = `Limit request replays in an organization to apps on the same network.
+This can break existing replay traffic that crosses networks.
+
+Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise
+you pick from the organizations you administer in a terminal, and without
+a terminal the organization is required. You're asked to confirm unless you pass ` + "`--yes`" + `, which is
+required without a terminal.`
 		short = "Disable cross-network replays"
 		usage = "disable"
 	)

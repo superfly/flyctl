@@ -25,10 +25,15 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `Show the application's current status including application
-details, tasks, most recent deployment details and in which regions it is
-currently allocated.
-`
+		long = `Show the app's name, organization, hostname and image, followed by a table
+of its Machines with each one's process group, ID, version, region, state,
+role, health checks and last update time. When a newer version of a
+Fly.io-tracked image is available, it also lists the Machines that can
+update (see ` + "`fly image update`" + `). The app comes from --app or fly.toml.
+
+--watch redraws the status every --rate seconds (5 by default) until you
+press Ctrl-C; it needs a terminal and can't be combined with --json. --json
+prints the app and its Machines as JSON. For logs, run ` + "`fly logs`" + `.`
 		short = "Show app status"
 	)
 

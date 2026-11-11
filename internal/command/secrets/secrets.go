@@ -31,12 +31,17 @@ var sharedFlags = flag.Set{
 
 func New() *cobra.Command {
 	const (
-		long = `Secrets are provided to applications at runtime as ENV variables. Names are
-		case sensitive and stored as-is, so ensure names are appropriate for
-		the application and vm environment.
-		`
+		long = `Manage an app's secrets. Secrets are encrypted values that your app's
+Machines receive as environment variables at runtime. Names are case
+sensitive and stored as-is.
 
-		short = "Manage application secrets with the set and unset commands."
+Use ` + "`fly secrets set`" + ` and ` + "`fly secrets unset`" + ` to change secrets; by
+default each change restarts the app's Machines so they pick it up. Add
+` + "`--stage`" + ` to change secrets without restarting, then apply staged changes
+later with ` + "`fly secrets deploy`" + ` or your next ` + "`fly deploy`" + `. Use
+` + "`fly secrets list`" + ` to see names, digests and deployment status.`
+
+		short = "Manage app secrets"
 	)
 
 	secrets := command.New("secrets", short, long, nil)

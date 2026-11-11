@@ -37,7 +37,11 @@ func confirmAlloc(ctx context.Context, msg string) error {
 
 func newAllocatev4() *cobra.Command {
 	const (
-		long  = `Allocates an IPv4 address to the application`
+		long = `Allocate a public IPv4 address to the app. By default this is a
+dedicated IPv4, which is a paid feature: fly asks you to confirm, and
+without a terminal you need ` + "`--yes`" + `. Pass ` + "`--shared`" + ` to allocate a free
+shared IPv4 instead, with no prompt. See the result with
+` + "`fly ips list`" + `.`
 		short = `Allocate an IPv4 address`
 	)
 
@@ -63,7 +67,11 @@ func newAllocatev4() *cobra.Command {
 
 func newAllocatev6() *cobra.Command {
 	const (
-		long  = `Allocates an IPv6 address to the application`
+		long = `Allocate a dedicated public IPv6 address to the app, without a prompt.
+
+With ` + "`--private`" + `, allocate a private Flycast IPv6 address instead, for
+traffic from inside Fly's private network; ` + "`--org`" + ` and ` + "`--network`" + `
+apply only to these. See the result with ` + "`fly ips list`" + `.`
 		short = `Allocate an IPv6 address`
 	)
 
@@ -92,7 +100,15 @@ func newAllocatev6() *cobra.Command {
 
 func newAllocateEgress() *cobra.Command {
 	const (
-		long  = `Allocates a pair of egress IP addresses for an app`
+		long = `Allocate a pair of static egress addresses (one IPv4, one IPv6) for the
+app in the region given by ` + "`--region`" + `, which is required. Machines in that
+region use them for outgoing connections; they can't be used to reach the
+app. Newly allocated egress IPs can take 5 to 10 minutes to apply to
+existing Machines.
+
+fly asks you to confirm, and asks again if the app has no Machines in that
+region. Pass ` + "`--yes`" + ` to skip the prompts; it's required without a terminal.
+Release them with ` + "`fly ips release-egress`" + `.`
 		short = `Allocate app-scoped egress IPs`
 	)
 

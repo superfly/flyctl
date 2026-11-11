@@ -15,9 +15,16 @@ import (
 
 func newProxy() (cmd *cobra.Command) {
 	const (
-		long = `Proxy to a MPG database`
+		long = `Forward a local port to a Managed Postgres cluster over your
+organization's WireGuard network, so any Postgres client on your machine
+can connect to it. By default it listens on 127.0.0.1:16380; change this
+with --bind-addr and --local-port. The proxy runs until you stop it.
 
-		short = long
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required. To open psql
+directly, use ` + "`fly mpg connect`" + `.`
+
+		short = "Proxy a local port to a Managed Postgres cluster"
 		usage = "proxy <CLUSTER ID>"
 	)
 

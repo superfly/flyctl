@@ -17,9 +17,14 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List the volumes associated with an app."
+		short = "List the volumes associated with an app"
 
-		long = short
+		long = `List the Fly Volumes of the app from ` + "`--app`" + ` or fly.toml, with each
+volume's state, size, region, zone, encryption and attached machine.
+Destroyed volumes are hidden unless you pass ` + "`--all`" + `. Volumes whose
+host can't be reached are marked with *.
+
+Show one volume in detail with ` + "`fly volumes show`" + `.`
 	)
 
 	cmd := command.New("list", short, long, runList,

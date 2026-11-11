@@ -13,8 +13,13 @@ import (
 // TODO: make internal once the open command has been deprecated
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Launch and manage Redis databases managed by Upstash.com`
-		short = long
+		short = "Manage Upstash Redis databases"
+		long  = `Create and manage Redis databases run by Upstash. A database belongs to
+an organization rather than an app, and apps in that organization
+connect to it with the URL shown by ` + "`fly redis status`" + `.
+
+Start with ` + "`fly redis create`" + `. Use ` + "`fly redis connect`" + ` for a redis-cli
+session and ` + "`fly redis plans`" + ` to compare plans.`
 	)
 
 	cmd = command.New("redis", short, long, nil)

@@ -9,7 +9,9 @@ import (
 func New() *cobra.Command {
 	const (
 		short = "Manage app image"
-		long  = short + "\n"
+		long  = `Inspect and update the image an app's Machines run. ` + "`fly image show`" + ` lists
+each Machine's image and any newer version available; ` + "`fly image update`" + `
+moves Machines to the latest version.`
 
 		usage = "image"
 	)

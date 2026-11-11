@@ -18,9 +18,17 @@ import (
 
 func newExtend() *cobra.Command {
 	const (
-		short = "Extend a volume to the specified size."
+		short = "Extend a volume to the specified size"
 
-		long = short + ` Most Machines don't require a restart after extending a volume. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
+		long = `Grow a Fly Volume to the size given by ` + "`--size`" + `, which is required.
+Give a size in gigabytes (such as 20) or with units (such as 20gb), or
+prefix it with + to add to the current size (such as +10; this needs the
+volume ID). With no volume ID, you pick a volume of the app from a list in a terminal; without a
+terminal, the ID is required.
+
+Most machines see the new size without a restart. If a machine needs one,
+fly says so; stop and start it with ` + "`fly machine stop`" + ` and
+` + "`fly machine start`" + `.`
 
 		usage = "extend <volume id>"
 	)

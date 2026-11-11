@@ -19,10 +19,15 @@ import (
 // TODO: make internal once the open command has been deprecated
 func NewOpen() (cmd *cobra.Command) {
 	const (
-		long = `Open browser to current deployed application. If an optional relative URI is specified, it is appended
-to the root URL of the deployed application.
-`
-		short = "Open browser to current deployed application"
+		long = `Open the app's public URL in your browser. With a relative URI argument,
+such as ` + "`/admin`" + `, it's appended to the app's URL.
+
+The URL is https://<app>.fly.dev/ for an app with an [http_service], and for
+[[services]] it follows the ports that use the http handler. flyctl reads
+the local fly.toml when it belongs to the app, and the deployed
+configuration otherwise; if neither can be loaded, it opens
+https://<app>.fly.dev/. It fails when the app has no public HTTP service.`
+		short = "Open the app's URL in a browser"
 
 		usage = "open [RELATIVE_URI]"
 	)

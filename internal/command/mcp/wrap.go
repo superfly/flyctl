@@ -46,7 +46,18 @@ type Server struct {
 func NewWrap() *cobra.Command {
 	const (
 		short = "[experimental] Wrap an MCP stdio program"
-		long  = short + `. Options passed after double dashes ("--") will be passed to the MCP program. If user is specified, HTTP authentication will be required.` + "\n"
+		long  = `Start a stdio MCP program and serve it over HTTP on all interfaces at
+` + "`--port`" + ` (8080 by default). Name the program with ` + "`--mcp`" + `, or put it
+and its arguments after "--". ` + "`fly mcp launch`" + ` uses this as the entry
+point of the Machines it deploys.
+
+Requests must carry the bearer token if one is set, or else HTTP basic auth
+if a user is set; with neither, requests are not authenticated. The
+FLY_MCP_BEARER_TOKEN, FLY_MCP_USER and FLY_MCP_PASSWORD environment variables
+take precedence over the matching flags. With ` + "`--private`" + ` (or
+FLY_MCP_PRIVATE set), requests arriving through the Fly proxy from outside
+the private network are rejected.
+`
 		usage = "wrap"
 	)
 

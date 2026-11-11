@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -231,9 +232,75 @@ func wrapFlagUsages(cmd *pflag.FlagSet) string {
 }
 
 func wrapText(s string) string {
-	width := helpWidth()
+	return wrapParagraphs(heredoc.Doc(s), helpWidth()-1)
+}
 
-	return strings.TrimSpace(text.Wrap(heredoc.Doc(s), width-1))
+// wrapParagraphs reflows each blank-line-separated paragraph of s to width,
+// keeping the blank lines between them. A paragraph with a line that is
+// indented or starts like a list item is laid out line by line instead:
+// list items longer than width wrap with a hanging indent under the item
+// text, other indented lines (code, commands, tables) are never wrapped so
+// they stay copyable, and other lines wrap normally.
+func wrapParagraphs(s string, width int) string {
+	var out []string
+	for _, para := range paragraphBreak.Split(strings.TrimSpace(s), -1) {
+		para = strings.Trim(para, "\n")
+		if para == "" {
+			continue
+		}
+
+		lines := strings.Split(para, "\n")
+		if !isLineBased(lines) {
+			out = append(out, text.Wrap(para, width))
+			continue
+		}
+
+		for i, line := range lines {
+			lines[i] = wrapLine(line, width)
+		}
+		out = append(out, strings.Join(lines, "\n"))
+	}
+
+	return strings.Join(out, "\n\n")
+}
+
+// wrapLine lays out one line of a line-based paragraph.
+func wrapLine(line string, width int) string {
+	if len(line) <= width {
+		return line
+	}
+
+	if marker := listItem.FindString(line); marker != "" {
+		hang := strings.Repeat(" ", len(marker))
+		body := text.Wrap(line[len(marker):], width-len(marker))
+
+		return marker + strings.ReplaceAll(body, "\n", "\n"+hang)
+	}
+
+	if isIndented(line) {
+		return line
+	}
+
+	return text.Wrap(line, width)
+}
+
+var (
+	paragraphBreak = regexp.MustCompile(`\n[ \t]*\n`)
+	listItem       = regexp.MustCompile(`^[ \t]*(?:[-*•]|\d+[.)])[ \t]+`)
+)
+
+func isIndented(line string) bool {
+	return strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")
+}
+
+func isLineBased(lines []string) bool {
+	for _, line := range lines {
+		if isIndented(line) || listItem.MatchString(line) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func helpWidth() int {

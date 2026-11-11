@@ -16,8 +16,10 @@ import (
 
 func newUsers() *cobra.Command {
 	const (
-		short = "Manage users in a managed postgres cluster"
-		long  = short + "\n"
+		short = "Manage users in a Managed Postgres cluster"
+		long  = `List, create and delete database users in a Managed Postgres cluster,
+change their roles, and rotate their passwords. Each user has one role:
+schema_admin, writer or reader.`
 	)
 
 	cmd := command.New("users", short, long, nil)
@@ -36,8 +38,12 @@ func newUsers() *cobra.Command {
 
 func newUsersList() *cobra.Command {
 	const (
-		long  = `List users in a Managed Postgres cluster.`
-		short = "List users in an MPG cluster."
+		long = `List the database users in a Managed Postgres cluster with each user's
+role.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.`
+		short = "List users in a Managed Postgres cluster"
 		usage = "list <CLUSTER_ID>"
 	)
 
@@ -70,8 +76,16 @@ func runUsersList(ctx context.Context) error {
 
 func newUsersCreate() *cobra.Command {
 	const (
-		long  = `Create a new user in a Managed Postgres cluster.`
-		short = "Create a user in an MPG cluster."
+		long = `Create a database user in a Managed Postgres cluster with a role of
+schema_admin, writer or reader. Pass --username and --role, or enter them
+when asked in a terminal; without a terminal, both are required.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.
+
+To give an app a connection string for the new user, use
+` + "`fly mpg attach --username`" + `.`
+		short = "Create a user in a Managed Postgres cluster"
 		usage = "create <CLUSTER_ID>"
 	)
 
@@ -115,8 +129,13 @@ func runUsersCreate(ctx context.Context) error {
 
 func newUsersSetRole() *cobra.Command {
 	const (
-		long  = `Update a user's role in a Managed Postgres cluster.`
-		short = "Update a user's role in an MPG cluster."
+		long = `Change a database user's role in a Managed Postgres cluster to
+schema_admin, writer or reader. Pass --username and --role, or pick them
+from lists in a terminal; without a terminal, both are required.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.`
+		short = "Change a user's role in a Managed Postgres cluster"
 		usage = "set-role <CLUSTER_ID>"
 	)
 
@@ -160,8 +179,14 @@ func runUsersSetRole(ctx context.Context) error {
 
 func newUsersDelete() *cobra.Command {
 	const (
-		long  = `Delete a user from a Managed Postgres cluster.`
-		short = "Delete a user from an MPG cluster."
+		long = `Delete a database user from a Managed Postgres cluster. This can't be
+undone. Pass --username, or pick the user from a list in a terminal.
+You're asked to confirm unless you pass --yes; without a terminal,
+--username and --yes are required.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.`
+		short = "Delete a user from a Managed Postgres cluster"
 		usage = "delete <CLUSTER_ID>"
 	)
 
@@ -201,9 +226,18 @@ func runUsersDelete(ctx context.Context) error {
 
 func newUsersRotatePassword() *cobra.Command {
 	const (
-		long = `Rotate a user's password in a Managed Postgres cluster. Prints the new password.
-Update applications and DATABASE_URL secrets that use the old password.`
-		short = "Rotate a user's password in an MPG cluster."
+		long = `Give a Managed Postgres user a new password and print it. This can't be
+undone: apps using the old password can't open new connections, so update
+their DATABASE_URL secrets afterwards. Existing sessions stay open unless
+you pass --kill-sessions.
+
+Pass --username, or pick the user from a list in a terminal. You're asked
+to confirm unless you pass --yes. Without a terminal, --username and --yes
+are required; with --json, the cluster ID is required too.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required. Not available for v1 clusters.`
+		short = "Rotate a user's password in a Managed Postgres cluster"
 		usage = "rotate-password <CLUSTER_ID>"
 	)
 

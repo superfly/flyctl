@@ -17,13 +17,14 @@ import (
 
 func newWhoAmI() *cobra.Command {
 	const (
-		long = `Displays the users email address/service identity currently
-authenticated and in use.
-`
+		long = `Print the email address of the user that fly is authenticated as. This
+reflects the token fly is using, which can come from ` + "`--access-token`" + `,
+` + "`FLY_ACCESS_TOKEN`" + `, ` + "`FLY_API_TOKEN`" + ` or the login saved by
+` + "`fly auth login`" + `.`
 		short = "Show the currently authenticated user"
 	)
 
-	cmd := command.New("whoami", long, short, runWhoAmI,
+	cmd := command.New("whoami", short, long, runWhoAmI,
 		command.RequireSession)
 	flag.Add(cmd, flag.JSONOutput())
 

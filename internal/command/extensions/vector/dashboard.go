@@ -12,9 +12,15 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the Upstash Vector dashboard on the Upstash web console`
+		short = "Open the Upstash Vector dashboard in your browser"
+		long  = `Open the Upstash web console for an app's Vector index in your browser,
+using a sign-in link from Fly.io. Run the command in an app directory or
+pass ` + "`--app`" + `. With ` + "`--org`" + `, it opens that organization's Upstash Vector
+dashboard instead.
 
-		short = long
+If you haven't accepted Upstash Vector's terms of service yet, you're
+asked to; ` + "`--yes`" + ` accepts them.`
+
 		usage = "dashboard"
 	)
 

@@ -23,8 +23,10 @@ var pgSettings = map[string]string{
 
 func newConfig() (cmd *cobra.Command) {
 	const (
-		short = "Show and manage Postgres configuration."
-		long  = short + "\n"
+		short = "Show and update Postgres configuration"
+		long  = `Show and change a set of Postgres settings on a Fly Postgres cluster, such
+as max_connections, shared_buffers and work_mem. Start with
+` + "`fly postgres config show`" + `, then change values with ` + "`fly postgres config update`" + `.`
 	)
 
 	cmd = command.New("config", short, long, nil)
