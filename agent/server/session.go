@@ -421,6 +421,12 @@ func (s *session) connect(ctx context.Context, args ...string) {
 		return
 	}
 
+	if args[0] == "personal" {
+		s.error(errors.New("This command cannot use the updated agent with the personal organization alias. Update flyctl and restart this command."))
+
+		return
+	}
+
 	tunnel := s.srv.tunnelFor(args[0], args[3])
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)

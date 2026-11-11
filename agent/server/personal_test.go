@@ -113,8 +113,9 @@ func TestPersonalAccountsUseDistinctTunnels(t *testing.T) {
 
 	// A transport request carries no credentials, so the alias must not be
 	// resolved for it: the agent's own account (a) is not necessarily the caller.
-	require.Equal(t, "err tunnel unavailable", personalCommand(t, ctx, srv, "", "connect", "personal", "[fdaa:0:1::9]:80", "200", ""))
+	require.Equal(t, "err This command cannot use the updated agent with the personal organization alias. Update flyctl and restart this command.", personalCommand(t, ctx, srv, "", "connect", "personal", "[fdaa:0:1::9]:80", "200", ""))
 	require.Equal(t, "err tunnel unavailable", personalCommand(t, ctx, srv, "", "ping6", "personal"))
+	require.Equal(t, "err tunnel unavailable", personalCommand(t, ctx, srv, "", "connect", "personal-missing", "[fdaa:0:1::9]:80", "200", ""))
 }
 
 func personalCommand(t *testing.T, ctx context.Context, srv *server, token, verb string, args ...string) string {
