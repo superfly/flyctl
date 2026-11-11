@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -75,6 +76,9 @@ func TestOpenCredentialFilesRejectsNonFlyKeyWithoutLooping(t *testing.T) {
 }
 
 func TestOpenCredentialFilesRejectsUnreadableFileWithoutLooping(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows ignores unix permission bits, so the file stays readable")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can read any file")
 	}
