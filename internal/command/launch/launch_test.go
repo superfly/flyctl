@@ -300,19 +300,22 @@ func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 func TestWithRedeployHint(t *testing.T) {
 	buildErr := errors.New("failed to fetch an image or build from source: error building: failed to receive status")
 
-	err := withRedeployHint(buildErr, "my-app", "`fly deploy`")
+	err := withRedeployHint(buildErr, true, "my-app", "`fly deploy`")
 	assert.ErrorIs(t, err, buildErr)
 	assert.Equal(t, buildErr.Error(), err.Error())
 	assert.Contains(t, flyerr.GetErrorSuggestion(err), "App my-app was created")
 	assert.Contains(t, flyerr.GetErrorSuggestion(err), "`fly deploy`")
 
+	// --no-create-app: there's no app to say was created.
+	assert.Same(t, buildErr, withRedeployHint(buildErr, false, "my-app", "`fly deploy`"))
+
 	// Advice the deploy already gave wins.
 	advised := flyerr.WithSuggestion(errors.New("volume placement"), "Try again later")
-	assert.Equal(t, advised, withRedeployHint(advised, "my-app", "`fly deploy`"))
+	assert.Equal(t, advised, withRedeployHint(advised, true, "my-app", "`fly deploy`"))
 
 	// Nothing to add to a launch the user cancelled.
-	assert.Same(t, context.Canceled, withRedeployHint(context.Canceled, "my-app", "`fly deploy`"))
-	assert.Same(t, flyerr.ErrAbort, withRedeployHint(flyerr.ErrAbort, "my-app", "`fly deploy`"))
+	assert.Same(t, context.Canceled, withRedeployHint(context.Canceled, true, "my-app", "`fly deploy`"))
+	assert.Same(t, flyerr.ErrAbort, withRedeployHint(flyerr.ErrAbort, true, "my-app", "`fly deploy`"))
 }
 
 // A cluster that exists but failed to attach may already have the app's

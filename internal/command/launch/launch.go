@@ -230,7 +230,7 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 		}
 
 		if err := state.firstDeploy(ctx); err != nil {
-			return withRedeployHint(err, state.Plan.AppName, deployHint(state.workingDir, configPath))
+			return withRedeployHint(err, !noCreateApp(ctx), state.Plan.AppName, deployHint(state.workingDir, configPath))
 		}
 	}
 
@@ -546,9 +546,10 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 // withRedeployHint tells someone whose first deploy failed that the app and its
 // fly.toml already exist, so `fly deploy` is the way to try again, not another
 // `fly launch`. The error's message is unchanged; an error that already carries
-// advice, or a cancelled launch, is returned as is.
-func withRedeployHint(err error, appName, hint string) error {
-	if errors.Is(err, context.Canceled) || errors.Is(err, flyerr.ErrAbort) || flyerr.GetErrorSuggestion(err) != "" {
+// advice, a cancelled launch, or one that created no app (--no-create-app) is
+// returned as is.
+func withRedeployHint(err error, appCreated bool, appName, hint string) error {
+	if !appCreated || errors.Is(err, context.Canceled) || errors.Is(err, flyerr.ErrAbort) || flyerr.GetErrorSuggestion(err) != "" {
 		return err
 	}
 	return flyerr.WithSuggestion(err, fmt.Sprintf(
