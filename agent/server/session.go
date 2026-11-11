@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/wg"
+	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -205,11 +206,11 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 	// Listing every organization can fail for tokens restricted to one org.
 	// Tunnel setup only needs the organization the client requested.
 	org, err := s.getClient(ctx).GetOrganizationBySlug(ctx, slug)
+	if isOrgNotFound(err) || (err == nil && org == nil) {
+		return nil, errNoSuchOrg
+	}
 	if err != nil {
 		return nil, err
-	}
-	if org == nil {
-		return nil, errNoSuchOrg
 	}
 
 	// The personal org is "personal" by Slug and its real name by RawSlug;
@@ -218,6 +219,13 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 	s.srv.rememberSlug(slug, org.Slug)
 
 	return org, nil
+}
+
+// isOrgNotFound reports whether err is the API saying the organization does
+// not exist. It answers with a NOT_FOUND GraphQL error, not a null result.
+func isOrgNotFound(err error) bool {
+	var gqlErr *graphql.GraphQLError
+	return errors.As(err, &gqlErr) && gqlErr.Extensions.Code == "NOT_FOUND"
 }
 
 var errMalformedProbe = errors.New("malformed probe command")

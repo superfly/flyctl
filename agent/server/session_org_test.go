@@ -37,7 +37,13 @@ func TestFetchOrg(t *testing.T) {
 			response: `{"data":{"organization":{"id":"org-id","slug":"personal","rawSlug":"my-personal-org"}}}`,
 		},
 		{
+			// What the API actually returns for an organization that doesn't exist.
 			name: "missing organization", slug: "missing",
+			response:  `{"errors":[{"message":"Could not find ","path":["organization"],"extensions":{"code":"NOT_FOUND"}}],"data":{"organization":null}}`,
+			wantError: errNoSuchOrg.Error(),
+		},
+		{
+			name: "null organization", slug: "missing",
 			response: `{"data":{"organization":null}}`, wantError: errNoSuchOrg.Error(),
 		},
 		{
