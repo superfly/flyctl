@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
@@ -109,14 +110,22 @@ type String struct {
 	Aliases           []string
 	UseAliasShortHand bool
 	CompletionFn      func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
+	// Value, when set, replaces the default pflag string value. Use it to add
+	// per-flag parsing rules without affecting any other string flag.
+	Value pflag.Value
 }
 
 func (s String) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
-	if s.Shorthand != "" {
+	switch {
+	case s.Value != nil && s.Shorthand != "":
+		flags.VarP(s.Value, s.Name, s.Shorthand, s.Description)
+	case s.Value != nil:
+		flags.Var(s.Value, s.Name, s.Description)
+	case s.Shorthand != "":
 		_ = flags.StringP(s.Name, s.Shorthand, s.Default, s.Description)
-	} else {
+	default:
 		_ = flags.String(s.Name, s.Default, s.Description)
 	}
 
@@ -335,6 +344,7 @@ func Region() String {
 		Description:  "The target region (see 'flyctl platform regions')",
 		Shorthand:    "r",
 		CompletionFn: completion.CompleteRegions,
+		Value:        &regionValue{flagName: flagnames.Region},
 	}
 }
 
