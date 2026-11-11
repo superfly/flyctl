@@ -2,7 +2,7 @@ package ssh
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -140,6 +140,8 @@ func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdou
 
 		return err
 	case <-ctx.Done():
-		return errors.New("session forcibly closed; the remote process may still be running")
+		// The cause (e.g. "interrupt signal received") says why, and keeps the
+		// cancellation recognisable to callers that filter it.
+		return fmt.Errorf("session forcibly closed; the remote process may still be running: %w", context.Cause(ctx))
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/pkg/ioutils"
@@ -28,7 +29,6 @@ import (
 	"github.com/superfly/flyctl/ip"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
-	gossh "golang.org/x/crypto/ssh"
 )
 
 func stdArgsSSH(cmd *cobra.Command) {
@@ -144,11 +144,13 @@ func newConsole() *cobra.Command {
 // SessionTarget selects where a session runs on the remote machine.
 type SessionTarget = ssh.SessionTarget
 
+var errExecRejected = errors.New("ssh shell: server rejected the exec request")
+
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// A remote command failure is not a failure of the SSH client.
-	var exitErr *gossh.ExitError
-	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
-		return
+	// x/crypto/ssh puts the user's whole command line in this error when the
+	// server refuses an exec request. Report that it happened, not the command.
+	if strings.Contains(err.Error(), "ssh: command ") && strings.HasSuffix(err.Error(), " failed") {
+		err = errExecRejected
 	}
 
 	sentry.CaptureException(err,

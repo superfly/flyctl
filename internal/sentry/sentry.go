@@ -125,7 +125,7 @@ func WithRequestID(requestID string) CaptureOption {
 }
 
 func CaptureException(err error, opts ...CaptureOption) {
-	if !isInitialized() {
+	if !isInitialized() || ignore(err) {
 		return
 	}
 
