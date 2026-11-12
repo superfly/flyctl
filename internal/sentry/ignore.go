@@ -14,8 +14,7 @@ import (
 // type in the chain, so they are matched on text.
 var ignoredMessages = []string{
 	// Ctrl-C or SIGTERM, surfaced through context.Cause by signal.NotifyContext.
-	"interrupt signal received",
-	"terminated signal received",
+	"signal received",
 	"deployment aborted by user",
 	// Account states the API already explains to the user.
 	"reached its machine limit",
@@ -28,7 +27,24 @@ var ignoredMessages = []string{
 // ignore reports whether err is an expected outcome that should not be sent
 // to Sentry.
 func ignore(err error) bool {
-	if err == nil || flyerr.IsCancelledError(err) {
+	if err == nil {
+		return true
+	}
+
+	// A combined error (errors.Join, multierror) is only noise if every part
+	// is; one crashing machine must not hide a real failure on another.
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if parts := multi(e); parts != nil {
+			for _, p := range parts {
+				if !ignore(p) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	if flyerr.IsCancelledError(err) {
 		return true
 	}
 
@@ -48,4 +64,14 @@ func ignore(err error) bool {
 	}
 
 	return false
+}
+
+func multi(err error) []error {
+	switch e := err.(type) {
+	case interface{ Unwrap() []error }:
+		return e.Unwrap()
+	case interface{ WrappedErrors() []error }:
+		return e.WrappedErrors()
+	}
+	return nil
 }

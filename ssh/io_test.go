@@ -94,8 +94,10 @@ func TestSessionIOForcedCloseIsNotASilentCancel(t *testing.T) {
 	cause := fmt.Errorf("interrupt signal received: %w", context.Canceled) // like signal.NotifyContext
 	cancel(cause)
 	sessIO := &SessionIO{}
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
 	err := sessIO.attachPipes(ctx, testWriteCloser{Writer: io.Discard}, strings.NewReader(""), strings.NewReader(""),
-		func() error { select {} })
+		func() error { <-release; return nil })
 	// The CLI prints nothing and exits 127 for context.Canceled; this error
 	// must still be shown so the user knows the remote process may be running.
 	if errors.Is(err, context.Canceled) {

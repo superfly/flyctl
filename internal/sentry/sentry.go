@@ -153,6 +153,12 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 }
 
 func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *fly.AppCompact) {
+	// Check the whole chain here: the FlapsError branch below reports only
+	// the inner error, which loses any cancellation wrapped around it.
+	if ignore(err) {
+		return
+	}
+
 	if appCompact == nil {
 		CaptureException(
 			err,
@@ -202,6 +208,11 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 }
 
 func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureName string, app *flaps.App) {
+	// See CaptureExceptionWithAppInfo.
+	if ignore(err) {
+		return
+	}
+
 	if app == nil {
 		CaptureException(
 			err,
