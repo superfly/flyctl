@@ -6,7 +6,6 @@ import (
 	"os"
 	"runtime"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/docker/docker/pkg/ioutils"
@@ -144,15 +143,7 @@ func newConsole() *cobra.Command {
 // SessionTarget selects where a session runs on the remote machine.
 type SessionTarget = ssh.SessionTarget
 
-var errExecRejected = errors.New("ssh shell: server rejected the exec request")
-
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// x/crypto/ssh puts the user's whole command line in this error when the
-	// server refuses an exec request. Report that it happened, not the command.
-	if strings.Contains(err.Error(), "ssh: command ") && strings.HasSuffix(err.Error(), " failed") {
-		err = errExecRejected
-	}
-
 	sentry.CaptureException(err,
 		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),

@@ -2,8 +2,10 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -93,6 +95,9 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 	})
 }
 
+// ErrExecRejected is returned when the server refuses to run a command.
+var ErrExecRejected = errors.New("the server rejected the command")
+
 func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdout, stderr io.Reader, run func() error) error {
 	var closeStdin sync.Once
 	defer closeStdin.Do(func() {
@@ -128,6 +133,11 @@ func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdou
 		if err == io.EOF {
 			err = nil
 		}
+		// x/crypto/ssh reports a refused exec request as "ssh: command <cmd>
+		// failed", which would carry the user's command line into Sentry.
+		if err != nil && strings.HasPrefix(err.Error(), "ssh: command ") && strings.HasSuffix(err.Error(), " failed") {
+			err = ErrExecRejected
+		}
 		cmdC <- err
 	}()
 
@@ -140,8 +150,9 @@ func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdou
 
 		return err
 	case <-ctx.Done():
-		// The cause (e.g. "interrupt signal received") says why, and keeps the
-		// cancellation recognisable to callers that filter it.
-		return fmt.Errorf("session forcibly closed; the remote process may still be running: %w", context.Cause(ctx))
+		// Include the cause (e.g. "interrupt signal received") as text, not
+		// %w: wrapping it would make the CLI treat this as a silent
+		// cancellation and hide the warning that the process may still run.
+		return fmt.Errorf("session forcibly closed; the remote process may still be running (%v)", context.Cause(ctx))
 	}
 }

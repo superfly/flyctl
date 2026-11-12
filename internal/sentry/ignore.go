@@ -1,10 +1,10 @@
 package sentry
 
 import (
-	"context"
 	"errors"
 	"strings"
 
+	"github.com/superfly/flyctl/internal/flyerr"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -16,7 +16,6 @@ var ignoredMessages = []string{
 	// Ctrl-C or SIGTERM, surfaced through context.Cause by signal.NotifyContext.
 	"interrupt signal received",
 	"terminated signal received",
-	"context canceled",
 	"deployment aborted by user",
 	// Account states the API already explains to the user.
 	"reached its machine limit",
@@ -29,7 +28,7 @@ var ignoredMessages = []string{
 // ignore reports whether err is an expected outcome that should not be sent
 // to Sentry.
 func ignore(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) {
+	if err == nil || flyerr.IsCancelledError(err) {
 		return true
 	}
 
