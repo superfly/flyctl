@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -201,6 +202,8 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	if org.Slug == "personal" {
 		slug = org.RawSlug
 	}
+
+	ctx = requestauth.WithOrganizations(ctx, org.InternalNumericID)
 
 	// Create the cluster with retry logic for network errors.
 	input := flaps.CreateManagedPostgresClusterRequest{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -140,7 +143,9 @@ func (e assertErr) Error() string { return string(e) }
 
 func TestDeployMachinesApp(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	client := &mockFlapsClient{}
+	var checks atomic.Int32
+	assertOrg := authtest.Organization(t, 7)
+	client := &mockFlapsClient{checkRequest: func(ctx context.Context) { assertOrg(ctx); checks.Add(1) }}
 	webClient := &mock.Client{
 		GetAppLogsFunc: func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error) {
 			return nil, "", nil
@@ -153,7 +158,12 @@ func TestDeployMachinesApp(t *testing.T) {
 		{ID: "m4", LeaseNonce: "m4-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
 	}
 	md := &machineDeployment{
-		app:             &flaps.App{},
+		app:           &flaps.App{Organization: flaps.AppOrganizationInfo{InternalNumericID: 7}},
+		skipDNSChecks: true,
+		uiexClient: &mock.UiexClient{UpdateReleaseFunc: func(ctx context.Context, _ string, _ string, _ any) (*uiex.Release, error) {
+			assertOrg(ctx)
+			return &uiex.Release{}, nil
+		}},
 		io:              ios,
 		colorize:        ios.ColorScheme(),
 		flapsClient:     client,
@@ -171,8 +181,9 @@ func TestDeployMachinesApp(t *testing.T) {
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, ios)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
-	err := md.deployMachinesApp(ctx)
+	err := md.DeployMachinesApp(ctx)
 	assert.NoError(t, err)
+	require.Positive(t, checks.Load())
 }
 
 func TestVolumePlacementCapacitySuggestion(t *testing.T) {
