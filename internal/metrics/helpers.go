@@ -182,6 +182,30 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 	}
 }
 
+// ImagePushPayload reports how long pushing an image to the Fly registry took,
+// labelled by the builder that produced it. BuilderRegion is only known for
+// remote builders, where it is the builder machine's region.
+type ImagePushPayload struct {
+	DurationSeconds float64 `json:"duration_seconds"`
+	BuilderType     string  `json:"builder_type,omitempty"`
+	BuilderRegion   string  `json:"builder_region,omitempty"`
+}
+
+// StartImagePushTiming times an image push, labelling the duration with the
+// builder's type and region. Call the returned function only once the push has
+// finished: the Docker client returns while the layers are still uploading.
+func StartImagePushTiming(ctx context.Context, builderType, builderRegion string) func() {
+	start := time.Now()
+
+	return func() {
+		Send(ctx, "image_push/duration", ImagePushPayload{
+			DurationSeconds: time.Since(start).Seconds(),
+			BuilderType:     builderType,
+			BuilderRegion:   builderRegion,
+		})
+	}
+}
+
 // OperatorFromSignals returns an operator classification and, when the
 // operator is "agent", the agent name. Precedence is defined by
 // clientsignals.Signals.Operator(): ci > agent > interactive > unknown.

@@ -102,11 +102,12 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, docker, streams, opts.Tag, build); err != nil {
 			build.PushFinish()
 
 			return nil, "", err
 		}
+		build.PushFinish()
 
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
