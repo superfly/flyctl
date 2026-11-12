@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/superfly/flyctl/gql"
@@ -227,7 +228,7 @@ func newMachineExec() *cobra.Command {
 func newWireGuard() *cobra.Command {
 	const (
 		short = "Create a WireGuard token"
-		long  = "Create an API token limited to WireGuard peer management for an organization. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
+		long  = "Create an API token limited to WireGuard peer management for an organization. Use --network to limit it to peers on specific networks. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "wireguard"
 	)
 
@@ -248,6 +249,10 @@ func newWireGuard() *cobra.Command {
 			Shorthand:   "n",
 			Description: "Token name",
 			Default:     "WireGuard token",
+		},
+		flag.StringSlice{
+			Name:        "network",
+			Description: "Limit the token to WireGuard peers on these networks. Repeat the flag or separate names with commas. \"default\" is the organization's default network",
 		},
 		flag.Org(),
 	)
@@ -570,6 +575,11 @@ func runWireGuard(ctx context.Context) error {
 	var token string
 	apiClient := flyutil.ClientFromContext(ctx)
 
+	cavs, err := getWireGuardCaveats(ctx)
+	if err != nil {
+		return err
+	}
+
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
 		expiry = expiryDuration.String()
@@ -587,17 +597,7 @@ func runWireGuard(ctx context.Context) error {
 
 	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
 
-	token, err = attenuate(token, &resset.IfPresent{
-		Ifs: macaroon.NewCaveatSet(
-			&flyio.Apps{Apps: resset.ResourceSet[uint64, resset.Action]{}},
-			&flyio.FeatureSet{
-				Features: resset.ResourceSet[string, resset.Action]{
-					flyio.FeatureWireGuard: resset.ActionAll,
-				},
-			},
-		),
-		Else: resset.ActionRead,
-	})
+	token, err = attenuate(token, cavs...)
 	if err != nil {
 		return err
 	}
@@ -610,6 +610,49 @@ func runWireGuard(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func getWireGuardCaveats(ctx context.Context) ([]macaroon.Caveat, error) {
+	cavs := []macaroon.Caveat{
+		&resset.IfPresent{
+			Ifs: macaroon.NewCaveatSet(
+				&flyio.Apps{Apps: resset.ResourceSet[uint64, resset.Action]{}},
+				&flyio.FeatureSet{
+					Features: resset.ResourceSet[string, resset.Action]{
+						flyio.FeatureWireGuard: resset.ActionAll,
+					},
+				},
+			),
+			Else: resset.ActionRead,
+		},
+	}
+
+	if !flag.IsSpecified(ctx, "network") {
+		return cavs, nil
+	}
+
+	networks := resset.ResourceSet[string, resset.Action]{}
+	for _, name := range flag.GetStringSlice(ctx, "network") {
+		switch name = strings.TrimSpace(name); name {
+		case "":
+			// An empty name in the caveat matches every network.
+			return nil, errors.New("--network can't have an empty network name")
+		case flapsutil.DefaultNetwork:
+			name = flyio.NetworkNameDefault
+		}
+		networks[name] = resset.ActionAll
+	}
+
+	if len(networks) == 0 {
+		return nil, errors.New("--network needs at least one network name")
+	}
+
+	cav := &resset.IfPresent{
+		Ifs:  macaroon.NewCaveatSet(&flyio.NetworkNames{NetworkNames: networks}),
+		Else: resset.ActionRead,
+	}
+
+	return append(cavs, cav), nil
 }
 
 func attenuate(token string, cavs ...macaroon.Caveat) (string, error) {
