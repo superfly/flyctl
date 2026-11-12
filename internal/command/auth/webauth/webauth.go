@@ -17,11 +17,12 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const tokensHelpURL = "https://fly.io/docs/security/tokens/"
+const tokensHelpURL = "https://docs.fly.io/security/tokens"
 
 // loginTimeout is how long a login waits for the browser approval. The
 // server keeps a CLI session for the same 15 minutes.
@@ -201,6 +202,9 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		// Server predates the PKCE flow
 		pkce.close()
 		token, err = waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
+		if err == nil && token != "" {
+			metrics.SetLoginMethod(metrics.LoginMethodPoll)
+		}
 	}
 
 	switch {

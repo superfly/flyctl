@@ -22,7 +22,15 @@ func newScaleCount() *cobra.Command {
 		short = "Change an app's VM count to the given value"
 		long  = `Change an app's VM count to the given value.
 
-For pricing, see https://fly.io/docs/about/pricing/`
+The count applies to each selected region. For example:
+  fly scale count 4 --region ord,sjc
+sets four machines in ord and four in sjc, creating or destroying machines as needed.
+Without --region, the count applies to each region where the group has machines.
+Groups without machines use the primary region.
+Relative counts adjust each selected region, for example: fly scale count +1 or fly scale count -- -1.
+Targets above --max-per-region are rejected.
+
+For pricing, see https://docs.fly.io/about/pricing`
 	)
 	cmd := command.New("count [count]", short, long, runScaleCount,
 		command.RequireSession,
@@ -35,7 +43,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.Yes(),
 		flag.ProcessGroup("The process group to scale"),
 		flag.Int{Name: "max-per-region", Description: "Max number of VMs per region", Default: -1},
-		flag.String{Name: "region", Shorthand: "r", Description: "Comma separated list of regions to act on. Defaults to all regions where there is at least one machine running for the app", CompletionFn: completion.CompleteRegions},
+		flag.String{Name: "region", Shorthand: "r", Description: "Comma separated list of regions to act on. Defaults to all regions where the group has machines", CompletionFn: completion.CompleteRegions},
 		flag.Bool{Name: "with-new-volumes", Description: "New machines each get a new volumes even if there are unattached volumes available"},
 		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
 		flag.VMSizeFlags,

@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -118,6 +121,12 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		}
 	} else {
 		name = targetApp.Name
+	}
+
+	if params.Provider == "tigris" {
+		if err := validateTigrisBucketName(name); err != nil {
+			return extension, err
+		}
 	}
 
 	input := gql.CreateAddOnInput{
@@ -245,6 +254,32 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	setSecretsFromExtension(ctx, &targetApp, &extension, overrideSecretKeyNamesMap)
 
 	return extension, nil
+}
+
+var tigrisBucketNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*[a-z0-9]$`)
+
+func validateTigrisBucketName(name string) error {
+	var reason string
+	switch {
+	case name == "":
+		return nil
+	case len(name) < 3 || len(name) > 63:
+		reason = fmt.Sprintf("must be between 3 and 63 characters (got %d)", len(name))
+	case !tigrisBucketNamePattern.MatchString(name):
+		reason = "must contain only lowercase letters, numbers, periods, and hyphens, and must begin and end with a letter or number"
+	case strings.Contains(name, ".."):
+		reason = "must not contain adjacent periods"
+	case strings.HasPrefix(name, "xn--"):
+		reason = "must not start with xn--"
+	case strings.HasSuffix(name, "-s3alias"):
+		reason = "must not end with -s3alias"
+	case net.ParseIP(name) != nil:
+		reason = "must not be an IP address"
+	default:
+		return nil
+	}
+
+	return fmt.Errorf("invalid Tigris bucket name %q: %s. See https://www.tigrisdata.com/docs/buckets/bucket-rules/", name, reason)
 }
 
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {

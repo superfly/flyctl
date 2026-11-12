@@ -274,7 +274,7 @@ func keepConfigTokensFresh(ctx context.Context, m *tokenMonitor, t *tokens.Token
 //
 // Don't call this when other goroutines might also be accessing it.
 func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback, advancePrune time.Duration) (bool, error) {
-	return doRefreshDischargeTokens(ctx, t, uucb, advancePrune, nonInteractiveDischargeTimeout, interactiveDischargeTimeout)
+	return doRefreshDischargeTokens(ctx, t, uucb, advancePrune, nonInteractiveDischargeTimeout, InteractiveDischargeTimeout)
 }
 
 const (
@@ -284,10 +284,12 @@ const (
 	// trip and it has no reason to hold the interactive budget.
 	nonInteractiveDischargeTimeout = 30 * time.Second
 
-	// interactiveDischargeTimeout bounds the retry that can send the user to
-	// their browser. It is sized for a person working through an identity
-	// provider, which is where the whole cost of that pass is.
-	interactiveDischargeTimeout = 90 * time.Second
+	// InteractiveDischargeTimeout bounds the retry that can send the user to
+	// their browser. It is sized for a person opening the URL, possibly on
+	// another machine, and working through an identity provider, which is
+	// where the whole cost of that pass is. It matches the 15 minutes
+	// `fly auth login` waits for approval.
+	InteractiveDischargeTimeout = 15 * time.Minute
 )
 
 func doRefreshDischargeTokens(

@@ -49,7 +49,7 @@ fetch one with 'fly config save -a <app_name>'.`
 		},
 		flag.String{
 			Name:        "network",
-			Description: "Specify custom network id",
+			Description: "Name of the custom private network to create the app on. A network that doesn't exist yet is created.",
 		},
 		flag.Bool{
 			Name:        "machines",
