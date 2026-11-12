@@ -36,6 +36,7 @@ func ignore(err error) bool {
 					return false
 				}
 			}
+
 			return true
 		}
 	}
@@ -69,5 +70,6 @@ func multi(err error) []error {
 	case interface{ WrappedErrors() []error }:
 		return e.WrappedErrors()
 	}
+
 	return nil
 }

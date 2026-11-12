@@ -17,6 +17,7 @@ func Expected(err error) error {
 // IsExpected reports whether err, or anything it wraps, was marked Expected.
 func IsExpected(err error) bool {
 	var e expectedError
+
 	return errors.As(err, &e)
 }
 
