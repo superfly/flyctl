@@ -75,6 +75,8 @@ type FlapsClient interface {
 	ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
 	ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
 	ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error)
+	ListManagedPostgresRoles(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error)
+	ListManagedPostgresRoleMembers(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -92,6 +94,7 @@ type FlapsClient interface {
 	UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
 	UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error
 	RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error)
+	SetManagedPostgresUserDatabases(ctx context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error
 	UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForApp(ctx context.Context, name string) error

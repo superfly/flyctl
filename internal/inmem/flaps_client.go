@@ -315,6 +315,14 @@ func (m *FlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug stri
 	panic("TODO")
 }
 
+func (m *FlapsClient) ListManagedPostgresRoles(ctx context.Context, id string) ([]flaps.ManagedPostgresRole, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) ListManagedPostgresRoleMembers(ctx context.Context, id, role string) ([]flaps.ManagedPostgresRoleMember, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	panic("TODO")
 }
@@ -380,6 +388,10 @@ func (m *FlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, use
 }
 
 func (m *FlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) SetManagedPostgresUserDatabases(ctx context.Context, id, username string, req flaps.SetManagedPostgresUserDatabasesRequest) error {
 	panic("TODO")
 }
 

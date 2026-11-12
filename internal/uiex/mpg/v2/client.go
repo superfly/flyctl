@@ -118,6 +118,13 @@ type GetUserCredentialsResponse struct {
 type User struct {
 	Name string `json:"name"`
 	Role string `json:"role"`
+	// Roles lists the customer roles the user is a direct member of. It is
+	// nil when the cluster doesn't report them, and empty when there are none.
+	Roles []string `json:"roles"`
+	// DatabasesLimited is false when the user can reach every database.
+	DatabasesLimited bool `json:"databases_limited"`
+	// Databases lists the databases a limited user can reach.
+	Databases []string `json:"databases"`
 }
 
 type ListUsersResponse struct {
@@ -126,7 +133,7 @@ type ListUsersResponse struct {
 
 type CreateUserWithRoleInput struct {
 	Username string `json:"username"`
-	Role     string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
+	Role     string `json:"role"` // 'schema_admin' | 'writer' | 'reader' | 'custom'
 }
 
 type CreateUserWithRoleResponse struct {
@@ -134,7 +141,7 @@ type CreateUserWithRoleResponse struct {
 }
 
 type UpdateUserRoleInput struct {
-	Role string `json:"role"` // 'schema_admin' | 'writer' | 'reader'
+	Role string `json:"role"` // 'schema_admin' | 'writer' | 'reader' | 'custom'
 }
 
 type Region struct {

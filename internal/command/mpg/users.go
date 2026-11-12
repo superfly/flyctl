@@ -27,6 +27,7 @@ func newUsers() *cobra.Command {
 		newUsersList(),
 		newUsersCreate(),
 		newUsersSetRole(),
+		newUsersSetDatabases(),
 		newUsersDelete(),
 		newUsersRotatePassword(),
 	)
@@ -36,7 +37,7 @@ func newUsers() *cobra.Command {
 
 func newUsersList() *cobra.Command {
 	const (
-		long  = `List users in a Managed Postgres cluster.`
+		long  = `List users in a Managed Postgres cluster. ROLE is - for users without a built-in role. Their access comes from SQL grants, so DATABASES shows unknown, and in --json output databases_limited means nothing when role is empty.`
 		short = "List users in an MPG cluster."
 		usage = "list <CLUSTER_ID>"
 	)
@@ -56,6 +57,9 @@ func newUsersList() *cobra.Command {
 
 func runUsersList(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
+	if config.FromContext(ctx).JSONOutput && clusterID == "" {
+		return prompt.NonInteractiveError("CLUSTER_ID must be specified when using --json")
+	}
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {
 		return err
@@ -70,7 +74,7 @@ func runUsersList(ctx context.Context) error {
 
 func newUsersCreate() *cobra.Command {
 	const (
-		long  = `Create a new user in a Managed Postgres cluster.`
+		long  = `Create a new user in a Managed Postgres cluster. schema_admin, writer and reader reach every database. custom users get no access until an admin user grants it with SQL; only they can be limited to some databases with --database.`
 		short = "Create a user in an MPG cluster."
 		usage = "create <CLUSTER_ID>"
 	)
@@ -91,7 +95,12 @@ func newUsersCreate() *cobra.Command {
 		flag.String{
 			Name:        "role",
 			Shorthand:   "r",
-			Description: "The role of the user (schema_admin, writer, or reader)",
+			Description: "The role of the user (schema_admin, writer, reader, or custom)",
+		},
+		flag.StringArray{
+			Name:        "database",
+			Shorthand:   "d",
+			Description: "Limit a custom user to this database; repeat for more (default: every database, including new ones)",
 		},
 	)
 
@@ -106,8 +115,11 @@ func runUsersCreate(ctx context.Context) error {
 	}
 
 	if cluster.Version == mpg.VersionV1 {
-		return cmdv1.RunUsersCreate(ctx, cluster.Id)
+		if len(flag.GetStringArray(ctx, "database")) > 0 {
+			return fmt.Errorf("--database is not supported for v1 clusters; migrate the cluster to v2 first")
+		}
 
+		return cmdv1.RunUsersCreate(ctx, cluster.Id)
 	}
 
 	return cmdv2.RunUsersCreate(ctx, cluster.Id)
@@ -137,7 +149,7 @@ func newUsersSetRole() *cobra.Command {
 		flag.String{
 			Name:        "role",
 			Shorthand:   "r",
-			Description: "The new role for the user (schema_admin, writer, or reader)",
+			Description: "The new role for the user (schema_admin, writer, reader, or custom)",
 		},
 	)
 
@@ -156,6 +168,55 @@ func runUsersSetRole(ctx context.Context) error {
 	}
 
 	return cmdv2.RunUsersSetRole(ctx, cluster.Id)
+}
+
+func newUsersSetDatabases() *cobra.Command {
+	const (
+		short = "Choose which databases a custom user can connect to."
+		long  = short + ` --database limits the user to the databases named; repeat it for more. --all-databases gives it every database, including ones created later. Limiting a user ends its sessions in the databases it loses.`
+		usage = "set-databases <CLUSTER_ID>"
+	)
+
+	cmd := command.New(usage, short, long, runUsersSetDatabases,
+		command.RequireSession,
+		requireMacaroonToken,
+	)
+
+	cmd.Args = cobra.MaximumNArgs(1)
+
+	flag.Add(cmd,
+		flag.String{
+			Name:        "username",
+			Shorthand:   "u",
+			Description: "The custom user to update",
+		},
+		flag.StringArray{
+			Name:        "database",
+			Shorthand:   "d",
+			Description: "A database the user can connect to; repeat for more",
+		},
+		flag.Bool{
+			Name:        "all-databases",
+			Description: "Let the user connect to every database, including ones created later",
+		},
+		flag.Yes(),
+	)
+
+	return cmd
+}
+
+func runUsersSetDatabases(ctx context.Context) error {
+	clusterID := flag.FirstArg(ctx)
+	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
+	if err != nil {
+		return err
+	}
+
+	if cluster.Version == mpg.VersionV1 {
+		return fmt.Errorf("'fly mpg users set-databases' is not supported for v1 clusters; migrate the cluster to v2 first")
+	}
+
+	return cmdv2.RunUsersSetDatabases(ctx, cluster.Id)
 }
 
 func newUsersDelete() *cobra.Command {

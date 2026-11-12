@@ -5,16 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// attachUserRoleOptions are the roles attach offers for a new user. custom
+// is left out: a new custom user can't read anything, so its DATABASE_URL
+// would be of no use.
+var attachUserRoleOptions = []string{
+	string(flaps.ManagedPostgresUserRoleSchemaAdmin),
+	string(flaps.ManagedPostgresUserRoleWriter),
+	string(flaps.ManagedPostgresUserRoleReader),
+}
 
 // RunAttach attaches a managed Postgres cluster to an app.
 func RunAttach(ctx context.Context, clusterID string) error {
@@ -28,7 +40,19 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
-	if username == "" && io.IsInteractive() {
+	// limitedUser is set when the chosen user is limited to some databases.
+	// Only a users list that reports databases_limited true marks a user as
+	// limited. A list from an API without database limits, such as the
+	// postgresv2 fallback on older deployments, leaves the field out, so it
+	// decodes to false and no user is checked.
+	var limitedUser *mpgv2.User
+	if username != "" {
+		found, err := findLimitedUser(ctx, clusterID, username)
+		if err != nil {
+			return err
+		}
+		limitedUser = found
+	} else if io.IsInteractive() {
 		// Prompt for user selection
 		users, err := listUsers(ctx, clusterID)
 		if err != nil {
@@ -37,7 +61,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 		var userOptions []string
 		for _, user := range users {
-			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, user.Role))
+			userOptions = append(userOptions, fmt.Sprintf("%s [%s]", user.Name, userRoleLabel(user.Role)))
 		}
 		// Add option to create new user
 		userOptions = append(userOptions, "Create new user...")
@@ -61,7 +85,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 			// Prompt for role selection
 			var roleIndex int
-			roleOptions := managedPostgresUserRoleOptions
+			roleOptions := attachUserRoleOptions
 			err = prompt.Select(ctx, &roleIndex, "Select user role:", "", roleOptions...)
 			if err != nil {
 				return err
@@ -79,6 +103,9 @@ func RunAttach(ctx context.Context, clusterID string) error {
 			username = user.Name
 		} else if len(users) > 0 {
 			username = users[userIndex].Name
+			if users[userIndex].DatabasesLimited {
+				limitedUser = &users[userIndex]
+			}
 		}
 		// If no users found and create wasn't selected, username remains empty
 		// and will use default credentials.
@@ -86,7 +113,17 @@ func RunAttach(ctx context.Context, clusterID string) error {
 
 	// Database selection priority: flag > prompt result (if interactive) > empty (use default credentials from cluster).
 	db := flag.GetString(ctx, "database")
-	if db == "" && io.IsInteractive() {
+	if limitedUser != nil && len(limitedUser.Databases) == 0 {
+		return noDatabasesError(limitedUser)
+	}
+	if db == "" && io.IsInteractive() && limitedUser != nil {
+		// Only the user's own databases; a new one would be out of its reach.
+		var dbIndex int
+		if err := prompt.Select(ctx, &dbIndex, "Select database:", "", limitedUser.Databases...); err != nil {
+			return err
+		}
+		db = limitedUser.Databases[dbIndex]
+	} else if db == "" && io.IsInteractive() {
 		// Prompt for database selection
 		databases, err := listDatabasesPublicFirst(ctx, flapsClient, legacyClient, clusterID)
 		if err != nil {
@@ -157,10 +194,24 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	} else {
 		user = clusterResp.Credentials.User
 		password = clusterResp.Credentials.Password
+		// The default user can be made custom and limited to some
+		// databases too, so it gets the same checks as -u.
+		if limitedUser, err = findLimitedUser(ctx, clusterID, user); err != nil {
+			return err
+		}
+		if limitedUser != nil && len(limitedUser.Databases) == 0 {
+			return noDatabasesError(limitedUser)
+		}
 	}
 
 	if db == "" {
 		db = clusterResp.Credentials.DBName
+	}
+	if limitedUser != nil && !slices.Contains(limitedUser.Databases, db) {
+		return flyerr.WithSuggestion(
+			fmt.Errorf("user %s can't connect to database %s; it is limited to %s", limitedUser.Name, db, strings.Join(limitedUser.Databases, ", ")),
+			"Pick one of those with --database, or change its databases with fly mpg users set-databases.",
+		)
 	}
 	connectionUri, err = buildConnectionUri(baseUri, user, password, db)
 	if err != nil {
@@ -206,6 +257,28 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
 
 	return nil
+}
+
+// findLimitedUser returns the user called name when the users list limits
+// it to some databases, and nil when the list doesn't limit it or doesn't
+// have it.
+func findLimitedUser(ctx context.Context, clusterID, name string) (*mpgv2.User, error) {
+	// Fail closed: without the list, attach can't tell whether the URL
+	// would connect.
+	users, err := listUsers(ctx, clusterID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't check %s's database limits: %w", name, err)
+	}
+	if i := slices.IndexFunc(users, func(user mpgv2.User) bool { return user.Name == name }); i >= 0 && users[i].DatabasesLimited {
+		return &users[i], nil
+	}
+
+	return nil, nil
+}
+
+// noDatabasesError is the error for a user limited to no database at all.
+func noDatabasesError(user *mpgv2.User) error {
+	return fmt.Errorf("user %s can't connect to any database; give it some with fly mpg users set-databases", user.Name)
 }
 
 // createUserPublicFirst tries the public Machines API for user creation and
