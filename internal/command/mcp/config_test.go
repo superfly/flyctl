@@ -172,6 +172,34 @@ func TestRemoveConfig_appliesPermsToExistingFile(t *testing.T) {
 	}
 }
 
+func TestResolveClaudeConfigPath(t *testing.T) {
+	tempHome := t.TempDir()
+	configDir := filepath.Join(tempHome, "AppData", "Roaming")
+
+	defaultPath := resolveClaudeConfigPath(tempHome, configDir)
+	if runtime.GOOS == "windows" {
+		expectedDefault := filepath.Join(configDir, "Claude", "claude_desktop_config.json")
+		if defaultPath != expectedDefault {
+			t.Errorf("got %q, want %q", defaultPath, expectedDefault)
+		}
+
+		msixDir := filepath.Join(tempHome, "AppData", "Local", "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude")
+		if err := os.MkdirAll(msixDir, 0755); err != nil {
+			t.Fatalf("failed to create mock MSIX dir: %v", err)
+		}
+		packagedPath := resolveClaudeConfigPath(tempHome, configDir)
+		expectedPackaged := filepath.Join(msixDir, "claude_desktop_config.json")
+		if packagedPath != expectedPackaged {
+			t.Errorf("got %q, want %q", packagedPath, expectedPackaged)
+		}
+	} else {
+		expected := filepath.Join(configDir, "Claude", "claude_desktop_config.json")
+		if defaultPath != expected {
+			t.Errorf("got %q, want %q", defaultPath, expected)
+		}
+	}
+}
+
 func TestUpdateConfig_rewriteIsInvisibleThroughOldHandle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows refuses to rename over a file that another handle has open")
@@ -181,8 +209,6 @@ func TestUpdateConfig_rewriteIsInvisibleThroughOldHandle(t *testing.T) {
 	if err := os.WriteFile(path, []byte(seed), 0o644); err != nil {
 		t.Fatalf("seed config: %v", err)
 	}
-	// A reader that opened the world-readable file before the rewrite must
-	// not see the token that the rewrite adds.
 	old, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("open old: %v", err)
