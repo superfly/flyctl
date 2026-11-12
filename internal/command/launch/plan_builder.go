@@ -165,7 +165,10 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		// Machines, with an error that doesn't say why.
 		canPrompt := recoverableErrors.canEnterUi && !flag.GetYes(ctx)
 		if err := checkBillingStatus(ctx, org, canPrompt); err != nil {
-			partial := &LaunchManifest{Plan: &plan.LaunchPlan{OrgSlug: org.Slug, FlyctlVersion: buildinfo.Info().Version}}
+			partial := &LaunchManifest{
+				Plan:  &plan.LaunchPlan{OrgSlug: org.Slug, FlyctlVersion: buildinfo.Info().Version},
+				orgID: orgIDForMetrics(org),
+			}
 
 			return partial, nil, err
 		}
@@ -501,9 +504,9 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		workingDir: workingDir,
 		configPath: configPath,
 		LaunchManifest: LaunchManifest{
-			m.Plan,
-			m.PlanSource,
-			appConfig,
+			Plan:       m.Plan,
+			PlanSource: m.PlanSource,
+			Config:     appConfig,
 		},
 		env: envVars,
 		planBuildCache: planBuildCache{

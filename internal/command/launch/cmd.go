@@ -449,6 +449,9 @@ func run(ctx context.Context) (err error) {
 					status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 					status.ScannerFamily = launchManifest.Plan.ScannerFamily
 				}
+				if launchManifest != nil {
+					status.OrgID = launchManifest.orgID
+				}
 
 				return err
 			}
