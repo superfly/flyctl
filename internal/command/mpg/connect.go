@@ -3,12 +3,14 @@ package mpg
 import (
 	"context"
 	"fmt"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
@@ -44,6 +46,14 @@ func newConnect() (cmd *cobra.Command) {
 }
 
 func runConnect(ctx context.Context) (err error) {
+	psqlPath, err := exec.LookPath("psql")
+	if err != nil {
+		return flyerr.WithSuggestion(
+			fmt.Errorf("psql is required to connect to MPG: %w", err),
+			"Install the PostgreSQL client tools and add their bin directory to PATH: https://www.postgresql.org/download/",
+		)
+	}
+
 	clusterID := flag.FirstArg(ctx)
 
 	var orgSlug string
@@ -60,8 +70,8 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	if cluster.Version == mpg.VersionV1 {
-		return cmdv1.RunConnect(ctx, cluster.Id, resolvedOrgSlug)
+		return cmdv1.RunConnect(ctx, cluster.Id, resolvedOrgSlug, psqlPath)
 	}
 
-	return cmdv2.RunConnect(ctx, cluster.Id, resolvedOrgSlug, localProxyPort)
+	return cmdv2.RunConnect(ctx, cluster.Id, resolvedOrgSlug, localProxyPort, psqlPath)
 }

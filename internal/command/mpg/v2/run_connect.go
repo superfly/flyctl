@@ -19,7 +19,7 @@ import (
 	"github.com/superfly/flyctl/proxy"
 )
 
-func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, proxyPort string) (err error) {
+func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, proxyPort string, psqlPath string) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	localProxyPort := proxyPort
@@ -85,13 +85,6 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 	}
 
 	maybeWarnNotReady(io.ErrOut, cluster)
-
-	psqlPath, err := exec.LookPath("psql")
-	if err != nil {
-		fmt.Fprintf(io.Out, "Could not find psql in your $PATH. Install it or point your psql at: %s", "someurl")
-
-		return err
-	}
 
 	// We want to handle cancels ourselves, since they can pass through
 	// as query cancellations to psql without killing the proxy.
