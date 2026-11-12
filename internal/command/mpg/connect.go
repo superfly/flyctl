@@ -2,6 +2,7 @@ package mpg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 
@@ -20,15 +21,38 @@ const (
 
 func newConnect() (cmd *cobra.Command) {
 	const (
-		long = `Connect to a MPG database using psql`
+		long = `Connect to a MPG database using psql.
 
-		short = long
+With --command or --file, psql stops at the first SQL error and skips its
+startup file. See the examples for scripted usage.`
+
+		example = `  fly mpg connect <CLUSTER_ID> -c 'select count(*) from orders'
+  fly mpg connect <CLUSTER_ID> -f migrations.sql
+  fly mpg connect <CLUSTER_ID> -c 'select * from orders' -- --csv -t
+  # Piped SQL keeps psql defaults; enable ON_ERROR_STOP explicitly:
+  cat queries.sql | fly mpg connect <CLUSTER_ID> -- -v ON_ERROR_STOP=1
+  fly mpg connect <CLUSTER_ID> --database app --username reader -c 'select current_user'`
+
+		short = "Connect to a MPG database using psql"
 		usage = "connect <CLUSTER ID>"
 	)
 
 	cmd = command.New(usage, short, long, runConnect, command.RequireSession, requireMacaroonToken)
 
+	cmd.Example = example
+	cmd.SilenceUsage = true
+
 	flag.Add(cmd,
+		flag.StringArray{
+			Name:        "command",
+			Shorthand:   "c",
+			Description: "The SQL command to run and exit (repeatable; mutually exclusive with --file)",
+		},
+		flag.StringArray{
+			Name:        "file",
+			Shorthand:   "f",
+			Description: "The SQL file to run and exit (repeatable, - for stdin; mutually exclusive with --command)",
+		},
 		flag.String{
 			Name:        "database",
 			Shorthand:   "d",
@@ -40,12 +64,26 @@ func newConnect() (cmd *cobra.Command) {
 			Description: "The username to connect as",
 		},
 	)
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = func(cmd *cobra.Command, args []string) error {
+		if n := cmd.ArgsLenAtDash(); n >= 0 {
+			args = args[:n]
+		}
+
+		return cobra.MaximumNArgs(1)(cmd, args)
+	}
 
 	return cmd
 }
 
 func runConnect(ctx context.Context) (err error) {
+	clusterID := clusterIDFromArgs(ctx)
+	if flag.IsSpecified(ctx, "command") && flag.IsSpecified(ctx, "file") {
+		return fmt.Errorf("--command and --file are mutually exclusive; use psql arguments after -- when both are needed in a specific order")
+	}
+	if (flag.IsSpecified(ctx, "command") || flag.IsSpecified(ctx, "file")) && clusterID == "" {
+		return errors.New("cluster ID must be specified when using --command or --file")
+	}
+
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
 		return flyerr.WithSuggestion(
@@ -53,8 +91,6 @@ func runConnect(ctx context.Context) (err error) {
 			"Install the PostgreSQL client tools and add their bin directory to PATH: https://www.postgresql.org/download/",
 		)
 	}
-
-	clusterID := flag.FirstArg(ctx)
 
 	var orgSlug string
 
@@ -74,4 +110,14 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	return cmdv2.RunConnect(ctx, cluster.Id, resolvedOrgSlug, localProxyPort, psqlPath)
+}
+
+// clusterIDFromArgs returns the cluster ID given before "--", if any.
+// Everything after "--" belongs to psql.
+func clusterIDFromArgs(ctx context.Context) string {
+	if flag.FromContext(ctx).ArgsLenAtDash() == 0 {
+		return ""
+	}
+
+	return flag.FirstArg(ctx)
 }
