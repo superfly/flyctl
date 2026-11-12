@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/oklog/ulid/v2"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -35,7 +36,7 @@ import (
 
 var (
 	ErrTagForDeletion        = errors.New("failed to mark as safe for deletion")
-	ErrAborted               = errors.New("deployment aborted by user")
+	ErrAborted               = flyerr.Expected(errors.New("deployment aborted by user"))
 	ErrWaitTimeout           = errors.New("wait timeout")
 	ErrCreateGreenMachine    = errors.New("failed to create green machines")
 	ErrWaitForStartedState   = errors.New("could not get all green machines into started state")

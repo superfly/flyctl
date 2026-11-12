@@ -32,7 +32,7 @@ func TestCaptureBarmanError(t *testing.T) {
 		{"wrapped cancellation", fmt.Errorf("connect: %w", context.Canceled), 0},
 		{"transport", errors.New("connection reset by peer"), 1},
 		{"auth", errors.New("ssh: unable to authenticate"), 1},
-		{"missing exit status", &gossh.ExitMissingError{}, 0},
+		{"missing exit status", &gossh.ExitMissingError{}, 1},
 		{"matching text is not sufficient", errors.New("ssh shell: Process exited with status 1"), 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

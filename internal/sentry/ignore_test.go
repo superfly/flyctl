@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -24,12 +25,14 @@ func TestIgnore(t *testing.T) {
 		{"machine limit", errors.New("Your organization has reached its machine limit. Please contact billing@fly.io"), true},
 		{"overdue invoices", errors.New("failed to create release (status 403): Your account has overdue invoices."), true},
 		{"not authorized is still reported", errors.New("failed to run create_wg_peers: Not authorized to manage this organization::feature."), false},
-		{"user app crashing", errors.New("smoke checks for d89 failed: the app appears to be crashing"), true},
+		{"marked expected", fmt.Errorf("smoke checks for d89 failed: %w", flyerr.Expected(errors.New("the app appears to be crashing"))), true},
+		{"expected text without the mark is reported", errors.New("the app appears to be crashing"), false},
+		{"missing exit status is reported", fmt.Errorf("ssh shell: %w", &ssh.ExitMissingError{}), false},
 		{"hangup signal", errors.New("session forcibly closed; the remote process may still be running (hangup signal received)"), true},
-		{"joined noise", errors.Join(context.Canceled, errors.New("the app appears to be crashing")), true},
-		{"joined with a real error", errors.Join(errors.New("the app appears to be crashing"), errors.New("flaps 500")), false},
-		{"wrapped multierror with a real error", fmt.Errorf("deploy: %w", multierror.Append(nil, errors.New("the app appears to be crashing"), errors.New("nil pointer dereference"))), false},
-		{"wrapped multierror of noise", fmt.Errorf("deploy: %w", multierror.Append(nil, errors.New("the app appears to be crashing"), context.Canceled)), true},
+		{"joined noise", errors.Join(context.Canceled, flyerr.Expected(errors.New("the app appears to be crashing"))), true},
+		{"joined with a real error", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("flaps 500")), false},
+		{"wrapped multierror with a real error", fmt.Errorf("deploy: %w", multierror.Append(nil, flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("nil pointer dereference"))), false},
+		{"wrapped multierror of noise", fmt.Errorf("deploy: %w", multierror.Append(nil, flyerr.Expected(errors.New("the app appears to be crashing")), context.Canceled)), true},
 		{"nil pointer", errors.New("runtime error: invalid memory address or nil pointer dereference"), false},
 		{"api timeout", errors.New(`Error contacting Fly.io API when probing "personal": timed out (context deadline exceeded)`), false},
 		{"handshake", errors.New("error connecting to SSH server: ssh: handshake failed: EOF"), false},

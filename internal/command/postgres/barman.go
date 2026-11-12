@@ -396,18 +396,7 @@ func newBarmanRecover() *cobra.Command {
 }
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	sentry.CaptureException(err,
-		sentry.WithTraceID(ctx),
-		sentry.WithTag("feature", "ssh-console"),
-		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]any{
-				"name": app.Name,
-			},
-			"organization": map[string]any{
-				"name": app.Organization.Slug,
-			},
-		}),
-	)
+	sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "barman", app)
 }
 
 func runBarmanCheck(ctx context.Context) error {

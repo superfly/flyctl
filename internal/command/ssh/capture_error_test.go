@@ -32,7 +32,7 @@ func TestCaptureSSHError(t *testing.T) {
 		{"wrapped cancellation", fmt.Errorf("connect: %w", context.Canceled), 0},
 		{"transport", errors.New("connection reset by peer"), 1},
 		{"auth", errors.New("ssh: unable to authenticate"), 1},
-		{"missing exit status", pkgerrors.Wrap(&gossh.ExitMissingError{}, "ssh shell"), 0},
+		{"missing exit status", pkgerrors.Wrap(&gossh.ExitMissingError{}, "ssh shell"), 1},
 		{"session closed by ctrl-c", pkgerrors.Wrap(errors.New("session forcibly closed; the remote process may still be running (interrupt signal received)"), "ssh shell"), 0},
 		{"matching text is not sufficient", errors.New("ssh shell: Process exited with status 1"), 1},
 	} {
