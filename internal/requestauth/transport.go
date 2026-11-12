@@ -54,6 +54,7 @@ func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			found[id] = true
 			return true
 		}
+
 		return false
 	}))
 	selected := b.Select(b.WithDischarges(keep))
@@ -64,5 +65,6 @@ func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	scoped := req.Clone(req.Context())
 	scoped.Header.Set("Authorization", scheme+" "+selected.String())
+
 	return t.next.RoundTrip(scoped)
 }

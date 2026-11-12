@@ -32,14 +32,18 @@ func Organization(t *testing.T, id uint64) func(context.Context) {
 		require.NoError(t, err)
 		roots = append(roots, root)
 	}
+
 	return func(ctx context.Context) {
 		t.Helper()
 		r, err := http.NewRequestWithContext(ctx, "POST", "http://local", nil)
 		require.NoError(t, err)
 		r.Header.Set("Authorization", "FlyV1 "+strings.Join(roots, ","))
-		_, _ = requestauth.Transport(roundTrip(func(r *http.Request) (*http.Response, error) {
+		resp, _ := requestauth.Transport(roundTrip(func(r *http.Request) (*http.Response, error) {
 			require.Equal(t, "FlyV1 "+roots[0], r.Header.Get("Authorization"))
 			return nil, errors.New("stop before network")
 		})).RoundTrip(r)
+		if resp != nil {
+			resp.Body.Close()
+		}
 	}
 }

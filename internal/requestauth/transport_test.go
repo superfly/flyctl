@@ -48,6 +48,7 @@ func session(t *testing.T) (*tokens.Tokens, []string) {
 	}
 	tok := tokens.Parse(strings.Join(all, ","))
 	require.Greater(t, len(tok.FlapsHeader()), 49152)
+
 	return tok, roots
 }
 
@@ -91,21 +92,31 @@ func TestSelection(t *testing.T) {
 					}
 					require.ElementsMatch(t, expected, strings.Split(strings.TrimPrefix(r.Header.Get("Authorization"), "FlyV1 "), ","))
 				}
+
 				return nil, failure
 			}))
-			_, err = tr.RoundTrip(req)
+			resp, err := tr.RoundTrip(req)
+			if resp != nil {
+				resp.Body.Close()
+			}
 			require.ErrorIs(t, err, failure)
 			require.Equal(t, 1, calls)
 			require.Equal(t, header, req.Header.Get("Authorization"))
 		})
 	}
-	for _, header := range []string{"Bearer fo1_only", "FlyV1 broken", "no-scheme"} {
+	for _, header := range []string{"Bearer fo1_only", "FlyV1 broken", "FlyV1 " + roots[0] + ",fm2_!", "no-scheme"} {
 		req, _ := http.NewRequestWithContext(parent, "GET", "http://local", nil)
 		req.Header.Set("Authorization", header)
-		_, _ = requestauth.Transport(roundTrip(func(r *http.Request) (*http.Response, error) {
+		calls := 0
+		resp, _ := requestauth.Transport(roundTrip(func(r *http.Request) (*http.Response, error) {
+			calls++
 			require.Equal(t, header, r.Header.Get("Authorization"))
 			return nil, errors.New("stop")
 		})).RoundTrip(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+		require.Equal(t, 1, calls)
 	}
 }
 
