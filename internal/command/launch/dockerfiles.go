@@ -150,7 +150,34 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 		}
 	}
 
+	// Nothing in .git is needed in the image, and .gitignore never lists it.
+	if _, err := f.WriteString(".git"); err != nil {
+		return "", err
+	}
+	if _, err := f.Write(linebreak); err != nil {
+		return "", err
+	}
+
 	return dockerIgnore, nil
+}
+
+// defaultDockerignore is written next to a Dockerfile that launch generated
+// when nothing else provided a .dockerignore.
+const defaultDockerignore = "fly.toml\n.git\n"
+
+// scannerGeneratedDockerfile reports whether the Dockerfile came from the
+// scanner rather than from the app itself.
+func (state *launchState) scannerGeneratedDockerfile() bool {
+	if state.sourceInfo == nil {
+		return false
+	}
+	for _, f := range state.sourceInfo.Files {
+		if f.Path == "Dockerfile" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // determineDockerIgnore attempts to create a .dockerignore from .gitignore
@@ -189,6 +216,17 @@ func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
 			}
 
 			return nil
+		}
+	}
+
+	// A generated Dockerfile can copy the whole directory into the image, so
+	// give it a .dockerignore that leaves out what the image never needs.
+	if state.scannerGeneratedDockerfile() {
+		dockerIgnorePath := filepath.Join(state.workingDir, dockerIgnore)
+		if err := os.WriteFile(dockerIgnorePath, []byte(defaultDockerignore), 0o644); err != nil {
+			terminal.Warnf("Error creating %s: %v\n", dockerIgnore, err)
+		} else {
+			fmt.Fprintf(io.Out, "Created %s.\n", dockerIgnorePath)
 		}
 	}
 
