@@ -70,8 +70,7 @@ func runUpdate(ctx context.Context) (err error) {
 		options = make(map[string]any)
 	}
 
-	metadata, _ := addOn.Options.(map[string]any)
-
+	metadata := addOn.Metadata
 	if metadata == nil {
 		metadata = make(map[string]any)
 	}
@@ -81,7 +80,6 @@ func runUpdate(ctx context.Context) (err error) {
 	region := flag.GetString(ctx, "shadow-region")
 	shadowName := flag.GetString(ctx, "shadow-name")
 	endpoint := flag.GetString(ctx, "shadow-endpoint")
-	writeThrough := flag.GetBool(ctx, "shadow-write-through")
 	clearShadow := flag.GetBool(ctx, "clear-shadow")
 
 	// Check for shadow bucket values
@@ -97,6 +95,15 @@ func runUpdate(ctx context.Context) (err error) {
 	if clearShadow {
 		options["shadow_bucket"] = map[string]any{}
 	} else if shadowBucketSpecified {
+		writeThrough := flag.GetBool(ctx, "shadow-write-through")
+		if !flag.IsSpecified(ctx, "shadow-write-through") {
+			if existing, ok := options["shadow_bucket"].(map[string]any); ok {
+				if existingWriteThrough, ok := existing["write_through"].(bool); ok {
+					writeThrough = existingWriteThrough
+				}
+			}
+		}
+
 		options["shadow_bucket"] = map[string]any{
 			"access_key":    accessKey,
 			"secret_key":    secretKey,
