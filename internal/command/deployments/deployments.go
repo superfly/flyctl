@@ -102,6 +102,7 @@ func newList() *cobra.Command {
 	)
 	cmd.Aliases = []string{"ls"}
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -132,6 +133,7 @@ func runList(ctx context.Context) error {
 			format.RelativeTime(d.CreatedAt),
 		})
 	}
+
 	return render.Table(out, "", rows, "ID", "Status", "Trigger", "Commit", "Created")
 }
 
@@ -159,6 +161,7 @@ func runShow(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return printDeployment(ctx, d)
 }
 
@@ -170,6 +173,7 @@ func newLogs() *cobra.Command {
 		flag.Int{Name: "limit", Description: "Show the last N lines"},
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -192,6 +196,7 @@ func runLogs(ctx context.Context) error {
 	for _, line := range logs.Lines {
 		fmt.Fprintf(out, "[%s] %s\n", line.Step, line.Message)
 	}
+
 	return nil
 }
 
@@ -205,6 +210,7 @@ Written to be pasted into, or read by, a coding agent.`,
 		flag.Int{Name: "lines", Description: "Log lines to include (0-500)", Default: -1},
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -218,6 +224,7 @@ func runDiagnose(ctx context.Context) error {
 		return err
 	}
 	fmt.Fprint(iostreams.FromContext(ctx).Out, brief)
+
 	return nil
 }
 
@@ -230,6 +237,7 @@ the head of the repository settings' branch unless --ref is given.`,
 		flag.Bool{Name: "replace", Description: "Stop a running deployment and start this one"},
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -247,6 +255,7 @@ func runRedeploy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return started(ctx, c, appName, d)
 }
 
@@ -268,6 +277,7 @@ func runRetry(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return started(ctx, c, appName, d)
 }
 
@@ -286,6 +296,7 @@ func runCancel(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return printDeployment(ctx, d)
 }
 
@@ -307,6 +318,7 @@ Pushes to the branch deploy automatically afterwards.`,
 		flag.Bool{Name: "review-plan", Description: "Wait for 'fly deployments confirm' instead of using the detected plan"},
 	)
 	cmd.Args = cobra.NoArgs
+
 	return cmd
 }
 
@@ -343,6 +355,7 @@ func runLaunch(ctx context.Context) error {
 			d.ID, d.ID, d.ID)
 		return printDeployment(ctx, d)
 	}
+
 	return started(ctx, c, appName, d)
 }
 
@@ -382,6 +395,7 @@ func runPlan(ctx context.Context) error {
 			fmt.Fprintln(out)
 		}
 	}
+
 	return nil
 }
 
@@ -394,6 +408,7 @@ func newConfirm() *cobra.Command {
 		flag.Int{Name: "vm-memory", Description: "Override the VM memory, in MB"},
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
 	return cmd
 }
 
@@ -422,6 +437,7 @@ func runConfirm(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	return started(ctx, c, appName, d)
 }
 
@@ -436,6 +452,7 @@ func started(ctx context.Context, c client, appName string, d *uiex.Deployment) 
 			return err
 		}
 	}
+
 	return printDeployment(ctx, d)
 }
 
@@ -502,6 +519,7 @@ func printDeployment(ctx context.Context, d *uiex.Deployment) error {
 	if d.Failure != nil {
 		fmt.Fprintf(out, "\nRun 'fly deployments diagnose %d' for the cause and how to fix it.\n", d.ID)
 	}
+
 	return nil
 }
 
@@ -523,6 +541,7 @@ func shortCommit(commit *string) string {
 	if len(*commit) > 7 {
 		return (*commit)[:7]
 	}
+
 	return *commit
 }
 
@@ -539,5 +558,6 @@ func firstNonEmpty(values ...*string) string {
 			return *v
 		}
 	}
+
 	return ""
 }

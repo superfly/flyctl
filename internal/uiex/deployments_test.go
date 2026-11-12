@@ -97,7 +97,7 @@ func TestDeploymentsErrorCarriesMessage(t *testing.T) {
 
 func TestLaunchActionRequired(t *testing.T) {
 	ctx, client := newLaunchChecksTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/api/v1/apps/my-app/launches", r.URL.Path)
+		assert.Equal(t, "/api/v1/apps/my-app/deployments/launch", r.URL.Path)
 		w.WriteHeader(http.StatusConflict)
 		_, _ = w.Write([]byte(`{"error":"Install the GitHub App.","action_required":
 			{"kind":"github_app_install","url":"https://github.com/apps/fly-io/installations/new"}}`))

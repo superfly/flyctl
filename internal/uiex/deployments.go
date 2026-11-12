@@ -159,6 +159,7 @@ func (c *Client) ListDeployments(ctx context.Context, appName string, limit, bef
 		Data []Deployment `json:"data"`
 	}
 	err := c.deploymentsRequest(ctx, http.MethodGet, appPath(appName, "/deployments"), query, nil, &out)
+
 	return out.Data, err
 }
 
@@ -176,6 +177,7 @@ func (c *Client) GetDeployment(ctx context.Context, appName, id string, wait int
 	if err := c.deploymentsRequest(ctx, http.MethodGet, deploymentPath(appName, id, ""), query, nil, &out); err != nil {
 		return nil, err
 	}
+
 	return &out.Data, nil
 }
 
@@ -194,6 +196,7 @@ func (c *Client) GetDeploymentLogs(ctx context.Context, appName, id, step string
 	if err := c.deploymentsRequest(ctx, http.MethodGet, deploymentPath(appName, id, "/logs"), query, nil, &out); err != nil {
 		return nil, err
 	}
+
 	return &out.Data, nil
 }
 
@@ -207,6 +210,7 @@ func (c *Client) GetDeploymentDiagnosis(ctx context.Context, appName, id string,
 
 	var out bytes.Buffer
 	err := c.deploymentsRequest(ctx, http.MethodGet, deploymentPath(appName, id, "/diagnosis"), query, nil, &out)
+
 	return out.String(), err
 }
 
@@ -223,7 +227,7 @@ func (c *Client) CancelDeployment(ctx context.Context, appName, id string) (*Dep
 }
 
 func (c *Client) LaunchFromRepository(ctx context.Context, appName string, in LaunchRequest) (*Deployment, error) {
-	return c.deploymentWrite(ctx, appPath(appName, "/launches"), in)
+	return c.deploymentWrite(ctx, appPath(appName, "/deployments/launch"), in)
 }
 
 func (c *Client) GetLaunchPlan(ctx context.Context, appName, id string) (*LaunchPlan, error) {
@@ -233,6 +237,7 @@ func (c *Client) GetLaunchPlan(ctx context.Context, appName, id string) (*Launch
 	if err := c.deploymentsRequest(ctx, http.MethodGet, deploymentPath(appName, id, "/plan"), nil, nil, &out); err != nil {
 		return nil, err
 	}
+
 	return &out.Data, nil
 }
 
@@ -250,9 +255,10 @@ func (c *Client) GetRepositorySettings(ctx context.Context, appName string) (*Re
 	var out struct {
 		Data RepositorySettings `json:"data"`
 	}
-	if err := c.deploymentsRequest(ctx, http.MethodGet, appPath(appName, "/source"), nil, nil, &out); err != nil {
+	if err := c.deploymentsRequest(ctx, http.MethodGet, appPath(appName, "/deployments/source"), nil, nil, &out); err != nil {
 		return nil, err
 	}
+
 	return &out.Data, nil
 }
 
@@ -263,6 +269,7 @@ func (c *Client) deploymentWrite(ctx context.Context, path string, body any) (*D
 	if err := c.deploymentsRequest(ctx, http.MethodPost, path, nil, body, &out); err != nil {
 		return nil, err
 	}
+
 	return &out.Data, nil
 }
 
@@ -323,6 +330,7 @@ func (c *Client) deploymentsRequest(ctx context.Context, method, path string, qu
 	if err := json.Unmarshal(data, out); err != nil {
 		return fmt.Errorf("failed to decode response, please try again: %w", err)
 	}
+
 	return nil
 }
 
