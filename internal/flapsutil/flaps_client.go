@@ -51,6 +51,7 @@ type FlapsClient interface {
 	GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error)
+	GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error)
 	GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error)
 	GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadata(ctx context.Context, appName, machineID string) (map[string]string, error)
@@ -90,6 +91,7 @@ type FlapsClient interface {
 	Uncordon(ctx context.Context, appName, machineID string, nonce string) (err error)
 	Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
+	UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error)
 	UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error
 	RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error)
 	UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)

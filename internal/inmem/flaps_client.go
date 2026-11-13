@@ -197,6 +197,14 @@ func (m *FlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) 
 	panic("TODO")
 }
 
+func (m *FlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
 	panic("TODO")
 }
