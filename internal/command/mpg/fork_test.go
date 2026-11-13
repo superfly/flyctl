@@ -73,6 +73,13 @@ func TestRunFork(t *testing.T) {
 			wantFork:       true,
 			wantPlan:       "PERFORMANCE",
 		},
+		{
+			name:           "passes a plan only the API knows through",
+			clusterVersion: 2,
+			args:           []string{clusterID, "--plan", "dev-256"},
+			wantFork:       true,
+			wantPlan:       "dev-256",
+		},
 	}
 
 	for _, tt := range tests {
@@ -138,6 +145,5 @@ func TestNewForkFlags(t *testing.T) {
 	plan := cmd.Flags().Lookup("plan")
 	require.NotNil(t, plan)
 	assert.Empty(t, plan.DefValue)
-	assert.Contains(t, plan.Usage, planNames(MPGPlans))
 	assert.Contains(t, plan.Usage, "defaults to the source cluster's plan")
 }

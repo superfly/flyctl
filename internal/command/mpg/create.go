@@ -45,7 +45,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "plan",
-			Description: "The plan to use for the Postgres cluster: Basic, Starter, Launch, Scale, Performance",
+			Description: "The plan to use for the Postgres cluster, from the plans your organization can use (defaults to Basic)",
 		},
 		flag.Int{
 			Name:        "volume-size",
@@ -181,7 +181,7 @@ func planKeysByPrice(plans map[string]PlanDetails) []string {
 	})
 }
 
-// planNames lists the plans cheapest first, as --plan's help does.
+// planNames lists the plans cheapest first, for the unknown plan error.
 func planNames(plans map[string]PlanDetails) string {
 	keys := planKeysByPrice(plans)
 
