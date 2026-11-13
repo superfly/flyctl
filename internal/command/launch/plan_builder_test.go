@@ -265,6 +265,36 @@ func TestBuildManifestChecksBillingBeforePlacement(t *testing.T) {
 	}
 }
 
+// A launch stopped by the billing check has no state yet, so the partial
+// manifest carries the org's ID for launch metrics: the slug is often just
+// "personal", which doesn't say which org it was.
+func TestBuildManifestBillingStopKeepsOrgID(t *testing.T) {
+	ctx := newBuildManifestCtx(t)
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
+			return []uiex.Organization{{
+				Slug:              "personal",
+				RawSlug:           "someone-123",
+				Personal:          true,
+				BillingStatus:     uiex.BillingStatusSourceRequired,
+				InternalNumericID: 4242,
+			}}, nil
+		},
+	})
+
+	m, _, err := buildManifest(ctx, nil, &recoverableErrorBuilder{canEnterUi: false})
+	require.Error(t, err)
+	require.NotNil(t, m)
+	assert.Equal(t, "personal", m.Plan.OrgSlug)
+	assert.Equal(t, "4242", m.orgID)
+}
+
+func TestOrgIDForMetrics(t *testing.T) {
+	assert.Equal(t, "", orgIDForMetrics(nil))
+	assert.Equal(t, "", orgIDForMetrics(&uiex.Organization{Slug: "personal"}))
+	assert.Equal(t, "7", orgIDForMetrics(&uiex.Organization{InternalNumericID: 7}))
+}
+
 // A manifest given with --from-manifest skips buildManifest, so its billing
 // check has to happen when the launch state is built from the manifest. A
 // manifest buildManifest just produced was checked already, and plan steps (the

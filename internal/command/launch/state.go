@@ -47,6 +47,11 @@ type LaunchManifest struct {
 	Plan       *plan.LaunchPlan  `json:"plan,omitempty"`
 	PlanSource *launchPlanSource `json:"plan_source,omitempty"`
 	Config     *appconfig.Config `json:"config,omitempty"`
+
+	// orgID is the org's numeric ID when a launch stops before it has a
+	// state (e.g. the org needs a payment method), so launch metrics still
+	// name the org. "personal" alone doesn't identify one.
+	orgID string
 }
 
 type launchState struct {
@@ -95,11 +100,21 @@ func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
 	}
 	// Record the org as soon as it's known, so a launch that fails later
 	// (e.g. in CreateApp: name taken, payment method required) still reports it.
-	if org.InternalNumericID != 0 {
-		state.orgID = strconv.FormatUint(org.InternalNumericID, 10)
+	if id := orgIDForMetrics(org); id != "" {
+		state.orgID = id
 	}
 
 	return org, nil
+}
+
+// orgIDForMetrics is the org's numeric ID as launch metrics report it, or ""
+// when it isn't known.
+func orgIDForMetrics(org *uiex.Organization) string {
+	if org == nil || org.InternalNumericID == 0 {
+		return ""
+	}
+
+	return strconv.FormatUint(org.InternalNumericID, 10)
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
