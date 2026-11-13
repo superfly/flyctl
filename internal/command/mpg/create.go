@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -60,8 +61,8 @@ func newCreate() *cobra.Command {
 		},
 		flag.Int{
 			Name:        "pg-major-version",
-			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16 and 17.",
-			Default:     16,
+			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16, 17 and 18.",
+			Default:     mpgutil.DefaultPGMajorVersion,
 		},
 	)
 
@@ -108,8 +109,8 @@ func runCreate(ctx context.Context) error {
 	}
 
 	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
-	if pgMajorVersion != 16 && pgMajorVersion != 17 {
-		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
+	if err := mpgutil.ValidatePGMajorVersion(pgMajorVersion); err != nil {
+		return err
 	}
 
 	// Plan selection and validation
