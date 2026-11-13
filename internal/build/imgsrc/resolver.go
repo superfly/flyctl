@@ -536,6 +536,26 @@ func (b *build) SetBuilderMetaPart2(buildkitEnabled bool, dockerVersion string, 
 	b.BuilderMeta.Platform = platform
 }
 
+// SetBuilderRegion records the region the builder runs in. Only remote
+// builders have one: local and depot builds leave it empty.
+func (b *build) SetBuilderRegion(region string) {
+	if b == nil || b.BuilderMeta == nil {
+		return
+	}
+
+	b.BuilderMeta.BuilderRegion = region
+}
+
+// builderAttributes returns the builder's type and region for labelling
+// metrics. Both are empty when the build state or its metadata is missing.
+func (b *build) builderAttributes() (builderType, region string) {
+	if b == nil || b.BuilderMeta == nil {
+		return "", ""
+	}
+
+	return b.BuilderMeta.BuilderType, b.BuilderMeta.BuilderRegion
+}
+
 // call this at the start of each strategy to restart all the timers
 func (b *build) ResetTimings() {
 	b.StartTimes = &uiex.BuildTimings{}
