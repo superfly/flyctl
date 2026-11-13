@@ -138,6 +138,6 @@ func TestNewForkFlags(t *testing.T) {
 	plan := cmd.Flags().Lookup("plan")
 	require.NotNil(t, plan)
 	assert.Empty(t, plan.DefValue)
-	assert.Contains(t, plan.Usage, planNames())
+	assert.Contains(t, plan.Usage, planNames(MPGPlans))
 	assert.Contains(t, plan.Usage, "defaults to the source cluster's plan")
 }
