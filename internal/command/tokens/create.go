@@ -228,7 +228,7 @@ func newMachineExec() *cobra.Command {
 func newWireGuard() *cobra.Command {
 	const (
 		short = "Create a WireGuard token"
-		long  = "Create an API token limited to WireGuard peer management for an organization. Use --network to limit creating and removing peers to the named networks; reads are not limited. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
+		long  = "Create an API token limited to WireGuard peer management for an organization. Use --network to limit it to peers on the named networks; reads that name no network, such as listing peers, are not limited. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "wireguard"
 	)
 
@@ -252,7 +252,7 @@ func newWireGuard() *cobra.Command {
 		},
 		flag.StringArray{
 			Name:        "network",
-			Description: "Limit creating and removing WireGuard peers to these networks. Reads are not limited. Repeat the flag or separate names with commas. \"default\" is the organization's default network",
+			Description: "Limit WireGuard peers to these networks. Reads that name no network, such as listing peers, are not limited. Repeat the flag or separate names with commas. \"default\" is the organization's default network",
 		},
 		flag.Org(),
 	)

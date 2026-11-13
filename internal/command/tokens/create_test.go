@@ -48,6 +48,8 @@ func TestWireGuardNetworkCaveats(t *testing.T) {
 		{name: "write on another network", args: limited, access: wg(resset.ActionWrite, "other"), wantErr: resset.ErrUnauthorizedForResource},
 		{name: "write without a network", args: limited, access: wg(resset.ActionWrite, ""), wantErr: resset.ErrUnauthorizedForAction},
 		{name: "read with only the org", args: limited, access: &flyio.Access{Action: resset.ActionRead, OrgID: fly.Pointer(uint64(1))}},
+		{name: "read on an allowed network", args: limited, access: wg(resset.ActionRead, "one")},
+		{name: "read on another network", args: limited, access: wg(resset.ActionRead, "other"), wantErr: resset.ErrUnauthorizedForResource},
 		{name: "no flag allows any network", access: wg(resset.ActionWrite, "other")},
 		{name: "no flag allows a write without a network", access: wg(resset.ActionWrite, "")},
 	} {
