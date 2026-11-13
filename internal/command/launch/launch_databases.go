@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -212,7 +213,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		Region:         pgPlan.Region,
 		Plan:           pgPlan.Plan,
 		DiskSizeGB:     pgPlan.DiskSize,
-		PGMajorVersion: mpgutil.DefaultPGMajorVersion,
+		PGMajorVersion: strconv.Itoa(mpgutil.DefaultPGMajorVersion),
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
