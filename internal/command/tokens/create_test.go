@@ -72,8 +72,48 @@ func TestWireGuardNetworkCaveats(t *testing.T) {
 			}
 
 			cavs, err := wireGuardCaveats(t, args...)
-			require.ErrorContains(t, err, "network name")
+			require.ErrorContains(t, err, "--network default")
 			require.Nil(t, cavs)
 		})
 	}
+
+	t.Run("no flag adds only the caveat used before --network", func(t *testing.T) {
+		cavs, err := wireGuardCaveats(t)
+		require.NoError(t, err)
+		require.Equal(t, []macaroon.Caveat{&resset.IfPresent{
+			Ifs: macaroon.NewCaveatSet(
+				&flyio.Apps{Apps: resset.ResourceSet[uint64, resset.Action]{}},
+				&flyio.FeatureSet{
+					Features: resset.ResourceSet[string, resset.Action]{
+						flyio.FeatureWireGuard: resset.ActionAll,
+					},
+				},
+			),
+			Else: resset.ActionRead,
+		}}, cavs)
+	})
+
+	t.Run("an attenuated token keeps the network limit", func(t *testing.T) {
+		key := macaroon.NewSigningKey()
+		mac, err := macaroon.New([]byte("kid"), flyio.LocationPermission, key)
+		require.NoError(t, err)
+		tok, err := mac.Encode()
+		require.NoError(t, err)
+
+		cavs, err := wireGuardCaveats(t, limited...)
+		require.NoError(t, err)
+		header, err := attenuate(macaroon.ToAuthorizationHeader(tok), cavs...)
+		require.NoError(t, err)
+
+		tok, _, err = flyio.ParsePermissionAndDischargeTokens(header)
+		require.NoError(t, err)
+		mac, err = macaroon.Decode(tok)
+		require.NoError(t, err)
+		verified, err := mac.Verify(key, nil, nil)
+		require.NoError(t, err)
+
+		require.NoError(t, verified.Validate(wg(resset.ActionWrite, "one")))
+		require.ErrorIs(t, verified.Validate(wg(resset.ActionWrite, "other")), resset.ErrUnauthorizedForResource)
+		require.ErrorIs(t, verified.Validate(wg(resset.ActionWrite, "")), resset.ErrUnauthorizedForAction)
+	})
 }

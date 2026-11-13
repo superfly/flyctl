@@ -228,7 +228,7 @@ func newMachineExec() *cobra.Command {
 func newWireGuard() *cobra.Command {
 	const (
 		short = "Create a WireGuard token"
-		long  = "Create an API token limited to WireGuard peer management for an organization. Use --network to limit it to peers on specific networks. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
+		long  = "Create an API token limited to WireGuard peer management for an organization. Use --network to limit creating and removing peers to the named networks; reads are not limited. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "wireguard"
 	)
 
@@ -252,7 +252,7 @@ func newWireGuard() *cobra.Command {
 		},
 		flag.StringArray{
 			Name:        "network",
-			Description: "Limit the token to WireGuard peers on these networks. Repeat the flag or separate names with commas. \"default\" is the organization's default network",
+			Description: "Limit creating and removing WireGuard peers to these networks. Reads are not limited. Repeat the flag or separate names with commas. \"default\" is the organization's default network",
 		},
 		flag.Org(),
 	)
@@ -644,7 +644,7 @@ func getWireGuardCaveats(ctx context.Context) ([]macaroon.Caveat, error) {
 			switch name = strings.TrimSpace(name); name {
 			case "":
 				// An empty name in the caveat matches every network.
-				return nil, errors.New("--network can't have an empty network name")
+				return nil, errors.New("--network can't have an empty network name; use --network default for the organization's default network")
 			case flapsutil.DefaultNetwork:
 				name = flyio.NetworkNameDefault
 			}
