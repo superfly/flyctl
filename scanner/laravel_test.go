@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -129,6 +130,52 @@ func TestConfigureLaravelPhpVersionFromComposerLock(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, srcInfo.Runtime.Version)
 			assert.Equal(t, tc.expected, srcInfo.BuildArgs["PHP_VERSION"])
+		})
+	}
+}
+
+// writeFakeLaravelGenerator installs a vendor/bin/dockerfile-laravel that
+// records its args and the first line of its stdin, writes a Dockerfile, and
+// returns the file it records to.
+func writeFakeLaravelGenerator(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("fake generator is a shell script")
+	}
+
+	composer := `{"require": {"php": "^8.2"}, "require-dev": {"fly-apps/dockerfile-laravel": "*"}}`
+	require.NoError(t, os.WriteFile("composer.json", []byte(composer), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join("vendor", "bin"), 0o755))
+
+	recordFile := filepath.Join(t.TempDir(), "record")
+	script := "#!/bin/sh\nread answer\necho \"args=$* stdin=$answer\" > " + recordFile + "\necho 'FROM php:8.2' > Dockerfile\n"
+	require.NoError(t, os.WriteFile(filepath.Join("vendor", "bin", "dockerfile-laravel"), []byte(script), 0o755))
+
+	return recordFile
+}
+
+// When no one can answer, the generator gets an empty stdin and so takes its
+// default answers, as under `fly launch < /dev/null`. Its args don't change.
+func TestLaravelCallbackGeneratorStdin(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		nonInteractive bool
+		want           string
+	}{
+		{"non-interactive", true, "args=generate stdin="},
+		{"interactive", false, "args=generate stdin=y"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Chdir(writeLaravelApp(t, "^8.2"))
+			recordFile := writeFakeLaravelGenerator(t)
+			redirectStdin(t, "y\n")
+
+			err := LaravelCallback("my-app", &SourceInfo{Family: "Laravel", NonInteractive: tc.nonInteractive}, nil, nil)
+			require.NoError(t, err)
+
+			got, err := os.ReadFile(recordFile)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, strings.TrimSpace(string(got)))
 		})
 	}
 }

@@ -398,7 +398,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 			cmd := exec.Command(args[0], args[1:]...)
 
-			if err := runGenerator(cmd); err != nil {
+			if err := runGenerator(cmd, !srcInfo.NonInteractive); err != nil {
 				var exitError *exec.ExitError
 				if errors.As(err, &exitError) && exitError.ExitCode() == 42 {
 					// generator exited with code 42, which means existing
@@ -457,7 +457,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
 
-			if err := runGenerator(cmd); err != nil {
+			if err := runGenerator(cmd, !srcInfo.NonInteractive); err != nil {
 				var exitError *exec.ExitError
 				if errors.As(err, &exitError) && exitError.ExitCode() == 42 {
 					// generator exited with code 42, which means existing

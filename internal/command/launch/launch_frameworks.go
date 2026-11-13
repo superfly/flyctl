@@ -277,6 +277,7 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 		return nil
 	}
 
+	state.sourceInfo.NonInteractive = !iostreams.FromContext(ctx).CanPromptSubprocess()
 	err := state.sourceInfo.Callback(state.Plan.AppName, state.sourceInfo, state.Plan, flag.ExtraArgsFromContext(ctx))
 
 	if state.sourceInfo.MergeConfig != nil {

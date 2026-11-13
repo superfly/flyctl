@@ -60,14 +60,20 @@ type SourceInfo struct {
 	Buildpacks       []string
 	Secrets          []Secret
 
-	Files                           []SourceFile
-	Port                            int
-	Env                             map[string]string
-	Statics                         []Static
-	Processes                       map[string]string
-	DeployDocs                      string
-	Notice                          string
-	SkipDeploy                      bool
+	Files      []SourceFile
+	Port       int
+	Env        map[string]string
+	Statics    []Static
+	Processes  map[string]string
+	DeployDocs string
+	Notice     string
+	SkipDeploy bool
+	// NonInteractive is set when no one can answer a Dockerfile generator's
+	// questions. fly launch sets it from IOStreams.CanPromptSubprocess() before
+	// running Callback. Generators then get an empty stdin and take their
+	// default answers, as under `fly launch < /dev/null`, instead of waiting
+	// on a stdin that never closes. The zero value keeps flyctl's stdin.
+	NonInteractive                  bool
 	SkipDatabase                    bool
 	Volumes                         []Volume
 	DockerfileAppendix              []string
