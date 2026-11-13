@@ -64,9 +64,14 @@ func TestWireGuardNetworkCaveats(t *testing.T) {
 		})
 	}
 
-	for _, value := range []string{"", " ", "a,,b", "a, "} {
-		t.Run(fmt.Sprintf("refuses %q", value), func(t *testing.T) {
-			cavs, err := wireGuardCaveats(t, "--network", value)
+	for _, values := range [][]string{{""}, {" "}, {"a,,b"}, {"a, "}, {"a", ""}, {"", "a"}} {
+		t.Run(fmt.Sprintf("refuses %q", values), func(t *testing.T) {
+			var args []string
+			for _, value := range values {
+				args = append(args, "--network", value)
+			}
+
+			cavs, err := wireGuardCaveats(t, args...)
 			require.ErrorContains(t, err, "network name")
 			require.Nil(t, cavs)
 		})

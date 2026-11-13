@@ -250,7 +250,7 @@ func newWireGuard() *cobra.Command {
 			Description: "Token name",
 			Default:     "WireGuard token",
 		},
-		flag.StringSlice{
+		flag.StringArray{
 			Name:        "network",
 			Description: "Limit the token to WireGuard peers on these networks. Repeat the flag or separate names with commas. \"default\" is the organization's default network",
 		},
@@ -631,20 +631,25 @@ func getWireGuardCaveats(ctx context.Context) ([]macaroon.Caveat, error) {
 		return cavs, nil
 	}
 
-	networks := resset.ResourceSet[string, resset.Action]{}
-	for _, name := range flag.GetStringSlice(ctx, "network") {
-		switch name = strings.TrimSpace(name); name {
-		case "":
-			// An empty name in the caveat matches every network.
-			return nil, errors.New("--network can't have an empty network name")
-		case flapsutil.DefaultNetwork:
-			name = flyio.NetworkNameDefault
-		}
-		networks[name] = resset.ActionAll
+	// A string slice flag drops an empty value when the flag is repeated,
+	// and a lone empty value of a string array reads back as no values.
+	values := flag.GetStringArray(ctx, "network")
+	if len(values) == 0 {
+		values = []string{""}
 	}
 
-	if len(networks) == 0 {
-		return nil, errors.New("--network needs at least one network name")
+	networks := resset.ResourceSet[string, resset.Action]{}
+	for _, value := range values {
+		for _, name := range strings.Split(value, ",") {
+			switch name = strings.TrimSpace(name); name {
+			case "":
+				// An empty name in the caveat matches every network.
+				return nil, errors.New("--network can't have an empty network name")
+			case flapsutil.DefaultNetwork:
+				name = flyio.NetworkNameDefault
+			}
+			networks[name] = resset.ActionAll
+		}
 	}
 
 	cav := &resset.IfPresent{
