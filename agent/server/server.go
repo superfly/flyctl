@@ -280,11 +280,13 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 		return
 	}
 
+	websocketsOnly := env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets
+
 	var transport string
 	if s.tokenModeFor(ctx, client) {
 		transport = "token"
 
-		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks); err != nil {
+		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks, !websocketsOnly); err != nil {
 			s.reportTokenFailure(tk, err, nil)
 
 			return
@@ -296,7 +298,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 		}
 
 		transport = "udp"
-		if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
+		if websocketsOnly {
 			transport = "websocket"
 
 			if tunnel, err = wg.ConnectWS(ctx, state); err != nil {
@@ -333,8 +335,9 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 // buildTokenTunnel connects to the token gateway with a fresh keypair. The
 // gateway allocates the peer inline and keeps it only as long as the token
 // verifies, so nothing is registered with the API or written to the config
-// file. Callers must hold s.mu.
-func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, network string, sessionToks *tokens.Tokens) (*wg.Tunnel, error) {
+// file. With udp, WireGuard goes to the gateway's direct IP over UDP when it
+// has one, rather than over the websocket. Callers must hold s.mu.
+func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, network string, sessionToks *tokens.Tokens, udp bool) (*wg.Tunnel, error) {
 	if s.tokensFor(sessionToks).MacaroonsOnly().Empty() {
 		return nil, errors.New("access token is too old, please reauthenticate")
 	}
@@ -362,7 +365,7 @@ func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, ne
 		Token:       func() string { return s.tokensFor(sessionToks).MacaroonsOnly().FlapsHeader() },
 		OrgSlug:     slug,
 		NetworkName: network,
-	})
+	}, udp)
 	if err != nil {
 		return nil, fmt.Errorf("token-mode WireGuard via %s: %w", s.TokenGateway, err)
 	}

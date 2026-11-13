@@ -222,6 +222,10 @@ var (
 	// directDials records the TLS server name each direct "ip:443" was
 	// last dialed with
 	directDials sync.Map
+
+	// udpGateway stands in for gateways' WireGuard port: tokenGatewayUDPPort
+	// points at it, so a direct IP of 127.0.0.1 sends WireGuard here
+	udpGateway *net.UDPConn
 )
 
 // TestMain points every token-mode test at a plain-text local gateway and
@@ -258,6 +262,12 @@ func TestMain(m *testing.M) {
 	tokenRefreshMargin = 500 * time.Millisecond
 	tokenRefreshRetry = 200 * time.Millisecond
 	tokenHelloTimeout = 2 * time.Second
+
+	var err error
+	if udpGateway, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)}); err != nil {
+		panic(err)
+	}
+	tokenGatewayUDPPort = udpGateway.LocalAddr().(*net.UDPAddr).Port
 
 	os.Exit(m.Run())
 }
@@ -298,7 +308,7 @@ func TestConnectTokenReprovisionRebuildsTunnel(t *testing.T) {
 		Token:       func() string { return "FlyV1 fm2_test" },
 		OrgSlug:     "test-org",
 		NetworkName: "custom",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -364,7 +374,7 @@ func TestConnectTokenRejectedOnReconnectKillsTunnel(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -400,7 +410,7 @@ func TestConnectTokenRejectedInitially(t *testing.T) {
 	_, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "nope",
-	})
+	}, false)
 	require.Error(t, err)
 
 	var gwErr *GatewayError
@@ -419,7 +429,7 @@ func TestConnectTokenSilentGateway(t *testing.T) {
 	_, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.Error(t, err)
 	// through a real websocket conn the deadline surfaces as a context
 	// cancellation; it must still be recognized as "no hello"
@@ -448,7 +458,7 @@ func TestConnectTokenSameTokenRefreshedOncePerWindow(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_same" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -487,7 +497,7 @@ func TestConnectTokenSameTokenExtendsSessionCap(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_same" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -542,7 +552,7 @@ func TestConnectTokenNoTokenOnReconnectKillsTunnel(t *testing.T) {
 			return token
 		},
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -577,7 +587,7 @@ func TestConnectTokenPacketTokenForOlderGateway(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -604,7 +614,7 @@ func TestConnectTokenReprovisionClosesOpenConns(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -674,7 +684,7 @@ func connectRefreshing(t *testing.T, gateway *fakeTokenGateway) (*Tunnel, func(s
 			return token
 		},
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	t.Cleanup(func() { tunnel.Close() })
 
@@ -817,7 +827,7 @@ func TestConnectTokenReconnectsToDirectIP(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, anycast.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
