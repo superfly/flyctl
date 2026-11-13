@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/metrics/synthetics"
@@ -95,7 +96,7 @@ const maxUnixSocketPath = 103
 
 func bindUnixSocket(socket string) (net.Listener, error) {
 	if len(socket) > maxUnixSocketPath {
-		return nil, fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), maxUnixSocketPath, agent.SocketPathEnvKey)
+		return nil, flyerr.Expected(fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), maxUnixSocketPath, agent.SocketPathEnvKey))
 	}
 
 	l, err := net.Listen("unix", socket)

@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -380,7 +381,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		case uptime > 10*time.Second && !lm.isConstantlyRestarting(machine):
 			return nil
 		case lm.isConstantlyRestarting(machine):
-			err := fmt.Errorf("the app appears to be crashing")
+			err := flyerr.Expected(errors.New("the app appears to be crashing"))
 			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return err
