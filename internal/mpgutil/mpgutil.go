@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 )
@@ -16,18 +18,31 @@ const (
 	DefaultPGMajorVersion = 17
 )
 
-// SupportedPGMajorVersions lists the Postgres major versions a new cluster can
+// supportedPGMajorVersions lists the Postgres major versions a new cluster can
 // run, oldest first.
-var SupportedPGMajorVersions = []int{16, 17, 18}
+var supportedPGMajorVersions = []int{16, 17, 18}
+
+// SupportedPGMajorVersionsText lists the supported Postgres major versions for
+// help and error text, as in "16, 17 and 18".
+func SupportedPGMajorVersionsText() string {
+	names := make([]string, len(supportedPGMajorVersions))
+	for i, version := range supportedPGMajorVersions {
+		names[i] = strconv.Itoa(version)
+	}
+
+	last := len(names) - 1
+
+	return strings.Join(names[:last], ", ") + " and " + names[last]
+}
 
 // ValidatePGMajorVersion reports whether a new cluster can run the given
 // Postgres major version.
 func ValidatePGMajorVersion(version int) error {
-	if slices.Contains(SupportedPGMajorVersions, version) {
+	if slices.Contains(supportedPGMajorVersions, version) {
 		return nil
 	}
 
-	return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16, 17 and 18", version)
+	return fmt.Errorf("invalid Postgres major version: %d. Supported versions are %s", version, SupportedPGMajorVersionsText())
 }
 
 // ConnectionURI builds a libpq connection string for the cluster's default user

@@ -61,7 +61,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Int{
 			Name:        "pg-major-version",
-			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16, 17 and 18.",
+			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are " + mpgutil.SupportedPGMajorVersionsText() + ".",
 			Default:     mpgutil.DefaultPGMajorVersion,
 		},
 	)

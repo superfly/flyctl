@@ -24,6 +24,19 @@ import (
 func createdPlan(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
+	req, err := createdRequest(t, args...)
+	if req == nil {
+		return "", err
+	}
+
+	return req.Plan, err
+}
+
+// createdRequest runs `fly mpg create` without a terminal against mock APIs
+// and returns the create request it sent (nil if it sent none).
+func createdRequest(t *testing.T, args ...string) (*flaps.CreateManagedPostgresClusterRequest, error) {
+	t.Helper()
+
 	ios, _, _, _ := iostreams.Test()
 	ctx := iostreams.NewContext(context.Background(), ios)
 	ctx = config.NewContext(ctx, &config.Config{})
@@ -38,19 +51,45 @@ func createdPlan(t *testing.T, args ...string) (string, error) {
 		},
 	})
 
-	var plan string
+	var sent *flaps.CreateManagedPostgresClusterRequest
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
 			return &flaps.RegionData{Regions: []fly.Region{{Code: "iad", MPGAvailable: true}}}, nil
 		},
 		CreateManagedPostgresClusterFunc: func(_ context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
-			plan = req.Plan
+			sent = &req
 
 			return flaps.ManagedPostgresCluster{}, errors.New("stop after the create request")
 		},
 	})
 
-	return plan, runCreate(ctx)
+	err := runCreate(ctx)
+
+	return sent, err
+}
+
+func TestRunCreatePGMajorVersion(t *testing.T) {
+	t.Run("no flag asks for the default", func(t *testing.T) {
+		req, _ := createdRequest(t)
+		require.NotNil(t, req)
+		assert.Equal(t, "17", req.PGMajorVersion)
+	})
+
+	for _, version := range []string{"16", "17", "18"} {
+		t.Run("accepts "+version, func(t *testing.T) {
+			req, _ := createdRequest(t, "--pg-major-version", version)
+			require.NotNil(t, req)
+			assert.Equal(t, version, req.PGMajorVersion)
+		})
+	}
+
+	for _, version := range []string{"15", "19", "0"} {
+		t.Run("rejects "+version, func(t *testing.T) {
+			req, err := createdRequest(t, "--pg-major-version", version)
+			assert.EqualError(t, err, "invalid Postgres major version: "+version+". Supported versions are 16, 17 and 18")
+			assert.Nil(t, req, "no cluster should be requested")
+		})
+	}
 }
 
 // --plan names are documented capitalized and matched in any case, but the

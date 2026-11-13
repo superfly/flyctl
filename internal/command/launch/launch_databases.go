@@ -174,6 +174,20 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	return nil
 }
 
+// managedPostgresClusterRequest builds the request for the cluster that
+// fly launch creates. The launch plan carries no Postgres version, so the
+// cluster gets the same default as fly mpg create.
+func managedPostgresClusterRequest(orgSlug string, pgPlan *plan.ManagedPostgresPlan) flaps.CreateManagedPostgresClusterRequest {
+	return flaps.CreateManagedPostgresClusterRequest{
+		OrgSlug:        orgSlug,
+		Name:           pgPlan.DbName,
+		Region:         pgPlan.Region,
+		Plan:           pgPlan.Plan,
+		DiskSizeGB:     pgPlan.DiskSize,
+		PGMajorVersion: strconv.Itoa(mpgutil.DefaultPGMajorVersion),
+	}
+}
+
 func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var (
 		io          = iostreams.FromContext(ctx)
@@ -204,14 +218,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Create the cluster with retry logic for network errors.
-	input := flaps.CreateManagedPostgresClusterRequest{
-		OrgSlug:        slug,
-		Name:           pgPlan.DbName,
-		Region:         pgPlan.Region,
-		Plan:           pgPlan.Plan,
-		DiskSizeGB:     pgPlan.DiskSize,
-		PGMajorVersion: strconv.Itoa(mpgutil.DefaultPGMajorVersion),
-	}
+	input := managedPostgresClusterRequest(slug, pgPlan)
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
