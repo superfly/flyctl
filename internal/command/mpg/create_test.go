@@ -35,10 +35,11 @@ var dev256 = flaps.ManagedPostgresPlan{Plan: "dev-256", CPUKind: "shared", CPUs:
 
 // createRun is what a run of `fly mpg create` did.
 type createRun struct {
-	plansOrg string // the org it listed plans for
-	plan     string // the plan of the cluster it asked for ("" if it asked for none)
-	out      string
-	err      error
+	plansOrg   string // the org it listed plans for
+	plan       string // the plan of the cluster it asked for ("" if it asked for none)
+	diskSizeGB int    // the disk size it asked for (0 if it left it to the API)
+	out        string
+	err        error
 }
 
 // runCreateWith runs `fly mpg create` without a terminal against mock APIs
@@ -77,6 +78,7 @@ func runCreateWith(t *testing.T, plans []flaps.ManagedPostgresPlan, plansErr err
 		},
 		CreateManagedPostgresClusterFunc: func(_ context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
 			run.plan = req.Plan
+			run.diskSizeGB = req.DiskSizeGB
 
 			return cluster, nil
 		},
@@ -241,4 +243,28 @@ func TestRunCreateWhenPlansAPIFails(t *testing.T) {
 	run = runCreateWith(t, nil, plansErr, "--plan", "dev-256")
 	require.ErrorContains(t, run.err, "valid plans are Basic, Starter, Launch, Scale, Performance")
 	assert.Empty(t, run.plan)
+}
+
+// Without --volume-size, create sends no disk size so the API gives the
+// cluster its plan's own default (1 GB for dev-256, 10 GB for the others).
+func TestRunCreateVolumeSize(t *testing.T) {
+	plans := append(slices.Clone(publicPlans), dev256)
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want int
+	}{
+		{"no --volume-size sends no size", nil, 0},
+		{"--volume-size is sent as given", []string{"--volume-size", "20"}, 20},
+		{"dev-256 without --volume-size sends no size", []string{"--plan", "dev-256"}, 0},
+		{"dev-256 with --volume-size sends it", []string{"--plan", "dev-256", "--volume-size", "5"}, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			run := runCreateWith(t, plans, nil, tc.args...)
+			require.NoError(t, run.err)
+			require.NotEmpty(t, run.plan, "a cluster should be requested")
+			assert.Equal(t, tc.want, run.diskSizeGB)
+		})
+	}
 }

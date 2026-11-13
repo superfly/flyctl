@@ -49,8 +49,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Int{
 			Name:        "volume-size",
-			Description: "Initial volume size in GB",
-			Default:     10,
+			Description: "Initial volume size in GB. Defaults to the plan's size.",
 		},
 		flag.Bool{
 			Name:        "enable-postgis-support",
@@ -142,8 +141,13 @@ func runCreate(ctx context.Context) error {
 		OrgSlug:        slug,
 		Plan:           plan,
 		PGMajorVersion: pgMajorVersion,
-		StorageInGb:    flag.GetInt(ctx, "volume-size"),
 		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+	}
+
+	// Without --volume-size no size is sent, so the API gives the cluster
+	// its plan's own default disk size.
+	if flag.IsSpecified(ctx, "volume-size") {
+		params.StorageInGb = flag.GetInt(ctx, "volume-size")
 	}
 
 	planDetails := plans[plan]
