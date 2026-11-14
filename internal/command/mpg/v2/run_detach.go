@@ -34,7 +34,7 @@ func RunDetach(ctx context.Context, clusterID string, appName string) error {
 	}
 
 	fmt.Fprintf(io.Out, "\nPostgres cluster %s has been detached from %s\n", clusterID, appName)
-	fmt.Fprintf(io.Out, "Note: This only removes the attachment record. Any secrets (like DATABASE_URL) are still set on the app.\n")
+	fmt.Fprintf(io.Out, "Note: This only removes the attachment record. Secrets like DATABASE_URL and DIRECT_URL may remain on the app.\n")
 	fmt.Fprintf(io.Out, "Use 'fly secrets unset DATABASE_URL -a %s' to remove the connection string.\n", appName)
 
 	return nil

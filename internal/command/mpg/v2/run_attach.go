@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -178,15 +181,33 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		return fmt.Errorf("failed retrieving secrets for app %s: %w", appName, err)
 	}
 
+	directAlreadySet := false
 	for _, secret := range secrets {
 		if secret.Name == variableName {
 			return fmt.Errorf("app %s already has %s set. Use 'fly secrets unset %s' to remove it first", appName, variableName, variableName)
+		}
+		if secret.Name == "DIRECT_URL" {
+			directAlreadySet = true
 		}
 	}
 
 	// Write the secret.
 	s := map[string]string{}
 	s[variableName] = connectionUri
+	if !flag.IsSpecified(ctx, "variable-name") {
+		switch {
+		case directAlreadySet:
+			fmt.Fprintln(io.ErrOut, "Warning: DIRECT_URL was not set because it already exists on the app.")
+		case info.LegacyClusterAPI:
+			fmt.Fprintln(io.ErrOut, "Warning: DIRECT_URL was not set because the cluster uses the legacy API.")
+		default:
+			if directURI, err := buildDirectConnectionURI(info.DirectEndpoint, user, password, db); err != nil {
+				fmt.Fprintln(io.ErrOut, "Warning: DIRECT_URL was not set because the direct endpoint is missing or invalid.")
+			} else {
+				s["DIRECT_URL"] = directURI
+			}
+		}
+	}
 
 	if err := appsecrets.Update(ctx, flapsClient, appName, s, nil); err != nil {
 		return err
@@ -203,7 +224,14 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	}
 
 	fmt.Fprintf(io.Out, "\nPostgres cluster %s is being attached to %s\n", clusterID, appName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  %s=%s\n", appName, variableName, connectionUri)
+	wording := "secret was"
+	if len(s) > 1 {
+		wording = "secrets were"
+	}
+	fmt.Fprintf(io.Out, "The following %s added to %s:\n  %s=%s\n", wording, appName, variableName, connectionUri)
+	if directURI, ok := s["DIRECT_URL"]; ok && len(s) > 1 {
+		fmt.Fprintf(io.Out, "  DIRECT_URL=%s\n", directURI)
+	}
 
 	return nil
 }
@@ -312,6 +340,26 @@ func buildConnectionUri(baseUri, user, password, db string) (string, error) {
 	return parsedURI.String(), nil
 }
 
+// buildDirectConnectionURI uses only the public endpoint and selected credentials.
+func buildDirectConnectionURI(endpoint flaps.ManagedPostgresEndpoint, user, password, db string) (string, error) {
+	if endpoint.Host == "" || endpoint.Port < 1 || endpoint.Port > 65535 ||
+		strings.ContainsAny(endpoint.Host, "[]") || (strings.Contains(endpoint.Host, ":") && net.ParseIP(endpoint.Host) == nil) {
+		return "", fmt.Errorf("invalid Postgres endpoint")
+	}
+	uri := (&url.URL{
+		Scheme: "postgresql",
+		Host:   net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port)),
+		User:   url.UserPassword(user, password),
+		Path:   "/" + db,
+	}).String()
+	parsed, err := url.Parse(uri)
+	if err != nil || parsed.Hostname() != endpoint.Host || parsed.Port() != strconv.Itoa(endpoint.Port) {
+		return "", fmt.Errorf("invalid Postgres endpoint")
+	}
+
+	return uri, nil
+}
+
 // createAttachmentPublicFirst tries the public Machines API for attachment
 // creation and falls back to the legacy MPGv2 client on a classified 404.
 func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string, input mpgv2.CreateAttachmentInput) error {
@@ -334,17 +382,22 @@ func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.Flap
 
 // clusterConnectionInfo holds the base URI and default credentials for attach.
 type clusterConnectionInfo struct {
-	BaseURI         string
-	DefaultUser     string
-	DefaultPassword string
-	DefaultDBName   string
+	DirectEndpoint   flaps.ManagedPostgresEndpoint
+	LegacyClusterAPI bool
+	BaseURI          string
+	DefaultUser      string
+	DefaultPassword  string
+	DefaultDBName    string
 }
 
 // getClusterConnectionInfoPublicFirst falls back on cluster or credential 404s.
 func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string, needDefaultCredentials bool) (clusterConnectionInfo, error) {
 	cluster, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
 	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		info, err := getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		info.LegacyClusterAPI = true
+
+		return info, err
 	}
 	if err != nil {
 		return clusterConnectionInfo{}, err
@@ -361,8 +414,9 @@ func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsu
 	}
 
 	info := clusterConnectionInfo{
-		BaseURI:       fmt.Sprintf("postgresql://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase),
-		DefaultDBName: mpgutil.DefaultDatabase,
+		BaseURI:        fmt.Sprintf("postgresql://%s:%d/%s", pooler.Host, pooler.Port, mpgutil.DefaultDatabase),
+		DefaultDBName:  mpgutil.DefaultDatabase,
+		DirectEndpoint: cluster.Endpoints.Primary.Direct,
 	}
 	if !needDefaultCredentials {
 		return info, nil
@@ -370,7 +424,10 @@ func getClusterConnectionInfoPublicFirst(ctx context.Context, flapsClient flapsu
 
 	creds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, mpgutil.DefaultUsername)
 	if errors.Is(err, flaps.ErrFlapsNotFound) {
-		return getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		legacyInfo, legacyErr := getClusterConnectionInfoLegacy(ctx, legacyClient, clusterID)
+		legacyInfo.DirectEndpoint = info.DirectEndpoint
+
+		return legacyInfo, legacyErr
 	}
 	if err != nil {
 		return clusterConnectionInfo{}, err
