@@ -105,3 +105,107 @@ func TestCertificatesSetupErrorWritesNothing(t *testing.T) {
 		})
 	}
 }
+
+func TestCertificatesSetupJSONIncludesDNSOptions(t *testing.T) {
+	resp := setupResponse()
+	ctx, stdout, stderr := setupContext(t, []string{"--json", "www.example.com"}, func(_ context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+		return resp, nil
+	})
+
+	require.NoError(t, runCertificatesSetup(ctx))
+	assert.Empty(t, stderr())
+
+	var got CertificatesSetupResponse
+	require.NoError(t, json.Unmarshal([]byte(stdout()), &got))
+
+	assert.Equal(t, "www.example.com", got.Hostname)
+	assert.Equal(t, "www.example.com", got.DNSOptions.Hostname)
+	assert.False(t, got.DNSOptions.IsApex)
+
+	require.Len(t, got.DNSOptions.RoutingOptions, 2)
+	assert.Equal(t, "A and AAAA Records", got.DNSOptions.RoutingOptions[0].Name)
+	assert.True(t, got.DNSOptions.RoutingOptions[0].Recommended)
+	require.Len(t, got.DNSOptions.RoutingOptions[0].Records, 2)
+	assert.Equal(t, "A", got.DNSOptions.RoutingOptions[0].Records[0].Type)
+	assert.Equal(t, "66.241.124.1", got.DNSOptions.RoutingOptions[0].Records[0].Value)
+	assert.Equal(t, "AAAA", got.DNSOptions.RoutingOptions[0].Records[1].Type)
+	assert.Equal(t, "2a09:8280:1::1", got.DNSOptions.RoutingOptions[0].Records[1].Value)
+
+	assert.Equal(t, "CNAME Record", got.DNSOptions.RoutingOptions[1].Name)
+	assert.False(t, got.DNSOptions.RoutingOptions[1].Recommended)
+	require.Len(t, got.DNSOptions.RoutingOptions[1].Records, 1)
+	assert.Equal(t, "CNAME", got.DNSOptions.RoutingOptions[1].Records[0].Type)
+	assert.Equal(t, "my-app.fly.dev", got.DNSOptions.RoutingOptions[1].Records[0].Value)
+}
+
+func TestCertificatesSetupJSON_ApexHidesCNAME(t *testing.T) {
+	resp := setupResponse()
+	resp.Hostname = "example.com"
+	ctx, stdout, _ := setupContext(t, []string{"--json", "example.com"}, func(_ context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+		return resp, nil
+	})
+
+	require.NoError(t, runCertificatesSetup(ctx))
+
+	var got CertificatesSetupResponse
+	require.NoError(t, json.Unmarshal([]byte(stdout()), &got))
+
+	assert.True(t, got.DNSOptions.IsApex)
+	require.Len(t, got.DNSOptions.RoutingOptions, 1, "apex domain must not include CNAME in routing options")
+	assert.Equal(t, "A and AAAA Records", got.DNSOptions.RoutingOptions[0].Name)
+	assert.False(t, got.DNSOptions.RoutingOptions[0].Recommended, "single routing option should not be marked recommended")
+}
+
+func TestCertificatesSetupJSON_WildcardACME(t *testing.T) {
+	resp := setupResponse()
+	resp.Hostname = "*.example.com"
+	resp.DNSRequirements.ACMEChallenge.Name = "_acme-challenge.example.com"
+	resp.DNSRequirements.ACMEChallenge.Target = "example.com.fw3d.flydns.net"
+
+	ctx, stdout, _ := setupContext(t, []string{"--json", "*.example.com"}, func(_ context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+		return resp, nil
+	})
+
+	require.NoError(t, runCertificatesSetup(ctx))
+
+	var got CertificatesSetupResponse
+	require.NoError(t, json.Unmarshal([]byte(stdout()), &got))
+
+	require.Len(t, got.DNSOptions.AdditionalRecords, 1)
+	acmeRec := got.DNSOptions.AdditionalRecords[0]
+	assert.Equal(t, "CNAME", acmeRec.Type)
+	assert.Equal(t, "_acme-challenge.example.com", acmeRec.Name)
+	assert.Equal(t, "example.com.fw3d.flydns.net", acmeRec.Value)
+	assert.Equal(t, "ACME DNS Challenge", acmeRec.Title)
+	assert.Contains(t, acmeRec.Purpose, "Required to issue fly-managed wildcard certificates.")
+}
+
+func TestCertificatesSetupJSON_CustomWildcardOwnership(t *testing.T) {
+	resp := setupResponse()
+	resp.Hostname = "*.example.com"
+	resp.Certificates = []fly.CertificateDetail{
+		{
+			Source: "custom",
+			Status: "pending_ownership",
+		},
+	}
+	resp.DNSRequirements.Ownership.Name = "_fly-ownership.example.com"
+	resp.DNSRequirements.Ownership.AppValue = "fly-verify-token-12345"
+
+	ctx, stdout, _ := setupContext(t, []string{"--json", "*.example.com"}, func(_ context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error) {
+		return resp, nil
+	})
+
+	require.NoError(t, runCertificatesSetup(ctx))
+
+	var got CertificatesSetupResponse
+	require.NoError(t, json.Unmarshal([]byte(stdout()), &got))
+
+	require.Len(t, got.DNSOptions.AdditionalRecords, 1)
+	ownerRec := got.DNSOptions.AdditionalRecords[0]
+	assert.Equal(t, "TXT", ownerRec.Type)
+	assert.Equal(t, "_fly-ownership.example.com", ownerRec.Name)
+	assert.Equal(t, "fly-verify-token-12345", ownerRec.Value)
+	assert.Equal(t, "Ownership TXT Record", ownerRec.Title)
+	assert.Contains(t, ownerRec.Purpose, "Required to verify ownership for custom wildcard certificates.")
+}
