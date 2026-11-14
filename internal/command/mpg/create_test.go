@@ -24,6 +24,16 @@ import (
 func createdPlan(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
+	req, err := createRequest(t, args...)
+
+	return req.Plan, err
+}
+
+// createRequest runs `fly mpg create` without a terminal against mock APIs and
+// returns the cluster request it sent (empty if it sent none).
+func createRequest(t *testing.T, args ...string) (flaps.CreateManagedPostgresClusterRequest, error) {
+	t.Helper()
+
 	ios, _, _, _ := iostreams.Test()
 	ctx := iostreams.NewContext(context.Background(), ios)
 	ctx = config.NewContext(ctx, &config.Config{})
@@ -38,19 +48,19 @@ func createdPlan(t *testing.T, args ...string) (string, error) {
 		},
 	})
 
-	var plan string
+	var sent flaps.CreateManagedPostgresClusterRequest
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
 			return &flaps.RegionData{Regions: []fly.Region{{Code: "iad", MPGAvailable: true}}}, nil
 		},
 		CreateManagedPostgresClusterFunc: func(_ context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
-			plan = req.Plan
+			sent = req
 
 			return flaps.ManagedPostgresCluster{}, errors.New("stop after the create request")
 		},
 	})
 
-	return plan, runCreate(ctx)
+	return sent, runCreate(ctx)
 }
 
 // --plan names are documented capitalized and matched in any case, but the
@@ -81,6 +91,43 @@ func TestRunCreatePlanFlag(t *testing.T) {
 		plan, _ := createdPlan(t)
 		assert.Equal(t, "basic", plan)
 	})
+}
+
+// Without --volume-size, create sends no disk size (disk_size_gb is left out
+// of the request), so the API gives the cluster its plan's default disk:
+// 1 GB for dev-256, 10 GB for the others.
+func TestRunCreateVolumeSize(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		plan string
+		want int
+	}{
+		{"no --volume-size sends no size", nil, "basic", 0},
+		{"--volume-size is sent as given", []string{"--volume-size", "20"}, "basic", 20},
+		{"dev-256 without --volume-size sends no size", []string{"--plan", "dev-256"}, "dev-256", 0},
+		{"dev-256 with --volume-size sends it", []string{"--plan", "dev-256", "--volume-size", "5"}, "dev-256", 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := createRequest(t, tc.args...)
+			assert.Equal(t, tc.plan, req.Plan)
+			assert.Equal(t, tc.want, req.DiskSizeGB)
+		})
+	}
+}
+
+// dev-256 is hidden until it launches: --plan takes it, in any case, and the
+// API decides whether the org can have it, but the plan lists don't show it.
+func TestRunCreateHiddenPlan(t *testing.T) {
+	for _, flag := range []string{"dev-256", "DEV-256"} {
+		plan, _ := createdPlan(t, "--plan", flag)
+		assert.Equal(t, "dev-256", plan, flag)
+	}
+
+	_, err := createdPlan(t, "--plan", "hobby")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "Dev 256", "the unknown plan error")
+	assert.NotContains(t, newFork().Flags().Lookup("plan").Usage, "Dev 256", "fork's --plan help")
 }
 
 func TestWarnIfV2FlagUsed(t *testing.T) {
