@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
-	"strconv"
-	"strings"
 
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -201,7 +198,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		case info.LegacyClusterAPI:
 			fmt.Fprintln(io.ErrOut, "Warning: DIRECT_URL was not set because the cluster uses the legacy API.")
 		default:
-			if directURI, err := buildDirectConnectionURI(info.DirectEndpoint, user, password, db); err != nil {
+			if directURI, err := mpgutil.DirectConnectionURI(info.DirectEndpoint, user, password, db); err != nil {
 				fmt.Fprintln(io.ErrOut, "Warning: DIRECT_URL was not set because the direct endpoint is missing or invalid.")
 			} else {
 				s["DIRECT_URL"] = directURI
@@ -338,26 +335,6 @@ func buildConnectionUri(baseUri, user, password, db string) (string, error) {
 	parsedURI.Path = "/" + db
 
 	return parsedURI.String(), nil
-}
-
-// buildDirectConnectionURI uses only the public endpoint and selected credentials.
-func buildDirectConnectionURI(endpoint flaps.ManagedPostgresEndpoint, user, password, db string) (string, error) {
-	if endpoint.Host == "" || endpoint.Port < 1 || endpoint.Port > 65535 ||
-		strings.ContainsAny(endpoint.Host, "[]") || (strings.Contains(endpoint.Host, ":") && net.ParseIP(endpoint.Host) == nil) {
-		return "", fmt.Errorf("invalid Postgres endpoint")
-	}
-	uri := (&url.URL{
-		Scheme: "postgresql",
-		Host:   net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port)),
-		User:   url.UserPassword(user, password),
-		Path:   "/" + db,
-	}).String()
-	parsed, err := url.Parse(uri)
-	if err != nil || parsed.Hostname() != endpoint.Host || parsed.Port() != strconv.Itoa(endpoint.Port) {
-		return "", fmt.Errorf("invalid Postgres endpoint")
-	}
-
-	return uri, nil
 }
 
 // createAttachmentPublicFirst tries the public Machines API for attachment
