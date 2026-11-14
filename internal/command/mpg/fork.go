@@ -39,7 +39,7 @@ including a smaller one.`
 		},
 		flag.String{
 			Name:        "plan",
-			Description: "The plan for the forked cluster, from the plans your organization can use (defaults to the source cluster's plan)",
+			Description: "The plan for the forked cluster: " + planNames() + " (defaults to the source cluster's plan)",
 		},
 	)
 

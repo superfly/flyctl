@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -45,7 +46,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "plan",
-			Description: "The plan to use for the Postgres cluster, from the plans your organization can use (defaults to Basic)",
+			Description: "The plan to use for the Postgres cluster: Basic, Starter, Launch, Scale, Performance",
 		},
 		flag.Int{
 			Name:        "volume-size",
@@ -110,30 +111,48 @@ func runCreate(ctx context.Context) error {
 		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
 	}
 
-	// For ui-ex request we need the real org slug
-	slug := org.Slug
-	if org.Slug == "personal" {
-		slug = org.RawSlug
-	}
-
 	// Plan selection and validation
-	plans := orgPlans(ctx, slug)
-	plan, ok := planKey(plans, flag.GetString(ctx, "plan"))
+	plan, ok := planKey(flag.GetString(ctx, "plan"))
 	if !ok {
 		if !io.IsInteractive() && flag.IsSpecified(ctx, "plan") {
-			return fmt.Errorf("unknown plan %q; valid plans are %s", flag.GetString(ctx, "plan"), planNames(plans))
+			return fmt.Errorf("unknown plan %q; valid plans are %s", flag.GetString(ctx, "plan"), planNames())
 		}
 
 		if io.IsInteractive() {
-			planOptions, planKeys, defaultOption := planPrompt(plans)
+			// Prepare a sortable slice of plans
+			type planEntry struct {
+				Key   string
+				Value PlanDetails
+			}
+			var planEntries []planEntry
+			for k, v := range MPGPlans {
+				planEntries = append(planEntries, planEntry{Key: k, Value: v})
+			}
+			// Sort by price
+			sort.Slice(planEntries, func(i, j int) bool {
+				return planEntries[i].Value.PricePerMo < planEntries[j].Value.PricePerMo
+			})
+			// Build options and keys in sorted order
+			var planOptions []string
+			var planKeys []string
+			for _, entry := range planEntries {
+				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
+				planKeys = append(planKeys, entry.Key)
+			}
 			var selectedIndex int
-			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", defaultOption, planOptions...); err != nil {
+			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", planOptions[0], planOptions...); err != nil {
 				return err
 			}
 			plan = planKeys[selectedIndex]
 		} else {
-			plan = defaultPlan(plans)
+			plan = "basic" // Default to basic if not interactive
 		}
+	}
+
+	// For ui-ex request we need the real org slug
+	slug := org.Slug
+	if org.Slug == "personal" {
+		slug = org.RawSlug
 	}
 
 	params := &cmdv2.CreateClusterParams{
@@ -150,7 +169,7 @@ func runCreate(ctx context.Context) error {
 		params.StorageInGb = flag.GetInt(ctx, "volume-size")
 	}
 
-	planDetails := plans[plan]
+	planDetails := MPGPlans[plan]
 
 	return cmdv2.RunCreate(ctx, org.RawSlug, params, &cmdv2.CreatePlanDisplay{
 		Name:       planDetails.Name,
@@ -160,12 +179,12 @@ func runCreate(ctx context.Context) error {
 	})
 }
 
-// planKey returns the key in plans for a plan name given in any case. The keys
+// planKey returns the MPGPlans key for a plan name given in any case. The keys
 // are what the API expects, so "performance" has to find "Performance" (#4612)
 // rather than be lowercased.
-func planKey(plans map[string]PlanDetails, name string) (string, bool) {
+func planKey(name string) (string, bool) {
 	name = strings.TrimSpace(name)
-	for key := range plans {
+	for key := range MPGPlans {
 		if strings.EqualFold(key, name) {
 			return key, true
 		}
@@ -174,44 +193,16 @@ func planKey(plans map[string]PlanDetails, name string) (string, bool) {
 	return "", false
 }
 
-// planKeysByPrice lists the keys of plans cheapest first.
-func planKeysByPrice(plans map[string]PlanDetails) []string {
-	return slices.SortedFunc(maps.Keys(plans), func(a, b string) int {
-		return cmp.Compare(plans[a].PricePerMo, plans[b].PricePerMo)
+// planNames lists the plans cheapest first, as --plan's help does.
+func planNames() string {
+	keys := slices.SortedFunc(maps.Keys(MPGPlans), func(a, b string) int {
+		return cmp.Compare(MPGPlans[a].PricePerMo, MPGPlans[b].PricePerMo)
 	})
-}
-
-// planNames lists the plans cheapest first, for the unknown plan error.
-func planNames(plans map[string]PlanDetails) string {
-	keys := planKeysByPrice(plans)
 
 	names := make([]string, len(keys))
 	for i, key := range keys {
-		names[i] = plans[key].Name
+		names[i] = MPGPlans[key].Name
 	}
 
 	return strings.Join(names, ", ")
-}
-
-// defaultPlan is the plan created when none is chosen: Basic, so a cheaper
-// plan such as dev-256 doesn't become the default, or the cheapest plan if
-// the org isn't offered Basic.
-func defaultPlan(plans map[string]PlanDetails) string {
-	if _, ok := plans["basic"]; ok {
-		return "basic"
-	}
-
-	return planKeysByPrice(plans)[0]
-}
-
-// planPrompt returns the plan prompt's options cheapest first, the key behind
-// each, and the option to preselect, which is the default plan's.
-func planPrompt(plans map[string]PlanDetails) (options, keys []string, def string) {
-	keys = planKeysByPrice(plans)
-	for _, key := range keys {
-		p := plans[key]
-		options = append(options, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", p.Name, p.CPU, p.Memory, p.PricePerMo))
-	}
-
-	return options, keys, options[slices.Index(keys, defaultPlan(plans))]
 }
