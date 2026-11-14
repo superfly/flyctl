@@ -96,22 +96,45 @@ func TestRunCreatePlanFlag(t *testing.T) {
 }
 
 // Without --volume-size, create sends no disk size (disk_size_gb is left out
-// of the request), so the API gives the cluster its plan's default disk.
+// of the request), so the API gives the cluster its plan's default disk:
+// 1 GB for dev-256, 10 GB for the others.
 func TestRunCreateVolumeSize(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
+		plan string
 		want int
 	}{
-		{"no --volume-size sends no size", nil, 0},
-		{"--volume-size is sent as given", []string{"--volume-size", "20"}, 20},
+		{"no --volume-size sends no size", nil, "basic", 0},
+		{"--volume-size is sent as given", []string{"--volume-size", "20"}, "basic", 20},
+		{"dev-256 without --volume-size sends no size", []string{"--plan", "dev-256"}, "dev-256", 0},
+		{"dev-256 with --volume-size sends it", []string{"--plan", "dev-256", "--volume-size", "5"}, "dev-256", 5},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req, _ := createRequest(t, tc.args...)
-			assert.Equal(t, "basic", req.Plan, "a cluster should be requested")
+			assert.Equal(t, tc.plan, req.Plan)
 			assert.Equal(t, tc.want, req.DiskSizeGB)
 		})
 	}
+}
+
+// dev-256 is hidden until it launches: --plan takes it, in any case, and the
+// API decides whether the org can have it, but the plan prompt, the unknown
+// plan error and --plan's help don't list it.
+func TestRunCreateHiddenPlan(t *testing.T) {
+	for _, flag := range []string{"dev-256", "DEV-256"} {
+		plan, _ := createdPlan(t, "--plan", flag)
+		assert.Equal(t, "dev-256", plan, flag)
+	}
+
+	_, keys := planPrompt()
+	assert.Equal(t, []string{"basic", "starter", "launch", "scale", "Performance"}, keys, "the plan prompt")
+
+	_, err := createdPlan(t, "--plan", "hobby")
+	require.EqualError(t, err, `unknown plan "hobby"; valid plans are Basic, Starter, Launch, Scale, Performance`)
+
+	assert.NotContains(t, newCreate().Flags().Lookup("plan").Usage, "Dev 256")
+	assert.NotContains(t, newFork().Flags().Lookup("plan").Usage, "Dev 256")
 }
 
 func TestWarnIfV2FlagUsed(t *testing.T) {
