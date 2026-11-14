@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/moby/buildkit/client"
+	gatewaypb "github.com/moby/buildkit/frontend/gateway/pb"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth"
 	"github.com/moby/buildkit/util/progress/progressui"
@@ -97,11 +99,34 @@ func newDisplay(statusCh chan *client.SolveStatus) func() error {
 	}
 }
 
+// h2cUpgradeFailure is how Docker reports an org builder refusing BuildKit's
+// /grpc upgrade. Builders created before their 443 service went TLS-only
+// always refuse it over HTTPS. Docker returns it untyped, so match the text.
+const h2cUpgradeFailure = "unable to upgrade to h2c, received 500"
+
+// IsBuilderHTTPSUnsupported reports whether err is an org builder refusing
+// BuildKit over HTTPS. A build that fails this way never started.
+func IsBuilderHTTPSUnsupported(err error) bool {
+	return err != nil && strings.Contains(err.Error(), h2cUpgradeFailure)
+}
+
+// IsBuildFailure reports whether err is a RUN step that ran on the builder and
+// exited non-zero, which building again elsewhere won't change. BuildKit sends
+// the exit code back as a typed error, and the client restores the type.
+// Other solve errors don't qualify: BuildKit wraps every solve failure,
+// including a dropped session to flyctl, the same way. An unknown exit status
+// means the process never started or its result was lost, so that doesn't
+// qualify either.
+func IsBuildFailure(err error) bool {
+	var exitErr *gatewaypb.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitCode != gatewaypb.UnknownExitStatus
+}
+
 // Keep recovery advice at the failed upgrade: classic Docker and buildpacks
 // can still use an older builder's HTTP service without BuildKit RPCs.
 func dialDockerBuildkit(ctx context.Context, docker *dockerclient.Client) (net.Conn, error) {
 	conn, err := docker.DialHijack(ctx, "/grpc", "h2c", nil)
-	if err != nil && err.Error() == "unable to upgrade to h2c, received 500" {
+	if err != nil && err.Error() == h2cUpgradeFailure {
 		host, parseErr := url.Parse(docker.DaemonHost())
 		if parseErr == nil && host.Scheme == "https" && strings.HasSuffix(host.Hostname(), ".fly.dev") {
 			err = fmt.Errorf("%w; if this is an older organization builder, try WireGuard (--wg=true where supported) if it was not already tried; otherwise resolve the original WireGuard failure first. For an organization-builder deploy, add --build-only --recreate-builder to the same fly deploy command after other builds finish; this replaces the builder and discards its build cache", err)

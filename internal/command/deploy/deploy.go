@@ -379,10 +379,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		recreateBuilder = recreateBuilder || noBuilder
 		// Failing over to HTTPS only helps a build that went to its builder over
 		// WireGuard; any other build would just run again unchanged.
-		if noBuilder || (usedWireguard && httpFailover) {
+		if noBuilder || (usedWireguard && httpFailover && canFailOverToHTTPS(ctx, err)) {
 			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
 			span.AddEvent("using http failover")
+			wireguardErr := err
 			img, _, err = determineImage(ctx, app, appConfig, false, recreateBuilder, dockerfileMaterializer)
+			if !noBuilder {
+				err = httpsFailoverError(wireguardErr, err)
+			}
 		}
 	}
 	if cleanupErr := dockerfileMaterializer.Close(); cleanupErr != nil {
@@ -486,6 +490,24 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	machinelimit.Warn(ctx, app.Organization.Slug)
 
 	return err
+}
+
+// canFailOverToHTTPS reports whether building again over HTTPS could fix a
+// build that failed over WireGuard. It can't when the builder ran the build
+// and the build itself failed, or when the deploy was canceled.
+func canFailOverToHTTPS(ctx context.Context, err error) bool {
+	return ctx.Err() == nil && !imgsrc.IsBuildFailure(err)
+}
+
+// httpsFailoverError picks the error to report when a build failed over
+// WireGuard and again over HTTPS. Older org builders refuse BuildKit over
+// HTTPS, so on them the retry never started and says nothing about why the
+// build failed: report the WireGuard error first.
+func httpsFailoverError(wireguardErr, httpsErr error) error {
+	if !imgsrc.IsBuilderHTTPSUnsupported(httpsErr) {
+		return httpsErr
+	}
+	return fmt.Errorf("%w\nRetrying the build over HTTPS failed too: %v", wireguardErr, httpsErr)
 }
 
 func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
