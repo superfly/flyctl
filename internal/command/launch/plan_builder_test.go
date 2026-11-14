@@ -51,6 +51,7 @@ func TestValidateHighAvailabilityWarnsOnce(t *testing.T) {
 			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
 			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
 			assert.Equal(t, tc.wantCount, strings.Count(errOut.String(), warning))
+			assert.Equal(t, tc.wantCount, strings.Count(errOut.String(), "fly scale count 2"))
 		})
 	}
 }
