@@ -342,7 +342,12 @@ func phpVersionLess(a, b string) bool {
 }
 
 var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *= *(\"|')? *[a-zA-Z]+(\"|')?"
-var redisRegStr = "^[^#]*redis"
+
+// Redis is wanted when a cache, session, queue or broadcast driver uses it.
+// Matching any line that mentions "redis" was too broad: since Laravel 11 the
+// default .env has REDIS_CLIENT=phpredis and REDIS_HOST=127.0.0.1 even when
+// every driver is "database".
+var redisRegStr = `^\s*(CACHE_STORE|CACHE_DRIVER|SESSION_DRIVER|QUEUE_CONNECTION|BROADCAST_CONNECTION|BROADCAST_DRIVER)\s*=\s*["']?redis["']?\s*(#.*)?$`
 
 // extractConnections detects the database connection of a laravel fly app
 // by checking the .env file in the project's base directory for connection keywords.
@@ -365,7 +370,7 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 	// Set up Regex to match
 	// -not commented out, with DB_CONNECTION
 	dbReg := regexp.MustCompile(dbRegStr)
-	// -not commented out with redis keyword
+	// -not commented out, with a driver set to redis
 	redisReg := regexp.MustCompile(redisRegStr)
 
 	// Default Return Variables

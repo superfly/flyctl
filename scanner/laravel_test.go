@@ -132,3 +132,53 @@ func TestConfigureLaravelPhpVersionFromComposerLock(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractConnectionsRedis(t *testing.T) {
+	// The REDIS_* lines from Laravel 11's default .env.
+	const redisDefaults = "REDIS_CLIENT=phpredis\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\n"
+
+	cases := []struct {
+		name      string
+		env       string
+		wantRedis bool
+		wantDB    DatabaseKind
+	}{
+		{
+			name:   "default Laravel 11 env, database drivers",
+			env:    "DB_CONNECTION=sqlite\nSESSION_DRIVER=database\nQUEUE_CONNECTION=database\nCACHE_STORE=database\n" + redisDefaults,
+			wantDB: DatabaseKindSqlite,
+		},
+		{
+			name:      "cache on redis",
+			env:       "DB_CONNECTION=pgsql\nCACHE_STORE=redis\n" + redisDefaults,
+			wantRedis: true,
+			wantDB:    DatabaseKindPostgres,
+		},
+		{
+			name:      "quoted queue driver with a comment",
+			env:       "QUEUE_CONNECTION=\"redis\" # workers\n",
+			wantRedis: true,
+		},
+		{
+			name:      "older env, session on redis",
+			env:       "DB_CONNECTION=mysql\nSESSION_DRIVER=redis\n",
+			wantRedis: true,
+			wantDB:    DatabaseKindMySQL,
+		},
+		{
+			name: "commented out driver",
+			env:  "# CACHE_STORE=redis\nCACHE_STORE=file\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), ".env")
+			require.NoError(t, os.WriteFile(path, []byte(tc.env), 0o644))
+
+			db, redis, _ := extractConnections(path)
+
+			assert.Equal(t, tc.wantRedis, redis)
+			assert.Equal(t, tc.wantDB, db)
+		})
+	}
+}
