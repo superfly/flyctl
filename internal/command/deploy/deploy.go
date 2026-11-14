@@ -374,7 +374,11 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	dockerfileMaterializer := imgsrc.NewDockerfileMaterializer()
 	img, usedWireguard, err := determineImage(ctx, app, appConfig, usingWireguard, recreateBuilder, dockerfileMaterializer)
-	if err != nil {
+	if err != nil && ctx.Err() != nil {
+		// BuildKit's cancellation error may not wrap context.Canceled. Keep
+		// the CLI's cancellation exit behavior without attempting another build.
+		err = ctx.Err()
+	} else if err != nil {
 		noBuilder := strings.Contains(err.Error(), "Could not find App")
 		recreateBuilder = recreateBuilder || noBuilder
 		// Failing over to HTTPS only helps a build that went to its builder over

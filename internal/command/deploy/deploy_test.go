@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -152,6 +153,55 @@ func TestDeployWithConfig_FailedBuildWithoutWireguardRunsOnce(t *testing.T) {
 
 	require.ErrorContains(t, err, "build failed")
 	assert.Equal(t, 1, builds)
+}
+
+func TestDeployWithConfig_CanceledWireguardBuildDoesNotRetry(t *testing.T) {
+	makeTerminalLoggerQuiet(t)
+
+	dir := t.TempDir()
+	fsys, _ := fs.Sub(testdata, "testdata/basic")
+	require.NoError(t, copyFS(fsys, dir))
+	appConfig, err := appconfig.LoadConfig(filepath.Join(dir, "fly.toml"))
+	require.NoError(t, err)
+
+	// Cancel after the resolver selects the WireGuard builder.
+	cmd := New()
+	require.NoError(t, cmd.ParseFlags([]string{"--depot=false", "--remote-only", "--wg=true", "--builder-pool=false"}))
+
+	var buf bytes.Buffer
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
+	ctx = config.NewContext(ctx, &config.Config{Tokens: tokens.Parse("test-token")})
+	ctx = flagctx.NewContext(ctx, cmd.Flags())
+	ctx = appconfig.WithName(ctx, "test-basic")
+	ctx = state.WithWorkingDirectory(ctx, dir)
+
+	server := inmem.NewServer()
+	server.CreateApp(&fly.App{
+		Name:         "test-basic",
+		Organization: fly.Organization{Slug: "my-org"},
+	})
+
+	orgLookups := 0
+	ctx = flyutil.NewContextWithClient(ctx, server.Client())
+	ctx = flapsutil.NewContextWithClient(ctx, server.FlapsClient("test-basic"))
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+			orgLookups++
+			if orgLookups == 1 {
+				return &uiex.Organization{Slug: "my-org"}, nil
+			}
+			cancel()
+			return nil, errors.New("Canceled: context canceled")
+		},
+	})
+
+	err = DeployWithConfig(ctx, appConfig, 0, false)
+
+	require.ErrorIs(t, err, context.Canceled) // cli.Run maps this to silent exit 127.
+	assert.Equal(t, 2, orgLookups)
+	assert.Equal(t, 1, strings.Count(buf.String(), "Building image"))
 }
 
 // copyFS writes the contents of a file system to a destination path on disk.
