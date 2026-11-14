@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 
@@ -209,7 +208,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 }
 
 // createUserPublicFirst tries the public Machines API for user creation and
-// falls back to the legacy MPGv2 client on a classified 404.
+// falls back to the legacy MPGv2 client when the flaps route is missing.
 func createUserPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID, username, role string) (mpgv2.User, error) {
 	req := flaps.CreateManagedPostgresUserRequest{
 		Username: username,
@@ -217,7 +216,7 @@ func createUserPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClien
 	}
 
 	created, err := flapsClient.CreateManagedPostgresUser(ctx, clusterID, req)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		input := mpgv2.CreateUserWithRoleInput{
 			Username: username,
 			Role:     role,
@@ -244,10 +243,10 @@ type userCredentials struct {
 }
 
 // getUserCredentialsPublicFirst tries the public Machines API for user
-// credentials and falls back to the legacy MPGv2 client on a classified 404.
+// credentials and falls back to the legacy MPGv2 client when the flaps route is missing.
 func getUserCredentialsPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID, username string) (userCredentials, error) {
 	creds, err := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, username)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		response, legacyErr := legacyClient.GetUserCredentials(ctx, clusterID, username)
 		if legacyErr != nil {
 			return userCredentials{}, legacyErr
@@ -263,10 +262,10 @@ func getUserCredentialsPublicFirst(ctx context.Context, flapsClient flapsutil.Fl
 }
 
 // listDatabasesPublicFirst tries the public Machines API for database listing
-// and falls back to the legacy MPGv2 client on a classified 404.
+// and falls back to the legacy MPGv2 client when the flaps route is missing.
 func listDatabasesPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string) ([]mpgv2.Database, error) {
 	databases, err := flapsClient.ListManagedPostgresDatabases(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		response, legacyErr := legacyClient.ListDatabases(ctx, clusterID)
 		if legacyErr != nil {
 			return nil, legacyErr
@@ -287,12 +286,12 @@ func listDatabasesPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsCl
 }
 
 // createDatabasePublicFirst tries the public Machines API for database
-// creation and falls back to the legacy MPGv2 client on a classified 404.
+// creation and falls back to the legacy MPGv2 client when the flaps route is missing.
 func createDatabasePublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID, dbName string) error {
 	req := flaps.CreateManagedPostgresDatabaseRequest{Name: dbName}
 
 	_, err := flapsClient.CreateManagedPostgresDatabase(ctx, clusterID, req)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		return legacyClient.CreateDatabase(ctx, clusterID, mpgv2.CreateDatabaseInput{Name: dbName})
 	}
 
@@ -313,14 +312,14 @@ func buildConnectionUri(baseUri, user, password, db string) (string, error) {
 }
 
 // createAttachmentPublicFirst tries the public Machines API for attachment
-// creation and falls back to the legacy MPGv2 client on a classified 404.
+// creation and falls back to the legacy MPGv2 client when the flaps route is missing.
 func createAttachmentPublicFirst(ctx context.Context, flapsClient flapsutil.FlapsClient, legacyClient mpgv2.ClientV2, clusterID string, input mpgv2.CreateAttachmentInput) error {
 	req := flaps.CreateManagedPostgresAttachmentRequest{
 		AppName: input.AppName,
 	}
 
 	_, err := flapsClient.CreateManagedPostgresAttachment(ctx, clusterID, req)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		_, err := legacyClient.CreateAttachment(ctx, clusterID, input)
 
 		return err

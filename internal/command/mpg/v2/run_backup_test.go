@@ -120,6 +120,7 @@ func TestRunBackupListFallsBackOnlyOnPublic404(t *testing.T) {
 		{name: "404", publicErr: flaps.ErrFlapsNotFound, wantLegacyCalled: true, wantOutput: "legacy"},
 		{name: "non-404", publicErr: &flaps.FlapsError{ResponseStatusCode: 500, OriginalError: errors.New("public boom")}, wantErr: "failed to list backups for cluster mpg-123: public boom", wantPublicStatus: 500},
 		{name: "legacy failure", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy boom"), wantLegacyCalled: true, wantErr: "failed to list backups for cluster mpg-123: legacy boom"},
+		{name: "resource 404 is authoritative", publicErr: resourceNotFound("Cluster not found"), wantErr: "failed to list backups for cluster mpg-123: Cluster not found"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -170,6 +171,7 @@ func TestRunBackupCreateUsesPublicAPIAndFallsBackOn404(t *testing.T) {
 		{name: "non-404", publicErr: errors.New("public boom"), wantErr: "failed to create backup: public boom"},
 		{name: "concurrent backup 409", publicErr: &flaps.FlapsError{ResponseStatusCode: 409, OriginalError: errors.New("backup already in progress")}, wantErr: "failed to create backup: backup already in progress", wantPublicStatus: 409},
 		{name: "legacy failure", publicErr: flaps.ErrFlapsNotFound, legacyErr: errors.New("legacy boom"), wantLegacyCalled: true, wantErr: "failed to create backup: legacy boom"},
+		{name: "resource 404 is authoritative", publicErr: resourceNotFound("Cluster not found"), wantErr: "failed to create backup: Cluster not found"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

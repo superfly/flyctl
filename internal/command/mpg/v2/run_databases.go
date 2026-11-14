@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/fly-go/flaps"
@@ -21,7 +20,7 @@ func RunDatabasesList(ctx context.Context, clusterID string) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	databases, err := flapsClient.ListManagedPostgresDatabases(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		response, legacyErr := mpgv2.ClientFromContext(ctx).ListDatabases(ctx, clusterID)
 		if legacyErr != nil {
 			return fmt.Errorf("failed to list databases for cluster %s: %w", clusterID, legacyErr)
@@ -76,7 +75,7 @@ func RunDatabasesCreate(ctx context.Context, clusterID string) error {
 	fmt.Fprintf(out, "Creating database %s in cluster %s...\n", dbName, clusterID)
 
 	created, err := flapsClient.CreateManagedPostgresDatabase(ctx, clusterID, flaps.CreateManagedPostgresDatabaseRequest{Name: dbName})
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		legacyErr := mpgv2.ClientFromContext(ctx).CreateDatabase(ctx, clusterID, mpgv2.CreateDatabaseInput{Name: dbName})
 		if legacyErr != nil {
 			return fmt.Errorf("failed to create database: %w", legacyErr)

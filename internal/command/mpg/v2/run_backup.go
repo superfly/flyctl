@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -22,7 +21,7 @@ func RunBackupList(ctx context.Context, clusterID string) error {
 
 	var backups []mpgv2.ClusterBackup
 	publicBackups, err := flapsClient.ListManagedPostgresBackups(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		response, legacyErr := mpgv2.ClientFromContext(ctx).ListClusterBackups(ctx, clusterID)
 		if legacyErr != nil {
 			return fmt.Errorf("failed to list backups for cluster %s: %w", clusterID, legacyErr)
@@ -107,7 +106,7 @@ func RunBackupCreate(ctx context.Context, clusterID string) error {
 	fmt.Fprintf(out, "Creating %s backup for cluster %s...\n", backupType, clusterID)
 
 	err := flapsClient.CreateManagedPostgresBackup(ctx, clusterID, flaps.CreateManagedPostgresBackupRequest{Type: backupType})
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		err = mpgv2.ClientFromContext(ctx).CreateClusterBackup(ctx, clusterID, mpgv2.CreateClusterBackupInput{Type: backupType})
 	}
 	if err != nil {
