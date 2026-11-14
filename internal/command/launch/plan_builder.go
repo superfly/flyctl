@@ -1122,7 +1122,7 @@ func (c *planBuildCache) validateHighAvailability(ctx context.Context, p *plan.L
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
 	if !billable && p.HighAvailability {
 		if print {
-			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "This organization has no payment method, turning off high availability: your app will run one Machine per process group. To add a second later, add a payment method and run `fly scale count 2`.")
+			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "This organization has no payment method, turning off high availability: your app will run one Machine per process group. You can add a second later with `fly scale count 2`.")
 		}
 
 		return false
