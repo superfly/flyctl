@@ -147,9 +147,14 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 	}
 	defer res.Body.Close()
 
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	switch res.StatusCode {
 	case http.StatusCreated:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+		if err = json.Unmarshal(body, &response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 
@@ -164,15 +169,15 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 		return response, nil
 
 	default:
-		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to create user for cluster %s (status %d): %s", id, res.StatusCode, string(body))
 		}
 
 		if response.Errors.Detail != "" {
 			return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
 		}
 
-		return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
+		return response, fmt.Errorf("failed to create user for cluster %s (status %d): %s", id, res.StatusCode, string(body))
 	}
 }
 
