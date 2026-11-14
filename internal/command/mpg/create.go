@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -118,7 +119,29 @@ func runCreate(ctx context.Context) error {
 		}
 
 		if io.IsInteractive() {
-			planOptions, planKeys := planPrompt()
+			// Prepare a sortable slice of plans
+			type planEntry struct {
+				Key   string
+				Value PlanDetails
+			}
+			var planEntries []planEntry
+			for k, v := range MPGPlans {
+				if v.Hidden {
+					continue
+				}
+				planEntries = append(planEntries, planEntry{Key: k, Value: v})
+			}
+			// Sort by price
+			sort.Slice(planEntries, func(i, j int) bool {
+				return planEntries[i].Value.PricePerMo < planEntries[j].Value.PricePerMo
+			})
+			// Build options and keys in sorted order
+			var planOptions []string
+			var planKeys []string
+			for _, entry := range planEntries {
+				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
+				planKeys = append(planKeys, entry.Key)
+			}
 			var selectedIndex int
 			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", planOptions[0], planOptions...); err != nil {
 				return err
@@ -173,36 +196,19 @@ func planKey(name string) (string, bool) {
 	return "", false
 }
 
-// visiblePlanKeys lists the MPGPlans keys of the plans that aren't hidden,
-// cheapest first.
-func visiblePlanKeys() []string {
+// planNames lists the plans that aren't hidden, cheapest first, as --plan's
+// help does.
+func planNames() string {
 	keys := slices.SortedFunc(maps.Keys(MPGPlans), func(a, b string) int {
 		return cmp.Compare(MPGPlans[a].PricePerMo, MPGPlans[b].PricePerMo)
 	})
 
-	return slices.DeleteFunc(keys, func(key string) bool { return MPGPlans[key].Hidden })
-}
-
-// planPrompt returns the plan prompt's options, cheapest first, and the
-// MPGPlans key behind each. Hidden plans aren't offered.
-func planPrompt() (options, keys []string) {
-	keys = visiblePlanKeys()
+	names := make([]string, 0, len(keys))
 	for _, key := range keys {
-		p := MPGPlans[key]
-		options = append(options, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", p.Name, p.CPU, p.Memory, p.PricePerMo))
-	}
-
-	return options, keys
-}
-
-// planNames lists the plans that aren't hidden, cheapest first, as --plan's
-// help does.
-func planNames() string {
-	keys := visiblePlanKeys()
-
-	names := make([]string, len(keys))
-	for i, key := range keys {
-		names[i] = MPGPlans[key].Name
+		if MPGPlans[key].Hidden {
+			continue
+		}
+		names = append(names, MPGPlans[key].Name)
 	}
 
 	return strings.Join(names, ", ")

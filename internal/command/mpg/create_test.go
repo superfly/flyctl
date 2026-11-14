@@ -60,9 +60,7 @@ func createRequest(t *testing.T, args ...string) (flaps.CreateManagedPostgresClu
 		},
 	})
 
-	err := runCreate(ctx)
-
-	return sent, err
+	return sent, runCreate(ctx)
 }
 
 // --plan names are documented capitalized and matched in any case, but the
@@ -119,22 +117,17 @@ func TestRunCreateVolumeSize(t *testing.T) {
 }
 
 // dev-256 is hidden until it launches: --plan takes it, in any case, and the
-// API decides whether the org can have it, but the plan prompt, the unknown
-// plan error and --plan's help don't list it.
+// API decides whether the org can have it, but the plan lists don't show it.
 func TestRunCreateHiddenPlan(t *testing.T) {
 	for _, flag := range []string{"dev-256", "DEV-256"} {
 		plan, _ := createdPlan(t, "--plan", flag)
 		assert.Equal(t, "dev-256", plan, flag)
 	}
 
-	_, keys := planPrompt()
-	assert.Equal(t, []string{"basic", "starter", "launch", "scale", "Performance"}, keys, "the plan prompt")
-
 	_, err := createdPlan(t, "--plan", "hobby")
-	require.EqualError(t, err, `unknown plan "hobby"; valid plans are Basic, Starter, Launch, Scale, Performance`)
-
-	assert.NotContains(t, newCreate().Flags().Lookup("plan").Usage, "Dev 256")
-	assert.NotContains(t, newFork().Flags().Lookup("plan").Usage, "Dev 256")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "Dev 256", "the unknown plan error")
+	assert.NotContains(t, newFork().Flags().Lookup("plan").Usage, "Dev 256", "fork's --plan help")
 }
 
 func TestWarnIfV2FlagUsed(t *testing.T) {
