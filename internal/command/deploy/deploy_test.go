@@ -193,6 +193,7 @@ func TestDeployWithConfig_CanceledWireguardBuildDoesNotRetry(t *testing.T) {
 				return &uiex.Organization{Slug: "my-org"}, nil
 			}
 			cancel()
+
 			return nil, errors.New("Canceled: context canceled")
 		},
 	})
