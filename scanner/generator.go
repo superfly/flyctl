@@ -17,13 +17,14 @@ const (
 )
 
 // runGenerator runs a Dockerfile generator, or the package manager installing
-// one, attached to the terminal. Its stderr still reaches the user as it is
+// one, attached to the terminal. It gets flyctl's stdin only when interactive
+// (see generatorStdin). Its stderr still reaches the user as it is
 // written; on failure the last lines of it are added to the error too, so
 // launch telemetry records why it failed instead of just "exit status 1".
 // The *exec.ExitError stays wrapped for errors.As.
-func runGenerator(cmd *exec.Cmd) error {
+func runGenerator(cmd *exec.Cmd, interactive bool) error {
 	tail := &tailWriter{max: generatorErrBytes}
-	cmd.Stdin = os.Stdin
+	cmd.Stdin = generatorStdin(interactive)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, tail)
 	// stderr is a pipe, so don't hang if a grandchild keeps it open after
@@ -40,6 +41,19 @@ func runGenerator(cmd *exec.Cmd) error {
 	}
 
 	return err
+}
+
+// generatorStdin returns the stdin a generator subprocess gets: flyctl's own
+// when someone can answer its prompts, and nil (an empty stdin) otherwise. A
+// generator that asks whether to overwrite a file would otherwise wait
+// forever on a pipe that an agent or CI runner never closes. On an empty
+// stdin it takes its default answer, exactly as under `fly launch < /dev/null`.
+func generatorStdin(interactive bool) io.Reader {
+	if interactive {
+		return os.Stdin
+	}
+
+	return nil
 }
 
 // tailWriter keeps the last max bytes written to it.

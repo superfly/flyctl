@@ -173,6 +173,15 @@ func (s *IOStreams) IsInteractive() bool {
 	return !s.neverPrompt && s.IsStdinTTY() && s.IsStdoutTTY()
 }
 
+// CanPromptSubprocess reports whether a program flyctl runs (a Dockerfile
+// generator, git) could get an answer to a question it asks: stdin is a TTY
+// and prompts have not been turned off with SetNeverPrompt. Unlike
+// IsInteractive, stdout may be redirected, as in `fly launch | tee log`; the
+// person at the terminal can still type.
+func (s *IOStreams) CanPromptSubprocess() bool {
+	return !s.neverPrompt && s.IsStdinTTY()
+}
+
 func (s *IOStreams) SetPager(cmd string) {
 	s.pagerCommand = cmd
 }
