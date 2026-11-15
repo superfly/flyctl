@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -161,7 +162,7 @@ func TestSecretMutationReportsDeploymentFailureAndUsesRemoteConfig(t *testing.T)
 					return json.Unmarshal([]byte(`{"app":{"currentReleaseUnprocessed":{"configDefinition":{"env":{"REMOTE_ONLY":"keep-me"},"processes":{"app":"server"}}}}}`), resp.Data)
 				})
 			}})
-			listCalls := 0
+			deployedWithRemoteConfig := false
 			client := &mock.FlapsClient{
 				UpdateAppSecretsFunc: func(context.Context, string, map[string]*string) (*fly.UpdateAppSecretsResp, error) {
 					return &fly.UpdateAppSecretsResp{Version: 42}, nil
@@ -170,12 +171,16 @@ func TestSecretMutationReportsDeploymentFailureAndUsesRemoteConfig(t *testing.T)
 					return &flaps.App{Name: "selected-app", Status: "deployed"}, nil
 				},
 				ListFlyAppsMachinesFunc: func(ctx context.Context, name string) ([]*fly.Machine, *fly.Machine, error) {
-					listCalls++
 					require.Equal(t, "selected-app", name)
-					if listCalls == 1 {
+					cfg := appconfig.ConfigFromContext(ctx)
+					if cfg == local {
+						// DeploySecrets is still deciding whether the app
+						// has machines to restart.
 						return []*fly.Machine{{ID: "one"}}, nil, nil
 					}
-					cfg := appconfig.ConfigFromContext(ctx)
+					// The deployment itself must run with the app's
+					// released config, however many times it lists machines.
+					deployedWithRemoteConfig = true
 					require.Equal(t, "selected-app", cfg.AppName)
 					require.Equal(t, map[string]string{"REMOTE_ONLY": "keep-me"}, cfg.Env)
 					require.Equal(t, map[string]string{"app": "server"}, cfg.Processes)
@@ -192,7 +197,7 @@ func TestSecretMutationReportsDeploymentFailureAndUsesRemoteConfig(t *testing.T)
 			}
 			require.ErrorIs(t, err, deployErr)
 			require.ErrorContains(t, err, "deployment failed")
-			require.Equal(t, 2, listCalls)
+			require.True(t, deployedWithRemoteConfig)
 			require.Equal(t, config.AppSecretsMinvers{"selected-app": 42, "unrelated": 9}, savedSecretVersions(t, ctx))
 			require.Equal(t, map[string]string{"LOCAL_ONLY": "do-not-deploy"}, local.Env)
 			require.NotContains(t, err.Error()+out.String()+errOut.String(), "private-value")
@@ -245,6 +250,10 @@ func TestSecretMutationReportsRemoteSuccessWhenVersionCannotBeSaved(t *testing.T
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 	err := SetSecretsAndDeploy(ctx, client, &flaps.App{Name: "selected-app"}, map[string]string{"PASSWORD": "private-value"}, DeploymentArgs{})
 	require.ErrorContains(t, err, "secrets were updated remotely")
+	require.ErrorContains(t, err, "no deployment was started")
+	require.NotContains(t, err.Error(), "update secrets:", "the remote update succeeded")
+	var saveErr *appsecrets.VersionSaveError
+	require.ErrorAs(t, err, &saveErr)
 	require.Equal(t, 1, updates)
 	require.Zero(t, deployments)
 	require.NotContains(t, err.Error()+out.String()+errOut.String(), "private-value")

@@ -44,11 +44,21 @@ func Update(ctx context.Context, client flapsutil.FlapsClient, appName string, s
 	}
 
 	if err := SetMinvers(ctx, appName, resp.Version); err != nil {
-		return fmt.Errorf("secrets were updated remotely, but saving their version failed: %w", err)
+		return &VersionSaveError{Err: err}
 	}
 
 	return nil
 }
+
+// VersionSaveError reports that Update changed the secrets remotely but could
+// not save their new minimum version locally. Its message is the underlying
+// error's, unchanged, so callers that only print it keep their existing
+// output; callers that need to tell the user the remote change went through
+// can detect it with errors.As.
+type VersionSaveError struct{ Err error }
+
+func (e *VersionSaveError) Error() string { return e.Err.Error() }
+func (e *VersionSaveError) Unwrap() error { return e.Err }
 
 // Sync sets the min version for the app to the current min version, allowing
 // any previously set secret to be visible in deploys.

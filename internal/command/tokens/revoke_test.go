@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -47,9 +48,18 @@ func TestRunRevokeBatch(t *testing.T) {
 			require.Equal(t, tc.ids, called)
 			require.Equal(t, tc.wantOut, out.String())
 			for id := range tc.fail {
-				require.ErrorIs(t, err, denied)
-				require.Contains(t, errOut.String(), "failed to revoke token "+id+": permission denied")
+				// Each failure is reported once, on stderr, and is not
+				// repeated in the summary error.
+				require.Equal(t, 1, strings.Count(errOut.String(), "failed to revoke token "+id+": permission denied\n"))
 				require.NotContains(t, out.String(), "Revoked "+id)
+			}
+			if len(tc.fail) > 0 {
+				require.Equal(t, len(tc.fail), strings.Count(errOut.String(), "\n"))
+				require.NotContains(t, err.Error(), "permission denied")
+				require.NotContains(t, err.Error(), "\n")
+				// The summary must not wrap the per-token errors: cli.Run
+				// maps a wrapped cancellation or timeout to its own exit code.
+				require.NotErrorIs(t, err, denied)
 			}
 		})
 	}

@@ -75,7 +75,7 @@ func runSet(ctx context.Context) (err error) {
 
 func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets map[string]string, args DeploymentArgs) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
-		return fmt.Errorf("update secrets: %w", err)
+		return updateError(err)
 	}
 
 	if err := DeploySecrets(ctx, app.Name, args); err != nil {

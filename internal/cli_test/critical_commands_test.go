@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +54,8 @@ func TestCriticalCommandsCLI(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
+			// Each case has its own process and directory.
+			t.Parallel()
 			// Metrics and client initialization keep process-wide state. Run a
 			// fresh CLI process, as users do, instead of resetting those globals.
 			data, err := json.Marshal(tc)
@@ -62,20 +65,27 @@ func TestCriticalCommandsCLI(t *testing.T) {
 			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCriticalCommandProcess$")
 			cmd.Dir = t.TempDir()
 			cmd.Env = append(os.Environ(), "FLYCTL_CRITICAL_COMMAND_TEST="+string(data))
-			output, err := cmd.CombinedOutput()
+			var stdout, stderr strings.Builder
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			err = cmd.Run()
+			output := "stdout:\n" + stdout.String() + "\nstderr:\n" + stderr.String()
 			code := 0
 			if err != nil {
 				var exit *exec.ExitError
 				require.ErrorAs(t, err, &exit, "%s", output)
 				code = exit.ExitCode()
 			}
-			require.Contains(t, string(output), "CLI_CHECKS_PASSED", "helper assertions failed: %s", output)
+			require.Contains(t, stderr.String(), "CLI_CHECKS_PASSED", "helper assertions failed: %s", output)
 			require.Equal(t, tc.Code, code, "%s", output)
+			// Results belong on stdout and failures on stderr; scripts rely
+			// on which stream each one arrives on.
 			if tc.Output != "" {
-				require.Contains(t, string(output), tc.Output)
+				require.Contains(t, stdout.String(), tc.Output)
+				require.NotContains(t, stderr.String(), tc.Output)
 			}
 			if tc.Error != "" {
-				require.Contains(t, string(output), tc.Error)
+				require.Contains(t, stderr.String(), tc.Error)
+				require.NotContains(t, stdout.String(), tc.Error)
 			}
 		})
 	}
@@ -163,6 +173,10 @@ func TestCriticalCommandProcess(t *testing.T) {
 	switch tc.Mode {
 	case "revoke", "revoke-all-fail", "revoke-partial":
 		require.Equal(t, []string{"one", "two"}, revoked)
+		// Each failed token is named once, and only on stderr.
+		failures := map[string]int{"revoke-all-fail": 2, "revoke-partial": 1}[tc.Mode]
+		require.Equal(t, failures, strings.Count(stderr, "permission denied"), stderr)
+		require.NotContains(t, stdout, "permission denied")
 	case "volume", "volume-infer", "secrets", "create":
 		require.Equal(t, 1, mutations)
 	default:

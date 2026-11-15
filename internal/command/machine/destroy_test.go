@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -148,18 +149,34 @@ func TestRunMachineDestroySelectionAndLeaseCleanup(t *testing.T) {
 }
 
 func TestRunMachineDestroyHeadlessSelection(t *testing.T) {
-	for _, args := range [][]string{nil, {"--image", "nginx:latest"}} {
-		cmd := newDestroy()
-		require.NoError(t, cmd.ParseFlags(args))
-		ios, _, _, _ := iostreams.Test()
-		ctx := iostreams.NewContext(flag.NewContext(t.Context(), cmd.Flags()), ios)
-		ctx = appconfig.WithName(ctx, "selected-app")
-		calls := 0
-		ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-			ListActiveFunc: func(context.Context, string) ([]*fly.Machine, error) { return nil, nil },
-			DestroyFunc:    func(context.Context, string, fly.RemoveMachineInput, string) error { calls++; return nil },
+	for _, tc := range []struct {
+		name string
+		args []string
+		// Exactly one of these is set.
+		wantErr     error
+		wantMessage string
+	}{
+		{name: "no machine ID", wantMessage: "a machine ID must be specified when not running interactively"},
+		{name: "image filter needs confirmation", args: []string{"--image", "nginx:latest"}, wantErr: prompt.ErrNonInteractive},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newDestroy()
+			require.NoError(t, cmd.ParseFlags(tc.args))
+			ios, _, _, _ := iostreams.Test()
+			ctx := iostreams.NewContext(flag.NewContext(t.Context(), cmd.Flags()), ios)
+			ctx = appconfig.WithName(ctx, "selected-app")
+			calls := 0
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				ListActiveFunc: func(context.Context, string) ([]*fly.Machine, error) { return nil, nil },
+				DestroyFunc:    func(context.Context, string, fly.RemoveMachineInput, string) error { calls++; return nil },
+			})
+			err := runMachineDestroy(ctx)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else {
+				require.EqualError(t, err, tc.wantMessage)
+			}
+			require.Zero(t, calls)
 		})
-		require.Error(t, runMachineDestroy(ctx))
-		require.Zero(t, calls)
 	}
 }

@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -32,7 +31,7 @@ func runRevoke(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	numRevoked := 0
-	var failures []error
+	failed := 0
 
 	args := flag.Args(ctx)
 	if len(args) == 0 {
@@ -43,7 +42,7 @@ func runRevoke(ctx context.Context) (err error) {
 		err := apiClient.RevokeLimitedAccessToken(ctx, id)
 		if err != nil {
 			fmt.Fprintf(io.ErrOut, "failed to revoke token %s: %s\n", id, err)
-			failures = append(failures, fmt.Errorf("token %s: %w", id, err))
+			failed++
 
 			continue
 		}
@@ -52,8 +51,11 @@ func runRevoke(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(io.Out, "%d tokens revoked\n", numRevoked)
-	if len(failures) > 0 {
-		return fmt.Errorf("failed to revoke %d of %d tokens: %w", len(failures), len(args), errors.Join(failures...))
+	if failed > 0 {
+		// Each failure is already on stderr with its ID. Repeating them here
+		// would print every one twice, and wrapping them would let a single
+		// cancelled request choose the exit code.
+		return fmt.Errorf("failed to revoke %d of %d tokens", failed, len(args))
 	}
 
 	return nil
