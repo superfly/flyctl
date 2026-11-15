@@ -31,8 +31,6 @@ import (
 
 // The plan is validated when it's built and again when it's launched.
 func TestValidateHighAvailabilityWarnsOnce(t *testing.T) {
-	const warning = "turning off high availability"
-
 	for _, tc := range []struct {
 		name      string
 		billable  bool
@@ -50,7 +48,7 @@ func TestValidateHighAvailabilityWarnsOnce(t *testing.T) {
 
 			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
 			assert.Equal(t, tc.wantValid, cache.validateHighAvailability(ctx, p, tc.billable))
-			assert.Equal(t, tc.wantCount, strings.Count(errOut.String(), warning))
+			assert.Equal(t, strings.Repeat(noPaymentMethodHANotice+"\n", tc.wantCount), errOut.String())
 		})
 	}
 }
