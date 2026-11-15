@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"testing"
 
+	getsentry "github.com/getsentry/sentry-go"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"golang.org/x/crypto/ssh"
 )
+
+var stepLabel = flyerr.StepLabel(errors.New("could not get all green machines to be healthy"))
 
 func TestIgnore(t *testing.T) {
 	for _, tc := range []struct {
@@ -33,12 +38,59 @@ func TestIgnore(t *testing.T) {
 		{"joined with a real error", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("flaps 500")), false},
 		{"wrapped multierror with a real error", fmt.Errorf("deploy: %w", multierror.Append(nil, flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("nil pointer dereference"))), false},
 		{"wrapped multierror of noise", fmt.Errorf("deploy: %w", multierror.Append(nil, flyerr.Expected(errors.New("the app appears to be crashing")), context.Canceled)), true},
+		// Blue-green joins each step's error with a label naming the step.
+		{"abort joined with a step label", errors.Join(flyerr.Expected(errors.New("deployment aborted by user")), stepLabel), true},
+		{"crash joined with a step label", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), stepLabel), true},
+		{"signal cause joined with a step label", errors.Join(errors.New(`Get "https://api.machines.dev/v1/apps/a/machines": interrupt signal received`), stepLabel), true},
+		{"real error joined with a step label", errors.Join(errors.New("flaps 500"), stepLabel), false},
+		{"step label alone is reported", stepLabel, false},
+		{"joined step labels alone are reported", errors.Join(stepLabel, stepLabel), false},
+		// Stopping the command is the outcome whatever is combined with it.
+		{"cancellation joined with a step label", errors.Join(context.Canceled, stepLabel), true},
+		{"cancellation joined with a cleanup error", fmt.Errorf("ssh shell: %w", errors.Join(context.Canceled, errors.New("close: broken pipe"))), true},
+		// A mark outside a combined error covers all of it.
+		{"marked expected around a join", flyerr.Expected(errors.Join(errors.New("a"), errors.New("b"))), true},
+		{"expected part does not speak for a join", fmt.Errorf("deploy: %w", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("flaps 500"))), false},
 		{"nil pointer", errors.New("runtime error: invalid memory address or nil pointer dereference"), false},
 		{"api timeout", errors.New(`Error contacting Fly.io API when probing "personal": timed out (context deadline exceeded)`), false},
 		{"handshake", errors.New("error connecting to SSH server: ssh: handshake failed: EOF"), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.want, ignore(tc.err))
+		})
+	}
+}
+
+// The app-info helpers report only the FlapsError inside an error. Filtering
+// that narrowed error again dropped events whose other parts were real.
+func TestAppInfoHelpersFilterTheWholeErrorOnce(t *testing.T) {
+	var captured int
+	client, err := getsentry.NewClient(getsentry.ClientOptions{BeforeSend: func(*getsentry.Event, *getsentry.EventHint) *getsentry.Event { captured++; return nil }})
+	require.NoError(t, err)
+	hub := getsentry.CurrentHub()
+	previous := hub.Client()
+	hub.BindClient(client)
+	t.Cleanup(func() { hub.BindClient(previous) })
+
+	limit := &flaps.FlapsError{OriginalError: errors.New("Your organization has reached its machine limit"), ResponseStatusCode: 422}
+
+	for _, tc := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"machine limit alone", fmt.Errorf("launch: %w", limit), 0},
+		{"machine limit beside a real failure", errors.Join(errors.New("nil pointer dereference"), limit), 1},
+		{"machine limit beside a flaps 500", errors.Join(limit, &flaps.FlapsError{OriginalError: errors.New("internal error"), ResponseStatusCode: 500}), 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			captured = 0
+			CaptureExceptionWithFlapsAppInfo(context.Background(), tc.err, "test", &flaps.App{})
+			require.Equal(t, tc.want, captured)
+
+			captured = 0
+			CaptureExceptionWithAppInfo(context.Background(), tc.err, "test", &fly.AppCompact{Organization: &fly.OrganizationBasic{}})
+			require.Equal(t, tc.want, captured)
 		})
 	}
 }

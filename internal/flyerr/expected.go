@@ -24,3 +24,26 @@ func IsExpected(err error) bool {
 type expectedError struct{ error }
 
 func (e expectedError) Unwrap() error { return e.error }
+
+// ExpectedOutcome identifies the mark on this error itself. IsExpected also
+// looks inside combined errors; this lets a caller tell the two apart.
+func (expectedError) ExpectedOutcome() {}
+
+// StepLabel marks err as the name of the step that failed, joined onto the
+// real cause with errors.Join. A label is not a failure of its own: whether
+// the combined error is an expected outcome depends on the cause alone. The
+// message and errors.Is/As are unchanged.
+func StepLabel(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return labelError{err}
+}
+
+type labelError struct{ error }
+
+func (e labelError) Unwrap() error { return e.error }
+
+// StepLabel identifies the mark on this error itself.
+func (labelError) StepLabel() {}

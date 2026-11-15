@@ -34,18 +34,20 @@ import (
 
 // TODO(ali): Use statuslogger here
 
+// The sentinels marked StepLabel are only ever joined onto the error from the
+// step they name (see Deploy), so they say where a deploy failed, not why.
 var (
-	ErrTagForDeletion        = errors.New("failed to mark as safe for deletion")
+	ErrTagForDeletion        = flyerr.StepLabel(errors.New("failed to mark as safe for deletion"))
 	ErrAborted               = flyerr.Expected(errors.New("deployment aborted by user"))
 	ErrWaitTimeout           = errors.New("wait timeout")
-	ErrCreateGreenMachine    = errors.New("failed to create green machines")
-	ErrWaitForStartedState   = errors.New("could not get all green machines into started state")
-	ErrWaitForHealthy        = errors.New("could not get all green machines to be healthy")
-	ErrMarkReadyForTraffic   = errors.New("failed to mark green machines as ready")
-	ErrCordonBlueMachines    = errors.New("failed to cordon blue machines")
-	ErrStopBlueMachines      = errors.New("failed to stop blue machines")
-	ErrWaitForStoppedState   = errors.New("could not get all blue machines into stopped state")
-	ErrDestroyBlueMachines   = errors.New("failed to destroy previous deployment")
+	ErrCreateGreenMachine    = flyerr.StepLabel(errors.New("failed to create green machines"))
+	ErrWaitForStartedState   = flyerr.StepLabel(errors.New("could not get all green machines into started state"))
+	ErrWaitForHealthy        = flyerr.StepLabel(errors.New("could not get all green machines to be healthy"))
+	ErrMarkReadyForTraffic   = flyerr.StepLabel(errors.New("failed to mark green machines as ready"))
+	ErrCordonBlueMachines    = flyerr.StepLabel(errors.New("failed to cordon blue machines"))
+	ErrStopBlueMachines      = flyerr.StepLabel(errors.New("failed to stop blue machines"))
+	ErrWaitForStoppedState   = flyerr.StepLabel(errors.New("could not get all blue machines into stopped state"))
+	ErrDestroyBlueMachines   = flyerr.StepLabel(errors.New("failed to destroy previous deployment"))
 	ErrValidationError       = errors.New("app not in valid state for bluegreen deployments")
 	ErrMultipleImageVersions = errors.New("found multiple image versions")
 

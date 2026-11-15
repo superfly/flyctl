@@ -27,35 +27,67 @@ func ignore(err error) bool {
 		return true
 	}
 
-	// A combined error (errors.Join, multierror) is only noise if every part
-	// is; one crashing machine must not hide a real failure on another.
-	for e := err; e != nil; e = errors.Unwrap(e) {
-		if parts := multi(e); parts != nil {
-			for _, p := range parts {
-				if !ignore(p) {
-					return false
-				}
-			}
+	// The user stopping the command is the outcome, whatever else is combined
+	// with it: a step label, or errors from work that was cut short.
+	if flyerr.IsCancelledError(err) {
+		return true
+	}
 
+	// Walk the wrappers one at a time rather than with errors.As, which also
+	// looks inside a combined error and would let one expected part speak for
+	// the rest.
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if _, ok := e.(interface{ ExpectedOutcome() }); ok {
 			return true
 		}
-	}
 
-	if flyerr.IsCancelledError(err) || flyerr.IsExpected(err) {
-		return true
-	}
+		// A remote command exiting non-zero is its result, not a client bug.
+		// ExitMissingError is still reported: a channel closing without an
+		// exit status usually means the tunnel, agent or hallpass dropped it.
+		if _, ok := e.(*ssh.ExitError); ok {
+			return true
+		}
 
-	// A remote command exiting non-zero is its result, not a client bug.
-	// ExitMissingError is still reported: a channel closing without an exit
-	// status usually means the tunnel, agent or hallpass dropped it.
-	var exitErr *ssh.ExitError
-	if errors.As(err, &exitErr) {
-		return true
+		if parts := multi(e); parts != nil {
+			return ignoreAll(parts)
+		}
 	}
 
 	msg := err.Error()
 	for _, s := range ignoredMessages {
 		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ignoreAll reports whether a combined error (errors.Join, multierror) is
+// noise. Every part must be: one crashing machine must not hide a real
+// failure on another. Step labels don't count either way, and a combined
+// error with nothing but labels is reported.
+func ignoreAll(parts []error) bool {
+	noise := false
+
+	for _, p := range parts {
+		if p == nil || isStepLabel(p) {
+			continue
+		}
+
+		if !ignore(p) {
+			return false
+		}
+
+		noise = true
+	}
+
+	return noise
+}
+
+func isStepLabel(err error) bool {
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if _, ok := e.(interface{ StepLabel() }); ok {
 			return true
 		}
 	}

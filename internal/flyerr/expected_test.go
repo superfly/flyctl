@@ -26,3 +26,21 @@ func TestExpected(t *testing.T) {
 		t.Fatal("Expected(nil) must stay nil")
 	}
 }
+
+func TestStepLabel(t *testing.T) {
+	label := StepLabel(errors.New("failed to create green machines"))
+	joined := errors.Join(errors.New("flaps 500"), label)
+
+	if !errors.Is(joined, label) {
+		t.Fatal("errors.Is no longer finds the label")
+	}
+	if got := label.Error(); got != "failed to create green machines" {
+		t.Fatalf("message changed: %q", got)
+	}
+	if IsExpected(label) {
+		t.Fatal("a step label is not an expected outcome")
+	}
+	if StepLabel(nil) != nil {
+		t.Fatal("StepLabel(nil) must stay nil")
+	}
+}

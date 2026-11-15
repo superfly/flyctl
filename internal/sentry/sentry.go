@@ -125,7 +125,19 @@ func WithRequestID(requestID string) CaptureOption {
 }
 
 func CaptureException(err error, opts ...CaptureOption) {
-	if !isInitialized() || ignore(err) {
+	if ignore(err) {
+		return
+	}
+
+	capture(err, opts...)
+}
+
+// capture sends err without filtering it. The app-info helpers filter the
+// whole error themselves and then report only the FlapsError inside it;
+// filtering that narrowed error again would let one expected FlapsError drop
+// an event whose other parts are real failures.
+func capture(err error, opts ...CaptureOption) {
+	if !isInitialized() {
 		return
 	}
 
@@ -153,14 +165,13 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 }
 
 func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *fly.AppCompact) {
-	// Check the whole chain here: the FlapsError branch below reports only
-	// the inner error, which loses any cancellation wrapped around it.
+	// Check the whole error here and nowhere below; see capture.
 	if ignore(err) {
 		return
 	}
 
 	if appCompact == nil {
-		CaptureException(
+		capture(
 			err,
 			WithTag("feature", featureName),
 		)
@@ -171,7 +182,7 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 	var flapsErr *flaps.FlapsError
 
 	if errors.As(err, &flapsErr) {
-		CaptureException(
+		capture(
 			flapsErr,
 			WithTag("feature", featureName),
 			WithTag("app-platform-version", appCompact.PlatformVersion),
@@ -191,7 +202,7 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		return
 	}
 
-	CaptureException(
+	capture(
 		err,
 		WithTag("feature", featureName),
 		WithTag("app-platform-version", appCompact.PlatformVersion),
@@ -214,7 +225,7 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 	}
 
 	if app == nil {
-		CaptureException(
+		capture(
 			err,
 			WithTag("feature", featureName),
 		)
@@ -225,7 +236,7 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 	var flapsErr *flaps.FlapsError
 
 	if errors.As(err, &flapsErr) {
-		CaptureException(
+		capture(
 			flapsErr,
 			WithTag("feature", featureName),
 			WithContexts(map[string]sentry.Context{
@@ -244,7 +255,7 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 		return
 	}
 
-	CaptureException(
+	capture(
 		err,
 		WithTag("feature", featureName),
 		WithContexts(map[string]sentry.Context{
