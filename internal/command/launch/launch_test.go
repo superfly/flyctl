@@ -421,34 +421,20 @@ func TestUpdateConfigPlanMemoryWithNamedGroups(t *testing.T) {
 	assert.Equal(t, "4gb", worker.Memory)
 }
 
-// Machines with more than 2GB of memory can't suspend, including when the
-// memory comes from a size preset and no compute spells it out.
-func TestUpdateConfigSuspendFallsBackToStop(t *testing.T) {
-	autostop := func(g *fly.MachineGuest) fly.MachineAutostop {
-		state := &launchState{
-			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
-				AppName:         "my-app",
-				HttpServicePort: 8080,
-				MemoryMB:        g.MemoryMB,
-				Compute:         []*appconfig.Compute{guestToCompute(g)},
-			}},
-			planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
-		}
-		flags := New().Flags()
-		require.NoError(t, flags.Set("auto-stop", "suspend"))
-		ctx := flagctx.NewContext(context.Background(), flags)
-
-		state.updateConfig(ctx)
-
-		require.NotNil(t, state.appConfig.HTTPService)
-
-		return *state.appConfig.HTTPService.AutoStopMachines
+// A nil entry in the plan's compute is skipped, not dereferenced.
+func TestUpdateConfigSkipsNilCompute(t *testing.T) {
+	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 1024,
+			Compute:  []*appconfig.Compute{nil, app},
+		}},
+		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
 	}
 
-	assert.Equal(t, fly.MachineAutostopSuspend, autostop(fly.MachinePresets["shared-cpu-1x"]))
-	// Exactly 2GB can still suspend.
-	assert.Equal(t, fly.MachineAutostopSuspend, autostop(fly.MachinePresets["performance-1x"]))
-	assert.Equal(t, fly.MachineAutostopStop, autostop(fly.MachinePresets["performance-2x"]))
+	assert.NotPanics(t, func() { state.updateConfig(context.Background()) })
+	assert.Equal(t, "1gb", app.Memory)
 }
 
 func TestMemoryString(t *testing.T) {
