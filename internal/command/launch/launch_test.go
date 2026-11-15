@@ -364,7 +364,34 @@ func TestUpdateConfigKeepsExistingMemory(t *testing.T) {
 	}
 }
 
-// Machines with 2GB of memory or more can't suspend, including when the
+// A vm_memory edited in a manifest (the Launch UI does this, leaving the
+// plan's compute as it was) replaces the default group's memory and nothing
+// else.
+func TestUpdateConfigPlanMemoryOverridesDefaultCompute(t *testing.T) {
+	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+	worker := &appconfig.Compute{
+		Memory:       "4gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 2},
+		Processes:    []string{"worker"},
+	}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 2048,
+			Compute:  []*appconfig.Compute{app, worker},
+		}},
+		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+	}
+
+	state.updateConfig(context.Background())
+
+	got := state.appConfig.Compute
+	assert.Equal(t, "2gb", got[0].Memory)
+	assert.Zero(t, got[0].MemoryMB)
+	assert.Equal(t, "4gb", got[1].Memory)
+}
+
+// Machines with more than 2GB of memory can't suspend, including when the
 // memory comes from a size preset and no compute spells it out.
 func TestUpdateConfigSuspendFallsBackToStop(t *testing.T) {
 	autostop := func(g *fly.MachineGuest) fly.MachineAutostop {
@@ -388,6 +415,8 @@ func TestUpdateConfigSuspendFallsBackToStop(t *testing.T) {
 	}
 
 	assert.Equal(t, fly.MachineAutostopSuspend, autostop(fly.MachinePresets["shared-cpu-1x"]))
+	// Exactly 2GB can still suspend.
+	assert.Equal(t, fly.MachineAutostopSuspend, autostop(fly.MachinePresets["performance-1x"]))
 	assert.Equal(t, fly.MachineAutostopStop, autostop(fly.MachinePresets["performance-2x"]))
 }
 
