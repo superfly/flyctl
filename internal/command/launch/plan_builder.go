@@ -1060,14 +1060,7 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 	clonedGuest := helpers.Clone(g)
 	c.MachineGuest = clonedGuest
 
-	// Canonicalize to human-readable memory strings when possible
-	var memStr string
-	if g.MemoryMB%1024 == 0 {
-		memStr = fmt.Sprintf("%dgb", g.MemoryMB/1024)
-	} else {
-		memStr = fmt.Sprintf("%dmb", g.MemoryMB)
-	}
-	c.Memory = memStr
+	c.Memory = memoryString(g.MemoryMB)
 	c.MemoryMB = 0
 
 	// Restore original values for fields the Web UI does not return
@@ -1076,6 +1069,15 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 		c.GPUs = originalGuest.GPUs
 		c.HostDedicationID = originalGuest.HostDedicationID
 	}
+}
+
+// memoryString canonicalizes megabytes to a human-readable memory string
+// ("1gb", "512mb") for fly.toml's `memory` key.
+func memoryString(mb int) string {
+	if mb%1024 == 0 {
+		return fmt.Sprintf("%dgb", mb/1024)
+	}
+	return fmt.Sprintf("%dmb", mb)
 }
 
 func guestToCompute(g *fly.MachineGuest) *appconfig.Compute {

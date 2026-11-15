@@ -460,7 +460,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	if plan.MemoryMB != 0 {
 		for i := range appConfig.Compute {
 			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].MemoryMB == 0 {
-				appConfig.Compute[i].MemoryMB = plan.MemoryMB
+				// Write it as `memory` alone. A memory_mb next to it would win
+				// over `memory`, so a later edit of `memory` would do nothing.
+				appConfig.Compute[i].Memory = memoryString(plan.MemoryMB)
 			}
 		}
 	}

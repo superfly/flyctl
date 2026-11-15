@@ -282,6 +282,61 @@ func TestIsComputeValid(t *testing.T) {
 	}
 }
 
+// The plan's memory is written as `memory` only: a memory_mb beside it takes
+// precedence, so editing `memory` in fly.toml later would have no effect.
+func TestUpdateConfigWritesPlanMemoryOnce(t *testing.T) {
+	newState := func(compute *appconfig.Compute, memoryMB int) *launchState {
+		return &launchState{
+			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+				AppName:  "my-app",
+				MemoryMB: memoryMB,
+				Compute:  []*appconfig.Compute{compute},
+			}},
+			planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+		}
+	}
+
+	t.Run("memory set from a guest", func(t *testing.T) {
+		compute := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+		state := newState(compute, 1024)
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, "1gb", got.Memory)
+		assert.Zero(t, got.MemoryMB)
+	})
+
+	t.Run("plan memory without a memory key", func(t *testing.T) {
+		compute := &appconfig.Compute{MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1}}
+		state := newState(compute, 512)
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, "512mb", got.Memory)
+		assert.Zero(t, got.MemoryMB)
+	})
+
+	t.Run("an explicit memory_mb is kept", func(t *testing.T) {
+		compute := &appconfig.Compute{MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 2048}}
+		state := newState(compute, 1024)
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, 2048, got.MemoryMB)
+		assert.Empty(t, got.Memory)
+	})
+}
+
+func TestMemoryString(t *testing.T) {
+	assert.Equal(t, "1gb", memoryString(1024))
+	assert.Equal(t, "4gb", memoryString(4096))
+	assert.Equal(t, "256mb", memoryString(256))
+	assert.Equal(t, "1536mb", memoryString(1536))
+}
+
 func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 	// PowerShell expands $app inside double quotes and cmd.exe %app%, so a
 	// path can't be pasted into a command safely for every shell.
