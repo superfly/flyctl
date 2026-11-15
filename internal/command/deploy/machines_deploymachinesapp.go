@@ -141,6 +141,10 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	finalizationSpan.End()
 
+	if len(md.secondMachineGroups) > 0 {
+		fmt.Fprintln(md.io.Out, singleMachineHint(md.app.Name, lo.Uniq(md.secondMachineGroups), err != nil, md.colorize.Purple))
+	}
+
 	if err != nil {
 		tracing.RecordError(deploymentCtx, span, err, "failed to deploy machines")
 	}
@@ -454,12 +458,14 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			continue
 		case len(services) > 0:
 			fmt.Fprintf(md.io.Out, "Creating a second machine for high availability and zero downtime deployments.\n")
+			// Recorded before the attempt: a failed spawn can still leave
+			// the machine behind (it's created before the health checks).
+			md.secondMachineGroups = append(md.secondMachineGroups, name)
 			if _, err := md.spawnMachineInGroup(ctx, name, nil); err != nil {
 				statuslogger.Failed(ctx, err)
 
 				return err
 			}
-			fmt.Fprintln(md.io.Out, singleMachineHint(md.app.Name, name, md.colorize.Purple))
 		default:
 			fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(leasableMachine.Machine().ID))
 			standbyFor := []string{leasableMachine.Machine().ID}
@@ -495,22 +501,27 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 	return nil
 }
 
-// singleMachineHint says how to end up with one machine instead of the second
-// one created for high availability. min_machines_running doesn't do that: it
+// singleMachineHint says how to go back to one machine in the groups that got
+// a second one for high availability. min_machines_running doesn't do that: it
 // only keeps machines running, and the second machine is created regardless.
-// It's printed once the second machine exists, so scaling down is the fix for
-// this deploy; --ha=false only helps the next time a group gets its first
-// machines (a new app, or a new process group). The scale command names the
-// app, since this deploy may not have used the fly.toml in the current
-// directory.
-func singleMachineHint(app, group string, highlight func(string) string) string {
-	count := "1"
-	if group != fly.MachineProcessGroupApp {
-		count = group + "=1"
+//
+// It's printed once the release is finished, because fly scale count refuses
+// to run until the app has a complete release. The command sits on its own
+// line so it can be copied without colour, has --yes so it also works without
+// a terminal, and names the app since the deploy may not have used the
+// fly.toml in the current directory.
+func singleMachineHint(app string, groups []string, deployFailed bool, highlight func(string) string) string {
+	counts := "1"
+	if len(groups) != 1 || groups[0] != fly.MachineProcessGroupApp {
+		counts = strings.Join(lo.Map(groups, func(g string, _ int) string { return g + "=1" }), " ")
 	}
-	scale := fmt.Sprintf("fly scale count %s -a %s", count, app)
-	return fmt.Sprintf("To run a single machine, run %s. To skip it next time, deploy with %s.",
-		highlight(scale), highlight("--ha=false"))
+
+	intro := "A second machine was created for high availability. To run a single machine instead:"
+	if deployFailed {
+		intro = "A second machine may have been created for high availability. To run a single machine instead, run this after a successful deploy:"
+	}
+
+	return fmt.Sprintf("%s\n  %s", intro, highlight(fmt.Sprintf("fly scale count %s --yes -a %s", counts, app)))
 }
 
 // deployMachinesApp executes the following flow:
@@ -1334,6 +1345,7 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff
 			fmt.Fprintf(md.io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
 	}
+	secondMachines := false
 	if willAddMachines {
 		bullet := md.colorize.Green("*")
 		for name := range diff.groupsNeedingMachines {
@@ -1346,11 +1358,15 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff
 				description = fmt.Sprintf("1 \"%s\" machine", name)
 			case len(groupConfig.AllServices()) > 0:
 				description = fmt.Sprintf("2 \"%s\" machines", name)
+				secondMachines = true
 			default:
 				description = fmt.Sprintf("1 \"%s\" machine and 1 standby machine for it", name)
 			}
 			fmt.Fprintf(md.io.Out, " %s create %s\n", bullet, description)
 		}
+	}
+	if secondMachines {
+		fmt.Fprintf(md.io.Out, "The second machine is for high availability. To create only one, deploy with %s\n", md.colorize.Purple("--ha=false"))
 	}
 	fmt.Fprint(md.io.Out, "\n")
 }
