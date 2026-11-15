@@ -222,8 +222,6 @@ func runSessionsAttach(ctx context.Context, s *session) error {
 
 // attachSession connects the terminal to a running session.
 func attachSession(ctx context.Context, sprite *sprites.Sprite, session *sprites.Session) error {
-	io := iostreams.FromContext(ctx)
-
 	opts := remoteOptions{
 		sessionID:     session.ID,
 		tty:           session.TTY,
@@ -235,9 +233,10 @@ func attachSession(ctx context.Context, sprite *sprites.Sprite, session *sprites
 		// A non-TTY session has no screen to redraw, so replay its output.
 		opts.replay = true
 
-		if !io.IsStdinTTY() {
-			opts.stdin = io.In
-		}
+		// Always give the session a stdin. With none, the SDK tells the
+		// session its input has ended, which could stop a process that is
+		// still reading.
+		opts.stdin = os.Stdin
 	}
 
 	return runRemote(ctx, sprite, opts)

@@ -95,7 +95,8 @@ func newFileEdit() *cobra.Command {
 		long = `Download a file from a sprite, open it in $VISUAL or $EDITOR, and upload it
 if it changed.
 
-When not running in a terminal, the new contents are read from stdin instead.
+When stdin is not a terminal, the new contents are read from it instead. Empty
+input is refused rather than emptying the file.
 `
 	)
 
@@ -130,11 +131,22 @@ func runFileEdit(ctx context.Context, s *session) error {
 		return fmt.Errorf("failed to read %s: %w", target.path, err)
 	}
 
+	// Open an editor whenever there is a terminal to type into. Only take the
+	// new contents from stdin when something is really piped in, and never
+	// let an empty pipe, such as </dev/null, blank the file.
 	var edited []byte
-	if ios.IsInteractive() {
+	if ios.IsStdinTTY() {
 		edited, err = editLocally(ctx, data, path.Ext(target.path))
 	} else {
 		edited, err = io.ReadAll(ios.In)
+
+		if err == nil && len(edited) == 0 {
+			return flyerr.WithSuggestion(
+				errors.New("no new contents on stdin, so the file was left unchanged"),
+				"Pipe the new contents in, or run this in a terminal to use an editor. "+
+					"To empty a file, use 'fly sprites exec -- truncate -s 0 <path>'.",
+			)
+		}
 	}
 
 	if err != nil {
@@ -270,18 +282,27 @@ func runFilePush(ctx context.Context, s *session) error {
 	fsys := target.fs()
 
 	// Uploads create missing directories, so without --parents check that the
-	// destination's parent is really there rather than silently creating it.
+	// directory the files go into is really there rather than silently
+	// creating it. A destination written with a trailing slash is that
+	// directory; otherwise it is the destination's parent.
 	if !parents {
-		parent := path.Dir(strings.TrimSuffix(target.path, "/"))
-		if len(sources) > 1 {
-			parent = strings.TrimSuffix(target.path, "/")
+		parent := strings.TrimSuffix(target.path, "/")
+		if len(sources) == 1 && !strings.HasSuffix(target.path, "/") {
+			parent = path.Dir(parent)
 		}
 
-		if _, err := fsys.Stat(parent); err != nil {
+		if parent == "" {
+			parent = "/"
+		}
+
+		switch _, err := fsys.Stat(parent); {
+		case errors.Is(err, fs.ErrNotExist):
 			return flyerr.WithSuggestion(
 				fmt.Errorf("remote directory %s does not exist", parent),
 				"Pass --parents to create it.",
 			)
+		case err != nil:
+			return fmt.Errorf("failed to check remote directory %s: %w", parent, err)
 		}
 	}
 
@@ -454,20 +475,25 @@ func runFilePull(ctx context.Context, s *session) error {
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		return err
 	case err != nil:
-		missing := filepath.Dir(filepath.Clean(target))
-		if intoDir {
-			missing = target
-		}
+		// The target is new. Its parent must exist, or --parents be given.
+		parent := filepath.Dir(filepath.Clean(target))
 
-		if _, statErr := os.Stat(missing); statErr != nil {
+		if _, statErr := os.Stat(parent); statErr != nil {
 			if !parents {
 				return flyerr.WithSuggestion(
-					fmt.Errorf("local directory %s does not exist", missing),
+					fmt.Errorf("local directory %s does not exist", parent),
 					"Pass --parents to create it.",
 				)
 			}
 
-			if err := os.MkdirAll(missing, 0o755); err != nil {
+			if err := os.MkdirAll(parent, 0o755); err != nil {
+				return err
+			}
+		}
+
+		// A new target that is to hold the sources is a directory to make.
+		if intoDir {
+			if err := os.Mkdir(target, 0o755); err != nil {
 				return err
 			}
 		}

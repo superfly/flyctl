@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -669,6 +671,49 @@ func TestExecPassesCommandFlagsThrough(t *testing.T) {
 func TestSplitEnv(t *testing.T) {
 	assert.Equal(t, []string{"A=1", "B=2", "C=3"}, splitEnv([]string{"A=1, B=2", "C=3", ""}))
 	assert.Empty(t, splitEnv(nil))
+
+	// A comma inside a value is kept: only ",KEY=" starts a new pair.
+	assert.Equal(t,
+		[]string{"JAVA_OPTS=-Xmx1g,-Xms1g", "HOSTS=a,b,c", "N=1"},
+		splitEnv([]string{"JAVA_OPTS=-Xmx1g,-Xms1g", "HOSTS=a,b,c,N=1"}),
+	)
+}
+
+func TestIsUnauthorized(t *testing.T) {
+	apiErr := &sprites.APIError{StatusCode: http.StatusUnauthorized, Message: "unauthorized"}
+
+	// Commands wrap the SDK's errors, so the check must see through that.
+	assert.True(t, isUnauthorized(fmt.Errorf("failed to list sprites: %w", apiErr)))
+	assert.True(t, isUnauthorized(&fs.PathError{Op: "stat", Path: "/x", Err: errors.New("HTTP 401")}))
+
+	assert.False(t, isUnauthorized(fmt.Errorf("failed: %w", &sprites.APIError{StatusCode: http.StatusNotFound})))
+	assert.False(t, isUnauthorized(errors.New("boom")))
+}
+
+func TestFileEditRefusesEmptyStdin(t *testing.T) {
+	var writes int
+
+	api := newFakeAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method != http.MethodGet:
+			writes++
+		case strings.HasPrefix(r.URL.Path, "/v1/sprites/dev/fs/list"):
+			writeJSONResponse(w, map[string]any{
+				"path":    "/etc/app.conf",
+				"entries": []map[string]any{{"name": "app.conf", "path": "/etc/app.conf", "mode": "0644", "size": 3}},
+				"count":   1,
+			})
+		default:
+			_, _ = io.WriteString(w, "old")
+		}
+	})
+
+	// iostreams.Test gives an empty, non-terminal stdin, like </dev/null.
+	e := newEnv(t, newFileEdit(), "--sprite", "dev", "/etc/app.conf")
+	err := runFileEdit(e.ctx, testSession(api))
+
+	require.ErrorContains(t, err, "left unchanged")
+	assert.Zero(t, writes, "the remote file must not be written")
 }
 
 func TestWithTerminalEnv(t *testing.T) {

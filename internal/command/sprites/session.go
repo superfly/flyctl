@@ -133,12 +133,20 @@ func withSession(fn runner) command.Runner {
 	}
 }
 
+// isUnauthorized reports whether err is the API rejecting the token. The SDK
+// reports that as an APIError from most calls, but as plain text from the
+// filesystem and WebSocket ones.
 func isUnauthorized(err error) bool {
-	if apiErr := sprites.IsAPIError(err); apiErr != nil {
+	var apiErr *sprites.APIError
+	if errors.As(err, &apiErr) {
 		return apiErr.StatusCode == http.StatusUnauthorized
 	}
 
-	return strings.Contains(err.Error(), "status 401")
+	msg := err.Error()
+
+	return strings.Contains(msg, "status 401") ||
+		strings.Contains(msg, "HTTP 401") ||
+		strings.Contains(msg, "401 Unauthorized")
 }
 
 func newSession(ctx context.Context) (*session, error) {
@@ -201,16 +209,17 @@ func resolveOrg(ctx context.Context) (string, error) {
 	}
 
 	// Remember the choice so the prompt appears once, not on every command.
-	st.DefaultOrg = org.RawSlug
-	if st.DefaultOrg == "" {
-		st.DefaultOrg = org.Slug
+	slug := org.RawSlug
+	if slug == "" {
+		slug = org.Slug
 	}
 
-	if err := spritestate.Save(configDir, st); err != nil {
+	err = spritestate.Update(ctx, configDir, func(st *spritestate.State) { st.DefaultOrg = slug })
+	if err != nil {
 		return "", fmt.Errorf("failed to save the default organization: %w", err)
 	}
 
-	return st.DefaultOrg, nil
+	return slug, nil
 }
 
 // canonicalOrg turns the "personal" alias into the organization's real slug,
@@ -277,12 +286,13 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 		return token, false, nil
 	}
 
-	if st.Tokens == nil {
-		st.Tokens = map[string]string{}
-	}
-	st.Tokens[key] = token
-
-	if err := spritestate.Save(configDir, st); err != nil {
+	err = spritestate.Update(ctx, configDir, func(st *spritestate.State) {
+		if st.Tokens == nil {
+			st.Tokens = map[string]string{}
+		}
+		st.Tokens[key] = token
+	})
+	if err != nil {
 		return "", false, fmt.Errorf("failed to save the Sprites token: %w", err)
 	}
 
@@ -304,16 +314,9 @@ func hasExternalFlyToken(ctx context.Context) bool {
 
 // forgetToken drops the saved token for the session's organization.
 func forgetToken(ctx context.Context, s *session) error {
-	configDir := state.ConfigDirectory(ctx)
-
-	st, err := spritestate.Load(configDir)
-	if err != nil {
-		return err
-	}
-
-	delete(st.Tokens, spritestate.TokenKey(s.APIURL, s.Org))
-
-	return spritestate.Save(configDir, st)
+	return spritestate.Update(ctx, state.ConfigDirectory(ctx), func(st *spritestate.State) {
+		delete(st.Tokens, spritestate.TokenKey(s.APIURL, s.Org))
+	})
 }
 
 // errNoSprite is returned when nothing names the sprite to act on.

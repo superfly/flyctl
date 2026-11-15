@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	sprites "github.com/superfly/sprites-go"
@@ -23,6 +25,16 @@ import (
 // detachChar is Ctrl+\. Typing it in a TTY session disconnects and leaves the
 // session running on the sprite.
 const detachChar = 0x1C
+
+const (
+	// interruptedExitCode is what a shell reports for a command ended by
+	// Ctrl+C.
+	interruptedExitCode = 130
+
+	// interruptGrace is how long an interrupted remote command gets to exit
+	// before the connection is dropped anyway.
+	interruptGrace = 5 * time.Second
+)
 
 // terminalEnv is the local environment forwarded to TTY sessions so the remote
 // terminal behaves like the local one.
@@ -71,7 +83,7 @@ runs, unless --no-port-forward is passed.
 		},
 		flag.StringArray{
 			Name:        "env",
-			Description: "Environment variables as KEY=value, comma-separated or repeated",
+			Description: "Environment variables as KEY=value, repeated or comma-separated",
 		},
 		flag.Bool{
 			Name:        "stdin",
@@ -151,16 +163,31 @@ func runExec(ctx context.Context, s *session) error {
 	return runRemote(ctx, sprite, opts)
 }
 
-// splitEnv flattens --env values, each of which may hold several
-// comma-separated KEY=value pairs.
+// envPairStart matches the start of a KEY= pair that follows a comma.
+var envPairStart = regexp.MustCompile(`,\s*[A-Za-z_][A-Za-z0-9_]*=`)
+
+// splitEnv flattens --env values. Each may hold several comma-separated
+// KEY=value pairs, as the sprite CLI accepts. A comma only separates pairs
+// when another KEY= follows it, so a value may itself contain commas.
 func splitEnv(values []string) []string {
 	var env []string
 
 	for _, value := range values {
-		for _, pair := range strings.Split(value, ",") {
-			if pair = strings.TrimSpace(pair); pair != "" {
+		for {
+			loc := envPairStart.FindStringIndex(value)
+			if loc == nil {
+				break
+			}
+
+			if pair := strings.TrimSpace(value[:loc[0]]); pair != "" {
 				env = append(env, pair)
 			}
+
+			value = value[loc[0]+1:]
+		}
+
+		if pair := strings.TrimSpace(value); pair != "" {
+			env = append(env, pair)
 		}
 	}
 
@@ -188,14 +215,16 @@ func parseFileSpecs(values []string) ([]fileSpec, error) {
 }
 
 // uploadFiles writes local files into the sprite before a command runs.
-// Relative destinations are resolved against dir.
+// Relative destinations are resolved against dir, or the sprite user's home
+// directory when it is empty.
 func uploadFiles(ctx context.Context, io *iostreams.IOStreams, sprite *sprites.Sprite, dir string, files []fileSpec) error {
 	if len(files) == 0 {
 		return nil
 	}
 
+	// Without --dir, resolve relative destinations where `file push` does.
 	if dir == "" {
-		dir = "/"
+		dir = remoteHome
 	}
 
 	fsys := sprite.FilesystemAt(dir)
@@ -258,7 +287,11 @@ type remoteOptions struct {
 func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) error {
 	io := iostreams.FromContext(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
+	// The command gets a context of its own, so that an interrupt can be
+	// relayed to the remote process before the connection is dropped.
+	parent := ctx
+
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	defer cancel()
 
 	var cmd *sprites.Cmd
@@ -299,7 +332,13 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 			}
 		}
 
-		cmd.Stdin = &detachReader{r: os.Stdin, detached: detached}
+		// Ctrl+\ only means "detach" when it is typed. Piped input may hold
+		// that byte as data.
+		if interactive {
+			cmd.Stdin = &detachReader{r: os.Stdin, detached: detached}
+		} else {
+			cmd.Stdin = os.Stdin
+		}
 	case opts.sessionID != "":
 		if opts.replay {
 			cmd.SetOutputOffset(0)
@@ -310,12 +349,17 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		cmd.Stdin = opts.stdin
 	}
 
-	if err := cmd.Start(); err != nil {
-		if ctx.Err() != nil {
-			return &flyerr.ExitCodeError{Code: 130}
-		}
+	startDone := make(chan error, 1)
+	go func() { startDone <- cmd.Start() }()
 
-		return fmt.Errorf("failed to start command: %w", err)
+	select {
+	case <-parent.Done():
+		// Interrupted before anything was running.
+		return &flyerr.ExitCodeError{Code: interruptedExitCode}
+	case err := <-startDone:
+		if err != nil {
+			return fmt.Errorf("failed to start command: %w", err)
+		}
 	}
 
 	restore := func() {}
@@ -329,7 +373,12 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		var once sync.Once
 		restore = func() {
 			once.Do(func() {
-				resetTerminal(io.Out)
+				// Only a terminal understands these; a redirected stdout
+				// would get them as stray bytes.
+				if io.IsStdoutTTY() {
+					resetTerminal(io.Out)
+				}
+
 				_ = term.Restore(stdinFd, oldState)
 			})
 		}
@@ -363,6 +412,20 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		fmt.Fprintln(io.ErrOut, msg)
 
 		return nil
+	case <-parent.Done():
+		// Interrupted locally. Dropping the connection would leave the remote
+		// process running, so ask it to stop and give it a moment to.
+		if err := cmd.Signal("INT"); err == nil {
+			select {
+			case <-waitDone:
+			case <-time.After(interruptGrace):
+			}
+		}
+
+		cancel()
+		restore()
+
+		return &flyerr.ExitCodeError{Code: interruptedExitCode}
 	case err := <-waitDone:
 		restore()
 
@@ -373,9 +436,6 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 			return nil
 		case errors.As(err, &exitErr):
 			return &flyerr.ExitCodeError{Code: exitErr.ExitCode()}
-		case ctx.Err() != nil:
-			// Interrupted locally, as a shell would report it.
-			return &flyerr.ExitCodeError{Code: 130}
 		default:
 			return err
 		}

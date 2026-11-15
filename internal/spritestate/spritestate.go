@@ -5,11 +5,14 @@
 package spritestate
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/superfly/flyctl/internal/filemu"
 )
 
 const fileName = "sprites.json"
@@ -56,21 +59,50 @@ func Load(configDir string) (*State, error) {
 }
 
 // Save writes the state file with owner-only permissions, since it holds
-// tokens.
+// tokens. It replaces the file in one step, so a reader never sees it half
+// written.
 func Save(configDir string, st *State) error {
 	data, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	path := Path(configDir)
-	tmp := path + ".tmp"
+	// CreateTemp makes the file owner-only and gives each writer its own.
+	tmp, err := os.CreateTemp(configDir, fileName+".*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck
 
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+
+	if err != nil {
 		return err
 	}
 
-	return os.Rename(tmp, path)
+	return os.Rename(tmp.Name(), Path(configDir))
+}
+
+// Update applies fn to the current state and saves the result, holding a lock
+// so that concurrent sprites commands do not drop each other's changes.
+func Update(ctx context.Context, configDir string, fn func(*State)) error {
+	unlock, err := filemu.Lock(ctx, Path(configDir)+".lock")
+	if err != nil {
+		return err
+	}
+	defer unlock() //nolint:errcheck
+
+	st, err := Load(configDir)
+	if err != nil {
+		return err
+	}
+
+	fn(st)
+
+	return Save(configDir, st)
 }
 
 // Clear removes the state file. A missing file is not an error.
