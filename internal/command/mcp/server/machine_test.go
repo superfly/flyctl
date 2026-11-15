@@ -13,6 +13,7 @@ func machineUpdateTool(t *testing.T) FlyCommand {
 		}
 	}
 	t.Fatal("fly-machine-update not found")
+
 	return FlyCommand{}
 }
 
