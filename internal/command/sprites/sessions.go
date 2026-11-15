@@ -79,6 +79,8 @@ func openConsole(ctx context.Context, sprite *sprites.Sprite, portForward bool) 
 		}
 	}
 
+	env = append(env, shareTerminfo(ctx, sprite)...)
+
 	return runRemote(ctx, sprite, remoteOptions{
 		args:        []string{consoleCommand},
 		env:         env,

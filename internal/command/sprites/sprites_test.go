@@ -303,6 +303,9 @@ func TestResolveOrgWithEnvTokenNeedsNoOrg(t *testing.T) {
 	e := newEnv(t, newList())
 	t.Setenv(tokenEnv, "from-env")
 
+	// The saved login's default organization is not the token's.
+	require.NoError(t, spritestate.Save(e.configDir, &spritestate.State{DefaultOrg: "saved"}))
+
 	org, err := resolveOrg(e.ctx)
 	require.NoError(t, err)
 	assert.Empty(t, org)
@@ -668,15 +671,68 @@ func TestExecPassesCommandFlagsThrough(t *testing.T) {
 	assert.Equal(t, []string{"ls", "-la"}, flag.Args(e.ctx))
 }
 
-func TestSplitEnv(t *testing.T) {
-	assert.Equal(t, []string{"A=1", "B=2", "C=3"}, splitEnv([]string{"A=1, B=2", "C=3", ""}))
-	assert.Empty(t, splitEnv(nil))
+func TestParseEnv(t *testing.T) {
+	// Given once, pairs may be comma-separated.
+	assert.Equal(t, []string{"A=1", "B=2"}, parseEnv([]string{"A=1, B=2"}))
+	assert.Empty(t, parseEnv(nil))
 
 	// A comma inside a value is kept: only ",KEY=" starts a new pair.
+	assert.Equal(t, []string{"JAVA_OPTS=-Xmx1g,-Xms1g", "N=1"}, parseEnv([]string{"JAVA_OPTS=-Xmx1g,-Xms1g,N=1"}))
+
+	// Given more than once, each value is literal.
 	assert.Equal(t,
-		[]string{"JAVA_OPTS=-Xmx1g,-Xms1g", "HOSTS=a,b,c", "N=1"},
-		splitEnv([]string{"JAVA_OPTS=-Xmx1g,-Xms1g", "HOSTS=a,b,c,N=1"}),
+		[]string{"DSN=host=db,port=5432,user=app", "B=2"},
+		parseEnv([]string{"DSN=host=db,port=5432,user=app", "B=2"}),
 	)
+}
+
+func TestParseFileSpecs(t *testing.T) {
+	got, err := parseFileSpecs([]string{"./a.txt:/tmp/a.txt", `C:\work\app.conf:/etc/app.conf`})
+	require.NoError(t, err)
+	assert.Equal(t, []fileSpec{
+		{source: "./a.txt", dest: "/tmp/a.txt"},
+		{source: `C:\work\app.conf`, dest: "/etc/app.conf"},
+	}, got)
+
+	for _, bad := range []string{"nodest", ":dest", "src:", `C:\only-a-source`} {
+		_, err := parseFileSpecs([]string{bad})
+		require.Error(t, err, bad)
+	}
+}
+
+func TestIsTransient(t *testing.T) {
+	for _, err := range []error{
+		&sprites.APIError{StatusCode: http.StatusBadGateway},
+		errors.New("websocket: bad handshake: status 503"),
+		errors.New("dial tcp 1.2.3.4:443: connect: connection refused"),
+	} {
+		assert.True(t, isTransient(err), err.Error())
+	}
+
+	for _, err := range []error{
+		&sprites.APIError{StatusCode: http.StatusNotFound},
+		errors.New("failed to connect: HTTP 404"),
+		context.Canceled,
+		errors.New("no such command"),
+	} {
+		assert.False(t, isTransient(err), err.Error())
+	}
+}
+
+func TestExplainLimit(t *testing.T) {
+	err := explainLimit(fmt.Errorf("failed to create sprite: %w", &sprites.APIError{
+		StatusCode:   http.StatusTooManyRequests,
+		ErrorCode:    sprites.ErrCodeConcurrentLimitExceeded,
+		Message:      "too many sprites",
+		Limit:        10,
+		CurrentCount: 10,
+	}))
+
+	assert.Contains(t, flyerr.GetErrorSuggestion(err), "10 of 10 concurrent sprites")
+	assert.Contains(t, flyerr.GetErrorSuggestion(err), "fly sprites destroy")
+
+	plain := errors.New("boom")
+	assert.Equal(t, plain, explainLimit(plain))
 }
 
 func TestIsUnauthorized(t *testing.T) {

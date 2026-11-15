@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/spf13/cobra"
 	sprites "github.com/superfly/sprites-go"
 
@@ -117,7 +118,7 @@ func withSession(fn runner) command.Runner {
 		s.Client.Close() //nolint:errcheck
 
 		if err == nil || !s.cached || !isUnauthorized(err) {
-			return err
+			return explainLimit(err)
 		}
 
 		if err := forgetToken(ctx, s); err != nil {
@@ -129,8 +130,42 @@ func withSession(fn runner) command.Runner {
 		}
 		defer s.Client.Close() //nolint:errcheck
 
-		return fn(ctx, s)
+		return explainLimit(fn(ctx, s))
 	}
+}
+
+// explainLimit adds what the API said about a rate or concurrency limit, and
+// what to do about it, to an error caused by one.
+func explainLimit(err error) error {
+	var apiErr *sprites.APIError
+	if err == nil || !errors.As(err, &apiErr) || !apiErr.IsRateLimitError() {
+		return err
+	}
+
+	var advice []string
+
+	switch {
+	case apiErr.IsCreationRateLimited():
+		if apiErr.Limit > 0 && apiErr.WindowSeconds > 0 {
+			advice = append(advice, fmt.Sprintf("The limit is %d sprites per %ds.", apiErr.Limit, apiErr.WindowSeconds))
+		}
+	case apiErr.IsConcurrentLimitExceeded():
+		if apiErr.Limit > 0 && apiErr.CurrentCount > 0 {
+			advice = append(advice, fmt.Sprintf("%d of %d concurrent sprites are in use.", apiErr.CurrentCount, apiErr.Limit))
+		}
+
+		advice = append(advice, "Run 'fly sprites list' to see them and 'fly sprites destroy <name>' to free one up.")
+	}
+
+	if retryAfter := apiErr.GetRetryAfterSeconds(); retryAfter > 0 {
+		advice = append(advice, fmt.Sprintf("Try again in %ds.", retryAfter))
+	}
+
+	if apiErr.UpgradeURL != "" {
+		advice = append(advice, "To raise the limit, see "+apiErr.UpgradeURL)
+	}
+
+	return flyerr.WithSuggestion(err, strings.Join(advice, " "))
 }
 
 // isUnauthorized reports whether err is the API rejecting the token. The SDK
@@ -162,13 +197,21 @@ func newSession(ctx context.Context) (*session, error) {
 		return nil, err
 	}
 
-	s.Client = sprites.New(s.Token, sprites.WithBaseURL(s.APIURL), sprites.WithDisableControl())
+	s.Client = sprites.New(s.Token,
+		sprites.WithBaseURL(s.APIURL),
+		sprites.WithDisableControl(),
+		// The SDK's own client gives every request 30 seconds in total, which
+		// a large file transfer outlasts. This one has no overall limit;
+		// requests are bounded by the command's context instead.
+		sprites.WithHTTPClient(cleanhttp.DefaultPooledClient()),
+	)
 
 	return s, nil
 }
 
 // resolveOrg picks the organization: the --org flag or FLY_ORG, then the
-// .sprite file, then the saved default, then a prompt.
+// .sprite file, then the saved default, then a prompt. With a token from the
+// environment the last two do not apply.
 func resolveOrg(ctx context.Context) (string, error) {
 	if slug := flag.GetOrg(ctx); slug != "" {
 		return canonicalOrg(ctx, slug)
@@ -180,6 +223,12 @@ func resolveOrg(ctx context.Context) (string, error) {
 		return sf.Organization, nil
 	}
 
+	// A token from the environment already identifies its organization, which
+	// need not be the saved login's default.
+	if os.Getenv(tokenEnv) != "" {
+		return "", nil
+	}
+
 	configDir := state.ConfigDirectory(ctx)
 
 	st, err := spritestate.Load(configDir)
@@ -189,11 +238,6 @@ func resolveOrg(ctx context.Context) (string, error) {
 
 	if st.DefaultOrg != "" {
 		return st.DefaultOrg, nil
-	}
-
-	if os.Getenv(tokenEnv) != "" {
-		// The token already identifies an organization.
-		return "", nil
 	}
 
 	org, err := prompt.Org(ctx)

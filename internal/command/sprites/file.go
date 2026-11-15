@@ -513,7 +513,7 @@ func runFilePull(ctx context.Context, s *session) error {
 		}
 
 		if !info.IsDir() {
-			if err := pullFile(ios.Out, fsys, source.path, dest, info.Mode()); err != nil {
+			if err := pullFile(ctx, ios.Out, fsys, source.path, dest, info.Mode()); err != nil {
 				return err
 			}
 
@@ -527,7 +527,7 @@ func runFilePull(ctx context.Context, s *session) error {
 			)
 		}
 
-		if err := pullDir(ios.Out, fsys, source.path, dest); err != nil {
+		if err := pullDir(ctx, ios.Out, fsys, source.path, dest); err != nil {
 			return err
 		}
 	}
@@ -535,7 +535,11 @@ func runFilePull(ctx context.Context, s *session) error {
 	return nil
 }
 
-func pullDir(out io.Writer, fsys sprites.FS, remoteDir, localDir string) error {
+func pullDir(ctx context.Context, out io.Writer, fsys sprites.FS, remoteDir, localDir string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(localDir, 0o755); err != nil {
 		return err
 	}
@@ -556,7 +560,7 @@ func pullDir(out io.Writer, fsys sprites.FS, remoteDir, localDir string) error {
 		local := filepath.Join(localDir, name)
 
 		if entry.IsDir() {
-			if err := pullDir(out, fsys, remote, local); err != nil {
+			if err := pullDir(ctx, out, fsys, remote, local); err != nil {
 				return err
 			}
 
@@ -568,7 +572,7 @@ func pullDir(out io.Writer, fsys sprites.FS, remoteDir, localDir string) error {
 			return err
 		}
 
-		if err := pullFile(out, fsys, remote, local, info.Mode()); err != nil {
+		if err := pullFile(ctx, out, fsys, remote, local, info.Mode()); err != nil {
 			return err
 		}
 	}
@@ -576,8 +580,30 @@ func pullDir(out io.Writer, fsys sprites.FS, remoteDir, localDir string) error {
 	return nil
 }
 
-func pullFile(out io.Writer, fsys sprites.FS, remote, local string, mode fs.FileMode) error {
-	data, err := fsys.ReadFile(remote)
+// contextReader is the context-aware read the SDK's filesystem offers beyond
+// the FS interface.
+type contextReader interface {
+	ReadFileContext(ctx context.Context, name string) ([]byte, error)
+}
+
+func pullFile(ctx context.Context, out io.Writer, fsys sprites.FS, remote, local string, mode fs.FileMode) error {
+	// Stop between files when interrupted, and mid-download where the SDK
+	// allows it.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	var (
+		data []byte
+		err  error
+	)
+
+	if cr, ok := fsys.(contextReader); ok {
+		data, err = cr.ReadFileContext(ctx, remote)
+	} else {
+		data, err = fsys.ReadFile(remote)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to download %s: %w", remote, err)
 	}
