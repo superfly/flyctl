@@ -4,21 +4,14 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"golang.org/x/crypto/ssh"
 )
 
-// ignoredMessages are substrings of expected errors that flyctl does not
-// create itself, so they cannot be marked with flyerr.Expected: signal causes
-// from the Go runtime and account states reported by the API. Errors flyctl
-// creates should use flyerr.Expected instead of being listed here.
-var ignoredMessages = []string{
-	// Ctrl-C or SIGTERM, surfaced through context.Cause by signal.NotifyContext.
-	"signal received",
-	// Account states the API already explains to the user.
-	"reached its machine limit",
-	"has overdue invoices",
-}
+// machineLimitMessage is how flaps says an organization is at its Machine
+// limit. flaps gives the refusal no status code of its own.
+const machineLimitMessage = "reached its machine limit"
 
 // ignore reports whether err is an expected outcome that should not be sent
 // to Sentry.
@@ -42,6 +35,13 @@ func ignore(err error) bool {
 			return true
 		}
 
+		// An account state flaps already explains to the user. Matched on
+		// the flaps error itself, so the phrase turning up in some other
+		// error's text does not drop that error.
+		if fe, ok := e.(*flaps.FlapsError); ok && fe.ResponseStatusCode < 500 && strings.Contains(fe.Error(), machineLimitMessage) {
+			return true
+		}
+
 		if parts := multi(e); parts != nil {
 			return ignoreAll(parts)
 		}
@@ -50,18 +50,11 @@ func ignore(err error) bool {
 	// Only reached for a plain chain. A cancellation inside a combined error
 	// is judged as one part of it: deploy pools cancel their siblings when one
 	// machine fails, and those cancellations must not hide that failure.
-	if flyerr.IsCancelledError(err) {
-		return true
-	}
-
-	msg := err.Error()
-	for _, s := range ignoredMessages {
-		if strings.Contains(msg, s) {
-			return true
-		}
-	}
-
-	return false
+	//
+	// This also covers Ctrl-C and SIGTERM: the cause signal.NotifyContext
+	// cancels with ("interrupt signal received") reports itself as
+	// context.Canceled.
+	return flyerr.IsCancelledError(err)
 }
 
 // ignoreAll reports whether a combined error (errors.Join, multierror) is

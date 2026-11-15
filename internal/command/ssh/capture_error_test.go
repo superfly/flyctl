@@ -10,6 +10,7 @@ import (
 	pkgerrors "github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flyerr"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -34,7 +35,8 @@ func TestCaptureSSHError(t *testing.T) {
 		{"transport", errors.New("connection reset by peer"), 1},
 		{"auth", errors.New("ssh: unable to authenticate"), 1},
 		{"missing exit status", pkgerrors.Wrap(&gossh.ExitMissingError{}, "ssh shell"), 1},
-		{"session closed by ctrl-c", pkgerrors.Wrap(errors.New("session forcibly closed; the remote process may still be running (interrupt signal received)"), "ssh shell"), 0},
+		{"session closed by ctrl-c", pkgerrors.Wrap(flyerr.Expected(errors.New("session forcibly closed; the remote process may still be running (interrupt signal received)")), "ssh shell"), 0},
+		{"session closed by a deadline", pkgerrors.Wrap(errors.New("session forcibly closed; the remote process may still be running (context deadline exceeded)"), "ssh shell"), 1},
 		{"matching text is not sufficient", errors.New("ssh shell: Process exited with status 1"), 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

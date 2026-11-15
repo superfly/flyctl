@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
 )
@@ -97,7 +98,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		log := readLogFile(logFile)
 
 		err = &startError{
-			error:   err,
+			error:   expectedIfSocketPathTooLong(err, PathToSocket()),
 			logFile: logFile,
 			log:     log,
 		}
@@ -110,6 +111,21 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 		return nil, err
 	}
+}
+
+// MaxUnixSocketPath is the portable limit on unix socket paths (sun_path is
+// 108 bytes on Linux, 104 on the BSDs and macOS, NUL included).
+const MaxUnixSocketPath = 103
+
+// expectedIfSocketPathTooLong marks a start failure as expected when the
+// agent could never have bound its socket. The agent process refuses such a
+// path and says so in its log; this side only sees it fail to come up.
+func expectedIfSocketPathTooLong(err error, socket string) error {
+	if len(socket) > MaxUnixSocketPath {
+		return flyerr.Expected(err)
+	}
+
+	return err
 }
 
 type alreadyStartingError struct{ error }

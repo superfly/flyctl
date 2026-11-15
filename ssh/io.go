@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/superfly/flyctl/internal/flyerr"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -153,6 +154,13 @@ func (s *SessionIO) attachPipes(ctx context.Context, stdin io.WriteCloser, stdou
 		// Include the cause (e.g. "interrupt signal received") as text, not
 		// %w: wrapping it would make the CLI treat this as a silent
 		// cancellation and hide the warning that the process may still run.
-		return fmt.Errorf("session forcibly closed; the remote process may still be running (%v)", context.Cause(ctx))
+		cause := context.Cause(ctx)
+		err := fmt.Errorf("session forcibly closed; the remote process may still be running (%v)", cause)
+		// The user closing the session is not a bug; a deadline is.
+		if errors.Is(cause, context.Canceled) {
+			err = flyerr.Expected(err)
+		}
+
+		return err
 	}
 }

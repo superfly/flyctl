@@ -16,6 +16,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+var machineLimit = &flaps.FlapsError{OriginalError: errors.New("Your organization has reached its machine limit. Please contact billing@fly.io"), ResponseStatusCode: 422}
+
 var stepLabel = flyerr.StepLabel(errors.New("could not get all green machines to be healthy"))
 
 func TestIgnore(t *testing.T) {
@@ -25,16 +27,17 @@ func TestIgnore(t *testing.T) {
 		want bool
 	}{
 		{"cancelled", fmt.Errorf("deploy: %w", context.Canceled), true},
-		{"ctrl-c through context.Cause", errors.New(`Post "https://api.fly.io/api/v1/builds": interrupt signal received`), true},
-		{"sigterm through context.Cause", errors.New(`Post "https://api.fly.io/api/v1/releases": terminated signal received`), true},
+		{"machine limit", fmt.Errorf("could not launch machine: %w", machineLimit), true},
+		{"machine limit text outside a flaps error is reported", errors.New("builder failed: Your organization has reached its machine limit"), false},
+		{"machine limit text in a flaps 500 is reported", &flaps.FlapsError{OriginalError: errors.New("panic handling: reached its machine limit"), ResponseStatusCode: 500}, false},
+		{"overdue invoices text without the mark is reported", errors.New("failed to create release (status 403): Your account has overdue invoices."), false},
+		{"signal text without a cancellation is reported", errors.New("remote: fatal: interrupt signal received by worker"), false},
+		{"forced ssh close, marked at the source", fmt.Errorf("ssh shell: %w", flyerr.Expected(errors.New("session forcibly closed; the remote process may still be running (hangup signal received)"))), true},
 		{"remote exit status", fmt.Errorf("ssh shell: %w", &ssh.ExitError{}), true},
-		{"machine limit", errors.New("Your organization has reached its machine limit. Please contact billing@fly.io"), true},
-		{"overdue invoices", errors.New("failed to create release (status 403): Your account has overdue invoices."), true},
 		{"not authorized is still reported", errors.New("failed to run create_wg_peers: Not authorized to manage this organization::feature."), false},
 		{"marked expected", fmt.Errorf("smoke checks for d89 failed: %w", flyerr.Expected(errors.New("the app appears to be crashing"))), true},
 		{"expected text without the mark is reported", errors.New("the app appears to be crashing"), false},
 		{"missing exit status is reported", fmt.Errorf("ssh shell: %w", &ssh.ExitMissingError{}), false},
-		{"hangup signal", errors.New("session forcibly closed; the remote process may still be running (hangup signal received)"), true},
 		{"joined noise", errors.Join(context.Canceled, flyerr.Expected(errors.New("the app appears to be crashing"))), true},
 		{"joined with a real error", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("flaps 500")), false},
 		{"wrapped multierror with a real error", fmt.Errorf("deploy: %w", multierror.Append(nil, flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("nil pointer dereference"))), false},
@@ -42,7 +45,6 @@ func TestIgnore(t *testing.T) {
 		// Blue-green joins each step's error with a label naming the step.
 		{"abort joined with a step label", errors.Join(flyerr.Expected(errors.New("deployment aborted by user")), stepLabel), true},
 		{"crash joined with a step label", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), stepLabel), true},
-		{"signal cause joined with a step label", errors.Join(errors.New(`Get "https://api.machines.dev/v1/apps/a/machines": interrupt signal received`), stepLabel), true},
 		{"real error joined with a step label", errors.Join(errors.New("flaps 500"), stepLabel), false},
 		{"step label alone is reported", stepLabel, false},
 		{"joined step labels alone are reported", errors.Join(stepLabel, stepLabel), false},
