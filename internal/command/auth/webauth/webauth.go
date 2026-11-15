@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -251,6 +252,12 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 
 func persistAccessToken(ctx context.Context, token string) (err error) {
 	path := state.ConfigFile(ctx)
+
+	// Sprites API tokens saved by an earlier login belong to that login, which
+	// may have been a different user.
+	if err = spritestate.Clear(state.ConfigDirectory(ctx)); err != nil {
+		return fmt.Errorf("failed clearing saved Sprites tokens: %w", err)
+	}
 
 	if err = config.SetAccessToken(path, token); err != nil {
 		err = fmt.Errorf("failed persisting %s in %s: %w\n",

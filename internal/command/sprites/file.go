@@ -301,7 +301,7 @@ func runFilePush(ctx context.Context, s *session) error {
 		}
 
 		dest := target.path
-		if intoDir && !(info.IsDir() && len(sources) == 1) {
+		if intoDir && (!info.IsDir() || len(sources) > 1) {
 			dest = path.Join(target.path, filepath.Base(filepath.Clean(source)))
 		}
 
@@ -482,7 +482,7 @@ func runFilePull(ctx context.Context, s *session) error {
 		}
 
 		dest := target
-		if intoDir && !(info.IsDir() && len(sources) == 1) {
+		if intoDir && (!info.IsDir() || len(sources) > 1) {
 			dest = filepath.Join(target, path.Base(path.Clean(source.path)))
 		}
 

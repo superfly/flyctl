@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/spritestate"
@@ -234,10 +235,19 @@ func canonicalOrg(ctx context.Context, slug string) (string, error) {
 // resolveToken returns a Sprites API token for org: from the environment,
 // from the state file, or freshly minted from the Fly.io login. Minted tokens
 // are saved, because each mint creates a lasting token in the organization.
+// The exception is a Fly.io token supplied just for this run.
 func resolveToken(ctx context.Context, apiURL, org string) (token string, cached bool, err error) {
 	if token := os.Getenv(tokenEnv); token != "" {
 		return token, false, nil
 	}
+
+	toks := config.Tokens(ctx)
+
+	// Saved tokens were minted from the saved login. A Fly.io token supplied
+	// for this run, with --access-token or the environment, may be another
+	// user's or a deliberately limited one, so it neither reads nor adds to
+	// them: it is exchanged afresh each time.
+	saved := !hasExternalFlyToken(ctx)
 
 	configDir := state.ConfigDirectory(ctx)
 
@@ -247,11 +257,10 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 	}
 
 	key := spritestate.TokenKey(apiURL, org)
-	if token := st.Tokens[key]; token != "" {
+	if token := st.Tokens[key]; token != "" && saved {
 		return token, true, nil
 	}
 
-	toks := config.Tokens(ctx)
 	if toks == nil || len(toks.GetMacaroonTokens()) == 0 {
 		return "", false, flyerr.WithSuggestion(
 			errors.New("sprites commands need a Fly.io login token"),
@@ -264,6 +273,10 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 		return "", false, fmt.Errorf("failed to get a Sprites token for organization %s: %w", org, err)
 	}
 
+	if !saved {
+		return token, false, nil
+	}
+
 	if st.Tokens == nil {
 		st.Tokens = map[string]string{}
 	}
@@ -274,6 +287,19 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 	}
 
 	return token, false, nil
+}
+
+// hasExternalFlyToken reports whether the Fly.io token for this run was
+// supplied with --access-token or the environment rather than by `fly auth
+// login`.
+func hasExternalFlyToken(ctx context.Context) bool {
+	for _, key := range []string{config.AccessTokenEnvKey, config.APITokenEnvKey} {
+		if os.Getenv(key) != "" {
+			return true
+		}
+	}
+
+	return flag.GetString(ctx, flagnames.AccessToken) != ""
 }
 
 // forgetToken drops the saved token for the session's organization.

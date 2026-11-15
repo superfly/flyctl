@@ -59,8 +59,8 @@ func newFakeAPI(t *testing.T, handler func(w http.ResponseWriter, r *http.Reques
 	return api
 }
 
-// env is the context a sprites command runs in during a test.
-type env struct {
+// testEnv is the context a sprites command runs in during a test.
+type testEnv struct {
 	ctx       context.Context
 	out       *bytes.Buffer
 	errOut    *bytes.Buffer
@@ -69,11 +69,11 @@ type env struct {
 }
 
 // newEnv builds a non-interactive command context for cmd with args parsed.
-func newEnv(t *testing.T, cmd *cobra.Command, args ...string) *env {
+func newEnv(t *testing.T, cmd *cobra.Command, args ...string) *testEnv {
 	t.Helper()
 
 	// Keep the developer's own environment out of the tests.
-	for _, name := range []string{tokenEnv, "SPRITES_API_URL", "SPRITE_URL", "FLY_ORG"} {
+	for _, name := range []string{tokenEnv, "SPRITES_API_URL", "SPRITE_URL", "FLY_ORG", config.AccessTokenEnvKey, config.APITokenEnvKey} {
 		t.Setenv(name, "")
 	}
 
@@ -81,7 +81,7 @@ func newEnv(t *testing.T, cmd *cobra.Command, args ...string) *env {
 
 	ios, _, out, errOut := iostreams.Test()
 
-	e := &env{out: out, errOut: errOut, workDir: t.TempDir(), configDir: t.TempDir()}
+	e := &testEnv{out: out, errOut: errOut, workDir: t.TempDir(), configDir: t.TempDir()}
 
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, ios)
@@ -104,8 +104,13 @@ func testSession(api *fakeAPI) *session {
 }
 
 func writeJSONResponse(w http.ResponseWriter, v any) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(data)
 }
 
 func TestSpriteFile(t *testing.T) {
@@ -221,6 +226,41 @@ func TestResolveTokenPrefersEnvironment(t *testing.T) {
 	assert.False(t, cached)
 
 	assert.NoFileExists(t, spritestate.Path(e.configDir), "an environment token must not be saved")
+}
+
+func TestResolveTokenIgnoresCacheForExternalFlyToken(t *testing.T) {
+	e := newEnv(t, newList())
+
+	key := spritestate.TokenKey(defaultAPIURL, "acme")
+	require.NoError(t, spritestate.Save(e.configDir, &spritestate.State{
+		Tokens: map[string]string{key: "from-saved-login"},
+	}))
+
+	// A Fly.io token supplied for this run may be a different user's.
+	t.Setenv(config.APITokenEnvKey, "fm2_someone-else")
+
+	original := createToken
+	t.Cleanup(func() { createToken = original })
+
+	mints := 0
+	createToken = func(context.Context, string, string, string) (string, error) {
+		mints++
+		return "from-external", nil
+	}
+
+	for range 2 {
+		token, cached, err := resolveToken(e.ctx, defaultAPIURL, "acme")
+		require.NoError(t, err)
+		assert.Equal(t, "from-external", token)
+		assert.False(t, cached)
+	}
+
+	assert.Equal(t, 2, mints, "an external token is exchanged on every run")
+
+	// The saved login's token is neither used nor replaced.
+	st, err := spritestate.Load(e.configDir)
+	require.NoError(t, err)
+	assert.Equal(t, "from-saved-login", st.Tokens[key])
 }
 
 func TestResolveTokenNeedsMacaroon(t *testing.T) {
