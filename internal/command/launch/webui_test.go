@@ -1,7 +1,6 @@
 package launch
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -71,8 +70,7 @@ func TestWaitForCLISessionReportsWhyTheWaitEnded(t *testing.T) {
 func TestWaitForCLISessionReturnsConfirmedSession(t *testing.T) {
 	cliSessionServer(t, http.StatusOK, `{"id":"sess1","metadata":{"name":"my-app"}}`)
 
-	var out bytes.Buffer
-	session, err := waitForCLISession(context.Background(), logger.New(io.Discard, logger.Error, false), &out, "sess1")
+	session, err := waitForCLISession(context.Background(), logger.New(io.Discard, logger.Error, false), io.Discard, "sess1")
 
 	if err != nil {
 		t.Fatal(err)

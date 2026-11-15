@@ -184,7 +184,6 @@ outer:
 	return nil
 }
 
-// TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (session fly.CLISession, err error) {
 	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for launch UI session: %w", context.DeadlineExceeded))
 	defer cancel()
