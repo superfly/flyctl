@@ -330,6 +330,67 @@ func TestUpdateConfigWritesPlanMemoryOnce(t *testing.T) {
 	})
 }
 
+// The plan's memory comes from the default process group, so it must not
+// replace a `memory` another group already has.
+func TestUpdateConfigKeepsExistingMemory(t *testing.T) {
+	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+	worker := &appconfig.Compute{
+		Memory:       "4gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 2},
+		Processes:    []string{"worker"},
+	}
+	verbatim := &appconfig.Compute{
+		Memory:       "1024mb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1},
+		Processes:    []string{"cron"},
+	}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 1024,
+			Compute:  []*appconfig.Compute{app, worker, verbatim},
+		}},
+		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+	}
+
+	state.updateConfig(context.Background())
+
+	got := state.appConfig.Compute
+	assert.Equal(t, "1gb", got[0].Memory)
+	assert.Equal(t, "4gb", got[1].Memory)
+	assert.Equal(t, "1024mb", got[2].Memory)
+	for _, c := range got {
+		assert.Zero(t, c.MemoryMB)
+	}
+}
+
+// Machines with 2GB of memory or more can't suspend, including when the
+// memory comes from a size preset and no compute spells it out.
+func TestUpdateConfigSuspendFallsBackToStop(t *testing.T) {
+	autostop := func(g *fly.MachineGuest) fly.MachineAutostop {
+		state := &launchState{
+			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+				AppName:         "my-app",
+				HttpServicePort: 8080,
+				MemoryMB:        g.MemoryMB,
+				Compute:         []*appconfig.Compute{guestToCompute(g)},
+			}},
+			planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+		}
+		flags := New().Flags()
+		require.NoError(t, flags.Set("auto-stop", "suspend"))
+		ctx := flagctx.NewContext(context.Background(), flags)
+
+		state.updateConfig(ctx)
+
+		require.NotNil(t, state.appConfig.HTTPService)
+		return *state.appConfig.HTTPService.AutoStopMachines
+	}
+
+	assert.Equal(t, fly.MachineAutostopSuspend, autostop(fly.MachinePresets["shared-cpu-1x"]))
+	assert.Equal(t, fly.MachineAutostopStop, autostop(fly.MachinePresets["performance-2x"]))
+}
+
 func TestMemoryString(t *testing.T) {
 	assert.Equal(t, "1gb", memoryString(1024))
 	assert.Equal(t, "4gb", memoryString(4096))

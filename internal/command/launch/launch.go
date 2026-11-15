@@ -404,6 +404,13 @@ func (state *launchState) updateConfig(ctx context.Context) {
 			autostop = fly.MachineAutostopSuspend
 
 			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
+			// The plan's memory is checked too: it isn't written to the
+			// computes until later, and a compute given as a size preset
+			// carries no memory of its own.
+			if plan.MemoryMB >= 2048 {
+				autostop = fly.MachineAutostopStop
+			}
+
 			for _, compute := range appConfig.Compute {
 				if !isComputeValid(compute) {
 					continue
@@ -459,9 +466,12 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	if plan.MemoryMB != 0 {
 		for i := range appConfig.Compute {
-			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].MemoryMB == 0 {
+			compute := appConfig.Compute[i]
+			if isComputeValid(compute) && compute.MemoryMB == 0 && compute.Memory == "" {
 				// Write it as `memory` alone. A memory_mb next to it would win
 				// over `memory`, so a later edit of `memory` would do nothing.
+				// A compute that already has a `memory` keeps it: the plan's
+				// memory describes the default process group only.
 				appConfig.Compute[i].Memory = memoryString(plan.MemoryMB)
 			}
 		}
