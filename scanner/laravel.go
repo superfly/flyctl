@@ -343,11 +343,16 @@ func phpVersionLess(a, b string) bool {
 
 var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *= *(\"|')? *[a-zA-Z]+(\"|')?"
 
-// Redis is wanted when a cache, session, queue or broadcast driver uses it.
-// Matching any line that mentions "redis" was too broad: since Laravel 11 the
-// default .env has REDIS_CLIENT=phpredis and REDIS_HOST=127.0.0.1 even when
-// every driver is "database".
-var redisRegStr = `^\s*(CACHE_STORE|CACHE_DRIVER|SESSION_DRIVER|QUEUE_CONNECTION|BROADCAST_CONNECTION|BROADCAST_DRIVER)\s*=\s*["']?redis["']?\s*(#.*)?$`
+// redisReg matches an uncommented line that mentions redis, such as
+// CACHE_STORE=redis, REDIS_HOST=redis or REDIS_URL=redis://...
+var redisReg = regexp.MustCompile(`^[^#]*redis`)
+
+// redisClientDefaultReg matches REDIS_CLIENT=phpredis. Since Laravel 11 the
+// default .env has that line even when every driver is "database", so on its
+// own it doesn't mean the app uses Redis. It's the only line in the default
+// .env with a lowercase "redis"; REDIS_HOST=127.0.0.1 and the other REDIS_*
+// lines never matched redisReg.
+var redisClientDefaultReg = regexp.MustCompile(`^\s*(export\s+)?REDIS_CLIENT\s*=\s*["']?phpredis["']?\s*(#.*)?$`)
 
 // extractConnections detects the database connection of a laravel fly app
 // by checking the .env file in the project's base directory for connection keywords.
@@ -370,8 +375,6 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 	// Set up Regex to match
 	// -not commented out, with DB_CONNECTION
 	dbReg := regexp.MustCompile(dbRegStr)
-	// -not commented out, with a driver set to redis
-	redisReg := regexp.MustCompile(redisRegStr)
 
 	// Default Return Variables
 	db = 0
@@ -384,7 +387,7 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 	for scanner.Scan() {
 		text := scanner.Text()
 
-		if redisReg.MatchString(text) {
+		if redisReg.MatchString(text) && !redisClientDefaultReg.MatchString(text) {
 			redis = true
 			skipDb = false
 		} else if db == 0 && dbReg.MatchString(text) {
