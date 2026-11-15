@@ -27,12 +27,6 @@ func ignore(err error) bool {
 		return true
 	}
 
-	// The user stopping the command is the outcome, whatever else is combined
-	// with it: a step label, or errors from work that was cut short.
-	if flyerr.IsCancelledError(err) {
-		return true
-	}
-
 	// Walk the wrappers one at a time rather than with errors.As, which also
 	// looks inside a combined error and would let one expected part speak for
 	// the rest.
@@ -51,6 +45,13 @@ func ignore(err error) bool {
 		if parts := multi(e); parts != nil {
 			return ignoreAll(parts)
 		}
+	}
+
+	// Only reached for a plain chain. A cancellation inside a combined error
+	// is judged as one part of it: deploy pools cancel their siblings when one
+	// machine fails, and those cancellations must not hide that failure.
+	if flyerr.IsCancelledError(err) {
+		return true
 	}
 
 	msg := err.Error()

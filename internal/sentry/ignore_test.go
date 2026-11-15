@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	getsentry "github.com/getsentry/sentry-go"
@@ -45,9 +46,10 @@ func TestIgnore(t *testing.T) {
 		{"real error joined with a step label", errors.Join(errors.New("flaps 500"), stepLabel), false},
 		{"step label alone is reported", stepLabel, false},
 		{"joined step labels alone are reported", errors.Join(stepLabel, stepLabel), false},
-		// Stopping the command is the outcome whatever is combined with it.
 		{"cancellation joined with a step label", errors.Join(context.Canceled, stepLabel), true},
-		{"cancellation joined with a cleanup error", fmt.Errorf("ssh shell: %w", errors.Join(context.Canceled, errors.New("close: broken pipe"))), true},
+		// A pool that cancels its siblings on the first failure joins that
+		// failure with their cancellations.
+		{"cancelled siblings do not hide the failure", fmt.Errorf("deploy: %w", errors.Join(errors.New("flaps 500"), context.Canceled, context.Canceled)), false},
 		// A mark outside a combined error covers all of it.
 		{"marked expected around a join", flyerr.Expected(errors.Join(errors.New("a"), errors.New("b"))), true},
 		{"expected part does not speak for a join", fmt.Errorf("deploy: %w", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), errors.New("flaps 500"))), false},
@@ -64,8 +66,16 @@ func TestIgnore(t *testing.T) {
 // The app-info helpers report only the FlapsError inside an error. Filtering
 // that narrowed error again dropped events whose other parts were real.
 func TestAppInfoHelpersFilterTheWholeErrorOnce(t *testing.T) {
-	var captured int
-	client, err := getsentry.NewClient(getsentry.ClientOptions{BeforeSend: func(*getsentry.Event, *getsentry.EventHint) *getsentry.Event { captured++; return nil }})
+	var sent []string
+	client, err := getsentry.NewClient(getsentry.ClientOptions{BeforeSend: func(event *getsentry.Event, _ *getsentry.EventHint) *getsentry.Event {
+		var text []string
+		for _, e := range event.Exception {
+			text = append(text, e.Value)
+		}
+		sent = append(sent, strings.Join(text, " | "))
+
+		return nil
+	}})
 	require.NoError(t, err)
 	hub := getsentry.CurrentHub()
 	previous := hub.Client()
@@ -73,24 +83,36 @@ func TestAppInfoHelpersFilterTheWholeErrorOnce(t *testing.T) {
 	t.Cleanup(func() { hub.BindClient(previous) })
 
 	limit := &flaps.FlapsError{OriginalError: errors.New("Your organization has reached its machine limit"), ResponseStatusCode: 422}
+	internal := &flaps.FlapsError{OriginalError: errors.New("internal error"), ResponseStatusCode: 500}
 
 	for _, tc := range []struct {
 		name string
 		err  error
-		want int
+		want string // text the one event must carry; "" for no event
 	}{
-		{"machine limit alone", fmt.Errorf("launch: %w", limit), 0},
-		{"machine limit beside a real failure", errors.Join(errors.New("nil pointer dereference"), limit), 1},
-		{"machine limit beside a flaps 500", errors.Join(limit, &flaps.FlapsError{OriginalError: errors.New("internal error"), ResponseStatusCode: 500}), 1},
+		{"machine limit alone", fmt.Errorf("launch: %w", limit), ""},
+		{"machine limit beside a real failure", errors.Join(errors.New("nil pointer dereference"), limit), "nil pointer dereference"},
+		{"machine limit before a flaps 500", errors.Join(limit, internal), "internal error"},
+		{"a real flaps error is still reported on its own", fmt.Errorf("launch: %w", internal), "internal error"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			captured = 0
-			CaptureExceptionWithFlapsAppInfo(context.Background(), tc.err, "test", &flaps.App{})
-			require.Equal(t, tc.want, captured)
+			for _, report := range []func(){
+				func() { CaptureExceptionWithFlapsAppInfo(context.Background(), tc.err, "test", &flaps.App{}) },
+				func() {
+					CaptureExceptionWithAppInfo(context.Background(), tc.err, "test", &fly.AppCompact{Organization: &fly.OrganizationBasic{}})
+				},
+			} {
+				sent = nil
+				report()
 
-			captured = 0
-			CaptureExceptionWithAppInfo(context.Background(), tc.err, "test", &fly.AppCompact{Organization: &fly.OrganizationBasic{}})
-			require.Equal(t, tc.want, captured)
+				if tc.want == "" {
+					require.Empty(t, sent)
+
+					continue
+				}
+				require.Len(t, sent, 1)
+				require.Contains(t, sent[0], tc.want)
+			}
 		})
 	}
 }

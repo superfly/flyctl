@@ -30,6 +30,7 @@ func TestCaptureSSHError(t *testing.T) {
 		{"exit error", &gossh.ExitError{}, 0},
 		{"wrapped exit error", pkgerrors.Wrap(&gossh.ExitError{}, "ssh shell"), 0},
 		{"wrapped cancellation", fmt.Errorf("connect: %w", context.Canceled), 0},
+		{"cancellation joined with a cleanup error", fmt.Errorf("ssh shell: %w", errors.Join(context.Canceled, errors.New("close: broken pipe"))), 0},
 		{"transport", errors.New("connection reset by peer"), 1},
 		{"auth", errors.New("ssh: unable to authenticate"), 1},
 		{"missing exit status", pkgerrors.Wrap(&gossh.ExitMissingError{}, "ssh shell"), 1},

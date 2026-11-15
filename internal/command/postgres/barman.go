@@ -396,6 +396,13 @@ func newBarmanRecover() *cobra.Command {
 }
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
+	// Closing a session is the outcome here whatever else failed with it.
+	// The shared filter is stricter about a cancellation inside a combined
+	// error, for the sake of deploys.
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+
 	sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "barman", app)
 }
 

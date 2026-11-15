@@ -181,7 +181,9 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 
 	var flapsErr *flaps.FlapsError
 
-	if errors.As(err, &flapsErr) {
+	// Report the FlapsError on its own unless it is itself noise: in a
+	// combined error that one is not the failure, so send the whole error.
+	if errors.As(err, &flapsErr) && !ignore(flapsErr) {
 		capture(
 			flapsErr,
 			WithTag("feature", featureName),
@@ -235,7 +237,9 @@ func CaptureExceptionWithFlapsAppInfo(ctx context.Context, err error, featureNam
 
 	var flapsErr *flaps.FlapsError
 
-	if errors.As(err, &flapsErr) {
+	// Report the FlapsError on its own unless it is itself noise: in a
+	// combined error that one is not the failure, so send the whole error.
+	if errors.As(err, &flapsErr) && !ignore(flapsErr) {
 		capture(
 			flapsErr,
 			WithTag("feature", featureName),
