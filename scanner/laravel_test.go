@@ -132,3 +132,101 @@ func TestConfigureLaravelPhpVersionFromComposerLock(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractConnectionsRedis(t *testing.T) {
+	// The REDIS_* lines from Laravel 11's default .env.
+	const redisDefaults = "REDIS_CLIENT=phpredis\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\n"
+
+	cases := []struct {
+		name       string
+		env        string
+		wantRedis  bool
+		wantDB     DatabaseKind
+		wantSkipDb bool
+	}{
+		{
+			name:   "default Laravel 11 env, database drivers",
+			env:    "DB_CONNECTION=sqlite\nSESSION_DRIVER=database\nQUEUE_CONNECTION=database\nCACHE_STORE=database\n" + redisDefaults,
+			wantDB: DatabaseKindSqlite,
+		},
+		{
+			name:       "default redis lines only",
+			env:        redisDefaults,
+			wantSkipDb: true,
+		},
+		{
+			name:       "quoted default client with a comment",
+			env:        "export REDIS_CLIENT=\"phpredis\" # default\n",
+			wantSkipDb: true,
+		},
+		{
+			name:      "cache on redis",
+			env:       "DB_CONNECTION=pgsql\nCACHE_STORE=redis\n" + redisDefaults,
+			wantRedis: true,
+			wantDB:    DatabaseKindPostgres,
+		},
+		{
+			name:      "quoted queue driver with a comment",
+			env:       "QUEUE_CONNECTION=\"redis\" # workers\n",
+			wantRedis: true,
+		},
+		{
+			name:      "older env, session on redis",
+			env:       "DB_CONNECTION=mysql\nSESSION_DRIVER=redis\n",
+			wantRedis: true,
+			wantDB:    DatabaseKindMySQL,
+		},
+		{
+			name:      "legacy queue driver",
+			env:       "QUEUE_DRIVER=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "pulse ingest on redis",
+			env:       "PULSE_INGEST_DRIVER=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "custom store name",
+			env:       "CACHE_STORE=redis_cache\n",
+			wantRedis: true,
+		},
+		{
+			name:      "export prefix",
+			env:       "export CACHE_STORE=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "redis host from Sail, database drivers",
+			env:       "CACHE_STORE=database\nREDIS_CLIENT=phpredis\nREDIS_HOST=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "redis url, database drivers",
+			env:       "CACHE_STORE=database\nREDIS_URL=redis://localhost:6379\n",
+			wantRedis: true,
+		},
+		{
+			name:      "predis client",
+			env:       "REDIS_CLIENT=predis\n",
+			wantRedis: true,
+		},
+		{
+			name:       "commented out driver",
+			env:        "# CACHE_STORE=redis\nCACHE_STORE=file\n",
+			wantSkipDb: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), ".env")
+			require.NoError(t, os.WriteFile(path, []byte(tc.env), 0o644))
+
+			db, redis, skipDb := extractConnections(path)
+
+			assert.Equal(t, tc.wantRedis, redis)
+			assert.Equal(t, tc.wantDB, db)
+			assert.Equal(t, tc.wantSkipDb, skipDb)
+		})
+	}
+}
