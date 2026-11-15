@@ -1,8 +1,13 @@
 package spritestate
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,4 +65,54 @@ func TestClear(t *testing.T) {
 
 	// Clearing when there is nothing to clear is fine.
 	require.NoError(t, Clear(dir))
+}
+
+func TestMintAndRevokeAll(t *testing.T) {
+	var requests []string
+
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		requests = append(requests, r.Method+" "+r.URL.Path+" "+string(body))
+
+		assert.Equal(t, "FlyV1 fm2_login", r.Header.Get("Authorization"))
+
+		switch {
+		case r.Method == http.MethodPost:
+			_, _ = io.WriteString(w, `{"token":"minted"}`)
+		case strings.Contains(r.URL.Path, "/broken/"):
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer api.Close()
+
+	token, err := MintToken(context.Background(), api.URL, "acme", "fm2_login")
+	require.NoError(t, err)
+	assert.Equal(t, "minted", token)
+	assert.Equal(t, `POST /v1/organizations/acme/tokens {"description":"flyctl"}`, requests[0])
+
+	dir := t.TempDir()
+	require.NoError(t, Save(dir, &State{Tokens: map[string]string{
+		TokenKey(api.URL, "acme"):   "tok-acme",
+		TokenKey(api.URL, "broken"): "tok-broken",
+	}}))
+
+	failed, err := RevokeAll(context.Background(), dir, "fm2_login")
+	require.NoError(t, err)
+
+	// What could not be revoked is reported, and the file goes either way.
+	assert.Equal(t, []string{"broken"}, failed)
+	assert.NoFileExists(t, Path(dir))
+	assert.Contains(t, requests, `DELETE /v1/organizations/acme/tokens {"token":"tok-acme"}`)
+}
+
+func TestRevokeAllWithoutLoginStillClears(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, Save(dir, &State{Tokens: map[string]string{TokenKey("https://api.example", "acme"): "tok"}}))
+
+	failed, err := RevokeAll(context.Background(), dir, "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"acme"}, failed)
+	assert.NoFileExists(t, Path(dir))
 }

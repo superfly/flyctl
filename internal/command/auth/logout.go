@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -45,6 +47,10 @@ func runLogout(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	path := state.ConfigFile(ctx)
 
+	// Sprites API tokens were minted from this login and outlive it unless
+	// revoked, which only this login can do. So revoke them first.
+	revokeSpritesTokens(ctx)
+
 	// Log out the local access token that `fly auth login` manages, rather than an
 	// externally supplied token that happened to take precedence for this run.
 	revoked, revokeErr := revokeSavedToken(ctx, path)
@@ -59,12 +65,6 @@ func runLogout(ctx context.Context) error {
 	// revoking it again keeps failing.
 	if err := config.Clear(path); err != nil {
 		return fmt.Errorf("failed clearing config file at %s: %w", path, err)
-	}
-
-	// Sprites API tokens are minted from the session being logged out, so they
-	// go with it.
-	if err := spritestate.Clear(state.ConfigDirectory(ctx)); err != nil {
-		warn(io, fmt.Sprintf("Failed removing saved Sprites tokens: %v", err))
 	}
 
 	if ac, err := agent.DefaultClient(ctx); err == nil {
@@ -92,6 +92,33 @@ func runLogout(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// revokeSpritesTokens revokes and forgets the Sprites API tokens saved by the
+// sprites commands. Failing to is worth a warning but not worth blocking the
+// logout.
+func revokeSpritesTokens(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+
+	var macaroon string
+	if toks := config.Tokens(ctx); toks != nil && len(toks.GetMacaroonTokens()) > 0 {
+		macaroon = toks.Flaps()
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	failed, err := spritestate.RevokeAll(ctx, state.ConfigDirectory(ctx), macaroon)
+	if err != nil {
+		warn(io, fmt.Sprintf("Failed removing saved Sprites tokens: %v", err))
+	}
+
+	if len(failed) > 0 {
+		warn(io, fmt.Sprintf(
+			"Sprites API tokens for %s could not be revoked, so they remain valid. Revoke them in the Sprites dashboard.",
+			strings.Join(failed, ", "),
+		))
+	}
 }
 
 func warn(io *iostreams.IOStreams, msg string) {

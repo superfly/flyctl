@@ -504,6 +504,8 @@ func runFilePull(ctx context.Context, s *session) error {
 		}
 	}
 
+	skipped := 0
+
 	for _, source := range sources {
 		fsys := source.fs()
 
@@ -532,41 +534,55 @@ func runFilePull(ctx context.Context, s *session) error {
 			)
 		}
 
-		if err := pullDir(ctx, ios.Out, fsys, source.path, dest); err != nil {
+		n, err := pullDir(ctx, ios.Out, fsys, source.path, dest)
+		skipped += n
+
+		if err != nil {
 			return err
 		}
+	}
+
+	if skipped > 0 {
+		return fmt.Errorf("%d entries could not be copied; they are listed above, and are usually symlinks", skipped)
 	}
 
 	return nil
 }
 
-func pullDir(ctx context.Context, out io.Writer, fsys sprites.FS, remoteDir, localDir string) error {
+// pullDir copies a remote directory tree. An entry that cannot be read is
+// reported and skipped rather than ending the copy: the API lists symlinks as
+// ordinary files, so a dangling link, or a link to a directory, only shows
+// itself when reading it fails. It returns how many entries were skipped.
+func pullDir(ctx context.Context, out io.Writer, fsys sprites.FS, remoteDir, localDir string) (skipped int, err error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := os.MkdirAll(localDir, 0o755); err != nil {
-		return err
+		return 0, err
 	}
 
 	entries, err := fsys.ReadDir(remoteDir)
 	if err != nil {
-		return fmt.Errorf("failed to list %s: %w", remoteDir, err)
+		return 0, fmt.Errorf("failed to list %s: %w", remoteDir, err)
 	}
 
 	for _, entry := range entries {
 		// A remote name must not be able to place a file outside localDir.
 		name := entry.Name()
 		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-			return fmt.Errorf("refusing to copy remote entry with unsafe name %q", name)
+			return skipped, fmt.Errorf("refusing to copy remote entry with unsafe name %q", name)
 		}
 
 		remote := path.Join(remoteDir, name)
 		local := filepath.Join(localDir, name)
 
 		if entry.IsDir() {
-			if err := pullDir(ctx, out, fsys, remote, local); err != nil {
-				return err
+			n, err := pullDir(ctx, out, fsys, remote, local)
+			skipped += n
+
+			if err != nil {
+				return skipped, err
 			}
 
 			continue
@@ -574,15 +590,23 @@ func pullDir(ctx context.Context, out io.Writer, fsys sprites.FS, remoteDir, loc
 
 		info, err := entry.Info()
 		if err != nil {
-			return err
+			return skipped, err
 		}
 
 		if err := pullFile(ctx, out, fsys, remote, local, info.Mode()); err != nil {
-			return err
+			// An interrupt or a local write failure ends the copy. Anything
+			// else is this one entry's problem.
+			var pathErr *fs.PathError
+			if ctx.Err() != nil || !errors.As(err, &pathErr) || pathErr.Op != "read" {
+				return skipped, err
+			}
+
+			fmt.Fprintf(out, "skipping %s: %v\n", remote, pathErr.Err)
+			skipped++
 		}
 	}
 
-	return nil
+	return skipped, nil
 }
 
 // contextReader is the context-aware read the SDK's filesystem offers beyond

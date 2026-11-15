@@ -38,7 +38,7 @@ const (
 // createToken exchanges a Fly.io macaroon for a Sprites API token. It is a
 // variable so tests can replace it.
 var createToken = func(ctx context.Context, flyMacaroon, org, apiURL string) (string, error) {
-	return sprites.CreateToken(ctx, flyMacaroon, org, "", apiURL)
+	return spritestate.MintToken(ctx, apiURL, org, flyMacaroon)
 }
 
 // apiURL returns the Sprites API endpoint, honoring the environment variables
