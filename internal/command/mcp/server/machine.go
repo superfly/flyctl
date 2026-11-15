@@ -371,7 +371,7 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if autostop, ok := args["autostop"]; ok {
-				cmdArgs = append(cmdArgs, "--autostop", autostop)
+				cmdArgs = append(cmdArgs, "--autostop="+autostop)
 			}
 
 			if entrypoint, ok := args["entrypoint"]; ok {
@@ -1040,7 +1040,7 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if autostop, ok := args["autostop"]; ok {
-				cmdArgs = append(cmdArgs, "--autostop", autostop)
+				cmdArgs = append(cmdArgs, "--autostop="+autostop)
 			}
 
 			if entrypoint, ok := args["entrypoint"]; ok {

@@ -93,7 +93,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cs := io.ColorScheme()
 
-	cmd, err = cmd.ExecuteContextC(ctx)
+	cmd, err = root.ExecuteContextC(ctx, cmd)
 
 	if cmd != nil {
 		metrics.RecordCommandFinish(cmd, err != nil)

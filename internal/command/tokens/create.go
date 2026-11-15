@@ -31,7 +31,7 @@ const tokenFormatNote = " The token is printed with its authorization scheme, as
 func newCreate() *cobra.Command {
 	const (
 		short = "Create Fly.io API tokens"
-		long  = "Create Fly.io API tokens" + tokenFormatNote
+		long  = "Create Fly.io API tokens." + tokenFormatNote
 		usage = "create"
 	)
 
