@@ -1119,10 +1119,15 @@ func (c *planBuildCache) validateHighAvailability(ctx context.Context, p *plan.L
 	return valid
 }
 
+// noPaymentMethodHANotice is printed when launch turns off high availability
+// for an org with no payment method. It names `fly scale count` without a
+// count or group: the right arguments depend on the app's process groups.
+const noPaymentMethodHANotice = "This organization has no payment method, so high availability is turned off. To run more Machines later, see `fly scale count`."
+
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, billable, print bool) bool {
 	if !billable && p.HighAvailability {
 		if print {
-			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
+			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, noPaymentMethodHANotice)
 		}
 
 		return false

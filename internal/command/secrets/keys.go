@@ -24,15 +24,26 @@ const (
 
 func newKeys() *cobra.Command {
 	const (
-		long = `Keys are available to applications through the /.fly/kms filesystem. Names are case
-		sensitive and stored as-is, so ensure names are appropriate as filesystem names.
-		Names optionally include version information with a "vN" suffix.
-		`
+		long = `Applications use keys through the Machines API, from inside a Machine, over the
+/.fly/api socket (root only). The /.fly/kms filesystem is not mounted on Machines
+by default, so don't look for keys there. The decrypt, sign and verify routes sit
+next to the encrypt route shown in the example. From outside a Machine,
+https://api.machines.dev serves the same paths, but refuses encrypt, decrypt and
+sign. Names are case sensitive and stored as-is. Names optionally include version
+information with a "vN" suffix; the API needs the full label, including the version.
+`
+
+		example = `  # Inside a Machine: encrypt with an encrypting key (plaintext is base64)
+  curl --unix-socket /.fly/api -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"plaintext":"aGVsbG8="}' \
+    http://flaps/v1/apps/<app>/secretkeys/<label>/encrypt`
 
 		short = "Manage application key secrets with the gen, list, and delete commands."
 	)
 
 	keys := command.New("keys", short, long, nil)
+	keys.Example = example
 
 	keys.AddCommand(
 		newKeysList(),

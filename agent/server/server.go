@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/metrics/synthetics"
@@ -77,7 +78,6 @@ func Run(ctx context.Context, opt Options) (err error) {
 		runCtx:                ctx,
 		currentChange:         latestChangeAt,
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
-		slugAliases:           make(map[string]string),
 		tokens:                toks,
 		syncTokens:            syncTokens,
 		cancelTokenMonitoring: cancelMonitor,
@@ -90,13 +90,9 @@ type bindError struct{ error }
 
 func (be bindError) Unwrap() error { return be.error }
 
-// maxUnixSocketPath is the portable limit on unix socket paths (sun_path is
-// 108 bytes on Linux, 104 on the BSDs and macOS, NUL included).
-const maxUnixSocketPath = 103
-
 func bindUnixSocket(socket string) (net.Listener, error) {
-	if len(socket) > maxUnixSocketPath {
-		return nil, fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), maxUnixSocketPath, agent.SocketPathEnvKey)
+	if len(socket) > agent.MaxUnixSocketPath {
+		return nil, flyerr.Expected(fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), agent.MaxUnixSocketPath, agent.SocketPathEnvKey))
 	}
 
 	l, err := net.Listen("unix", socket)
@@ -157,10 +153,6 @@ type server struct {
 	mu            sync.Mutex
 	currentChange time.Time
 	tunnels       map[tunnelKey]*wg.Tunnel
-	// slugAliases maps every slug a client has used for an organization to
-	// the slug tunnels are keyed by. Clients may name the personal org by
-	// its raw slug (as Flaps does) or by the "personal" alias (as web does).
-	slugAliases map[string]string
 
 	// tokMu guards the three below, separately from mu so that code running
 	// under mu (tunnel construction, which presents tokens) can read them.
@@ -483,30 +475,11 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	return ret, nil
 }
 
-// rememberSlug records that slug names the organization whose tunnels are
-// keyed by canonical.
-func (s *server) rememberSlug(slug, canonical string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.slugAliases[slug] = canonical
-}
-
-// canonicalSlugUnlocked returns the slug tunnels are keyed by for a slug a
-// client sent. Callers must hold s.mu.
-func (s *server) canonicalSlugUnlocked(slug string) string {
-	if canonical, ok := s.slugAliases[slug]; ok {
-		return canonical
-	}
-
-	return slug
-}
-
 func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tk := tunnelKey{orgSlug: s.canonicalSlugUnlocked(slug), networkName: network}
+	tk := tunnelKey{orgSlug: slug, networkName: network}
 
 	return s.tunnels[tk]
 }

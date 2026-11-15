@@ -333,6 +333,15 @@ type EstablishResponse struct {
 	TunnelConfig   *wg.Config
 }
 
+// tunnelOrg uses the established identity when available, retaining the
+// requested slug for older agents that omit it.
+func tunnelOrg(state *wg.WireGuardState, fallback string) string {
+	if state != nil && state.Org != "" {
+		return state.Org
+	}
+	return fallback
+}
+
 func (c *Client) doEstablish(ctx context.Context, slug string, reestablish bool, network string) (res *EstablishResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
 		verb := "establish"
@@ -477,6 +486,8 @@ func (c *Client) WaitForTunnel(parent context.Context, slug, network string) (er
 
 // WaitForDNS waits for a Fly host internal DNS entry to register
 func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug, host, network string) (err error) {
+	// Poll the established account, without resolving "personal" each time.
+	slug = tunnelOrg(dialer.State(), slug)
 	io := iostreams.FromContext(parent)
 
 	if !flag.GetBool(parent, "quiet") {
@@ -689,7 +700,7 @@ func (c *Client) Dialer(ctx context.Context, slug, network string) (d Dialer, er
 	var er *EstablishResponse
 	if er, err = c.Establish(ctx, slug, network); err == nil {
 		d = &dialer{
-			slug:    slug,
+			slug:    tunnelOrg(er.WireGuardState, slug),
 			network: network,
 			client:  c,
 			state:   er.WireGuardState,
@@ -713,7 +724,7 @@ func (c *Client) ConnectToTunnel(ctx context.Context, slug, network string, sile
 		io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
 		defer io.StopProgressIndicator()
 	}
-	if err := c.WaitForTunnel(ctx, slug, network); err != nil {
+	if err := c.WaitForTunnel(ctx, tunnelOrg(dialer.State(), slug), network); err != nil {
 		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}
 
@@ -807,7 +818,8 @@ type Pinger struct {
 // to a Pinger connection by sending the "ping6" command. Call "Close"
 // on a Pinger when you're done pinging things.
 func (c *Client) Pinger(ctx context.Context, slug, network string) (p *Pinger, err error) {
-	if _, err = c.Establish(ctx, slug, network); err != nil {
+	established, err := c.Establish(ctx, slug, network)
+	if err != nil {
 		return nil, fmt.Errorf("pinger: %w", err)
 	}
 
@@ -816,7 +828,7 @@ func (c *Client) Pinger(ctx context.Context, slug, network string) (p *Pinger, e
 		return nil, fmt.Errorf("pinger: %w", err)
 	}
 
-	if err = proto.Write(conn, "ping6", slug); err != nil {
+	if err = proto.Write(conn, "ping6", tunnelOrg(established.WireGuardState, slug)); err != nil {
 		return nil, fmt.Errorf("pinger: %w", err)
 	}
 
