@@ -121,7 +121,9 @@ const MaxUnixSocketPath = 103
 // agent could never have bound its socket. The agent process refuses such a
 // path and says so in its log; this side only sees it fail to come up.
 func expectedIfSocketPathTooLong(err error, socket string) error {
-	if len(socket) > MaxUnixSocketPath {
+	// Where the agent listens on a named pipe instead, the length is no
+	// explanation and the failure is reported.
+	if bindsUnixSocket() && len(socket) > MaxUnixSocketPath {
 		return flyerr.Expected(err)
 	}
 

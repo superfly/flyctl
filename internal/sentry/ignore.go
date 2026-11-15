@@ -38,8 +38,16 @@ func ignore(err error) bool {
 		// An account state flaps already explains to the user. Matched on
 		// the flaps error itself, so the phrase turning up in some other
 		// error's text does not drop that error.
-		if fe, ok := e.(*flaps.FlapsError); ok && fe.ResponseStatusCode < 500 && strings.Contains(fe.Error(), machineLimitMessage) {
-			return true
+		if fe, ok := e.(*flaps.FlapsError); ok {
+			// A nil *FlapsError stored in an error can't be unwrapped any
+			// further without panicking. Report it.
+			if fe == nil {
+				return false
+			}
+
+			if fe.ResponseStatusCode < 500 && strings.Contains(fe.Error(), machineLimitMessage) {
+				return true
+			}
 		}
 
 		if parts := multi(e); parts != nil {
@@ -79,14 +87,12 @@ func ignoreAll(parts []error) bool {
 	return noise
 }
 
+// isStepLabel reports whether err is itself a step label. An error that only
+// wraps one is a failure in its own right.
 func isStepLabel(err error) bool {
-	for e := err; e != nil; e = errors.Unwrap(e) {
-		if _, ok := e.(interface{ StepLabel() }); ok {
-			return true
-		}
-	}
+	_, ok := err.(interface{ StepLabel() })
 
-	return false
+	return ok
 }
 
 func multi(err error) []error {

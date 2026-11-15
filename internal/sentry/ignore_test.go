@@ -47,6 +47,8 @@ func TestIgnore(t *testing.T) {
 		{"crash joined with a step label", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), stepLabel), true},
 		{"real error joined with a step label", errors.Join(errors.New("flaps 500"), stepLabel), false},
 		{"step label alone is reported", stepLabel, false},
+		{"an error wrapping a step label is a failure of its own", errors.Join(flyerr.Expected(errors.New("the app appears to be crashing")), fmt.Errorf("rollback: %w", stepLabel)), false},
+		{"typed-nil flaps error does not panic", fmt.Errorf("launch: %w", error((*flaps.FlapsError)(nil))), false},
 		{"joined step labels alone are reported", errors.Join(stepLabel, stepLabel), false},
 		{"cancellation joined with a step label", errors.Join(context.Canceled, stepLabel), true},
 		// A pool that cancels its siblings on the first failure joins that
