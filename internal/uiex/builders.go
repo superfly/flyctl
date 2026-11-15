@@ -104,13 +104,13 @@ func (c *Client) CreateBuild(ctx context.Context, in CreateBuildRequest) (*Build
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return &response, nil
 
 	default:
-		return nil, fmt.Errorf("ensure depot builder failed, please try again (status %d): %s", res.StatusCode, string(body))
+		return nil, fmt.Errorf("create build failed (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
@@ -146,13 +146,13 @@ func (c *Client) FinishBuild(ctx context.Context, in FinishBuildRequest) (*Build
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return &response, nil
 
 	default:
-		return nil, fmt.Errorf("ensure depot builder failed, please try again (status %d): %s", res.StatusCode, string(body))
+		return nil, fmt.Errorf("finish build failed (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
@@ -202,13 +202,13 @@ func (c *Client) EnsureDepotBuilder(ctx context.Context, in EnsureDepotBuilderRe
 	switch res.StatusCode {
 	case http.StatusOK:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return nil, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return &response, nil
 
 	default:
-		return nil, fmt.Errorf("ensure depot builder failed, please try again (status %d): %s", res.StatusCode, string(body))
+		return nil, fmt.Errorf("ensure depot builder failed (status %d): %s", res.StatusCode, string(body))
 	}
 }
 
@@ -265,7 +265,7 @@ func (c *Client) CreateFlyManagedBuilder(ctx context.Context, orgSlug string, re
 	switch res.StatusCode {
 	case http.StatusCreated:
 		if err = json.Unmarshal(body, &response); err != nil {
-			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+			return response, fmt.Errorf("failed to decode response: %w", err)
 		}
 
 		return response, nil
