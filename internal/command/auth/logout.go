@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -58,6 +59,12 @@ func runLogout(ctx context.Context) error {
 	// revoking it again keeps failing.
 	if err := config.Clear(path); err != nil {
 		return fmt.Errorf("failed clearing config file at %s: %w", path, err)
+	}
+
+	// Sprites API tokens are minted from the session being logged out, so they
+	// go with it.
+	if err := spritestate.Clear(state.ConfigDirectory(ctx)); err != nil {
+		warn(io, fmt.Sprintf("Failed removing saved Sprites tokens: %v", err))
 	}
 
 	if ac, err := agent.DefaultClient(ctx); err == nil {

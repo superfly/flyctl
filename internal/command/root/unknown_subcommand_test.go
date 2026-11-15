@@ -21,6 +21,8 @@ func TestUnknownSubcommands(t *testing.T) {
 		"fly jobs": true, "fly launch": true, "fly settings analytics": true,
 		"fly settings autoupdate": true, "fly settings synthetics": true,
 		"fly skills": true, "fly tokens revoke": true, "fly version": true,
+		// These show a sprite's settings, as they do in the sprite CLI.
+		"fly sprites config": true, "fly sprites url": true,
 	}
 	root := New()
 	root.Use = "fly"

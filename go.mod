@@ -83,6 +83,7 @@ require (
 	github.com/superfly/fly-go v0.12.1
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/macaroon v0.3.2
+	github.com/superfly/sprites-go v0.2.2
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
 	github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f
 	github.com/tonistiigi/fsutil v0.0.0-20261009124904-c1c5bffae3b5
@@ -125,6 +126,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.1 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.2.2 // indirect
