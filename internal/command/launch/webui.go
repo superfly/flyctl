@@ -208,8 +208,12 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 		s.FinalMSG = "Waiting for launch data... Done\n"
 		s.Stop()
 
-		break
+		return session, nil
 	}
 
-	return
+	// The last poll's error is the API's "not found" for a session nobody has
+	// confirmed yet. Report why the wait ended instead.
+	s.Stop()
+
+	return fly.CLISession{}, context.Cause(ctx)
 }
