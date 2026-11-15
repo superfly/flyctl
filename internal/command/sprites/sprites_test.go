@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -210,6 +211,47 @@ func TestResolveTokenMintsOnceThenUsesCache(t *testing.T) {
 	assert.Equal(t, 2, mints)
 }
 
+func TestResolveTokenConcurrentRunsMintOnce(t *testing.T) {
+	e := newEnv(t, newList())
+
+	original := createToken
+	t.Cleanup(func() { createToken = original })
+
+	var (
+		mu    sync.Mutex
+		mints int
+	)
+
+	createToken = func(context.Context, string, string, string) (string, error) {
+		mu.Lock()
+		mints++
+		mu.Unlock()
+
+		// Long enough for the other callers to be waiting.
+		time.Sleep(50 * time.Millisecond)
+
+		return "minted", nil
+	}
+
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			token, _, err := resolveToken(e.ctx, defaultAPIURL, "acme")
+			assert.NoError(t, err)
+			assert.Equal(t, "minted", token)
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, 1, mints, "commands started together must share one token")
+}
+
 func TestResolveTokenPrefersEnvironment(t *testing.T) {
 	e := newEnv(t, newList())
 	t.Setenv(tokenEnv, "from-env")
@@ -300,8 +342,11 @@ func TestResolveOrgPrecedence(t *testing.T) {
 }
 
 func TestResolveOrgWithEnvTokenNeedsNoOrg(t *testing.T) {
-	e := newEnv(t, newList())
+	e := newEnv(t, newList(), "--org", "staging")
 	t.Setenv(tokenEnv, "from-env")
+
+	// Nor is the .sprite file's organization.
+	require.NoError(t, writeSpriteFile(e.workDir, "from-file", "dev"))
 
 	// The saved login's default organization is not the token's.
 	require.NoError(t, spritestate.Save(e.configDir, &spritestate.State{DefaultOrg: "saved"}))
@@ -687,20 +732,26 @@ func TestParseEnv(t *testing.T) {
 }
 
 func TestParseFileSpecs(t *testing.T) {
-	got, err := parseFileSpecs([]string{"./a.txt:/tmp/a.txt", `C:\work\app.conf:/etc/app.conf`})
+	got, err := parseFileSpecs([]string{"./a.txt:/tmp/a.txt", "a:/tmp/a"})
 	require.NoError(t, err)
-	assert.Equal(t, []fileSpec{
-		{source: "./a.txt", dest: "/tmp/a.txt"},
-		{source: `C:\work\app.conf`, dest: "/etc/app.conf"},
-	}, got)
 
-	for _, bad := range []string{"nodest", ":dest", "src:", `C:\only-a-source`} {
+	want := []fileSpec{{source: "./a.txt", dest: "/tmp/a.txt"}, {source: "a", dest: "/tmp/a"}}
+	if runtime.GOOS == "windows" {
+		// There, a letter and a colon before a slash is a drive.
+		_, err = parseFileSpecs([]string{`C:\work\app.conf:/etc/app.conf`})
+		require.NoError(t, err)
+	} else {
+		assert.Equal(t, want, got)
+	}
+
+	for _, bad := range []string{"nodest", ":dest", "src:"} {
 		_, err := parseFileSpecs([]string{bad})
 		require.Error(t, err, bad)
 	}
 }
 
 func TestIsTransient(t *testing.T) {
+	// Safe to retry: the command cannot have started.
 	for _, err := range []error{
 		&sprites.APIError{StatusCode: http.StatusBadGateway},
 		errors.New("websocket: bad handshake: status 503"),
@@ -709,11 +760,14 @@ func TestIsTransient(t *testing.T) {
 		assert.True(t, isTransient(err), err.Error())
 	}
 
+	// Not safe: the request was rejected, or may have got through.
 	for _, err := range []error{
 		&sprites.APIError{StatusCode: http.StatusNotFound},
+		&sprites.APIError{StatusCode: http.StatusGatewayTimeout},
 		errors.New("failed to connect: HTTP 404"),
+		errors.New("read tcp: i/o timeout"),
+		errors.New("read: connection reset by peer"),
 		context.Canceled,
-		errors.New("no such command"),
 	} {
 		assert.False(t, isTransient(err), err.Error())
 	}

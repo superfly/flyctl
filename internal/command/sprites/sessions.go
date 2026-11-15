@@ -235,10 +235,10 @@ func attachSession(ctx context.Context, sprite *sprites.Sprite, session *sprites
 		// A non-TTY session has no screen to redraw, so replay its output.
 		opts.replay = true
 
-		// Always give the session a stdin. With none, the SDK tells the
-		// session its input has ended, which could stop a process that is
-		// still reading.
-		opts.stdin = os.Stdin
+		// Watching a session must not end its input. The SDK tells the
+		// session its input is over both when given no stdin and when the
+		// stdin it is given ends, so give it one that never ends.
+		opts.stdin = openEndedReader{os.Stdin}
 	}
 
 	return runRemote(ctx, sprite, opts)
@@ -444,4 +444,19 @@ func pickSession(ctx context.Context, sessions []*sprites.Session, target string
 	})
 
 	return matches[0], nil
+}
+
+// openEndedReader passes input through and, when it runs out, waits forever
+// instead of reporting the end.
+type openEndedReader struct {
+	r io.Reader
+}
+
+func (o openEndedReader) Read(p []byte) (int, error) {
+	n, err := o.r.Read(p)
+	if n > 0 || err == nil {
+		return n, nil
+	}
+
+	select {}
 }

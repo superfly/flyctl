@@ -467,9 +467,14 @@ func runFilePull(ctx context.Context, s *session) error {
 	// trailing separator, receives the sources under their own names.
 	intoDir := len(sources) > 1 || strings.HasSuffix(target, "/") || strings.HasSuffix(target, string(filepath.Separator))
 
+	// Like cp, a directory pulled to a directory that already exists goes
+	// inside it under its own name, rather than being merged into it and
+	// overwriting what is there.
+	existingDir := false
+
 	switch info, err := os.Stat(target); {
 	case err == nil && info.IsDir():
-		intoDir = true
+		intoDir, existingDir = true, true
 	case err == nil && len(sources) > 1:
 		return errors.New("the target must be a directory when pulling multiple files")
 	case err != nil && !errors.Is(err, fs.ErrNotExist):
@@ -508,7 +513,7 @@ func runFilePull(ctx context.Context, s *session) error {
 		}
 
 		dest := target
-		if intoDir && (!info.IsDir() || len(sources) > 1) {
+		if intoDir && (!info.IsDir() || len(sources) > 1 || existingDir) {
 			dest = filepath.Join(target, path.Base(path.Clean(source.path)))
 		}
 

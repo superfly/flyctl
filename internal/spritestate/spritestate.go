@@ -8,10 +8,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/superfly/flyctl/internal/filemu"
 )
 
@@ -103,6 +106,26 @@ func Update(ctx context.Context, configDir string, fn func(*State)) error {
 	fn(st)
 
 	return Save(configDir, st)
+}
+
+// mintWait bounds how long a command waits for another to finish minting a
+// token, which involves a network request.
+const mintWait = time.Minute
+
+// LockMint serializes minting tokens across processes. It is a separate lock
+// from the one Update takes, so holding it does not block saving state.
+func LockMint(ctx context.Context, configDir string) (unlock func(), err error) {
+	ctx, cancel := context.WithTimeout(ctx, mintWait)
+	defer cancel()
+
+	mu := flock.New(Path(configDir) + ".mint.lock")
+
+	locked, err := mu.TryLockContext(ctx, 100*time.Millisecond)
+	if err != nil || !locked {
+		return nil, fmt.Errorf("timed out waiting for another sprites command to finish signing in: %w", err)
+	}
+
+	return func() { _ = mu.Unlock() }, nil
 }
 
 // Clear removes the state file. A missing file is not an error.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/tokens"
 	sprites "github.com/superfly/sprites-go"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -69,7 +70,7 @@ type session struct {
 // orgDisplay names the organization in messages.
 func (s *session) orgDisplay() string {
 	if s.Org == "" {
-		return "default"
+		return "of the " + tokenEnv + " token"
 	}
 
 	return s.Org
@@ -210,9 +211,20 @@ func newSession(ctx context.Context) (*session, error) {
 }
 
 // resolveOrg picks the organization: the --org flag or FLY_ORG, then the
-// .sprite file, then the saved default, then a prompt. With a token from the
-// environment the last two do not apply.
+// .sprite file, then the saved default, then a prompt. None of that applies
+// with a token from the environment.
 func resolveOrg(ctx context.Context) (string, error) {
+	// A token from the environment works in its own organization whatever
+	// else names one, so no other organization is reported or recorded.
+	if os.Getenv(tokenEnv) != "" {
+		if slug := flag.GetOrg(ctx); slug != "" {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+				"Warning: --org %s is ignored because %s is set; the token decides the organization.\n", slug, tokenEnv)
+		}
+
+		return "", nil
+	}
+
 	if slug := flag.GetOrg(ctx); slug != "" {
 		return canonicalOrg(ctx, slug)
 	}
@@ -221,12 +233,6 @@ func resolveOrg(ctx context.Context) (string, error) {
 		return "", err
 	} else if sf != nil && sf.Organization != "" {
 		return sf.Organization, nil
-	}
-
-	// A token from the environment already identifies its organization, which
-	// need not be the saved login's default.
-	if os.Getenv(tokenEnv) != "" {
-		return "", nil
 	}
 
 	configDir := state.ConfigDirectory(ctx)
@@ -269,7 +275,7 @@ func resolveOrg(ctx context.Context) (string, error) {
 // canonicalOrg turns the "personal" alias into the organization's real slug,
 // which is what the Sprites API and the .sprite file use.
 func canonicalOrg(ctx context.Context, slug string) (string, error) {
-	if slug != "personal" || os.Getenv(tokenEnv) != "" {
+	if slug != "personal" {
 		return slug, nil
 	}
 
@@ -295,6 +301,9 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 	}
 
 	toks := config.Tokens(ctx)
+	if toks == nil {
+		toks = tokens.Parse("")
+	}
 
 	// Saved tokens were minted from the saved login. A Fly.io token supplied
 	// for this run, with --access-token or the environment, may be another
@@ -314,11 +323,29 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 		return token, true, nil
 	}
 
-	if toks == nil || len(toks.GetMacaroonTokens()) == 0 {
+	if len(toks.GetMacaroonTokens()) == 0 {
 		return "", false, flyerr.WithSuggestion(
 			errors.New("sprites commands need a Fly.io login token"),
 			"Run 'fly auth login', or set "+tokenEnv+" to a Sprites API token.",
 		)
+	}
+
+	if saved {
+		// Sprites commands started together would otherwise each mint a
+		// token. Take turns, and use the one a neighbour just saved.
+		unlock, err := spritestate.LockMint(ctx, configDir)
+		if err != nil {
+			return "", false, err
+		}
+		defer unlock()
+
+		if st, err = spritestate.Load(configDir); err != nil {
+			return "", false, err
+		}
+
+		if token := st.Tokens[key]; token != "" {
+			return token, true, nil
+		}
 	}
 
 	token, err = createToken(ctx, toks.Flaps(), org, apiURL)

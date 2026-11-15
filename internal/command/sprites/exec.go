@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
+	"net/http"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,35 +62,35 @@ func startAttempts() int {
 // httpStatusRegex finds the status code in the SDK's plain-text errors.
 var httpStatusRegex = regexp.MustCompile(`(?i)\b(?:status|HTTP)[ :]+(\d{3})\b`)
 
-// isTransient reports whether a failure to connect is worth retrying: a
-// server-side error or a network problem, but not a rejected request.
+// isTransient reports whether a failure to start a command is safe to retry.
+// That means the request provably never reached the sprite: the connection
+// could not be made, or a proxy answered that nothing was there to take it.
+// A timeout or a reset connection is not retried, because the command may
+// already be running and running it again could do its work twice.
 func isTransient(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 
+	unavailable := func(status int) bool {
+		return status == http.StatusBadGateway || status == http.StatusServiceUnavailable
+	}
+
 	var apiErr *sprites.APIError
 	if errors.As(err, &apiErr) {
-		return apiErr.StatusCode >= 500
+		return unavailable(apiErr.StatusCode)
 	}
 
 	msg := err.Error()
 
 	if m := httpStatusRegex.FindStringSubmatch(msg); m != nil {
-		return m[1][0] == '5'
-	}
-
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return true
+		status, _ := strconv.Atoi(m[1])
+		return unavailable(status)
 	}
 
 	msg = strings.ToLower(msg)
 
-	for _, sign := range []string{
-		"connection refused", "connection reset", "connection aborted", "broken pipe",
-		"timeout", "temporary failure in name resolution", "no such host", "dial tcp",
-	} {
+	for _, sign := range []string{"connection refused", "no such host", "temporary failure in name resolution"} {
 		if strings.Contains(msg, sign) {
 			return true
 		}
@@ -284,7 +285,8 @@ func parseFileSpecs(values []string) ([]fileSpec, error) {
 	for _, value := range values {
 		// Skip the colon of a Windows drive letter, as in C:\dir\file:/dest.
 		skip := 0
-		if len(value) > 2 && value[1] == ':' && (value[2] == '\\' || value[2] == '/') && isLetter(value[0]) {
+		if runtime.GOOS == "windows" && len(value) > 2 && value[1] == ':' &&
+			(value[2] == '\\' || value[2] == '/') && isLetter(value[0]) {
 			skip = 2
 		}
 
@@ -395,6 +397,13 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 	stdinFd := int(os.Stdin.Fd())
 	interactive := opts.tty && term.IsTerminal(stdinFd)
 
+	// The terminal's size is asked of stdout where possible: on Windows only
+	// an output handle can answer.
+	sizeFd := stdinFd
+	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
+		sizeFd = fd
+	}
+
 	detached := make(chan struct{})
 
 	env := opts.env
@@ -425,7 +434,7 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 			cmd.SetTTY(true)
 
 			if interactive {
-				if width, height, err := term.GetSize(stdinFd); err == nil {
+				if width, height, err := term.GetSize(sizeFd); err == nil {
 					_ = cmd.SetTTYSize(uint16(height), uint16(width))
 				}
 			}
@@ -451,7 +460,7 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 	}
 
 	// Connecting can fail briefly, for instance while a paused sprite wakes.
-	// Nothing has run yet at that point, so trying again is safe.
+	// Only failures where the command cannot have started are retried.
 	var (
 		cmd            *sprites.Cmd
 		stopForwarding func()
@@ -517,11 +526,11 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 
 		// The size given before the start is not applied to the new terminal,
 		// so send it again now that the command is running.
-		if width, height, err := term.GetSize(stdinFd); err == nil && width > 0 && height > 0 {
+		if width, height, err := term.GetSize(sizeFd); err == nil && width > 0 && height > 0 {
 			_ = cmd.SetTTYSize(uint16(height), uint16(width))
 		}
 
-		stopResize := watchResize(stdinFd, func(rows, cols uint16) {
+		stopResize := watchResize(sizeFd, func(rows, cols uint16) {
 			_ = cmd.SetTTYSize(rows, cols)
 		})
 		defer stopResize()

@@ -104,8 +104,10 @@ func runCreate(ctx context.Context, s *session) error {
 	fmt.Fprintf(io.Out, "%s Created sprite %s in %.1fs\n",
 		colorize.SuccessIcon(), colorize.Bold(sprite.Name()), time.Since(start).Seconds())
 
-	if sprite.URL != "" {
-		fmt.Fprintf(io.Out, "  URL: %s\n", sprite.URL)
+	// The create call returns only the name. The URL is worth a lookup, but
+	// not worth failing over.
+	if created, err := s.Client.GetSprite(ctx, sprite.Name()); err == nil && created.URL != "" {
+		fmt.Fprintf(io.Out, "  URL: %s\n", created.URL)
 	}
 
 	if flag.GetBool(ctx, "skip-console") || !io.IsInteractive() {
