@@ -82,7 +82,7 @@ require (
 	github.com/superfly/client-signals/go v0.5.0
 	github.com/superfly/fly-go v0.11.11
 	github.com/superfly/graphql v0.2.6
-	github.com/superfly/macaroon v0.3.2
+	github.com/superfly/macaroon v0.3.3
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
 	github.com/tailscale/hujson v0.0.0-20260727124030-b80ff77dac4f
 	github.com/tonistiigi/fsutil v0.0.0-20261009124904-c1c5bffae3b5
