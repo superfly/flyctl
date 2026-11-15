@@ -391,6 +391,36 @@ func TestUpdateConfigPlanMemoryOverridesDefaultCompute(t *testing.T) {
 	assert.Equal(t, "4gb", got[1].Memory)
 }
 
+// With named process groups, the default group is the first by name, and its
+// compute is the one the plan's memory belongs to.
+func TestUpdateConfigPlanMemoryWithNamedGroups(t *testing.T) {
+	cfg := appconfig.NewConfig()
+	cfg.Processes = map[string]string{"web": "serve", "worker": "work"}
+	web := &appconfig.Compute{
+		Memory:       "1gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1},
+		Processes:    []string{"web"},
+	}
+	worker := &appconfig.Compute{
+		Memory:       "4gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 2},
+		Processes:    []string{"worker"},
+	}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 2048,
+			Compute:  []*appconfig.Compute{worker, web},
+		}},
+		planBuildCache: planBuildCache{appConfig: cfg},
+	}
+
+	state.updateConfig(context.Background())
+
+	assert.Equal(t, "2gb", web.Memory)
+	assert.Equal(t, "4gb", worker.Memory)
+}
+
 // Machines with more than 2GB of memory can't suspend, including when the
 // memory comes from a size preset and no compute spells it out.
 func TestUpdateConfigSuspendFallsBackToStop(t *testing.T) {
@@ -411,6 +441,7 @@ func TestUpdateConfigSuspendFallsBackToStop(t *testing.T) {
 		state.updateConfig(ctx)
 
 		require.NotNil(t, state.appConfig.HTTPService)
+
 		return *state.appConfig.HTTPService.AutoStopMachines
 	}
 
