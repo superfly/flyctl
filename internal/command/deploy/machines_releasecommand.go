@@ -144,7 +144,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	fmt.Fprintln(md.io.ErrOut, "Starting machine")
 
-	if err = releaseCmdMachine.Start(ctx); err != nil {
+	if err = startReleaseCommandMachine(ctx, releaseCmdMachine.Start, md.waitTimeout); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
 
 		return
@@ -345,6 +345,48 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 	}
 
 	return helpers.Clone(desiredGuest)
+}
+
+// A skip-launch build can report stopped before its final writes finish. flyd
+// waits briefly, then explicitly refuses Start so the caller can retry safely.
+func startReleaseCommandMachine(ctx context.Context, start func(context.Context) error, timeout time.Duration) error {
+	// Match Machine.WaitForState: zero uses a bounded two-minute fallback.
+	if timeout == 0 {
+		timeout = 2 * time.Minute
+	}
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastRefusal error
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if lastRefusal != nil && retryCtx.Err() != nil {
+			return fmt.Errorf("machine build still not ready after %s (--wait-timeout): %w", timeout, lastRefusal)
+		}
+		// Bound further attempts, not an accepted Start. The caller still owns cancellation.
+		err := start(ctx)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var flapsErr *flaps.FlapsError
+		if !errors.As(err, &flapsErr) || flapsErr.ResponseStatusCode != http.StatusPreconditionFailed ||
+			flapsErr.Error() != "failed_precondition: machine build not ready, retry the start request" {
+			return err
+		}
+		lastRefusal = err
+
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-retryCtx.Done():
+			timer.Stop()
+		case <-timer.C:
+		}
+	}
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
