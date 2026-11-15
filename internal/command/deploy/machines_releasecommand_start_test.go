@@ -51,6 +51,7 @@ func TestStartReleaseCommandMachine(t *testing.T) {
 						status = tc.status
 						body = fmt.Sprintf(`{"error":%q}`, tc.message)
 					}
+
 					return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 				})})
 				require.NoError(t, err)
@@ -129,6 +130,7 @@ func TestStartReleaseCommandMachineZeroTimeout(t *testing.T) {
 					if readyAfter >= 0 && calls > readyAfter {
 						return nil
 					}
+
 					return &flaps.FlapsError{ResponseStatusCode: http.StatusPreconditionFailed, OriginalError: errors.New("failed_precondition: machine build not ready, retry the start request")}
 				}, 0)
 				if readyAfter >= 0 {
