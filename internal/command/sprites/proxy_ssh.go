@@ -29,6 +29,11 @@ import (
 // Authentication is by the Sprites API token this process already holds, so
 // the SSH layer accepts any client key.
 func proxySSH(ctx context.Context, s *session, sprite *sprites.Sprite) error {
+	return serveSSH(ctx, stdioConn{}, s, sprite)
+}
+
+// serveSSH serves one SSH connection arriving on client.
+func serveSSH(ctx context.Context, client net.Conn, s *session, sprite *sprites.Sprite) error {
 	signer, err := sshHostKey(s, sprite.Name())
 	if err != nil {
 		return err
@@ -42,7 +47,7 @@ func proxySSH(ctx context.Context, s *session, sprite *sprites.Sprite) error {
 	}
 	config.AddHostKey(signer)
 
-	conn, channels, requests, err := ssh.NewServerConn(stdioConn{}, config)
+	conn, channels, requests, err := ssh.NewServerConn(client, config)
 	if err != nil {
 		return fmt.Errorf("failed to establish the SSH connection: %w", err)
 	}

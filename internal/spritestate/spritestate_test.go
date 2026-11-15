@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,4 +116,119 @@ func TestRevokeAllWithoutLoginStillClears(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"acme"}, failed)
 	assert.NoFileExists(t, Path(dir))
+}
+
+func TestUpdateKeepsConcurrentChanges(t *testing.T) {
+	dir := t.TempDir()
+
+	// Many writers each add their own token. A plain load-modify-save would
+	// drop some; none may be lost here.
+	const writers = 12
+
+	errs := make(chan error, writers)
+
+	for i := range writers {
+		go func() {
+			errs <- Update(context.Background(), dir, func(st *State) {
+				if st.Tokens == nil {
+					st.Tokens = map[string]string{}
+				}
+
+				st.Tokens[TokenKey("https://api.example", strings.Repeat("o", i+1))] = "tok"
+			})
+		}()
+	}
+
+	for range writers {
+		require.NoError(t, <-errs)
+	}
+
+	st, err := Load(dir)
+	require.NoError(t, err)
+	assert.Len(t, st.Tokens, writers)
+
+	// No temporary files are left next to the state file.
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	for _, entry := range entries {
+		assert.NotContains(t, entry.Name(), ".tmp")
+	}
+}
+
+func TestLockMintIsExclusive(t *testing.T) {
+	dir := t.TempDir()
+
+	unlock, err := LockMint(context.Background(), dir)
+	require.NoError(t, err)
+
+	// A second caller waits, and gives up when its context does.
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	_, err = LockMint(ctx, dir)
+	require.ErrorContains(t, err, "timed out waiting")
+
+	// Once released, the lock can be taken again.
+	unlock()
+
+	unlock, err = LockMint(context.Background(), dir)
+	require.NoError(t, err)
+	unlock()
+}
+
+func TestMintTokenErrors(t *testing.T) {
+	replies := map[string]func(w http.ResponseWriter){
+		"/v1/organizations/denied/tokens": func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `{"error":"forbidden","message":"not a member of this organization"}`)
+		},
+		"/v1/organizations/coded/tokens": func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":"invalid_org"}`)
+		},
+		"/v1/organizations/plain/tokens": func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = io.WriteString(w, "upstream down")
+		},
+		"/v1/organizations/empty/tokens": func(w http.ResponseWriter) {
+			_, _ = io.WriteString(w, `{}`)
+		},
+		"/v1/organizations/garbled/tokens": func(w http.ResponseWriter) {
+			_, _ = io.WriteString(w, `not json`)
+		},
+	}
+
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		replies[r.URL.Path](w)
+	}))
+	defer api.Close()
+
+	for org, want := range map[string]string{
+		"denied":  "not a member of this organization (status 403)",
+		"coded":   "invalid_org (status 400)",
+		"plain":   "status 502: upstream down",
+		"empty":   "returned no token",
+		"garbled": "failed to read the token response",
+	} {
+		_, err := MintToken(context.Background(), api.URL, org, "fm2_login")
+		require.ErrorContains(t, err, want, org)
+	}
+
+	// An unreachable API is an error too, not a hang or a panic.
+	api.Close()
+
+	_, err := MintToken(context.Background(), api.URL, "acme", "fm2_login")
+	require.Error(t, err)
+
+	require.Error(t, RevokeToken(context.Background(), api.URL, "acme", "fm2_login", "tok"))
+}
+
+func TestRevokeTokenTreatsMissingAsRevoked(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer api.Close()
+
+	require.NoError(t, RevokeToken(context.Background(), api.URL, "acme", "fm2_login", "already-gone"))
 }

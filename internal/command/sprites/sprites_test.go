@@ -65,6 +65,8 @@ func newFakeAPI(t *testing.T, handler func(w http.ResponseWriter, r *http.Reques
 // testEnv is the context a sprites command runs in during a test.
 type testEnv struct {
 	ctx       context.Context
+	ios       *iostreams.IOStreams
+	in        *bytes.Buffer
 	out       *bytes.Buffer
 	errOut    *bytes.Buffer
 	workDir   string
@@ -82,9 +84,9 @@ func newEnv(t *testing.T, cmd *cobra.Command, args ...string) *testEnv {
 
 	require.NoError(t, cmd.ParseFlags(args))
 
-	ios, _, out, errOut := iostreams.Test()
+	ios, in, out, errOut := iostreams.Test()
 
-	e := &testEnv{out: out, errOut: errOut, workDir: t.TempDir(), configDir: t.TempDir()}
+	e := &testEnv{ios: ios, in: in, out: out, errOut: errOut, workDir: t.TempDir(), configDir: t.TempDir()}
 
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, ios)
@@ -95,6 +97,17 @@ func newEnv(t *testing.T, cmd *cobra.Command, args ...string) *testEnv {
 	e.ctx = ctx
 
 	return e
+}
+
+func writeFile(t *testing.T, dir, name, data string) {
+	t.Helper()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(data), 0o644))
+}
+
+// withWorkDir moves a test context to another working directory.
+func withWorkDir(ctx context.Context, dir string) context.Context {
+	return state.WithWorkingDirectory(ctx, dir)
 }
 
 func testSession(api *fakeAPI) *session {

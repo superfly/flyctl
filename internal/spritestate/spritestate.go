@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	"github.com/superfly/flyctl/internal/filemu"
 )
 
 const fileName = "sprites.json"
@@ -89,14 +88,40 @@ func Save(configDir string, st *State) error {
 	return os.Rename(tmp.Name(), Path(configDir))
 }
 
+// How long to wait for the two locks. Saving state is quick, but several
+// commands may be queued for it; minting a token involves a network request.
+const (
+	updateWait = 10 * time.Second
+	mintWait   = time.Minute
+)
+
+// lock takes an exclusive lock on path, waiting up to wait for whoever holds
+// it.
+func lock(ctx context.Context, path string, wait time.Duration) (unlock func(), err error) {
+	ctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+
+	mu := flock.New(path)
+
+	locked, err := mu.TryLockContext(ctx, 10*time.Millisecond)
+	switch {
+	case err != nil:
+		return nil, err
+	case !locked:
+		return nil, errors.New("the lock is held")
+	}
+
+	return func() { _ = mu.Unlock() }, nil
+}
+
 // Update applies fn to the current state and saves the result, holding a lock
 // so that concurrent sprites commands do not drop each other's changes.
 func Update(ctx context.Context, configDir string, fn func(*State)) error {
-	unlock, err := filemu.Lock(ctx, Path(configDir)+".lock")
+	unlock, err := lock(ctx, Path(configDir)+".lock", updateWait)
 	if err != nil {
-		return err
+		return fmt.Errorf("timed out waiting for another sprites command to finish saving its state: %w", err)
 	}
-	defer unlock() //nolint:errcheck
+	defer unlock()
 
 	st, err := Load(configDir)
 	if err != nil {
@@ -108,24 +133,15 @@ func Update(ctx context.Context, configDir string, fn func(*State)) error {
 	return Save(configDir, st)
 }
 
-// mintWait bounds how long a command waits for another to finish minting a
-// token, which involves a network request.
-const mintWait = time.Minute
-
 // LockMint serializes minting tokens across processes. It is a separate lock
 // from the one Update takes, so holding it does not block saving state.
 func LockMint(ctx context.Context, configDir string) (unlock func(), err error) {
-	ctx, cancel := context.WithTimeout(ctx, mintWait)
-	defer cancel()
-
-	mu := flock.New(Path(configDir) + ".mint.lock")
-
-	locked, err := mu.TryLockContext(ctx, 100*time.Millisecond)
-	if err != nil || !locked {
+	unlock, err = lock(ctx, Path(configDir)+".mint.lock", mintWait)
+	if err != nil {
 		return nil, fmt.Errorf("timed out waiting for another sprites command to finish signing in: %w", err)
 	}
 
-	return func() { _ = mu.Unlock() }, nil
+	return unlock, nil
 }
 
 // Clear removes the state file. A missing file is not an error.

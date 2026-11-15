@@ -18,7 +18,6 @@ import (
 	"github.com/spf13/cobra"
 	sprites "github.com/superfly/sprites-go"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
 
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -43,13 +42,16 @@ const (
 	// A command that cannot connect is retried this many times in total,
 	// waiting startRetryDelay and then twice as long each time.
 	defaultStartAttempts = 5
-	startRetryDelay      = time.Second
 	startRetryMaxDelay   = 16 * time.Second
 
 	// startAttemptsEnv overrides defaultStartAttempts. The sprite CLI reads
 	// the same variable.
 	startAttemptsEnv = "SPRITE_EXEC_MAX_RETRIES"
 )
+
+// startRetryDelay is the wait before the first retry. It is a variable so
+// tests need not wait for it.
+var startRetryDelay = time.Second
 
 func startAttempts() int {
 	if n, err := strconv.Atoi(os.Getenv(startAttemptsEnv)); err == nil && n > 0 {
@@ -394,15 +396,14 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	defer cancel()
 
-	stdinFd := int(os.Stdin.Fd())
-	interactive := opts.tty && term.IsTerminal(stdinFd)
-
-	// The terminal's size is asked of stdout where possible: on Windows only
-	// an output handle can answer.
-	sizeFd := stdinFd
-	if fd := int(os.Stdout.Fd()); term.IsTerminal(fd) {
-		sizeFd = fd
+	// The terminal the user is typing at, when there is one and the command
+	// wants a pty.
+	var tty localTerminal
+	if opts.tty {
+		tty = openTerminal()
 	}
+
+	interactive := tty != nil
 
 	detached := make(chan struct{})
 
@@ -433,16 +434,14 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		case opts.tty:
 			cmd.SetTTY(true)
 
-			if interactive {
-				if width, height, err := term.GetSize(sizeFd); err == nil {
-					_ = cmd.SetTTYSize(uint16(height), uint16(width))
-				}
-			}
-
 			// Ctrl+\ only means "detach" when it is typed. Piped input may
 			// hold that byte as data.
 			if interactive {
-				cmd.Stdin = &detachReader{r: os.Stdin, detached: detached}
+				if rows, cols, ok := tty.Size(); ok {
+					_ = cmd.SetTTYSize(rows, cols)
+				}
+
+				cmd.Stdin = &detachReader{r: tty.Input(), detached: detached}
 			} else {
 				cmd.Stdin = os.Stdin
 			}
@@ -475,11 +474,22 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		var err error
 
 		select {
-		case <-parent.Done():
-			// Interrupted before anything was running.
-			stopForwarding()
-			return &flyerr.ExitCodeError{Code: interruptedExitCode}
 		case err = <-startDone:
+		case <-parent.Done():
+			// Interrupted while connecting. The request may already have
+			// reached the sprite, so see the start through: if the command
+			// did start, the interrupt is relayed to it below instead of
+			// leaving it running unattended.
+			select {
+			case err = <-startDone:
+			case <-time.After(interruptGrace):
+				err = context.Canceled
+			}
+
+			if err != nil {
+				stopForwarding()
+				return &flyerr.ExitCodeError{Code: interruptedExitCode}
+			}
 		}
 
 		if err == nil {
@@ -505,7 +515,7 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 	restore := func() {}
 
 	if interactive {
-		oldState, err := term.MakeRaw(stdinFd)
+		restoreMode, err := tty.MakeRaw()
 		if err != nil {
 			return fmt.Errorf("failed to set the terminal to raw mode: %w", err)
 		}
@@ -519,18 +529,18 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 					resetTerminal(io.Out)
 				}
 
-				_ = term.Restore(stdinFd, oldState)
+				restoreMode()
 			})
 		}
 		defer restore()
 
 		// The size given before the start is not applied to the new terminal,
 		// so send it again now that the command is running.
-		if width, height, err := term.GetSize(sizeFd); err == nil && width > 0 && height > 0 {
-			_ = cmd.SetTTYSize(uint16(height), uint16(width))
+		if rows, cols, ok := tty.Size(); ok {
+			_ = cmd.SetTTYSize(rows, cols)
 		}
 
-		stopResize := watchResize(sizeFd, func(rows, cols uint16) {
+		stopResize := tty.WatchResize(func(rows, cols uint16) {
 			_ = cmd.SetTTYSize(rows, cols)
 		})
 		defer stopResize()

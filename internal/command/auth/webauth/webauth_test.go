@@ -20,8 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -305,4 +308,27 @@ func TestRunWebLoginKeepsPendingLoginWhenStopped(t *testing.T) {
 	if _, err := loadPendingLogin(pendingPath); err != nil {
 		t.Fatalf("a login stopped early lost its pending login, so --code can't finish it: %v", err)
 	}
+}
+
+func TestPersistAccessTokenForgetsSavedSpritesTokens(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("FLY_CONFIG_DIR", dir)
+
+	// Tokens minted by whoever was logged in before.
+	require.NoError(t, spritestate.Save(dir, &spritestate.State{
+		DefaultOrg: "their-org",
+		Tokens:     map[string]string{spritestate.TokenKey("https://api.sprites.dev", "their-org"): "theirs"},
+	}))
+
+	ctx := state.WithConfigDirectory(context.Background(), dir)
+
+	require.NoError(t, persistAccessToken(ctx, "new-login-token"))
+
+	// The new login may be someone else, so it must not inherit them.
+	require.NoFileExists(t, spritestate.Path(dir))
+
+	saved, err := config.ReadAccessToken(state.ConfigFile(ctx))
+	require.NoError(t, err)
+	require.Equal(t, "new-login-token", saved)
 }

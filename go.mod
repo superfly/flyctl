@@ -39,6 +39,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-multierror v1.1.1
@@ -202,7 +203,6 @@ require (
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.4 // indirect
