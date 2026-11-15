@@ -198,3 +198,22 @@ func TestVolumePlacementCapacitySuggestion(t *testing.T) {
 		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
 	})
 }
+
+func TestSingleMachineHint(t *testing.T) {
+	mark := func(s string) string { return "<" + s + ">" }
+
+	assert.Equal(t,
+		"A second machine was created for high availability. To run a single machine instead:\n  <fly scale count 1 --yes -a my-app>",
+		singleMachineHint("my-app", []string{"app"}, false, mark))
+	assert.Equal(t,
+		"A second machine was created for high availability. To run a single machine instead:\n  <fly scale count web=1 --yes -a my-app>",
+		singleMachineHint("my-app", []string{"web"}, false, mark))
+	// Several groups share one command, and "app" is then named like the rest.
+	assert.Equal(t,
+		"A second machine was created for high availability. To run a single machine instead:\n  <fly scale count api=1 app=1 --yes -a my-app>",
+		singleMachineHint("my-app", []string{"api", "app"}, false, mark))
+	// scale count needs a complete release, so a failed deploy says to wait.
+	assert.Equal(t,
+		"A second machine may have been created for high availability. To run a single machine instead, run this after a successful deploy:\n  <fly scale count 1 --yes -a my-app>",
+		singleMachineHint("my-app", []string{"app"}, true, mark))
+}
