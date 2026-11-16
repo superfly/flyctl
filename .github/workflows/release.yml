@@ -44,7 +44,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
       - name: Generate release meta
@@ -56,7 +56,7 @@ jobs:
           cat release.json | jq
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: build-artifacts
           path: |
@@ -74,13 +74,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - id: cache
-        uses: actions/cache@v6
+        uses: actions/cache@v6.1.0
         with:
           path: dist/${{ matrix.GOOS }}
           key: ${{ matrix.GOOS }}-${{ needs.meta.outputs.sha_short }}
@@ -115,19 +115,19 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
       # copy the caches from prepare
-      - uses: actions/cache@v6
+      - uses: actions/cache@v6.1.0
         with:
           path: dist/linux
           key: linux-${{ needs.meta.outputs.sha_short }}
-      - uses: actions/cache@v6
+      - uses: actions/cache@v6.1.0
         with:
           path: dist/darwin
           key: darwin-${{ needs.meta.outputs.sha_short }}
-      - uses: actions/cache@v6
+      - uses: actions/cache@v6.1.0
         with:
           path: dist/windows
           key: windows-${{ needs.meta.outputs.sha_short }}
@@ -135,7 +135,7 @@ jobs:
         env:
           RELEASE_JSON: ${{ needs.meta.outputs.json }}
         run: echo "$RELEASE_JSON" > ./dist/release.json
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: build-artifacts
           path: |

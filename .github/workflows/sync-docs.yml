@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jnwng/github-app-installation-token-action@778da2ab509f3ef5e4b902bc15daf25ef3e34939
+      - uses: jnwng/github-app-installation-token-action@master
         id: installationToken
         with:
           appId: 339363
@@ -32,7 +32,7 @@ jobs:
           repository: superfly/docs
           token: ${{ steps.installationToken.outputs.token }}
           path: docs
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
           check-latest: true

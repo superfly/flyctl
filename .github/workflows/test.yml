@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "${{ matrix.test.workdir }}/go.mod"
       - name: Run Tests (${{ matrix.test.target }})

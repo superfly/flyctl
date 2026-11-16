@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -36,7 +36,7 @@ jobs:
           version: "~> v2"
           args: build --clean --snapshot --verbose
       - name: Upload flyctl for preflight
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl
