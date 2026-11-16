@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"net/url"
 
 	"github.com/superfly/fly-go/flaps"
@@ -188,7 +189,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	s := map[string]string{}
 	s[variableName] = connectionUri
 
-	if err := appsecrets.Update(ctx, flapsClient, appName, s, nil); err != nil {
+	if err := tracing.WorkflowPhase(ctx, "set_connection_secret", func(ctx context.Context) error { return appsecrets.Update(ctx, flapsClient, appName, s, nil) }); err != nil {
 		return err
 	}
 
@@ -196,7 +197,9 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	attachInput := mpgv2.CreateAttachmentInput{
 		AppName: appName,
 	}
-	err = createAttachmentPublicFirst(ctx, flapsClient, legacyClient, clusterID, attachInput)
+	err = tracing.WorkflowPhase(ctx, "record_attachment", func(ctx context.Context) error {
+		return createAttachmentPublicFirst(ctx, flapsClient, legacyClient, clusterID, attachInput)
+	})
 	if err != nil {
 		// Attachment is warning-only; the secret was set successfully.
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
