@@ -36,6 +36,9 @@ func New() *cobra.Command {
 		short = "Send feedback to Fly.io"
 		long  = `Send a bug report, documentation issue, or feature request to Fly.io.
 
+We read every report, but we don't reply to them. If you need help with your
+apps, account or billing, see https://docs.fly.io/about/support.
+
 The note can be given as an argument, piped through stdin, or typed at the
 prompt when running in a terminal. Tell us what you are reporting with
 --request-id (the fly-request-id header of the API response in question) or
