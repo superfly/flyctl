@@ -24,42 +24,43 @@ func TestPKCECallbackSendsANavigatingBrowserBack(t *testing.T) {
 	defer p.close()
 
 	callback := fmt.Sprintf("http://127.0.0.1:%d/callback?code=the-code&state=%s", p.port, url.QueryEscape(p.state))
-	get := func(rawURL string) *http.Response {
+	// get returns the status and Location of a request, closing its body.
+	get := func(rawURL string) (int, string) {
 		t.Helper()
 		res, err := noRedirects.Get(rawURL)
 		if err != nil {
 			t.Fatal(err)
 		}
-		res.Body.Close()
+		defer res.Body.Close()
 
-		return res
+		return res.StatusCode, res.Header.Get("Location")
 	}
 
 	// Until the server has named its origin there is nowhere to send it.
-	if res := get(callback + "&return=1"); res.StatusCode != http.StatusOK {
-		t.Fatalf("expected the plain page before the server URL is known, got %d", res.StatusCode)
+	if status, _ := get(callback + "&return=1"); status != http.StatusOK {
+		t.Fatalf("expected the plain page before the server URL is known, got %d", status)
 	}
 
 	p.setServerURL("https://fly.example/app/auth/cli/sess1?auto_redirect=1", "sess1")
 
 	// The page's background fetch carries no return=1 and keeps the page.
-	if res := get(callback); res.StatusCode != http.StatusOK {
-		t.Fatalf("expected the plain page for a fetch, got %d", res.StatusCode)
+	if status, _ := get(callback); status != http.StatusOK {
+		t.Fatalf("expected the plain page for a fetch, got %d", status)
 	}
 
 	// A redirected browser goes back to the server's fixed page. Nothing in
 	// the query can point it anywhere else.
-	res := get(callback + "&return=1&connected=https://evil.example/&return_to=https://evil.example/")
-	if res.StatusCode != http.StatusSeeOther {
-		t.Fatalf("expected a 303 for a redirected browser, got %d", res.StatusCode)
+	status, got := get(callback + "&return=1&connected=https://evil.example/&return_to=https://evil.example/")
+	if status != http.StatusSeeOther {
+		t.Fatalf("expected a 303 for a redirected browser, got %d", status)
 	}
-	if got := res.Header.Get("Location"); got != "https://fly.example/app/auth/cli/connected?session=sess1" {
+	if got != "https://fly.example/app/auth/cli/connected?session=sess1" {
 		t.Fatalf("redirected to %q", got)
 	}
 
 	// A wrong state is refused whatever else it asks for.
-	if res := get(fmt.Sprintf("http://127.0.0.1:%d/callback?code=evil&state=wrong&return=1", p.port)); res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected 400 for a bad state, got %d", res.StatusCode)
+	if status, _ := get(fmt.Sprintf("http://127.0.0.1:%d/callback?code=evil&state=wrong&return=1", p.port)); status != http.StatusBadRequest {
+		t.Fatalf("expected 400 for a bad state, got %d", status)
 	}
 }
 
