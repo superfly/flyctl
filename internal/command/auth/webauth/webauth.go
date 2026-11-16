@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -96,14 +97,39 @@ var openBrowser = open.Run
 // remoteSession reports whether this terminal is probably on a different
 // machine from the browser that will open: over SSH, or inside a remote
 // development environment that forwards "open a URL" to the user's own
-// machine. The browser's loopback isn't ours there.
-func remoteSession() bool {
-	return env.IsSet(remoteSessionEnv...)
+// machine. The browser's loopback isn't ours there. It errs towards yes,
+// which only costs the redirect, and names what it saw for the debug log.
+func remoteSession() (bool, string) {
+	for _, key := range remoteSessionEnv {
+		if _, ok := os.LookupEnv(key); ok {
+			return true, key + " is set"
+		}
+	}
+	// Remote editors (VS Code tunnels, among others) open URLs on the user's
+	// machine through a helper named in $BROWSER.
+	if os.Getenv("BROWSER") != "" {
+		return true, "BROWSER is set"
+	}
+	// A Linux session with no display opens a browser, if at all, somewhere
+	// else: a container, or a forwarded remote session.
+	if goos == "linux" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		return true, "no DISPLAY or WAYLAND_DISPLAY"
+	}
+
+	return false, ""
 }
 
+// goos is a variable so tests can check the Linux rules anywhere.
+var goos = runtime.GOOS
+
 // remoteSessionEnv are variables set in sessions where the browser that
-// opens is probably not on this machine.
-var remoteSessionEnv = []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "CODESPACES", "REMOTE_CONTAINERS"}
+// opens is probably not on this machine. SSH variables can outlive the SSH
+// session inside a reattached tmux or screen; that only costs the redirect.
+var remoteSessionEnv = []string{
+	"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY",
+	"CODESPACES", "REMOTE_CONTAINERS",
+	"GITPOD_WORKSPACE_ID", "CODER", "DEVPOD",
+}
 
 func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	args := map[string]any{
@@ -193,10 +219,14 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	// doesn't: a link someone copies may be opened on another machine, where
 	// that redirect would dead-end.
 	openURL := auth.URL
-	if auth.PKCE && pkce.port != 0 && !headless && !remoteSession() {
-		openURL = withAutoRedirect(auth.URL)
-		// Only a login that asked for the redirect sends the browser back.
-		pkce.setServerURL(auth.URL, auth.ID)
+	if auth.PKCE && pkce.port != 0 && !headless {
+		if remote, why := remoteSession(); remote {
+			logger.Debugf("not asking for the login redirect: %s", why)
+		} else if marked, added := withAutoRedirect(auth.URL); added {
+			openURL = marked
+			// Only a login that asked for the redirect sends the browser back.
+			pkce.setServerURL(auth.URL, auth.ID)
+		}
 	}
 
 	colorize := io.ColorScheme()
