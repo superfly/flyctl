@@ -36,6 +36,7 @@ import (
 	term2 "github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/command/root"
+	tracecmd "github.com/superfly/flyctl/internal/command/trace"
 )
 
 // Run runs the command line interface with the given arguments and reports the
@@ -102,7 +103,10 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	// shutdown background tasks, giving up to 5s for them to finish
 	task.FromContext(ctx).ShutdownWithTimeout(5 * time.Second)
 
+	var childExit *tracecmd.ExitError
 	switch {
+	case errors.As(err, &childExit):
+		return childExit.Code
 	case err == nil:
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):

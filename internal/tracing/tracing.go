@@ -10,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -106,7 +107,12 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 	var exporter sdktrace.SpanExporter
 	switch {
 	case os.Getenv("LOG_LEVEL") == "trace":
-		stdoutExp, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+		opts := []stdouttrace.Option{stdouttrace.WithPrettyPrint()}
+		if baggage.FromContext(ctx).Member(deployTraceKey).Value() == "true" {
+			// A traced deployer invocation reserves stdout for command output and artifacts.
+			opts = append(opts, stdouttrace.WithWriter(iostreams.FromContext(ctx).ErrOut))
+		}
+		stdoutExp, err := stdouttrace.New(opts...)
 		if err != nil {
 			return nil, err
 		}

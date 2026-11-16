@@ -68,6 +68,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/synthetics"
 	"github.com/superfly/flyctl/internal/command/tokens"
+	tracecmd "github.com/superfly/flyctl/internal/command/trace"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
 	"github.com/superfly/flyctl/internal/command/wireguard"
@@ -109,6 +110,7 @@ func New() *cobra.Command {
 		group(apps.New(), "deploy"),
 		group(machine.New(), "deploy"),
 		version.New(),
+		tracecmd.New(),
 		group(orgs.New(), "acl"),
 		group(auth.New(), "acl"),
 		group(platform.New(), "more_help"),
