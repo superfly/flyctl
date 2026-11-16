@@ -10,6 +10,11 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
+// redisProvider names Upstash Redis to the add-on mutations and queries that
+// look an add-on up by name, so they can't land on another provider's add-on
+// with the same name.
+const redisProvider = string(gql.AddOnTypeUpstashRedis)
+
 // TODO: make internal once the open command has been deprecated
 func New() (cmd *cobra.Command) {
 	const (
