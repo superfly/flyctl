@@ -170,8 +170,13 @@ var sharedFlags = flag.Set{
 		Description: "Swap size in MB. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb).",
 	},
 	flag.String{
-		Name:        "cachedrive-size",
-		Description: "Cache drive size in MB. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable.",
+		Name:        "cache-disk-size",
+		Aliases:     []string{"cachedrive-size"},
+		Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.",
+	},
+	flag.String{
+		Name:        "cache-disk-path",
+		Description: "Absolute path in the Machine at which to mount the cache disk.",
 	},
 }
 
@@ -285,6 +290,8 @@ func newRun() *cobra.Command {
 
 	cmd.Args = cobra.MinimumNArgs(0)
 
+	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+
 	return cmd
 }
 
@@ -308,6 +315,8 @@ func newCreate() *cobra.Command {
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
+
+	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
 
 	return cmd
 }
@@ -752,19 +761,8 @@ func determineMachineConfig(
 		machineConf.Init.SwapSizeMB = new(sizeMB)
 	}
 
-	if flag.IsSpecified(ctx, "cachedrive-size") {
-		sizeMB, err := helpers.ParseSize(flag.GetString(ctx, "cachedrive-size"), units.RAMInBytes, units.MiB)
-		if err != nil {
-			return machineConf, fmt.Errorf("invalid cachedrive size: %w", err)
-		}
-		if sizeMB < 0 {
-			return machineConf, fmt.Errorf("--cachedrive-size must not be negative")
-		}
-		if sizeMB == 0 {
-			machineConf.CacheDrive = nil
-		} else {
-			machineConf.CacheDrive = &fly.MachineCacheDrive{SizeMB: uint64(sizeMB)}
-		}
+	if err := applyCacheDiskFlags(ctx, machineConf); err != nil {
+		return machineConf, err
 	}
 
 	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)

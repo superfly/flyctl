@@ -2,6 +2,8 @@ package appconfig
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -368,6 +370,30 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 			AddSizeGb:              extendSizeIncrement,
 			SizeGbLimit:            extendSizeLimit,
 		})
+	}
+
+	// Cache disks are declarative: omission removes a previously configured disk.
+	if len(c.CacheDisks) > 1 {
+		return nil, fmt.Errorf("process group %q has more than one [[cache_disk]] entry; only one cache disk is allowed per Machine", processGroup)
+	}
+	mConfig.CacheDrive = nil
+	if len(c.CacheDisks) == 1 {
+		disk := c.CacheDisks[0]
+		if _, err := strconv.ParseFloat(strings.TrimSpace(disk.Size), 64); err == nil {
+			return nil, fmt.Errorf("cache_disk.size requires an explicit unit (e.g. 512mb or 1gb)")
+		}
+		sizeBytes, err := units.RAMInBytes(disk.Size)
+		sizeMB := sizeBytes / units.MiB
+		if err != nil {
+			return nil, fmt.Errorf("invalid cache_disk.size: %w", err)
+		}
+		if sizeMB <= 0 {
+			return nil, fmt.Errorf("cache_disk.size must be greater than zero")
+		}
+		if disk.Path == "" {
+			return nil, fmt.Errorf("cache_disk.path is required")
+		}
+		mConfig.CacheDrive = &fly.MachineCacheDrive{SizeMB: uint64(sizeMB), Path: disk.Path}
 	}
 
 	// StopConfig
