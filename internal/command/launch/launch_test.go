@@ -503,3 +503,73 @@ func TestTigrisExtensionParamsWithoutSourceInfo(t *testing.T) {
 	state.sourceInfo = &scanner.SourceInfo{OverrideExtensionSecretKeyNames: overrides}
 	assert.Equal(t, overrides, state.tigrisExtensionParams(nil).OverrideExtensionSecretKeyNames)
 }
+
+// A memory change from the launch manifest must reach every [[vm]] block,
+// including hand-written ones that only set size or memory, instead of being
+// silently dropped and leaving the old memory in fly.toml.
+func TestUpdateConfigAppliesPlanMemoryToHandWrittenCompute(t *testing.T) {
+	tests := []struct {
+		name    string
+		compute *appconfig.Compute
+	}{
+		{name: "size only", compute: &appconfig.Compute{Size: "shared-cpu-1x"}},
+		{name: "memory only", compute: &appconfig.Compute{Memory: "1gb"}},
+		{name: "memory_mb only", compute: &appconfig.Compute{MachineGuest: &fly.MachineGuest{MemoryMB: 1024}}},
+		{name: "size and memory", compute: &appconfig.Compute{Size: "shared-cpu-1x", Memory: "1gb"}},
+	}
+
+	// The machine config that deploy and fly.toml output are built from must
+	// carry the new memory, not just the in-memory compute fields.
+	assertMachineMemory := func(t *testing.T, cfg *appconfig.Config, want int) {
+		t.Helper()
+		mc, err := cfg.ToMachineConfig("", &fly.MachineConfig{})
+		require.NoError(t, err)
+		require.NotNil(t, mc.Guest)
+		assert.Equal(t, want, mc.Guest.MemoryMB)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := &launchState{
+				LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+					AppName:  "my-app",
+					MemoryMB: 2048,
+					Compute:  []*appconfig.Compute{tt.compute},
+				}},
+				planBuildCache: planBuildCache{appConfig: &appconfig.Config{}},
+			}
+
+			state.updateConfig(context.Background())
+
+			require.Len(t, state.appConfig.Compute, 1)
+			assert.Equal(t, "2gb", state.appConfig.Compute[0].Memory)
+			if state.appConfig.Compute[0].MachineGuest != nil {
+				assert.Equal(t, 2048, state.appConfig.Compute[0].MachineGuest.MemoryMB)
+			}
+			assertMachineMemory(t, state.appConfig, 2048)
+		})
+	}
+}
+
+func TestUpdateConfigLeavesOtherProcessGroupComputeAlone(t *testing.T) {
+	worker := &appconfig.Compute{Memory: "512mb", Processes: []string{"worker"}}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 2048,
+			Compute: []*appconfig.Compute{
+				{Size: "shared-cpu-1x", Processes: []string{"app"}},
+				worker,
+			},
+		}},
+		planBuildCache: planBuildCache{appConfig: &appconfig.Config{
+			Processes: map[string]string{"app": "run-app", "worker": "run-worker"},
+		}},
+	}
+
+	state.updateConfig(context.Background())
+
+	require.Len(t, state.appConfig.Compute, 2)
+	assert.Equal(t, "2gb", state.appConfig.Compute[0].Memory)
+	assert.Equal(t, "512mb", worker.Memory)
+}

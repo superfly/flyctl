@@ -371,6 +371,15 @@ func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Con
 	return nil
 }
 
+// memoryString canonicalizes a memory size in MB to a human-readable string.
+func memoryString(mb int) string {
+	if mb%1024 == 0 {
+		return fmt.Sprintf("%dgb", mb/1024)
+	}
+
+	return fmt.Sprintf("%dmb", mb)
+}
+
 // isComputeValid checks if a compute configuration is valid and can be safely modified
 func isComputeValid(c *appconfig.Compute) bool {
 	return c != nil && c.MachineGuest != nil
@@ -457,10 +466,19 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		}
 	}
 
+	// Hand-written [[vm]] blocks may only set size or memory, so the memory
+	// string is set too; otherwise the plan's memory would be dropped.
 	if plan.MemoryMB != 0 {
-		for i := range appConfig.Compute {
-			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].MemoryMB == 0 {
-				appConfig.Compute[i].MemoryMB = plan.MemoryMB
+		// Only touch computes that serve the default process group: computes
+		// restricted to other process groups keep their own memory.
+		defaultCompute := appConfig.ComputeForGroup("")
+		for _, c := range appConfig.Compute {
+			if c == nil || (len(c.Processes) != 0 && c != defaultCompute) {
+				continue
+			}
+			c.Memory = memoryString(plan.MemoryMB)
+			if isComputeValid(c) {
+				c.MachineGuest.MemoryMB = plan.MemoryMB
 			}
 		}
 	}
