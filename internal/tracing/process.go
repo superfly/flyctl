@@ -36,5 +36,6 @@ func ExtractProcessContext(ctx context.Context) (context.Context, bool) {
 	if sc := trace.SpanContextFromContext(extracted); sc.IsValid() {
 		return trace.ContextWithRemoteSpanContext(ctx, sc), true
 	}
+
 	return ctx, false
 }

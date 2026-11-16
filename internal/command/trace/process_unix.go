@@ -23,6 +23,7 @@ func childSignalForwarder(child *exec.Cmd) func(os.Signal) {
 	}
 
 	cmdutil.SetSysProcAttributes(child)
+
 	return func(sig os.Signal) {
 		_ = syscall.Kill(-child.Process.Pid, sig.(syscall.Signal))
 	}

@@ -73,6 +73,7 @@ func runChild(ctx context.Context, args []string) error {
 			if err == nil && canceled {
 				return &ExitError{Code: 0}
 			}
+
 			return err
 		}
 	}
