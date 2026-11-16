@@ -64,6 +64,7 @@ type Config struct {
 
 	// Fields that are process group aware must come after Processes
 	Processes        map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
+	CacheDisks       []CacheDisk               `toml:"cache_disk,omitempty" json:"cache_disk,omitempty"`
 	Mounts           []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	HTTPService      *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Services         []Service                 `toml:"services,omitempty" json:"services,omitempty"`
@@ -101,6 +102,15 @@ type Config struct {
 
 	// The default group name to refer to (used with flatten configs)
 	defaultGroupName string
+}
+
+// CacheDisk declares a mounted, disposable cache for a process group.
+// Contents generally survive Machine stops, restarts, and updates, but durability is not guaranteed.
+// Expect Machines to start with an empty cache disk at any time.
+type CacheDisk struct {
+	Size      string   `toml:"size" json:"size"`
+	Path      string   `toml:"path" json:"path"`
+	Processes []string `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
 type Metrics struct {

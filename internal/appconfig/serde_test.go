@@ -406,6 +406,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, &Config{
+		CacheDisks:       []CacheDisk{{Size: "1gb", Path: "/cache", Processes: []string{"web"}}},
 		configFilePath:   "./testdata/full-reference.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
@@ -843,5 +844,40 @@ func TestNormalizeNestedYAMLMaps(t *testing.T) {
 		got, err := stringifyYAMLMapKeys(input)
 		require.ErrorContains(t, err, "keys must be strings")
 		assert.Nil(t, got)
+	}
+}
+
+func TestCacheDiskSizeUnits(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		size    string
+		wantMB  uint64
+		wantErr string
+	}{
+		{name: "bare number", size: "1024", wantErr: "explicit unit"},
+		{name: "unitless string", size: `"1024"`, wantErr: "explicit unit"},
+		{name: "MiB", size: `"512mib"`, wantMB: 512},
+		{name: "GiB", size: `"1gib"`, wantMB: 1024},
+		{name: "CLI compatible gb", size: `"1gb"`, wantMB: 1024},
+		{name: "fractional GiB", size: `"1.5gib"`, wantMB: 1536},
+		{name: "large disk", size: `"50gib"`, wantMB: 51200},
+		{name: "server validates limit", size: `"51gib"`, wantMB: 52224},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := unmarshalTOML([]byte(fmt.Sprintf("[[cache_disk]]\nsize = %s\npath = \"/cache\"\n", tc.size)))
+			require.NoError(t, err)
+			if cfg.v2UnmarshalError != nil {
+				require.NotEmpty(t, tc.wantErr)
+				require.ErrorContains(t, cfg.v2UnmarshalError, tc.wantErr)
+				return
+			}
+			machine, err := cfg.ToMachineConfig("app", nil)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantMB, machine.CacheDrive.SizeMB)
+		})
 	}
 }
