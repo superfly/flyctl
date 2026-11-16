@@ -81,6 +81,10 @@ func withAutoRedirect(authURL string) string {
 		return authURL
 	}
 
+	if u.Query().Has(autoRedirectParam) {
+		return authURL
+	}
+
 	if u.RawQuery == "" {
 		u.RawQuery = autoRedirectParam + "=1"
 	} else {
@@ -270,7 +274,13 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 					// forward instead of waiting out the timeout.
 					return "", fmt.Errorf("failed to redeem the login code (%w). Run `fly auth login` again", err)
 				}
-				fmt.Fprintf(io.ErrOut, "That code didn't work (%v).\n", err)
+				if attempt.fromHTTP {
+					// The browser was handed the code without showing it,
+					// so say how to get one to paste.
+					fmt.Fprintf(io.ErrOut, "Signing in with the code from the browser failed (%v).\nGo back to the browser tab and continue again to get a code to paste here.\n", err)
+				} else {
+					fmt.Fprintf(io.ErrOut, "That code didn't work (%v).\n", err)
+				}
 				fmt.Fprint(io.Out, prompt)
 			}
 		}

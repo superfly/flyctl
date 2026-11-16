@@ -140,6 +140,7 @@ func TestWithAutoRedirectKeepsTheIssuedURL(t *testing.T) {
 	cases := map[string]string{
 		"https://fly.example/app/auth/cli/sess1":                 "https://fly.example/app/auth/cli/sess1?auto_redirect=1",
 		"https://fly.example/app/auth/cli/sess1?z=2&a=1;b+c%20d": "https://fly.example/app/auth/cli/sess1?z=2&a=1;b+c%20d&auto_redirect=1",
+		"https://fly.example/app/auth/cli/sess1?auto_redirect=0": "https://fly.example/app/auth/cli/sess1?auto_redirect=0",
 	}
 	for in, want := range cases {
 		if got := withAutoRedirect(in); got != want {

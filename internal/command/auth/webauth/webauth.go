@@ -193,11 +193,10 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	// doesn't: a link someone copies may be opened on another machine, where
 	// that redirect would dead-end.
 	openURL := auth.URL
-	if auth.PKCE && pkce.port != 0 {
+	if auth.PKCE && pkce.port != 0 && !headless && !remoteSession() {
+		openURL = withAutoRedirect(auth.URL)
+		// Only a login that asked for the redirect sends the browser back.
 		pkce.setServerURL(auth.URL, auth.ID)
-		if !headless && !remoteSession() {
-			openURL = withAutoRedirect(auth.URL)
-		}
 	}
 
 	colorize := io.ColorScheme()
