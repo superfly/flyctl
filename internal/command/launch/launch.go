@@ -382,8 +382,51 @@ func memoryEquals(memory string, mb int) bool {
 	return err == nil && parsed == mb
 }
 
+// computeExceedsSuspendLimit reports whether a compute configuration has a GPU
+// or at least 2GB of memory, which makes it ineligible for auto-stop suspend.
+func computeExceedsSuspendLimit(compute *appconfig.Compute) bool {
+	if compute == nil {
+		return false
+	}
+
+	if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
+		return true
+	}
+
+	if compute.Memory != "" {
+		mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+		if err != nil || mb >= 2048 {
+			return true
+		}
+
+		return false
+	}
+
+	if compute.MachineGuest != nil && compute.MachineGuest.MemoryMB >= 2048 {
+		return true
+	}
+
+	if compute.Size != "" {
+		guest := &fly.MachineGuest{}
+		if err := guest.SetSize(compute.Size); err == nil {
+			if guest.GPUKind != "" || guest.MemoryMB >= 2048 {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
+	if state.appConfig == nil {
+		if state.Config != nil {
+			state.appConfig = state.Config
+		} else {
+			state.appConfig = appconfig.NewConfig()
+		}
+	}
 	appConfig := state.appConfig
 	env := state.env
 	plan := state.Plan
@@ -411,21 +454,20 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
 			for _, compute := range appConfig.Compute {
-				if !isComputeValid(compute) {
-					continue
-				}
-				if compute.GPUKind != "" {
+				if computeExceedsSuspendLimit(compute) {
 					autostop = fly.MachineAutostopStop
 
 					break
 				}
+			}
 
-				if compute.Memory != "" {
-					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
-					if err != nil || mb >= 2048 {
+			if plan.MemoryMB >= 2048 {
+				autostop = fly.MachineAutostopStop
+			} else if plan.VmSize != "" {
+				guest := &fly.MachineGuest{}
+				if err := guest.SetSize(plan.VmSize); err == nil {
+					if guest.GPUKind != "" || guest.MemoryMB >= 2048 {
 						autostop = fly.MachineAutostopStop
-
-						break
 					}
 				}
 			}
