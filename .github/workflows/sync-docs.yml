@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout flyctl
         uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - uses: jnwng/github-app-installation-token-action@778da2ab509f3ef5e4b902bc15daf25ef3e34939
         id: installationToken
         with:
