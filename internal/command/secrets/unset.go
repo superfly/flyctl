@@ -50,8 +50,12 @@ func runUnset(ctx context.Context) (err error) {
 
 func UnsetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets []string, args DeploymentArgs) error {
 	if err := appsecrets.Update(ctx, flapsClient, app.Name, nil, secrets); err != nil {
-		return fmt.Errorf("update secrets: %w", err)
+		return updateError(err)
 	}
 
-	return DeploySecrets(ctx, app.Name, args)
+	if err := DeploySecrets(ctx, app.Name, args); err != nil {
+		return fmt.Errorf("secrets were unset, but deployment failed: %w", err)
+	}
+
+	return nil
 }
