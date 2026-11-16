@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -148,7 +149,12 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		}()
 
 		// run the command
-		if err = fn(ctx); err == nil {
+		if workflow := workflowCommand(cmd); workflow != "" {
+			err = tracing.RunWorkflow(ctx, workflow, appconfig.NameFromContext(ctx), fn)
+		} else {
+			err = fn(ctx)
+		}
+		if err == nil {
 			// and finally, run the finalizer
 			finalize(ctx)
 		}
@@ -974,4 +980,30 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+// Match canonical Cobra names so aliases emit the same trace root.
+func workflowCommand(cmd *cobra.Command) string {
+	if cmd.Parent() == nil || cmd.Parent().Parent() == nil || cmd.Parent().Parent().Parent() != nil {
+		return ""
+	}
+	switch cmd.Parent().Name() + " " + cmd.Name() {
+	case "machine run":
+		shell, _ := cmd.Flags().GetBool("shell")
+		buildOnly, _ := cmd.Flags().GetBool("build-only")
+		if !shell && !buildOnly {
+			return "cmd.machine.run"
+		}
+	case "scale count":
+		return "cmd.scale.count"
+	case "mpg create":
+		return "cmd.mpg.create"
+	case "mpg attach":
+		return "cmd.mpg.attach"
+	case "volumes create":
+		return "cmd.volumes.create"
+	case "secrets set":
+		return "cmd.secrets.set"
+	}
+	return ""
 }

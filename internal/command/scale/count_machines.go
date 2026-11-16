@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"math"
 	"strings"
 
@@ -152,7 +153,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
 				updatePool.Go(func(ctx context.Context) error {
-					m, err := launchMachine(ctx, appName, action, i)
+					m, err := tracing.WorkflowStep(ctx, "create_machine", func(ctx context.Context) (*fly.Machine, error) { return launchMachine(ctx, appName, action, i) })
 					if err != nil {
 						return err
 					}
@@ -172,7 +173,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 			for i := 0; i > action.Delta; i-- {
 				updatePool.Go(func(ctx context.Context) error {
 					m := action.Machines[-i]
-					err := destroyMachine(ctx, appName, m)
+					err := tracing.WorkflowPhase(ctx, "destroy_machine", func(ctx context.Context) error { return destroyMachine(ctx, appName, m) })
 					if err != nil {
 						return err
 					}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -112,7 +113,7 @@ func DeploySecrets(ctx context.Context, appName string, args DeploymentArgs) err
 		return err
 	}
 
-	err = md.DeployMachinesApp(ctx)
+	err = tracing.WorkflowPhase(ctx, "rollout_secrets", md.DeployMachinesApp)
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 	}
