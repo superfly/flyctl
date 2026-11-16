@@ -41,8 +41,8 @@ func runReset(ctx context.Context) (err error) {
 	name := flag.FirstArg(ctx)
 
 	_ = `# @genqlient
-  mutation ResetAddOnPassword($name: String!) {
-		resetAddOnPassword(input: {name: $name}) {
+  mutation ResetAddOnPassword($name: String!, $provider: String) {
+		resetAddOnPassword(input: {name: $name, provider: $provider}) {
 			addOn {
 				publicUrl
 			}
@@ -50,7 +50,9 @@ func runReset(ctx context.Context) (err error) {
   }
 	`
 
-	response, err := gql.ResetAddOnPassword(ctx, client, name)
+	// Name the provider, as destroy and status do, so the reset can't land on
+	// another kind of add-on with the same name.
+	response, err := gql.ResetAddOnPassword(ctx, client, name, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return
 	}
