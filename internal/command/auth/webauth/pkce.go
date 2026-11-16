@@ -55,28 +55,37 @@ const connectedPath = "/app/auth/cli/connected"
 // loopback callback, which only works when the browser is on this machine.
 const autoRedirectParam = "auto_redirect"
 
-// setServerURL records the origin the browser goes back to after a
-// redirected callback: the login URL's scheme and host, with connectedPath.
-func (p *pkceLogin) setServerURL(authURL string) {
+// setServerURL records where the browser goes after a redirected callback:
+// the login URL's scheme and host, with connectedPath. The session id lets
+// that page watch for this process redeeming the code, so it only says
+// "connected" once that has happened.
+func (p *pkceLogin) setServerURL(authURL, sessionID string) {
 	u, err := url.Parse(authURL)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return
 	}
 
-	connected := (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: connectedPath}).String()
-	p.connectedURL.Store(&connected)
+	connected := &url.URL{Scheme: u.Scheme, Host: u.Host, Path: connectedPath}
+	if sessionID != "" {
+		connected.RawQuery = url.Values{"session": {sessionID}}.Encode()
+	}
+	s := connected.String()
+	p.connectedURL.Store(&s)
 }
 
-// withAutoRedirect adds autoRedirectParam to the login URL.
+// withAutoRedirect appends autoRedirectParam to the login URL, leaving the
+// rest of the URL exactly as the server issued it.
 func withAutoRedirect(authURL string) string {
 	u, err := url.Parse(authURL)
 	if err != nil {
 		return authURL
 	}
 
-	q := u.Query()
-	q.Set(autoRedirectParam, "1")
-	u.RawQuery = q.Encode()
+	if u.RawQuery == "" {
+		u.RawQuery = autoRedirectParam + "=1"
+	} else {
+		u.RawQuery += "&" + autoRedirectParam + "=1"
+	}
 
 	return u.String()
 }

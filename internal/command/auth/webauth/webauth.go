@@ -98,14 +98,12 @@ var openBrowser = open.Run
 // development environment that forwards "open a URL" to the user's own
 // machine. The browser's loopback isn't ours there.
 func remoteSession() bool {
-	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "CODESPACES", "REMOTE_CONTAINERS"} {
-		if os.Getenv(key) != "" {
-			return true
-		}
-	}
-
-	return false
+	return env.IsSet(remoteSessionEnv...)
 }
+
+// remoteSessionEnv are variables set in sessions where the browser that
+// opens is probably not on this machine.
+var remoteSessionEnv = []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "CODESPACES", "REMOTE_CONTAINERS"}
 
 func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	args := map[string]any{
@@ -196,7 +194,7 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	// that redirect would dead-end.
 	openURL := auth.URL
 	if auth.PKCE && pkce.port != 0 {
-		pkce.setServerURL(auth.URL)
+		pkce.setServerURL(auth.URL, auth.ID)
 		if !headless && !remoteSession() {
 			openURL = withAutoRedirect(auth.URL)
 		}

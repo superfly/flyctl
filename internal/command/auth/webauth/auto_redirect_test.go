@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestPKCECallbackSendsANavigatingBrowserBack(t *testing.T) {
 		t.Fatalf("expected the plain page before the server URL is known, got %d", res.StatusCode)
 	}
 
-	p.setServerURL("https://fly.example/app/auth/cli/sess1?auto_redirect=1")
+	p.setServerURL("https://fly.example/app/auth/cli/sess1?auto_redirect=1", "sess1")
 
 	// The page's background fetch carries no return=1 and keeps the page.
 	if res := get(callback); res.StatusCode != http.StatusOK {
@@ -52,7 +53,7 @@ func TestPKCECallbackSendsANavigatingBrowserBack(t *testing.T) {
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("expected a 303 for a redirected browser, got %d", res.StatusCode)
 	}
-	if got := res.Header.Get("Location"); got != "https://fly.example/app/auth/cli/connected" {
+	if got := res.Header.Get("Location"); got != "https://fly.example/app/auth/cli/connected?session=sess1" {
 		t.Fatalf("redirected to %q", got)
 	}
 
@@ -65,7 +66,7 @@ func TestPKCECallbackSendsANavigatingBrowserBack(t *testing.T) {
 func TestSetServerURLIgnoresWhatItCannotUse(t *testing.T) {
 	for _, authURL := range []string{"", "not a url", "/app/auth/cli/sess1", "javascript:alert(1)", "ftp://fly.example/x"} {
 		p := &pkceLogin{}
-		p.setServerURL(authURL)
+		p.setServerURL(authURL, "sess1")
 		if got := p.connectedURL.Load(); got != nil {
 			t.Fatalf("setServerURL(%q) stored %q", authURL, *got)
 		}
@@ -73,8 +74,6 @@ func TestSetServerURLIgnoresWhatItCannotUse(t *testing.T) {
 }
 
 func TestRunWebLoginMarksOnlyTheURLItOpens(t *testing.T) {
-	remoteKeys := []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "CODESPACES", "REMOTE_CONTAINERS"}
-
 	cases := []struct {
 		name       string
 		terminal   bool
@@ -90,8 +89,9 @@ func TestRunWebLoginMarksOnlyTheURLItOpens(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, out, errOut := headlessContext(t)
-			for _, key := range remoteKeys {
-				t.Setenv(key, "")
+			for _, key := range remoteSessionEnv {
+				t.Setenv(key, "") // restores the original value after the test
+				os.Unsetenv(key)
 			}
 			if tc.env != "" {
 				t.Setenv(tc.env, "1")
@@ -132,5 +132,17 @@ func TestRunWebLoginMarksOnlyTheURLItOpens(t *testing.T) {
 				t.Fatalf("printed URL should be the bare one: %q", printed)
 			}
 		})
+	}
+}
+
+func TestWithAutoRedirectKeepsTheIssuedURL(t *testing.T) {
+	cases := map[string]string{
+		"https://fly.example/app/auth/cli/sess1":                 "https://fly.example/app/auth/cli/sess1?auto_redirect=1",
+		"https://fly.example/app/auth/cli/sess1?z=2&a=1;b+c%20d": "https://fly.example/app/auth/cli/sess1?z=2&a=1;b+c%20d&auto_redirect=1",
+	}
+	for in, want := range cases {
+		if got := withAutoRedirect(in); got != want {
+			t.Errorf("withAutoRedirect(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
