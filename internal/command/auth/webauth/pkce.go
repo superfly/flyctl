@@ -49,7 +49,8 @@ type pkceLogin struct {
 
 	// callbackOpen is true while the listener will take a code from the
 	// callback. It closes when one is taken and reopens if redeeming that code
-	// fails, so approving again in the browser can hand over a fresh one.
+	// fails, so the code page shown on approving again can still send its
+	// code here rather than leave it to be pasted.
 	callbackOpen atomic.Bool
 }
 
@@ -328,8 +329,10 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 					p.callbackOpen.Store(true)
 				}
 				if attempt.redirected {
-					// The browser was handed the code without showing it.
-					fmt.Fprintf(io.ErrOut, "Signing in with the code from the browser failed (%v).\nGo back to the browser tab and approve again.\n", err)
+					// The browser was handed the code without showing it. The
+					// server redirects only the first approval, so approving
+					// again shows a code to paste.
+					fmt.Fprintf(io.ErrOut, "Signing in with the code from the browser failed (%v).\nGo back to the browser tab and approve again to get a code to paste here.\n", err)
 				} else {
 					fmt.Fprintf(io.ErrOut, "That code didn't work (%v).\n", err)
 				}
