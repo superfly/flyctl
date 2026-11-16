@@ -17,6 +17,9 @@ on:
       PREFLIGHT_SLACK_WEBHOOK_URL:
         required: false
 
+permissions:
+  contents: read
+
 jobs:
   preflight-tests:
     name: "preflight-tests (${{ matrix.group }})"

@@ -11,6 +11,9 @@ on:
         default: User initiated run
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   preflight-tests:
     if: ${{ github.repository == 'superfly/flyctl' }}
