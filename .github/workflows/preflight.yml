@@ -9,6 +9,13 @@ on:
         default: ord
         type: string
   workflow_call:
+    secrets:
+      FLYCTL_PREFLIGHT_CI_USER_TOKEN:
+        required: false
+      FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN:
+        required: false
+      PREFLIGHT_SLACK_WEBHOOK_URL:
+        required: false
 
 jobs:
   preflight-tests:

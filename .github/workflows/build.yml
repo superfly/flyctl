@@ -43,4 +43,7 @@ jobs:
     if: ${{ (github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request') && github.actor != 'dependabot[bot]' }}
     needs: test_build
     uses: ./.github/workflows/preflight.yml
-    secrets: inherit
+    secrets:
+      FLYCTL_PREFLIGHT_CI_USER_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN }}
+      FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+      PREFLIGHT_SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
