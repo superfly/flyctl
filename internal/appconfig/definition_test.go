@@ -136,6 +136,7 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &fly.Definition{
+		"cache_disk":         []any{map[string]any{"size": "1gb", "path": "/cache", "processes": []any{"web"}}},
 		"app":                "foo",
 		"primary_region":     "sea",
 		"kill_signal":        "SIGTERM",
@@ -459,4 +460,17 @@ func cfgFromJSON(jsonBody string) (*Config, error) {
 	}
 
 	return FromDefinition(def)
+}
+
+func TestCacheDiskDefinitionRoundTrip(t *testing.T) {
+	cfg := NewConfig()
+	cfg.CacheDisks = []CacheDisk{
+		{Size: "1024mib", Path: "/cache"},
+		{Size: "2048mib", Path: "/worker-cache", Processes: []string{"worker"}},
+	}
+	definition, err := cfg.ToDefinition()
+	require.NoError(t, err)
+	roundtrip, err := FromDefinition(definition)
+	require.NoError(t, err)
+	require.Equal(t, cfg.CacheDisks, roundtrip.CacheDisks)
 }

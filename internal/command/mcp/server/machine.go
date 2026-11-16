@@ -221,6 +221,8 @@ var MachineCommands = []FlyCommand{
 		ToolName:        "fly-machine-create",
 		ToolDescription: "Create, but don’t start, a machine",
 		ToolArgs: map[string]FlyArg{
+			"cache-disk-size": {Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.", Type: "string"},
+			"cache-disk-path": {Description: "Absolute path in the Machine at which to mount the cache disk.", Type: "string"},
 			// missing: build-depot, build-nixpacks, dockerfile, file-literal, file-local, file-secret,
 			// kernel-arg, machine-config, org
 			"app": {
@@ -463,6 +465,12 @@ var MachineCommands = []FlyCommand{
 
 			if volume, ok := args["volume"]; ok {
 				cmdArgs = append(cmdArgs, "--volume", volume)
+			}
+
+			for _, name := range []string{"cache-disk-size", "cache-disk-path"} {
+				if value, ok := args[name]; ok {
+					cmdArgs = append(cmdArgs, "--"+name+"="+value)
+				}
 			}
 
 			return cmdArgs, nil
@@ -874,6 +882,8 @@ var MachineCommands = []FlyCommand{
 		ToolName:        "fly-machine-run",
 		ToolDescription: "Run a machine",
 		ToolArgs: map[string]FlyArg{
+			"cache-disk-size": {Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.", Type: "string"},
+			"cache-disk-path": {Description: "Absolute path in the Machine at which to mount the cache disk.", Type: "string"},
 			// missing: build-depot, build-nixpacks, dockerfile, file-literal, file-local, file-secret,
 			// kernel-arg, machine-config, org, wg
 			"app": {
@@ -1138,6 +1148,12 @@ var MachineCommands = []FlyCommand{
 				cmdArgs = append(cmdArgs, "--volume", volume)
 			}
 
+			for _, name := range []string{"cache-disk-size", "cache-disk-path"} {
+				if value, ok := args[name]; ok {
+					cmdArgs = append(cmdArgs, "--"+name+"="+value)
+				}
+			}
+
 			return cmdArgs, nil
 		},
 	},
@@ -1361,6 +1377,8 @@ var MachineCommands = []FlyCommand{
 		ToolName:        "fly-machine-update",
 		ToolDescription: "Update a machine",
 		ToolArgs: map[string]FlyArg{
+			"cache-disk-size": {Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.", Type: "string"},
+			"cache-disk-path": {Description: "Absolute path in the Machine at which to mount the cache disk.", Type: "string"},
 			// missing: build-depot, build-nixpacks, container, dockerfile, file-literal, file-local, file-secret,
 			// kernel-arg, machine-config
 			"app": {
@@ -1585,6 +1603,12 @@ var MachineCommands = []FlyCommand{
 
 			if waitTimeout, ok := args["wait-timeout"]; ok {
 				cmdArgs = append(cmdArgs, "--wait-timeout", waitTimeout)
+			}
+
+			for _, name := range []string{"cache-disk-size", "cache-disk-path"} {
+				if value, ok := args[name]; ok {
+					cmdArgs = append(cmdArgs, "--"+name+"="+value)
+				}
 			}
 
 			return cmdArgs, nil
