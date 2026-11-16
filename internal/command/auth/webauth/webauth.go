@@ -90,6 +90,23 @@ func SaveToken(ctx context.Context, token string) error {
 	return nil
 }
 
+// openBrowser is a variable so tests can see which URL would be opened.
+var openBrowser = open.Run
+
+// remoteSession reports whether this terminal is probably on a different
+// machine from the browser that will open: over SSH, or inside a remote
+// development environment that forwards "open a URL" to the user's own
+// machine. The browser's loopback isn't ours there.
+func remoteSession() bool {
+	for _, key := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY", "CODESPACES", "REMOTE_CONTAINERS"} {
+		if os.Getenv(key) != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	args := map[string]any{
 		"signup": signup,
@@ -173,8 +190,20 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 		}
 	}
 
+	// The URL flyctl opens itself asks the server to hand the code over by
+	// redirecting the browser to the loopback callback. The URL it prints
+	// doesn't: a link someone copies may be opened on another machine, where
+	// that redirect would dead-end.
+	openURL := auth.URL
+	if auth.PKCE && pkce.port != 0 {
+		pkce.setServerURL(auth.URL)
+		if !headless && !remoteSession() {
+			openURL = withAutoRedirect(auth.URL)
+		}
+	}
+
 	colorize := io.ColorScheme()
-	openErr := open.Run(auth.URL)
+	openErr := openBrowser(openURL)
 	switch {
 	case headless:
 		// Whether or not a browser opened, the reader may have to pass the

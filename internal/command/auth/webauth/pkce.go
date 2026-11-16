@@ -11,8 +11,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/superfly/fly-go"
@@ -36,6 +38,47 @@ type pkceLogin struct {
 	codes    chan pkceCode
 	server   *http.Server
 	port     int
+
+	// connectedURL is the page a browser that navigated to the callback is
+	// sent on to. The listener is already serving when the server names its
+	// origin, hence the atomic.
+	connectedURL atomic.Pointer[string]
+}
+
+// connectedPath is the server's page for a login the browser handed over by
+// redirect. It is fixed here: the callback's query never chooses where the
+// browser goes next.
+const connectedPath = "/app/auth/cli/connected"
+
+// autoRedirectParam marks the login URL flyctl opens in a browser itself. The
+// server answers an approval on that URL by redirecting the browser to the
+// loopback callback, which only works when the browser is on this machine.
+const autoRedirectParam = "auto_redirect"
+
+// setServerURL records the origin the browser goes back to after a
+// redirected callback: the login URL's scheme and host, with connectedPath.
+func (p *pkceLogin) setServerURL(authURL string) {
+	u, err := url.Parse(authURL)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return
+	}
+
+	connected := (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: connectedPath}).String()
+	p.connectedURL.Store(&connected)
+}
+
+// withAutoRedirect adds autoRedirectParam to the login URL.
+func withAutoRedirect(authURL string) string {
+	u, err := url.Parse(authURL)
+	if err != nil {
+		return authURL
+	}
+
+	q := u.Query()
+	q.Set(autoRedirectParam, "1")
+	u.RawQuery = q.Encode()
+
+	return u.String()
 }
 
 func newPKCELogin(args map[string]any) (*pkceLogin, error) {
@@ -105,10 +148,20 @@ func (p *pkceLogin) serve(l net.Listener) {
 			return
 		}
 
+		once.Do(func() { p.codes <- pkceCode{code: q.Get("code"), fromHTTP: true} })
+
+		// The server adds return=1 when it redirected the browser here, as
+		// opposed to its page fetching this in the background: send the
+		// browser back to a page of the server's rather than leave it on a
+		// bare one of ours.
+		if connected := p.connectedURL.Load(); connected != nil && q.Get("return") == "1" {
+			http.Redirect(w, r, *connected, http.StatusSeeOther)
+
+			return
+		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, "<html><body><p>Signed in! You can close this tab and return to your terminal.</p></body></html>")
-
-		once.Do(func() { p.codes <- pkceCode{code: q.Get("code"), fromHTTP: true} })
 	})
 
 	p.server = &http.Server{Handler: mux}
