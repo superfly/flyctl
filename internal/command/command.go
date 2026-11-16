@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/internal/tracing"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -39,6 +38,7 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/internal/version"
 	"github.com/superfly/macaroon/flyio"
@@ -108,7 +108,7 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 	}
 
 	return func(cmd *cobra.Command, _ []string) (err error) {
-		ctx := cmd.Context()
+		ctx, inheritedTrace := tracing.ExtractProcessContext(cmd.Context())
 		ctx = NewContext(ctx, cmd)
 		ctx = flag.NewContext(ctx, cmd.Flags())
 
@@ -149,7 +149,20 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		}()
 
 		// run the command
-		if workflow := workflowCommand(cmd); workflow != "" {
+		workflow := workflowCommand(cmd)
+		if inheritedTrace {
+			ctx = tracing.WithDeployTrace(ctx)
+			// These commands (and the subprocess runner) own their trace provider.
+			commandPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+			switch commandPath {
+			case "deploy", "launch", "trace run":
+			default:
+				if workflow == "" {
+					workflow = "cmd." + strings.ReplaceAll(commandPath, " ", ".")
+				}
+			}
+		}
+		if workflow != "" {
 			err = tracing.RunWorkflow(ctx, workflow, appconfig.NameFromContext(ctx), fn)
 		} else {
 			err = fn(ctx)
