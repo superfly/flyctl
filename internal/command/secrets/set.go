@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
@@ -74,7 +75,7 @@ func runSet(ctx context.Context) (err error) {
 }
 
 func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets map[string]string, args DeploymentArgs) error {
-	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
+	if err := tracing.WorkflowPhase(ctx, "update_secrets", func(ctx context.Context) error { return appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil) }); err != nil {
 		return updateError(err)
 	}
 

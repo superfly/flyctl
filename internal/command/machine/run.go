@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"maps"
 	"math/rand"
 	"net/http"
@@ -419,13 +420,15 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, &determineMachineConfigInput{
-		initialMachineConf: *machineConf,
-		appName:            app.Name,
-		imageOrPath:        imageOrPath,
-		region:             input.Region,
-		updating:           false,
-		interact:           interact,
+	machineConf, err = tracing.WorkflowStep(ctx, "prepare_image", func(ctx context.Context) (*fly.MachineConfig, error) {
+		return determineMachineConfig(ctx, &determineMachineConfigInput{
+			initialMachineConf: *machineConf,
+			appName:            app.Name,
+			imageOrPath:        imageOrPath,
+			region:             input.Region,
+			updating:           false,
+			interact:           interact,
+		})
 	})
 	if err != nil {
 		return err
@@ -442,7 +445,7 @@ func runMachineRun(ctx context.Context) error {
 	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
-	machine, err := flapsClient.Launch(ctx, app.Name, input)
+	machine, err := tracing.WorkflowStep(ctx, "create_machine", func(ctx context.Context) (*fly.Machine, error) { return flapsClient.Launch(ctx, app.Name, input) })
 	if err != nil {
 		return machinelimit.WithRequestLink(ctx, fmt.Errorf("could not launch machine: %w", err), app.Organization.Slug)
 	}
@@ -474,7 +477,9 @@ func runMachineRun(ctx context.Context) error {
 
 	s.Start()
 	// wait for machine to be started
-	err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
+	err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
+		return mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
+	})
 	s.Stop()
 	if err != nil {
 		return err
