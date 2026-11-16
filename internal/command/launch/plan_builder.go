@@ -1060,14 +1060,7 @@ func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
 	clonedGuest := helpers.Clone(g)
 	c.MachineGuest = clonedGuest
 
-	// Canonicalize to human-readable memory strings when possible
-	var memStr string
-	if g.MemoryMB%1024 == 0 {
-		memStr = fmt.Sprintf("%dgb", g.MemoryMB/1024)
-	} else {
-		memStr = fmt.Sprintf("%dmb", g.MemoryMB)
-	}
-	c.Memory = memStr
+	c.Memory = memoryString(g.MemoryMB)
 	c.MemoryMB = 0
 
 	// Restore original values for fields the Web UI does not return
