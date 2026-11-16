@@ -17,6 +17,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// WaitVersion returns the value to send as the wait "version" when waiting for
+// a Machine to reach "stopped", which the Machines API requires. It falls back
+// to InstanceID when Version is empty, matching the pre-#4778 flaps behavior.
+func WaitVersion(m *fly.Machine) string {
+	if m.Version != "" {
+		return m.Version
+	}
+	return m.InstanceID
+}
+
 func WaitForState(ctx context.Context, appName string, machine *fly.Machine, desiredState string, timeout time.Duration) (string, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
@@ -61,7 +71,12 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Jitter: false,
 	}
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
+		waitOpts := []flaps.WaitOption{flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60 * time.Second)}
+		if waitOnAction == "stopped" {
+			// The Machines API requires the Machine version when waiting for "stopped".
+			waitOpts = append(waitOpts, flaps.WithWaitVersion(WaitVersion(machine)))
+		}
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
 		if err == nil {
 			return nil
 		}
