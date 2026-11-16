@@ -181,6 +181,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 
 			time.Sleep(5 * time.Second)
 		}
+
 		return nil
 	}); err != nil {
 		return err

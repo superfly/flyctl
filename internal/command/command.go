@@ -1005,5 +1005,6 @@ func workflowCommand(cmd *cobra.Command) string {
 	case "secrets set":
 		return "cmd.secrets.set"
 	}
+
 	return ""
 }

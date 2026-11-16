@@ -23,6 +23,7 @@ func RunWorkflow(ctx context.Context, name, app string, run func(context.Context
 	flush, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	_ = provider.Shutdown(flush)
+
 	return err
 }
 
@@ -35,6 +36,7 @@ func WorkflowStep[T any](ctx context.Context, name string, run func(context.Cont
 	ctx, span := CMDSpan(ctx, "workflow."+name)
 	result, err := run(ctx)
 	finishWorkflowSpan(span, err)
+
 	return result, err
 }
 
