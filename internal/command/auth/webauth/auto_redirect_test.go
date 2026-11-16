@@ -65,7 +65,7 @@ func TestPKCECallbackSendsANavigatingBrowserBack(t *testing.T) {
 }
 
 func TestSetServerURLIgnoresWhatItCannotUse(t *testing.T) {
-	for _, authURL := range []string{"", "not a url", "/app/auth/cli/sess1", "javascript:alert(1)", "ftp://fly.example/x"} {
+	for _, authURL := range []string{"", "not a url", "/app/auth/cli/sess1", "javascript:alert(1)", "ftp://fly.example/x", "http://fly.example/app/auth/cli/sess1"} {
 		p := &pkceLogin{}
 		p.setServerURL(authURL, "sess1")
 		if got := p.connectedURL.Load(); got != nil {
@@ -145,6 +145,16 @@ func TestWithAutoRedirectKeepsTheIssuedURL(t *testing.T) {
 	for in, want := range cases {
 		if got := withAutoRedirect(in); got != want {
 			t.Errorf("withAutoRedirect(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSetServerURLAllowsPlainHTTPOnlyLocally(t *testing.T) {
+	for _, authURL := range []string{"http://localhost:4000/app/auth/cli/sess1", "http://127.0.0.1:4000/app/auth/cli/sess1"} {
+		p := &pkceLogin{}
+		p.setServerURL(authURL, "sess1")
+		if p.connectedURL.Load() == nil {
+			t.Fatalf("setServerURL(%q) stored nothing", authURL)
 		}
 	}
 }

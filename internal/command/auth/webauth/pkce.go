@@ -61,7 +61,12 @@ const autoRedirectParam = "auto_redirect"
 // "connected" once that has happened.
 func (p *pkceLogin) setServerURL(authURL, sessionID string) {
 	u, err := url.Parse(authURL)
-	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+	if err != nil || u.Host == "" {
+		return
+	}
+	// Plain http only for a local development server: the redirect carries
+	// the session id.
+	if u.Scheme != "https" && (u.Scheme != "http" || !isLoopbackHost(u.Hostname())) {
 		return
 	}
 
@@ -71,6 +76,15 @@ func (p *pkceLogin) setServerURL(authURL, sessionID string) {
 	}
 	s := connected.String()
 	p.connectedURL.Store(&s)
+}
+
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+
+	return ip != nil && ip.IsLoopback()
 }
 
 // withAutoRedirect appends autoRedirectParam to the login URL, leaving the
