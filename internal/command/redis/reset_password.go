@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	genq "github.com/Khan/genqlient/graphql"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/gql"
@@ -40,6 +41,20 @@ func runReset(ctx context.Context) (err error) {
 
 	name := flag.FirstArg(ctx)
 
+	response, err := resetPassword(ctx, client, name)
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintf(out, "The password for your Redis database %s was reset.\n", name)
+	fmt.Fprintf(out, "Your new Redis connection URL is %s\n", colorize.Green(response.ResetAddOnPassword.AddOn.PublicUrl))
+
+	return
+}
+
+// resetPassword names the provider, as destroy and status do, so the reset
+// can't land on another kind of add-on with the same name.
+func resetPassword(ctx context.Context, client genq.Client, name string) (*gql.ResetAddOnPasswordResponse, error) {
 	_ = `# @genqlient
   mutation ResetAddOnPassword($name: String!, $provider: String) {
 		resetAddOnPassword(input: {name: $name, provider: $provider}) {
@@ -50,15 +65,5 @@ func runReset(ctx context.Context) (err error) {
   }
 	`
 
-	// Name the provider, as destroy and status do, so the reset can't land on
-	// another kind of add-on with the same name.
-	response, err := gql.ResetAddOnPassword(ctx, client, name, string(gql.AddOnTypeUpstashRedis))
-	if err != nil {
-		return
-	}
-
-	fmt.Fprintf(out, "The password for your Redis database %s was reset.\n", name)
-	fmt.Fprintf(out, "Your new Redis connection URL is %s\n", colorize.Green(response.ResetAddOnPassword.AddOn.PublicUrl))
-
-	return
+	return gql.ResetAddOnPassword(ctx, client, name, redisProvider)
 }
