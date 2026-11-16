@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	sprites "github.com/superfly/sprites-go"
@@ -138,7 +137,7 @@ func proxyPorts(ctx context.Context, sprite *sprites.Sprite, mappings []sprites.
 
 	forwards, err := sprite.ProxyPorts(ctx, mappings)
 	if err != nil {
-		if errors.Is(err, syscall.EADDRINUSE) {
+		if errors.Is(err, addrInUseErr) {
 			return flyerr.WithSuggestion(
 				fmt.Errorf("failed to start proxy: %w", err),
 				"A local port is already in use. Stop whatever is using it, including a 'fly sprites exec' or "+

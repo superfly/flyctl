@@ -332,3 +332,40 @@ func TestPersistAccessTokenForgetsSavedSpritesTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "new-login-token", saved)
 }
+
+func TestPersistAccessTokenWaitsForSpritesMint(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("FLY_CONFIG_DIR", dir)
+	ctx := state.WithConfigDirectory(t.Context(), dir)
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "old-login"))
+
+	// An old command is still waiting for its minted token. Login must wait
+	// until that token has been saved before clearing the previous state.
+	unlock, err := spritestate.LockMint(ctx, dir)
+	require.NoError(t, err)
+	defer unlock()
+	done := make(chan error, 1)
+	go func() { done <- persistAccessToken(ctx, "new-login") }()
+	select {
+	case err := <-done:
+		t.Fatalf("login did not wait for the in-flight mint: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	require.NoError(t, spritestate.Save(dir, &spritestate.State{
+		Tokens: map[string]string{spritestate.TokenKey("https://api.sprites.dev", "acme"): "old-login-sprite-token"},
+	}))
+	unlock()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("login did not finish after the mint released its lock")
+	}
+
+	require.NoFileExists(t, spritestate.Path(dir))
+	saved, err := config.ReadAccessToken(state.ConfigFile(ctx))
+	require.NoError(t, err)
+	require.Equal(t, "new-login", saved)
+}

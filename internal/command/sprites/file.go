@@ -126,7 +126,7 @@ func runFileEdit(ctx context.Context, s *session) error {
 		return fmt.Errorf("%s is a directory", target.path)
 	}
 
-	data, err := fsys.ReadFile(target.path)
+	data, err := readRemoteFile(ctx, fsys, target.path)
 	if err != nil {
 		return fmt.Errorf("failed to read %s: %w", target.path, err)
 	}
@@ -323,7 +323,11 @@ func runFilePush(ctx context.Context, s *session) error {
 
 		dest := target.path
 		if intoDir && (!info.IsDir() || len(sources) > 1) {
-			dest = path.Join(target.path, filepath.Base(filepath.Clean(source)))
+			base := filepath.Base(filepath.Clean(source))
+			if !safeTransferName(base) {
+				return fmt.Errorf("cannot copy %q into a directory: specify its resolved path", source)
+			}
+			dest = path.Join(target.path, base)
 		}
 
 		if !info.IsDir() {
@@ -516,7 +520,13 @@ func runFilePull(ctx context.Context, s *session) error {
 
 		dest := target
 		if intoDir && (!info.IsDir() || len(sources) > 1 || existingDir) {
-			dest = filepath.Join(target, path.Base(path.Clean(source.path)))
+			// Stat resolves relative names such as ".." on the sprite. Using
+			// the argument's basename here could escape the local target.
+			base := info.Name()
+			if !safeTransferName(base) {
+				return fmt.Errorf("cannot copy %q into a directory: specify its resolved path", source.path)
+			}
+			dest = filepath.Join(target, base)
 		}
 
 		if !info.IsDir() {
@@ -570,7 +580,7 @@ func pullDir(ctx context.Context, out io.Writer, fsys sprites.FS, remoteDir, loc
 	for _, entry := range entries {
 		// A remote name must not be able to place a file outside localDir.
 		name := entry.Name()
-		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		if !safeTransferName(name) {
 			return skipped, fmt.Errorf("refusing to copy remote entry with unsafe name %q", name)
 		}
 
@@ -615,6 +625,18 @@ type contextReader interface {
 	ReadFileContext(ctx context.Context, name string) ([]byte, error)
 }
 
+func safeTransferName(name string) bool {
+	return name != "." && filepath.IsLocal(name) && !strings.ContainsAny(name, `/\`)
+}
+
+func readRemoteFile(ctx context.Context, fsys sprites.FS, name string) ([]byte, error) {
+	if cr, ok := fsys.(contextReader); ok {
+		return cr.ReadFileContext(ctx, name)
+	}
+
+	return fsys.ReadFile(name)
+}
+
 func pullFile(ctx context.Context, out io.Writer, fsys sprites.FS, remote, local string, mode fs.FileMode) error {
 	// Stop between files when interrupted, and mid-download where the SDK
 	// allows it.
@@ -627,11 +649,7 @@ func pullFile(ctx context.Context, out io.Writer, fsys sprites.FS, remote, local
 		err  error
 	)
 
-	if cr, ok := fsys.(contextReader); ok {
-		data, err = cr.ReadFileContext(ctx, remote)
-	} else {
-		data, err = fsys.ReadFile(remote)
-	}
+	data, err = readRemoteFile(ctx, fsys, remote)
 
 	if err != nil {
 		return fmt.Errorf("failed to download %s: %w", remote, err)

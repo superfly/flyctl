@@ -87,13 +87,17 @@ func newEnv(t *testing.T, cmd *cobra.Command, args ...string) *testEnv {
 	ios, in, out, errOut := iostreams.Test()
 
 	e := &testEnv{ios: ios, in: in, out: out, errOut: errOut, workDir: t.TempDir(), configDir: t.TempDir()}
+	// config's legacy lock path is relative until flyctl.InitConfig runs.
+	t.Chdir(e.workDir)
+	t.Setenv("FLY_CONFIG_DIR", e.configDir)
+	require.NoError(t, os.WriteFile(filepath.Join(e.configDir, config.FileName), []byte("access_token: fm2_test-macaroon\n"), 0o600))
 
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, ios)
 	ctx = flag.NewContext(ctx, cmd.Flags())
 	ctx = state.WithWorkingDirectory(ctx, e.workDir)
 	ctx = state.WithConfigDirectory(ctx, e.configDir)
-	ctx = config.NewContext(ctx, &config.Config{Tokens: tokens.Parse("fm2_test-macaroon")})
+	ctx = config.NewContext(ctx, &config.Config{Tokens: tokens.ParseFromFile("fm2_test-macaroon", state.ConfigFile(ctx))})
 	e.ctx = ctx
 
 	return e
@@ -749,12 +753,15 @@ func TestParseFileSpecs(t *testing.T) {
 	require.NoError(t, err)
 
 	want := []fileSpec{{source: "./a.txt", dest: "/tmp/a.txt"}, {source: "a", dest: "/tmp/a"}}
+	assert.Equal(t, want, got)
+
 	if runtime.GOOS == "windows" {
-		// There, a letter and a colon before a slash is a drive.
-		_, err = parseFileSpecs([]string{`C:\work\app.conf:/etc/app.conf`})
+		got, err = parseFileSpecs([]string{`C:\work\app.conf:/etc/app.conf`, `C:/work/app.conf:/etc/app.conf`})
 		require.NoError(t, err)
-	} else {
-		assert.Equal(t, want, got)
+		assert.Equal(t, []fileSpec{
+			{source: `C:\work\app.conf`, dest: "/etc/app.conf"},
+			{source: "C:/work/app.conf", dest: "/etc/app.conf"},
+		}, got)
 	}
 
 	for _, bad := range []string{"nodest", ":dest", "src:"} {

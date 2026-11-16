@@ -253,6 +253,12 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 func persistAccessToken(ctx context.Context, token string) (err error) {
 	path := state.ConfigFile(ctx)
 
+	unlock, err := spritestate.LockMint(ctx, state.ConfigDirectory(ctx))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	// Sprites API tokens saved by an earlier login belong to that login, which
 	// may have been a different user.
 	if err = spritestate.Clear(state.ConfigDirectory(ctx)); err != nil {

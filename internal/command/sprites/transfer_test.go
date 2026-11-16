@@ -303,6 +303,37 @@ func TestFilePullSkipsUnreadableEntries(t *testing.T) {
 	assert.Contains(t, e.out.String(), "skipping /srv/app/loop")
 }
 
+func TestFilePullParentPathStaysInsideDestination(t *testing.T) {
+	api := newSpritesAPI(t)
+	api.addSprite("dev").putFile("/home/victim.txt", "remote replacement", "0644")
+	root := t.TempDir()
+	target := filepath.Join(root, "backup")
+	require.NoError(t, os.Mkdir(target, 0o755))
+	victim := filepath.Join(root, "victim.txt")
+	require.NoError(t, os.WriteFile(victim, []byte("local contents"), 0o644))
+
+	e := newEnv(t, newFilePull(), "--sprite", "dev", "-r", "..", target)
+	require.NoError(t, runFilePull(e.ctx, api.session()))
+	data, err := os.ReadFile(victim)
+	require.NoError(t, err)
+	assert.Equal(t, "local contents", string(data))
+	data, err = os.ReadFile(filepath.Join(target, "home", "victim.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "remote replacement", string(data))
+}
+
+func TestFilePushRejectsEscapingSourceName(t *testing.T) {
+	root := localTree(t, map[string]string{"a.txt": "A", "sub/b.txt": "B"})
+	api := newSpritesAPI(t)
+	sp := api.addSprite("dev")
+	sp.dirs["/tmp/uploads"] = true
+
+	e := newEnv(t, newFilePush(), "--sprite", "dev", "-r", "..", "b.txt", "/tmp/uploads")
+	t.Chdir(filepath.Join(root, "sub"))
+	require.ErrorContains(t, runFilePush(e.ctx, api.session()), "specify its resolved path")
+	assert.Empty(t, sp.files, "no files may be uploaded outside the requested destination")
+}
+
 func TestFilePullStopsWhenInterrupted(t *testing.T) {
 	api := newSpritesAPI(t)
 	sp := api.addSprite("dev")

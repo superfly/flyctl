@@ -201,10 +201,7 @@ func newSession(ctx context.Context) (*session, error) {
 	s.Client = sprites.New(s.Token,
 		sprites.WithBaseURL(s.APIURL),
 		sprites.WithDisableControl(),
-		// The SDK's own client gives every request 30 seconds in total, which
-		// a large file transfer outlasts. This one has no overall limit;
-		// requests are bounded by the command's context instead.
-		sprites.WithHTTPClient(cleanhttp.DefaultPooledClient()),
+		sprites.WithHTTPClient(sessionHTTPClient(ctx)),
 	)
 
 	return s, nil
@@ -264,6 +261,18 @@ func resolveOrg(ctx context.Context) (string, error) {
 		slug = org.Slug
 	}
 
+	unlock, err := spritestate.LockMint(ctx, configDir)
+	if err != nil {
+		return "", err
+	}
+	defer unlock()
+
+	if !hasExternalFlyToken(ctx) {
+		if err := checkSavedLogin(ctx); err != nil {
+			return "", err
+		}
+	}
+
 	err = spritestate.Update(ctx, configDir, func(st *spritestate.State) { st.DefaultOrg = slug })
 	if err != nil {
 		return "", fmt.Errorf("failed to save the default organization: %w", err)
@@ -305,6 +314,13 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 		toks = tokens.Parse("")
 	}
 
+	if len(toks.GetMacaroonTokens()) == 0 {
+		return "", false, flyerr.WithSuggestion(
+			errors.New("sprites commands need a Fly.io login token"),
+			"Run 'fly auth login', or set "+tokenEnv+" to a Sprites API token.",
+		)
+	}
+
 	// Saved tokens were minted from the saved login. A Fly.io token supplied
 	// for this run, with --access-token or the environment, may be another
 	// user's or a deliberately limited one, so it neither reads nor adds to
@@ -313,33 +329,23 @@ func resolveToken(ctx context.Context, apiURL, org string) (token string, cached
 
 	configDir := state.ConfigDirectory(ctx)
 
-	st, err := spritestate.Load(configDir)
-	if err != nil {
-		return "", false, err
-	}
-
 	key := spritestate.TokenKey(apiURL, org)
-	if token := st.Tokens[key]; token != "" && saved {
-		return token, true, nil
-	}
-
-	if len(toks.GetMacaroonTokens()) == 0 {
-		return "", false, flyerr.WithSuggestion(
-			errors.New("sprites commands need a Fly.io login token"),
-			"Run 'fly auth login', or set "+tokenEnv+" to a Sprites API token.",
-		)
-	}
 
 	if saved {
-		// Sprites commands started together would otherwise each mint a
-		// token. Take turns, and use the one a neighbour just saved.
+		// Login and logout take the same lock. Validate the prepared login
+		// after acquiring it, before reading or writing any cached token.
 		unlock, err := spritestate.LockMint(ctx, configDir)
 		if err != nil {
 			return "", false, err
 		}
 		defer unlock()
 
-		if st, err = spritestate.Load(configDir); err != nil {
+		if err := checkSavedLogin(ctx); err != nil {
+			return "", false, err
+		}
+
+		st, err := spritestate.Load(configDir)
+		if err != nil {
 			return "", false, err
 		}
 
@@ -385,9 +391,84 @@ func hasExternalFlyToken(ctx context.Context) bool {
 
 // forgetToken drops the saved token for the session's organization.
 func forgetToken(ctx context.Context, s *session) error {
+	unlock, err := spritestate.LockMint(ctx, state.ConfigDirectory(ctx))
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	if err := checkSavedLogin(ctx); err != nil {
+		return err
+	}
+
 	return spritestate.Update(ctx, state.ConfigDirectory(ctx), func(st *spritestate.State) {
-		delete(st.Tokens, spritestate.TokenKey(s.APIURL, s.Org))
+		key := spritestate.TokenKey(s.APIURL, s.Org)
+		if st.Tokens[key] == s.Token {
+			delete(st.Tokens, key)
+		}
 	})
+}
+
+// checkSavedLogin must be called while holding LockMint. An older command
+// must not inherit a newer login's cached credentials, or save its own after
+// that login has cleared the cache. Discharge refreshes keep the OAuth token.
+func checkSavedLogin(ctx context.Context) error {
+	saved, err := config.ReadAccessToken(state.ConfigFile(ctx))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to read the saved login: %w", err)
+	}
+
+	current := tokens.Parse(saved)
+	prepared := config.Tokens(ctx)
+	if prepared == nil {
+		prepared = tokens.Parse("")
+	}
+
+	if len(current.GetUserTokens()) > 0 || len(prepared.GetUserTokens()) > 0 {
+		current, prepared = current.UserTokenOnly(), prepared.UserTokenOnly()
+	}
+
+	// Equal also compares the file provenance, which differs between the
+	// freshly parsed disk value and config.Load's ParseFromFile value.
+	if current.All() != prepared.All() {
+		return errors.New("the saved Fly.io login changed; run the sprites command again")
+	}
+
+	return nil
+}
+
+// sessionHTTPClient lets large transfers run until canceled. The SDK uses a
+// background context for Stat, ReadDir and ReadFile, so those requests inherit
+// the command's context here. Explicit contexts, including exec's interrupt
+// grace period, retain their own lifetime.
+func sessionHTTPClient(ctx context.Context) *http.Client {
+	return &http.Client{Transport: &sessionTransport{ctx: ctx, base: cleanhttp.DefaultPooledTransport()}}
+}
+
+type sessionTransport struct {
+	ctx  context.Context
+	base http.RoundTripper
+}
+
+func (t *sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Context().Done() == nil {
+		req = req.Clone(t.ctx)
+	}
+
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// The SDK's filesystem drops status codes from structured error bodies.
+	// Preserve this one before it does, so withSession can replace the token.
+	if resp.StatusCode == http.StatusUnauthorized {
+		_ = resp.Body.Close()
+
+		return nil, &sprites.APIError{StatusCode: resp.StatusCode, Message: "authentication failed"}
+	}
+
+	return resp, nil
 }
 
 // errNoSprite is returned when nothing names the sprite to act on.

@@ -287,7 +287,7 @@ func parseFileSpecs(values []string) ([]fileSpec, error) {
 	for _, value := range values {
 		// Skip the colon of a Windows drive letter, as in C:\dir\file:/dest.
 		skip := 0
-		if runtime.GOOS == "windows" && len(value) > 2 && value[1] == ':' &&
+		if runtime.GOOS == "windows" && len(value) > 2 && value[1] == ':' && strings.Contains(value[2:], ":") &&
 			(value[2] == '\\' || value[2] == '/') && isLetter(value[0]) {
 			skip = 2
 		}

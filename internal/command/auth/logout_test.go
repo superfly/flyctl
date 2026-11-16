@@ -224,10 +224,12 @@ func TestRunLogoutRevokesSpritesTokens(t *testing.T) {
 		},
 	}))
 
-	ctx, _, stderr := logoutTestContext(t, dir, logoutTestServer(t, `{"data":{}}`).URL, false)
+	ctx, _, stderr := logoutTestContext(t, dir, logoutTestServer(t, `{"data":{"logOut":{"ok":true}}}`).URL, false)
 
 	// The login being ended is what can revoke the Sprites tokens.
-	config.FromContext(ctx).Tokens = tokens.Parse("fm2_login")
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "fm2_login"))
+	// An override from another user must not authenticate the revocations.
+	config.FromContext(ctx).Tokens = tokens.Parse("fm2_other-user")
 
 	require.NoError(t, runLogout(ctx))
 

@@ -133,8 +133,10 @@ func Update(ctx context.Context, configDir string, fn func(*State)) error {
 	return Save(configDir, st)
 }
 
-// LockMint serializes minting tokens across processes. It is a separate lock
-// from the one Update takes, so holding it does not block saving state.
+// LockMint serializes cached token reads and minting with login and logout.
+// A login change holds it through both clearing state and saving the login,
+// so an in-flight mint cannot repopulate state after it has been cleared.
+// It is separate from Update's lock, allowing the holder to save state.
 func LockMint(ctx context.Context, configDir string) (unlock func(), err error) {
 	unlock, err = lock(ctx, Path(configDir)+".mint.lock", mintWait)
 	if err != nil {
