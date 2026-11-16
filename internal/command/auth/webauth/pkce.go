@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -47,11 +49,43 @@ type pkceLogin struct {
 	// origin, hence the atomic.
 	connectedURL atomic.Pointer[string]
 
-	// callbackOpen is true while the listener will take a code from the
-	// callback. It closes when one is taken and reopens if redeeming that code
-	// fails, so the code page shown on approving again can still send its
-	// code here rather than leave it to be pasted.
-	callbackOpen atomic.Bool
+	// mu guards held and spare. held is set while a code from the callback
+	// is with the terminal. A callback that arrives meanwhile, such as the
+	// code page's "Send to terminal" after approving again, is kept as spare
+	// and tried if the held code fails: that page can't tell whether we took
+	// its code, so dropping it would leave the user thinking it was sent.
+	mu    sync.Mutex
+	held  bool
+	spare *pkceCode
+}
+
+// hold claims the callback slot for a code. When a code is already held it
+// keeps this one as the spare instead and reports false.
+func (p *pkceLogin) hold(code pkceCode) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.held {
+		p.spare = &code
+
+		return false
+	}
+	p.held = true
+
+	return true
+}
+
+// release is called when the held code was not used. It returns the spare
+// to try next, which keeps the slot held, or frees the slot.
+func (p *pkceLogin) release() *pkceCode {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	next := p.spare
+	p.spare = nil
+	p.held = next != nil
+
+	return next
 }
 
 // connectedPath is the server's page for a login the browser handed over by
@@ -67,16 +101,17 @@ const autoRedirectParam = "auto_redirect"
 // setServerURL records where the browser goes after a redirected callback:
 // the login URL's scheme and host, with connectedPath. The session id lets
 // that page watch for this process redeeming the code, so it only says
-// "connected" once that has happened.
-func (p *pkceLogin) setServerURL(authURL, sessionID string) {
+// "connected" once that has happened. It reports whether it stored one; a
+// login URL it can't use leaves nowhere to send the browser.
+func (p *pkceLogin) setServerURL(authURL, sessionID string) bool {
 	u, err := url.Parse(authURL)
 	if err != nil || u.Host == "" {
-		return
+		return false
 	}
 	// Plain http only for a local development server: the redirect carries
 	// the session id.
 	if u.Scheme != "https" && (u.Scheme != "http" || !isLoopbackHost(u.Hostname())) {
-		return
+		return false
 	}
 
 	connected := &url.URL{Scheme: u.Scheme, Host: u.Host, Path: connectedPath}
@@ -85,6 +120,20 @@ func (p *pkceLogin) setServerURL(authURL, sessionID string) {
 	}
 	s := connected.String()
 	p.connectedURL.Store(&s)
+
+	return true
+}
+
+// redirectURL returns the login URL to open asking for the redirect, and
+// arms the redirect back, or "" when it can't do both. A marker without
+// somewhere to send the browser afterwards would strand it on our bare page.
+func (p *pkceLogin) redirectURL(authURL, sessionID string) string {
+	marked, added := withAutoRedirect(authURL)
+	if !added || !p.setServerURL(authURL, sessionID) {
+		return ""
+	}
+
+	return marked
 }
 
 func isLoopbackHost(host string) bool {
@@ -138,7 +187,6 @@ func newPKCELogin(args map[string]any) (*pkceLogin, error) {
 		state:    state,
 		codes:    make(chan pkceCode, 1),
 	}
-	p.callbackOpen.Store(true)
 
 	// Binding the loopback listener is best-effort: without it the login is
 	// paste-only, and the caller refuses to start when there is no terminal
@@ -183,7 +231,7 @@ func (p *pkceLogin) serve(l net.Listener) {
 		}
 
 		q := r.URL.Query()
-		if q.Get("state") != p.state || q.Get("code") == "" {
+		if subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(p.state)) != 1 || q.Get("code") == "" {
 			http.Error(w, "invalid callback", http.StatusBadRequest)
 
 			return
@@ -194,20 +242,23 @@ func (p *pkceLogin) serve(l net.Listener) {
 		connected := p.connectedURL.Load()
 		redirected := connected != nil && q.Get("return") == "1"
 
-		if !p.callbackOpen.CompareAndSwap(true, false) {
-			// A code is already with the terminal. Don't send this browser to
-			// the connected page: that page waits for this code to be
-			// redeemed, and it never will be.
+		code := pkceCode{code: q.Get("code"), fromHTTP: true, redirected: redirected}
+		if !p.hold(code) {
+			// The terminal is already trying a code; this one is kept in case
+			// that fails. Don't send this browser to the connected page,
+			// which would wait on a code that may never be tried.
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, "<html><body><p>Your terminal already has a code from this login. Return to your terminal to see how it went.</p></body></html>")
+			fmt.Fprint(w, "<html><body><p>Your terminal is already signing in with a code from this login. Return to your terminal to see how it went.</p></body></html>")
 
 			return
 		}
 
 		select {
-		case p.codes <- pkceCode{code: q.Get("code"), fromHTTP: true, redirected: redirected}:
+		case p.codes <- code:
 		case <-r.Context().Done():
-			p.callbackOpen.Store(true)
+			if next := p.release(); next != nil {
+				go p.deliver(r.Context(), *next)
+			}
 
 			return
 		}
@@ -226,6 +277,14 @@ func (p *pkceLogin) serve(l net.Listener) {
 
 	p.server = &http.Server{Handler: mux}
 	go p.server.Serve(l) //nolint:errcheck // closed via Shutdown
+}
+
+// deliver hands a kept code to the waiting loop.
+func (p *pkceLogin) deliver(ctx context.Context, code pkceCode) {
+	select {
+	case p.codes <- code:
+	case <-ctx.Done():
+	}
 }
 
 func (p *pkceLogin) close() {
@@ -325,8 +384,11 @@ func waitForPKCEToken(parent context.Context, io *iostreams.IOStreams, log *logg
 					return "", fmt.Errorf("failed to redeem the login code (%w). Run `fly auth login` again", err)
 				}
 				if attempt.fromHTTP {
-					// Let approving again in the browser hand over a new code.
-					p.callbackOpen.Store(true)
+					// Try a code that arrived meanwhile, or let the next
+					// callback hand one over.
+					if next := p.release(); next != nil {
+						go p.deliver(ctx, *next)
+					}
 				}
 				if attempt.redirected {
 					// The browser was handed the code without showing it. The

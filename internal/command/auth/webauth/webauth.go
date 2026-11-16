@@ -128,6 +128,9 @@ var goos = runtime.GOOS
 var remoteSessionEnv = []string{
 	"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY",
 	"CODESPACES", "REMOTE_CONTAINERS",
+	// WSL opens the browser on Windows, whose 127.0.0.1 reaches this
+	// listener only while localhost forwarding is on.
+	"WSL_DISTRO_NAME", "WSL_INTEROP",
 	"GITPOD_WORKSPACE_ID", "CODER", "DEVPOD",
 }
 
@@ -222,10 +225,8 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	if auth.PKCE && pkce.port != 0 && !headless {
 		if remote, why := remoteSession(); remote {
 			logger.Debugf("not asking for the login redirect: %s", why)
-		} else if marked, added := withAutoRedirect(auth.URL); added {
+		} else if marked := pkce.redirectURL(auth.URL, auth.ID); marked != "" {
 			openURL = marked
-			// Only a login that asked for the redirect sends the browser back.
-			pkce.setServerURL(auth.URL, auth.ID)
 		}
 	}
 

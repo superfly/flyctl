@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -46,7 +45,7 @@ func TestPKCECallbackSendsANavigatingBrowserBack(t *testing.T) {
 		default:
 			t.Fatal("the callback delivered no code")
 		}
-		p.callbackOpen.Store(true)
+		p.release()
 	}
 
 	// Until the server has named its origin there is nowhere to send it.
@@ -101,6 +100,7 @@ func TestRunWebLoginMarksOnlyTheURLItOpens(t *testing.T) {
 		{name: "over SSH", terminal: true, env: "SSH_CONNECTION"},
 		{name: "in a codespace", terminal: true, env: "CODESPACES"},
 		{name: "in Gitpod", terminal: true, env: "GITPOD_WORKSPACE_ID"},
+		{name: "in WSL", terminal: true, env: "WSL_DISTRO_NAME"},
 		{name: "with a forwarding BROWSER", terminal: true, env: "BROWSER"},
 		{name: "without a terminal", terminal: false},
 	}
@@ -209,7 +209,7 @@ func TestRemoteSessionOnLinuxNeedsADisplay(t *testing.T) {
 	}
 }
 
-func TestPKCECallbackTakesAFreshCodeAfterAFailedOne(t *testing.T) {
+func TestPKCECallbackKeepsACodeThatArrivesWhileOneIsHeld(t *testing.T) {
 	p, err := newPKCELogin(map[string]any{})
 	if err != nil {
 		t.Fatal(err)
@@ -217,8 +217,8 @@ func TestPKCECallbackTakesAFreshCodeAfterAFailedOne(t *testing.T) {
 	defer p.close()
 	p.setServerURL("https://fly.example/app/auth/cli/sess1", "sess1")
 
-	callback := func(code string) string {
-		return fmt.Sprintf("http://127.0.0.1:%d/callback?code=%s&state=%s&return=1", p.port, code, url.QueryEscape(p.state))
+	callback := func(code, extra string) string {
+		return fmt.Sprintf("http://127.0.0.1:%d/callback?code=%s&state=%s%s", p.port, code, url.QueryEscape(p.state), extra)
 	}
 	get := func(rawURL string) int {
 		t.Helper()
@@ -231,16 +231,17 @@ func TestPKCECallbackTakesAFreshCodeAfterAFailedOne(t *testing.T) {
 		return res.StatusCode
 	}
 
-	if status := get(callback("first")); status != http.StatusSeeOther {
+	if status := get(callback("first", "&return=1")); status != http.StatusSeeOther {
 		t.Fatalf("first callback: expected 303, got %d", status)
 	}
 	if got := <-p.codes; got.code != "first" || !got.redirected {
 		t.Fatalf("first callback delivered %+v", got)
 	}
 
-	// While the terminal holds a code, another callback is neither taken nor
-	// sent to the connected page, which would wait for it forever.
-	if status := get(callback("second")); status != http.StatusOK {
+	// The code page's "Send to terminal" while the first code is being
+	// redeemed: kept, not handed over yet, and not sent to the connected
+	// page, which would wait on a code that may never be tried.
+	if status := get(callback("second", "")); status != http.StatusOK {
 		t.Fatalf("callback while a code is held: expected 200, got %d", status)
 	}
 	select {
@@ -249,13 +250,39 @@ func TestPKCECallbackTakesAFreshCodeAfterAFailedOne(t *testing.T) {
 	default:
 	}
 
-	// Redeeming failed: approving again hands over a new code.
-	p.callbackOpen.Store(true)
-	if status := get(callback("third")); status != http.StatusSeeOther {
+	// The first code failed: the kept one is next, and the slot stays held.
+	next := p.release()
+	if next == nil || next.code != "second" || next.redirected {
+		t.Fatalf("expected the kept code next, got %+v", next)
+	}
+
+	// That failed too, with nothing kept: the next callback is taken.
+	if next := p.release(); next != nil {
+		t.Fatalf("expected nothing kept, got %+v", next)
+	}
+	if status := get(callback("third", "&return=1")); status != http.StatusSeeOther {
 		t.Fatalf("callback after a failure: expected 303, got %d", status)
 	}
 	if got := <-p.codes; got.code != "third" {
 		t.Fatalf("callback after a failure delivered %+v", got)
+	}
+}
+
+func TestRedirectURLNeedsSomewhereToSendTheBrowser(t *testing.T) {
+	for authURL, want := range map[string]string{
+		"https://fly.example/app/auth/cli/sess1": "https://fly.example/app/auth/cli/sess1?auto_redirect=1",
+		// The redirect back can't be armed, so don't ask for the redirect.
+		"http://staging.fly.example/app/auth/cli/sess1": "",
+		// The server already said something about it.
+		"https://fly.example/app/auth/cli/sess1?auto_redirect=0": "",
+	} {
+		p := &pkceLogin{}
+		if got := p.redirectURL(authURL, "sess1"); got != want {
+			t.Errorf("redirectURL(%q) = %q, want %q", authURL, got, want)
+		}
+		if armed := p.connectedURL.Load() != nil; armed != (want != "") {
+			t.Errorf("redirectURL(%q): redirect back armed = %v", authURL, armed)
+		}
 	}
 }
 
@@ -288,7 +315,7 @@ func TestRunWebLoginRecoversFromAFailedRedirectedCode(t *testing.T) {
 
 	s.mu.Lock()
 	callback := func(code string) string {
-		return fmt.Sprintf("http://127.0.0.1:%v/callback?code=%s&state=%s&return=1", s.args["redirect_port"], code, url.QueryEscape(fmt.Sprint(s.args["state"])))
+		return fmt.Sprintf("http://127.0.0.1:%v/callback?code=%s&state=%s", s.args["redirect_port"], code, url.QueryEscape(fmt.Sprint(s.args["state"])))
 	}
 	s.mu.Unlock()
 
@@ -304,21 +331,15 @@ func TestRunWebLoginRecoversFromAFailedRedirectedCode(t *testing.T) {
 	}
 
 	// The server rejects this code, as if redeeming it had failed.
-	if got := status(callback("wrong")); got != http.StatusSeeOther {
+	if got := status(callback("wrong") + "&return=1"); got != http.StatusSeeOther {
 		t.Fatalf("first callback: expected 303, got %d", got)
 	}
 
-	// Approving again in the browser is redirected here once more. Until the
-	// failure is processed the listener is still holding the first code.
-	for {
-		if got := status(callback("the-code")); got == http.StatusSeeOther {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatal("the listener never took a second code")
-		case <-time.After(20 * time.Millisecond):
-		}
+	// Approving again shows the code page, whose "Send to terminal" may
+	// arrive before or after the failure is processed: either way the
+	// terminal signs in with it.
+	if got := status(callback("the-code")); got != http.StatusOK {
+		t.Fatalf("second callback: expected 200, got %d", got)
 	}
 
 	if r := awaitLogin(t, ctx, done); r.err != nil || r.token != "tok123" {
