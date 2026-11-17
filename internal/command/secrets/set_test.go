@@ -5,9 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/requestauth/authtest"
@@ -16,6 +18,10 @@ import (
 )
 
 func TestSecretUpdateAndAppRefreshUseResolvedOrg(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	previous := viper.Get(flyctl.ConfigAppSecretsMinvers)
+	t.Cleanup(func() { viper.Set(flyctl.ConfigAppSecretsMinvers, previous) })
 	check := authtest.Organization(t, 7)
 	stop := errors.New("stop after app refresh")
 	app := &flaps.App{Name: "test-app", Organization: flaps.AppOrganizationInfo{InternalNumericID: 7}}
@@ -33,7 +39,7 @@ func TestSecretUpdateAndAppRefreshUseResolvedOrg(t *testing.T) {
 	}
 	ios, _, _, _ := iostreams.Test()
 	ctx := iostreams.NewContext(t.Context(), ios)
-	ctx = state.WithConfigDirectory(ctx, t.TempDir())
+	ctx = state.WithConfigDirectory(ctx, dir)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
 	require.ErrorIs(t, SetSecretsAndDeploy(ctx, client, app, map[string]string{"KEY": "test"}, DeploymentArgs{}), stop)
 }
