@@ -334,17 +334,14 @@ func TestScannerCreateSecretsWithoutApp(t *testing.T) {
 }
 
 // fakeGenqClient answers every GraphQL request with data, or fails with err.
-type fakeGenqClient struct {
-	data string
-	err  error
-}
+func fakeGenqClient(data string, err error) genq.Client {
+	return mock.GraphQLClient(func(_ context.Context, _ *genq.Request, resp *genq.Response) error {
+		if err != nil {
+			return err
+		}
 
-func (c fakeGenqClient) MakeRequest(_ context.Context, _ *genq.Request, resp *genq.Response) error {
-	if c.err != nil {
-		return c.err
-	}
-
-	return json.Unmarshal([]byte(c.data), resp.Data)
+		return json.Unmarshal([]byte(data), resp.Data)
+	})
 }
 
 // The deploy token for GitHub Actions is made after the app exists. A token
@@ -438,13 +435,10 @@ func TestSetupGitHubActionsToken(t *testing.T) {
 					if tc.cancel {
 						cancel()
 
-						return fakeGenqClient{err: context.Canceled}
+						return fakeGenqClient("", context.Canceled)
 					}
 
-					return fakeGenqClient{
-						data: `{"createLimitedAccessToken":{"limitedAccessToken":{"tokenHeader":"` + token + `"}}}`,
-						err:  tc.genqErr,
-					}
+					return fakeGenqClient(`{"createLimitedAccessToken":{"limitedAccessToken":{"tokenHeader":"`+token+`"}}}`, tc.genqErr)
 				},
 			})
 

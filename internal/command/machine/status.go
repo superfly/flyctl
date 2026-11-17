@@ -143,6 +143,15 @@ func runMachineStatus(ctx context.Context) (err error) {
 		obj[0] = append(obj[0], mConfig.Mounts[0].Volume)
 	}
 
+	if disk := mConfig.CacheDrive; disk != nil && disk.SizeMB > 0 {
+		cols = append(cols, "Cache Disk Size", "Cache Disk Path")
+		target := disk.Path
+		if target == "" {
+			target = "raw device"
+		}
+		obj[0] = append(obj[0], fmt.Sprintf("%d MiB", disk.SizeMB), target)
+	}
+
 	if err = render.VerticalTable(io.Out, "VM", obj, cols...); err != nil {
 		return
 	}

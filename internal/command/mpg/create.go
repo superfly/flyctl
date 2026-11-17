@@ -50,8 +50,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Int{
 			Name:        "volume-size",
-			Description: "Initial volume size in GB",
-			Default:     10,
+			Description: "Initial volume size in GB. Defaults to the plan's size.",
 		},
 		flag.Bool{
 			Name:        "enable-postgis-support",
@@ -127,6 +126,9 @@ func runCreate(ctx context.Context) error {
 			}
 			var planEntries []planEntry
 			for k, v := range MPGPlans {
+				if v.Hidden {
+					continue
+				}
 				planEntries = append(planEntries, planEntry{Key: k, Value: v})
 			}
 			// Sort by price
@@ -161,8 +163,13 @@ func runCreate(ctx context.Context) error {
 		OrgSlug:        slug,
 		Plan:           plan,
 		PGMajorVersion: pgMajorVersion,
-		StorageInGb:    flag.GetInt(ctx, "volume-size"),
 		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),
+	}
+
+	// Without --volume-size no size is sent, so the API gives the cluster
+	// its plan's own default disk size.
+	if flag.IsSpecified(ctx, "volume-size") {
+		params.StorageInGb = flag.GetInt(ctx, "volume-size")
 	}
 
 	planDetails := MPGPlans[plan]
@@ -189,15 +196,19 @@ func planKey(name string) (string, bool) {
 	return "", false
 }
 
-// planNames lists the plans cheapest first, as --plan's help does.
+// planNames lists the plans that aren't hidden, cheapest first, as --plan's
+// help does.
 func planNames() string {
 	keys := slices.SortedFunc(maps.Keys(MPGPlans), func(a, b string) int {
 		return cmp.Compare(MPGPlans[a].PricePerMo, MPGPlans[b].PricePerMo)
 	})
 
-	names := make([]string, len(keys))
-	for i, key := range keys {
-		names[i] = MPGPlans[key].Name
+	names := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if MPGPlans[key].Hidden {
+			continue
+		}
+		names = append(names, MPGPlans[key].Name)
 	}
 
 	return strings.Join(names, ", ")

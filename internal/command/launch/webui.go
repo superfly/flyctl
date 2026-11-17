@@ -184,7 +184,6 @@ outer:
 	return nil
 }
 
-// TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (session fly.CLISession, err error) {
 	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for launch UI session: %w", context.DeadlineExceeded))
 	defer cancel()
@@ -208,8 +207,12 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 		s.FinalMSG = "Waiting for launch data... Done\n"
 		s.Stop()
 
-		break
+		return session, nil
 	}
 
-	return
+	// The last poll's error is the API's "not found" for a session nobody has
+	// confirmed yet. Report why the wait ended instead.
+	s.Stop()
+
+	return fly.CLISession{}, context.Cause(ctx)
 }
