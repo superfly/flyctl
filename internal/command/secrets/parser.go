@@ -34,8 +34,9 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 			}
 			key = strings.TrimSpace(key)
 			value = strings.TrimLeft(value, " ")
-			l, _, ok := strings.Cut(value, "#")
-			if ok && strings.Count(l, `"`)%2 == 0 {
+			if quoted, ok := cutQuotedComment(value); ok {
+				value = quoted
+			} else if l, _, ok := strings.Cut(value, "#"); ok && strings.Count(l, `"`)%2 == 0 {
 				value = strings.TrimRight(l, " ")
 			}
 
@@ -83,4 +84,23 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 	}
 
 	return secrets, nil
+}
+
+// cutQuotedComment returns a value that starts with a quote up to its closing
+// quote, when only spaces or a "# comment" follow it, so a "#" inside the
+// quotes is kept.
+func cutQuotedComment(value string) (string, bool) {
+	if len(value) < 2 || (value[0] != '"' && value[0] != '\'') {
+		return "", false
+	}
+	end := strings.IndexByte(value[1:], value[0])
+	if end < 0 {
+		return "", false
+	}
+	quoted, rest := value[:end+2], strings.TrimLeft(value[end+2:], " ")
+	if rest != "" && !strings.HasPrefix(rest, "#") {
+		return "", false
+	}
+
+	return quoted, true
 }
