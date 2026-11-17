@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"net/netip"
+	"strconv"
 	"sync"
 
 	"github.com/miekg/dns"
@@ -21,6 +22,10 @@ import (
 )
 
 const DefaultTokenGateway = "gateway.machines.dev"
+
+// tokenGatewayUDPPort is where a token gateway's direct IP takes WireGuard.
+// A variable so tests can point it at a local listener.
+var tokenGatewayUDPPort = 51820
 
 type Tunnel struct {
 	// mu guards everything below it. Token-mode tunnels replace their
@@ -51,6 +56,11 @@ type Tunnel struct {
 	done      chan struct{}
 	doneOnce  sync.Once
 	err       error
+	// wsProxyAddr is the local websocket proxy (127.0.0.1:port), which relays
+	// WireGuard over the websocket to the gateway
+	wsProxyAddr string
+	// use gateway's direct IP as endpoint if it has one.
+	udp bool
 }
 
 func Connect(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -105,7 +115,12 @@ func doConnect(ctx context.Context, state *WireGuardState, wswg bool) (*Tunnel, 
 // packet are presented over the websocket and the gateway allocates our
 // address inline. The state's Peer and DNS are filled in from the gateway's
 // answer (and updated again if an anycast reconnect re-provisions us).
-func ConnectToken(ctx context.Context, state *WireGuardState, endpoint string, auth *TokenAuth) (*Tunnel, error) {
+//
+// With udp, WireGuard goes straight to the gateway's direct IP over UDP when
+// the gateway gives one, and the websocket only carries the token exchange,
+// refreshes and reconnects. Otherwise, or without a direct IP, WireGuard is
+// relayed over the websocket.
+func ConnectToken(ctx context.Context, state *WireGuardState, endpoint string, auth *TokenAuth, udp bool) (*Tunnel, error) {
 	auth.Pubkey = state.LocalPublic
 	if state.Name == "" {
 		state.Name = TokenPeerName(state.LocalPublic)
@@ -133,7 +148,11 @@ func ConnectToken(ctx context.Context, state *WireGuardState, endpoint string, a
 	prov := wswg.prov
 	applyProvision(state, endpoint, prov)
 
-	tunnel, err := newTunnel(state, tokenTunnelConfig(state, prov), fmt.Sprintf("127.0.0.1:%d", port), wscancel)
+	wsProxyAddr := fmt.Sprintf("127.0.0.1:%d", port)
+	endpointAddr := tokenEndpoint(udp, wsProxyAddr, prov)
+	log.Printf("sending WireGuard for peer %s to %s", prov.PeerIP, endpointAddr)
+
+	tunnel, err := newTunnel(state, tokenTunnelConfig(state, prov), endpointAddr, wscancel)
 	if err != nil {
 		wscancel()
 		wswg.close()
@@ -143,11 +162,24 @@ func ConnectToken(ctx context.Context, state *WireGuardState, endpoint string, a
 
 	tunnel.ephemeral = true
 	tunnel.wswg = wswg
+	tunnel.wsProxyAddr = wsProxyAddr
+	tunnel.udp = udp
 
 	wswg.setCallbacks(tunnel.reprovision, tunnel.fail)
 	wswg.start(lifetimeCtx, endpoint)
 
 	return tunnel, nil
+}
+
+// tokenEndpoint is where a token-mode device sends WireGuard: the gateway's
+// direct IP when udp is on and the gateway gave one, else the websocket
+// proxy (wsProxyAddr).
+func tokenEndpoint(udp bool, wsProxyAddr string, prov *TokenProvision) string {
+	if udp && prov.Direct != "" {
+		return net.JoinHostPort(prov.Direct, strconv.Itoa(tokenGatewayUDPPort))
+	}
+
+	return wsProxyAddr
 }
 
 func applyProvision(state *WireGuardState, endpoint string, prov *TokenProvision) {
@@ -293,7 +325,10 @@ func (t *Tunnel) reprovision(prov *TokenProvision) {
 	applyProvision(&state, state.Peer.Endpointip, prov)
 	cfg := tokenTunnelConfig(&state, prov)
 
-	dev, tunDev, gNet, err := startDevice(cfg, t.endpointAddr)
+	// another gateway: over UDP, that's its own direct IP
+	endpointAddr := tokenEndpoint(t.udp, t.wsProxyAddr, prov)
+
+	dev, tunDev, gNet, err := startDevice(cfg, endpointAddr)
 	if err != nil {
 		t.failLocked(&RebuildError{PeerIP: prov.PeerIP, Err: err})
 
@@ -303,11 +338,12 @@ func (t *Tunnel) reprovision(prov *TokenProvision) {
 	old := t.dev
 	t.dev, t.tun, t.net, t.dnsIP = dev, tunDev, gNet, cfg.DNS
 	t.State, t.Config = &state, cfg
+	t.endpointAddr = endpointAddr
 
 	old.Close()
 	t.closeConnsLocked()
 
-	log.Printf("rebuilt tunnel for %s as %s (gateway key %s)", state.Org, prov.PeerIP, prov.GatewayPubkey)
+	log.Printf("rebuilt tunnel for %s as %s (gateway key %s, sending to %s)", state.Org, prov.PeerIP, prov.GatewayPubkey, endpointAddr)
 }
 
 // fail marks a token-mode tunnel as permanently dead and closes it.
