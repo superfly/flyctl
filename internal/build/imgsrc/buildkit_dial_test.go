@@ -72,7 +72,7 @@ func TestDialDockerBuildkit(t *testing.T) {
 				original := fmt.Sprintf("unable to upgrade to h2c, received %d", tc.status)
 				if tc.advice {
 					require.EqualError(t, errors.Unwrap(err), original)
-					require.ErrorContains(t, err, "if this is an older organization builder, try WireGuard (--wg=true where supported) if it was not already tried; otherwise resolve the original WireGuard failure first. For an organization-builder deploy, add --build-only --recreate-builder to the same fly deploy command after other builds finish; this replaces the builder and discards its build cache")
+					require.ErrorContains(t, err, "for an older organization builder, retry with --wg=true to keep its cache. If WireGuard already failed, check its error first. To use WireGuard over WebSockets, run fly wireguard websockets enable if disabled. If you need public HTTPS, wait for other builds to finish before using --build-only --recreate-builder, which discards the builder cache")
 				} else {
 					require.EqualError(t, err, original)
 				}

@@ -129,7 +129,7 @@ func dialDockerBuildkit(ctx context.Context, docker *dockerclient.Client) (net.C
 	if err != nil && err.Error() == h2cUpgradeFailure {
 		host, parseErr := url.Parse(docker.DaemonHost())
 		if parseErr == nil && host.Scheme == "https" && strings.HasSuffix(host.Hostname(), ".fly.dev") {
-			err = fmt.Errorf("%w; if this is an older organization builder, try WireGuard (--wg=true where supported) if it was not already tried; otherwise resolve the original WireGuard failure first. For an organization-builder deploy, add --build-only --recreate-builder to the same fly deploy command after other builds finish; this replaces the builder and discards its build cache", err)
+			err = fmt.Errorf("%w; for an older organization builder, retry with --wg=true to keep its cache. If WireGuard already failed, check its error first. To use WireGuard over WebSockets, run fly wireguard websockets enable if disabled. If you need public HTTPS, wait for other builds to finish before using --build-only --recreate-builder, which discards the builder cache", err)
 		}
 	}
 
