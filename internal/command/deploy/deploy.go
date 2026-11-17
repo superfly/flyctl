@@ -347,6 +347,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		return err
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 	recordDeployIdentity(ctx, app)
 
 	// Start the feature flag client, if we haven't already
@@ -729,7 +730,7 @@ func deployToMachines(
 
 	// Deployments are a good time to check if the app's egress IP config makes sense
 	// Bluegreen may also require more egress IPs
-	ips.SanityCheckAppScopedEgressIps(requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID)), nil, nil, nil, status.Strategy)
+	ips.SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, status.Strategy)
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {

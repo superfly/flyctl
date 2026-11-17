@@ -38,10 +38,12 @@ func Organization(t *testing.T, id uint64) func(context.Context) {
 		r, err := http.NewRequestWithContext(ctx, "POST", "http://local", nil)
 		require.NoError(t, err)
 		r.Header.Set("Authorization", "FlyV1 "+strings.Join(roots, ","))
-		resp, _ := requestauth.Transport(roundTrip(func(r *http.Request) (*http.Response, error) {
+		stop := errors.New("stop before network")
+		resp, err := requestauth.Transport(roundTrip(func(r *http.Request) (*http.Response, error) {
 			require.Equal(t, "FlyV1 "+roots[0], r.Header.Get("Authorization"))
-			return nil, errors.New("stop before network")
+			return nil, stop
 		})).RoundTrip(r)
+		require.ErrorIs(t, err, stop)
 		if resp != nil {
 			resp.Body.Close()
 		}

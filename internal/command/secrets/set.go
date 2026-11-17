@@ -75,7 +75,8 @@ func runSet(ctx context.Context) (err error) {
 }
 
 func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets map[string]string, args DeploymentArgs) error {
-	if err := appsecrets.Update(requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID)), flapsClient, app.Name, secrets, nil); err != nil {
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
+	if err := appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil); err != nil {
 		return fmt.Errorf("update secrets: %w", err)
 	}
 
