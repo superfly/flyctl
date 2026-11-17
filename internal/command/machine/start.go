@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
@@ -12,6 +13,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -35,6 +38,10 @@ func newStart() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		selectFlag,
+		flag.Bool{
+			Name:        "wait",
+			Description: "Wait for the Machines to start and pass configured health checks.",
+		},
 	)
 
 	return cmd
@@ -61,8 +68,24 @@ func runMachineStart(ctx context.Context) (err error) {
 	}
 
 	for _, machine := range machines {
-		if err = Start(ctx, appName, machine); err != nil {
+		if err = tracing.WorkflowPhase(ctx, "request_start", func(ctx context.Context) error {
+			return Start(ctx, appName, machine)
+		}); err != nil {
 			return
+		}
+		if flag.GetBool(ctx, "wait") {
+			if err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
+				return mach.WaitForStartOrStop(ctx, appName, machine, "start", 5*time.Minute)
+			}); err != nil {
+				return err
+			}
+			if len(machine.Checks) > 0 {
+				if err = tracing.WorkflowPhase(ctx, "wait_for_health_checks", func(ctx context.Context) error {
+					return watch.MachinesChecks(ctx, appName, []*fly.Machine{machine})
+				}); err != nil {
+					return err
+				}
+			}
 		}
 		fmt.Fprintf(io.Out, "%s has been started\n", machine.ID)
 	}

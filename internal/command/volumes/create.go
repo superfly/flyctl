@@ -172,9 +172,13 @@ func runCreate(ctx context.Context) error {
 		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
+	stage := "create_volume"
+	if snapshotID != nil {
+		stage = "create_volume_from_snapshot"
+	}
 	out := iostreams.FromContext(ctx).Out
 	for range count {
-		volume, err := tracing.WorkflowStep(ctx, "create_volume", func(ctx context.Context) (*fly.Volume, error) { return flapsClient.CreateVolume(ctx, appName, input) })
+		volume, err := tracing.WorkflowStep(ctx, stage, func(ctx context.Context) (*fly.Volume, error) { return flapsClient.CreateVolume(ctx, appName, input) })
 		if err != nil {
 			return err
 		}

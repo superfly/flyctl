@@ -1007,14 +1007,41 @@ func workflowCommand(cmd *cobra.Command) string {
 		if !shell && !buildOnly {
 			return "cmd.machine.run"
 		}
+	case "machine start":
+		return "cmd.machine.start"
+	case "machine update":
+		return "cmd.machine.update"
+	case "mpg restore":
+		return "cmd.mpg.restore"
+	case "volumes create":
+		snapshot, _ := cmd.Flags().GetString("snapshot-id")
+		if snapshot != "" {
+			return "cmd.volumes.restore"
+		}
+
+		return "cmd.volumes.create"
+	case "volumes extend":
+		return "cmd.volumes.extend"
+	case "certs add":
+		return "cmd.certs.add"
+	case "ips allocate-v4":
+		shared, _ := cmd.Flags().GetBool("shared")
+		if !shared {
+			return "cmd.ips.allocate"
+		}
+	case "ips allocate-v6":
+		private, _ := cmd.Flags().GetBool("private")
+		if !private {
+			return "cmd.ips.allocate"
+		}
+	case "ssh console":
+		return "cmd.ssh.console"
 	case "scale count":
 		return "cmd.scale.count"
 	case "mpg create":
 		return "cmd.mpg.create"
 	case "mpg attach":
 		return "cmd.mpg.attach"
-	case "volumes create":
-		return "cmd.volumes.create"
 	case "secrets set":
 		return "cmd.secrets.set"
 	}

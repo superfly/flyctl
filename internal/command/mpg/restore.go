@@ -10,6 +10,7 @@ import (
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
@@ -75,10 +76,11 @@ func runRestore(ctx context.Context) error {
 		return fmt.Errorf("point-in-time restore is not supported for this cluster")
 	}
 
-	if cluster.Version == mpg.VersionV1 {
-		return cmdv1.RunRestore(ctx, cluster.Id, backupID, name)
+	return tracing.WorkflowPhase(ctx, "request_restore", func(ctx context.Context) error {
+		if cluster.Version == mpg.VersionV1 {
+			return cmdv1.RunRestore(ctx, cluster.Id, backupID, name)
+		}
 
-	}
-
-	return cmdv2.RunRestore(ctx, cluster.Id, backupID, name, pitrTime)
+		return cmdv2.RunRestore(ctx, cluster.Id, backupID, name, pitrTime)
+	})
 }
