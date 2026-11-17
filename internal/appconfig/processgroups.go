@@ -201,9 +201,10 @@ func (c *Config) ComputeForGroup(groupName string) *Compute {
 	}
 
 	compute := lo.MaxBy(
-		// grab only the compute that matches or have no processes set
+		// grab only the compute that matches or have no processes set,
+		// skipping nil entries (a manifest can carry `null` in compute)
 		lo.Filter(c.Compute, func(x *Compute, _ int) bool {
-			return len(x.Processes) == 0 || c.flattenGroupsMatch(groupName, x.Processes)
+			return x != nil && (len(x.Processes) == 0 || c.flattenGroupsMatch(groupName, x.Processes))
 		}),
 		// Next find the most specific
 		func(item *Compute, _ *Compute) bool {

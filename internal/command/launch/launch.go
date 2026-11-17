@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -472,10 +471,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		//
 		// It is written as `memory` alone. A memory_mb next to it would win
 		// over `memory`, so a later edit of `memory` would do nothing.
-		var defaultCompute *appconfig.Compute
-		if !slices.Contains(appConfig.Compute, nil) {
-			defaultCompute = appConfig.ComputeForGroup(appConfig.DefaultProcessName())
-		}
+		defaultCompute := appConfig.ComputeForGroup(appConfig.DefaultProcessName())
 		for _, compute := range appConfig.Compute {
 			if !isComputeValid(compute) || compute.MemoryMB != 0 {
 				continue

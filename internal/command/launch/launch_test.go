@@ -421,20 +421,21 @@ func TestUpdateConfigPlanMemoryWithNamedGroups(t *testing.T) {
 	assert.Equal(t, "4gb", worker.Memory)
 }
 
-// A nil entry in the plan's compute is skipped, not dereferenced.
+// A nil entry in the plan's compute is skipped, not dereferenced, and
+// doesn't stop an edited vm_memory reaching the default group.
 func TestUpdateConfigSkipsNilCompute(t *testing.T) {
 	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
 	state := &launchState{
 		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
 			AppName:  "my-app",
-			MemoryMB: 1024,
+			MemoryMB: 2048,
 			Compute:  []*appconfig.Compute{nil, app},
 		}},
 		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
 	}
 
 	assert.NotPanics(t, func() { state.updateConfig(context.Background()) })
-	assert.Equal(t, "1gb", app.Memory)
+	assert.Equal(t, "2gb", app.Memory)
 }
 
 func TestMemoryString(t *testing.T) {
