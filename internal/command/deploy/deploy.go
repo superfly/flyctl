@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -728,7 +729,7 @@ func deployToMachines(
 
 	// Deployments are a good time to check if the app's egress IP config makes sense
 	// Bluegreen may also require more egress IPs
-	ips.SanityCheckAppScopedEgressIps(ctx, nil, nil, nil, status.Strategy)
+	ips.SanityCheckAppScopedEgressIps(requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID)), nil, nil, nil, status.Strategy)
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
