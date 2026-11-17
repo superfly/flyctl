@@ -222,6 +222,10 @@ func New() *Command {
 		CommonFlags,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "rollback",
+			Description: "Record a redeploy of a previous release image as a rollback (requires --image).",
+		},
 		// Not in CommonFlags because it's not relevant to a first deploy
 		flag.Bool{
 			Name:        "update-only",
@@ -272,7 +276,12 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}()
 
 	ctx = tracing.WithDeployTrace(ctx)
-	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy",
+	operation := "cmd.deploy"
+	rollback := flag.GetBool(ctx, "rollback")
+	if rollback {
+		operation = "cmd.deploy.rollback"
+	}
+	ctx, span := tracing.CMDSpan(ctx, operation,
 		trace.WithAttributes(attribute.Bool("deploy.build_only", flag.GetBuildOnly(ctx))),
 	)
 	defer span.End()
@@ -289,6 +298,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	if err := validation.ValidateCompressionLevelFlag(flag.GetInt(ctx, "compression-level")); err != nil {
 		return err
+	}
+
+	if rollback && (flag.GetString(ctx, "image") == "" || flag.GetBuildOnly(ctx) ||
+		flag.GetString(ctx, "from-manifest") != "" || flag.GetString(ctx, "export-manifest") != "") {
+		return fmt.Errorf("--rollback requires --image and a deployment")
 	}
 
 	var manifestPath = flag.GetString(ctx, "from-manifest")

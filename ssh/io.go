@@ -35,8 +35,9 @@ type SessionIO struct {
 	Stdout io.WriteCloser
 	Stderr io.WriteCloser
 
-	AllocPTY bool
-	TermEnv  string
+	AllocPTY  bool
+	TermEnv   string
+	OnStarted func()
 }
 
 func getFd(reader io.Reader) (fd int, ok bool) {
@@ -89,10 +90,22 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 
 	return s.attachPipes(ctx, stdin, stdout, stderr, func() error {
 		if cmd == "" {
-			return sess.Shell()
+			err := sess.Shell()
+			if err == nil && s.OnStarted != nil {
+				s.OnStarted()
+			}
+
+			return err
 		}
 
-		return sess.Run(cmd)
+		if err := sess.Start(cmd); err != nil {
+			return err
+		}
+		if s.OnStarted != nil {
+			s.OnStarted()
+		}
+
+		return sess.Wait()
 	})
 }
 
