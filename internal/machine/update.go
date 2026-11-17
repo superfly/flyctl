@@ -9,6 +9,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -88,7 +89,9 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 	fmt.Fprintf(io.Out, "Updating machine %s\n", colorize.Bold(m.ID))
 
 	input.ID = m.ID
-	updatedMachine, err = flapsClient.Update(ctx, appName, *input, m.LeaseNonce)
+	updatedMachine, err = tracing.WorkflowStep(ctx, "update_machine", func(ctx context.Context) (*fly.Machine, error) {
+		return flapsClient.Update(ctx, appName, *input, m.LeaseNonce)
+	})
 	if err != nil {
 		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}
@@ -98,17 +101,25 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 		waitTimeout = time.Duration(input.Timeout) * time.Second
 	}
 
-	state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout)
-	if err != nil {
-		return fmt.Errorf("error while waiting for machine to update: %w", err)
-	}
+	state, err := tracing.WorkflowStep(ctx, "wait_for_update", func(ctx context.Context) (string, error) {
+		state, err := WaitForState(ctx, appName, updatedMachine, "settled", waitTimeout)
+		if err != nil {
+			return state, fmt.Errorf("error while waiting for machine to update: %w", err)
+		}
+		if state == "failed" {
+			return state, fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, state)
+		}
 
-	if state == "failed" {
-		return fmt.Errorf("machine %s update failed: machine entered %q state", m.ID, state)
+		return state, nil
+	})
+	if err != nil {
+		return err
 	}
 
 	if state == "started" && !input.SkipHealthChecks {
-		if err := watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine}); err != nil {
+		if err := tracing.WorkflowPhase(ctx, "wait_for_health_checks", func(ctx context.Context) error {
+			return watch.MachinesChecks(ctx, appName, []*fly.Machine{updatedMachine})
+		}); err != nil {
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}

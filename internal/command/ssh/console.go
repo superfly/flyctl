@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
@@ -177,7 +178,13 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	addr, container, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, true)
+	var container string
+	addr, err := tracing.WorkflowStep(ctx, "select_machine", func(ctx context.Context) (string, error) {
+		address, selectedContainer, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, true)
+		container = selectedContainer
+
+		return address, err
+	})
 	if err != nil {
 		return err
 	}
@@ -203,7 +210,11 @@ func runConsole(ctx context.Context) error {
 		Machine:        flag.GetBool(ctx, "no-container"),
 		AppNames:       []string{app.Name},
 	}
-	sshc, err := Connect(params, addr)
+	sshc, err := tracing.WorkflowStep(ctx, "connect_ssh", func(ctx context.Context) (*ssh.Client, error) {
+		params.Ctx = ctx
+
+		return Connect(params, addr)
+	})
 	if err != nil {
 		captureError(ctx, err, app)
 
@@ -221,7 +232,9 @@ func runConsole(ctx context.Context) error {
 	return nil
 }
 
-func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) error {
+func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) (err error) {
+	ctx, finishSession := tracing.StartWorkflowPhase(ctx, "open_session")
+	defer func() { finishSession(err) }()
 	cleanup, setupErr := setupConsole()
 	if cleanup != nil {
 		defer cleanup()
@@ -237,6 +250,12 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 		AllocPTY: allocPTY,
 		TermEnv:  determineTermEnv(),
+		OnStarted: func() {
+			finishSession(setupErr)
+			if setupErr == nil {
+				tracing.FinishWorkflow(ctx)
+			}
+		},
 	}
 
 	if err := sshClient.Shell(ctx, sessIO, cmd, target); err != nil {

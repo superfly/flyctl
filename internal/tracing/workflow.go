@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -18,26 +19,47 @@ func RunWorkflow(ctx context.Context, name, app string, run func(context.Context
 		return run(ctx)
 	}
 	ctx, span := CMDSpan(ctx, name)
-	err = run(context.WithValue(ctx, workflowContextKey{}, true))
-	finishWorkflowSpan(span, err)
-	flush, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	_ = provider.Shutdown(flush)
+	var once sync.Once
+	finish := func(err error) {
+		once.Do(func() {
+			finishWorkflowSpan(span, err)
+			flush, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+			defer cancel()
+			_ = provider.Shutdown(flush)
+		})
+	}
+	err = run(context.WithValue(ctx, workflowContextKey{}, finish))
+	finish(err)
 
 	return err
+}
+
+// FinishWorkflow ends the observation when an interactive session starts.
+func FinishWorkflow(ctx context.Context) {
+	if finish, ok := ctx.Value(workflowContextKey{}).(func(error)); ok {
+		finish(nil)
+	}
 }
 
 // WorkflowStep records a phase of a traced workflow. Its error is conveyed as a
 // status because command errors can contain secrets or connection strings.
 func WorkflowStep[T any](ctx context.Context, name string, run func(context.Context) (T, error)) (T, error) {
-	if ctx.Value(workflowContextKey{}) == nil {
-		return run(ctx)
-	}
-	ctx, span := CMDSpan(ctx, "workflow."+name)
+	ctx, finish := StartWorkflowPhase(ctx, name)
 	result, err := run(ctx)
-	finishWorkflowSpan(span, err)
+	finish(err)
 
 	return result, err
+}
+
+// StartWorkflowPhase returns a completion function for a phase that finishes asynchronously.
+func StartWorkflowPhase(ctx context.Context, name string) (context.Context, func(error)) {
+	if ctx.Value(workflowContextKey{}) == nil {
+		return ctx, func(error) {}
+	}
+	ctx, span := CMDSpan(ctx, "workflow."+name)
+	var once sync.Once
+
+	return ctx, func(err error) { once.Do(func() { finishWorkflowSpan(span, err) }) }
 }
 
 func WorkflowPhase(ctx context.Context, name string, run func(context.Context) error) error {

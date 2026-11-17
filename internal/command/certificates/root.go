@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/spf13/cobra"
@@ -360,8 +361,8 @@ func runCertificatesAdd(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
-	resp, err := flapsClient.CreateACMECertificate(ctx, appName, fly.CreateCertificateRequest{
-		Hostname: hostname,
+	resp, err := tracing.WorkflowStep(ctx, "request_certificate", func(ctx context.Context) (*fly.CertificateDetailResponse, error) {
+		return flapsClient.CreateACMECertificate(ctx, appName, fly.CreateCertificateRequest{Hostname: hostname})
 	})
 	if err != nil {
 		return err
