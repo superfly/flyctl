@@ -331,13 +331,24 @@ func resolveClaudeConfigPath(home, configDir string) string {
 	if runtime.GOOS == "windows" {
 		// On Windows, Claude Desktop can be installed via MSIX / Microsoft Store package,
 		// where its configuration is located under AppData\Local\Packages\Claude_*\LocalCache\Roaming\Claude.
-		msixPattern := filepath.Join(home, "AppData", "Local", "Packages", "Claude_*", "LocalCache", "Roaming", "Claude", "claude_desktop_config.json")
-		if matches, err := filepath.Glob(msixPattern); err == nil && len(matches) > 0 {
-			return matches[0]
+		var baseDirs []string
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			baseDirs = append(baseDirs, localAppData)
 		}
-		pkgPattern := filepath.Join(home, "AppData", "Local", "Packages", "Claude_*", "LocalCache", "Roaming", "Claude")
-		if pkgMatches, err := filepath.Glob(pkgPattern); err == nil && len(pkgMatches) > 0 {
-			return filepath.Join(pkgMatches[0], "claude_desktop_config.json")
+		fallbackLocal := filepath.Join(home, "AppData", "Local")
+		if len(baseDirs) == 0 || !strings.EqualFold(baseDirs[0], fallbackLocal) {
+			baseDirs = append(baseDirs, fallbackLocal)
+		}
+
+		for _, baseDir := range baseDirs {
+			msixPattern := filepath.Join(baseDir, "Packages", "Claude_*", "LocalCache", "Roaming", "Claude", "claude_desktop_config.json")
+			if matches, err := filepath.Glob(msixPattern); err == nil && len(matches) > 0 {
+				return matches[0]
+			}
+			pkgPattern := filepath.Join(baseDir, "Packages", "Claude_*", "LocalCache", "Roaming", "Claude")
+			if pkgMatches, err := filepath.Glob(pkgPattern); err == nil && len(pkgMatches) > 0 {
+				return filepath.Join(pkgMatches[0], "claude_desktop_config.json")
+			}
 		}
 	}
 	return claudePath
