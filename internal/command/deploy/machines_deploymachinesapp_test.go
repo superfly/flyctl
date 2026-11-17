@@ -209,3 +209,55 @@ func TestVolumePlacementCapacitySuggestion(t *testing.T) {
 		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
 	})
 }
+
+func TestFirstDeployProvisioningUsesAppOrganization(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName: "first-deploy", PrimaryRegion: "iad",
+		Services: []appconfig.Service{{Protocol: "tcp", InternalPort: 8080}},
+		Mounts:   []appconfig.Mount{{Source: "data", Destination: "/data"}},
+	})
+	require.NoError(t, err)
+	md.app.Organization.InternalNumericID = 7
+	md.io, _, _, _ = iostreams.Test()
+	md.colorize = md.io.ColorScheme()
+	md.isFirstDeploy = true
+	check := authtest.Organization(t, 7)
+	var calls []string
+	md.flapsClient = &mock.FlapsClient{
+		GetIPAssignmentsFunc: func(ctx context.Context, _ string) (*flaps.ListIPAssignmentsResponse, error) {
+			check(ctx)
+			calls = append(calls, "list")
+			return &flaps.ListIPAssignmentsResponse{}, nil
+		},
+		AssignIPFunc: func(ctx context.Context, _ string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+			check(ctx)
+			calls = append(calls, string(req.Type))
+			return &flaps.AssignIPResponse{IP: new("test-ip")}, nil
+		},
+		CreateVolumeFunc: func(ctx context.Context, _ string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+			check(ctx)
+			calls = append(calls, req.Name)
+			return &fly.Volume{}, nil
+		},
+	}
+	require.NoError(t, md.provisionFirstDeploy(t.Context(), "shared", "test-org"))
+	require.Equal(t, []string{"list", string(flaps.IPAssignmentTypeV6), string(flaps.IPAssignmentTypeSharedV4), "data"}, calls)
+}
+
+func TestRestartUsesScopedLatestReleaseImage(t *testing.T) {
+	check := authtest.Organization(t, 7)
+	ios, _, _, _ := iostreams.Test()
+	client := &mockFlapsClient{}
+	md := &machineDeployment{
+		restartOnly: true, app: &flaps.App{Name: "restart", Organization: flaps.AppOrganizationInfo{InternalNumericID: 7}},
+		machineSet: machine.NewMachineSet(client, ios, "restart", []*fly.Machine{{ID: "old", Config: &fly.MachineConfig{Image: "older-image"}}}, false),
+		uiexClient: &mock.UiexClient{ListReleasesFunc: func(ctx context.Context, app string, count int) ([]uiex.Release, error) {
+			check(ctx)
+			require.Equal(t, "restart", app)
+			require.Equal(t, 1, count)
+			return []uiex.Release{{ImageRef: "latest-image"}}, nil
+		}},
+	}
+	require.NoError(t, md.setImg(t.Context()))
+	require.Equal(t, "latest-image", md.img)
+}

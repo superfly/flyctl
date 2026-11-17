@@ -696,7 +696,7 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
 		return nil
 	}
-	release, err := uiexutil.LatestRelease(ctx, md.uiexClient, md.app.Name)
+	release, err := uiexutil.LatestRelease(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.uiexClient, md.app.Name)
 	if err == nil && release != nil && release.ImageRef != "" {
 		md.img = release.ImageRef
 

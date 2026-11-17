@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -80,6 +81,7 @@ func DeploySecrets(ctx context.Context, appName string, args DeploymentArgs) err
 		return fmt.Errorf("error getting app: %w", err)
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, app.Name)
 	if err != nil {
 		return err

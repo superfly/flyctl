@@ -1635,7 +1635,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	defer cancel()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	ipRes, err := flapsClient.GetIPAssignments(ctx, md.appConfig.AppName)
+	ipRes, err := flapsClient.GetIPAssignments(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.app.Name)
 	if err != nil {
 		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
 
