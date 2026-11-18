@@ -53,9 +53,9 @@ func runDetach(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+	appOrg, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return fmt.Errorf("failed retrieving organization for app %s: %w", appName, err)
+		return err
 	}
 
 	appOrgSlug := appOrg.RawSlug

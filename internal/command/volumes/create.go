@@ -114,7 +114,7 @@ func runCreate(ctx context.Context) error {
 			return nil, err
 		}
 
-		return uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+		return uiexutil.AppOrganization(ctx, app)
 	})
 
 	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {

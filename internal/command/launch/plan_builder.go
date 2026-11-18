@@ -748,7 +748,7 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*uiex.Organiza
 
 	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
 		if app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, config.AppName); err == nil {
-			if org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug); err == nil {
+			if org, err := uiexutil.AppOrganization(ctx, app); err == nil {
 				return org, fmt.Sprintf("from %s app", config.AppName), nil
 			}
 		}
