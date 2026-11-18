@@ -475,6 +475,7 @@ func TestReleaseExitEventAfterStalledRead(t *testing.T) {
 			assert.Less(t, time.Until(deadline), time.Minute)
 			return nil, fmt.Errorf("failed to get VM: %w", context.DeadlineExceeded)
 		}
+
 		return &fly.Machine{Events: []*fly.MachineEvent{exit, {Type: "start"}}}, nil
 	}}
 	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
