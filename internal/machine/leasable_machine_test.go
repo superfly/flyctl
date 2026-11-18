@@ -12,6 +12,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -460,4 +461,27 @@ func TestReleaseLease_CanceledContext(t *testing.T) {
 
 	assert.NoError(t, lm.ReleaseLease(ctx))
 	assert.True(t, releasedWithLiveCtx.Load(), "lease should be released with a context that isn't canceled")
+}
+
+func TestReleaseExitEventAfterStalledRead(t *testing.T) {
+
+	calls := 0
+	exit := &fly.MachineEvent{Type: "exit"}
+	client := &mock.FlapsClient{GetFunc: func(ctx context.Context, _, _ string) (*fly.Machine, error) {
+		calls++
+		if calls == 1 {
+			deadline, ok := ctx.Deadline()
+			assert.True(t, ok)
+			assert.Less(t, time.Until(deadline), time.Minute)
+			return nil, fmt.Errorf("failed to get VM: %w", context.DeadlineExceeded)
+		}
+		return &fly.Machine{Events: []*fly.MachineEvent{exit, {Type: "start"}}}, nil
+	}}
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+	ctx, done := statuslogger.SingleLine(iostreams.NewContext(t.Context(), lm.io), false)
+	defer done(false)
+	event, err := lm.WaitForEventTypeAfterType(ctx, "exit", "start", 5*time.Minute, true)
+	assert.NoError(t, err)
+	assert.Same(t, exit, event)
+	assert.Equal(t, 2, calls)
 }
