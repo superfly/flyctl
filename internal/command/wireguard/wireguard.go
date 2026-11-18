@@ -36,7 +36,14 @@ func runWireguardList(ctx context.Context) error {
 		return err
 	}
 
-	tokenTunnels := tokenTunnelsFor(ctx, org.Slug)
+	// the agent keys tunnels by the real slug; uiex calls the personal
+	// org "personal"
+	agentSlug := org.RawSlug
+	if agentSlug == "" {
+		agentSlug = org.Slug
+	}
+
+	tokenTunnels := tokenTunnelsFor(ctx, agentSlug)
 
 	if config.FromContext(ctx).JSONOutput {
 		if len(tokenTunnels) == 0 {

@@ -143,29 +143,23 @@ func runTunnels(t *testing.T, srv *server, args ...string) string {
 func TestTunnelsCommand(t *testing.T) {
 	srv := &server{
 		tunnels: map[tunnelKey]*wg.Tunnel{
-			{orgSlug: "personal", networkName: "dev"}: heldTunnel("token-bbbbbbbb", "fdaa::b"),
-			{orgSlug: "personal"}:                     heldTunnel("token-aaaaaaaa", "fdaa::a"),
-			{orgSlug: "acme"}:                         heldTunnel("token-cccccccc", "fdaa::c"),
+			{orgSlug: "jane-doe-123", networkName: "dev"}: heldTunnel("token-bbbbbbbb", "fdaa::b"),
+			{orgSlug: "jane-doe-123"}:                     heldTunnel("token-aaaaaaaa", "fdaa::a"),
+			{orgSlug: "acme"}:                             heldTunnel("token-cccccccc", "fdaa::c"),
 		},
-		// as buildTunnel records it for the personal org
-		slugAliases: map[string]string{"jane-doe-123": "personal"},
 	}
 
-	for _, slug := range []string{"personal", "jane-doe-123"} {
-		t.Run(slug, func(t *testing.T) {
-			reply := runTunnels(t, srv, slug)
-			require.True(t, strings.HasPrefix(reply, "ok "), reply)
+	reply := runTunnels(t, srv, "jane-doe-123")
+	require.True(t, strings.HasPrefix(reply, "ok "), reply)
 
-			var got []wg.TunnelStatus
-			require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(reply, "ok ")), &got))
+	var got []wg.TunnelStatus
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(reply, "ok ")), &got))
 
-			// the org's tunnels only, default network first
-			assert.Equal(t, []wg.TunnelStatus{
-				{Org: "personal", Name: "token-aaaaaaaa", Pubkey: "token-aaaaaaaa-pub", PeerIP: "fdaa::a"},
-				{Org: "personal", Network: "dev", Name: "token-bbbbbbbb", Pubkey: "token-bbbbbbbb-pub", PeerIP: "fdaa::b"},
-			}, got)
-		})
-	}
+	// the org's tunnels only, default network first
+	assert.Equal(t, []wg.TunnelStatus{
+		{Org: "jane-doe-123", Name: "token-aaaaaaaa", Pubkey: "token-aaaaaaaa-pub", PeerIP: "fdaa::a"},
+		{Org: "jane-doe-123", Network: "dev", Name: "token-bbbbbbbb", Pubkey: "token-bbbbbbbb-pub", PeerIP: "fdaa::b"},
+	}, got)
 
 	t.Run("no tunnels", func(t *testing.T) {
 		assert.Equal(t, "ok []\n", runTunnels(t, srv, "other-org"))

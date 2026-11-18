@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/wg"
@@ -25,6 +26,14 @@ import (
 func runList(t *testing.T, jsonOutput bool, tunnels []wg.TunnelStatus, agentErr error) (string, string) {
 	t.Helper()
 
+	return runListFor(t, &uiex.Organization{Slug: "my-org"}, "my-org", jsonOutput, tunnels, agentErr)
+}
+
+// runListFor is runList for org, expecting the agent to be asked for
+// agentSlug.
+func runListFor(t *testing.T, org *uiex.Organization, agentSlug string, jsonOutput bool, tunnels []wg.TunnelStatus, agentErr error) (string, string) {
+	t.Helper()
+
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	require.NoError(t, fs.Parse([]string{"my-org"}))
 
@@ -33,7 +42,9 @@ func runList(t *testing.T, jsonOutput bool, tunnels []wg.TunnelStatus, agentErr 
 	ctx := flag.NewContext(context.Background(), fs)
 	ctx = iostreams.NewContext(ctx, ios)
 	ctx = config.NewContext(ctx, &config.Config{JSONOutput: jsonOutput})
-	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{})
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) { return org, nil },
+	})
 	ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
 		GetWireGuardPeersFunc: func(context.Context, string) ([]*fly.WireGuardPeer, error) {
 			return []*fly.WireGuardPeer{{ID: "p1", Pubkey: "k1", Region: "ams", Name: "laptop", Peerip: "fdaa::1"}}, nil
@@ -43,7 +54,7 @@ func runList(t *testing.T, jsonOutput bool, tunnels []wg.TunnelStatus, agentErr 
 	orig := agentTunnels
 	t.Cleanup(func() { agentTunnels = orig })
 	agentTunnels = func(_ context.Context, slug string) ([]wg.TunnelStatus, error) {
-		assert.Equal(t, "my-org", slug)
+		assert.Equal(t, agentSlug, slug)
 
 		return tunnels, agentErr
 	}
@@ -114,4 +125,12 @@ func TestListAgentTroubleStillListsPeers(t *testing.T) {
 			assert.Contains(t, errOut, tc.want)
 		})
 	}
+}
+
+// The agent keys the personal org's tunnels by its real slug, while uiex
+// calls it "personal".
+func TestListAsksAgentForPersonalOrgByRealSlug(t *testing.T) {
+	out, _ := runListFor(t, &uiex.Organization{Slug: "personal", RawSlug: "jane-doe-123"}, "jane-doe-123", false, agentHeld, nil)
+
+	assert.Contains(t, out, "token-9f3c21aa")
 }

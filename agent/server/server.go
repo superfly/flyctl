@@ -272,12 +272,6 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 
 	tk := tunnelKey{orgSlug: org.Slug, networkName: network}
 
-	// clients that only know the org's real slug (the personal org's is
-	// "personal" by Slug) can still find its tunnels
-	if org.RawSlug != "" && org.RawSlug != org.Slug {
-		s.slugAliases[org.RawSlug] = org.Slug
-	}
-
 	// not checking the region is intentional, it's static during the lifetime of the agent
 	if tunnel = s.tunnels[tk]; tunnel != nil && !reestablish {
 		// tunnel already exists
@@ -494,8 +488,8 @@ func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	return s.tunnels[tk]
 }
 
-// tunnelStatuses describes every tunnel the agent holds for the org a
-// client calls slug, ordered by network.
+// tunnelStatuses describes every tunnel the agent holds for the org with
+// the real slug (never "personal"; see fetchOrg), ordered by network.
 func (s *server) tunnelStatuses(slug string) []wg.TunnelStatus {
 	type held struct {
 		key    tunnelKey
@@ -503,11 +497,10 @@ func (s *server) tunnelStatuses(slug string) []wg.TunnelStatus {
 	}
 
 	s.mu.Lock()
-	canonical := s.canonicalSlugUnlocked(slug)
 
 	var tunnels []held
 	for tk, tunnel := range s.tunnels {
-		if tk.orgSlug == canonical {
+		if tk.orgSlug == slug {
 			tunnels = append(tunnels, held{tk, tunnel})
 		}
 	}
