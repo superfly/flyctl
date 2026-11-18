@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -34,16 +35,18 @@ func createdPlan(t *testing.T, args ...string) (string, error) {
 
 	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
 		ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
-			return []uiex.Organization{{Slug: "personal", RawSlug: "someone", Personal: true}}, nil
+			return []uiex.Organization{{Slug: "personal", RawSlug: "someone", Personal: true, InternalNumericID: 7}}, nil
 		},
 	})
 
+	checkOrg := authtest.Organization(t, 7)
 	var plan string
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
 			return &flaps.RegionData{Regions: []fly.Region{{Code: "iad", MPGAvailable: true}}}, nil
 		},
-		CreateManagedPostgresClusterFunc: func(_ context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+		CreateManagedPostgresClusterFunc: func(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+			checkOrg(ctx)
 			plan = req.Plan
 
 			return flaps.ManagedPostgresCluster{}, errors.New("stop after the create request")
