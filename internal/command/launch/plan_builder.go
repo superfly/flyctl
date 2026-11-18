@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -222,7 +223,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	guest := fakeDefaultMachine.Guest
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	regionCode, regionExplanation, err := determineRegion(ctx, appConfig, org.Slug, guest, flapsClient)
+	regionCode, regionExplanation, err := determineRegion(ctx, appConfig, org, guest, flapsClient)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			// Return a partial manifest so that metrics events
@@ -908,7 +909,7 @@ func followManagedPostgresRegion(lp *plan.LaunchPlan, planSource *launchPlanSour
 //  1. the region specified on the command line, if specified
 //  2. the primary_region field of the config, if one exists
 //  3. the best available region (by passing "any" to placements)
-func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug string, guest *fly.MachineGuest, flapsClient flapsutil.FlapsClient) (string, string, error) {
+func determineRegion(ctx context.Context, config *appconfig.Config, org *uiex.Organization, guest *fly.MachineGuest, flapsClient flapsutil.FlapsClient) (string, string, error) {
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -948,11 +949,12 @@ func determineRegion(ctx context.Context, config *appconfig.Config, orgSlug stri
 		count = 2
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, org.InternalNumericID)
 	placements, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
 		ComputeRequirements: guest,
 		Region:              regionCode,
 		Count:               count,
-		Org:                 orgSlug,
+		Org:                 org.Slug,
 	})
 	if err != nil {
 		return regionCode, recoverableSpecifyInUi, recoverableInUiError{
