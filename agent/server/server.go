@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -271,6 +272,12 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 
 	tk := tunnelKey{orgSlug: org.Slug, networkName: network}
 
+	// clients that only know the org's real slug (the personal org's is
+	// "personal" by Slug) can still find its tunnels
+	if org.RawSlug != "" && org.RawSlug != org.Slug {
+		s.slugAliases[org.RawSlug] = org.Slug
+	}
+
 	// not checking the region is intentional, it's static during the lifetime of the agent
 	if tunnel = s.tunnels[tk]; tunnel != nil && !reestablish {
 		// tunnel already exists
@@ -485,6 +492,43 @@ func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	tk := tunnelKey{orgSlug: slug, networkName: network}
 
 	return s.tunnels[tk]
+}
+
+// tunnelStatuses describes every tunnel the agent holds for the org a
+// client calls slug, ordered by network.
+func (s *server) tunnelStatuses(slug string) []wg.TunnelStatus {
+	type held struct {
+		key    tunnelKey
+		tunnel *wg.Tunnel
+	}
+
+	s.mu.Lock()
+	canonical := s.canonicalSlugUnlocked(slug)
+
+	var tunnels []held
+	for tk, tunnel := range s.tunnels {
+		if tk.orgSlug == canonical {
+			tunnels = append(tunnels, held{tk, tunnel})
+		}
+	}
+	s.mu.Unlock()
+
+	// outside s.mu: a tunnel's status waits on its own lock, which a
+	// rebuild holds
+	statuses := make([]wg.TunnelStatus, 0, len(tunnels))
+	for _, h := range tunnels {
+		st := h.tunnel.Status()
+		st.Org = h.key.orgSlug
+		st.Network = h.key.networkName
+
+		statuses = append(statuses, st)
+	}
+
+	slices.SortFunc(statuses, func(a, b wg.TunnelStatus) int {
+		return strings.Compare(a.Network, b.Network)
+	})
+
+	return statuses
 }
 
 func (s *server) probeTunnel(ctx context.Context, slug, network string) (err error) {

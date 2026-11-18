@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/wg"
 )
 
 func runWireguardList(ctx context.Context) error {
@@ -34,8 +36,25 @@ func runWireguardList(ctx context.Context) error {
 		return err
 	}
 
+	tokenTunnels := tokenTunnelsFor(ctx, org.Slug)
+
 	if config.FromContext(ctx).JSONOutput {
-		render.JSON(io.Out, peers)
+		if len(tokenTunnels) == 0 {
+			render.JSON(io.Out, peers)
+
+			return nil
+		}
+
+		rows := make([]any, 0, len(peers)+len(tokenTunnels))
+		for _, peer := range peers {
+			rows = append(rows, peer)
+		}
+
+		for _, t := range tokenTunnels {
+			rows = append(rows, tokenTunnelRow{Pubkey: t.Pubkey, Name: t.Name, Peerip: t.PeerIP, Endpoint: t.Endpoint})
+		}
+
+		render.JSON(io.Out, rows)
 
 		return nil
 	}
@@ -50,7 +69,84 @@ func runWireguardList(ctx context.Context) error {
 
 	table.Render() //nolint:errcheck
 
+	if len(tokenTunnels) == 0 {
+		return nil
+	}
+
+	fmt.Fprintln(io.Out)
+	fmt.Fprintln(io.Out, "Token-mode tunnels in use by this machine's agent:")
+
+	table = tablewriter.NewTable(io.Out,
+		tablewriter.WithHeader([]string{"Name", "Peer IP", "Endpoint"}),
+	)
+
+	for _, t := range tokenTunnels {
+		table.Append(t.Name, t.PeerIP, t.Endpoint) //nolint:errcheck
+	}
+
+	table.Render() //nolint:errcheck
+
 	return nil
+}
+
+// tokenTunnelRow is a token-mode tunnel in list's JSON output, shaped like
+// the API's peers (with no ID or region: it isn't registered) plus where its
+// WireGuard goes.
+type tokenTunnelRow struct {
+	ID       string
+	Pubkey   string
+	Region   string
+	Name     string
+	Peerip   string
+	Endpoint string
+}
+
+// agentTunnelTimeout bounds asking the agent, which may be busy building a
+// tunnel: the API's peers shouldn't wait long on it.
+const agentTunnelTimeout = 5 * time.Second
+
+// agentTunnels asks a running agent for its tunnels for the org. A variable
+// so tests can stand in for the agent.
+var agentTunnels = func(ctx context.Context, slug string) ([]wg.TunnelStatus, error) {
+	client, err := agent.DefaultClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Tunnels(ctx, slug)
+}
+
+// tokenTunnelsFor returns the token-mode tunnels this machine's agent holds
+// for the org. Their peers live only at the gateway, so the API doesn't list
+// them. Without a running agent there are none; it isn't started for this.
+// Trouble asking the agent is a warning: the API's peers still get listed.
+func tokenTunnelsFor(ctx context.Context, slug string) []wg.TunnelStatus {
+	ctx, cancel := context.WithTimeout(ctx, agentTunnelTimeout)
+	defer cancel()
+
+	tunnels, err := agentTunnels(ctx, slug)
+
+	switch {
+	case errors.Is(err, agent.ErrAgentNotRunning):
+		return nil
+	case errors.Is(err, agent.ErrUnsupportedCommand):
+		fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "The running agent is too old to report token-mode tunnels; run 'fly agent restart' to list them.")
+
+		return nil
+	case err != nil:
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Couldn't get token-mode tunnels from the agent: %v\n", err)
+
+		return nil
+	}
+
+	var token []wg.TunnelStatus
+	for _, t := range tunnels {
+		if t.Token {
+			token = append(token, t)
+		}
+	}
+
+	return token
 }
 
 func runWireguardWebsockets(ctx context.Context) error {
