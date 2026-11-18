@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -171,6 +172,7 @@ func runCreate(ctx context.Context) error {
 		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, org.InternalNumericID)
 	out := iostreams.FromContext(ctx).Out
 	for range count {
 		volume, err := flapsClient.CreateVolume(ctx, appName, input)

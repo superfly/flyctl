@@ -398,9 +398,9 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 		return fmt.Errorf("failed retrieving app %s: %w", state.Plan.AppName, err)
 	}
 
-	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+	appOrg, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return fmt.Errorf("failed retrieving organization for app %s: %w", state.Plan.AppName, err)
+		return err
 	}
 
 	clusterOrgSlug := cluster.Data.Organization.Slug
@@ -410,6 +410,8 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization to attach",
 			state.Plan.AppName, appOrgSlug, clusterID, clusterOrgSlug)
 	}
+
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 
 	// Build connection URI with the database name from the plan (if provided)
 	connectionUri := cluster.Credentials.ConnectionUri

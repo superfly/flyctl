@@ -104,7 +104,7 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, header, req.Header.Get("Authorization"))
 		})
 	}
-	for _, header := range []string{"Bearer fo1_only", "FlyV1 broken", "FlyV1 " + roots[0] + ",fm2_!", "no-scheme"} {
+	for _, header := range []string{"Custom opaque," + tok.All(), "Bearer fo1_only", "FlyV1 broken", "FlyV1 " + roots[0] + ",fm2_!", "no-scheme"} {
 		req, _ := http.NewRequestWithContext(parent, "GET", "http://local", nil)
 		req.Header.Set("Authorization", header)
 		calls := 0

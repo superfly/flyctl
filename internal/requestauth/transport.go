@@ -34,9 +34,12 @@ func (t transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return t.next.RoundTrip(req)
 	}
 	header := req.Header.Get("Authorization")
-	scheme, _, ok := strings.Cut(header, " ")
+	scheme, _, _ := strings.Cut(header, " ")
+	if !strings.EqualFold(scheme, "Bearer") && !strings.EqualFold(scheme, "FlyV1") {
+		return t.next.RoundTrip(req)
+	}
 	b, err := flyio.ParseBundleWithFilter(header, bundle.KeepAll)
-	if !ok || err != nil {
+	if err != nil {
 		return t.next.RoundTrip(req)
 	}
 	// Do not turn missing org credentials into an OAuth-only request or remove

@@ -37,6 +37,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -101,14 +102,14 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 			}
 			if managed {
 				connectOverWireguard = false
-				builderMachine, builderApp, err = remoteManagedBuilderMachine(ctx, app.Organization.Slug)
+				orgCtx := requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
+				builderMachine, builderApp, err = remoteManagedBuilderMachine(orgCtx, app.Organization.Slug)
 				if err != nil {
 					return nil, err
 				}
 			} else {
 				f.usedWireguard = connectOverWireguard
-				uiexClient := uiexutil.ClientFromContext(ctx)
-				org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+				org, err := uiexutil.AppOrganization(ctx, app)
 				if err != nil {
 					return nil, err
 				}
@@ -929,8 +930,7 @@ func remoteBuilderMachine(ctx context.Context, appName string, recreateBuilder b
 	if err != nil {
 		return nil, nil, err
 	}
-	uiexClient := uiexutil.ClientFromContext(ctx)
-	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+	org, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
 		return nil, nil, err
 	}
