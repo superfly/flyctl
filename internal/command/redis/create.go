@@ -124,9 +124,8 @@ func runCreate(ctx context.Context) (err error) {
 	name := flag.GetString(ctx, "name")
 
 	if name == "" {
-		err = prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
-
-		if err != nil {
+		// With no TTY the name stays blank, so one is generated as for an empty answer.
+		if err := prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false); err != nil && !prompt.IsNonInteractive(err) {
 			return err
 		}
 	}
@@ -151,7 +150,7 @@ func runCreate(ctx context.Context) (err error) {
 	} else if !flag.GetBool(ctx, "disable-eviction") {
 		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://docs.fly.io/upstash/redis#memory-limits-and-object-eviction-policies\n\n")
 
-		enableEviction, err = prompt.Confirm(ctx, "Would you like to enable eviction?")
+		enableEviction, err = confirmOrOff(ctx, "Would you like to enable eviction?", "Eviction is off. Use --enable-eviction to turn it on.")
 		if err != nil {
 			return
 		}
@@ -173,7 +172,7 @@ func runCreate(ctx context.Context) (err error) {
 			enableAutoUpgrade = flag.GetBool(ctx, "enable-auto-upgrade")
 		} else {
 			fmt.Fprint(io.Out, autoUpgradeDescription)
-			enableAutoUpgrade, err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			enableAutoUpgrade, err = confirmOrOff(ctx, "Would you like to enable auto-upgrade?", "Auto-upgrade is off. Use --enable-auto-upgrade to turn it on.")
 			if err != nil {
 				return
 			}
@@ -188,7 +187,7 @@ func runCreate(ctx context.Context) (err error) {
 		enableProdpack = flag.GetBool(ctx, "enable-prodpack")
 	} else {
 		fmt.Fprint(io.Out, prodPackDescription)
-		enableProdpack, err = prompt.Confirm(ctx, "Would you like to enable ProdPack?")
+		enableProdpack, err = confirmOrOff(ctx, "Would you like to enable ProdPack?", "ProdPack is off. Use --enable-prodpack to turn it on.")
 		if err != nil {
 			return
 		}
@@ -197,6 +196,18 @@ func runCreate(ctx context.Context) (err error) {
 	_, err = Create(ctx, org, name, primaryRegion, plan, flag.GetBool(ctx, "no-replicas"), enableEviction, enableAutoUpgrade, enableProdpack, nil)
 
 	return err
+}
+
+// confirmOrOff asks question; with no TTY it answers no, the safe default, and prints offNotice.
+func confirmOrOff(ctx context.Context, question, offNotice string) (bool, error) {
+	yes, err := prompt.Confirm(ctx, question)
+	if prompt.IsNonInteractive(err) {
+		fmt.Fprintln(iostreams.FromContext(ctx).Out, offNotice)
+
+		return false, nil
+	}
+
+	return yes, err
 }
 
 func Create(ctx context.Context, org *uiex.Organization, name string, region *fly.Region, plan *gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, disallowReplicas bool, enableEviction bool, enableAutoUpgrade bool, enableProdpack bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
@@ -217,6 +228,11 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 
 		if !disallowReplicas {
 			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", false, []string{}, excludedRegions, "replica-regions")
+			// Replicas are optional and billed, so add none when no one can choose.
+			if prompt.IsNonInteractive(err) {
+				readRegions, err = &[]fly.Region{}, nil
+				fmt.Fprintln(io.Out, "No replica regions. Use --replica-regions to add them.")
+			}
 
 			if err != nil {
 				return
