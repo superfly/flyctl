@@ -44,7 +44,7 @@ type session struct {
 	tokens *tokens.Tokens
 }
 
-var errUnsupportedCommand = errors.New("unsupported command")
+var errUnsupportedCommand = agent.ErrUnsupportedCommand
 
 func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	var wg sync.WaitGroup
@@ -126,6 +126,8 @@ func (s *session) runCommand(ctx context.Context) {
 		handler = (*session).ping6
 	case "set-token":
 		handler = (*session).setToken
+	case "tunnels":
+		handler = (*session).tunnels
 	default:
 		s.error(errUnsupportedCommand)
 
@@ -258,6 +260,18 @@ func (s *session) tunnelFor(ctx context.Context, slug, network string) (*wg.Tunn
 	}
 
 	return tunnel, nil
+}
+
+var errMalformedTunnels = errors.New("malformed tunnels command")
+
+// tunnels describes the tunnels the agent holds for an org. It never builds
+// one.
+func (s *session) tunnels(_ context.Context, args ...string) {
+	if !s.exactArgs(1, args, errMalformedTunnels) {
+		return
+	}
+
+	_ = s.marshal(s.srv.tunnelStatuses(args[0]))
 }
 
 var errMalformedProbe = errors.New("malformed probe command")

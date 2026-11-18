@@ -402,6 +402,55 @@ func (t *Tunnel) StateAndConfig() (*WireGuardState, *Config) {
 	return t.State, t.Config
 }
 
+// TunnelStatus describes a live tunnel for display: our peer, and where its
+// WireGuard goes. Org and Network are the agent's, filled in by it.
+type TunnelStatus struct {
+	Org     string `json:"org"`
+	Network string `json:"network,omitempty"`
+
+	// Token is set for token-mode tunnels, whose peer was provisioned inline
+	// by the gateway and isn't registered with the API.
+	Token  bool   `json:"token"`
+	Name   string `json:"name"`
+	Pubkey string `json:"pubkey"`
+	PeerIP string `json:"peer_ip"`
+
+	// Endpoint is where the tunnel's WireGuard goes: ip:port over UDP, or
+	// wss://host when it's relayed over a websocket.
+	Endpoint string `json:"endpoint"`
+}
+
+// Status describes the tunnel as it is now. A token-mode tunnel's peer and
+// endpoint change when a reconnect lands on another gateway.
+func (t *Tunnel) Status() TunnelStatus {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	st := TunnelStatus{
+		Token:    t.ephemeral,
+		Endpoint: t.endpointAddr,
+	}
+
+	if t.State != nil {
+		st.Name = t.State.Name
+		st.Pubkey = t.State.LocalPublic
+		st.PeerIP = t.State.Peer.Peerip
+	}
+
+	// The device sends to the local websocket proxy; what's interesting is
+	// the gateway on the other end of the websocket.
+	switch {
+	case t.ephemeral && t.endpointAddr == t.wsProxyAddr:
+		if ep := t.wswg.connectedEndpoint(); ep != "" {
+			st.Endpoint = "wss://" + ep
+		}
+	case !t.ephemeral && t.wscancel != nil && t.State != nil:
+		st.Endpoint = "wss://" + t.State.Peer.Endpointip
+	}
+
+	return st
+}
+
 func (t *Tunnel) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
