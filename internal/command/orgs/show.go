@@ -66,9 +66,14 @@ func runShow(ctx context.Context) (err error) {
 	fmt.Fprintln(&buf)
 
 	fmt.Fprintln(&buf, colorize.Bold("Summary"))
-	fmt.Fprintf(&buf, "You have %s permissions on this organizaton\n", org.ViewerRole)
+	fmt.Fprintf(&buf, "You have %s permissions on this organization\n", org.ViewerRole)
 	// fmt.Fprintf(&buf, "There are %d DNS zones associated with this organization\n", len(org.DNSZones.Nodes))
-	fmt.Fprintf(&buf, "There are %d members associated with this organization\n", len(org.Members.Edges))
+	memberCount := len(org.Members.Edges)
+	verb, noun := "are", "members"
+	if memberCount == 1 {
+		verb, noun = "is", "member"
+	}
+	fmt.Fprintf(&buf, "There %s %d %s associated with this organization\n", verb, memberCount, noun)
 	fmt.Fprintln(&buf)
 
 	fmt.Fprintln(&buf, colorize.Bold("Organization Members"))
