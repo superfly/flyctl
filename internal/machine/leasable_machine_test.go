@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -464,16 +465,23 @@ func TestReleaseLease_CanceledContext(t *testing.T) {
 }
 
 func TestReleaseExitEventAfterStalledRead(t *testing.T) {
+	defer func(d time.Duration) { exitEventReadTimeout = d }(exitEventReadTimeout)
+	exitEventReadTimeout = 50 * time.Millisecond
 
 	calls := 0
 	exit := &fly.MachineEvent{Type: "exit"}
 	client := &mock.FlapsClient{GetFunc: func(ctx context.Context, _, _ string) (*fly.Machine, error) {
 		calls++
 		if calls == 1 {
-			deadline, ok := ctx.Deadline()
-			assert.True(t, ok)
-			assert.Less(t, time.Until(deadline), time.Minute)
-			return nil, fmt.Errorf("failed to get VM: %w", context.DeadlineExceeded)
+			select {
+			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
+				t.Error("exit-event read was not bounded")
+			}
+
+			// The real flaps client reports a timed-out read as a canceled
+			// request that does not wrap context.DeadlineExceeded.
+			return nil, fmt.Errorf("failed to get VM m1: %w", errors.New("net/http: request canceled"))
 		}
 
 		return &fly.Machine{Events: []*fly.MachineEvent{exit, {Type: "start"}}}, nil
