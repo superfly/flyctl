@@ -90,6 +90,7 @@ func runMachineStart(ctx context.Context) (err error) {
 			}
 
 			confirmedStart = true
+
 			return nil
 		}); err != nil {
 			return err
