@@ -65,6 +65,10 @@ func newVolume() *cobra.Command {
 			Description: "Name to use for the MCP server in the MCP client configuration",
 			Default:     "volume",
 		},
+		flag.StringArray{
+			Name:        "config",
+			Description: "Path to the MCP client configuration file (can be specified multiple times)",
+		},
 	)
 
 	for client, name := range McpClients {
