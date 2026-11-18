@@ -75,7 +75,7 @@ func runMachineStart(ctx context.Context) (err error) {
 		if err = tracing.WorkflowPhase(ctx, "request_start", func(ctx context.Context) error {
 			err := Start(ctx, appName, machine)
 			var apiErr *flaps.FlapsError
-			if !errors.As(err, &apiErr) || apiErr.ResponseStatusCode != http.StatusConflict || apiErr.Error() != "aborted: machine still attempting to start" || machine.Version == "" {
+			if !errors.As(err, &apiErr) || apiErr.ResponseStatusCode != http.StatusConflict || strings.TrimPrefix(apiErr.Error(), "aborted: ") != "machine still attempting to start" || machine.Version == "" {
 				return err
 			}
 
