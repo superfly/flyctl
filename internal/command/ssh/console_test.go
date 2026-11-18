@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -29,6 +30,8 @@ func sshFlagContext(t *testing.T, args ...string) (context.Context, *bytes.Buffe
 	return flag.NewContext(ctx, fs), errOut
 }
 
+// Ensure container selection preserves existing diagnostics and records only a
+// fixed reason code when rejecting a target or conflicting flags.
 func TestSelectContainer(t *testing.T) {
 	withContainers := &fly.Machine{
 		ID: "3d8d9d16f14683",
@@ -161,6 +164,11 @@ func TestSelectContainer(t *testing.T) {
 			container, err := selectContainer(ctx, tc.machine)
 			if tc.expectErr != "" {
 				require.EqualError(t, err, tc.expectErr)
+				code := tracing.WorkflowErrorSSHContainerNotFound
+				if len(tc.args) > 0 && tc.args[0] == "--no-container" {
+					code = tracing.WorkflowErrorSSHContainerFlags
+				}
+				require.Equal(t, code, tracing.WorkflowErrorCodeFor(err))
 
 				return
 			}
