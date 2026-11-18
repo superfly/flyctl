@@ -182,7 +182,9 @@ func runMachineConfigUpdate(ctx context.Context, app *flaps.App, org *uiex.Organ
 
 		// Ensure leases are released before we issue restart.
 		releaseLeaseFunc()
-		if err := machinesRestart(ctx, app.Name, &fly.RestartMachineInput{}); err != nil {
+		// This command's --force skips setting validation; it must not also
+		// force a leaderless restart.
+		if err := machinesRestart(ctx, app.Name, &fly.RestartMachineInput{}, false); err != nil {
 			return err
 		}
 	}

@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -9,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 )
 
-func sshFlagContext(t *testing.T, args ...string) context.Context {
+func sshFlagContext(t *testing.T, args ...string) (context.Context, *bytes.Buffer) {
 	t.Helper()
 
 	fs := pflag.NewFlagSet("ssh", pflag.ContinueOnError)
@@ -21,7 +23,10 @@ func sshFlagContext(t *testing.T, args ...string) context.Context {
 
 	require.NoError(t, fs.Parse(args))
 
-	return flag.NewContext(context.Background(), fs)
+	io, _, _, errOut := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), io)
+
+	return flag.NewContext(ctx, fs), errOut
 }
 
 func TestSelectContainer(t *testing.T) {
@@ -39,6 +44,19 @@ func TestSelectContainer(t *testing.T) {
 		ID:     "9080e6e2f24d83",
 		Config: &fly.MachineConfig{},
 	}
+	// Config is nil when the host isn't reporting ok; IncompleteConfig still
+	// carries the containers.
+	withIncompleteConfig := &fly.Machine{
+		ID:         "4d891de2f66587",
+		HostStatus: fly.HostStatusUnknown,
+		IncompleteConfig: &fly.MachineConfig{
+			Containers: []*fly.ContainerConfig{
+				{Name: "app"},
+				{Name: "sidecar"},
+			},
+		},
+	}
+	withoutConfig := &fly.Machine{ID: "e2865013b10d86"}
 
 	for _, tc := range []struct {
 		name      string
@@ -46,6 +64,7 @@ func TestSelectContainer(t *testing.T) {
 		args      []string
 		expect    string
 		expectErr string
+		expectOut string
 	}{
 		{
 			name:    "defaults to the first container",
@@ -83,9 +102,61 @@ func TestSelectContainer(t *testing.T) {
 			args:      []string{"--container", "nope"},
 			expectErr: "container named nope is not present in machine 3d8d9d16f14683, try running with --select to see a list",
 		},
+		{
+			name:    "incomplete configuration defaults to the first container",
+			machine: withIncompleteConfig,
+			expect:  "app",
+		},
+		{
+			name:    "named container from incomplete configuration",
+			machine: withIncompleteConfig,
+			args:    []string{"--container", "sidecar"},
+			expect:  "sidecar",
+		},
+		{
+			// IncompleteConfig can be partial, so a name it doesn't list is passed
+			// through rather than rejected.
+			name:    "container missing from incomplete configuration",
+			machine: withIncompleteConfig,
+			args:    []string{"--container", "worker"},
+			expect:  "worker",
+		},
+		{
+			// Nothing is known about the containers, so no container is named and
+			// the SSH server picks its default target.
+			name:    "missing configuration",
+			machine: withoutConfig,
+			expect:  "",
+		},
+		{
+			name:      "select with missing configuration",
+			machine:   withoutConfig,
+			args:      []string{"--select"},
+			expect:    "",
+			expectOut: "Couldn't read the containers of machine e2865013b10d86, connecting to its default target\n",
+		},
+		{
+			// The name can't be checked, so it's passed through to the SSH server.
+			name:    "named container with missing configuration",
+			machine: withoutConfig,
+			args:    []string{"--container", "app"},
+			expect:  "app",
+		},
+		{
+			name:    "no container with missing configuration",
+			machine: withoutConfig,
+			args:    []string{"--no-container"},
+			expect:  "",
+		},
+		{
+			name:      "conflicting container flags with missing configuration",
+			machine:   withoutConfig,
+			args:      []string{"--no-container", "--container", "app"},
+			expectErr: "--container and --no-container are mutually exclusive",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := sshFlagContext(t, tc.args...)
+			ctx, errOut := sshFlagContext(t, tc.args...)
 
 			container, err := selectContainer(ctx, tc.machine)
 			if tc.expectErr != "" {
@@ -96,6 +167,7 @@ func TestSelectContainer(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.expect, container)
+			assert.Equal(t, tc.expectOut, errOut.String())
 		})
 	}
 }

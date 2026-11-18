@@ -832,3 +832,54 @@ func TestToMachineConfig_hostdedicationid(t *testing.T) {
 		})
 	}
 }
+
+func TestCacheDiskConfig(t *testing.T) {
+	cfg, err := unmarshalTOML([]byte(`
+app = "cache-test"
+[processes]
+app = "serve"
+worker = "work"
+[[cache_disk]]
+size = "1024mib"
+path = "/cache"
+[[cache_disk]]
+size = "2gb"
+path = "/worker-cache"
+processes = ["worker"]
+`))
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		group string
+		size  uint64
+		path  string
+	}{
+		{"app", 1024, "/cache"}, {"worker", 2048, "/worker-cache"},
+	} {
+		got, err := cfg.ToMachineConfig(tc.group, nil)
+		require.NoError(t, err)
+		require.Equal(t, &fly.MachineCacheDrive{SizeMB: tc.size, Path: tc.path}, got.CacheDrive)
+	}
+
+	// Removing a declaration, or excluding a group, removes an existing disk.
+	cfg.CacheDisks = cfg.CacheDisks[1:]
+	src := &fly.MachineConfig{CacheDrive: &fly.MachineCacheDrive{SizeMB: 1024, Path: "/old"}}
+	got, err := cfg.ToMachineConfig("app", src)
+	require.NoError(t, err)
+	require.Nil(t, got.CacheDrive)
+	require.Equal(t, "/old", src.CacheDrive.Path)
+	got, err = cfg.ToMachineConfig("worker", src)
+	require.NoError(t, err)
+	require.Equal(t, &fly.MachineCacheDrive{SizeMB: 2048, Path: "/worker-cache"}, got.CacheDrive)
+}
+
+func TestTemporaryMachinesDoNotInheritCacheDisks(t *testing.T) {
+	cfg := NewConfig()
+	cfg.CacheDisks = []CacheDisk{{Size: "1024mib", Path: "/cache"}}
+	cfg.Deploy = &Deploy{ReleaseCommand: "migrate"}
+	release, err := cfg.ToReleaseMachineConfig()
+	require.NoError(t, err)
+	require.Nil(t, release.CacheDrive)
+	console, err := cfg.ToConsoleMachineConfig()
+	require.NoError(t, err)
+	require.Nil(t, console.CacheDrive)
+}

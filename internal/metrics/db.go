@@ -83,7 +83,16 @@ func FlushMetrics(ctx context.Context) error {
 // anything printed here would land in the output of whatever command ran.
 func SendMetrics(ctx context.Context, jsonData string) error {
 	cfg := config.FromContext(ctx)
-	metricsToken, err := GetMetricsToken(ctx)
+
+	// FlushMetrics runs as a task finalizer, which gets the command's context
+	// only after it's cancelled. Querying the token with it fails at once, so
+	// a run with no saved metrics token would drop every metric. Keep the
+	// context's values, drop its cancellation, and bound the query instead.
+	tokenCtx, cancel := context.WithTimeoutCause(context.WithoutCancel(ctx), 3*time.Second,
+		fmt.Errorf("querying metrics token: %w", context.DeadlineExceeded))
+	defer cancel()
+
+	metricsToken, err := GetMetricsToken(tokenCtx)
 	if err != nil {
 		terminal.Debugf("Metrics token unavailable: %v\n", err)
 

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -20,7 +21,12 @@ type captureGenqClient struct {
 	opNames   []string
 }
 
-func (c *captureGenqClient) MakeRequest(_ context.Context, req *genq.Request, resp *genq.Response) error {
+// client records each request it is sent.
+func (c *captureGenqClient) client() genq.Client {
+	return mock.GraphQLClient(c.record)
+}
+
+func (c *captureGenqClient) record(_ context.Context, req *genq.Request, resp *genq.Response) error {
 	c.requests++
 	c.opNames = append(c.opNames, req.OpName)
 	encoded, err := json.Marshal(req.Variables)
@@ -277,7 +283,7 @@ func TestUpdateRedisAddOnWire(t *testing.T) {
 			options := map[string]any{"prod_pack": true, "eviction": true}
 			stripProdPack(options)
 			client := &captureGenqClient{}
-			_, err = gql.UpdateRedisAddOn(context.Background(), client, "addon", "plan", []string{"ord"}, options, map[string]any{}, decision)
+			_, err = gql.UpdateRedisAddOn(context.Background(), client.client(), "addon", "plan", []string{"ord"}, options, map[string]any{}, decision)
 			require.NoError(t, err)
 			assert.Equal(t, 1, client.requests)
 			assert.Equal(t, []string{"UpdateRedisAddOn"}, client.opNames)
@@ -295,7 +301,7 @@ func TestUpdateRedisAddOnWire(t *testing.T) {
 func TestProdPackDecisionSurvivesUnchangedPlan(t *testing.T) {
 	client := &captureGenqClient{}
 
-	_, err := gql.UpdateRedisAddOn(context.Background(), client, "addon", "plan", []string{"ord"}, map[string]any{}, map[string]any{}, boolPtr(true))
+	_, err := gql.UpdateRedisAddOn(context.Background(), client.client(), "addon", "plan", []string{"ord"}, map[string]any{}, map[string]any{}, boolPtr(true))
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, client.requests)

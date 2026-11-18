@@ -3,6 +3,7 @@ package launch
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,8 +78,11 @@ func TestLaunchGoApp(t *testing.T) {
 	dockerfile, err := os.ReadFile(filepath.Join(res.dir, "Dockerfile"))
 	require.NoError(t, err)
 	assert.Contains(t, string(dockerfile), "ARG GO_VERSION")
-	// Without a .gitignore there's nothing to make a .dockerignore from.
-	assert.NoFileExists(t, filepath.Join(res.dir, ".dockerignore"))
+	// Without a .gitignore to build from, the generated Dockerfile gets the
+	// default .dockerignore.
+	dockerignore, err := os.ReadFile(filepath.Join(res.dir, ".dockerignore"))
+	require.NoError(t, err)
+	assert.Equal(t, "fly.toml\n.git\n", string(dockerignore))
 
 	// fly.toml is valid for fly deploy.
 	require.NoError(t, cfg.SetMachinesPlatform())
@@ -206,16 +210,47 @@ func TestLaunchDockerignoreFromGitignore(t *testing.T) {
 
 		dockerignore, err := os.ReadFile(filepath.Join(res.dir, ".dockerignore"))
 		require.NoError(t, err)
-		assert.Contains(t, string(dockerignore), "node_modules")
-		assert.Contains(t, string(dockerignore), ".env")
-		// fly.toml holds nothing the image needs.
-		assert.Contains(t, string(dockerignore), "fly.toml")
+		lines := strings.Split(string(dockerignore), "\n")
+		assert.Contains(t, lines, "**/node_modules")
+		assert.Contains(t, lines, "**/.env")
+		// fly.toml and .git hold nothing the image needs.
+		assert.Contains(t, lines, "fly.toml")
+		assert.Contains(t, lines, ".git")
 	})
 
 	t.Run("headless without the flag", func(t *testing.T) {
 		res, _, err := newManifestEnv().launchFrom(t, files)
 		require.NoError(t, err)
 
+		// The app brought its own Dockerfile, so launch leaves it alone.
 		assert.NoFileExists(t, filepath.Join(res.dir, ".dockerignore"))
+	})
+}
+
+func TestLaunchDockerignoreForGeneratedDockerfile(t *testing.T) {
+	files := map[string]string{".gitignore": ".env\n"}
+	for name, contents := range goApp {
+		files[name] = contents
+	}
+
+	t.Run("--dockerignore-from-gitignore", func(t *testing.T) {
+		res, _, err := newManifestEnv().launchFrom(t, files, "--dockerignore-from-gitignore")
+		require.NoError(t, err)
+
+		dockerignore, err := os.ReadFile(filepath.Join(res.dir, ".dockerignore"))
+		require.NoError(t, err)
+		lines := strings.Split(string(dockerignore), "\n")
+		assert.Contains(t, lines, "**/.env")
+		assert.Contains(t, lines, "fly.toml")
+		assert.Contains(t, lines, ".git")
+	})
+
+	t.Run("headless without the flag", func(t *testing.T) {
+		res, _, err := newManifestEnv().launchFrom(t, files)
+		require.NoError(t, err)
+
+		dockerignore, err := os.ReadFile(filepath.Join(res.dir, ".dockerignore"))
+		require.NoError(t, err)
+		assert.Equal(t, "fly.toml\n.git\n", string(dockerignore))
 	})
 }

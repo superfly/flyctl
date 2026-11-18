@@ -376,6 +376,12 @@ func isComputeValid(c *appconfig.Compute) bool {
 	return c != nil && c.MachineGuest != nil
 }
 
+// memoryEquals reports whether a fly.toml `memory` value is mb megabytes.
+func memoryEquals(memory string, mb int) bool {
+	parsed, err := helpers.ParseSize(memory, units.RAMInBytes, units.MiB)
+	return err == nil && parsed == mb
+}
+
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
 	appConfig := state.appConfig
@@ -458,9 +464,20 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	}
 
 	if plan.MemoryMB != 0 {
-		for i := range appConfig.Compute {
-			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].MemoryMB == 0 {
-				appConfig.Compute[i].MemoryMB = plan.MemoryMB
+		// The plan's memory describes the default process group, so it is
+		// the final word for that group's compute: a vm_memory edited in a
+		// manifest replaces the `memory` the compute came with. Other
+		// computes only take it when they have no memory of their own.
+		//
+		// It is written as `memory` alone. A memory_mb next to it would win
+		// over `memory`, so a later edit of `memory` would do nothing.
+		defaultCompute := appConfig.ComputeForGroup(appConfig.DefaultProcessName())
+		for _, compute := range appConfig.Compute {
+			if !isComputeValid(compute) || compute.MemoryMB != 0 {
+				continue
+			}
+			if compute.Memory == "" || (compute == defaultCompute && !memoryEquals(compute.Memory, plan.MemoryMB)) {
+				compute.Memory = memoryString(plan.MemoryMB)
 			}
 		}
 	}

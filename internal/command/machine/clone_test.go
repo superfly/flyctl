@@ -84,8 +84,9 @@ func TestCloneCarriesOverMountAutoExtendSettings(t *testing.T) {
 				Region:     "lax",
 				HostStatus: fly.HostStatusOk,
 				Config: &fly.MachineConfig{
-					Image:  "example/image:latest",
-					Mounts: []fly.MachineMount{tt.source},
+					Image:      "example/image:latest",
+					Mounts:     []fly.MachineMount{tt.source},
+					CacheDrive: &fly.MachineCacheDrive{SizeMB: 1024, Path: "/cache"},
 				},
 			}
 
@@ -116,6 +117,8 @@ func TestCloneCarriesOverMountAutoExtendSettings(t *testing.T) {
 
 			require.NotNil(t, launched.Config)
 			assert.Equal(t, []fly.MachineMount{tt.want}, launched.Config.Mounts)
+			assert.Equal(t, source.Config.CacheDrive, launched.Config.CacheDrive)
+			assert.NotSame(t, source.Config.CacheDrive, launched.Config.CacheDrive)
 		})
 	}
 }

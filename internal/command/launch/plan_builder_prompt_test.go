@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -92,7 +91,7 @@ func TestNudgeTowardsDeployDecline(t *testing.T) {
 		ctx, _ := interactiveNudgeContext(t, answer, "--name", "existing-app")
 		// Make the prompt visible to the parent before nudgeTowardsDeploy
 		// exits, so a successful child exit alone cannot satisfy the test.
-		iostreams.FromContext(ctx).Out = &nudgePromptOutput{Writer: os.Stdout}
+		iostreams.FromContext(ctx).Out = mock.PromptOutput{Writer: os.Stdout}
 		_, _, _ = determineAppName(ctx, nil, &appconfig.Config{}, "fly.toml")
 		t.Fatal("declining must exit before name selection continues")
 	}
@@ -118,33 +117,13 @@ func interactiveNudgeContext(t *testing.T, answer string, args ...string) (conte
 	t.Helper()
 	ctx := newNudgeCtx(t, args...)
 	streams := iostreams.FromContext(ctx)
-	output := new(bytes.Buffer)
-	// Survey asks for the terminal size and cursor position before reading
-	// the answer. Supplying those reports exercises the real prompt without
-	// requiring a terminal or changing the process's terminal settings.
-	streams.In = &nudgePromptInput{Reader: strings.NewReader("\x1b[24;80R\x1b[1;1R" + answer)}
-	streams.Out = &nudgePromptOutput{Writer: output}
+	// Exercise the real prompt without requiring a terminal or changing the
+	// process's terminal settings.
+	prompt, output, _ := mock.PromptIO(answer)
+	streams.In = prompt.In
+	streams.Out = prompt.Out
 	streams.SetStdinTTY(true)
 	streams.SetStdoutTTY(true)
 
 	return ctx, output
 }
-
-type nudgePromptInput struct{ io.Reader }
-
-func (in *nudgePromptInput) Read(p []byte) (int, error) {
-	// Prevent the cursor-report reader from buffering and discarding the
-	// following report or answer after it reads the report's final R.
-	if len(p) > 1 {
-		p = p[:1]
-	}
-
-	return in.Reader.Read(p)
-}
-
-func (*nudgePromptInput) Close() error { return nil }
-func (*nudgePromptInput) Fd() uintptr  { return ^uintptr(0) }
-
-type nudgePromptOutput struct{ io.Writer }
-
-func (*nudgePromptOutput) Fd() uintptr { return ^uintptr(0) }
