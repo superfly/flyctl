@@ -409,6 +409,39 @@ func (c *Client) Probe(ctx context.Context, slug, network string) error {
 	})
 }
 
+// ErrUnsupportedCommand is what an agent replies to a command it predates.
+var ErrUnsupportedCommand = errors.New("unsupported command")
+
+// Tunnels describes the tunnels the agent holds for the org. It doesn't
+// build any.
+func (c *Client) Tunnels(ctx context.Context, slug string) (tunnels []wg.TunnelStatus, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "tunnels", slug); err != nil {
+			return
+		}
+
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
+			err = unmarshal(&tunnels, data)
+		case isError(data):
+			if err = extractError(data); err.Error() == ErrUnsupportedCommand.Error() {
+				err = ErrUnsupportedCommand
+			}
+		}
+
+		return
+	})
+
+	return
+}
+
 func (c *Client) Resolve(ctx context.Context, slug, host, network string) (addr string, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
 		if err = proto.Write(conn, "resolve", slug, host, network); err != nil {

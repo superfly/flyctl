@@ -2,15 +2,18 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
@@ -18,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/wg"
 )
 
 func setSessionToken(t *testing.T, ctx context.Context, srv *server, kind, value string) *session {
@@ -105,4 +109,63 @@ func TestTokenSyncDoesNotHoldServerLock(t *testing.T) {
 	}
 	_, err := srv.tokensFromFile("test-config")
 	require.NoError(t, err)
+}
+
+func heldTunnel(name, peerIP string) *wg.Tunnel {
+	return &wg.Tunnel{State: &wg.WireGuardState{
+		Name:        name,
+		LocalPublic: name + "-pub",
+		Peer:        fly.CreatedWireGuardPeer{Peerip: peerIP},
+	}}
+}
+
+// runTunnels runs the tunnels command with args and returns the raw reply.
+func runTunnels(t *testing.T, srv *server, args ...string) string {
+	t.Helper()
+
+	a, b := net.Pipe()
+	require.NoError(t, b.SetDeadline(time.Now().Add(5*time.Second)))
+
+	sess := &session{srv: srv, logger: log.New(io.Discard, "", 0), conn: a}
+
+	done := make(chan struct{})
+	go func() { defer close(done); sess.tunnels(context.Background(), args...) }()
+
+	reply, err := proto.Read(b)
+	b.Close()
+	<-done
+	a.Close()
+	require.NoError(t, err)
+
+	return string(reply)
+}
+
+func TestTunnelsCommand(t *testing.T) {
+	srv := &server{
+		tunnels: map[tunnelKey]*wg.Tunnel{
+			{orgSlug: "jane-doe-123", networkName: "dev"}: heldTunnel("token-bbbbbbbb", "fdaa::b"),
+			{orgSlug: "jane-doe-123"}:                     heldTunnel("token-aaaaaaaa", "fdaa::a"),
+			{orgSlug: "acme"}:                             heldTunnel("token-cccccccc", "fdaa::c"),
+		},
+	}
+
+	reply := runTunnels(t, srv, "jane-doe-123")
+	require.True(t, strings.HasPrefix(reply, "ok "), reply)
+
+	var got []wg.TunnelStatus
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimPrefix(reply, "ok ")), &got))
+
+	// the org's tunnels only, default network first
+	assert.Equal(t, []wg.TunnelStatus{
+		{Org: "jane-doe-123", Name: "token-aaaaaaaa", Pubkey: "token-aaaaaaaa-pub", PeerIP: "fdaa::a"},
+		{Org: "jane-doe-123", Network: "dev", Name: "token-bbbbbbbb", Pubkey: "token-bbbbbbbb-pub", PeerIP: "fdaa::b"},
+	}, got)
+
+	t.Run("no tunnels", func(t *testing.T) {
+		assert.Equal(t, "ok []\n", runTunnels(t, srv, "other-org"))
+	})
+
+	t.Run("malformed", func(t *testing.T) {
+		assert.Equal(t, "err "+errMalformedTunnels.Error(), runTunnels(t, srv))
+	})
 }
