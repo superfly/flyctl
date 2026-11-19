@@ -644,7 +644,7 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil {
 		tracing.RecordError(ctx, span, err, "error waiting for builder machine to start")
 
-		return fmt.Errorf("waiting for builder machine %s to start after restart: %w", builderMachine.ID, err)
+		return fmt.Errorf("waiting for builder machine %s to start: %w", builderMachine.ID, err)
 	}
 
 	return nil
