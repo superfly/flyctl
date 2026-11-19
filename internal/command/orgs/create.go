@@ -18,9 +18,14 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		long = `Create a new organization. Other users can be invited to join the
-organization later.
-`
+		long = `Create a new organization with the given name, and print its name and
+slug. Invite members afterwards with ` + "`fly orgs invite`" + `.
+
+With no name, you're prompted for one in a terminal; without a terminal,
+the name is required. On accounts where new organizations start on the
+Pay As You Go plan, you're also asked to confirm unless you pass a name.
+Add a payment method in the dashboard before deploying to the new
+organization.`
 		short = "Create an organization"
 		usage = "create [name]"
 	)

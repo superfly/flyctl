@@ -29,9 +29,16 @@ import (
 
 func newIssue() *cobra.Command {
 	const (
-		long = `Issue a new SSH credential. With -agent, populate credential
-into SSH agent. With -hour, set the number of hours (1-72) for credential
-validity.`
+		long = `Issue a short-lived SSH certificate for an organization, so you can reach
+its Machines with your own SSH client over WireGuard. The organization comes
+from ` + "`--org`" + ` or the first argument; otherwise you pick one from a list.
+The certificate is valid for 24 hours unless you set ` + "`--hours`" + ` (1-72).
+
+With ` + "`--agent`" + `, the key and certificate are added to your running SSH
+agent and nothing is written to disk. Otherwise they are written to a private
+key file and a matching -cert.pub file; pass the path as an argument, or you
+are prompted for it. Existing files are not replaced unless you pass
+` + "`--overwrite`" + ` and the file is a key flyctl generated.`
 		short = `Issue a new SSH credential`
 		usage = "issue [org] [path]"
 	)

@@ -21,11 +21,12 @@ import (
 // TODO: deprecate & remove
 func New() *cobra.Command {
 	const (
-		long = `Commands for managing Fly organizations. list, create, show and
-destroy organizations.
-Organization admins can also invite or remove users from Organizations.
-`
-		short = "Commands for managing Fly organizations"
+		long = `Manage Fly.io organizations: list, show, create and delete them, and
+invite or remove members. Every app belongs to an organization.
+
+Start with ` + "`fly orgs list`" + ` to see your organizations' slugs, then
+` + "`fly orgs show`" + ` for details and members.`
+		short = "Manage Fly.io organizations"
 	)
 
 	// TODO: list should also accept the --org param
