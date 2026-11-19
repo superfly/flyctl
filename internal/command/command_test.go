@@ -5,6 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,14 +16,19 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/flyio"
 )
 
 func TestFilesFromCommandUsesPOSIXGuestPath(t *testing.T) {
@@ -219,6 +228,67 @@ func TestRequireSessionWithoutTerminal(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "expired") || !strings.Contains(err.Error(), "fly auth login") {
 				t.Fatalf("expected an expired-session error naming fly auth login, got %v", err)
 			}
+		})
+	}
+}
+
+func TestSessionAfterDischargeFailure(t *testing.T) {
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, `{"error":"fixture discharge outage"}`)
+	}))
+	t.Cleanup(endpoint.Close)
+
+	newPermission := func() *macaroon.Macaroon {
+		m, err := macaroon.New([]byte("fixture"), flyio.LocationPermission, macaroon.NewSigningKey())
+		require.NoError(t, err)
+		return m
+	}
+	encode := func(m *macaroon.Macaroon) string {
+		s, err := m.String()
+		require.NoError(t, err)
+		return s
+	}
+	key := macaroon.NewEncryptionKey()
+	perm := newPermission()
+	require.NoError(t, perm.Add3P(key, endpoint.URL))
+	ticket, err := perm.ThirdPartyTicket(endpoint.URL)
+	require.NoError(t, err)
+	_, discharge, err := macaroon.DischargeTicket(key, endpoint.URL, ticket)
+	require.NoError(t, err)
+	complete := encode(perm) + "," + encode(discharge)
+	require.NoError(t, perm.Add3P(key, endpoint.URL+"/second"))
+	missing := encode(perm)
+	for _, tc := range []struct {
+		name        string
+		header      string
+		prepare     preparers.Preparer
+		wantFailure bool
+	}{
+		{"all missing", missing, RequireFlapsSession, true},
+		{"ordinary session during outage", missing, RequireSession, false},
+		{"one of two tickets still missing", missing + "," + encode(discharge), RequireFlapsSession, true},
+		{"one complete permission", missing + "," + complete, RequireFlapsSession, false},
+		{"permission without caveats", missing + "," + encode(newPermission()), RequireFlapsSession, false},
+		{"OAuth omitted by Machines client", missing + ",fo1_fixture", RequireFlapsSession, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("FLY_ACCESS_TOKEN", tc.header)
+			toks := tokens.Parse(tc.header)
+			base, cancel := context.WithCancel(t.Context())
+			ctx := task.NewWithContext(logger.NewContext(base, logger.New(io.Discard, logger.Info, false)))
+			task.FromContext(ctx).Start(ctx)
+			defer task.FromContext(ctx).Shutdown()
+			defer cancel()
+			ctx = config.NewContext(ctx, &config.Config{Tokens: toks})
+			ctx = flyutil.NewContextWithClient(ctx, flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: toks}))
+			_, err := tc.prepare(ctx)
+			if tc.wantFailure {
+				require.ErrorContains(t, err, "failed to refresh third-party discharge tokens")
+				require.ErrorContains(t, err, "fixture discharge outage")
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }
