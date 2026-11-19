@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/macaroon"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -609,6 +610,26 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
+	return requireSession(ctx, false)
+}
+
+// RequireFlapsSession checks the credentials the Machines client will actually send.
+func RequireFlapsSession(ctx context.Context) (context.Context, error) {
+	return requireSession(ctx, true)
+}
+
+func requireSession(ctx context.Context, requireFlapsTokens bool) (context.Context, error) {
+	ctx, err := ensureLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := monitorSessionTokens(ctx, requireFlapsTokens); err != nil {
+		return nil, err
+	}
+	return ctx, nil
+}
+
+func ensureLogin(ctx context.Context) (context.Context, error) {
 	client := flyutil.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 
@@ -632,10 +653,6 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 
 			return handleReLogin(ctx, "expired")
 		}
-	}
-
-	if err := monitorSessionTokens(ctx); err != nil {
-		return nil, err
 	}
 
 	return ctx, nil
@@ -719,11 +736,6 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
-		// Fetch organization tokens and discharge any third-party caveats
-		if err := monitorSessionTokens(ctx); err != nil {
-			return nil, err
-		}
-
 		return ctx, nil
 	} else {
 		return nil, reloginError(reason)
@@ -750,13 +762,14 @@ const ssoTokensHelpURL = "https://docs.fly.io/security/tokens"
 // monitorSessionTokens starts token monitoring and fails the command when an
 // SSO sign-in was requested but not completed, rather than letting it go on
 // to an unauthorized API call.
-func monitorSessionTokens(ctx context.Context) error {
+func monitorSessionTokens(ctx context.Context, requireFlapsTokens bool) error {
 	var (
 		mu    sync.Mutex
 		shown string
 	)
 
-	config.MonitorTokens(ctx, config.Tokens(ctx), func(ctx context.Context, url string) error {
+	t := config.Tokens(ctx)
+	_, dischargeErr := config.MonitorTokens(ctx, t, func(ctx context.Context, url string) error {
 		mu.Lock()
 		shown = url
 		mu.Unlock()
@@ -768,9 +781,33 @@ func monitorSessionTokens(ctx context.Context) error {
 	url := shown
 	mu.Unlock()
 
-	return incompleteSSO(ctx, url, func() (bool, error) {
-		return flyio.DischargeClient().NeedsDischarge(config.Tokens(ctx).All())
+	ssoErr := incompleteSSO(ctx, url, func() (bool, error) {
+		return flyio.DischargeClient().NeedsDischarge(t.All())
 	})
+	if requireFlapsTokens && dischargeErr != nil && allMissingDischarges(t.Flaps()) {
+		return errors.Join(ssoErr, fmt.Errorf("failed to refresh third-party discharge tokens: %w", dischargeErr))
+	}
+
+	return ssoErr
+}
+
+// allMissingDischarges reports whether every permission macaroon in the Machines
+// credential needs at least one more discharge.
+func allMissingDischarges(header string) bool {
+	raw, err := macaroon.Parse(header)
+	if err != nil {
+		return false
+	}
+	perms, _, _, discharges, err := macaroon.FindPermissionAndDischargeTokens(raw, flyio.LocationPermission)
+	if err != nil || len(perms) == 0 {
+		return false
+	}
+	for _, perm := range perms {
+		if len(perm.AllThirdPartyTickets(discharges...)) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // incompleteSSO returns an error when url was shown for an SSO sign-in and the
