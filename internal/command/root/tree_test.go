@@ -140,6 +140,29 @@ func TestCommandTree_HasShortDescription(t *testing.T) {
 	}})
 }
 
+var nonWord = regexp.MustCompile(`[^a-z0-9]+`)
+
+// words lowercases s and splits it into words, dropping punctuation.
+func words(s string) []string {
+	return strings.Fields(nonWord.ReplaceAllString(strings.ToLower(s), " "))
+}
+
+// minExtraLongWords is how many words a Long must add beyond its Short.
+const minExtraLongWords = 8
+
+// A Long that only restates Short gives an agent reading --help nothing more,
+// so it must add at least a sentence of its own.
+func TestCommandTree_HasLongDescription(t *testing.T) {
+	checkRule(t, missingLongAllowlist, rule{pass: func(c *cobra.Command) bool {
+		long, short := words(c.Long), words(c.Short)
+		if strings.Join(long, " ") == strings.Join(short, " ") {
+			return false
+		}
+
+		return len(long) >= len(short)+minExtraLongWords
+	}})
+}
+
 // destructiveVerbs are words that, in a command's name or one of its
 // aliases, mark it as destroying or detaching something.
 var destructiveVerbs = map[string]bool{
