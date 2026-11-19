@@ -56,6 +56,60 @@ func TestIsFlapsRouteMissing(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "JSON 404 with an object for error",
+			err: &flaps.FlapsError{
+				OriginalError:      errors.New("request returned non-2xx status: 404"),
+				ResponseStatusCode: http.StatusNotFound,
+				ResponseBody:       []byte(`{"error":{"code":"not_found"}}`),
+			},
+			want: false,
+		},
+		{
+			name: "JSON 404 with an object for error and a message",
+			err: &flaps.FlapsError{
+				OriginalError:      errors.New("request returned non-2xx status: 404"),
+				ResponseStatusCode: http.StatusNotFound,
+				ResponseBody:       []byte(`{"error":{},"message":"User not found"}`),
+			},
+			want: false,
+		},
+		{
+			name: "JSON 404 with empty error values",
+			err: &flaps.FlapsError{
+				OriginalError:      errors.New("request returned non-2xx status: 404"),
+				ResponseStatusCode: http.StatusNotFound,
+				ResponseBody:       []byte(`{"error":"","message":null}`),
+			},
+			want: true,
+		},
+		{
+			name: "JSON array 404",
+			err: &flaps.FlapsError{
+				OriginalError:      errors.New("request returned non-2xx status: 404"),
+				ResponseStatusCode: http.StatusNotFound,
+				ResponseBody:       []byte(`["not found"]`),
+			},
+			want: true,
+		},
+		{
+			name: "JSON null 404",
+			err: &flaps.FlapsError{
+				OriginalError:      errors.New("request returned non-2xx status: 404"),
+				ResponseStatusCode: http.StatusNotFound,
+				ResponseBody:       []byte(`null`),
+			},
+			want: true,
+		},
+		{
+			name: "HTML 404 from a proxy",
+			err: &flaps.FlapsError{
+				OriginalError:      errors.New("request returned non-2xx status: 404"),
+				ResponseStatusCode: http.StatusNotFound,
+				ResponseBody:       []byte("<html><body>404 Not Found</body></html>"),
+			},
+			want: true,
+		},
+		{
 			name: "empty body 404",
 			err: &flaps.FlapsError{
 				OriginalError:      errors.New("request returned non-2xx status: 404: "),

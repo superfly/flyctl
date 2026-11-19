@@ -1,6 +1,7 @@
 package flapsutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -46,15 +47,23 @@ func IsFlapsRouteMissing(err error) bool {
 		return false
 	}
 
-	var body struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-	}
+	var body map[string]json.RawMessage
 	if jsonErr := json.Unmarshal(ferr.ResponseBody, &body); jsonErr != nil {
 		// Not a JSON object at all (e.g. flaps's plain-text 404 page, or an
 		// empty body) — conservatively assume the route is missing.
 		return true
 	}
 
-	return body.Error == "" && body.Message == ""
+	return !hasValue(body["error"]) && !hasValue(body["message"])
+}
+
+// hasValue reports whether a JSON field is present with something in it. ui-ex
+// sends a string, but any other non-empty value still says the route exists.
+func hasValue(raw json.RawMessage) bool {
+	switch string(bytes.TrimSpace(raw)) {
+	case "", "null", `""`, "{}", "[]":
+		return false
+	default:
+		return true
+	}
 }
