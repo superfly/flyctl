@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -485,6 +486,42 @@ func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	tk := tunnelKey{orgSlug: slug, networkName: network}
 
 	return s.tunnels[tk]
+}
+
+// tunnelStatuses describes every tunnel the agent holds for the org with
+// the real slug (never "personal"; see fetchOrg), ordered by network.
+func (s *server) tunnelStatuses(slug string) []wg.TunnelStatus {
+	type held struct {
+		key    tunnelKey
+		tunnel *wg.Tunnel
+	}
+
+	s.mu.Lock()
+
+	var tunnels []held
+	for tk, tunnel := range s.tunnels {
+		if tk.orgSlug == slug {
+			tunnels = append(tunnels, held{tk, tunnel})
+		}
+	}
+	s.mu.Unlock()
+
+	// outside s.mu: a tunnel's status waits on its own lock, which a
+	// rebuild holds
+	statuses := make([]wg.TunnelStatus, 0, len(tunnels))
+	for _, h := range tunnels {
+		st := h.tunnel.Status()
+		st.Org = h.key.orgSlug
+		st.Network = h.key.networkName
+
+		statuses = append(statuses, st)
+	}
+
+	slices.SortFunc(statuses, func(a, b wg.TunnelStatus) int {
+		return strings.Compare(a.Network, b.Network)
+	})
+
+	return statuses
 }
 
 func (s *server) probeTunnel(ctx context.Context, slug, network string) (err error) {

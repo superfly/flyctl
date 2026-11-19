@@ -419,6 +419,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 
 func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []machinePairing, poolSize int, machToLogger *MachineLogger) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "acquire_leases")
+	defer span.End()
 
 	leaseGroup := errgroup.Group{}
 	if poolSize <= 0 {
@@ -470,7 +471,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 	}
 
 	if err := leaseGroup.Wait(); err != nil {
-		tracing.RecordErrorEvent(ctx, span, err)
+		tracing.RecordError(ctx, span, err, "failed to acquire leases")
 
 		return err
 	}
