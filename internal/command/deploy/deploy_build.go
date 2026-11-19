@@ -110,6 +110,7 @@ func determineImage(ctx context.Context, app *flaps.App, appConfig *appconfig.Co
 
 	org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
 	if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to get organization")
 		return nil, false, err
 	}
 
