@@ -44,7 +44,22 @@ const authTokenKey contextKey = "authToken"
 func newServer() *cobra.Command {
 	const (
 		short = "[experimental] Start a flyctl MCP server"
-		long  = short + "\n"
+		long  = `Run flyctl as a local MCP server whose tools run fly commands with your
+access token: apps, machines, volumes, secrets, certificates, IPs, logs,
+organizations and status. Those tools include destructive ones, such as
+destroying apps, Machines and volumes. By default it serves MCP over stdio.
+With ` + "`--stream`" + ` or ` + "`--sse`" + `, it serves HTTP on 127.0.0.1 port 8080
+instead (see ` + "`--port`" + ` and ` + "`--bind-addr`" + `).
+
+With a client flag (such as ` + "`--claude`" + `) or ` + "`--config`" + `, the server
+doesn't start: instead an entry named "flyctl" (or ` + "`--server`" + `) is
+written to that client's config to run this command. With ` + "`--stream`" + ` or
+` + "`--sse`" + `, that entry contains your access token. ` + "`--inspector`" + `
+opens the MCP Inspector through ` + "`npx`" + `.
+
+This is distinct from the hosted Fly MCP server that ` + "`fly setup agent`" + `
+configures.
+`
 		usage = "server"
 	)
 
