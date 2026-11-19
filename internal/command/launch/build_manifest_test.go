@@ -530,7 +530,7 @@ func TestBuildManifestHighAvailability(t *testing.T) {
 
 		// The plan keeps asking for HA; Launch turns it off. The warning is
 		// printed now, and only once.
-		assert.Contains(t, res.errOut, "turning off high availability")
+		assert.Contains(t, res.errOut, noPaymentMethodHANotice)
 		assert.True(t, res.cache.warnedNoCcHa)
 	})
 }

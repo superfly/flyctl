@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	surveyterminal "github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
@@ -23,12 +24,12 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
-	gossh "golang.org/x/crypto/ssh"
 )
 
 func stdArgsSSH(cmd *cobra.Command) {
@@ -118,7 +119,7 @@ func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer ag
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
 
-			return "", "", errors.Wrapf(err, "host unavailable at %s", addr)
+			return "", "", tracing.WithWorkflowErrorCode(errors.Wrapf(err, "host unavailable at %s", addr), tracing.WorkflowErrorSSHDNS)
 		}
 	}
 
@@ -145,24 +146,14 @@ func newConsole() *cobra.Command {
 type SessionTarget = ssh.SessionTarget
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// A remote command failure is not a failure of the SSH client.
-	var exitErr *gossh.ExitError
-	if errors.Is(err, context.Canceled) || errors.As(err, &exitErr) {
+	// Closing a session is the outcome here whatever else failed with it.
+	// The shared filter is stricter about a cancellation inside a combined
+	// error, for the sake of deploys.
+	if errors.Is(err, context.Canceled) {
 		return
 	}
 
-	sentry.CaptureException(err,
-		sentry.WithTraceID(ctx),
-		sentry.WithTag("feature", "ssh-console"),
-		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]any{
-				"name": app.Name,
-			},
-			"organization": map[string]any{
-				"name": app.Organization.Slug,
-			},
-		}),
-	)
+	sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "ssh-console", app)
 }
 
 func runConsole(ctx context.Context) error {
@@ -188,7 +179,13 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	addr, container, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, true)
+	var container string
+	addr, err := tracing.WorkflowStep(ctx, "select_machine", func(ctx context.Context) (string, error) {
+		address, selectedContainer, err := lookupAddressAndContainer(ctx, agentclient, dialer, app, true)
+		container = selectedContainer
+
+		return address, err
+	})
 	if err != nil {
 		return err
 	}
@@ -214,7 +211,11 @@ func runConsole(ctx context.Context) error {
 		Machine:        flag.GetBool(ctx, "no-container"),
 		AppNames:       []string{app.Name},
 	}
-	sshc, err := Connect(params, addr)
+	sshc, err := tracing.WorkflowStep(ctx, "connect_ssh", func(ctx context.Context) (*ssh.Client, error) {
+		params.Ctx = ctx
+
+		return Connect(params, addr)
+	})
 	if err != nil {
 		captureError(ctx, err, app)
 
@@ -232,7 +233,9 @@ func runConsole(ctx context.Context) error {
 	return nil
 }
 
-func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) error {
+func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, target SessionTarget) (err error) {
+	ctx, finishSession := tracing.StartWorkflowPhase(ctx, "open_session")
+	defer func() { finishSession(err) }()
 	cleanup, setupErr := setupConsole()
 	if cleanup != nil {
 		defer cleanup()
@@ -248,6 +251,12 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 		AllocPTY: allocPTY,
 		TermEnv:  determineTermEnv(),
+		OnStarted: func() {
+			finishSession(setupErr)
+			if setupErr == nil {
+				tracing.FinishWorkflow(ctx)
+			}
+		},
 	}
 
 	if err := sshClient.Shell(ctx, sessIO, cmd, target); err != nil {
@@ -266,7 +275,7 @@ func findRequestedMachine(ctx context.Context, appName, machineID string, machin
 			continue
 		}
 		if m.State != "started" {
-			return nil, fmt.Errorf("machine %s is not started", machineID)
+			return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("machine %s is not started", machineID), tracing.WorkflowErrorSSHMachineNotStarted)
 		}
 
 		return m, nil
@@ -277,13 +286,15 @@ func findRequestedMachine(ctx context.Context, appName, machineID string, machin
 	// is reported as not found.
 	gqlMachine, err := flyutil.ClientFromContext(ctx).GetMachine(ctx, machineID)
 	if err == nil && gqlMachine != nil && gqlMachine.App != nil && gqlMachine.App.Name != "" && gqlMachine.App.Name != appName {
-		return nil, fmt.Errorf("machine %s belongs to app %s, not selected app %s", machineID, gqlMachine.App.Name, appName)
+		return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("machine %s belongs to app %s, not selected app %s", machineID, gqlMachine.App.Name, appName), tracing.WorkflowErrorSSHMachineAppMismatch)
 	}
+	code := tracing.WorkflowErrorSSHMachineNotFound
 	if err != nil {
 		terminal.Debugf("looking up machine %s: %v\n", machineID, err)
+		code = tracing.WorkflowErrorSSHMachineLookup
 	}
 
-	return nil, fmt.Errorf("machine %s was not found in app %s", machineID, appName)
+	return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("machine %s was not found in app %s", machineID, appName), code)
 }
 
 func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, err error) {
@@ -292,7 +303,7 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 
 	machines, err := flapsClient.ListActive(ctx, app.Name)
 	if err != nil {
-		return nil, err
+		return nil, tracing.WithWorkflowErrorCode(err, tracing.WorkflowErrorSSHMachineList)
 	}
 
 	machineID := flag.GetString(ctx, "machine")
@@ -310,7 +321,7 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 	})
 
 	if len(machines) < 1 {
-		return nil, fmt.Errorf("app %s has no started VMs.\nIt may be unhealthy or not have been deployed yet.\nTry the following command to verify:\n\nfly status", app.Name)
+		return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("app %s has no started VMs.\nIt may be unhealthy or not have been deployed yet.\nTry the following command to verify:\n\nfly status", app.Name), tracing.WorkflowErrorSSHNoStartedMachines)
 	}
 
 	if region := flag.GetRegion(ctx); region != "" {
@@ -318,10 +329,10 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 			return m.Region == region
 		})
 		if len(machines) < 1 {
-			return nil, fmt.Errorf("app %s has no VMs in region %s", app.Name, region)
+			return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("app %s has no VMs in region %s", app.Name, region), tracing.WorkflowErrorSSHNoMachinesInRegion)
 		}
 		if selectedMachine != nil && selectedMachine.Region != region {
-			return nil, fmt.Errorf("machine %s is in region %s, not selected region %s", machineID, selectedMachine.Region, region)
+			return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("machine %s is in region %s, not selected region %s", machineID, selectedMachine.Region, region), tracing.WorkflowErrorSSHMachineRegionMismatch)
 		}
 	}
 
@@ -330,13 +341,13 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 			return m.ProcessGroup() == group
 		})
 		if len(machines) < 1 {
-			return nil, fmt.Errorf("app %s has no VMs in process group %s", app.Name, group)
+			return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("app %s has no VMs in process group %s", app.Name, group), tracing.WorkflowErrorSSHNoMachinesInProcessGroup)
 		}
 		if selectedMachine != nil && selectedMachine.ProcessGroup() != group {
 			if selectedMachine.ProcessGroup() == "" {
-				return nil, fmt.Errorf("machine %s has no process group, not selected process group %s", machineID, group)
+				return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("machine %s has no process group, not selected process group %s", machineID, group), tracing.WorkflowErrorSSHMachineProcessGroupMismatch)
 			}
-			return nil, fmt.Errorf("machine %s is in process group %s, not selected process group %s", machineID, selectedMachine.ProcessGroup(), group)
+			return nil, tracing.WithWorkflowErrorCode(fmt.Errorf("machine %s is in process group %s, not selected process group %s", machineID, selectedMachine.ProcessGroup(), group), tracing.WorkflowErrorSSHMachineProcessGroupMismatch)
 		}
 	}
 
@@ -369,14 +380,14 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 
 	if flag.GetBool(ctx, "select") {
 		if flag.IsSpecified(ctx, "machine") {
-			return nil, errors.New("--machine can't be used with -s/--select")
+			return nil, tracing.WithWorkflowErrorCode(errors.New("--machine can't be used with -s/--select"), tracing.WorkflowErrorSSHSelectionFlags)
 		}
 
 		selected := 0
 
 		if len(namesWithRegion) > 1 {
 			if err = prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
-				return nil, fmt.Errorf("selecting VM: %w", err)
+				return nil, fmt.Errorf("selecting VM: %w", workflowPromptError(err, tracing.WorkflowErrorSSHMachinePrompt))
 			}
 		} else if len(machines) == 1 {
 			fmt.Fprintf(out, "Only one machine available, selecting %s in region %s\n", machines[0].ID, machines[0].Region)
@@ -390,13 +401,13 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
 			_, err := flapsClient.Start(ctx, app.Name, selectedMachine.ID, "")
 			if err != nil {
-				return nil, err
+				return nil, tracing.WithWorkflowErrorCode(err, tracing.WorkflowErrorSSHMachineStart)
 			}
 
 			err = flapsClient.Wait(ctx, app.Name, selectedMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(60*time.Second))
 
 			if err != nil {
-				return nil, err
+				return nil, tracing.WithWorkflowErrorCode(err, tracing.WorkflowErrorSSHMachineStartWait)
 			}
 		}
 	}
@@ -415,31 +426,62 @@ func selectMachine(ctx context.Context, app *flaps.App) (machine *fly.Machine, e
 	return selectedMachine, nil
 }
 
+func workflowPromptError(err error, code tracing.WorkflowErrorCode) error {
+	switch {
+	case errors.Is(err, surveyterminal.InterruptErr):
+		code = tracing.WorkflowErrorInterrupted
+	case errors.Is(err, prompt.ErrNonInteractive):
+		code = tracing.WorkflowErrorPromptNonInteractive
+	}
+
+	return tracing.WithWorkflowErrorCode(err, code)
+}
+
 // selectContainer selects a container from the machine's config.
 func selectContainer(ctx context.Context, machine *fly.Machine) (container string, err error) {
-	containers := machine.Config.Containers
 	container = flag.GetString(ctx, "container")
 
 	// --no-container asks for the machine itself, so there is nothing to select.
 	if flag.GetBool(ctx, "no-container") {
 		if container != "" {
-			return "", errors.New("--container and --no-container are mutually exclusive")
+			return "", tracing.WithWorkflowErrorCode(errors.New("--container and --no-container are mutually exclusive"), tracing.WorkflowErrorSSHContainerFlags)
 		}
 
 		return "", nil
 	}
 
+	// Config is nil when the machine's host isn't reporting ok. IncompleteConfig
+	// may still list the containers, but it can be partial, so it's only used
+	// to pick a default: a named container is never rejected because of it.
+	if machine.Config == nil && container != "" {
+		// The name can't be checked reliably: pass it through and let the SSH
+		// server decide.
+		return container, nil
+	}
+
+	cfg := machine.GetConfig()
+	if cfg == nil {
+		// Nothing is known about this machine's containers. The session names no
+		// container, so the SSH server connects to its default target.
+		if flag.GetBool(ctx, "select") {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Couldn't read the containers of machine %s, connecting to its default target\n", machine.ID)
+		}
+
+		return "", nil
+	}
+	containers := cfg.Containers
+
 	if len(containers) == 0 {
 		if container == "" {
 			return "", nil
 		} else {
-			return "", fmt.Errorf("no containers found for machine %s", machine.ID)
+			return "", tracing.WithWorkflowErrorCode(fmt.Errorf("no containers found for machine %s", machine.ID), tracing.WorkflowErrorSSHContainerNotFound)
 		}
 	} else if len(containers) == 1 {
 		if container == "" || container == containers[0].Name {
 			return containers[0].Name, nil
 		} else {
-			return "", fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID)
+			return "", tracing.WithWorkflowErrorCode(fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID), tracing.WorkflowErrorSSHContainerNotFound)
 		}
 	} else {
 		var availableContainers []string
@@ -452,7 +494,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 			if len(availableContainers) > 1 {
 				if flag.GetBool(ctx, "select") {
 					if err = prompt.Select(ctx, &selected, "Select container:", "", availableContainers...); err != nil {
-						return "", fmt.Errorf("selecting container: %w", err)
+						return "", fmt.Errorf("selecting container: %w", workflowPromptError(err, tracing.WorkflowErrorSSHContainerPrompt))
 					}
 				} else {
 					fmt.Printf("No container specified, using %s\n", availableContainers[0])
@@ -464,7 +506,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 			if slices.Contains(availableContainers, container) {
 				return container, nil
 			} else {
-				return "", fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID)
+				return "", tracing.WithWorkflowErrorCode(fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID), tracing.WorkflowErrorSSHContainerNotFound)
 			}
 		}
 	}

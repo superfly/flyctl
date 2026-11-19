@@ -28,7 +28,7 @@ browser to view the content.
 }
 
 func run(ctx context.Context) error {
-	const url = "https://fly.io/docs/"
+	const url = "https://docs.fly.io/"
 
 	out := iostreams.FromContext(ctx).ErrOut
 	fmt.Fprintf(out, "opening %s ...\n", url)

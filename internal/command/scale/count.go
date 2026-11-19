@@ -3,6 +3,7 @@ package scale
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"maps"
 	"slices"
 	"strconv"
@@ -30,7 +31,7 @@ Groups without machines use the primary region.
 Relative counts adjust each selected region, for example: fly scale count +1 or fly scale count -- -1.
 Targets above --max-per-region are rejected.
 
-For pricing, see https://fly.io/docs/about/pricing/`
+For pricing, see https://docs.fly.io/about/pricing`
 	)
 	cmd := command.New("count [count]", short, long, runScaleCount,
 		command.RequireSession,
@@ -90,7 +91,9 @@ func runScaleCount(ctx context.Context) error {
 
 	maxPerRegion := flag.GetInt(ctx, "max-per-region")
 
-	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
+	return tracing.WorkflowPhase(ctx, "apply_scale", func(ctx context.Context) error {
+		return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
+	})
 }
 
 type groupCount struct{ absolute, relative int }

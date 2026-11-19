@@ -14,8 +14,8 @@ type WireGuardState struct {
 	Org          string                   `json:"org"`
 	Name         string                   `json:"name"`
 	Region       string                   `json:"region"`
-	LocalPublic  string                   `json:"localprivate"`
-	LocalPrivate string                   `json:"localpublic"`
+	LocalPublic  string                   `json:"localpublic"`
+	LocalPrivate string                   `json:"localprivate"`
 	DNS          string                   `json:"dns"`
 	Peer         fly.CreatedWireGuardPeer `json:"peer"`
 }

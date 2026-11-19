@@ -22,7 +22,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const tokensHelpURL = "https://fly.io/docs/security/tokens/"
+const tokensHelpURL = "https://docs.fly.io/security/tokens"
 
 // loginTimeout is how long a login waits for the browser approval. The
 // server keeps a CLI session for the same 15 minutes.

@@ -33,7 +33,7 @@ func BringUpAgent(ctx context.Context, client wireguard.WebClient, app *fly.AppC
 	if !quiet {
 		io.StartProgressIndicatorMsg("Connecting to tunnel")
 	}
-	if err := agentclient.WaitForTunnel(ctx, slug, network); err != nil {
+	if err := agentclient.WaitForTunnel(ctx, tunnelOrg(dialer.State(), slug), network); err != nil {
 		captureError(ctx, err, "agent-remote", slug, name)
 
 		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
@@ -47,12 +47,8 @@ func BringUpAgent(ctx context.Context, client wireguard.WebClient, app *fly.AppC
 
 func BringUpAgentOrgSlug(ctx context.Context, client wireguard.WebClient, orgSlug string, network string, quiet bool) (*Client, Dialer, error) {
 	if orgSlug != "personal" {
-		// The agent keys tunnels based on web's org Slug, rather than RawSlug,
-		// so we need to use "personal" if the orgSlug belongs to the current
-		// user's personal org.
-		//
-		// It'd be good to standardize on RawSlug instead, but there are lots of
-		// callers to the agent and we don't want to touch them all at once.
+		// Preserve the account-relative alias for establishment with older agents.
+		// Follow-up requests use the identity returned by the agent.
 		uiexClient := uiexutil.ClientFromContext(ctx)
 		uiexOrg, err := uiexClient.GetOrganization(ctx, orgSlug)
 		if err != nil {

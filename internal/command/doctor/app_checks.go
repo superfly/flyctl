@@ -126,7 +126,7 @@ func (ac *AppChecker) checkIpsAllocated() []flaps.IPAssignment {
 		ac.lprint(nil, `Nope
 	No ip addresses assigned to this app. If the app is not intended to receive traffic, this is fine.
 	Otherwise, it likely means that the services configuration is not correctly setup to receive http, tls, tcp, or udp traffic.
-	https://fly.io/docs/reference/configuration/#the-services-sections
+	https://docs.fly.io/reference/configuration#the-services-sections
 `)
 	}
 

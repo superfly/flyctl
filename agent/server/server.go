@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/metrics/synthetics"
@@ -77,7 +79,6 @@ func Run(ctx context.Context, opt Options) (err error) {
 		runCtx:                ctx,
 		currentChange:         latestChangeAt,
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
-		slugAliases:           make(map[string]string),
 		tokens:                toks,
 		syncTokens:            syncTokens,
 		cancelTokenMonitoring: cancelMonitor,
@@ -90,13 +91,9 @@ type bindError struct{ error }
 
 func (be bindError) Unwrap() error { return be.error }
 
-// maxUnixSocketPath is the portable limit on unix socket paths (sun_path is
-// 108 bytes on Linux, 104 on the BSDs and macOS, NUL included).
-const maxUnixSocketPath = 103
-
 func bindUnixSocket(socket string) (net.Listener, error) {
-	if len(socket) > maxUnixSocketPath {
-		return nil, fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), maxUnixSocketPath, agent.SocketPathEnvKey)
+	if len(socket) > agent.MaxUnixSocketPath {
+		return nil, flyerr.Expected(fmt.Errorf("socket path %q is %d bytes, over the %d-byte unix socket limit: set %s (or TMPDIR, in isolated mode) to a shorter path", socket, len(socket), agent.MaxUnixSocketPath, agent.SocketPathEnvKey))
 	}
 
 	l, err := net.Listen("unix", socket)
@@ -157,10 +154,6 @@ type server struct {
 	mu            sync.Mutex
 	currentChange time.Time
 	tunnels       map[tunnelKey]*wg.Tunnel
-	// slugAliases maps every slug a client has used for an organization to
-	// the slug tunnels are keyed by. Clients may name the personal org by
-	// its raw slug (as Flaps does) or by the "personal" alias (as web does).
-	slugAliases map[string]string
 
 	// tokMu guards the three below, separately from mu so that code running
 	// under mu (tunnel construction, which presents tokens) can read them.
@@ -285,11 +278,13 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 		return
 	}
 
+	websocketsOnly := env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets
+
 	var transport string
 	if s.tokenModeFor(ctx, client) {
 		transport = "token"
 
-		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks); err != nil {
+		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks, !websocketsOnly); err != nil {
 			s.reportTokenFailure(tk, err, nil)
 
 			return
@@ -301,7 +296,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 		}
 
 		transport = "udp"
-		if env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets {
+		if websocketsOnly {
 			transport = "websocket"
 
 			if tunnel, err = wg.ConnectWS(ctx, state); err != nil {
@@ -338,8 +333,9 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 // buildTokenTunnel connects to the token gateway with a fresh keypair. The
 // gateway allocates the peer inline and keeps it only as long as the token
 // verifies, so nothing is registered with the API or written to the config
-// file. Callers must hold s.mu.
-func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, network string, sessionToks *tokens.Tokens) (*wg.Tunnel, error) {
+// file. With udp, WireGuard goes to the gateway's direct IP over UDP when it
+// has one, rather than over the websocket. Callers must hold s.mu.
+func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, network string, sessionToks *tokens.Tokens, udp bool) (*wg.Tunnel, error) {
 	if s.tokensFor(sessionToks).MacaroonsOnly().Empty() {
 		return nil, errors.New("access token is too old, please reauthenticate")
 	}
@@ -367,7 +363,7 @@ func (s *server) buildTokenTunnel(ctx context.Context, org *fly.Organization, ne
 		Token:       func() string { return s.tokensFor(sessionToks).MacaroonsOnly().FlapsHeader() },
 		OrgSlug:     slug,
 		NetworkName: network,
-	})
+	}, udp)
 	if err != nil {
 		return nil, fmt.Errorf("token-mode WireGuard via %s: %w", s.TokenGateway, err)
 	}
@@ -483,32 +479,49 @@ func (s *server) fetchInstances(ctx context.Context, tunnel *wg.Tunnel, app stri
 	return ret, nil
 }
 
-// rememberSlug records that slug names the organization whose tunnels are
-// keyed by canonical.
-func (s *server) rememberSlug(slug, canonical string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.slugAliases[slug] = canonical
-}
-
-// canonicalSlugUnlocked returns the slug tunnels are keyed by for a slug a
-// client sent. Callers must hold s.mu.
-func (s *server) canonicalSlugUnlocked(slug string) string {
-	if canonical, ok := s.slugAliases[slug]; ok {
-		return canonical
-	}
-
-	return slug
-}
-
 func (s *server) tunnelFor(slug, network string) *wg.Tunnel {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	tk := tunnelKey{orgSlug: s.canonicalSlugUnlocked(slug), networkName: network}
+	tk := tunnelKey{orgSlug: slug, networkName: network}
 
 	return s.tunnels[tk]
+}
+
+// tunnelStatuses describes every tunnel the agent holds for the org with
+// the real slug (never "personal"; see fetchOrg), ordered by network.
+func (s *server) tunnelStatuses(slug string) []wg.TunnelStatus {
+	type held struct {
+		key    tunnelKey
+		tunnel *wg.Tunnel
+	}
+
+	s.mu.Lock()
+
+	var tunnels []held
+	for tk, tunnel := range s.tunnels {
+		if tk.orgSlug == slug {
+			tunnels = append(tunnels, held{tk, tunnel})
+		}
+	}
+	s.mu.Unlock()
+
+	// outside s.mu: a tunnel's status waits on its own lock, which a
+	// rebuild holds
+	statuses := make([]wg.TunnelStatus, 0, len(tunnels))
+	for _, h := range tunnels {
+		st := h.tunnel.Status()
+		st.Org = h.key.orgSlug
+		st.Network = h.key.networkName
+
+		statuses = append(statuses, st)
+	}
+
+	slices.SortFunc(statuses, func(a, b wg.TunnelStatus) int {
+		return strings.Compare(a.Network, b.Network)
+	})
+
+	return statuses
 }
 
 func (s *server) probeTunnel(ctx context.Context, slug, network string) (err error) {

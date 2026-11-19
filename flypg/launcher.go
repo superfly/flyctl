@@ -307,7 +307,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	fmt.Fprintln(io.Out, connectHint(config))
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://fly.io/docs/postgres/getting-started/what-you-should-know/")
+	fmt.Fprintln(io.Out, "Now that you've set up Postgres, here's what you need to understand: https://docs.fly.io/unmanaged-postgres")
 
 	// TODO: wait for the cluster to be ready
 
