@@ -18,10 +18,17 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy Fly machines"
-		long  = `Destroy one or more Fly machines.
-This command requires a machine to be in a stopped or suspended state unless the force flag is used.
-`
+		short = "Destroy Fly Machines"
+		long  = `Permanently destroy one or more Fly Machines. This can't be undone. Pass
+machine IDs as arguments; the app is looked up from the first ID unless
+` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you pick one machine of the app from a
+list in a terminal; without a terminal, IDs are required. There's no
+confirmation prompt, except with ` + "`--image`" + `.
+
+A machine must be stopped or suspended first, unless you pass ` + "`--force`" + `,
+which kills a running machine. With ` + "`--image`" + `, every active machine of the
+app running that image is destroyed after you confirm; this needs a
+terminal. Stop machines with ` + "`fly machine stop`" + `.`
 		usage = "destroy [flags] ID ID ..."
 	)
 

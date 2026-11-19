@@ -24,7 +24,18 @@ import (
 func newClone() *cobra.Command {
 	const (
 		short = "Clone a Fly Machine"
-		long  = "Clone a Fly Machine. The new Machine will be a copy of the specified Machine. If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine."
+		long  = `Create a new Fly Machine in the same app with the same config and image as
+an existing one. It goes in the source machine's region, or the region of
+the volume given by ` + "`--attach-volume`" + `, unless you pass ` + "`--region`" + `. With no machine ID, you pick a machine of the app from a list
+in a terminal; without a terminal, the ID is required.
+
+If the source machine has a volume, a new empty volume is created for the
+clone, or one restored from a snapshot with ` + "`--from-snapshot`" + `; use
+` + "`--attach-volume`" + ` to attach an existing unattached volume instead.
+
+The command waits for the new machine to start and pass its health checks,
+unless you pass ` + "`--detach`" + `. A clone made with ` + "`--standby-for`" + ` is created
+but not started.`
 
 		usage = "clone [machine_id]"
 	)

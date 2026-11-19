@@ -14,8 +14,13 @@ import (
 
 func newKill() *cobra.Command {
 	const (
-		short = "Kill (SIGKILL) a Fly machine"
-		long  = short + "\n"
+		short = "Kill (SIGKILL) a Fly Machine"
+		long  = `Send SIGKILL to a Fly Machine, ending its processes immediately without a
+graceful shutdown. Pass a machine ID; the app is looked up from it unless
+` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it. With no ID, you pick a machine of the app from a list
+in a terminal; without a terminal, the ID is required.
+
+To stop a machine gracefully, use ` + "`fly machine stop`" + ` instead.`
 
 		usage = "kill [id]"
 	)

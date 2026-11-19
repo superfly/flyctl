@@ -20,7 +20,15 @@ import (
 func newWait() *cobra.Command {
 	const (
 		short = "Wait for a machine to reach a state"
-		long  = short + "\n"
+		long  = `Block until a Fly Machine reaches the state given by ` + "`--state`" + `, or until
+` + "`--wait-timeout`" + ` (five minutes by default) runs out. With the default
+state, "settled", the command prints the state the machine ended up in. It
+exits with an error if the timeout runs out, and makes up to three attempts
+when it hits transient API or network errors.
+
+Pass a machine ID; the app is looked up from it unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it.
+With no ID, you pick a machine of the app from a list in a terminal;
+without a terminal, the ID is required.`
 
 		usage = "wait [id]"
 	)

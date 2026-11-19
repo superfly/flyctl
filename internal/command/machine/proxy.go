@@ -15,8 +15,13 @@ import (
 
 func newProxy() *cobra.Command {
 	const (
-		short = "Establish a proxy to the Machine API through a Wireguard tunnel for local connections"
-		long  = short + "\n"
+		short = "Proxy the Machines API to a local port over WireGuard"
+		long  = `Forward local port 4280 to the Machines API (_api.internal:4280) through a
+WireGuard tunnel into an organization's private network, so local tools
+can call the API. The proxy runs until you stop it.
+
+Without ` + "`--org`" + `, you pick an organization in a terminal; if you belong
+only to your personal organization, it's used automatically.`
 
 		usage = "api-proxy"
 	)
