@@ -405,30 +405,38 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, err
 	}
 
-	files := templates("templates/python")
-	deployDocs := `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`
-	if cmd := pythonWebCommand(sourceDir); cmd != "" {
-		files = append(files, SourceFile{
-			Path:     "Procfile",
-			Contents: []byte("# TODO: Modify this Procfile to fit your needs\nweb: " + cmd + "\n"),
-		})
-	} else {
-		terminal.Warn("Could not determine how to start your Python app: gunicorn isn't in your dependencies and no app.py or main.py was found")
-		deployDocs = `Add a Procfile with a "web:" command that starts your application, then run "fly deploy" to deploy it.`
-	}
-
 	s := &SourceInfo{
-		Files:   files,
-		Builder: "paketobuildpacks/builder:base",
-		Family:  "Python",
-		Port:    8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
+		Files:      templates("templates/python"),
+		Builder:    "paketobuildpacks/builder:base",
+		Family:     "Python",
 		SkipDeploy: true,
-		DeployDocs: deployDocs,
 		Runtime:    plan.RuntimeStruct{Language: "python", Version: pythonVersion},
 	}
+
+	switch {
+	case procfileHasNoWeb(sourceDir):
+		terminal.Info("Procfile has no web process, not configuring an HTTP service")
+		s.WorkerOnly = true
+		s.DeployDocs = `Run "fly deploy" to deploy your application.`
+
+		return s, nil
+	case fileExists("Procfile")(sourceDir):
+		s.DeployDocs = `Make sure the web process in your Procfile listens on port 8080, then run "fly deploy" to deploy your application.`
+	default:
+		s.DeployDocs = `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`
+		if cmd := pythonWebCommand(sourceDir); cmd != "" {
+			s.Files = append(s.Files, SourceFile{
+				Path:     "Procfile",
+				Contents: []byte("# TODO: Modify this Procfile to fit your needs\nweb: " + cmd + "\n"),
+			})
+		} else {
+			terminal.Warn("Could not determine how to start your Python app: gunicorn isn't in your dependencies and no app.py or main.py was found")
+			s.DeployDocs = `Add a Procfile with a "web:" command that starts your application, then run "fly deploy" to deploy it.`
+		}
+	}
+
+	s.Port = 8080
+	s.Env = map[string]string{"PORT": "8080"}
 
 	return s, nil
 }

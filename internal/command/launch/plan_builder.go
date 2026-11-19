@@ -326,7 +326,12 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
 			planSource.tigrisSource = scannerSource
 		}
-		if srcInfo.Port != 0 && (!copiedConfig || appConfig.HTTPService != nil) {
+		// A copied fly.toml already decided on its [http_service]; leave it alone.
+		if srcInfo.WorkerOnly && !copiedConfig {
+			lp.WorkerOnly = true
+			lp.HttpServicePort = 0
+			lp.HttpServicePortSetByScanner = true
+		} else if srcInfo.Port != 0 && (!copiedConfig || appConfig.HTTPService != nil) {
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
 		}

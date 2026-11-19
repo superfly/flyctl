@@ -666,3 +666,36 @@ func TestTigrisExtensionParamsWithoutSourceInfo(t *testing.T) {
 	state.sourceInfo = &scanner.SourceInfo{OverrideExtensionSecretKeyNames: overrides}
 	assert.Equal(t, overrides, state.tigrisExtensionParams(nil).OverrideExtensionSecretKeyNames)
 }
+
+// The ui-ex launch form sends its default port (8080) back with every plan,
+// and flyctl-deployer merges it in, so a worker-only plan must drop
+// [http_service] whatever HttpServicePort says. Other plans are unchanged.
+func TestUpdateConfigWorkerOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		plan       plan.LaunchPlan
+		wantHttpOn int
+	}{
+		{name: "worker only, UI sent 8080", plan: plan.LaunchPlan{HttpServicePort: 8080, WorkerOnly: true}},
+		{name: "worker only", plan: plan.LaunchPlan{WorkerOnly: true}},
+		{name: "web", plan: plan.LaunchPlan{HttpServicePort: 8080}, wantHttpOn: 8080},
+		{name: "web on 3000", plan: plan.LaunchPlan{HttpServicePort: 3000}, wantHttpOn: 3000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := flagctx.NewContext(context.Background(), New().Flags())
+			state := &launchState{
+				LaunchManifest: LaunchManifest{Plan: &tc.plan},
+				planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+			}
+
+			state.updateConfig(ctx)
+
+			if tc.wantHttpOn == 0 {
+				assert.Nil(t, state.appConfig.HTTPService)
+			} else {
+				require.NotNil(t, state.appConfig.HTTPService)
+				assert.Equal(t, tc.wantHttpOn, state.appConfig.HTTPService.InternalPort)
+			}
+		})
+	}
+}

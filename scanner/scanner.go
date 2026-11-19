@@ -62,6 +62,7 @@ type SourceInfo struct {
 
 	Files                           []SourceFile
 	Port                            int
+	WorkerOnly                      bool // Procfile has no web process: launch without [http_service]
 	Env                             map[string]string
 	Statics                         []Static
 	Processes                       map[string]string

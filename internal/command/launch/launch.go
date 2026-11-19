@@ -400,7 +400,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 	appConfig.Compute = plan.Compute
 
-	if plan.HttpServicePort != 0 {
+	if plan.HttpServicePort != 0 && !plan.WorkerOnly {
 		autostop := fly.MachineAutostopStop
 		autostopFlag := flag.GetString(ctx, "auto-stop")
 
