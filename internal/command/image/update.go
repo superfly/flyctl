@@ -15,9 +15,16 @@ import (
 
 func newUpdate() *cobra.Command {
 	const (
-		long = `Update the app's image to the latest available version.
-The update will perform a rolling restart against each Machine, which may result in a brief service disruption.`
-		short = "Updates the app's image to the latest available version."
+		long = `Update each of the app's Machines to the newest version of the image it
+runs, or to the image given with --image. Each Machine restarts as it's
+updated, which can briefly interrupt service. Only images whose versions
+Fly.io tracks, such as Fly Postgres, have newer versions to move to.
+
+You see each Machine's config change and confirm it; pass --yes to skip the
+prompts, and without a terminal --yes is required. For Postgres apps,
+Machines not running the official Postgres image are skipped, you confirm
+once, and replicas are updated before the primary.`
+		short = "Update an app's Machines to the latest image version"
 		usage = "update"
 	)
 

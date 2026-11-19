@@ -19,7 +19,10 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long  = "List the services that are associated with an app"
+		long = `List the services configured on the app's active Machines. Each row shows
+the protocol, external and internal ports, handlers, whether HTTPS is
+forced, and the process groups, regions and number of Machines that have the
+service. The app comes from --app or fly.toml. --json isn't supported yet.`
 		short = "List services"
 	)
 

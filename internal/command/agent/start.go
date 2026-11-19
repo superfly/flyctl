@@ -11,7 +11,13 @@ import (
 func newStart() (cmd *cobra.Command) {
 	const (
 		short = "Start the Fly agent"
-		long  = short + "\n"
+		long  = `Start the Fly agent as a background process. Fails if an agent is already
+running; use ` + "`fly agent restart`" + ` to replace it. Requires you to be
+logged in.
+
+You rarely need this: commands that use WireGuard start the agent
+themselves.
+`
 	)
 
 	cmd = command.New("start", short, long, runStart,
