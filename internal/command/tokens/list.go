@@ -18,8 +18,14 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List tokens"
-		long  = short
+		short = "List API tokens for an app or organization"
+		long  = `List the limited API tokens for an app or an organization, with their
+IDs, names, creators, expiry and revocation times.
+
+By default, it lists tokens for the app from ` + "`--app`" + ` or fly.toml. Pass
+` + "`--org`" + ` or ` + "`--scope org`" + ` to list an organization's tokens instead;
+without ` + "`--org`" + `, you pick the organization from a list in a terminal.
+Use the IDs with ` + "`fly tokens revoke`" + `.`
 		usage = "list"
 	)
 

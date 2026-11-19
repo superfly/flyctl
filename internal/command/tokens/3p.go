@@ -18,12 +18,19 @@ import (
 func new3P() *cobra.Command {
 	const (
 		short = "Manage third-party (3P) caveats for Fly.io API tokens"
-		long  = `Add, manage, and discharge third-party tokens for a Fly.io API token.
-The token to be manipulated may either be passed in the -t argument or in FLY_API_TOKEN.
-Third-party caveats rely on a secret shared with between the third party and the
-author of the caveat. Pass this secret with --secret, --secret-file, or through the
-TOKEN_3P_SHARED_SECRET variable.
-`
+		long  = `Add third-party caveats to a Fly.io API token and work with their
+discharge tokens. A token with a third-party caveat only works when it
+carries a discharge token from the third-party service named by the
+caveat's ` + "`--location`" + ` URL. All subcommands work locally and print their
+result to stdout.
+
+The token to change is the one fly is using, normally passed with ` + "`-t`" + `
+or ` + "`FLY_API_TOKEN`" + `. Third-party caveats rely on a base64 secret shared
+between the third party and the caveat's author. Pass it with
+` + "`--secret-file`" + ` or ` + "`TOKEN_3P_SHARED_SECRET`" + ` (preferred) or ` + "`--secret`" + `.
+
+The usual flow is ` + "`add`" + `, then ` + "`ticket`" + `, then ` + "`discharge`" + ` (run by
+the third party), then ` + "`add-discharge`" + `.`
 		usage = "3p"
 	)
 
@@ -102,9 +109,11 @@ func get3PSharedSecret(ctx context.Context) ([]byte, error) {
 func new3PAdd() *cobra.Command {
 	const (
 		short = "Add a third-party caveat"
-		long  = `Add a caveat to the Fly.io token that requires a third-party service,
-identified by --location (a URL), to supply a discharge token in order to clear.
-`
+		long  = `Add a caveat to the current Fly.io API token that requires a discharge
+token from the third-party service identified by ` + "`--location`" + ` (a URL),
+and print the new token. Requires the shared secret.
+
+Get the caveat's ticket with ` + "`fly tokens 3p ticket`" + `.`
 		usage = "add"
 	)
 
@@ -134,9 +143,10 @@ identified by --location (a URL), to supply a discharge token in order to clear.
 func new3PTicket() *cobra.Command {
 	const (
 		short = "Retrieve the ticket from an existing third-party caveat"
-		long  = `If a third-party caveat tied to the URL at --location is present in
-the Fly.io API token, retrieve its ticket, so it can be submitted to the service
-to retrieve a discharge token.`
+		long  = `Print the base64 ticket for the third-party caveat with the given
+` + "`--location`" + ` URL in the current Fly.io API token. Submit the ticket to that
+service to get a discharge token, then attach it with
+` + "`fly tokens 3p add-discharge`" + `. Fails if the token has no such caveat.`
 		usage = "ticket"
 	)
 
@@ -156,8 +166,12 @@ to retrieve a discharge token.`
 func new3PDischarge() *cobra.Command {
 	const (
 		short = "Exchange a ticket for the token that discharges a third-party caveat"
-		long  = `Given the ticket for a third-party caveat, generate the discharge token
-that satisfies the caveat.`
+		long  = `Generate the discharge token for a third-party caveat from its ticket
+(` + "`--ticket`" + `) and print it in base64. This is the third party's side of
+the exchange and requires the shared secret and the caveat's ` + "`--location`" + `.
+
+Fails if the ticket contains caveats that the third party must check; those
+need to be discharged through the service's API instead.`
 		usage = "discharge"
 	)
 
@@ -191,9 +205,12 @@ that satisfies the caveat.`
 func new3PAddDischarge() *cobra.Command {
 	const (
 		short = "Tack a discharge token onto a Fly.io API token"
-		long  = `Once obtained by exchanging a caveat ticket with a third-party service,
-add the matching discharge token to the Fly.io API token header, to include it with
-authentication attempts.`
+		long  = `Append a discharge token (` + "`--discharge`" + `, base64) to the current Fly.io
+API token and print the combined token. Use the combined token so the
+discharge is sent along with every request.
+
+Get the discharge token from the third-party service by giving it the
+caveat's ticket from ` + "`fly tokens 3p ticket`" + `.`
 		usage = "add-discharge"
 	)
 

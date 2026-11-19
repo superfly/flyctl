@@ -26,10 +26,14 @@ import (
 
 func newDocker() *cobra.Command {
 	const (
-		long = `Adds registry.fly.io to the Docker daemon's authenticated
-registries. This allows you to push images directly to Fly.io from
-the Docker CLI. Note that tokens may expire.`
-		short = "Authenticate docker"
+		long = `Log Docker in to the Fly.io registry (registry.fly.io) with your current
+fly credentials, so you can push images to registry.fly.io/<app> with the
+Docker CLI. It runs ` + "`docker login`" + `; if the docker CLI isn't installed, it
+writes the credentials to ` + "`~/.docker/config.json`" + ` instead (not on Windows).
+
+The command prints when the credential expires, if known. Run it again
+after it expires or after you log in as someone else.`
+		short = "Log Docker in to the Fly.io registry"
 	)
 
 	return command.New("docker", short, long, runDocker,
