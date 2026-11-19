@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 	sprites "github.com/superfly/sprites-go"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -178,29 +176,35 @@ func proxyStdio(ctx context.Context, sprite *sprites.Sprite, addr string) error 
 		return fmt.Errorf("failed to connect to %s in sprite %s: %w", addr, sprite.Name(), err)
 	}
 
-	g, gctx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		_, err := io.Copy(conn, os.Stdin)
-		return err
-	})
-
-	g.Go(func() error {
-		_, err := io.Copy(ios.Out, conn)
-
-		// The remote side closing ends the session, even though stdin is
-		// still open.
-		if err == nil {
-			err = io.EOF
-		}
-
-		return err
-	})
-
-	stop := context.AfterFunc(gctx, func() { _ = conn.Close() })
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 
-	if err := g.Wait(); err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
+	// The stdin copier is not waited for: it can sit in a read that closing
+	// conn does not interrupt, and the remote side closing has to end the
+	// session even though stdin is still open. It dies with the process.
+	stdinErr := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(conn, ios.In)
+		if err != nil {
+			stdinErr <- err
+			_ = conn.Close()
+		}
+	}()
+
+	_, err = io.Copy(ios.Out, conn)
+	_ = conn.Close()
+
+	if ctx.Err() != nil {
+		return nil
+	}
+
+	select {
+	case err := <-stdinErr:
+		return err
+	default:
+	}
+
+	if err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 

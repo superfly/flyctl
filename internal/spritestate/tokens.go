@@ -8,12 +8,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
+	"github.com/superfly/fly-go/tokens"
+
+	"github.com/superfly/flyctl/internal/config"
 )
 
 // tokenDescription labels the tokens flyctl mints, so they can be told apart
@@ -138,4 +143,35 @@ func RevokeAll(ctx context.Context, configDir, flyMacaroon string) (failed []str
 	}
 
 	return failed, Clear(configDir)
+}
+
+// RevokeForLoginChange revokes and forgets the saved tokens before the Fly.io
+// login saved in configFile is replaced or removed, since that login minted
+// them and is the only one that can revoke them. It never fails the login
+// change: what went wrong comes back as warnings for the caller to print.
+func RevokeForLoginChange(ctx context.Context, configDir, configFile string) (warnings []string) {
+	var macaroon string
+	if saved, err := config.ReadAccessToken(configFile); err == nil {
+		macaroon = tokens.Parse(saved).Flaps()
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		warnings = append(warnings, fmt.Sprintf("Failed reading the login for Sprites token revocation: %v", err))
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	failed, err := RevokeAll(ctx, configDir, macaroon)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("Failed removing saved Sprites tokens: %v", err))
+	}
+
+	if len(failed) > 0 {
+		sort.Strings(failed)
+		warnings = append(warnings, fmt.Sprintf(
+			"Sprites API tokens for %s could not be revoked, so they remain valid. Revoke them in the Sprites dashboard.",
+			strings.Join(failed, ", "),
+		))
+	}
+
+	return warnings
 }

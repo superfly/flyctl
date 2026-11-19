@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
 	"github.com/spf13/cobra"
@@ -41,6 +42,12 @@ var createToken = func(ctx context.Context, flyMacaroon, org, apiURL string) (st
 	return spritestate.MintToken(ctx, apiURL, org, flyMacaroon)
 }
 
+// revokeToken revokes a Sprites API token. It is a variable so tests can
+// replace it.
+var revokeToken = func(ctx context.Context, flyMacaroon, org, apiURL, token string) error {
+	return spritestate.RevokeToken(ctx, apiURL, org, flyMacaroon, token)
+}
+
 // apiURL returns the Sprites API endpoint, honoring the environment variables
 // the standalone sprite CLI uses.
 func apiURL() string {
@@ -65,6 +72,31 @@ type session struct {
 	// cached reports whether Token came from the state file, in which case a
 	// rejected token is worth replacing.
 	cached bool
+
+	// mintedWith is the Fly.io macaroon Token was minted with for this run
+	// only, which is not saved and so is revoked when the run ends. It is
+	// empty for any other token.
+	mintedWith string
+}
+
+// close ends the session, revoking a token minted for this run alone so that
+// it does not outlive the run.
+func (s *session) close(ctx context.Context) {
+	s.Client.Close() //nolint:errcheck
+
+	if s.mintedWith == "" {
+		return
+	}
+
+	// Revoke even when the run was interrupted.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	if err := revokeToken(ctx, s.mintedWith, s.Org, s.APIURL, s.Token); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+			"Warning: the Sprites API token minted for this run could not be revoked (%v), so it remains valid. Revoke it in the Sprites dashboard, or set %s to avoid minting one per run.\n",
+			err, tokenEnv)
+	}
 }
 
 // orgDisplay names the organization in messages.
@@ -116,7 +148,7 @@ func withSession(fn runner) command.Runner {
 		}
 
 		err = fn(ctx, s)
-		s.Client.Close() //nolint:errcheck
+		s.close(ctx)
 
 		if err == nil || !s.cached || !isUnauthorized(err) {
 			return explainLimit(err)
@@ -129,7 +161,7 @@ func withSession(fn runner) command.Runner {
 		if s, err = newSession(ctx); err != nil {
 			return err
 		}
-		defer s.Client.Close() //nolint:errcheck
+		defer s.close(ctx)
 
 		return explainLimit(fn(ctx, s))
 	}
@@ -196,6 +228,11 @@ func newSession(ctx context.Context) (*session, error) {
 
 	if s.Token, s.cached, err = resolveToken(ctx, s.APIURL, s.Org); err != nil {
 		return nil, err
+	}
+
+	// A Fly.io token supplied for this run mints a token that is not saved.
+	if os.Getenv(tokenEnv) == "" && hasExternalFlyToken(ctx) {
+		s.mintedWith = config.Tokens(ctx).Flaps()
 	}
 
 	s.Client = sprites.New(s.Token,
@@ -474,10 +511,10 @@ func (t *sessionTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 // errNoSprite is returned when nothing names the sprite to act on.
 var errNoSprite = errors.New("no sprite specified")
 
-// namedSprite resolves the sprite a command acts on without prompting. arg is
-// the command's optional positional sprite name. Without one it falls back to
-// the --sprite flag, then the .sprite file.
-func (s *session) namedSprite(ctx context.Context, arg string) (string, error) {
+// argOrFlagSprite returns the sprite named by arg, a command's optional
+// positional sprite name, or else by the --sprite flag. Naming two different
+// sprites is an error. It returns "" when neither names one.
+func argOrFlagSprite(ctx context.Context, arg string) (string, error) {
 	flagName := flag.GetString(ctx, spriteFlagName)
 
 	switch {
@@ -485,8 +522,17 @@ func (s *session) namedSprite(ctx context.Context, arg string) (string, error) {
 		return "", fmt.Errorf("sprite name specified both as an argument (%s) and with --sprite (%s)", arg, flagName)
 	case arg != "":
 		return arg, nil
-	case flagName != "":
+	default:
 		return flagName, nil
+	}
+}
+
+// namedSprite resolves the sprite a command acts on without prompting. arg is
+// the command's optional positional sprite name. Without one it falls back to
+// the --sprite flag, then the .sprite file.
+func (s *session) namedSprite(ctx context.Context, arg string) (string, error) {
+	if name, err := argOrFlagSprite(ctx, arg); name != "" || err != nil {
+		return name, err
 	}
 
 	sf, _, err := readSpriteFile(state.WorkingDirectory(ctx))

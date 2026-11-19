@@ -11,8 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -356,6 +358,81 @@ func TestExecInterruptSignalsRemoteCommand(t *testing.T) {
 	}
 
 	assert.Equal(t, "INT", signal.Load(), "the remote command is asked to stop, not just abandoned")
+}
+
+func TestExecInterruptReportsRemoteExitStatus(t *testing.T) {
+	for _, code := range []int{0, 2} {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
+			api := newSpritesAPI(t)
+			api.addSprite("dev")
+
+			started := make(chan struct{})
+
+			// The remote command traps SIGINT and shuts down on its own terms.
+			api.exec = func(c *execConn) {
+				close(started)
+				c.waitControl("signal")
+				c.exit(code)
+			}
+
+			e := newEnv(t, newExec(), "--sprite", "dev", "--no-stdin", "server")
+
+			ctx, cancel := context.WithCancel(e.ctx)
+			defer cancel()
+
+			done := make(chan error, 1)
+			go func() { done <- runExec(ctx, api.session()) }()
+
+			<-started
+			cancel()
+
+			select {
+			case err := <-done:
+				if code == 0 {
+					require.NoError(t, err)
+				} else {
+					assert.Equal(t, code, exitCode(t, err))
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("exec did not return after an interrupt")
+			}
+
+			assert.Contains(t, e.errOut.String(), "Sent INT to the remote command")
+		})
+	}
+}
+
+func TestExecDroppedConnectionIsNotAnExitStatus(t *testing.T) {
+	for _, tty := range []bool{false, true} {
+		t.Run(fmt.Sprintf("tty=%v", tty), func(t *testing.T) {
+			api := newSpritesAPI(t)
+			api.addSprite("dev")
+
+			// The connection ends without the command having exited.
+			api.exec = func(c *execConn) { c.stdout("partial") }
+
+			args := []string{"--sprite", "dev", "--no-stdin", "server"}
+			if tty {
+				args = []string{"--sprite", "dev", "--tty", "server"}
+			}
+
+			e := newEnv(t, newExec(), args...)
+			err := runExec(e.ctx, api.session())
+			require.Error(t, err)
+
+			// Reporting this as the command's own exit status would pass a
+			// lost connection off as the command failing.
+			var exitErr *flyerr.ExitCodeError
+			assert.False(t, errors.As(err, &exitErr), "got exit status from a dropped connection: %v", err)
+		})
+	}
+}
+
+func TestRemoteSignalName(t *testing.T) {
+	assert.Equal(t, "INT", remoteSignalName(nil))
+	assert.Equal(t, "INT", remoteSignalName(context.Canceled))
+	assert.Equal(t, "INT", remoteSignalName(signalCause(os.Interrupt)))
+	assert.Equal(t, "TERM", remoteSignalName(signalCause(syscall.SIGTERM)))
 }
 
 func TestExecInterruptedBeforeStart(t *testing.T) {
@@ -806,8 +883,10 @@ func TestInteractiveSession(t *testing.T) {
 	assert.Equal(t, 5, exitCode(t, <-done))
 
 	out := e.out.String()
-	assert.True(t, strings.HasPrefix(out, "prompt$ bye"))
+	assert.True(t, strings.HasPrefix(out, "\033[?1004;2004sprompt$ bye"), "modes are saved before the session")
 	assert.Contains(t, out, "\033[?25h", "the terminal is reset after the session")
+	assert.Contains(t, out, "\033[<u", "a pushed kitty keyboard mode is popped")
+	assert.Contains(t, out, "\033[?1004;2004r", "saved modes are restored")
 
 	assert.True(t, tty.raw.Load(), "the terminal is put in raw mode")
 	assert.True(t, tty.restored.Load(), "and taken out of it afterwards")

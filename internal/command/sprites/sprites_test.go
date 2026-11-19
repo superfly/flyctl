@@ -324,6 +324,40 @@ func TestResolveTokenIgnoresCacheForExternalFlyToken(t *testing.T) {
 	assert.Equal(t, "from-saved-login", st.Tokens[key])
 }
 
+func TestSessionRevokesTokenMintedForOneRun(t *testing.T) {
+	for _, external := range []bool{true, false} {
+		t.Run(fmt.Sprintf("external=%v", external), func(t *testing.T) {
+			e := newEnv(t, newList(), "--org", "acme")
+			if external {
+				t.Setenv(config.APITokenEnvKey, "fm2_ci")
+			}
+
+			originalCreate, originalRevoke := createToken, revokeToken
+			t.Cleanup(func() { createToken, revokeToken = originalCreate, originalRevoke })
+
+			createToken = func(context.Context, string, string, string) (string, error) {
+				return "minted", nil
+			}
+
+			var revoked []string
+			revokeToken = func(_ context.Context, flyMacaroon, org, _, token string) error {
+				revoked = append(revoked, flyMacaroon+" "+org+" "+token)
+				return nil
+			}
+
+			run := withSession(func(context.Context, *session) error { return nil })
+			require.NoError(t, run(e.ctx))
+
+			if external {
+				// Nothing saved it, so nothing else would ever revoke it.
+				assert.Equal(t, []string{"fm2_test-macaroon acme minted"}, revoked)
+			} else {
+				assert.Empty(t, revoked, "a saved token is reused, not revoked")
+			}
+		})
+	}
+}
+
 func TestResolveTokenNeedsMacaroon(t *testing.T) {
 	e := newEnv(t, newList())
 	e.ctx = config.NewContext(e.ctx, &config.Config{Tokens: tokens.Parse("")})
@@ -731,6 +765,23 @@ func TestExecPassesCommandFlagsThrough(t *testing.T) {
 
 	e = newEnv(t, newExec(), "--", "ls", "-la")
 	assert.Equal(t, []string{"ls", "-la"}, flag.Args(e.ctx))
+
+	// Pinned on purpose, as it differs from the sprite CLI: a --sprite after
+	// the command name is the command's, not a second choice of sprite.
+	e = newEnv(t, newExec(), "-s", "my-sprite", "ls", "-s", "other")
+	assert.Equal(t, []string{"ls", "-s", "other"}, flag.Args(e.ctx))
+	assert.Equal(t, "my-sprite", flag.GetString(e.ctx, spriteFlagName))
+}
+
+func TestExecDashCommandNeedsSeparator(t *testing.T) {
+	// A command name that starts with a dash is read as a flag, and the
+	// error says how to pass it.
+	cmd := newExec()
+	err := cmd.ParseFlags([]string{"-la"})
+	require.Error(t, err)
+
+	err = cmd.FlagErrorFunc()(cmd, err)
+	assert.Contains(t, flyerr.GetErrorSuggestion(err), "put -- before the command")
 }
 
 func TestParseEnv(t *testing.T) {

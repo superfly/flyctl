@@ -244,6 +244,24 @@ func TestRunLogoutRevokesSpritesTokens(t *testing.T) {
 	assert.NotContains(t, stderr.String(), "acme,")
 }
 
+func TestRunLogoutSurvivesSpritesLockErrors(t *testing.T) {
+	dir := logoutTestDir(t)
+
+	// The mint lock cannot be taken: it links to somewhere that cannot be
+	// created.
+	if err := os.Symlink(filepath.Join(dir, "missing", "lock"), spritestate.Path(dir)+".mint.lock"); err != nil {
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
+
+	ctx, stdout, stderr := logoutTestContext(t, dir, logoutTestServer(t, `{"data":{"logOut":{"ok":true}}}`).URL, false)
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "fm2_login"))
+
+	require.NoError(t, runLogout(ctx))
+
+	assert.Contains(t, stdout.String(), "logged out successfully")
+	assert.Contains(t, stderr.String(), "Going ahead without waiting")
+}
+
 func TestRunLogoutWithoutSpritesTokens(t *testing.T) {
 	dir := logoutTestDir(t)
 

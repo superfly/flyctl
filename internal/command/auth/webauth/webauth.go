@@ -253,16 +253,22 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 func persistAccessToken(ctx context.Context, token string) (err error) {
 	path := state.ConfigFile(ctx)
 
-	unlock, err := spritestate.LockMint(ctx, state.ConfigDirectory(ctx))
-	if err != nil {
-		return err
+	// Sprites state is secondary to the login itself: trouble with it is a
+	// warning, never a reason to throw away a login the user just approved.
+	warn := func(msg string) {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Warning: %s\n", msg)
 	}
-	defer unlock()
+
+	if unlock, lockErr := spritestate.LockMintForLogin(ctx, state.ConfigDirectory(ctx)); lockErr != nil {
+		warn(fmt.Sprintf("Going ahead without waiting: %v", lockErr))
+	} else {
+		defer unlock()
+	}
 
 	// Sprites API tokens saved by an earlier login belong to that login, which
-	// may have been a different user.
-	if err = spritestate.Clear(state.ConfigDirectory(ctx)); err != nil {
-		return fmt.Errorf("failed clearing saved Sprites tokens: %w", err)
+	// may have been a different user. That login, still saved, can revoke them.
+	for _, msg := range spritestate.RevokeForLoginChange(ctx, state.ConfigDirectory(ctx), path) {
+		warn(msg)
 	}
 
 	if err = config.SetAccessToken(path, token); err != nil {

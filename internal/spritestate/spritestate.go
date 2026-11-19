@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gofrs/flock"
+	"github.com/superfly/flyctl/internal/filemu"
 )
 
 const fileName = "sprites.json"
@@ -93,25 +93,21 @@ func Save(configDir string, st *State) error {
 const (
 	updateWait = 10 * time.Second
 	mintWait   = time.Minute
+
+	// A login change has already happened by the time it takes the mint
+	// lock, so it waits only briefly before going ahead without it.
+	loginWait = 10 * time.Second
 )
 
 // lock takes an exclusive lock on path, waiting up to wait for whoever holds
 // it.
 func lock(ctx context.Context, path string, wait time.Duration) (unlock func(), err error) {
-	ctx, cancel := context.WithTimeout(ctx, wait)
-	defer cancel()
-
-	mu := flock.New(path)
-
-	locked, err := mu.TryLockContext(ctx, 10*time.Millisecond)
-	switch {
-	case err != nil:
+	unlockFile, err := filemu.LockFor(ctx, path, wait)
+	if err != nil {
 		return nil, err
-	case !locked:
-		return nil, errors.New("the lock is held")
 	}
 
-	return func() { _ = mu.Unlock() }, nil
+	return func() { _ = unlockFile() }, nil
 }
 
 // Update applies fn to the current state and saves the result, holding a lock
@@ -141,6 +137,18 @@ func LockMint(ctx context.Context, configDir string) (unlock func(), err error) 
 	unlock, err = lock(ctx, Path(configDir)+".mint.lock", mintWait)
 	if err != nil {
 		return nil, fmt.Errorf("timed out waiting for another sprites command to finish signing in: %w", err)
+	}
+
+	return unlock, nil
+}
+
+// LockMintForLogin is LockMint for login and logout, which wait less: the
+// caller warns and goes ahead without the lock rather than fail the login
+// change over Sprites state.
+func LockMintForLogin(ctx context.Context, configDir string) (unlock func(), err error) {
+	unlock, err = lock(ctx, Path(configDir)+".mint.lock", loginWait)
+	if err != nil {
+		return nil, fmt.Errorf("another sprites command is signing in: %w", err)
 	}
 
 	return unlock, nil

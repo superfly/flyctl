@@ -8,11 +8,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -33,8 +35,8 @@ const (
 	// Ctrl+C.
 	interruptedExitCode = 130
 
-	// interruptGrace is how long an interrupted remote command gets to exit
-	// before the connection is dropped anyway.
+	// interruptGrace is how long a start that was in flight when interrupted
+	// gets to finish, so a command that did start can be told to stop.
 	interruptGrace = 5 * time.Second
 )
 
@@ -134,8 +136,16 @@ runs, unless --no-port-forward is passed.
   fly sprites exec --tty -- /bin/bash
   fly sprites exec -o my-org -s my-sprite -- npm start`
 
-	// Stop parsing flags at the command name so its own flags reach it.
+	// Stop parsing flags at the command name so its own flags reach it. This
+	// differs from the sprite CLI, which keeps parsing and so reads
+	// "exec ls -s other" as targeting the sprite "other".
 	cmd.Flags().SetInterspersed(false)
+
+	// A command that itself starts with a dash still needs "--" in front.
+	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return flyerr.WithSuggestion(err,
+			"If this flag is meant for the command run in the sprite, put -- before the command: fly sprites exec [flags] -- <command> [args...]")
+	})
 
 	flag.Add(cmd,
 		flag.String{
@@ -405,7 +415,43 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 
 	interactive := tty != nil
 
+	// Before anything the remote program prints can change them.
+	if interactive && io.IsStdoutTTY() {
+		saveTerminal(io.Out)
+	}
+
 	detached := make(chan struct{})
+
+	// Ctrl+\ is also typed before the terminal is raw, while connecting, when
+	// it arrives as SIGQUIT. Left alone, that would dump goroutines and exit.
+	var quit <-chan os.Signal
+	if interactive {
+		q := make(chan os.Signal, 1)
+		signal.Notify(q, syscall.SIGQUIT)
+		defer signal.Stop(q)
+		quit = q
+	}
+
+	// restore puts the local terminal back once it has been made raw.
+	restore := func() {}
+
+	detach := func() error {
+		// Dropping the connection leaves the session running on the sprite.
+		cancel()
+		restore()
+
+		msg := opts.detachMessage
+		if msg == "" {
+			msg = "Detached. Reconnect with 'fly sprites attach'."
+		}
+		fmt.Fprintln(io.ErrOut, msg)
+
+		return nil
+	}
+
+	// What the server says about the session, for signaling it without the
+	// WebSocket.
+	session := &sessionInfo{id: opts.sessionID}
 
 	env := opts.env
 	if opts.tty {
@@ -455,7 +501,13 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 			cmd.Stdin = opts.stdin
 		}
 
-		return cmd, forwardPorts(ctx, cmd, sprite, opts.portForward)
+		handlePorts, stopForwarding := forwardPorts(ctx, sprite, opts.portForward)
+		cmd.TextMessageHandler = func(data []byte) {
+			session.observe(data)
+			handlePorts(data)
+		}
+
+		return cmd, stopForwarding
 	}
 
 	// Connecting can fail briefly, for instance while a paused sprite wakes.
@@ -475,6 +527,9 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 
 		select {
 		case err = <-startDone:
+		case <-quit:
+			stopForwarding()
+			return detach()
 		case <-parent.Done():
 			// Interrupted while connecting. The request may already have
 			// reached the sprite, so see the start through: if the command
@@ -511,8 +566,6 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		}
 	}
 	defer stopForwarding()
-
-	restore := func() {}
 
 	if interactive {
 		restoreMode, err := tty.MakeRaw()
@@ -551,28 +604,20 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 
 	select {
 	case <-detached:
-		// Dropping the connection leaves the session running on the sprite.
-		cancel()
-		restore()
-
-		msg := opts.detachMessage
-		if msg == "" {
-			msg = "Detached. Reconnect with 'fly sprites attach'."
-		}
-		fmt.Fprintln(io.ErrOut, msg)
-
-		return nil
+		return detach()
+	case <-quit:
+		return detach()
 	case <-parent.Done():
 		// Interrupted locally. For a command this run started, dropping the
 		// connection would leave it running, so ask it to stop and give it a
 		// moment to. A session this run only attached to is someone else's to
 		// stop: Ctrl+C there just stops watching.
 		if opts.sessionID == "" {
-			if err := cmd.Signal("INT"); err == nil {
-				select {
-				case <-waitDone:
-				case <-time.After(interruptGrace):
-				}
+			if exited, err := stopRemote(parent, io, sprite, cmd, session, waitDone); exited {
+				cancel()
+				restore()
+
+				return remoteResult(err)
 			}
 		}
 
@@ -583,17 +628,136 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 	case err := <-waitDone:
 		restore()
 
-		var exitErr *sprites.ExitError
+		return remoteResult(err)
+	}
+}
 
-		switch {
-		case err == nil:
-			return nil
-		case errors.As(err, &exitErr):
-			return &flyerr.ExitCodeError{Code: exitErr.ExitCode()}
-		default:
-			return err
+// remoteResult turns what waiting for a remote command returned into this
+// command's result.
+func remoteResult(err error) error {
+	var exitErr *sprites.ExitError
+
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &exitErr):
+		return &flyerr.ExitCodeError{Code: exitErr.ExitCode()}
+	default:
+		return err
+	}
+}
+
+// interruptsToDisconnect is how many local interrupts, the first included,
+// it takes to stop waiting for a remote command that will not exit.
+const interruptsToDisconnect = 3
+
+// stopRemote relays a local interrupt to the command this run started and
+// stays attached until it exits, so that its own exit status is reported. Each
+// further interrupt is relayed again, and the last of interruptsToDisconnect
+// disconnects. It reports false when the command could not be signaled or did
+// not exit.
+func stopRemote(parent context.Context, io *iostreams.IOStreams, sprite *sprites.Sprite, cmd *sprites.Cmd, session *sessionInfo, waitDone <-chan error) (exited bool, err error) {
+	// The interrupt that got here has already been taken by the process's
+	// own handler; later ones arrive on this channel.
+	more := make(chan os.Signal, 1)
+	signal.Notify(more, interruptSignals()...)
+	defer signal.Stop(more)
+
+	name := remoteSignalName(context.Cause(parent))
+
+	for sent := 1; ; sent++ {
+		if err := signalRemote(cmd, sprite, session, name); err != nil {
+			fmt.Fprintf(io.ErrOut, "Could not relay the interrupt to the remote command: %v\n", err)
+			return false, nil
+		}
+
+		if sent == 1 {
+			fmt.Fprintf(io.ErrOut, "Sent %s to the remote command. Press Ctrl+C %d more times to disconnect.\n", name, interruptsToDisconnect-1)
+		}
+
+		select {
+		case err := <-waitDone:
+			return true, err
+		case sig := <-more:
+			if sent+1 >= interruptsToDisconnect {
+				fmt.Fprintln(io.ErrOut, "Disconnected. The remote command may still be running.")
+				return false, nil
+			}
+
+			name = remoteSignalName(signalCause(sig))
 		}
 	}
+}
+
+// signalRemote sends a signal to a running command, over its WebSocket or,
+// when that fails, through the API by session ID.
+func signalRemote(cmd *sprites.Cmd, sprite *sprites.Sprite, session *sessionInfo, name string) error {
+	err := cmd.Signal(name)
+	if err == nil {
+		return nil
+	}
+
+	id := session.get()
+	if id == "" {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return sprite.SignalSession(ctx, id, name)
+}
+
+// remoteSignalName is the remote signal that stands for the local one that
+// caused cause: TERM for SIGTERM, INT for anything else.
+func remoteSignalName(cause error) string {
+	if cause != nil && strings.HasPrefix(cause.Error(), syscall.SIGTERM.String()) {
+		return "TERM"
+	}
+
+	return "INT"
+}
+
+// signalCause describes sig the way signal.NotifyContext does.
+func signalCause(sig os.Signal) error {
+	return errors.New(sig.String() + " signal received")
+}
+
+// interruptSignals are the signals that interrupt flyctl, as main sets up.
+func interruptSignals() []os.Signal {
+	if runtime.GOOS == "windows" {
+		return []os.Signal{os.Interrupt}
+	}
+
+	return []os.Signal{os.Interrupt, syscall.SIGTERM}
+}
+
+// sessionInfo records the ID the server gives a command's session.
+type sessionInfo struct {
+	mu sync.Mutex
+	id string
+}
+
+func (s *sessionInfo) observe(data []byte) {
+	var msg struct {
+		Type      string `json:"type"`
+		SessionID string `json:"session_id"`
+	}
+
+	if json.Unmarshal(data, &msg) != nil || msg.Type != "session_info" || msg.SessionID == "" {
+		return
+	}
+
+	s.mu.Lock()
+	s.id = msg.SessionID
+	s.mu.Unlock()
+}
+
+func (s *sessionInfo) get() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.id
 }
 
 // withTerminalEnv adds the local terminal's environment to env, without
@@ -614,14 +778,28 @@ func withTerminalEnv(env []string) []string {
 	return env
 }
 
+// savedModes are the terminal's private modes a remote program commonly
+// changes and that the local shell may rely on: focus reporting and bracketed
+// paste.
+const savedModes = "1004;2004"
+
+// saveTerminal records the local terminal's modes before a session, so that
+// resetTerminal can put them back as they were rather than just off.
+func saveTerminal(w io.Writer) {
+	fmt.Fprint(w, "\033[?"+savedModes+"s") // XTSAVE
+}
+
 // resetTerminal undoes modes a remote program may have left set, so the local
 // shell is usable after the session ends.
 func resetTerminal(w io.Writer) {
 	fmt.Fprint(w,
-		"\033[?1004l", // focus reporting off
-		"\033[?2004l", // bracketed paste off
-		"\033[0m",     // reset colors and attributes
-		"\033[?25h",   // show the cursor
+		"\033[<u",               // pop the kitty keyboard protocol, which editors push
+		"\033[?1004l",           // focus reporting off
+		"\033[?2004l",           // bracketed paste off
+		"\033[?"+savedModes+"r", // XTRESTORE: back to as they were, where supported
+		"\033[0 q",              // default cursor shape
+		"\033[0m",               // reset colors and attributes
+		"\033[?25h",             // show the cursor
 		"\r\n",
 	)
 }
@@ -649,20 +827,27 @@ func (d *detachReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// forwardPorts forwards ports the remote command opens to the same port on
-// localhost, and stops forwarding each one when it closes. The returned
-// function closes every forward still open.
-func forwardPorts(ctx context.Context, cmd *sprites.Cmd, sprite *sprites.Sprite, enabled bool) func() {
+// forwardPorts returns a handler for the remote command's text messages that
+// forwards ports it opens to the same port on localhost, and stops forwarding
+// each one when it closes. The returned stop function closes every forward
+// still open.
+func forwardPorts(ctx context.Context, sprite *sprites.Sprite, enabled bool) (handle func([]byte), stop func()) {
 	if !enabled {
-		return func() {}
+		return func([]byte) {}, func() {}
 	}
 
+	// A forward is reserved before it is dialed, so that a repeated
+	// notification does not dial twice, and a nil forward is one still being
+	// dialed.
+	type slot struct{ forward *sprites.ProxySession }
+
 	var (
-		mu     sync.Mutex
-		active = map[string]*sprites.ProxySession{}
+		mu      sync.Mutex
+		active  = map[string]*slot{}
+		stopped bool
 	)
 
-	cmd.TextMessageHandler = func(data []byte) {
+	handle = func(data []byte) {
 		var msg sprites.PortNotificationMessage
 		if err := json.Unmarshal(data, &msg); err != nil || msg.Port == 0 {
 			return
@@ -678,46 +863,76 @@ func forwardPorts(ctx context.Context, cmd *sprites.Cmd, sprite *sprites.Sprite,
 		switch msg.Type {
 		case "port_opened":
 			mu.Lock()
-			_, exists := active[key]
-			mu.Unlock()
-
-			if exists {
+			if _, exists := active[key]; exists || stopped {
+				mu.Unlock()
 				return
 			}
 
-			// A local port that is already taken is not worth failing the
-			// command over; `fly sprites proxy` can map it elsewhere.
-			forwards, err := sprite.ProxyPorts(ctx, []sprites.PortMapping{{
-				LocalPort:  msg.Port,
-				RemotePort: msg.Port,
-				RemoteHost: host,
-			}})
-			if err != nil || len(forwards) == 0 {
-				return
-			}
-
-			mu.Lock()
-			active[key] = forwards[0]
+			reserved := &slot{}
+			active[key] = reserved
 			mu.Unlock()
+
+			// This runs inside the WebSocket read loop, so dial elsewhere:
+			// output must keep flowing while the forward connects.
+			go func() {
+				// A local port that is already taken is not worth failing
+				// the command over; `fly sprites proxy` can map it elsewhere.
+				forwards, err := sprite.ProxyPorts(ctx, []sprites.PortMapping{{
+					LocalPort:  msg.Port,
+					RemotePort: msg.Port,
+					RemoteHost: host,
+				}})
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				// The port closed, or the command ended, while dialing.
+				current := active[key] == reserved && !stopped
+
+				if err != nil || len(forwards) == 0 {
+					if current {
+						delete(active, key)
+					}
+
+					return
+				}
+
+				if !current {
+					for _, forward := range forwards {
+						_ = forward.Close()
+					}
+
+					return
+				}
+
+				reserved.forward = forwards[0]
+			}()
 		case "port_closed":
 			mu.Lock()
-			forward := active[key]
+			closed := active[key]
 			delete(active, key)
 			mu.Unlock()
 
-			if forward != nil {
-				_ = forward.Close()
+			if closed != nil && closed.forward != nil {
+				_ = closed.forward.Close()
 			}
 		}
 	}
 
-	return func() {
+	stop = func() {
 		mu.Lock()
 		defer mu.Unlock()
 
-		for key, forward := range active {
-			_ = forward.Close()
+		stopped = true
+
+		for key, open := range active {
+			if open.forward != nil {
+				_ = open.forward.Close()
+			}
+
 			delete(active, key)
 		}
 	}
+
+	return handle, stop
 }

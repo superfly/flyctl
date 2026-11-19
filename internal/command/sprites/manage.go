@@ -73,9 +73,9 @@ func runCreate(ctx context.Context, s *session) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	name := flag.FirstArg(ctx)
-	if name == "" {
-		name = flag.GetString(ctx, spriteFlagName)
+	name, err := argOrFlagSprite(ctx, flag.FirstArg(ctx))
+	if err != nil {
+		return err
 	}
 
 	if name == "" {
@@ -244,13 +244,15 @@ func runUse(ctx context.Context, s *session) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	name := flag.FirstArg(ctx)
-	if name == "" {
-		name = flag.GetString(ctx, spriteFlagName)
+	name, err := argOrFlagSprite(ctx, flag.FirstArg(ctx))
+	if err != nil {
+		return err
 	}
 
-	if name == "" {
-		var err error
+	org := s.Org
+	picked := name == ""
+
+	if picked {
 		if name, err = s.selectSprite(ctx); err != nil {
 			if prompt.IsNonInteractive(err) {
 				return errors.New("a sprite name is required when not running interactively")
@@ -258,16 +260,35 @@ func runUse(ctx context.Context, s *session) error {
 
 			return err
 		}
-	} else if _, err := s.Client.GetSprite(ctx, name); err != nil {
-		return fmt.Errorf("failed to find sprite %s in organization %s: %w", name, s.orgDisplay(), err)
 	}
 
-	if err := writeSpriteFile(state.WorkingDirectory(ctx), s.Org, name); err != nil {
+	// A sprite picked from the list exists; its organization is only worth a
+	// lookup when the session does not know it.
+	if !picked || org == "" {
+		info, err := s.Client.GetSprite(ctx, name)
+		if err != nil {
+			return fmt.Errorf("failed to find sprite %s in organization %s: %w", name, s.orgDisplay(), err)
+		}
+
+		// With SPRITE_TOKEN the session has no organization, but the .sprite
+		// file needs one: without it, the file would match a same-named
+		// sprite in whatever organization a later command uses.
+		if org == "" {
+			org = info.OrganizationName
+		}
+	}
+
+	if err := writeSpriteFile(state.WorkingDirectory(ctx), org, name); err != nil {
 		return fmt.Errorf("failed to write the .sprite file: %w", err)
 	}
 
+	orgDisplay := s.orgDisplay()
+	if org != "" {
+		orgDisplay = org
+	}
+
 	fmt.Fprintf(io.Out, "%s Now using sprite %s from organization %s\n",
-		colorize.SuccessIcon(), colorize.Bold(name), s.orgDisplay())
+		colorize.SuccessIcon(), colorize.Bold(name), orgDisplay)
 	fmt.Fprintln(io.Out, "\nOther sprites commands in this directory will use this sprite by default.")
 	fmt.Fprintln(io.Out, "To unset, run: fly sprites use --unset")
 

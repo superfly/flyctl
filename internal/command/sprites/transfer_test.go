@@ -558,6 +558,33 @@ func TestProxyStdio(t *testing.T) {
 	assert.Equal(t, 22, gotPort)
 }
 
+func TestProxyStdioReturnsWhenRemoteCloses(t *testing.T) {
+	api := newSpritesAPI(t)
+	api.addSprite("dev")
+	api.tcp = func(_ int, conn io.ReadWriter) {
+		fmt.Fprint(conn, "bye")
+	}
+
+	e := newEnv(t, newProxy(), "--sprite", "dev", "--stdio", "22")
+
+	// Stdin stays open with nothing to read, as a terminal would.
+	stdin, stdinWriter := io.Pipe()
+	t.Cleanup(func() { _ = stdinWriter.Close() })
+	e.ios.In = stdin
+
+	done := make(chan error, 1)
+	go func() { done <- runProxy(e.ctx, api.session()) }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("proxy --stdio did not return after the remote side closed")
+	}
+
+	assert.Equal(t, "bye", e.out.String())
+}
+
 func TestProxyStdioConnectFailure(t *testing.T) {
 	api := newSpritesAPI(t)
 	api.addSprite("dev")

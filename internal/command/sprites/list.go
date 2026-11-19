@@ -123,7 +123,7 @@ func runList(ctx context.Context, s *session) error {
 		return errors.New("--json cannot be combined with --watch")
 	}
 
-	if watch && io.IsStdoutTTY() {
+	if watch {
 		return watchList(ctx, s, prefix)
 	}
 
@@ -215,7 +215,8 @@ func listSummary(s *session, result *sprites.ListResult) string {
 		name, org.Running, org.RunningLimit, org.Warm, org.WarmLimit, org.Running+org.Warm+org.Cold)
 }
 
-// watchList redraws the list until the context is cancelled.
+// watchList lists the sprites again every watchInterval until the context is
+// cancelled.
 func watchList(ctx context.Context, s *session, prefix string) error {
 	io := iostreams.FromContext(ctx)
 
@@ -232,8 +233,11 @@ func watchList(ctx context.Context, s *session, prefix string) error {
 			return fmt.Errorf("failed to list sprites: %w", err)
 		}
 
-		// Clear the screen and move the cursor home before each redraw.
-		fmt.Fprint(io.Out, "\033[H\033[2J")
+		// Redraw in place on a terminal. Anywhere else, such as a pipe to
+		// tee, each listing follows the last.
+		if io.IsStdoutTTY() {
+			fmt.Fprint(io.Out, "\033[H\033[2J")
+		}
 
 		if err := renderList(io, s, result, prefix); err != nil {
 			return err

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,6 +193,44 @@ func TestUse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &spriteFile{Organization: "acme", Sprite: "dev"}, sf)
 	assert.Contains(t, e.out.String(), "Now using sprite dev from organization acme")
+}
+
+func TestUseWithEnvironmentTokenRecordsSpriteOrg(t *testing.T) {
+	api := newSpritesAPI(t)
+	api.addSprite("dev")
+
+	// SPRITE_TOKEN leaves the session without an organization.
+	s := api.session()
+	s.Org = ""
+
+	e := newEnv(t, newUse(), "dev")
+	require.NoError(t, runUse(e.ctx, s))
+
+	sf, _, err := readSpriteFile(e.workDir)
+	require.NoError(t, err)
+	assert.Equal(t, &spriteFile{Organization: "acme", Sprite: "dev"}, sf,
+		"an empty organization would match a same-named sprite in any organization")
+	assert.Contains(t, e.out.String(), "from organization acme")
+}
+
+func TestUseAndCreateRejectConflictingNames(t *testing.T) {
+	api := newSpritesAPI(t)
+	api.addSprite("foo")
+	api.addSprite("bar")
+
+	e := newEnv(t, newUse(), "foo", "--sprite", "bar")
+	require.ErrorContains(t, runUse(e.ctx, api.session()), "both as an argument (foo) and with --sprite (bar)")
+	assert.NoFileExists(t, filepath.Join(e.workDir, spriteFileName))
+
+	e = newEnv(t, newCreate(), "baz", "--sprite", "qux")
+	require.ErrorContains(t, runCreate(e.ctx, api.session()), "both as an argument (baz) and with --sprite (qux)")
+	assert.NotContains(t, api.sprites, "baz")
+	assert.NotContains(t, api.sprites, "qux")
+
+	// The same name both ways is not a conflict.
+	e = newEnv(t, newCreate(), "baz", "--sprite", "baz")
+	require.NoError(t, runCreate(e.ctx, api.session()))
+	assert.Contains(t, api.sprites, "baz")
 }
 
 func TestUseRejectsUnknownSprite(t *testing.T) {
@@ -419,14 +458,32 @@ func TestListWatchStopsWhenCancelled(t *testing.T) {
 	assert.Contains(t, e.out.String(), "Press Ctrl+C to stop")
 }
 
-func TestListWatchPipedListsOnce(t *testing.T) {
+func TestListWatchPipedKeepsListing(t *testing.T) {
 	api := newSpritesAPI(t)
 	api.addSprite("alpha")
 
-	// Without a terminal to redraw, --watch has nothing to do.
+	// Piped, as to tee: --watch still refreshes, just without redrawing.
 	e := newEnv(t, newList(), "--watch")
-	require.NoError(t, runList(e.ctx, api.session()))
-	assert.Equal(t, "alpha\n", e.out.String())
+
+	ctx, cancel := context.WithCancel(e.ctx)
+
+	done := make(chan error, 1)
+	go func() { done <- runList(ctx, api.session()) }()
+
+	require.Eventually(t, func() bool { return len(api.requested()) >= 2 }, 3*watchInterval, 10*time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("watch did not stop when cancelled")
+	}
+
+	out := e.out.String()
+	assert.GreaterOrEqual(t, strings.Count(out, "Updated "), 2)
+	assert.GreaterOrEqual(t, strings.Count(out, " alpha "), 2)
+	assert.NotContains(t, out, "\033[", "no screen-clearing escapes in piped output")
 }
 
 func TestDestroyUnknownSprite(t *testing.T) {
