@@ -18,7 +18,16 @@ import (
 
 func newAllocate() *cobra.Command {
 	const (
-		long  = `Allocate recommended IP addresses for the application`
+		long = `Allocate the public IP addresses fly recommends for the app, based on the
+services in its Machines' configs and the addresses it already has. A
+shared IPv4 and a dedicated IPv6 are the usual choice; a dedicated IPv4,
+which costs money, is suggested when a service needs one, such as UDP or
+non-HTTP TCP ports.
+
+If the app already has the addresses it needs, fly says so and stops.
+Otherwise it shows what it will allocate and asks you to confirm; there's
+no flag to skip the prompt, so this needs a terminal. In scripts, use
+` + "`fly ips allocate-v4`" + ` and ` + "`fly ips allocate-v6`" + `.`
 		short = `Allocate recommended IP addresses`
 	)
 

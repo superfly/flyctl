@@ -28,17 +28,18 @@ import (
 func New() *cobra.Command {
 	var (
 		long = strings.Trim(`
-Test connectivity with ICMP ping messages.
+Send ICMP ping messages over WireGuard to a host in an organization's
+private network, and print each reply with its round-trip time.
 
-This runs over WireGuard; tell us which WireGuard tunnel to use by
-running from within an app directory (with a 'fly.toml'), passing the
-'-a' flag with an app name, or the '-o' flag with an org name.
+The target can be a .internal DNS name (such as my-app.internal), a 6PN
+address starting with fdaa:, or "gateway". A name is pinged at every
+address it resolves to. With no target, it pings the WireGuard gateway, the
+first hop into the network, which checks that your WireGuard connection
+works.
 
-With no arguments, test connectivity to your gateway, the first hop
-in our network, to see if your WireGuard connection is working.
-
-The target argument can be either a ".internal" DNS name in our network
-(the name of your application) or "gateway".
+The organization is the one set with `+"`-o`"+`, or else the app's
+organization (from `+"`-a`"+` or fly.toml). Pings run until you press
+Ctrl+C unless you set `+"`--count`"+`.
 `, "\n")
 		short = `Test connectivity with ICMP ping messages`
 	)

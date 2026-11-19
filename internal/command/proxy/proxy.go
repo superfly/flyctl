@@ -23,9 +23,20 @@ import (
 
 func New() *cobra.Command {
 	var (
-		long = strings.Trim(`Proxies connections to a Fly Machine through a WireGuard tunnel. By default,
-connects to the first Machine address returned by an internal DNS query on the app.`, "\n")
-		short = `Proxies connections to a Fly Machine.`
+		long = strings.Trim(`Forward a local port to a port in your Fly.io private network through a
+WireGuard tunnel, and keep forwarding until you stop the command. The first
+argument is local:remote, or a single port to use for both, for example
+`+"`fly proxy 5432`"+` or `+"`fly proxy 15432:5432`"+`.
+
+The remote host defaults to <app>.internal for the app from `+"`-a`"+` or
+fly.toml, which reaches one of the app's Machines; pass a host name or 6PN
+address as the second argument to connect elsewhere, or use `+"`--select`"+`
+to choose a Machine from a list. With no app and no `+"`-o`"+`, you are
+prompted for an organization.
+
+The local listener binds to 127.0.0.1 unless you change it with
+`+"`--bind-addr`"+`. Starts the Fly agent if it isn't running.`, "\n")
+		short = `Proxy a local port to a Fly Machine or private network host`
 	)
 
 	cmd := command.New("proxy <local:remote> [remote_host]", short, long, run,
