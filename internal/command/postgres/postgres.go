@@ -20,10 +20,18 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short  = `Unmanaged Postgres cluster commands`
+		short  = `Manage unmanaged Fly Postgres clusters`
 		notice = "Unmanaged Fly Postgres is not supported by Fly.io Support and users are responsible for operations, management, and disaster recovery. If you'd like a managed, supported solution, try 'fly mpg' (Managed Postgres).\n" +
 			"Please visit https://docs.fly.io/postgres for more information about Managed Postgres.\n"
-		long = notice
+		long = `Manage Fly Postgres clusters: the older, unmanaged Postgres that runs as
+a regular Fly app with its own machines and volumes in your organization.
+You're responsible for its operations, management and disaster recovery;
+Fly.io Support doesn't cover it. For Postgres that
+Fly.io operates for you, use ` + "`fly mpg`" + ` (Managed Postgres).
+
+Subcommands take the Postgres app with --app (or from fly.toml). Start with
+` + "`fly postgres create`" + `, then ` + "`fly postgres attach`" + ` to give an app a connection
+string. See https://docs.fly.io/postgres for more.`
 	)
 
 	cmd := command.New("postgres", short, long, nil)

@@ -23,7 +23,10 @@ import (
 func newConnect() *cobra.Command {
 	const (
 		short = "Connect to the Postgres console"
-		long  = short + "\n"
+		long  = `Open an interactive Postgres console on the cluster's primary over SSH.
+The Postgres app comes from --app or fly.toml. You connect to the
+postgres database as the postgres user unless --database and --user say
+otherwise.`
 
 		usage = "connect"
 	)
