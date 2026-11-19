@@ -35,10 +35,14 @@ func New() *cobra.Command {
 	const (
 		usage = "console"
 		short = "Run a console in a new or existing machine"
-		long  = "Run a console in a new or existing machine. The console command is\n" +
-			"specified by the `console_command` configuration field. By default, a\n" +
-			"new machine is created by default using the app's most recently deployed\n" +
-			"image. An existing machine can be used instead with --machine."
+		long  = "Open an interactive console session over SSH, running the command set by\n" +
+			"`console_command` in fly.toml, or the one passed with `--command`.\n\n" +
+			"By default this creates a temporary Machine from the app's latest release\n" +
+			"image (or from `--image`), using the `console` VM size from fly.toml when\n" +
+			"set. The Machine is stopped and destroyed when the session ends. The app\n" +
+			"must have been deployed at least once unless you pass `--image`.\n\n" +
+			"To use a running Machine instead, pass its ID with `--machine`, or use\n" +
+			"`--select` to choose from a list that also offers a temporary Machine."
 	)
 	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.RequireAppName)
 

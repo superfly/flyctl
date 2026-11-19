@@ -14,8 +14,10 @@ import (
 func newShow() (cmd *cobra.Command) {
 	const (
 		short = "Show an app's configuration"
-		long  = `Show an application's configuration. The configuration is presented by default
-in JSON format. The configuration data is retrieved from the Fly service.`
+		long  = `Print the app's configuration as JSON, or as YAML or TOML with --yaml or
+--toml. By default it shows the configuration of the app's current
+deployment; --local parses and shows the local fly.toml instead. To write
+the deployed configuration to a file, use ` + "`fly config save`" + `.`
 	)
 	cmd = command.New("show", short, long, runShow,
 		command.RequireSession,

@@ -27,13 +27,12 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long = `List the applications currently
-available to this user. The list includes applications
-from all the organizations the user is a member of. The list shows
-the name, owner (org), status, and date/time of latest deploy for each app.
-Apps on a non-default network also show the network name.
-`
-		short = "List applications."
+		long = `List the apps you can access in all your organizations, or only those in the
+--org organization. Each row shows the app's name, owning organization,
+status and when it was last deployed, plus its network when any listed app
+is on a custom private network. --quiet prints only app names, and --json
+prints the full list as JSON.`
+		short = "List apps"
 	)
 
 	cmd := command.New("list", short, long, runList,

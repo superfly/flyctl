@@ -15,8 +15,14 @@ import (
 func newValidate() (cmd *cobra.Command) {
 	const (
 		short = "Validate an app's config file"
-		long  = `Validates an application's config file against the Fly platform to
-ensure it is correct and meaningful to the platform.`
+		long  = `Check an app's config file for errors in its build, deploy, checks,
+services, processes, mounts and other sections. Validation runs locally in
+flyctl, on fly.toml in the working directory or the file given with
+--config; with no local file, it checks the app's deployed configuration. An
+app name is required, from --app or the file's app field.
+
+--strict also reports sections and keys flyctl doesn't recognize. The
+command exits with an error when the configuration isn't valid.`
 	)
 	cmd = command.New("validate", short, long, runValidate,
 		command.RequireSession,
