@@ -25,7 +25,7 @@ func TestInteractiveSessionDetachesOnSIGQUIT(t *testing.T) {
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 
-	api.exec = func(c *execConn) {
+	api.exec = func(*execConn) {
 		close(started)
 		<-release
 	}

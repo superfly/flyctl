@@ -476,8 +476,8 @@ func checkSavedLogin(ctx context.Context) error {
 
 // sessionHTTPClient lets large transfers run until canceled. The SDK uses a
 // background context for Stat, ReadDir and ReadFile, so those requests inherit
-// the command's context here. Explicit contexts, including exec's interrupt
-// grace period, retain their own lifetime.
+// the command's context here. Explicit contexts, such as the one exec signals
+// an interrupted command with, retain their own lifetime.
 func sessionHTTPClient(ctx context.Context) *http.Client {
 	return &http.Client{Transport: &sessionTransport{ctx: ctx, base: cleanhttp.DefaultPooledTransport()}}
 }

@@ -30,15 +30,14 @@ import (
 // session running on the sprite.
 const detachChar = 0x1C
 
-const (
-	// interruptedExitCode is what a shell reports for a command ended by
-	// Ctrl+C.
-	interruptedExitCode = 130
+// interruptedExitCode is what a shell reports for a command ended by Ctrl+C.
+const interruptedExitCode = 130
 
-	// interruptGrace is how long a start that was in flight when interrupted
-	// gets to finish, so a command that did start can be told to stop.
-	interruptGrace = 5 * time.Second
-)
+// interruptGrace is how long a start that was in flight when interrupted gets
+// to finish, so a command that did start can be told to stop, and how long a
+// command stopped other than by Ctrl+C gets to exit. It is a variable so tests
+// need not wait for it.
+var interruptGrace = 5 * time.Second
 
 const (
 	// A command that cannot connect is retried this many times in total,
@@ -609,8 +608,8 @@ func runRemote(ctx context.Context, sprite *sprites.Sprite, opts remoteOptions) 
 		return detach()
 	case <-parent.Done():
 		// Interrupted locally. For a command this run started, dropping the
-		// connection would leave it running, so ask it to stop and give it a
-		// moment to. A session this run only attached to is someone else's to
+		// connection would leave it running, so ask it to stop and wait for
+		// it to. A session this run only attached to is someone else's to
 		// stop: Ctrl+C there just stops watching.
 		if opts.sessionID == "" {
 			if exited, err := stopRemote(parent, io, sprite, cmd, session, waitDone); exited {
@@ -652,18 +651,30 @@ func remoteResult(err error) error {
 const interruptsToDisconnect = 3
 
 // stopRemote relays a local interrupt to the command this run started and
-// stays attached until it exits, so that its own exit status is reported. Each
-// further interrupt is relayed again, and the last of interruptsToDisconnect
-// disconnects. It reports false when the command could not be signaled or did
-// not exit.
+// waits for it to exit, so that its own exit status is reported. After Ctrl+C
+// it stays attached: each further Ctrl+C is relayed again, and the last of
+// interruptsToDisconnect disconnects. Anything else that stops the run, such
+// as SIGTERM from a supervisor, waits only interruptGrace, since nobody may be
+// there to press Ctrl+C. It reports false when the command could not be
+// signaled or did not exit.
 func stopRemote(parent context.Context, io *iostreams.IOStreams, sprite *sprites.Sprite, cmd *sprites.Cmd, session *sessionInfo, waitDone <-chan error) (exited bool, err error) {
+	cause := context.Cause(parent)
+	name := remoteSignalName(cause)
+	attached := isInterrupt(cause)
+
 	// The interrupt that got here has already been taken by the process's
 	// own handler; later ones arrive on this channel.
-	more := make(chan os.Signal, 1)
-	signal.Notify(more, interruptSignals()...)
-	defer signal.Stop(more)
+	var more chan os.Signal
+	if attached {
+		more = make(chan os.Signal, 1)
+		signal.Notify(more, interruptSignals()...)
+		defer signal.Stop(more)
+	}
 
-	name := remoteSignalName(context.Cause(parent))
+	var grace <-chan time.Time
+	if !attached {
+		grace = time.After(interruptGrace)
+	}
 
 	for sent := 1; ; sent++ {
 		if err := signalRemote(cmd, sprite, session, name); err != nil {
@@ -672,12 +683,18 @@ func stopRemote(parent context.Context, io *iostreams.IOStreams, sprite *sprites
 		}
 
 		if sent == 1 {
-			fmt.Fprintf(io.ErrOut, "Sent %s to the remote command. Press Ctrl+C %d more times to disconnect.\n", name, interruptsToDisconnect-1)
+			msg := fmt.Sprintf("Sent %s to the remote command.", name)
+			if attached {
+				msg += fmt.Sprintf(" Press Ctrl+C %d more times to disconnect.", interruptsToDisconnect-1)
+			}
+			fmt.Fprintln(io.ErrOut, msg)
 		}
 
 		select {
 		case err := <-waitDone:
 			return true, err
+		case <-grace:
+			return false, nil
 		case sig := <-more:
 			if sent+1 >= interruptsToDisconnect {
 				fmt.Fprintln(io.ErrOut, "Disconnected. The remote command may still be running.")
@@ -716,6 +733,12 @@ func remoteSignalName(cause error) string {
 	}
 
 	return "INT"
+}
+
+// isInterrupt reports whether cause is the process receiving os.Interrupt, as
+// Ctrl+C sends.
+func isInterrupt(cause error) bool {
+	return cause != nil && cause.Error() == signalCause(os.Interrupt).Error()
 }
 
 // signalCause describes sig the way signal.NotifyContext does.

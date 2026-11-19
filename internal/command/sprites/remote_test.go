@@ -402,6 +402,87 @@ func TestExecInterruptReportsRemoteExitStatus(t *testing.T) {
 	}
 }
 
+func TestExecCtrlCStaysAttachedPastGrace(t *testing.T) {
+	original := interruptGrace
+	interruptGrace = 50 * time.Millisecond
+	t.Cleanup(func() { interruptGrace = original })
+
+	api := newSpritesAPI(t)
+	api.addSprite("dev")
+
+	started := make(chan struct{})
+
+	// A slow, clean shutdown: longer than the grace period.
+	api.exec = func(c *execConn) {
+		close(started)
+		c.waitControl("signal")
+		time.Sleep(300 * time.Millisecond)
+		c.exit(0)
+	}
+
+	e := newEnv(t, newExec(), "--sprite", "dev", "--no-stdin", "server")
+
+	// Cancelled the way Ctrl+C cancels flyctl's context.
+	ctx, cancel := context.WithCancelCause(e.ctx)
+	defer cancel(nil)
+
+	done := make(chan error, 1)
+	go func() { done <- runExec(ctx, api.session()) }()
+
+	<-started
+	cancel(signalCause(os.Interrupt))
+
+	select {
+	case err := <-done:
+		require.NoError(t, err, "the remote command's own exit status is reported")
+	case <-time.After(10 * time.Second):
+		t.Fatal("exec did not return after the remote command exited")
+	}
+
+	assert.Contains(t, e.errOut.String(), "Press Ctrl+C 2 more times to disconnect")
+}
+
+func TestExecOtherCancellationWaitsOnlyGrace(t *testing.T) {
+	original := interruptGrace
+	interruptGrace = 50 * time.Millisecond
+	t.Cleanup(func() { interruptGrace = original })
+
+	api := newSpritesAPI(t)
+	api.addSprite("dev")
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+
+	// The remote command ignores the signal, as an interactive shell
+	// ignores TERM.
+	api.exec = func(c *execConn) {
+		close(started)
+		<-release
+	}
+
+	e := newEnv(t, newExec(), "--sprite", "dev", "--no-stdin", "server")
+
+	ctx, cancel := context.WithCancelCause(e.ctx)
+	defer cancel(nil)
+
+	done := make(chan error, 1)
+	go func() { done <- runExec(ctx, api.session()) }()
+
+	<-started
+	cancel(signalCause(syscall.SIGTERM))
+
+	select {
+	case err := <-done:
+		assert.Equal(t, 130, exitCode(t, err))
+	case <-time.After(10 * time.Second):
+		t.Fatal("exec waited past the grace period for a command that ignores TERM")
+	}
+
+	assert.Contains(t, e.errOut.String(), "Sent TERM to the remote command.")
+	assert.NotContains(t, e.errOut.String(), "Press Ctrl+C")
+}
+
 func TestExecDroppedConnectionIsNotAnExitStatus(t *testing.T) {
 	for _, tty := range []bool{false, true} {
 		t.Run(fmt.Sprintf("tty=%v", tty), func(t *testing.T) {
