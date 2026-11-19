@@ -2,6 +2,7 @@ package cmdv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	stdio "io"
 

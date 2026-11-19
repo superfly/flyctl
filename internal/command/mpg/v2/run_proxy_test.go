@@ -611,7 +611,7 @@ func TestResolveConnectCredentialsPublic(t *testing.T) {
 	})
 
 	t.Run("default user JSON 404 preserves initializing error", func(t *testing.T) {
-		ctx := flapsutil.NewContextWithClient(context.Background(), &mock.FlapsClient{
+		ctx := flapsutil.NewContextWithClient(clusterShowContext(t, noDefaults), &mock.FlapsClient{
 			GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 				return flaps.ManagedPostgresUserCredentials{}, &flaps.FlapsError{
 					ResponseStatusCode: 404,
