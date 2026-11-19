@@ -24,7 +24,7 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 	}{
 		{
 			name:     "pay-as-you-go",
-			plan:     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: redisPlanPayAsYouGo, DisplayName: "Pay-as-you-go"},
+			plan:     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: redisPlanPayAsYouGo, DisplayName: "Pay-as-you-go", Description: "$0.2 per 100K commands"},
 			want:     "billed at $0.20 per 100K commands.",
 			wantPayg: true,
 		},
