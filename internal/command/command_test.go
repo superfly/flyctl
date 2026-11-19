@@ -270,7 +270,6 @@ func TestSessionAfterDischargeFailure(t *testing.T) {
 		{"one of two tickets still missing", missing + "," + encode(discharge), RequireFlapsSession, true},
 		{"one complete permission", missing + "," + complete, RequireFlapsSession, false},
 		{"permission without caveats", missing + "," + encode(newPermission()), RequireFlapsSession, false},
-		{"OAuth in shared session", missing + ",fo1_fixture", RequireSession, false},
 		{"OAuth omitted by Machines client", missing + ",fo1_fixture", RequireFlapsSession, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

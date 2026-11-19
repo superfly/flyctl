@@ -626,6 +626,7 @@ func requireSession(ctx context.Context, requireFlapsTokens bool) (context.Conte
 	if err := monitorSessionTokens(ctx, requireFlapsTokens); err != nil {
 		return nil, err
 	}
+
 	return ctx, nil
 }
 
@@ -807,6 +808,7 @@ func allMissingDischarges(header string) bool {
 			return false
 		}
 	}
+
 	return true
 }
 

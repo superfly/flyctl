@@ -33,7 +33,6 @@ type criticalCommandCase struct {
 	Name                         string
 	Args                         []string
 	Mode, App, EnvApp, ConfigApp string
-	SavedToken                   string
 	Code                         int
 	Output, Error                string
 }
@@ -65,15 +64,15 @@ func TestCriticalCommandsCLI(t *testing.T) {
 			t.Parallel()
 			// Metrics and client initialization keep process-wide state. Run a
 			// fresh CLI process, as users do, instead of resetting those globals.
-			if tc.Mode == "ssh-discharge" {
-				tc.SavedToken = tokenWithUnavailableDischarge(t)
-			}
 			data, err := json.Marshal(tc)
 			require.NoError(t, err)
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCriticalCommandProcess$")
 			cmd.Dir = t.TempDir()
+			if tc.Mode == "ssh-discharge" {
+				writeUnavailableDischargeLogin(t, filepath.Join(cmd.Dir, "config"))
+			}
 			cmd.Env = append(os.Environ(), "FLYCTL_CRITICAL_COMMAND_TEST="+string(data))
 			var stdout, stderr strings.Builder
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -101,7 +100,7 @@ func TestCriticalCommandsCLI(t *testing.T) {
 	}
 }
 
-func tokenWithUnavailableDischarge(t *testing.T) string {
+func writeUnavailableDischargeLogin(t *testing.T, dir string) {
 	t.Helper()
 	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
@@ -114,7 +113,9 @@ func tokenWithUnavailableDischarge(t *testing.T) string {
 	token, err := perm.String()
 	require.NoError(t, err)
 
-	return token
+	require.NoError(t, os.MkdirAll(dir, 0700))
+	saved := fmt.Sprintf("access_token: %q\nlast_login: %s\n", token, time.Now().UTC().Format(time.RFC3339))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, config.FileName), []byte(saved), 0600))
 }
 
 func TestCriticalCommandProcess(t *testing.T) {
@@ -127,7 +128,11 @@ func TestCriticalCommandProcess(t *testing.T) {
 	dir, err := os.Getwd()
 	require.NoError(t, err)
 	t.Setenv("FLY_CONFIG_DIR", filepath.Join(dir, "config"))
-	t.Setenv("FLY_ACCESS_TOKEN", "test-token")
+	if tc.Mode == "ssh-discharge" {
+		t.Setenv("FLY_ACCESS_TOKEN", "")
+	} else {
+		t.Setenv("FLY_ACCESS_TOKEN", "test-token")
+	}
 	t.Setenv("FLY_API_TOKEN", "")
 	t.Setenv("FLY_APP", tc.EnvApp)
 	t.Setenv("FLY_ORG", "")
@@ -142,13 +147,6 @@ func TestCriticalCommandProcess(t *testing.T) {
 	t.Setenv("FLY_JSON", "0")
 	if tc.ConfigApp != "" {
 		require.NoError(t, os.WriteFile("fly.toml", []byte("app = '"+tc.ConfigApp+"'\n"), 0600))
-	}
-	if tc.SavedToken != "" {
-		t.Setenv("FLY_ACCESS_TOKEN", "")
-		path := filepath.Join(dir, "config", config.FileName)
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
-		require.NoError(t, config.SetAccessToken(path, tc.SavedToken))
-		require.NoError(t, config.SetLastLogin(path, time.Now()))
 	}
 	ctx := metrics.WithDisableFlushMetrics(t.Context())
 	mutations, inferred := 0, 0
