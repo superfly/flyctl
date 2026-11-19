@@ -581,6 +581,11 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 
 	var err error
 	switch builderMachine.State {
+	case "starting":
+		// The builder is already booting. Join the readiness wait below.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Minute)
+		defer cancel()
 	case "stopping":
 		// Another caller may finish the stop and start the builder before we
 		// observe it. Start is idempotent for a started Machine.
