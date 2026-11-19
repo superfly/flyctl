@@ -13,9 +13,15 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the Wafris dashboard`
+		short = "Visit the Wafris dashboard"
+		long  = `Open the Wafris dashboard for a WAF in your browser, using a sign-in
+link from Fly.io. Name the WAF as an argument, or run the command in an
+app directory (or with ` + "`--app`" + `) to use the app's WAF. With ` + "`--org`" + `, it
+opens that organization's Wafris dashboard instead.
 
-		short = long
+If you haven't accepted Wafris's terms of service yet, you're asked to;
+` + "`--yes`" + ` accepts them.`
+
 		usage = "dashboard [firewall_name]"
 	)
 

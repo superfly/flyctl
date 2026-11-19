@@ -10,7 +10,9 @@ func New() (cmd *cobra.Command) {
 
 	const (
 		short = "Provision and manage Wafris WAFs (Web Application Firewalls)"
-		long  = short + "\n"
+		long  = `Provision and manage Wafris web application firewalls for your Fly apps.
+Each app can have one. Create it with ` + "`fly ext wafris create`" + ` and open
+its dashboard with ` + "`fly ext wafris dashboard`" + `.`
 	)
 
 	cmd = command.New("wafris", short, long, nil)

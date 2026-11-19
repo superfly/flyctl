@@ -13,9 +13,14 @@ import (
 
 func Dashboard() (cmd *cobra.Command) {
 	const (
-		long = `View application errors in the Sentry dashboard`
+		short = "View application errors in the Sentry dashboard"
+		long  = `Open the Sentry dashboard for an app's project in your browser, using a
+sign-in link from Fly.io. Run the command in an app directory or pass
+` + "`--app`" + `.
 
-		short = long
+If you haven't accepted Sentry's terms of service yet, you're asked to;
+` + "`--yes`" + ` accepts them.`
+
 		usage = "dashboard"
 	)
 

@@ -17,7 +17,15 @@ import (
 func update() (cmd *cobra.Command) {
 	const (
 		short = "Update an existing Tigris object storage bucket"
-		long  = short + "\n"
+		long  = `Change the settings of an existing Tigris bucket, given by name as the
+argument. You can make it public or private, set or clear a shadow
+bucket, and set or clear a custom domain. Settings you don't pass stay
+as they are. When the update succeeds, the bucket's status is printed.
+
+A new shadow bucket needs all five ` + "`--shadow-*`" + ` values. Before a custom
+domain is set, you're asked to confirm that you've created a DNS CNAME
+record pointing the domain at ` + "`<bucket>.t3.tigrisbucket.io`" + `; ` + "`--yes`" + `
+skips the confirmation.`
 	)
 
 	cmd = command.New("update <bucket_name>", short, long, runUpdate, command.RequireSession, command.LoadAppNameIfPresent)
