@@ -37,8 +37,14 @@ may undergo maintenance. Times are in the cluster's regional timezone.`
 
 func newMaintenanceWindowShow() *cobra.Command {
 	const (
-		long  = `Show the weekly maintenance window of a Managed Postgres cluster.`
-		short = "Show an MPG cluster's maintenance window."
+		long = `Show the weekly maintenance window of a Managed Postgres cluster: the day
+it starts, the start hour in the cluster's regional timezone, and how many
+hours it lasts. Use --json for machine-readable output.
+
+With no cluster ID, you pick an organization and a cluster from a list in a
+terminal; without a terminal, the cluster ID is required. To change the
+window, run ` + "`fly mpg maintenance-window set`" + `.`
+		short = "Show a Managed Postgres cluster's maintenance window"
 		usage = "show [CLUSTER_ID]"
 	)
 
@@ -69,7 +75,7 @@ func newMaintenanceWindowSet() *cobra.Command {
 Only the flags you pass are changed; the rest of the window keeps its current
 value. The start hour is in the cluster's regional timezone, shown by
 'fly mpg maintenance-window show'.`
-		short = "Change an MPG cluster's maintenance window."
+		short = "Change a Managed Postgres cluster's maintenance window"
 		usage = "set [CLUSTER_ID]"
 	)
 

@@ -13,8 +13,9 @@ import (
 
 func newBackup() *cobra.Command {
 	const (
-		short = "Backup commands"
-		long  = short + "\n"
+		short = "Manage Managed Postgres backups"
+		long  = `List and create backups of a Managed Postgres cluster. To restore a
+backup into a new cluster, use ` + "`fly mpg restore`" + `.`
 	)
 
 	cmd := command.New("backup", short, long, nil)
@@ -30,8 +31,15 @@ func newBackup() *cobra.Command {
 
 func newBackupList() *cobra.Command {
 	const (
-		long  = `List backups for a Managed Postgres cluster.`
-		short = "List MPG cluster backups."
+		long = `List backups of a Managed Postgres cluster with each backup's ID, start
+time, status and type. By default only backups started in the last 24
+hours are shown; pass --all to see every backup.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.
+
+Restore a backup into a new cluster with ` + "`fly mpg restore --backup-id`" + `.`
+		short = "List backups of a Managed Postgres cluster"
 		usage = "list <CLUSTER_ID>"
 	)
 
@@ -71,8 +79,14 @@ func runBackupList(ctx context.Context) error {
 
 func newBackupCreate() *cobra.Command {
 	const (
-		long  = `Create a backup for a Managed Postgres cluster.`
-		short = "Create MPG cluster backup."
+		long = `Queue a backup of a Managed Postgres cluster. The backup is full unless
+--type incr asks for an incremental one. The command returns once the
+backup is queued, not when it finishes; check on it with
+` + "`fly mpg backup list`" + `.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.`
+		short = "Create a backup of a Managed Postgres cluster"
 		usage = "create <CLUSTER_ID>"
 	)
 

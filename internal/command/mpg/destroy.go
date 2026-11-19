@@ -13,10 +13,13 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a managed Postgres cluster"
-		long  = short + ". " +
-			`This command will permanently destroy a managed Postgres cluster and all its data.
-This action is not reversible.`
+		short = "Destroy a Managed Postgres cluster"
+		long  = `Permanently destroy a Managed Postgres cluster and all of its data. This
+can't be undone.
+
+You're asked to confirm unless you pass --yes; without a terminal, --yes is
+required. The cluster is scheduled for deletion and may take some time to
+disappear. Find cluster IDs with ` + "`fly mpg list`" + `.`
 		usage = "destroy <CLUSTER ID>"
 	)
 
