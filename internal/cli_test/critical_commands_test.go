@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,24 +18,29 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/flyio"
 )
 
 type criticalCommandCase struct {
 	Name                         string
 	Args                         []string
 	Mode, App, EnvApp, ConfigApp string
+	SavedToken                   string
 	Code                         int
 	Output, Error                string
 }
 
 func TestCriticalCommandsCLI(t *testing.T) {
 	cases := []criticalCommandCase{
+		{Name: "ssh stops before app lookup when discharge fails", Args: []string{"ssh", "console", "-a", "fixture"}, Mode: "ssh-discharge", Code: 1, Error: "fixture discharge unavailable"},
 		{Name: "revoke succeeds", Args: []string{"tokens", "revoke", "one", "two"}, Mode: "revoke", Output: "2 tokens revoked"},
 		{Name: "revoke all fail", Args: []string{"tokens", "revoke", "one", "two"}, Mode: "revoke-all-fail", Code: 1, Error: "failed to revoke 2 of 2 tokens"},
 		{Name: "revoke partially fails", Args: []string{"tokens", "revoke", "one", "two"}, Mode: "revoke-partial", Code: 1, Output: "1 tokens revoked", Error: "failed to revoke 1 of 2 tokens"},
@@ -58,6 +65,9 @@ func TestCriticalCommandsCLI(t *testing.T) {
 			t.Parallel()
 			// Metrics and client initialization keep process-wide state. Run a
 			// fresh CLI process, as users do, instead of resetting those globals.
+			if tc.Mode == "ssh-discharge" {
+				tc.SavedToken = tokenWithUnavailableDischarge(t)
+			}
 			data, err := json.Marshal(tc)
 			require.NoError(t, err)
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
@@ -91,6 +101,22 @@ func TestCriticalCommandsCLI(t *testing.T) {
 	}
 }
 
+func tokenWithUnavailableDischarge(t *testing.T) string {
+	t.Helper()
+	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, `{"error":"fixture discharge unavailable"}`)
+	}))
+	t.Cleanup(endpoint.Close)
+	perm, err := macaroon.New([]byte("fixture"), flyio.LocationPermission, macaroon.NewSigningKey())
+	require.NoError(t, err)
+	require.NoError(t, perm.Add3P(macaroon.NewEncryptionKey(), endpoint.URL))
+	token, err := perm.String()
+	require.NoError(t, err)
+
+	return token
+}
+
 func TestCriticalCommandProcess(t *testing.T) {
 	data := os.Getenv("FLYCTL_CRITICAL_COMMAND_TEST")
 	if data == "" {
@@ -116,6 +142,13 @@ func TestCriticalCommandProcess(t *testing.T) {
 	t.Setenv("FLY_JSON", "0")
 	if tc.ConfigApp != "" {
 		require.NoError(t, os.WriteFile("fly.toml", []byte("app = '"+tc.ConfigApp+"'\n"), 0600))
+	}
+	if tc.SavedToken != "" {
+		t.Setenv("FLY_ACCESS_TOKEN", "")
+		path := filepath.Join(dir, "config", config.FileName)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
+		require.NoError(t, config.SetAccessToken(path, tc.SavedToken))
+		require.NoError(t, config.SetLastLogin(path, time.Now()))
 	}
 	ctx := metrics.WithDisableFlushMetrics(t.Context())
 	mutations, inferred := 0, 0
@@ -153,6 +186,9 @@ func TestCriticalCommandProcess(t *testing.T) {
 	}})
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetAppFunc: func(_ context.Context, name string) (*flaps.App, error) {
+			if tc.Mode == "ssh-discharge" {
+				t.Fatal("ssh attempted a Machines app lookup after discharge failed")
+			}
 			require.Equal(t, tc.App, name)
 			return &flaps.App{Name: name, Status: "deployed", Organization: flaps.AppOrganizationInfo{Slug: "owner"}}, nil
 		},
