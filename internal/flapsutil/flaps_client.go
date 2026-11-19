@@ -43,6 +43,7 @@ type FlapsClient interface {
 	Exec(ctx context.Context, appName, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error)
 	ExtendVolume(ctx context.Context, appName, volumeId string, size_gb int) (*fly.Volume, bool, error)
 	FindLease(ctx context.Context, appName, machineID string) (*fly.MachineLease, error)
+	ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error)
 	GenerateSecretKey(ctx context.Context, appName, name string, typ string) (*fly.SetSecretKeyResp, error)
 	Get(ctx context.Context, appName, machineID string) (*fly.Machine, error)
 	GetApp(ctx context.Context, name string) (app *flaps.App, err error)
@@ -50,6 +51,7 @@ type FlapsClient interface {
 	GetCertificate(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	GetIPAssignments(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error)
+	GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error)
 	GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error)
 	GetMany(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadata(ctx context.Context, appName, machineID string) (map[string]string, error)
@@ -73,6 +75,7 @@ type FlapsClient interface {
 	ListManagedPostgresUsers(ctx context.Context, id string) ([]flaps.ManagedPostgresUser, error)
 	ListManagedPostgresBackups(ctx context.Context, id string) ([]flaps.ManagedPostgresBackup, error)
 	ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error)
+	ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error)
 	ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error)
 	NewRequest(ctx context.Context, method, path string, in any, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, appName, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
@@ -88,7 +91,9 @@ type FlapsClient interface {
 	Uncordon(ctx context.Context, appName, machineID string, nonce string) (err error)
 	Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecrets(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
+	UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error)
 	UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error
+	RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error)
 	UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
 	Wait(ctx context.Context, appName string, machineID string, waitOpts ...flaps.WaitOption) (err error)
 	WaitForApp(ctx context.Context, name string) error

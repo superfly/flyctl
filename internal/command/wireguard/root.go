@@ -20,6 +20,7 @@ func New() *cobra.Command {
 		newWireguardRemove(),
 		newWireguardReset(),
 		newWireguardWebsockets(),
+		newWireguardTokenMode(),
 	)
 
 	return cmd
@@ -82,6 +83,26 @@ func newWireguardReset() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
+
+	return cmd
+}
+
+func newWireguardTokenMode() *cobra.Command {
+	const (
+		short = "Enable or disable token-mode WireGuard peers"
+		long  = `Enable or disable token-mode WireGuard peers.
+
+In token mode the agent provisions WireGuard peers inline at the token
+gateway, authenticating with the session's tokens, instead of registering
+them through the API. This setting is the local default; the agent also
+consults the wireguard-token-mode feature flag each time it builds a tunnel,
+and the flag can turn token mode on for a user whose local setting is off.
+`
+	)
+	cmd := command.New("token-mode [enable|disable]", short, long, runWireguardTokenMode,
+		command.RequireSession,
+	)
+	cmd.Args = cobra.ExactArgs(1)
 
 	return cmd
 }

@@ -85,6 +85,9 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
+	if state.PlanSource != nil && state.Plan.AppName != oldPlan.AppName {
+		state.PlanSource.appNameSource = "specified in the web UI"
+	}
 
 	// Handle database plan from form data
 	if pgData, ok := finalSession.Metadata["postgres"].(map[string]any); ok {
@@ -181,9 +184,8 @@ outer:
 	return nil
 }
 
-// TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (session fly.CLISession, err error) {
-	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
+	ctx, cancel := context.WithTimeoutCause(parent, 15*time.Minute, fmt.Errorf("waiting for launch UI session: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
@@ -205,8 +207,12 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 		s.FinalMSG = "Waiting for launch data... Done\n"
 		s.Stop()
 
-		break
+		return session, nil
 	}
 
-	return
+	// The last poll's error is the API's "not found" for a session nobody has
+	// confirmed yet. Report why the wait ended instead.
+	s.Stop()
+
+	return fly.CLISession{}, context.Cause(ctx)
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -27,7 +28,6 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -140,7 +140,9 @@ func (di *DeploymentImage) String() string {
 		return di.Tag
 	}
 
-	return fmt.Sprintf("%s@%s", di.Tag, di.Digest)
+	tag, _, _ := strings.Cut(di.Tag, "@")
+
+	return fmt.Sprintf("%s@%s", tag, di.Digest)
 }
 
 func (di *DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
@@ -209,6 +211,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			tracing.RecordError(ctx, span, err, "failed to resolve image")
 
 			return nil, err
 		}
@@ -231,7 +234,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 	err = fmt.Errorf("could not find image %q", opts.ImageRef)
-	tracing.RecordError(span, err, "failed to resolve image")
+	tracing.RecordError(ctx, span, err, "failed to resolve image")
 
 	return nil, err
 }
@@ -254,7 +257,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	if !r.dockerFactory.mode.IsAvailable() {
 		err := errors.New("docker is unavailable to build the deployment image")
-		tracing.RecordError(span, err, "docker is unavailable to build the deployment image")
+		tracing.RecordError(ctx, span, err, "docker is unavailable to build the deployment image")
 
 		return nil, err
 	}
@@ -343,6 +346,10 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			}
 			img.BuilderID = bld.BuilderMeta.RemoteMachineId
 
+			if opts.Publish {
+				r.waitForPushedImage(ctx, streams, img.Tag)
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -351,7 +358,29 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
 
-	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
+	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://docs.fly.io/reference/configuration#the-build-section")
+}
+
+// waitForPushedImage holds the deploy until the image it just pushed resolves,
+// so machines are not updated to an image the registry does not serve yet.
+// It only warns when the image never appears: the lookup is a safeguard, and
+// a deploy that would succeed should not fail on it.
+func (r *Resolver) waitForPushedImage(ctx context.Context, streams *iostreams.IOStreams, ref string) {
+	if r.apiClient == nil || ref == "" {
+		return
+	}
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_pushed_image", trace.WithAttributes(attribute.String("tag", ref)))
+	defer span.End()
+
+	img, err := resolveImageWithRetry(ctx, r.apiClient, r.appName, ref, defaultImageWait, streams.ErrOut)
+	switch {
+	case err != nil:
+		tracing.RecordError(ctx, span, err, "failed to resolve pushed image")
+		terminal.Warnf("Could not confirm that the registry has %s: %v\n", ref, err)
+	case img == nil:
+		span.AddEvent("pushed image not found")
+		terminal.Warnf("Could not confirm that the registry has %s\n", ref)
+	}
 }
 
 func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResolver, opts RefOptions) (*build, error) {
@@ -434,7 +463,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 			)
 		}
 		span.SetAttributes(attribute.Bool("is_app_not_found_error", isAppNotFoundErr))
-		tracing.RecordError(span, err, "failed to create build")
+		tracing.RecordError(ctx, span, err, "failed to create build")
 
 		return newFailedBuild(), err
 	}
@@ -600,6 +629,23 @@ type buildResult struct {
 	wallclockTimeMs int
 }
 
+// depotFinishContext preserves the normal client budget while the parent is live.
+// Once the parent ends, only the result notification gets a bounded grace period.
+func depotFinishContext(parent context.Context, grace time.Duration) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+	stop := context.AfterFunc(parent, func() {
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			cancel()
+		case <-ctx.Done():
+		}
+	})
+
+	return ctx, func() { stop(); cancel() }
+}
+
 func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, logs string, img *DeploymentImage) (*buildResult, error) {
 	if build.CreateApiFailed {
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
@@ -628,6 +674,14 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 			Tag:       img.Tag,
 			SizeBytes: img.Size,
 		}
+	}
+	// A canceled Depot build must still get a bounded chance to report its
+	// acquisition target. Detach only this result notification, not the build
+	// or SDK cleanup. Keep context values (auth, tracing, config) intact.
+	if failed && build.BuilderMeta.BuilderType == string(depotBuilderType) {
+		var cancel context.CancelFunc
+		ctx, cancel = depotFinishContext(ctx, 3*time.Second)
+		defer cancel()
 	}
 	resp, err := uiexClient.FinishBuild(ctx, input)
 	if err != nil {
@@ -675,12 +729,12 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	ctx, span := tracing.GetTracer().Start(ctx, "heartbeat")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeoutCause(ctx, 10*time.Second, fmt.Errorf("sending remote builder heartbeat: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	resp, err := client.HTTPClient().Do(req.Clone(ctx))
 	if err != nil {
-		tracing.RecordError(span, err, "failed to check heartbeat")
+		tracing.RecordError(ctx, span, err, "failed to check heartbeat")
 
 		return err
 	}
@@ -692,12 +746,12 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
-		tracing.RecordError(span, err, "no heartbeat endpoint")
+		tracing.RecordError(ctx, span, err, "no heartbeat endpoint")
 	}
 
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to read response body")
+		tracing.RecordError(ctx, span, err, "failed to read response body")
 
 		return &httpError{StatusCode: resp.StatusCode, Body: err.Error()}
 	}
@@ -729,7 +783,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		tracing.RecordError(span, err, "failed to get heartbeaturl")
+		tracing.RecordError(ctx, span, err, "failed to get heartbeaturl")
 
 		return nil, err
 	}
@@ -738,7 +792,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	heartbeatReq, err := http.NewRequestWithContext(ctx, http.MethodGet, heartbeatUrl, http.NoBody)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		tracing.RecordError(span, err, "failed to get http request")
+		tracing.RecordError(ctx, span, err, "failed to get http request")
 
 		return nil, err
 	}
@@ -762,7 +816,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		} else {
 			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		}
-		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
+		tracing.RecordError(ctx, span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
 
 		return nil, fmt.Errorf("failed to send first heartbeat: %w", err)
 	}
@@ -857,6 +911,12 @@ func NewResolver(
 	resolver.dockerFactory = newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder)
 
 	return resolver
+}
+
+// UsedWireguard reports whether the resolver went to an org builder over
+// WireGuard. Local, Depot, BuildKit and managed builders never do.
+func (r *Resolver) UsedWireguard() bool {
+	return r.dockerFactory.usedWireguard
 }
 
 type imageBuilder interface {

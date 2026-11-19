@@ -50,7 +50,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	ctx, span := tracing.GetTracer().Start(ctx, "run_"+commandType+"_cmd")
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to run "+commandType+"_cmd")
+			tracing.RecordError(ctx, span, err, "failed to run "+commandType+"_cmd")
 		}
 		span.End()
 	}()
@@ -85,7 +85,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	eg.Go(func() error {
 		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to create "+commandType+" cmd machine")
+			tracing.RecordError(ctx, span, err, "failed to create "+commandType+" cmd machine")
 
 			return fmt.Errorf("error running %s_command machine: %w", commandType, err)
 		}
@@ -93,7 +93,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		return nil
 	})
 	eg.Go(func() error {
-		ctx, cancel := context.WithTimeout(ctx, natsConnectTimeout)
+		ctx, cancel := context.WithTimeoutCause(ctx, natsConnectTimeout, fmt.Errorf("connecting release command log stream: %w", context.DeadlineExceeded))
 		defer cancel()
 
 		stream, err = logs.NewNatsStream(ctx, md.apiClient, md.flapsClient, logOpts)
@@ -111,14 +111,14 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
 	logOpts.VMID = releaseCmdMachine.Machine().ID
-	logsCtx, cancelLogs := context.WithCancel(ctx)
-	defer cancelLogs()
+	logsCtx, cancelLogs := context.WithCancelCause(ctx)
+	defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 	var buf *ring.Ring
 	if !flag.GetBool(ctx, "verbose") {
 		buf = ring.New(100)
 	}
 	go func() {
-		defer cancelLogs()
+		defer cancelLogs(fmt.Errorf("release command log streaming stopped: %w", context.Canceled))
 		if stream == nil {
 			return
 		}
@@ -144,7 +144,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	fmt.Fprintln(md.io.ErrOut, "Starting machine")
 
-	if err = releaseCmdMachine.Start(ctx); err != nil {
+	if err = startReleaseCommandMachine(ctx, releaseCmdMachine.Start, md.waitTimeout); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
 
 		return
@@ -153,7 +153,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for "+commandType+" cmd machine")
+		tracing.RecordError(ctx, span, err, "failed to wait for "+commandType+" cmd machine")
 
 		return err
 	}
@@ -247,7 +247,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 			})
 		}
 		if err := mPool.Wait(); err != nil {
-			tracing.RecordError(span, err, "failed to destroy old release_command machine")
+			tracing.RecordError(ctx, span, err, "failed to destroy old release_command machine")
 		}
 	}
 
@@ -265,7 +265,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to get ip addresses")
+		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
 
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
@@ -345,6 +345,48 @@ func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
 	}
 
 	return helpers.Clone(desiredGuest)
+}
+
+// A skip-launch build can report stopped before its final writes finish. flyd
+// waits briefly, then explicitly refuses Start so the caller can retry safely.
+func startReleaseCommandMachine(ctx context.Context, start func(context.Context) error, timeout time.Duration) error {
+	// Match Machine.WaitForState: zero uses a bounded two-minute fallback.
+	if timeout == 0 {
+		timeout = 2 * time.Minute
+	}
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastRefusal error
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if lastRefusal != nil && retryCtx.Err() != nil {
+			return fmt.Errorf("machine build still not ready after %s (--wait-timeout): %w", timeout, lastRefusal)
+		}
+		// Bound further attempts, not an accepted Start. The caller still owns cancellation.
+		err := start(ctx)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var flapsErr *flaps.FlapsError
+		if !errors.As(err, &flapsErr) || flapsErr.ResponseStatusCode != http.StatusPreconditionFailed ||
+			flapsErr.Error() != "failed_precondition: machine build not ready, retry the start request" {
+			return err
+		}
+		lastRefusal = err
+
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-retryCtx.Done():
+			timer.Stop()
+		case <-timer.C:
+		}
+	}
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {

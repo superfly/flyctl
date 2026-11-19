@@ -6,10 +6,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/state"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 func TestMultipleDockerfile(t *testing.T) {
@@ -96,4 +103,35 @@ func TestResolveDockerfilePath(t *testing.T) {
 			assert.NotContains(t, err.Error(), dockerfileURL)
 		})
 	}
+}
+
+// Ensure invalid source options fail inside a dedicated validation span beneath image preparation.
+func TestValidateImageInputsSpan(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		_ = provider.Shutdown(context.Background())
+	})
+	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	flags.StringArray("build-arg", []string{"invalid"}, "")
+	ctx := flag.NewContext(context.Background(), flags)
+	ctx = state.WithWorkingDirectory(ctx, t.TempDir())
+	ctx = launchdarkly.NewContextWithClient(ctx, &launchdarkly.Client{})
+	ctx, parent := provider.Tracer("test").Start(ctx, "determine_image")
+	_, err := validateImageInputs(ctx, &appconfig.Config{}, &appconfig.Build{})
+	parent.End()
+	require.ErrorContains(t, err, "invalid build args")
+	var validation sdktrace.ReadOnlySpan
+	for _, span := range recorder.Ended() {
+		if span.Name() == "validate_image_inputs" {
+			validation = span
+		}
+	}
+	require.NotNil(t, validation)
+	assert.Equal(t, parent.SpanContext().SpanID(), validation.Parent().SpanID())
+	assert.Equal(t, codes.Error, validation.Status().Code)
+	assert.NotEmpty(t, validation.Events())
 }

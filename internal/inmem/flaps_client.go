@@ -128,6 +128,10 @@ func (m *FlapsClient) FindLease(ctx context.Context, appName, machineID string) 
 	panic("TODO")
 }
 
+func (m *FlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) GenerateSecretKey(ctx context.Context, appName, name string, typ string) (*fly.SetSecretKeyResp, error) {
 	panic("TODO")
 }
@@ -190,6 +194,14 @@ func (m *FlapsClient) EnableManagedPostgresExtension(ctx context.Context, id, da
 }
 
 func (m *FlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
 	panic("TODO")
 }
 
@@ -307,6 +319,10 @@ func (m *FlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, dat
 	panic("TODO")
 }
 
+func (m *FlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) ListSecretKeys(ctx context.Context, appName string, version *uint64) ([]fly.SecretKey, error) {
 	panic("TODO")
 }
@@ -368,6 +384,10 @@ func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, appName string, valu
 }
 
 func (m *FlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
 	panic("TODO")
 }
 

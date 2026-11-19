@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/deploy/statics"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -164,6 +165,10 @@ type machineDeployment struct {
 	deployRetries         int
 	buildID               int64
 	builderID             string
+
+	// secondMachineGroups are the process groups this deploy tried to give a
+	// second machine for high availability.
+	secondMachineGroups []string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -180,7 +185,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to determine app config for machines")
+		tracing.RecordError(ctx, span, err, "failed to determine app config for machines")
 
 		return nil, err
 	}
@@ -188,7 +193,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
 		fmt.Fprint(io.ErrOut, extraInfo)
-		tracing.RecordError(span, err, "failed to validate process groups")
+		tracing.RecordError(ctx, span, err, "failed to validate process groups")
 
 		return nil, err
 	}
@@ -202,7 +207,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to split release command")
+			tracing.RecordError(ctx, span, err, "failed to split release command")
 
 			return nil, err
 		}
@@ -286,47 +291,47 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		builderID:             args.BuilderID,
 	}
 	if err := md.setStrategy(); err != nil {
-		tracing.RecordError(span, err, "failed to set strategy")
+		tracing.RecordError(ctx, span, err, "failed to set strategy")
 
 		return nil, err
 	}
 
 	if err := md.setMachinesForDeployment(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set machines for first deployemt")
+		tracing.RecordError(ctx, span, err, "failed to set machines for first deployemt")
 
 		return nil, err
 	}
 	if err := md.setVolumes(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set volumes")
+		tracing.RecordError(ctx, span, err, "failed to set volumes")
 
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set img")
+		tracing.RecordError(ctx, span, err, "failed to set img")
 
 		return nil, err
 	}
 	if err := md.setFirstDeploy(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to set first depoyment")
+		tracing.RecordError(ctx, span, err, "failed to set first depoyment")
 
 		return nil, err
 	}
 
 	// Provisioning must come after setVolumes
 	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
-		tracing.RecordError(span, err, "failed to provision first depoloy")
+		tracing.RecordError(ctx, span, err, "failed to provision first depoloy")
 
 		return nil, err
 	}
 
 	// validations must happen after every else
 	if err := md.validateVolumeConfig(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to validate volume config")
+		tracing.RecordError(ctx, span, err, "failed to validate volume config")
 
 		return nil, err
 	}
 	if err = md.createReleaseInBackend(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to create release in backend")
+		tracing.RecordError(ctx, span, err, "failed to create release in backend")
 
 		return nil, err
 	}
@@ -352,7 +357,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to list machines")
+		tracing.RecordError(ctx, span, err, "failed to list machines")
 
 		return err
 	}
@@ -367,7 +372,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		var err error
 		activeMachines, err = md.flapsClient.ListActive(ctx, md.app.Name)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to list machines")
+			tracing.RecordError(ctx, span, err, "failed to list machines")
 
 			return err
 		}
@@ -395,14 +400,14 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 
 		if err := md.validateNoDetachedBluegreenMachines(activeMachines); err != nil {
-			tracing.RecordError(span, err, "failed to validate bluegreen machines")
+			tracing.RecordError(ctx, span, err, "failed to validate bluegreen machines")
 
 			return err
 		}
 	}
 
 	if nMachines == 0 && len(activeMachines) > 0 {
-		fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
+		fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://docs.fly.io/launch\n\n", aurora.Yellow("[WARNING]"))
 		md.isFirstDeploy = true
 	}
 
@@ -610,19 +615,25 @@ func (md *machineDeployment) validateVolumeConfig(ctx context.Context) error {
 					msg := fmt.Sprintf("Warning! machine %s [%s] has a volume mounted but app config does not specify a volume.\nThis usually indicates a misconfiguration.", m.ID, groupName)
 					fmt.Fprintln(md.io.ErrOut, md.colorize.Red(msg))
 
-					switch confirmed, err := prompt.Confirm(ctx, "Do you still want to continue and detach the volume? This will replace the machine."); {
-					case err == nil:
-						if !confirmed {
-							return fmt.Errorf(
-								"deployment cancelled: machine %s [%s] has a volume mounted but app config does not specify a volume; "+
-									"remove the volume from the machine or add a [mounts] section to fly.toml",
+					if !flag.GetYes(ctx) {
+						switch confirmed, err := prompt.Confirm(ctx, "Do you still want to continue and detach the volume? This will replace the machine."); {
+						case err == nil:
+							if !confirmed {
+								return fmt.Errorf(
+									"deployment cancelled: machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+										"remove the volume from the machine or add a [mounts] section to fly.toml",
+									m.ID, groupName,
+								)
+							}
+						case prompt.IsNonInteractive(err):
+							return prompt.NonInteractiveError(fmt.Sprintf(
+								"machine %s [%s] has a volume mounted but app config does not specify a volume; "+
+									"add a [mounts] section to fly.toml, or run 'fly deploy --yes' to detach the volume and replace the machine",
 								m.ID, groupName,
-							)
+							))
+						default:
+							return err
 						}
-					case prompt.IsNonInteractive(err):
-						return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-					default:
-						return err
 					}
 				}
 
@@ -727,7 +738,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		BuildId:    md.buildID,
 	})
 	if err != nil {
-		tracing.RecordError(span, err, "failed to create machine release")
+		tracing.RecordError(ctx, span, err, "failed to create machine release")
 
 		return err
 	}
@@ -779,7 +790,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	span.SetAttributes(attribute.Int("attempts", attempts))
 
 	if err != nil {
-		tracing.RecordError(span, err, "failed to update machine release")
+		tracing.RecordError(ctx, span, err, "failed to update machine release")
 
 		return err
 	}

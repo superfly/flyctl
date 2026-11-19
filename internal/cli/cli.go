@@ -36,11 +36,13 @@ import (
 	term2 "github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/command/root"
+	tracecmd "github.com/superfly/flyctl/internal/command/trace"
 )
 
 // Run runs the command line interface with the given arguments and reports the
 // exit code the application should exit with.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
+	setNeverPromptFromEnv(io)
 	ctx = iostreams.NewContext(ctx, io)
 
 	err := logger.InitLogFile()
@@ -92,7 +94,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cs := io.ColorScheme()
 
-	cmd, err = cmd.ExecuteContextC(ctx)
+	cmd, err = root.ExecuteContextC(ctx, cmd)
 
 	if cmd != nil {
 		metrics.RecordCommandFinish(cmd, err != nil)
@@ -101,7 +103,10 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	// shutdown background tasks, giving up to 5s for them to finish
 	task.FromContext(ctx).ShutdownWithTimeout(5 * time.Second)
 
+	var childExit *tracecmd.ExitError
 	switch {
+	case errors.As(err, &childExit):
+		return childExit.Code
 	case err == nil:
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
@@ -126,6 +131,15 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		}
 
 		return 1
+	}
+}
+
+// setNeverPromptFromEnv turns prompts off when FLY_NO_PROMPT is truthy, for
+// callers such as coding agents that run flyctl under a pseudo-terminal that
+// nobody answers.
+func setNeverPromptFromEnv(io *iostreams.IOStreams) {
+	if env.IsTruthy("FLY_NO_PROMPT") {
+		io.SetNeverPrompt(true)
 	}
 }
 

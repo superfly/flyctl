@@ -167,8 +167,10 @@ func (s *IOStreams) StdoutFd() uintptr {
 	return ^(uintptr(0))
 }
 
+// IsInteractive reports whether stdin and stdout are TTYs and prompts have not
+// been turned off with SetNeverPrompt.
 func (s *IOStreams) IsInteractive() bool {
-	return s.IsStdinTTY() && s.IsStdoutTTY()
+	return !s.neverPrompt && s.IsStdinTTY() && s.IsStdoutTTY()
 }
 
 func (s *IOStreams) SetPager(cmd string) {
@@ -228,14 +230,6 @@ func (s *IOStreams) StopPager() {
 	s.Out.(io.ReadCloser).Close()
 	_, _ = s.pagerProcess.Wait()
 	s.pagerProcess = nil
-}
-
-func (s *IOStreams) CanPrompt() bool {
-	if s.neverPrompt {
-		return false
-	}
-
-	return s.IsInteractive()
 }
 
 func (s *IOStreams) SetNeverPrompt(v bool) {

@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -47,8 +49,11 @@ func GetTracer() trace.Tracer {
 	return otel.Tracer(tracerName)
 }
 
-func RecordError(span trace.Span, err error, description string) {
-	span.RecordError(err)
+func RecordError(ctx context.Context, span trace.Span, err error, description string) {
+	if err == nil {
+		return
+	}
+	RecordErrorEvent(ctx, span, err)
 	span.SetStatus(codes.Error, description)
 }
 
@@ -102,7 +107,12 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 	var exporter sdktrace.SpanExporter
 	switch {
 	case os.Getenv("LOG_LEVEL") == "trace":
-		stdoutExp, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+		opts := []stdouttrace.Option{stdouttrace.WithPrettyPrint()}
+		if baggage.FromContext(ctx).Member(deployTraceKey).Value() == "true" {
+			// A traced deployer invocation reserves stdout for command output and artifacts.
+			opts = append(opts, stdouttrace.WithWriter(iostreams.FromContext(ctx).ErrOut))
+		}
+		stdoutExp, err := stdouttrace.New(opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -145,6 +155,7 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 
 	tp = sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
+		sdktrace.WithSpanProcessor(deploySpanProcessor{}),
 		sdktrace.WithResource(resource),
 	)
 
@@ -194,4 +205,44 @@ func errorHandler(ctx context.Context) otel.ErrorHandler {
 	return otel.ErrorHandlerFunc(func(err error) {
 		logger.Debug("trace exporter", "error", err)
 	})
+}
+
+// RecordErrorEvent records the original error along with the cancellation cause
+// at the point the error is observed. Causes are metadata, not additional errors:
+// expected cleanup must not turn a successful operation into a failed span.
+func RecordErrorEvent(ctx context.Context, span trace.Span, err error, opts ...trace.EventOption) {
+	if err == nil {
+		return
+	}
+	attrs := RecordCancellation(ctx, span)
+	if len(attrs) > 0 {
+		opts = append(opts, trace.WithAttributes(attrs...))
+	}
+	span.RecordError(err, opts...)
+}
+
+// RecordCancellation annotates a span without changing its status. Call before
+// cleanup, using the operation's context (which may be a child of the span's).
+func RecordCancellation(ctx context.Context, span trace.Span) []attribute.KeyValue {
+	if !span.IsRecording() {
+		return nil
+	}
+	cause := context.Cause(ctx)
+	if cause == nil {
+		return nil
+	}
+	kind := "failure"
+	switch {
+	case errors.Is(cause, context.DeadlineExceeded):
+		kind = "deadline"
+	case errors.Is(cause, context.Canceled):
+		kind = "canceled"
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("context.cause", cause.Error()),
+		attribute.String("context.cause.type", kind),
+	}
+	span.SetAttributes(attrs...)
+
+	return attrs
 }

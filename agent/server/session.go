@@ -24,9 +24,9 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/wg"
+	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
@@ -44,14 +44,14 @@ type session struct {
 	tokens *tokens.Tokens
 }
 
-var errUnsupportedCommand = errors.New("unsupported command")
+var errUnsupportedCommand = agent.ErrUnsupportedCommand
 
 func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("agent session closed: %w", context.Canceled))
 
 	wg.Go(func() {
 
@@ -126,6 +126,8 @@ func (s *session) runCommand(ctx context.Context) {
 		handler = (*session).ping6
 	case "set-token":
 		handler = (*session).setToken
+	case "tunnels":
+		handler = (*session).tunnels
 	default:
 		s.error(errUnsupportedCommand)
 
@@ -158,6 +160,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 		Version:    buildinfo.Version().String(),
 		PID:        os.Getpid(),
 		Background: s.srv.Background,
+		TokenMode:  s.srv.TokenMode,
 	})
 }
 
@@ -176,16 +179,18 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1], s.getClient(ctx))
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1], s.getClient(ctx), s.tokens)
 	if err != nil {
 		s.error(err)
 
 		return
 	}
 
+	state, cfg := tunnel.StateAndConfig()
+
 	_ = s.marshal(agent.EstablishResponse{
-		WireGuardState: tunnel.State,
-		TunnelConfig:   tunnel.Config,
+		WireGuardState: state,
+		TunnelConfig:   cfg,
 	})
 }
 
@@ -200,24 +205,73 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 var errNoSuchOrg = errors.New("no such organization")
 
 func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization, error) {
-	orgs, err := s.getClient(ctx).GetOrganizations(ctx)
+	// Listing every organization can fail for tokens restricted to one org.
+	// Tunnel setup only needs the organization the client requested.
+	org, err := s.getClient(ctx).GetOrganizationBySlug(ctx, slug)
+	if isOrgNotFound(err) || (err == nil && org == nil) {
+		return nil, errNoSuchOrg
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// The personal org is "personal" by Slug and its real name by RawSlug;
-	// clients may send either. Tunnels are keyed by Slug, so remember the
-	// alias for later lookups that only carry the slug the client used.
-	for _, org := range orgs {
-		if org.Slug == slug || org.RawSlug == slug {
-			no := org // copy
-			s.srv.rememberSlug(slug, org.Slug)
-
-			return &no, nil
+	// "personal" names a different organization for each account.
+	// Use the real slug for both tunnels and persisted peers; never
+	// reuse an old peer cached under the ambiguous alias.
+	if org.Slug == "personal" {
+		if org.RawSlug == "" || org.RawSlug == "personal" {
+			return nil, errors.New("personal organization has no unique slug")
 		}
+		org.Slug = org.RawSlug
 	}
 
-	return nil, errNoSuchOrg
+	return org, nil
+}
+
+// isOrgNotFound reports whether err is the API saying the organization does
+// not exist. It answers with a NOT_FOUND GraphQL error, not a null result.
+func isOrgNotFound(err error) bool {
+	var gqlErr *graphql.GraphQLError
+	return errors.As(err, &gqlErr) && gqlErr.Extensions.Code == "NOT_FOUND"
+}
+
+// tunnelSlug resolves the account-relative alias for control requests. It is
+// not an authorization check: socket clients already share the agent's access.
+func (s *session) tunnelSlug(ctx context.Context, slug string) (string, error) {
+	if slug != "personal" {
+		return slug, nil
+	}
+	org, err := s.fetchOrg(ctx, slug)
+	if err != nil {
+		return "", err
+	}
+
+	return org.Slug, nil
+}
+
+func (s *session) tunnelFor(ctx context.Context, slug, network string) (*wg.Tunnel, error) {
+	slug, err := s.tunnelSlug(ctx, slug)
+	if err != nil {
+		return nil, err
+	}
+	tunnel := s.srv.tunnelFor(slug, network)
+	if tunnel == nil {
+		return nil, agent.ErrTunnelUnavailable
+	}
+
+	return tunnel, nil
+}
+
+var errMalformedTunnels = errors.New("malformed tunnels command")
+
+// tunnels describes the tunnels the agent holds for an org. It never builds
+// one.
+func (s *session) tunnels(_ context.Context, args ...string) {
+	if !s.exactArgs(1, args, errMalformedTunnels) {
+		return
+	}
+
+	_ = s.marshal(s.srv.tunnelStatuses(args[0]))
 }
 
 var errMalformedProbe = errors.New("malformed probe command")
@@ -227,7 +281,12 @@ func (s *session) probe(ctx context.Context, args ...string) {
 		return
 	}
 
-	if err := s.srv.probeTunnel(ctx, args[0], args[1]); err != nil {
+	slug, err := s.tunnelSlug(ctx, args[0])
+	if err != nil {
+		s.error(err)
+		return
+	}
+	if err := s.srv.probeTunnel(ctx, slug, args[1]); err != nil {
 		s.error(err)
 
 		return
@@ -243,9 +302,9 @@ func (s *session) instances(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0], "")
-	if tunnel == nil {
-		s.error(agent.ErrTunnelUnavailable)
+	tunnel, err := s.tunnelFor(ctx, args[0], "")
+	if err != nil {
+		s.error(err)
 
 		return
 	}
@@ -277,9 +336,9 @@ func (s *session) resolve(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0], args[2])
-	if tunnel == nil {
-		s.error(agent.ErrTunnelUnavailable)
+	tunnel, err := s.tunnelFor(ctx, args[0], args[2])
+	if err != nil {
+		s.error(err)
 
 		return
 	}
@@ -336,9 +395,9 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0], "")
-	if tunnel == nil {
-		s.error(agent.ErrTunnelUnavailable)
+	tunnel, err := s.tunnelFor(ctx, args[0], "")
+	if err != nil {
+		s.error(err)
 
 		return
 	}
@@ -383,6 +442,12 @@ func (s *session) connect(ctx context.Context, args ...string) {
 		return
 	}
 
+	if args[0] == "personal" {
+		s.error(errors.New("This command cannot use the updated agent with the personal organization alias. Update flyctl and restart this command."))
+
+		return
+	}
+
 	tunnel := s.srv.tunnelFor(args[0], args[3])
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
@@ -393,9 +458,11 @@ func (s *session) connect(ctx context.Context, args ...string) {
 	var dialContext context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		dialContext, cancel = context.WithTimeout(ctx, time.Duration(timeout)*time.Millisecond)
+		dialContext, cancel = context.WithTimeoutCause(ctx, time.Duration(timeout)*time.Millisecond, fmt.Errorf("dialing agent connection: %w", context.DeadlineExceeded))
 	} else {
-		dialContext, cancel = context.WithCancel(ctx)
+		var cancelCause context.CancelCauseFunc
+		dialContext, cancelCause = context.WithCancelCause(ctx)
+		cancel = func() { cancelCause(fmt.Errorf("agent dialing finished: %w", context.Canceled)) }
 	}
 	defer cancel()
 
@@ -470,7 +537,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	// a background thread watches for incoming ICMP messages on
 	// the ICMP "socket" we get from wireguard-go. Each received
@@ -526,7 +593,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 			s.logger.Printf("ping6: socket read error: %s", err)
 		}
 
-		cancel()
+		cancel(err)
 
 		return false
 	}
@@ -572,14 +639,14 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 
 	switch args[0] {
 	case "cfg":
-		tokStr, err := config.ReadAccessToken(args[1])
+		t, err := s.srv.tokensFromFile(args[1])
 		if err != nil {
 			s.error(err)
 
 			return
 		}
 
-		s.tokens = tokens.ParseFromFile(tokStr, args[1])
+		s.tokens = t
 	case "str":
 		s.tokens = tokens.Parse(args[1])
 	}
@@ -593,12 +660,13 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 
 // getClient returns an API client that uses any API tokens sent by the client.
 // If none have been sent, it falls back to using the server's tokens.
-func (s *session) getClient(ctx context.Context) flyutil.Client {
-	if s.tokens == nil {
-		return s.srv.GetClient(ctx)
-	}
+func (s *session) getClient(ctx context.Context) *fly.Client {
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.getTokens()})
+}
 
-	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+// getTokens returns the tokens to act with; see server.tokensFor.
+func (s *session) getTokens() *tokens.Tokens {
+	return s.srv.tokensFor(s.tokens)
 }
 
 func (s *session) error(err error) bool {

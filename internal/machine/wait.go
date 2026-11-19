@@ -13,6 +13,8 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func WaitForState(ctx context.Context, appName string, machine *fly.Machine, desiredState string, timeout time.Duration) (string, error) {
@@ -36,8 +38,9 @@ func WaitForState(ctx context.Context, appName string, machine *fly.Machine, des
 func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine start or stop: %w", context.DeadlineExceeded))
 	defer cancel()
+	defer func() { tracing.RecordCancellation(waitCtx, trace.SpanFromContext(waitCtx)) }()
 
 	var waitOnAction string
 	switch action {
@@ -74,7 +77,7 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			}
 		default:
 			var flapsErr *flaps.FlapsError
-			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
+			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
 				return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
 			}
 			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {

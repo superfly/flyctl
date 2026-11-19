@@ -22,7 +22,7 @@ func New() *cobra.Command {
 	const (
 		short  = `Unmanaged Postgres cluster commands`
 		notice = "Unmanaged Fly Postgres is not supported by Fly.io Support and users are responsible for operations, management, and disaster recovery. If you'd like a managed, supported solution, try 'fly mpg' (Managed Postgres).\n" +
-			"Please visit https://fly.io/docs/mpg/overview/ for more information about Managed Postgres.\n"
+			"Please visit https://docs.fly.io/postgres for more information about Managed Postgres.\n"
 		long = notice
 	)
 

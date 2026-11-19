@@ -44,6 +44,11 @@ type BuilderMeta struct {
 	Platform        string `json:"platform"`
 	RemoteAppName   string `json:"remote_app_name"`
 	RemoteMachineId string `json:"remote_machine_id"`
+
+	// Acquired Depot routing target, separate from the successfully used mirror.
+	DepotAcquisitionTarget string `json:"depot_acquisition_target,omitempty"`
+	DepotConnectionStage   string `json:"depot_connection_stage,omitempty"`
+	DepotConnectionOutcome string `json:"depot_connection_outcome,omitempty"`
 }
 
 type BuildFinalImage struct {

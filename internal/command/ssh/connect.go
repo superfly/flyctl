@@ -98,7 +98,8 @@ func singleUseSSHCertificate(ctx context.Context, org OrganizationImpl, appNames
 }
 
 func spin(in, out string) context.CancelFunc {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelCause := context.WithCancelCause(context.Background())
+	cancel := func() { cancelCause(fmt.Errorf("SSH progress spinner stopped: %w", context.Canceled)) }
 
 	if !helpers.IsTerminal() {
 		fmt.Fprintln(os.Stderr, in)

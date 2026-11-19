@@ -2,26 +2,15 @@ package kubernetes
 
 import (
 	"fmt"
-	"os"
+
+	"github.com/superfly/flyctl/helpers"
 )
 
 // writeKubeconfig writes the cluster credential to path readable only by the
-// current user. An existing file is truncated and narrowed to the same mode,
-// since the mode passed to OpenFile only applies when the file is created.
+// current user, replacing any existing file rather than rewriting it in place.
 func writeKubeconfig(path string, kubeconfig string) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if err := f.Chmod(0o600); err != nil {
-		return err
-	}
-
-	if _, err := f.Write([]byte(kubeconfig)); err != nil {
+	if err := helpers.WriteFileAtomically(path, []byte(kubeconfig), 0o600); err != nil {
 		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", path, err)
 	}
-
 	return nil
 }

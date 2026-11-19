@@ -145,10 +145,17 @@ func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
 }
 
 // AgentWireGuardTransport reports which transport the agent used to establish
-// a WireGuard tunnel: "udp" or "websocket". It sends immediately because the
+// a WireGuard tunnel: "udp", "websocket" or "token". It sends immediately because the
 // agent daemon never reaches the end-of-command metrics flush.
 func AgentWireGuardTransport(ctx context.Context, transport string) {
 	SendImmediate(ctx, "agent_wireguard/transport", map[string]string{"transport": transport})
+}
+
+// AgentWireGuardTransportFailure reports that a tunnel couldn't be
+// established, or died, over the given transport, with a coarse reason
+// class (see agent/server.failureReason).
+func AgentWireGuardTransportFailure(ctx context.Context, transport, reason string) {
+	SendImmediate(ctx, "agent_wireguard/transport_failure", map[string]string{"transport": transport, "reason": reason})
 }
 
 func Send[T any](ctx context.Context, metricSlug string, value T) {

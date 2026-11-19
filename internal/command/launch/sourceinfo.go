@@ -12,6 +12,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -89,21 +90,29 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	}
 
 	if srcInfo == nil {
-		var colorFn func(arg any) aurora.Value
-		noBlank := planStep == "propose"
-		if noBlank {
-			colorFn = aurora.Red
-		} else {
-			colorFn = aurora.Green
-		}
 		msg := "Could not find a Dockerfile, nor detect a runtime or framework from source code."
-		if !noBlank {
-			msg += " Continuing with a blank app."
+		var noBlankErr error
+		switch {
+		case planStep == "propose":
+			noBlankErr = errors.New("Could not detect runtime or Dockerfile")
+		case (!io.IsInteractive() || env.IsCI()) && (flag.GetBool(ctx, "now") || !flag.GetBool(ctx, "no-deploy")) && !flag.GetBool(ctx, "manifest") && !noCreateApp(ctx):
+			// A blank app is never deployed. Without a terminal nobody sees
+			// that, and the empty app plus exit 0 would pass for a launch.
+			// --manifest only prints the plan and --no-create-app only writes
+			// fly.toml, so there's nothing to mistake. --now overrides
+			// --no-deploy, as in firstDeploy.
+			noDeploy := "pass --no-deploy"
+			if flag.GetBool(ctx, "now") {
+				noDeploy = "drop --now and pass --no-deploy"
+			}
+			noBlankErr = fmt.Errorf("found nothing to build; add a Dockerfile, or %s to create an empty app", noDeploy)
 		}
-		fmt.Fprintln(io.Out, colorFn(msg))
-		if noBlank {
-			return nil, nil, errors.New("Could not detect runtime or Dockerfile")
+		if noBlankErr != nil {
+			fmt.Fprintln(io.Out, aurora.Red(msg))
+
+			return nil, nil, noBlankErr
 		}
+		fmt.Fprintln(io.Out, aurora.Green(msg+" Continuing with a blank app."))
 
 		return srcInfo, nil, err
 	}
@@ -140,4 +149,14 @@ func articleFor(w string) string {
 	}
 
 	return article
+}
+
+// noCreateApp reports whether launch should leave app creation alone.
+// --no-create-app wins when given, as in ApplyAliases; otherwise read
+// --no-create, its alias or plan propose's own flag.
+func noCreateApp(ctx context.Context) bool {
+	if flag.IsSpecified(ctx, "no-create-app") {
+		return flag.GetBool(ctx, "no-create-app")
+	}
+	return flag.GetBool(ctx, "no-create")
 }

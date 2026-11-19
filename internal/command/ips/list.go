@@ -58,7 +58,7 @@ func runIPAddressesList(ctx context.Context) error {
 
 	renderListTable(ctx, appName, ipAddresses)
 	SanityCheckAppScopedEgressIps(ctx, nil, egressIPAddressesByRegion(res.IPs), nil, "")
-	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/networking/services/")
+	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://docs.fly.io/networking/services")
 
 	return nil
 }

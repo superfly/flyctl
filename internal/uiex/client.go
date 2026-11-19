@@ -12,6 +12,8 @@ import (
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type Client struct {
@@ -59,7 +61,13 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		baseUrl = uiexUrl
 	}
 
-	var transport = httptracing.NewTransport(http.DefaultTransport)
+	// Clients are constructed before deploy initializes the global propagator.
+	var transport = httptracing.NewTransport(otelhttp.NewTransport(http.DefaultTransport,
+		otelhttp.WithPropagators(propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		)),
+	))
 	if opts.ClientSignals != nil {
 		transport = opts.ClientSignals.WrapTransport(transport)
 	}

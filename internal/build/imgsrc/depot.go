@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -73,7 +74,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	case opts.DockerfilePath != "" && !helpers.FileExists(opts.DockerfilePath):
 		build.BuildFinish()
 		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-		tracing.RecordError(span, err, "failed to find dockerfile")
+		tracing.RecordError(ctx, span, err, "failed to find dockerfile")
 
 		return nil, "", err
 	case opts.DockerfilePath != "":
@@ -95,7 +96,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		// pass the relative path to Dockerfile within the context
 		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
 		if err != nil {
-			tracing.RecordError(span, err, "failed to get relative dockerfile path")
+			tracing.RecordError(ctx, span, err, "failed to get relative dockerfile path")
 			build.BuildFinish()
 
 			return nil, "", err
@@ -113,7 +114,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		build.ImageBuildFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to build image")
+		tracing.RecordError(ctx, span, err, "failed to build image")
 
 		return nil, "", errors.Wrap(err, "error building")
 	}
@@ -132,7 +133,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	defer func() {
 		if retErr != nil {
 			streams.StopProgressIndicator()
-			span.RecordError(retErr)
+			tracing.RecordErrorEvent(ctx, span, retErr)
 		}
 		span.End()
 	}()
@@ -151,11 +152,12 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 
 	// Building a container image may take multiple minutes.
 	// So we can only have the provisoning part in this context.
-	provisionCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	provisionCtx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, fmt.Errorf("provisioning Depot builder: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	buildkit, build, buildErr := initBuilder(provisionCtx, buildState, opts.AppName, streams, scope)
 	if buildErr != nil {
+		tracing.RecordCancellation(provisionCtx, span)
 		return nil, buildErr
 	}
 	defer func() {
@@ -163,11 +165,14 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		build.Finish(buildErr)
 	}()
 
+	recordDepotAcquisition(buildState.BuilderMeta, buildkit.ServerName)
+
 	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
-	buildkitClient, buildErr = buildkit.Connect(provisionCtx)
+	buildkitClient, buildErr = connectDepotSDK(provisionCtx, buildkit, buildState.BuilderMeta)
 	if buildErr != nil {
-		return nil, buildErr
+		tracing.RecordCancellation(provisionCtx, span)
+		return nil, errors.Wrap(buildErr, "connecting to Depot builder")
 	}
 
 	streams.StopProgressIndicator()
@@ -191,16 +196,28 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
 }
 
+var depotMachineID = regexp.MustCompile(`^[0-9a-f]{14}$`)
+
+// The acquired routing target is not proof of a successful connection. Retain
+// only the observed Fly Machine ID format, not arbitrary routing data.
+func recordDepotAcquisition(meta *uiex.BuilderMeta, serverName string) {
+	if depotMachineID.MatchString(serverName) {
+		meta.DepotAcquisitionTarget = serverName
+	}
+}
+
 // initBuilder returns a Depot machine to build a container image.
 // Note that the caller is responsible for passing a context with a resonable timeout.
 // Otherwise, the function cloud block indefinitely.
 func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (m *depotmachine.Machine, b *depotbuild.Build, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
+	buildState.BuilderMeta.DepotConnectionStage = "ensure_builder"
 
 	defer func() {
 		if retErr != nil {
 			streams.StopProgressIndicator()
-			span.RecordError(retErr)
+			tracing.RecordErrorEvent(ctx, span, retErr)
+			buildState.BuilderMeta.DepotConnectionOutcome = depotConnectOutcome(ctx, retErr)
 		}
 		buildState.BuilderInitFinish()
 		span.End()
@@ -228,6 +245,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	}
 
 	span.AddEvent("Acquiring Depot machine")
+	buildState.BuilderMeta.DepotConnectionStage = "acquire"
 
 	machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
 	if err != nil {
@@ -318,7 +336,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(ctx, span, err)
 
 		return nil, err
 	}

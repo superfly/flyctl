@@ -96,6 +96,14 @@ query AgreedToProviderTos($addOnProviderName: String!) {
 	}
 }
 
+query GetCurrentUserNumericID {
+	viewer {
+		... on User {
+			internalNumericId
+		}
+	}
+}
+
 query GetOrganization($slug: String!) {
 	organization(slug: $slug) {
 		...OrganizationData

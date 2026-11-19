@@ -63,6 +63,18 @@ func _getValidationContext(t *testing.T) context.Context {
 	return ctx
 }
 
+func TestValidateMachineConversionReportsGuestError(t *testing.T) {
+	cfg := &Config{
+		Compute: []*Compute{{Memory: "not-a-size"}},
+	}
+
+	extra, err := cfg.validateMachineConversion()
+
+	require.ErrorIs(t, err, ErrInvalidApplicationConfig)
+	require.Contains(t, extra, "process group 'app'")
+	require.Contains(t, extra, "not-a-size")
+}
+
 func TestConfig_ValidateGroups(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/validate-groups.toml")
 	require.NoError(t, err)
@@ -109,4 +121,40 @@ func TestConfig_ValidateServices(t *testing.T) {
 
 	err, x = cfg.ValidateGroups(ctx, []string{"success"})
 	require.NoErrorf(t, err, x)
+}
+
+func TestCacheDiskValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		disks []CacheDisk
+		want  string
+	}{
+		{"missing size", []CacheDisk{{Path: "/cache"}}, "cache_disk.size"},
+		{"zero size", []CacheDisk{{Size: "0mib", Path: "/cache"}}, "cache_disk.size must be greater than zero"},
+		{"negative size", []CacheDisk{{Size: "-1mib", Path: "/cache"}}, "invalid cache_disk.size"},
+		{"unitless size", []CacheDisk{{Size: "1024", Path: "/cache"}}, "requires an explicit unit"},
+		{"fractional unitless size", []CacheDisk{{Size: "1.5", Path: "/cache"}}, "requires an explicit unit"},
+		{"invalid size", []CacheDisk{{Size: "invalid", Path: "/cache"}}, "invalid cache_disk.size"},
+		{"missing path", []CacheDisk{{Size: "1024mib"}}, "path is required"},
+		{"overlap", []CacheDisk{{Size: "1024mib", Path: "/a"}, {Size: "1024mib", Path: "/b", Processes: []string{"app"}}}, `process group "app" has more than one [[cache_disk]] entry; only one cache disk is allowed per Machine`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.CacheDisks = tc.disks
+			_, err := cfg.ToMachineConfig("app", nil)
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
+	cfg := NewConfig()
+	cfg.CacheDisks = []CacheDisk{{Size: "1024mib", Path: "/cache", Processes: []string{"missing"}}}
+	info, err := cfg.validateCacheDisks()
+	require.Error(t, err)
+	require.Contains(t, info, "unknown process group")
+	// Limits and path rules belong to the server, including future changes.
+	cfg.CacheDisks = []CacheDisk{{Size: "1mib", Path: "/cache"}}
+	_, err = cfg.ToMachineConfig("app", nil)
+	require.NoError(t, err)
+	cfg.CacheDisks[0].Size = "100000mib"
+	_, err = cfg.ToMachineConfig("app", nil)
+	require.NoError(t, err)
 }

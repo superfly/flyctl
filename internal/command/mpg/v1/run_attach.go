@@ -3,6 +3,7 @@ package cmdv1
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"net/url"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -202,7 +203,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	s := map[string]string{}
 	s[variableName] = connectionUri
 
-	if err := appsecrets.Update(ctx, flapsClient, appName, s, nil); err != nil {
+	if err := tracing.WorkflowPhase(ctx, "set_connection_secret", func(ctx context.Context) error { return appsecrets.Update(ctx, flapsClient, appName, s, nil) }); err != nil {
 		return err
 	}
 
@@ -210,7 +211,10 @@ func RunAttach(ctx context.Context, clusterID string) error {
 	attachInput := mpgv1.CreateAttachmentInput{
 		AppName: appName,
 	}
-	if _, err := mpgClient.CreateAttachment(ctx, clusterID, attachInput); err != nil {
+	if err := tracing.WorkflowPhase(ctx, "record_attachment", func(ctx context.Context) error {
+		_, err := mpgClient.CreateAttachment(ctx, clusterID, attachInput)
+		return err
+	}); err != nil {
 		// Log warning but don't fail - the secret was set successfully
 		fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
 	}

@@ -237,6 +237,8 @@ func runMachineClone(ctx context.Context) (err error) {
 				Path:                   mnt.Path,
 				ExtendThresholdPercent: mnt.ExtendThresholdPercent,
 				AddSizeGb:              mnt.AddSizeGb,
+				AddSizePercent:         mnt.AddSizePercent,
+				MinAddSizeGb:           mnt.MinAddSizeGb,
 				SizeGbLimit:            mnt.SizeGbLimit,
 			},
 		}

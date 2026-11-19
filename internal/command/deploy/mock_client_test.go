@@ -11,14 +11,8 @@ import (
 	"github.com/superfly/fly-go/flaps"
 )
 
-type mockWebClient struct {
-}
-
-func (f *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error) {
-	return true, nil
-}
-
 type mockFlapsClient struct {
+	LaunchFunc       func(context.Context, string, fly.LaunchMachineInput) (*fly.Machine, error)
 	breakLaunch      bool
 	breakWait        bool
 	breakUncordon    bool
@@ -267,6 +261,10 @@ func (m *mockFlapsClient) FindLease(ctx context.Context, appName, machineID stri
 	return nil, fmt.Errorf("failed to find lease for %s", machineID)
 }
 
+func (m *mockFlapsClient) ForkManagedPostgresCluster(ctx context.Context, id string, req flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+	panic("not implemented")
+}
+
 func (m *mockFlapsClient) GenerateSecretKey(ctx context.Context, appName, name, typ string) (*fly.SetSecretKeyResp, error) {
 
 	return nil, fmt.Errorf("failed to generate app secret %s", name)
@@ -324,6 +322,10 @@ func (m *mockFlapsClient) GetManagedPostgresCluster(ctx context.Context, id stri
 	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to get managed postgres cluster")
 }
 
+func (m *mockFlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+	return flaps.ManagedPostgresMaintenanceWindow{}, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
 	return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("failed to get managed postgres user credentials")
 }
@@ -372,6 +374,9 @@ func (m *mockFlapsClient) Kill(ctx context.Context, appName, machineID string) (
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	if m.LaunchFunc != nil {
+		return m.LaunchFunc(ctx, appName, builder)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -492,6 +497,10 @@ func (m *mockFlapsClient) ListManagedPostgresBackups(ctx context.Context, id str
 }
 
 func (m *mockFlapsClient) ListManagedPostgresExtensions(ctx context.Context, id, database string) ([]flaps.ManagedPostgresExtension, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) ListManagedPostgresPlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -641,8 +650,16 @@ func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, 
 	return nil, fmt.Errorf("failed to update app secret %v", values)
 }
 
+func (m *mockFlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
+	return flaps.ManagedPostgresMaintenanceWindow{}, fmt.Errorf("not implemented")
+}
+
 func (m *mockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
 	return fmt.Errorf("not implemented")
+}
+
+func (m *mockFlapsClient) RotateManagedPostgresUserPassword(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error) {
+	return flaps.ManagedPostgresUserCredentials{}, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) UpdateVolume(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {

@@ -18,6 +18,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/oklog/ulid/v2"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -27,26 +29,26 @@ import (
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // TODO(ali): Use statuslogger here
 
+// The sentinels marked StepLabel are only ever joined onto the error from the
+// step they name (see Deploy), so they say where a deploy failed, not why.
 var (
-	ErrTagForDeletion        = errors.New("failed to mark as safe for deletion")
-	ErrAborted               = errors.New("deployment aborted by user")
+	ErrTagForDeletion        = flyerr.StepLabel(errors.New("failed to mark as safe for deletion"))
+	ErrAborted               = flyerr.Expected(errors.New("deployment aborted by user"))
 	ErrWaitTimeout           = errors.New("wait timeout")
-	ErrCreateGreenMachine    = errors.New("failed to create green machines")
-	ErrWaitForStartedState   = errors.New("could not get all green machines into started state")
-	ErrWaitForHealthy        = errors.New("could not get all green machines to be healthy")
-	ErrMarkReadyForTraffic   = errors.New("failed to mark green machines as ready")
-	ErrCordonBlueMachines    = errors.New("failed to cordon blue machines")
-	ErrStopBlueMachines      = errors.New("failed to stop blue machines")
-	ErrWaitForStoppedState   = errors.New("could not get all blue machines into stopped state")
-	ErrDestroyBlueMachines   = errors.New("failed to destroy previous deployment")
+	ErrCreateGreenMachine    = flyerr.StepLabel(errors.New("failed to create green machines"))
+	ErrWaitForStartedState   = flyerr.StepLabel(errors.New("could not get all green machines into started state"))
+	ErrWaitForHealthy        = flyerr.StepLabel(errors.New("could not get all green machines to be healthy"))
+	ErrMarkReadyForTraffic   = flyerr.StepLabel(errors.New("failed to mark green machines as ready"))
+	ErrCordonBlueMachines    = flyerr.StepLabel(errors.New("failed to cordon blue machines"))
+	ErrStopBlueMachines      = flyerr.StepLabel(errors.New("failed to stop blue machines"))
+	ErrWaitForStoppedState   = flyerr.StepLabel(errors.New("could not get all blue machines into stopped state"))
+	ErrDestroyBlueMachines   = flyerr.StepLabel(errors.New("failed to destroy previous deployment"))
 	ErrValidationError       = errors.New("app not in valid state for bluegreen deployments")
-	ErrOrgLimit              = errors.New("app can't undergo bluegreen deployment due to org limits")
 	ErrMultipleImageVersions = errors.New("found multiple image versions")
 
 	safeToDestroyValue = "safe_to_destroy"
@@ -68,15 +70,10 @@ type RollbackLog struct {
 	disableRollback        bool
 }
 
-type blueGreenWebClient interface {
-	CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error)
-}
-
 type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
 	flaps               flapsutil.FlapsClient
-	apiClient           blueGreenWebClient
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
 	clearLinesAbove     func(count int)
@@ -173,7 +170,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		greenMachines:       machineUpdateEntries{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
-		apiClient:           md.apiClient,
 		appConfig:           md.appConfig,
 		timeout:             md.waitTimeout,
 		stopSignal:          md.stopSignal,
@@ -331,7 +327,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 			newMachineRaw, err := bg.launchGreenMachineWithRetry(ctx, launchInput, launchID)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to launch machine")
+				tracing.RecordError(ctx, span, err, "failed to launch machine")
 
 				return err
 			}
@@ -563,8 +559,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		}
 
 		go func(m machine.LeasableMachine) {
-			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
+			waitCtx, cancel := context.WithTimeoutCause(ctx, bg.timeout, fmt.Errorf("waiting for green machine health: %w", context.DeadlineExceeded))
 			defer cancel()
+			defer func() { tracing.RecordCancellation(waitCtx, trace.SpanFromContext(waitCtx)) }()
 
 			interval, gracePeriod := m.GetMinIntervalAndMinGracePeriod()
 
@@ -711,7 +708,7 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 				// Non-fatal: the machine will still be stopped and destroyed
 				// below. Warn the user so they can correlate an unusually long
 				// "two versions live" window with a flaps hiccup.
-				tracing.RecordError(span, err, "failed to cordon blue machine")
+				tracing.RecordError(ctx, span, err, "failed to cordon blue machine")
 				fmt.Fprintf(bg.io.ErrOut, "  [warn] Failed to cordon machine %s after %d attempts: %v\n",
 					bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), bg.teardownRetryAttempts, err)
 
@@ -766,7 +763,7 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 				// Non-fatal: the destroy step below force-kills. Losing the
 				// graceful-shutdown window is a per-machine annoyance, not a
 				// deploy-blocker.
-				tracing.RecordError(span, err, "failed to stop blue machine")
+				tracing.RecordError(ctx, span, err, "failed to stop blue machine")
 				fmt.Fprintf(bg.io.ErrOut, "  [warn] Failed to stop machine %s after %d attempts: %v\n",
 					bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), bg.teardownRetryAttempts, err)
 
@@ -910,7 +907,7 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 			defer mu.Unlock()
 
 			if err != nil {
-				tracing.RecordError(span, err, "failed to destroy blue machine")
+				tracing.RecordError(ctx, span, err, "failed to destroy blue machine")
 				bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
 
 				return nil
@@ -947,26 +944,11 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
-	if err != nil {
-		tracing.RecordError(span, err, "failed to validate deployment")
-
-		return err
-	}
-
-	span.SetAttributes(attribute.Bool("can_perform", canPerform))
-
-	if !canPerform {
-		tracing.RecordError(span, ErrOrgLimit, "failed to deploy, orglimit")
-
-		return ErrOrgLimit
-	}
-
 	fmt.Fprintf(bg.io.ErrOut, "\nVerifying if app can be safely deployed \n")
 
-	err = bg.DetectMultipleImageVersions(ctx)
+	err := bg.DetectMultipleImageVersions(ctx)
 	if err != nil {
-		tracing.RecordError(span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
+		tracing.RecordError(ctx, span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
 
 		return err
 	}
@@ -990,7 +972,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	}
 
 	if totalMachinesWithChecks == 0 && len(bg.blueMachines) != 0 {
-		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
+		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://docs.fly.io/reference/configuration#services-tcp_checks\n")
 
 		return ErrValidationError
 	}
@@ -1009,7 +991,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
 	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to wait for start")
+		tracing.RecordError(ctx, span, err, "failed to wait for start")
 
 		return errors.Join(err, ErrWaitForStartedState)
 	}
@@ -1020,7 +1002,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to wait for health")
+		tracing.RecordError(ctx, span, err, "failed to wait for health")
 
 		return errors.Join(err, ErrWaitForHealthy)
 	}
@@ -1031,7 +1013,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready\n")
 	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to mark as ready for traffic")
+		tracing.RecordError(ctx, span, err, "failed to mark as ready for traffic")
 
 		return errors.Join(err, ErrMarkReadyForTraffic)
 	}
@@ -1045,7 +1027,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nCheckpointing deployment, this may take a few seconds...\n")
 	if err := bg.TagBlueMachinesAsSafeForDeletion(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to mark as ready for traffic")
+		tracing.RecordError(ctx, span, err, "failed to mark as ready for traffic")
 
 		return errors.Join(err, ErrTagForDeletion)
 	}
@@ -1062,7 +1044,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	// Stop fly-proxy from sending new traffic to the old machines
 	if err := bg.CordonBlueMachines(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to cordon blue machines")
+		tracing.RecordError(ctx, span, err, "failed to cordon blue machines")
 
 		return errors.Join(err, ErrCordonBlueMachines)
 	}
@@ -1081,14 +1063,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	// terminate existing connections
 	fmt.Fprintf(bg.io.ErrOut, "\nStopping all blue machines\n")
 	if err := bg.StopBlueMachines(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to stop blue machines")
+		tracing.RecordError(ctx, span, err, "failed to stop blue machines")
 
 		return errors.Join(err, ErrStopBlueMachines)
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all blue machines to stop\n")
 	if err := bg.WaitForBlueMachinesToBeStopped(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to wait for stop")
+		tracing.RecordError(ctx, span, err, "failed to wait for stop")
 		var merr *multierror.Error
 		if errors.As(err, &merr) {
 			fmt.Fprintf(bg.io.ErrOut, "\nFailed to stop some machines:\n")
@@ -1102,7 +1084,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
-		tracing.RecordError(span, err, "failed to destroy blue machines")
+		tracing.RecordError(ctx, span, err, "failed to destroy blue machines")
 
 		return errors.Join(err, ErrDestroyBlueMachines)
 	}
@@ -1238,7 +1220,7 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 		for _, mach := range bg.greenMachines.machines() {
 			err := mach.Destroy(ctx, true)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to destroy green machine")
+				tracing.RecordError(ctx, span, err, "failed to destroy green machine")
 
 				return err
 			}
@@ -1452,7 +1434,7 @@ func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error
 			// so that green machines are the only ones serving traffic. We just
 			// let the user know so they can manually clean up if a later step
 			// also fails.
-			tracing.RecordError(span, err, "failed to tag blue machine as safe for deletion")
+			tracing.RecordError(ctx, span, err, "failed to tag blue machine as safe for deletion")
 			fmt.Fprintf(bg.io.ErrOut,
 				"  [warn] Could not tag machine %s as safe-for-deletion after %d attempts: %v\n",
 				bg.colorize.Bold(mach.leasableMachine.FormattedMachineId()), bg.tagRetryAttempts, err)

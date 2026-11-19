@@ -52,6 +52,11 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, orgID, orgSlug s
 	if err != nil {
 		return nil, err
 	}
+	// Saved keys join org and network with a dash, so a peer saved for one
+	// org can sit under another org's key. Only reuse a peer saved for this org.
+	if state != nil && state.Org != orgSlug {
+		state = nil
+	}
 	if state != nil && !reestablish && (regionCode == "" || state.Region == regionCode) {
 		return state, nil
 	}

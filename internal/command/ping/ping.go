@@ -140,8 +140,8 @@ func run(ctx context.Context) error {
 	}
 	mu.Unlock()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(fmt.Errorf("ping finished: %w", context.Canceled))
 
 	if name != "" && name != "gateway" && !strings.HasPrefix(name, "fdaa:") {
 		// look up names in the background because I was too

@@ -3,6 +3,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -22,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/macaroon"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -36,8 +39,10 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/macaroon/flyio"
 )
 
 type Runner func(context.Context) error
@@ -104,7 +109,7 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 	}
 
 	return func(cmd *cobra.Command, _ []string) (err error) {
-		ctx := cmd.Context()
+		ctx, inheritedTrace := tracing.ExtractProcessContext(cmd.Context())
 		ctx = NewContext(ctx, cmd)
 		ctx = flag.NewContext(ctx, cmd.Flags())
 
@@ -145,7 +150,25 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		}()
 
 		// run the command
-		if err = fn(ctx); err == nil {
+		workflow := workflowCommand(cmd)
+		if inheritedTrace {
+			ctx = tracing.WithDeployTrace(ctx)
+			// These commands (and the subprocess runner) own their trace provider.
+			commandPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+			switch commandPath {
+			case "deploy", "launch", "trace run":
+			default:
+				if workflow == "" {
+					workflow = "cmd." + strings.ReplaceAll(commandPath, " ", ".")
+				}
+			}
+		}
+		if workflow != "" {
+			err = tracing.RunWorkflow(ctx, workflow, appconfig.NameFromContext(ctx), fn)
+		} else {
+			err = fn(ctx)
+		}
+		if err == nil {
 			// and finally, run the finalizer
 			finalize(ctx)
 		}
@@ -288,7 +311,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	queryRelease := func(parent context.Context) {
 		logger.Debug("started querying for new release")
 
-		ctx, cancel := context.WithTimeout(parent, time.Second)
+		ctx, cancel := context.WithTimeoutCause(parent, time.Second, fmt.Errorf("checking for a new flyctl release: %w", context.DeadlineExceeded))
 		defer cancel()
 
 		switch r, err := update.LatestRelease(ctx, channel); {
@@ -587,6 +610,27 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
+	return requireSession(ctx, false)
+}
+
+// RequireFlapsSession checks the credentials the Machines client will actually send.
+func RequireFlapsSession(ctx context.Context) (context.Context, error) {
+	return requireSession(ctx, true)
+}
+
+func requireSession(ctx context.Context, requireFlapsTokens bool) (context.Context, error) {
+	ctx, err := ensureLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := monitorSessionTokens(ctx, requireFlapsTokens); err != nil {
+		return nil, err
+	}
+
+	return ctx, nil
+}
+
+func ensureLogin(ctx context.Context) (context.Context, error) {
 	client := flyutil.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 
@@ -611,8 +655,6 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 			return handleReLogin(ctx, "expired")
 		}
 	}
-
-	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
 }
@@ -666,7 +708,7 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 		if !confirmed {
-			return nil, fly.ErrNoAuthToken
+			return nil, reloginError(reason)
 		}
 
 		// Attempt to log the user in
@@ -695,24 +737,124 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
-		// Fetch organization tokens and discharge any third-party caveats
-		config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
-
 		return ctx, nil
 	} else {
-		return nil, fly.ErrNoAuthToken
+		return nil, reloginError(reason)
 	}
 }
 
+// errSessionExpired stands in for fly.ErrNoAuthToken when a token is saved
+// but its login is too old, or predates login timestamps: "no access token
+// available" would be wrong, and logging in again fixes it.
+var errSessionExpired = errors.New("your flyctl session has expired. Run `fly auth login` to log in again")
+
+// reloginError is the error for a command that needs a login and won't get
+// one interactively.
+func reloginError(reason string) error {
+	if reason == "not_authenticated" {
+		return fly.ErrNoAuthToken
+	}
+
+	return errSessionExpired
+}
+
+const ssoTokensHelpURL = "https://docs.fly.io/security/tokens"
+
+// monitorSessionTokens starts token monitoring and fails the command when an
+// SSO sign-in was requested but not completed, rather than letting it go on
+// to an unauthorized API call.
+func monitorSessionTokens(ctx context.Context, requireFlapsTokens bool) error {
+	var (
+		mu    sync.Mutex
+		shown string
+	)
+
+	t := config.Tokens(ctx)
+	_, dischargeErr := config.MonitorTokens(ctx, t, func(ctx context.Context, url string) error {
+		mu.Lock()
+		shown = url
+		mu.Unlock()
+
+		return tryOpenUserURL(ctx, url)
+	})
+
+	mu.Lock()
+	url := shown
+	mu.Unlock()
+
+	ssoErr := incompleteSSO(ctx, url, func() (bool, error) {
+		return flyio.DischargeClient().NeedsDischarge(t.All())
+	})
+	if requireFlapsTokens && dischargeErr != nil && allMissingDischarges(t.Flaps()) {
+		return errors.Join(ssoErr, fmt.Errorf("failed to refresh third-party discharge tokens: %w", dischargeErr))
+	}
+
+	return ssoErr
+}
+
+// allMissingDischarges reports whether every permission macaroon in the Machines
+// credential needs at least one more discharge.
+func allMissingDischarges(header string) bool {
+	raw, err := macaroon.Parse(header)
+	if err != nil {
+		return false
+	}
+	perms, _, _, discharges, err := macaroon.FindPermissionAndDischargeTokens(raw, flyio.LocationPermission)
+	if err != nil || len(perms) == 0 {
+		return false
+	}
+	for _, perm := range perms {
+		if len(perm.AllThirdPartyTickets(discharges...)) == 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
+// incompleteSSO returns an error when url was shown for an SSO sign-in and the
+// tokens still need a discharge.
+func incompleteSSO(ctx context.Context, url string, needsDischarge func() (bool, error)) error {
+	if url == "" {
+		return nil
+	}
+
+	needs, err := needsDischarge()
+	if err != nil {
+		logger.FromContext(ctx).Debugf("failed checking for undischarged tokens: %s", err)
+
+		return nil
+	}
+	if !needs {
+		return nil
+	}
+
+	return fmt.Errorf("SSO sign-in was not completed. Open %s in a browser and run this command again, or set FLY_API_TOKEN to a token instead: %s", url, ssoTokensHelpURL)
+}
+
+// tryOpenUserURL is the UserURLCallback for SSO discharges. Returning nil keeps
+// the discharge client polling for the sign-in; returning an error stops it.
 func tryOpenUserURL(ctx context.Context, url string) error {
 	io := iostreams.FromContext(ctx)
 
-	if !io.IsInteractive() || env.IsCI() {
-		return errors.New("failed opening browser")
+	if env.IsCI() {
+		fmt.Fprintf(io.ErrOut, "This organization requires SSO, which needs a sign-in in a browser at:\n\n    %s\n\n", url)
+
+		return fmt.Errorf("SSO sign-in cannot complete on CI. Set FLY_API_TOKEN to a token instead: %s", ssoTokensHelpURL)
 	}
 
-	if err := open.Run(url); err != nil {
-		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
+	// The URL gets a line of its own so the reader can pass it on to someone.
+	fmt.Fprintf(io.ErrOut, "This organization requires SSO. Open this URL in a browser and sign in:\n\n    %s\n\n", url)
+	fmt.Fprintf(io.ErrOut,
+		"Finishing in a browser on any machine completes this command, within %d minutes.\n"+
+			"Keep this command running until then. Agents: run it in the background, since command timeouts are usually shorter.\n\n",
+		int(config.InteractiveDischargeTimeout.Minutes()),
+	)
+
+	if io.IsInteractive() {
+		if err := open.Run(url); err != nil {
+			fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url above into a browser and continue\n")
+		}
 	}
 
 	return nil
@@ -738,6 +880,11 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
+				var typeErr *json.UnmarshalTypeError
+				if strings.HasSuffix(path, ".json") && flag.FromContext(ctx).Lookup("machine-config") != nil &&
+					errors.As(err, &typeErr) && typeErr.Field == "restart" && typeErr.Value == "object" {
+					logger.Warn("--config expects app configuration; use --machine-config for Machine JSON.")
+				}
 			}
 			metrics.IsUsingGPU = cfg.IsUsingGPU()
 
@@ -885,4 +1032,58 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+// Match canonical Cobra names so aliases emit the same trace root.
+func workflowCommand(cmd *cobra.Command) string {
+	if cmd.Parent() == nil || cmd.Parent().Parent() == nil || cmd.Parent().Parent().Parent() != nil {
+		return ""
+	}
+	switch cmd.Parent().Name() + " " + cmd.Name() {
+	case "machine run":
+		shell, _ := cmd.Flags().GetBool("shell")
+		buildOnly, _ := cmd.Flags().GetBool("build-only")
+		if !shell && !buildOnly {
+			return "cmd.machine.run"
+		}
+	case "machine start":
+		return "cmd.machine.start"
+	case "machine update":
+		return "cmd.machine.update"
+	case "mpg restore":
+		return "cmd.mpg.restore"
+	case "volumes create":
+		snapshot, _ := cmd.Flags().GetString("snapshot-id")
+		if snapshot != "" {
+			return "cmd.volumes.restore"
+		}
+
+		return "cmd.volumes.create"
+	case "volumes extend":
+		return "cmd.volumes.extend"
+	case "certs add":
+		return "cmd.certs.add"
+	case "ips allocate-v4":
+		shared, _ := cmd.Flags().GetBool("shared")
+		if !shared {
+			return "cmd.ips.allocate"
+		}
+	case "ips allocate-v6":
+		private, _ := cmd.Flags().GetBool("private")
+		if !private {
+			return "cmd.ips.allocate"
+		}
+	case "ssh console":
+		return "cmd.ssh.console"
+	case "scale count":
+		return "cmd.scale.count"
+	case "mpg create":
+		return "cmd.mpg.create"
+	case "mpg attach":
+		return "cmd.mpg.attach"
+	case "secrets set":
+		return "cmd.secrets.set"
+	}
+
+	return ""
 }

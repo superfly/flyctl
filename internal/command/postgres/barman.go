@@ -234,7 +234,7 @@ func runBarmanCreate(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
+	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", *volInput.SizeGb)
 
 	vol, err = flapsClient.CreateVolume(ctx, appName, volInput)
 	if err != nil {
@@ -396,23 +396,14 @@ func newBarmanRecover() *cobra.Command {
 }
 
 func captureError(ctx context.Context, err error, app *flaps.App) {
-	// ignore cancelled errors
+	// Closing a session is the outcome here whatever else failed with it.
+	// The shared filter is stricter about a cancellation inside a combined
+	// error, for the sake of deploys.
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 
-	sentry.CaptureException(err,
-		sentry.WithTraceID(ctx),
-		sentry.WithTag("feature", "ssh-console"),
-		sentry.WithContexts(map[string]sentry.Context{
-			"app": map[string]any{
-				"name": app.Name,
-			},
-			"organization": map[string]any{
-				"name": app.Organization.Slug,
-			},
-		}),
-	)
+	sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "barman", app)
 }
 
 func runBarmanCheck(ctx context.Context) error {

@@ -39,16 +39,17 @@ func (m *mockUIEXClient) GetOrganization(ctx context.Context, orgSlug string) (*
 	return &uiex.Organization{Slug: orgSlug}, nil
 }
 
+func (m *mockUIEXClient) GetLaunchChecks(ctx context.Context, orgSlug string) (*uiex.LaunchChecks, error) {
+	return &uiex.LaunchChecks{}, nil
+}
+
 func (m *mockUIEXClient) PromoteMachineEgressIP(ctx context.Context, appName string, egressIP string) error {
 	return nil
 }
 
-// mockGenqClient implements the genq.Client interface for testing
-type mockGenqClient struct{}
-
-func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, resp *genq.Response) error {
-	// Mock the GetOrganization response - just return the same slug
-	// This simulates the ResolveOrganizationSlug behavior
+// mockGenqClient answers every GraphQL request with the organization lookup
+// that ResolveOrganizationSlug expects.
+var mockGenqClient = mock.GraphQLClient(func(_ context.Context, _ *genq.Request, resp *genq.Response) error {
 	resp.Data = map[string]any{
 		"organization": map[string]any{
 			"rawSlug": "test-org", // Return a fixed value for testing
@@ -56,7 +57,7 @@ func (m *mockGenqClient) MakeRequest(ctx context.Context, req *genq.Request, res
 	}
 
 	return nil
-}
+})
 
 func (m *mockUIEXClient) CreateBuild(ctx context.Context, in uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
 	return &uiex.BuildResponse{}, nil
@@ -84,6 +85,10 @@ func (m *mockUIEXClient) ListReleases(ctx context.Context, appName string, count
 
 func (m *mockUIEXClient) GetCurrentRelease(ctx context.Context, appName string) (*uiex.Release, error) {
 	return &uiex.Release{}, nil
+}
+
+func (m *mockUIEXClient) SubmitFeedback(ctx context.Context, in uiex.FeedbackRequest) (*uiex.FeedbackResponse, error) {
+	return &uiex.FeedbackResponse{}, nil
 }
 
 func (m *mockUIEXClient) CreateRelease(ctx context.Context, req uiex.CreateReleaseRequest) (*uiex.Release, error) {
@@ -198,7 +203,7 @@ func TestDefaultPostgres_ForceTypes(t *testing.T) {
 
 			mockClient := &mock.Client{
 				GenqClientFunc: func() genq.Client {
-					return &mockGenqClient{}
+					return mockGenqClient
 				},
 			}
 			ctx = flyutil.NewContextWithClient(ctx, mockClient)
@@ -275,7 +280,7 @@ func TestDefaultPostgres_RegionSwitching(t *testing.T) {
 
 		mockClient := &mock.Client{
 			GenqClientFunc: func() genq.Client {
-				return &mockGenqClient{}
+				return mockGenqClient
 			},
 		}
 		ctx = flyutil.NewContextWithClient(ctx, mockClient)

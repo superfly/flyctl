@@ -152,9 +152,14 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	vars["appName"] = cfg.appName
 	var app PyApp
 	for _, dep := range cfg.deps {
-		if slices.Contains(supportedApps, PyApp(dep)) && app == "" {
+		if !slices.Contains(supportedApps, PyApp(dep)) || PyApp(dep) == app {
+			// Not a framework, or one already found: Poetry 2 projects can list
+			// a framework under both [project] and [tool.poetry.dependencies].
+			continue
+		}
+		if app == "" {
 			app = PyApp(dep)
-		} else if slices.Contains(supportedApps, PyApp(dep)) && app != "" {
+		} else {
 			terminal.Warn("Multiple supported Python frameworks found")
 
 			return nil, nil
@@ -215,7 +220,6 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("poetry.lock")) || !checksPass(sourceDir, fileExists("pyproject.toml")) {
 		return nil, nil
 	}
-	terminal.Info("Detected Poetry project")
 	doc, err := os.ReadFile("pyproject.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading pyproject.toml")
@@ -227,18 +231,38 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 	deps := pyProject.Tool.Poetry.Dependencies
 	appName := pyProject.Tool.Poetry.Name
-
-	if deps == nil {
-		return nil, errors.New("No dependencies found in pyproject.toml")
+	if appName == "" {
+		appName = pyProject.Project.Name
 	}
-	var depList []string
+	pyVersion, _ := deps["python"].(string)
+	if pyVersion == "" {
+		pyVersion = pyProject.Project.RequiresPython
+	}
+	pyVersion = pythonVersionFromConstraint(pyVersion)
 
+	// Poetry 2 lists dependencies under [project]; [tool.poetry.dependencies]
+	// may then hold only python, or extras and sources for some of them.
+	var depList []string
 	for dep := range deps {
+		if dep != "python" {
+			depList = append(depList, parsePyDep(dep))
+		}
+	}
+	for _, dep := range pyProject.Project.Dependencies {
 		depList = append(depList, parsePyDep(dep))
 	}
-	pyVersion := deps["python"].(string)
-	pyVersion = strings.TrimPrefix(pyVersion, "^")
-	pyVersion = parsePyDep(pyVersion)
+	if len(depList) == 0 {
+		return nil, nil
+	}
+	terminal.Info("Detected Poetry project")
+
+	if pyVersion == "" {
+		// Not given, or a table or list of constraints.
+		pyVersion, _, err = extractPythonVersion()
+		if err != nil {
+			return nil, err
+		}
+	}
 	cfg := PyCfg{pyVersion, appName, depList, Poetry}
 
 	return intoSource(cfg)
@@ -248,7 +272,6 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("pyproject.toml")) {
 		return nil, nil
 	}
-	terminal.Info("Detected pyproject.toml")
 	doc, err := os.ReadFile("pyproject.toml")
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading pyproject.toml")
@@ -258,26 +281,24 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, errors.Wrap(err, "Error parsing pyproject.toml")
 	}
 	deps := pyProject.Project.Dependencies
-	if deps == nil {
-		return nil, errors.New("No dependencies found in pyproject.toml")
+	if len(deps) == 0 {
+		// Often a pyproject.toml that only configures tools (ruff, black, ...);
+		// the dependencies may be in a Pipfile or requirements.txt.
+		return nil, nil
 	}
+	terminal.Info("Detected pyproject.toml")
 	var depList []string
 	for _, dep := range deps {
-		dep := parsePyDep(dep)
 		depList = append(depList, parsePyDep(dep))
 	}
 	appName := pyProject.Project.Name
-	pyVersion := pyProject.Project.RequiresPython
+	pyVersion := pythonVersionFromConstraint(pyProject.Project.RequiresPython)
 	if pyVersion == "" {
 		extracted, _, err := extractPythonVersion()
 		if err != nil {
 			return nil, err
 		}
 		pyVersion = extracted
-	} else {
-		pyVersion = strings.TrimFunc(pyVersion, func(r rune) bool {
-			return !unicode.IsDigit(r) && r != '.'
-		})
 	}
 
 	cfg := PyCfg{pyVersion, appName, depList, Pep621}
@@ -289,7 +310,6 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Pipfile", "Pipfile.lock")) {
 		return nil, nil
 	}
-	terminal.Info("Detected Pipfile")
 	doc, err := os.ReadFile("Pipfile")
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading Pipfile")
@@ -299,9 +319,11 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, errors.Wrap(err, "Error parsing Pipfile")
 	}
 	deps := pipfile.Packages
-	if deps == nil {
-		return nil, errors.New("No packages found in Pipfile")
+	if len(deps) == 0 {
+		// Maybe only [dev-packages], with the app's in requirements.txt.
+		return nil, nil
 	}
+	terminal.Info("Detected Pipfile")
 	var depList []string
 	for dep := range deps {
 		dep := parsePyDep(dep)
@@ -338,8 +360,9 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 	} else {
 		return nil, nil
 	}
-	if deps == nil {
-		return nil, errors.New("No dependencies found in requirements file")
+	if len(deps) == 0 {
+		// The generic Python setup, as for requirements naming no framework.
+		return nil, nil
 	}
 	var depList []string
 	for _, dep := range deps {
@@ -382,8 +405,20 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, err
 	}
 
+	files := templates("templates/python")
+	deployDocs := `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`
+	if cmd := pythonWebCommand(sourceDir); cmd != "" {
+		files = append(files, SourceFile{
+			Path:     "Procfile",
+			Contents: []byte("# TODO: Modify this Procfile to fit your needs\nweb: " + cmd + "\n"),
+		})
+	} else {
+		terminal.Warn("Could not determine how to start your Python app: gunicorn isn't in your dependencies and no app.py or main.py was found")
+		deployDocs = `Add a Procfile with a "web:" command that starts your application, then run "fly deploy" to deploy it.`
+	}
+
 	s := &SourceInfo{
-		Files:   templates("templates/python"),
+		Files:   files,
 		Builder: "paketobuildpacks/builder:base",
 		Family:  "Python",
 		Port:    8080,
@@ -391,11 +426,54 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 			"PORT": "8080",
 		},
 		SkipDeploy: true,
-		DeployDocs: `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
+		DeployDocs: deployDocs,
 		Runtime:    plan.RuntimeStruct{Language: "python", Version: pythonVersion},
 	}
 
 	return s, nil
+}
+
+// pythonWebCommand picks the Procfile web command for the buildpack fallback.
+// It only uses gunicorn when the app installs it, since the buildpack image
+// contains nothing beyond the app's own dependencies.
+func pythonWebCommand(sourceDir string) string {
+	depFiles := []string{"requirements.txt", "requirements.in", "pyproject.toml", "Pipfile", "setup.py", "setup.cfg", "environment.yml"}
+	for _, f := range depFiles {
+		if checksPass(sourceDir, dirContains(f, "gunicorn")) {
+			return "gunicorn app:app"
+		}
+	}
+
+	for _, entrypoint := range []string{"app.py", "main.py"} {
+		if checksPass(sourceDir, fileExists(entrypoint)) {
+			return "python " + entrypoint
+		}
+	}
+
+	return ""
+}
+
+// pythonVersionFromConstraint returns the Python version for the image tag
+// from a version constraint: its lower bound, e.g. "3.10" for ">=3.10,<4.0",
+// "^3.10" or "3.10.*". It returns "" when the constraint has no lower bound
+// ("<3.13") or isn't a version at all.
+func pythonVersionFromConstraint(constraint string) string {
+	for _, part := range strings.Split(constraint, ",") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "<") || strings.HasPrefix(part, "!=") {
+			continue
+		}
+		part = strings.TrimLeft(part, "^~=> ")
+		end := strings.IndexFunc(part, func(r rune) bool { return !unicode.IsDigit(r) && r != '.' })
+		if end >= 0 {
+			part = part[:end]
+		}
+		if part = strings.Trim(part, "."); part != "" {
+			return part
+		}
+	}
+
+	return ""
 }
 
 func extractPythonVersion() (string, bool, error) {

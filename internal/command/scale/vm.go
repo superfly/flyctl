@@ -23,7 +23,7 @@ Memory size can be set with the ` + "`--vm-memory`" + ` flag followed by the num
 
 For example: ` + "`flyctl scale vm shared-cpu-1x --vm-memory=2048`" + `.
 
-For pricing, see https://fly.io/docs/about/pricing/`
+For pricing, see https://docs.fly.io/about/pricing`
 	)
 	cmd := command.New("vm [size]", short, long, runScaleVM,
 		command.RequireSession,

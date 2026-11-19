@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -307,3 +309,188 @@ var _ LeasableMachine = &leasableMachine{}
 var _ interface {
 	GetApp(context.Context, string) (*flaps.App, error)
 } = &mock.FlapsClient{}
+
+// notFoundErr mimics flaps' response for a machine it doesn't know about yet.
+func notFoundErr() error {
+	return &flaps.FlapsError{
+		OriginalError:      fmt.Errorf("machine not found"),
+		ResponseStatusCode: http.StatusNotFound,
+		ResponseBody:       []byte("machine not found"),
+	}
+}
+
+// startedMachine returns a machine that launched and started long enough ago
+// to pass smoke checks.
+func startedMachine(machineID string) *fly.Machine {
+	startedAt := time.Now().Add(-time.Minute).UnixMilli()
+
+	return &fly.Machine{
+		ID: machineID,
+		Events: []*fly.MachineEvent{
+			{Type: "start", Timestamp: startedAt},
+			{Type: "launch", Timestamp: startedAt - 1000},
+		},
+	}
+}
+
+// TestWaitForSmokeChecksToPass_ToleratesNotFound verifies that 404s right
+// after machine creation are retried until flaps sees the machine.
+func TestWaitForSmokeChecksToPass_ToleratesNotFound(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			if calls.Add(1) <= 2 {
+				return nil, notFoundErr()
+			}
+
+			return startedMachine(machineID), nil
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+
+	err := lm.WaitForSmokeChecksToPass(t.Context())
+	assert.NoError(t, err, "404s for a just-created machine must not fail smoke checks")
+	assert.Equal(t, int32(3), calls.Load(), "should poll past the two 404s and see the started machine")
+}
+
+// TestWaitForSmokeChecksToPass_PersistentNotFoundFails verifies that a machine
+// that never shows up within the smoke check window is reported as an error
+// rather than treated as healthy.
+func TestWaitForSmokeChecksToPass_PersistentNotFoundFails(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			calls.Add(1)
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return nil, notFoundErr()
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+
+	// Shorten the 10s smoke check window.
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := lm.WaitForSmokeChecksToPass(ctx)
+	assert.True(t, isNotFoundErr(err), "error should be a not found error")
+	assert.Greater(t, calls.Load(), int32(1), "404s must be retried before giving up")
+}
+
+// TestWaitForSmokeChecksToPass_NotFoundThenTransientFails verifies that a
+// transient error doesn't erase an earlier 404: the machine was never
+// observed, so smoke checks must not pass.
+func TestWaitForSmokeChecksToPass_NotFoundThenTransientFails(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if calls.Add(1) == 1 {
+				return nil, notFoundErr()
+			}
+
+			return nil, &flaps.FlapsError{
+				OriginalError:      fmt.Errorf("unavailable"),
+				ResponseStatusCode: http.StatusServiceUnavailable,
+				ResponseBody:       []byte("unavailable"),
+			}
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+
+	// Shorten the 10s smoke check window.
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := lm.WaitForSmokeChecksToPass(ctx)
+	assert.True(t, isNotFoundErr(err), "a transient error must not erase an earlier 404")
+	assert.Greater(t, calls.Load(), int32(1), "transient errors must be retried")
+}
+
+// TestWaitForSmokeChecksToPass_NotFoundThenFoundPassesAtDeadline verifies that
+// once the machine has been found, an earlier 404 doesn't fail smoke checks
+// when the window elapses before the machine has been up long enough.
+func TestWaitForSmokeChecksToPass_NotFoundThenFoundPassesAtDeadline(t *testing.T) {
+	calls := atomic.Int32{}
+	client := &mock.FlapsClient{
+		GetFunc: func(ctx context.Context, appName, machineID string) (*fly.Machine, error) {
+			if calls.Add(1) == 1 {
+				return nil, notFoundErr()
+			}
+
+			// Found, but without a start event, so smoke checks keep polling
+			// until the window elapses.
+			return &fly.Machine{ID: machineID}, nil
+		},
+	}
+
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+
+	// Shorten the 10s smoke check window.
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := lm.WaitForSmokeChecksToPass(ctx)
+	assert.NoError(t, err, "a 404 followed by a successful Get must not fail smoke checks")
+	assert.Greater(t, calls.Load(), int32(1))
+}
+
+// TestReleaseLease_CanceledContext verifies that a lease is still released
+// when the caller's context was already canceled, e.g. by Ctrl-C.
+func TestReleaseLease_CanceledContext(t *testing.T) {
+	var releasedWithLiveCtx atomic.Bool
+	client := &mock.FlapsClient{
+		ReleaseLeaseFunc: func(ctx context.Context, appName, machineID, nonce string) error {
+			assert.Equal(t, "test-nonce", nonce)
+			if ctx.Err() == nil {
+				releasedWithLiveCtx.Store(true)
+			}
+			return ctx.Err()
+		},
+	}
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+	lm.leaseNonce = "test-nonce"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.NoError(t, lm.ReleaseLease(ctx))
+	assert.True(t, releasedWithLiveCtx.Load(), "lease should be released with a context that isn't canceled")
+}
+
+func TestReleaseExitEventAfterStalledRead(t *testing.T) {
+	defer func(d time.Duration) { exitEventReadTimeout = d }(exitEventReadTimeout)
+	exitEventReadTimeout = 50 * time.Millisecond
+
+	calls := 0
+	exit := &fly.MachineEvent{Type: "exit"}
+	client := &mock.FlapsClient{GetFunc: func(ctx context.Context, _, _ string) (*fly.Machine, error) {
+		calls++
+		if calls == 1 {
+			select {
+			case <-ctx.Done():
+			case <-time.After(5 * time.Second):
+				t.Error("exit-event read was not bounded")
+			}
+
+			// The real flaps client reports a timed-out read as a canceled
+			// request that does not wrap context.DeadlineExceeded.
+			return nil, fmt.Errorf("failed to get VM m1: %w", errors.New("net/http: request canceled"))
+		}
+
+		return &fly.Machine{Events: []*fly.MachineEvent{exit, {Type: "start"}}}, nil
+	}}
+	lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+	ctx, done := statuslogger.SingleLine(iostreams.NewContext(t.Context(), lm.io), false)
+	defer done(false)
+	event, err := lm.WaitForEventTypeAfterType(ctx, "exit", "start", 5*time.Minute, true)
+	assert.NoError(t, err)
+	assert.Same(t, exit, event)
+	assert.Equal(t, 2, calls)
+}

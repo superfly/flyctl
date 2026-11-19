@@ -17,26 +17,26 @@ import (
 )
 
 func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) func() error {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	workerErr := make(chan error, 1)
+	var firstFailure sync.Once
 
 	var wg sync.WaitGroup
 	for range n {
 		wg.Go(func() {
 			if err := f(ctx); err != nil {
-				cancel()
-				select {
-				case workerErr <- err:
-				default:
-				}
+				firstFailure.Do(func() {
+					workerErr <- err
+					cancel(err)
+				})
 			}
 		})
 	}
 
 	return func() error {
 
-		defer cancel()
+		defer cancel(fmt.Errorf("statics workers finished: %w", context.Canceled))
 		wg.Wait()
 
 		// Check if any of the workers failed.

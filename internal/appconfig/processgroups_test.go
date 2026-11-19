@@ -73,3 +73,10 @@ func TestProcessNames(t *testing.T) {
 		})
 	}
 }
+
+func TestComputeForGroupSkipsNil(t *testing.T) {
+	web := &Compute{Memory: "1gb"}
+	cfg := NewConfig()
+	cfg.Compute = []*Compute{nil, web}
+	assert.Same(t, web, cfg.ComputeForGroup("app"))
+}

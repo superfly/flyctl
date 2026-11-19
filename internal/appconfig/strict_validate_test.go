@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 
@@ -194,4 +195,18 @@ func TestStrictValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStrictValidateCacheDisk(t *testing.T) {
+	cfg := NewConfig()
+	cfg.CacheDisks = []CacheDisk{
+		{Size: "1024mib", Path: "/cache"},
+		{Size: "2048mib", Path: "/worker-cache", Processes: []string{"worker"}},
+	}
+	definition, err := cfg.ToDefinition()
+	require.NoError(t, err)
+	raw := map[string]any(*definition)
+	strict := StrictValidate(raw)
+	require.Empty(t, strict.UnrecognizedSections)
+	require.Empty(t, strict.UnrecognizedKeys)
 }

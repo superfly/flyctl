@@ -60,26 +60,34 @@ primary_region = "%s"
 
 	f.Fly("volume extend %s --size 4 --app %s", ml[0].Config.Mounts[0].Volume, appName)
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
-		require.Equal(c, vl[0].SizeGb, 4)
+		vl := f.Collect(c).VolumeList(appName)
+		if assert.NotEmpty(c, vl) {
+			assert.Equal(c, 4, vl[0].SizeGb)
+		}
 	}, 10*time.Second, 2*time.Second)
 
 	f.Fly("volume extend %s --size +1 --app %s", ml[0].Config.Mounts[0].Volume, appName)
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
-		require.Equal(c, vl[0].SizeGb, 5)
+		vl := f.Collect(c).VolumeList(appName)
+		if assert.NotEmpty(c, vl) {
+			assert.Equal(c, 5, vl[0].SizeGb)
+		}
 	}, 10*time.Second, 2*time.Second)
 
 	f.Fly("volume extend %s --size +1gb --app %s", ml[0].Config.Mounts[0].Volume, appName)
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
-		require.Equal(c, vl[0].SizeGb, 6)
+		vl := f.Collect(c).VolumeList(appName)
+		if assert.NotEmpty(c, vl) {
+			assert.Equal(c, 6, vl[0].SizeGb)
+		}
 	}, 10*time.Second, 2*time.Second)
 
 	f.Fly("volume extend %s --size 7gb --app %s", ml[0].Config.Mounts[0].Volume, appName)
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
-		require.Equal(c, vl[0].SizeGb, 7)
+		vl := f.Collect(c).VolumeList(appName)
+		if assert.NotEmpty(c, vl) {
+			assert.Equal(c, 7, vl[0].SizeGb)
+		}
 	}, 10*time.Second, 2*time.Second)
 }
 
@@ -94,8 +102,8 @@ func testVolumeLs(t *testing.T) {
 	var destroyed *fly.Volume
 	j = f.Fly("volume create test_destroy --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	j.StdOutJSON(&destroyed)
-	require.Eventually(t, func() bool {
-		return f.FlyAllowExitFailure("volume show %s --app %s --json", destroyed.ID, appName).ExitCode() == 0
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", destroyed.ID, appName).ExitCode())
 	}, time.Minute, 2*time.Second, "volume %s never became readable", destroyed.ID)
 
 	// Now destroy a volume (remembering to specify the app name)
@@ -103,16 +111,17 @@ func testVolumeLs(t *testing.T) {
 
 	// Deleted volumes shouldn't be shown by default
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
-		lsRes := f.Fly("volume ls --app %s --json", appName)
+		lsRes := f.Collect(t).Fly("volume ls --app %s --json", appName)
 		var ls []*fly.Volume
 		lsRes.StdOutJSON(&ls)
-		assert.Lenf(t, ls, 1, "volume %s is still visible", destroyed.ID)
-		assert.Equal(t, kept.ID, ls[0].ID)
+		if assert.Lenf(t, ls, 1, "volume %s is still visible", destroyed.ID) {
+			assert.Equal(t, kept.ID, ls[0].ID)
+		}
 	}, 5*time.Minute, 10*time.Second)
 
 	// Deleted volumes should be shown with --all.
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
-		lsAllRes := f.Fly("volume ls --all --app %s --json", appName)
+		lsAllRes := f.Collect(t).Fly("volume ls --all --app %s --json", appName)
 
 		var lsAll []*fly.Volume
 		lsAllRes.StdOutJSON(&lsAll)
@@ -135,8 +144,8 @@ func testVolumeFork(t *testing.T) {
 	var original *fly.Volume
 	j := f.Fly("volume create foobar --json --app %s --region %s --yes", appName, f.PrimaryRegion())
 	j.StdOutJSON(&original)
-	require.Eventually(t, func() bool {
-		return f.FlyAllowExitFailure("volume show %s --app %s --json", original.ID, appName).ExitCode() == 0
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", original.ID, appName).ExitCode())
 	}, time.Minute, 2*time.Second, "volume %s never became readable", original.ID)
 
 	var fork *fly.Volume
@@ -154,28 +163,31 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	createRes := f.Fly("volume create test_destroy --size 1 --app %s --region %s --yes --json", appName, f.PrimaryRegion())
 	var vol *fly.Volume
 	createRes.StdOutJSON(&vol)
-	require.Eventually(t, func() bool {
-		return f.FlyAllowExitFailure("volume show %s --app %s --json", vol.ID, appName).ExitCode() == 0
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Zero(c, f.Collect(c).FlyAllowExitFailure("volume show %s --app %s --json", vol.ID, appName).ExitCode())
 	}, time.Minute, 2*time.Second, "volume %s never became readable", vol.ID)
 	t.Logf("Start a machine under app %s", appName)
 	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
 	machine := f.MachinesList(appName)[0]
-	require.Eventually(f, func() bool {
-		machines := f.MachinesList(appName)
-		return len(machines) == 1 && machines[0].State == "started"
+	require.EventuallyWithT(f, func(c *assert.CollectT) {
+		machines := f.Collect(c).MachinesList(appName)
+		if assert.Len(c, machines, 1) {
+			assert.Equal(c, "started", machines[0].State)
+		}
 	}, 1*time.Minute, 1*time.Second, "machine %s never started", machine.ID)
 
 	f.Fly("m destroy --force %s", machine.ID)
-	require.Eventually(f, func() bool {
-		return len(f.MachinesList(appName)) == 0
+	require.EventuallyWithT(f, func(c *assert.CollectT) {
+		assert.Empty(c, f.Collect(c).MachinesList(appName))
 	}, 5*time.Minute, 10*time.Second, "machine %s never destroyed", machine.ID)
 
 	t.Logf("machine %s is destroyed; Snapshot volume %s", machine.ID, vol.ID)
 	f.Fly("volume snapshot create %s --app %s --json", vol.ID, appName)
 	var snapshot *fly.VolumeSnapshot
 	lastSnapshotStatus := ""
-	require.Eventually(f, func() bool {
-		lsRes := f.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
+	require.EventuallyWithT(f, func(c *assert.CollectT) {
+		fc := f.Collect(c)
+		lsRes := fc.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
 		var ls []*fly.VolumeSnapshot
 		lsRes.StdOutJSON(&ls)
 		currentSnapshotStatus := "not found"
@@ -191,11 +203,11 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 			}
 		}
 		if currentSnapshotStatus != lastSnapshotStatus {
-			t.Logf("snapshot status: %s", currentSnapshotStatus)
+			fc.Logf("snapshot status: %s", currentSnapshotStatus)
 			lastSnapshotStatus = currentSnapshotStatus
 		}
 
-		return snapshot != nil
+		assert.NotNil(c, snapshot)
 	}, 5*time.Minute, 5*time.Second, "snapshot never made it to created state")
 
 	// Now destroy a volume (remembering to specify the app name)
@@ -205,10 +217,11 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	require.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
 
-		j := f.Fly("volume ls --app %s --all --json", appName)
+		j := f.Collect(t).Fly("volume ls --app %s --all --json", appName)
 		j.StdOutJSON(&ls)
-		assert.Len(t, ls, 1)
-		assert.Contains(t, []string{"scheduling_destroy", "pending_destroy", "destroying", "destroyed"}, ls[0].State)
+		if assert.Len(t, ls, 1) {
+			assert.Contains(t, []string{"scheduling_destroy", "pending_destroy", "destroying", "destroyed"}, ls[0].State)
+		}
 	}, 5*time.Minute, 10*time.Second, "volume %s never made it to a destroy state", vol.ID)
 
 	ls := f.Fly("volume snapshot ls %s --json --app %s", vol.ID, appName)
@@ -224,10 +237,11 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 
 	assert.EventuallyWithT(f, func(t *assert.CollectT) {
 		var ls []*fly.Volume
-		j := f.Fly("volume ls --app %s --json", appName)
+		j := f.Collect(t).Fly("volume ls --app %s --json", appName)
 		j.StdOutJSON(&ls)
 
-		assert.Len(t, ls, 1)
-		assert.Equal(t, "created", ls[0].State)
+		if assert.Len(t, ls, 1) {
+			assert.Equal(t, "created", ls[0].State)
+		}
 	}, 5*time.Minute, 10*time.Second, "final volume %s never made it to created state", vol.ID)
 }

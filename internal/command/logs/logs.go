@@ -108,7 +108,8 @@ func run(ctx context.Context) error {
 			poll(ctx, eg, client, opts),
 		}
 	} else {
-		pollingCtx, cancelPolling := context.WithCancel(ctx)
+		pollingCtx, cancelPollingCause := context.WithCancelCause(ctx)
+		cancelPolling := func() { cancelPollingCause(fmt.Errorf("log polling replaced by streaming: %w", context.Canceled)) }
 		streams = []<-chan logs.LogEntry{
 			poll(pollingCtx, eg, client, opts),
 			nats(ctx, eg, client, flapsClient, opts, cancelPolling),

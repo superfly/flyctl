@@ -48,6 +48,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
 	defer span.End()
 
+	// Keep the deployment cause when ctx is replaced for interruption cleanup.
+	deploymentCtx := ctx
 	onInterruptContext := context.WithoutCancel(ctx)
 
 	// TODO(allison): Ensure that if we *aren't* using tigris here, we remove the previously attached bucket from
@@ -66,7 +68,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
-		tracing.RecordError(span, err, "failed to update release")
+		tracing.RecordError(ctx, span, err, "failed to update release")
 
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
@@ -98,14 +100,19 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		// Provide an extra second to try to update the release status.
 		status = "interrupted"
 		var cancel func()
-		ctx, cancel = context.WithTimeout(onInterruptContext, time.Second)
+		ctx, cancel = context.WithTimeoutCause(onInterruptContext, time.Second, fmt.Errorf("updating deployment release after interruption: %w", context.DeadlineExceeded))
 		defer cancel()
 	default:
 		metadata.PostDeploymentInfo.Error = err.Error()
 		status = "failed"
 	}
 
-	if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
+	finalizationCtx, finalizationSpan := tracing.GetTracer().Start(ctx, "finalize_deployment", trace.WithAttributes(
+		attribute.Bool("deployment.skip_dns_checks", md.skipDNSChecks),
+	))
+
+	if updateErr := md.updateReleaseInBackend(finalizationCtx, status, metadata); updateErr != nil {
+		tracing.RecordError(finalizationCtx, finalizationSpan, updateErr, "failed to finalize release")
 		if err == nil {
 			// Deployment succeeded, but we couldn't update the release status
 			// This is not critical enough to fail the entire deployment
@@ -117,21 +124,29 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if md.tigrisStatics != nil && !md.restartOnly {
 		if err == nil {
-			err = md.tigrisStatics.Finalize(ctx)
+			err = md.tigrisStatics.Finalize(finalizationCtx)
+			tracing.RecordError(finalizationCtx, finalizationSpan, err, "failed to finalize statics")
 		} else {
-			md.tigrisStatics.CleanupAfterFailure(ctx)
+			md.tigrisStatics.CleanupAfterFailure(finalizationCtx)
 		}
 	}
 
 	// no need to run dns checks if the deployment failed
 	if !md.skipDNSChecks && err == nil {
-		if err := md.checkDNS(ctx); err != nil {
+		if err := md.checkDNS(finalizationCtx); err != nil {
+			tracing.RecordError(finalizationCtx, finalizationSpan, err, "DNS checks failed")
 			terminal.Warnf("DNS checks failed: %v\n", err)
 		}
 	}
 
+	finalizationSpan.End()
+
+	if len(md.secondMachineGroups) > 0 {
+		fmt.Fprintln(md.io.Out, singleMachineHint(md.app.Name, lo.Uniq(md.secondMachineGroups), err != nil, md.colorize.Purple))
+	}
+
 	if err != nil {
-		tracing.RecordError(span, err, "failed to deploy machines")
+		tracing.RecordError(deploymentCtx, span, err, "failed to deploy machines")
 	}
 
 	// When FLY_EMIT_RELEASE_JSON is set, emit a JSON line to stdout with the
@@ -201,12 +216,12 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 			strings.Contains(err.Error(), "deploys to this host are temporarily disabled"):
 			err := replaceMachine()
 			if err != nil {
-				span.RecordError(err)
+				tracing.RecordErrorEvent(ctx, span, err)
 			}
 
 			return err
 		default:
-			span.RecordError(err)
+			tracing.RecordErrorEvent(ctx, span, err)
 
 			return err
 		}
@@ -215,12 +230,22 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 	return nil
 }
 
-func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, launchBasisState string, sl statuslogger.StatusLine) error {
+func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, launchBasisState string, sl statuslogger.StatusLine) (err error) {
 	lm := e.leasableMachine
 	// Don't wait for SkipLaunch machines, they are updated but not started
 	if e.launchInput.SkipLaunch {
 		return nil
 	}
+
+	ctx, span := tracing.GetTracer().Start(ctx, "deployment_readiness", trace.WithAttributes(
+		attribute.String("machine.ID", lm.Machine().ID),
+		attribute.Bool("deployment.skip_health_checks", md.skipHealthChecks),
+		attribute.Bool("deployment.skip_smoke_checks", md.skipSmokeChecks),
+	))
+	defer func() {
+		tracing.RecordError(ctx, span, err, "machine readiness failed")
+		span.End()
+	}()
 
 	if !md.skipHealthChecks {
 		preservedStopped, err := md.waitForStartedOrPreservedStoppedUpdate(ctx, lm, launchBasisState, md.waitTimeout)
@@ -334,7 +359,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				withDns(&fly.DNSConfig{SkipRegistration: true}),
 			)
 			if err != nil {
-				tracing.RecordError(span, err, "failed to provision canary machine")
+				tracing.RecordError(ctx, span, err, "failed to provision canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
 
@@ -350,7 +375,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 			}()
 
 			if err = md.runTestMachines(ctx, lm.Machine(), sl.Line(idx)); err != nil {
-				tracing.RecordError(span, err, "failed to run test machine for canary machine")
+				tracing.RecordError(ctx, span, err, "failed to run test machine for canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
 
@@ -433,7 +458,9 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 			continue
 		case len(services) > 0:
 			fmt.Fprintf(md.io.Out, "Creating a second machine for high availability and zero downtime deployments.\n")
-			fmt.Fprintf(md.io.Out, "To disable this, set %s in your fly.toml.\n", md.colorize.Purple("\"min_machines_running = 0\""))
+			// Recorded before the attempt: a failed spawn can still leave
+			// the machine behind (it's created before the health checks).
+			md.secondMachineGroups = append(md.secondMachineGroups, name)
 			if _, err := md.spawnMachineInGroup(ctx, name, nil); err != nil {
 				statuslogger.Failed(ctx, err)
 
@@ -472,6 +499,29 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// singleMachineHint says how to go back to one machine in the groups that got
+// a second one for high availability. min_machines_running doesn't do that: it
+// only keeps machines running, and the second machine is created regardless.
+//
+// It's printed once the release is finished, because fly scale count refuses
+// to run until the app has a complete release. The command sits on its own
+// line so it can be copied without colour, has --yes so it also works without
+// a terminal, and names the app since the deploy may not have used the
+// fly.toml in the current directory.
+func singleMachineHint(app string, groups []string, deployFailed bool, highlight func(string) string) string {
+	counts := "1"
+	if len(groups) != 1 || groups[0] != fly.MachineProcessGroupApp {
+		counts = strings.Join(lo.Map(groups, func(g string, _ int) string { return g + "=1" }), " ")
+	}
+
+	intro := "A second machine was created for high availability. To run a single machine instead:"
+	if deployFailed {
+		intro = "A second machine may have been created for high availability. To run a single machine instead, run this after a successful deploy:"
+	}
+
+	return fmt.Sprintf("%s\n  %s", intro, highlight(fmt.Sprintf("fly scale count %s --yes -a %s", counts, app)))
 }
 
 // deployMachinesApp executes the following flow:
@@ -609,7 +659,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	))
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "update failed")
+			tracing.RecordError(ctx, span, err, "update failed")
 		}
 		span.End()
 	}()
@@ -617,7 +667,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	if md.deployRetries > 0 {
 		err := md.updateExistingMachinesWRecovery(ctx, updateEntries)
 		if err != nil {
-			span.RecordError(err)
+			tracing.RecordErrorEvent(ctx, span, err)
 		}
 
 		return err
@@ -628,7 +678,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	}
 
 	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
-		tracing.RecordError(span, err, "failed to acquire lease")
+		tracing.RecordError(ctx, span, err, "failed to acquire lease")
 
 		return err
 	}
@@ -650,7 +700,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	}
 
 	if err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(ctx, span, err)
 	}
 
 	return err
@@ -664,7 +714,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 	))
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "update failed")
+			tracing.RecordError(ctx, span, err, "update failed")
 		}
 		span.End()
 	}()
@@ -698,7 +748,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 	switch md.strategy {
 	case "bluegreen":
 		if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
-			tracing.RecordError(span, err, "failed to acquire lease")
+			tracing.RecordError(ctx, span, err, "failed to acquire lease")
 
 			return err
 		}
@@ -839,7 +889,7 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 		updatesPool.Go(func(_ context.Context) error {
 			statusRunning()
 			if err := md.updateMachine(eCtx, e, sl.Line(i)); err != nil {
-				tracing.RecordError(span, err, "failed to update machine")
+				tracing.RecordError(eCtx, span, err, "failed to update machine")
 				statusFailure(err)
 
 				return err
@@ -852,7 +902,7 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 
 	err := updatesPool.Wait()
 	if err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(parentCtx, span, err)
 	}
 
 	return err
@@ -876,10 +926,12 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 	})
 
 	startIdx := 0
+	groupsCtx, cancelGroups := context.WithCancelCause(parentCtx)
+	defer cancelGroups(fmt.Errorf("rolling update groups finished: %w", context.Canceled))
 	groupsPool := pool.New().
 		WithErrors().
 		WithMaxGoroutines(rollingStrategyMaxConcurrentGroups).
-		WithContext(parentCtx).
+		WithContext(groupsCtx).
 		WithCancelOnError()
 
 	for group, entries := range entriesByGroup {
@@ -891,7 +943,12 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 			return e.leasableMachine.Machine().State != "started"
 		})
 
-		groupsPool.Go(func(ctx context.Context) error {
+		groupsPool.Go(func(ctx context.Context) (err error) {
+			defer func() {
+				if err != nil {
+					cancelGroups(err)
+				}
+			}()
 			eg, ctx := errgroup.WithContext(ctx)
 
 			coldIdx := startIdx
@@ -923,7 +980,7 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 
 	err := groupsPool.Wait()
 	if err != nil {
-		span.RecordError(err)
+		tracing.RecordErrorEvent(groupsCtx, span, err)
 	}
 
 	return err
@@ -947,10 +1004,12 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 	))
 	defer span.End()
 
+	poolCtx, cancelUpdates := context.WithCancelCause(parentCtx)
+	defer cancelUpdates(fmt.Errorf("process group updates finished: %w", context.Canceled))
 	updatePool := pool.New().
 		WithErrors().
 		WithMaxGoroutines(poolSize).
-		WithContext(parentCtx).
+		WithContext(poolCtx).
 		WithCancelOnError()
 
 	for idx, e := range entries {
@@ -999,7 +1058,12 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 				md.colorize.Green("succeeded"),
 			)
 		}
-		updateFunc := func(poolCtx context.Context) error {
+		updateFunc := func(poolCtx context.Context) (err error) {
+			defer func() {
+				if err != nil {
+					cancelUpdates(err)
+				}
+			}()
 			ctx, span := tracing.GetTracer().Start(eCtx, "update", trace.WithAttributes(
 				attribute.Int("id", idx),
 			))
@@ -1008,6 +1072,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 			// If the pool context is done, it means some other machine update failed
 			select {
 			case <-poolCtx.Done():
+				tracing.RecordCancellation(poolCtx, span)
 				statusSkipped()
 
 				return poolCtx.Err()
@@ -1018,12 +1083,12 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 			launchBasisState := e.leasableMachine.Machine().State
 			if err := md.updateMachine(ctx, e, sl.Line(startIdx+idx)); err != nil {
 				statusFailure(err)
-				tracing.RecordError(span, err, "failed to update machine")
+				tracing.RecordError(ctx, span, err, "failed to update machine")
 
 				return err
 			}
 			if err := md.waitForMachine(ctx, e, launchBasisState, sl.Line(startIdx+idx)); err != nil {
-				tracing.RecordError(span, err, "failed to wait for machine")
+				tracing.RecordError(ctx, span, err, "failed to wait for machine")
 				statusFailure(err)
 
 				return err
@@ -1280,6 +1345,7 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff
 			fmt.Fprintf(md.io.Out, " %s destroy %d \"%s\" machine%s\n", bullet, numMach, grp, pluralS)
 		}
 	}
+	secondMachines := false
 	if willAddMachines {
 		bullet := md.colorize.Green("*")
 		for name := range diff.groupsNeedingMachines {
@@ -1292,11 +1358,15 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff
 				description = fmt.Sprintf("1 \"%s\" machine", name)
 			case len(groupConfig.AllServices()) > 0:
 				description = fmt.Sprintf("2 \"%s\" machines", name)
+				secondMachines = true
 			default:
 				description = fmt.Sprintf("1 \"%s\" machine and 1 standby machine for it", name)
 			}
 			fmt.Fprintf(md.io.Out, " %s create %s\n", bullet, description)
 		}
+	}
+	if secondMachines {
+		fmt.Fprintf(md.io.Out, "The second machine is for high availability. To create only one, deploy with %s\n", md.colorize.Purple("--ha=false"))
 	}
 	fmt.Fprint(md.io.Out, "\n")
 }
@@ -1569,7 +1639,7 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		switch {
 		case logErr == nil:
 			for _, l := range logs {
-				// Ideally we should use InstanceID here, but it's not available in the logs.
+				// Ideally we should use the machine version here, but it's not available in the logs.
 				if l.Timestamp >= lm.Machine().UpdatedAt {
 					smokeErr.logs += fmt.Sprintf("%s\n", l.Message)
 				}
@@ -1585,7 +1655,7 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		}
 	}
 
-	span.RecordError(smokeErr)
+	tracing.RecordErrorEvent(ctx, span, smokeErr)
 
 	return smokeErr
 }
@@ -1593,13 +1663,13 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "check_dns")
 	defer span.End()
-	ctx, cancel := context.WithTimeout(ctx, time.Second*70)
+	ctx, cancel := context.WithTimeoutCause(ctx, time.Second*70, fmt.Errorf("checking deployment DNS: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	ipRes, err := flapsClient.GetIPAssignments(ctx, md.appConfig.AppName)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to get ip addresses")
+		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
 
 		return err
 	}
@@ -1646,12 +1716,12 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			span.SetAttributes(attribute.String("v4_question", m.String()))
 			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
-				tracing.RecordError(span, err, "failed to exchange v4")
+				tracing.RecordError(ctx, span, err, "failed to exchange v4")
 
 				return nil, err
 			} else if len(answerv4.Answer) != numIPv4 {
 				span.SetAttributes(attribute.String("v4_answer", answerv4.String()))
-				tracing.RecordError(span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
+				tracing.RecordError(ctx, span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
 
 				return nil, fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
 			}
@@ -1660,12 +1730,12 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			span.SetAttributes(attribute.String("v6_question", m.String()))
 			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
-				tracing.RecordError(span, err, "failed to exchange v4")
+				tracing.RecordError(ctx, span, err, "failed to exchange v4")
 
 				return nil, err
 			} else if len(answerv6.Answer) != numIPv6 {
 				span.SetAttributes(attribute.String("v6_answer", answerv6.String()))
-				tracing.RecordError(span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
+				tracing.RecordError(ctx, span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
 
 				return nil, fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
 			}

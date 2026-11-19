@@ -82,7 +82,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		err := errors.New("internal: mobyBuildFn not populated for this docker factory mode")
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "missing moby client builder")
+		tracing.RecordError(ctx, span, err, "missing moby client builder")
 
 		return nil, "", err
 	}
@@ -90,7 +90,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to create moby client for pack")
+		tracing.RecordError(ctx, span, err, "failed to create moby client for pack")
 
 		return nil, "", err
 	}
@@ -99,7 +99,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to create packet client")
+		tracing.RecordError(ctx, span, err, "failed to create packet client")
 
 		return nil, "", err
 	}
@@ -108,7 +108,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ImageBuildStart()
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to fetch docker server info")
+		tracing.RecordError(ctx, span, err, "failed to fetch docker server info")
 		terminal.Debug("error fetching docker server info:", err)
 	} else {
 		build.SetBuilderMetaPart2(false, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
@@ -123,7 +123,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ContextBuildStart()
 	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, "")
 	if err != nil {
-		tracing.RecordError(span, err, "error reading .dockerignore")
+		tracing.RecordError(ctx, span, err, "error reading .dockerignore")
 		build.ContextBuildFinish()
 		build.BuildFinish()
 
@@ -176,7 +176,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
 		buildSpan.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
-		tracing.RecordError(buildSpan, err, "failed to build image")
+		tracing.RecordError(buildCtx, buildSpan, err, "failed to build image")
 		buildSpan.End()
 
 		return nil, "", err
@@ -205,9 +205,10 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", err
 	}
 	if img == nil {
-		tracing.RecordError(span, err, "no image found")
+		err := fmt.Errorf("no image found")
+		tracing.RecordError(ctx, span, err, "no image found")
 
-		return nil, "", fmt.Errorf("no image found")
+		return nil, "", err
 	}
 
 	di := DeploymentImage{

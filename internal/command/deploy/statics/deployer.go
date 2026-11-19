@@ -255,7 +255,7 @@ func (deployer *DeployerState) CleanupAfterFailure(_ context.Context) {
 
 	terminal.Debugf("Cleaning up failed statics push\n")
 
-	deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	deleteCtx, cancel := context.WithTimeoutCause(context.Background(), 5*time.Second, fmt.Errorf("deleting failed statics deployment: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	err := deployer.deleteDirectory(deleteCtx, deployer.root)

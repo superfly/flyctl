@@ -3,6 +3,7 @@ package cmdv2
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"net/url"
 	"strconv"
 	"time"
@@ -68,6 +69,11 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 		return fmt.Errorf("no valid regions found for Managed Postgres")
 	}
 
+	availableCodes := make([]string, len(mpgRegions))
+	for i, region := range mpgRegions {
+		availableCodes[i] = region.Code
+	}
+
 	// Check if region was specified via flag
 	regionCode := flag.GetString(ctx, "region")
 	var selectedRegionCode string
@@ -84,11 +90,6 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 			}
 		}
 		if !matched {
-			availableCodes := make([]string, len(mpgRegions))
-			for i, region := range mpgRegions {
-				availableCodes[i] = region.Code
-			}
-
 			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, availableCodes)
 		}
 	} else {
@@ -100,6 +101,10 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 
 		var selectedIndex int
 		if err := prompt.Select(ctx, &selectedIndex, "Select a region for your Managed Postgres cluster", "", regionOptions...); err != nil {
+			if prompt.IsNonInteractive(err) {
+				return prompt.NonInteractiveError(fmt.Sprintf("region must be specified with --region when not running interactively. Available regions: %v", availableCodes))
+			}
+
 			return err
 		}
 
@@ -116,7 +121,9 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 		PostGISEnabled: params.PostGISEnabled,
 	}
 
-	cluster, err := flapsClient.CreateManagedPostgresCluster(ctx, createReq)
+	cluster, err := tracing.WorkflowStep(ctx, "request_cluster", func(ctx context.Context) (flaps.ManagedPostgresCluster, error) {
+		return flapsClient.CreateManagedPostgresCluster(ctx, createReq)
+	})
 	if err != nil {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
@@ -136,42 +143,48 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
 	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
 	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect %s\n\n", clusterID)
-	for {
-		res, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
-		if err != nil {
-			return fmt.Errorf("failed checking cluster status: %w", err)
-		}
-
-		if res.ID == "" {
-			return fmt.Errorf("invalid cluster response: no cluster ID")
-		}
-
-		switch res.Status {
-		case flaps.ManagedPostgresStatusReady:
-			creds, credErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, flyUser)
-			if credErr != nil {
-				return fmt.Errorf("failed retrieving credentials for cluster %s: %w", clusterID, credErr)
+	if err := tracing.WorkflowPhase(ctx, "wait_for_ready", func(ctx context.Context) error {
+		for {
+			res, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
+			if err != nil {
+				return fmt.Errorf("failed checking cluster status: %w", err)
 			}
 
-			// The connection URI's username is the fixed "fly-user" the plan
-			// requested credentials for, NOT whatever Username the credentials
-			// response carries — invariant #6 keeps the URI user stable
-			// regardless of any unexpected payload drift.
-			uri, buildErr := buildConnectionURI(res.Endpoints.Primary.Pooler, flyUser, creds.Password, flyDB)
-			if buildErr != nil {
-				return fmt.Errorf("failed to build connection URI for cluster %s: %w", clusterID, buildErr)
+			if res.ID == "" {
+				return fmt.Errorf("invalid cluster response: no cluster ID")
 			}
-			connectionURI = uri
 
-		case flaps.ManagedPostgresStatusFailed, flaps.ManagedPostgresStatusError:
-			return fmt.Errorf("cluster creation failed")
+			switch res.Status {
+			case flaps.ManagedPostgresStatusReady:
+				creds, credErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, flyUser)
+				if credErr != nil {
+					return fmt.Errorf("failed retrieving credentials for cluster %s: %w", clusterID, credErr)
+				}
+
+				// The connection URI's username is the fixed "fly-user" the plan
+				// requested credentials for, NOT whatever Username the credentials
+				// response carries — invariant #6 keeps the URI user stable
+				// regardless of any unexpected payload drift.
+				uri, buildErr := buildConnectionURI(res.Endpoints.Primary.Pooler, flyUser, creds.Password, flyDB)
+				if buildErr != nil {
+					return fmt.Errorf("failed to build connection URI for cluster %s: %w", clusterID, buildErr)
+				}
+				connectionURI = uri
+
+			case flaps.ManagedPostgresStatusFailed, flaps.ManagedPostgresStatusError:
+				return fmt.Errorf("cluster creation failed")
+			}
+
+			if connectionURI != "" {
+				break
+			}
+
+			time.Sleep(5 * time.Second)
 		}
 
-		if connectionURI != "" {
-			break
-		}
-
-		time.Sleep(5 * time.Second)
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(io.Out, "\nManaged Postgres cluster created successfully!\n")
@@ -180,7 +193,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
 	fmt.Fprintf(io.Out, "  Region: %s\n", cluster.Region)
 	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
-	fmt.Fprintf(io.Out, "  Disk: %dGB\n", cluster.DiskSizeGB)
+	fmt.Fprintf(io.Out, "  Volume Size: %dGB\n", cluster.DiskSizeGB)
 	fmt.Fprintf(io.Out, "  PostGIS: %t\n", cluster.PostGISEnabled)
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
 

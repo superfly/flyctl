@@ -304,7 +304,7 @@ available during the Docker build process, so you may need to update your
 initializers to bypass portions of your setup during the build process.`) + `
 
 More information on what needs to be done can be found at:
-https://fly.io/docs/rails/getting-started/existing/#access-to-environment-variables-at-build-time.
+https://docs.fly.io/rails/getting-started/existing#access-to-environment-variables-at-build-time
 
 Once ready: run 'fly deploy' to deploy your Rails app.
 `
@@ -639,7 +639,7 @@ func RailsFailureCallback(err error) error {
 	if suggestion == "" {
 		err = flyerr.GenericErr{
 			Err: err.Error(),
-			Suggest: "\nSee https://fly.io/docs/rails/getting-started/existing/#common-initial-deployment-issues\n" +
+			Suggest: "\nSee https://docs.fly.io/rails/getting-started/existing#common-initial-deployment-issues\n" +
 				"for suggestions on how to resolve common deployment issues.",
 		}
 	}

@@ -1,4 +1,4 @@
-# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
+# See https://docs.fly.io/launch/continuous-deployment-with-github-actions
 
 name: Fly Deploy
 on:

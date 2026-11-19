@@ -30,10 +30,10 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
 
 	build.BuildStart()
-	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, opts.ImageRef)
+	img, err := resolveImageWithRetry(ctx, s.flyApi, opts.AppName, opts.ImageRef, defaultImageWait, streams.ErrOut)
 	build.BuildFinish()
 	if err != nil {
-		tracing.RecordError(span, err, "failed to resolve image")
+		tracing.RecordError(ctx, span, err, "failed to resolve image")
 
 		return nil, "", err
 	}
@@ -47,7 +47,7 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 
 	size, err := strconv.ParseUint(img.CompressedSize, 10, 64)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to parse size")
+		tracing.RecordError(ctx, span, err, "failed to parse size")
 
 		return nil, "", err
 	}

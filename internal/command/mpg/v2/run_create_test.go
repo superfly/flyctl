@@ -182,9 +182,9 @@ func TestRunCreate_RegionDiscovery(t *testing.T) {
 
 // TestRunCreate_InteractivePromptRegion verifies that when --region is not
 // set, the region options are built from mpgutil.AvailableRegions (so the
-// prompt path is wired to the same data source as the explicit path). In
-// non-interactive test mode prompt.Select returns prompt.ErrNonInteractive;
-// that is sufficient proof that the option list flowed through to survey.
+// prompt path is wired to the same data source as the explicit path). Without
+// a terminal the prompt can't run, so the error has to name --region and list
+// those regions instead of a bare "prompt: non interactive".
 func TestRunCreate_InteractivePromptRegion(t *testing.T) {
 	ctx, _ := createTestContext(t, "" /* no --region */)
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
@@ -197,6 +197,8 @@ func TestRunCreate_InteractivePromptRegion(t *testing.T) {
 	err := RunCreate(ctx, "my-org", sampleParams(), samplePlan())
 	require.Error(t, err)
 	require.True(t, prompt.IsNonInteractive(err), "expected prompt.ErrNonInteractive, got: %v", err)
+	require.ErrorContains(t, err, "--region")
+	require.ErrorContains(t, err, "[iad lax]")
 }
 
 // TestRunCreate_PollLoop covers the two terminal-failure statuses documented

@@ -52,7 +52,12 @@ func runList(ctx context.Context) (err error) {
 			eviction = "Enabled"
 		}
 
-		rows = append(rows, []string{name, org, plan, eviction, primaryRegion, strings.Join(readRegions, ",")})
+		prodPack := "Disabled"
+		if options["prod_pack"] != nil && options["prod_pack"].(bool) {
+			prodPack = "Enabled"
+		}
+
+		rows = append(rows, []string{name, org, plan, eviction, prodPack, primaryRegion, strings.Join(readRegions, ",")})
 	}
 
 	if orgSlug != "" {
@@ -81,7 +86,7 @@ func runList(ctx context.Context) (err error) {
 		}
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Eviction", "Primary Region", "Read Regions")
+	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Eviction", "ProdPack", "Primary Region", "Read Regions")
 
 	return
 }

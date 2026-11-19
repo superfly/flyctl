@@ -3,6 +3,8 @@
 package agent
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os/user"
 
@@ -26,5 +28,16 @@ func PipeName() (string, error) {
 		return "", fmt.Errorf("can't query current username: %w", err)
 	}
 
-	return `\\.\pipe\fly-agent-` + user.Username, nil
+	name := `\\.\pipe\fly-agent-` + user.Username
+
+	// derive a distinct pipe per socket override so isolated invocations
+	// don't share a pipe on systems without unix socket support (the
+	// distinguishing part of a generated path is its directory, so hash the
+	// whole path rather than taking the basename)
+	if socket := SocketPathOverride(); socket != "" {
+		sum := sha256.Sum256([]byte(socket))
+		name += "-" + hex.EncodeToString(sum[:6])
+	}
+
+	return name, nil
 }

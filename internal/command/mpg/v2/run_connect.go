@@ -4,28 +4,25 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 )
 
-func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, proxyPort string) (err error) {
+func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, proxyPort string, psqlPath string) (err error) {
 	io := iostreams.FromContext(ctx)
+	options := mpgutil.PsqlOptionsFromContext(ctx)
 
 	localProxyPort := proxyPort
 
 	// Username selection: flag > prompt (if interactive) > empty (use default credentials)
 	username := flag.GetString(ctx, "username")
-	if username == "" && io.IsInteractive() {
+	if username == "" && io.IsInteractive() && !options.Scripted() {
 		// Prompt for user selection
 		mpgClient := mpgv2.ClientFromContext(ctx)
 		usersResponse, err := mpgClient.ListUsers(ctx, clusterID)
@@ -54,7 +51,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 	var db string
 	if database := flag.GetString(ctx, "database"); database != "" {
 		db = database
-	} else if io.IsInteractive() {
+	} else if io.IsInteractive() && !options.Scripted() {
 		// Prompt for database selection
 		mpgClient := mpgv2.ClientFromContext(ctx)
 		databasesResponse, err := mpgClient.ListDatabases(ctx, clusterID)
@@ -85,17 +82,10 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 
 	maybeWarnNotReady(io.ErrOut, cluster)
 
-	psqlPath, err := exec.LookPath("psql")
-	if err != nil {
-		fmt.Fprintf(io.Out, "Could not find psql in your $PATH. Install it or point your psql at: %s", "someurl")
-
-		return err
-	}
-
 	// We want to handle cancels ourselves, since they can pass through
 	// as query cancellations to psql without killing the proxy.
-	proxyCtx, proxyCancel := context.WithCancel(context.WithoutCancel(ctx))
-	defer proxyCancel()
+	proxyCtx, proxyCancel := context.WithCancelCause(context.WithoutCancel(mpgutil.PsqlProxyContext(ctx, options)))
+	defer proxyCancel(fmt.Errorf("Postgres proxy stopped: %w", context.Canceled))
 
 	err = proxy.Start(proxyCtx, params)
 	if err != nil {
@@ -104,66 +94,7 @@ func RunConnect(ctx context.Context, clusterID string, resolvedOrgSlug string, p
 
 	connectUrl := buildConnectURL(credentials, db, localProxyPort)
 
-	// Allow Ctrl+C signals to hit psql
-	psqlCtx, psqlCancel := context.WithCancel(context.WithoutCancel(ctx))
-	defer psqlCancel()
-
-	cmd := exec.CommandContext(psqlCtx, psqlPath, connectUrl)
-	cmd.Stdout = io.Out
-	cmd.Stderr = io.ErrOut
-	cmd.Stdin = io.In
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigChan)
-
-	err = cmd.Start()
-	if err != nil {
-		return err
-	}
-
-	done := make(chan struct{})
-	defer close(done)
-
-	go func() {
-		var lastSigTime time.Time
-
-		for {
-			select {
-			case sig := <-sigChan:
-				now := time.Now()
-
-				if cmd.Process != nil {
-					// Double Ctrl+C — kill the process
-					if !lastSigTime.IsZero() && now.Sub(lastSigTime) < 2*time.Second {
-						cmd.Process.Kill()
-						psqlCancel()
-
-						return
-					}
-
-					// Forward to psql for query cancellation
-					cmd.Process.Signal(sig)
-					lastSigTime = now
-				}
-			case <-done:
-				return
-			}
-		}
-	}()
-
-	err = cmd.Wait()
-
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			// Check if the process was terminated by a signal (e.g., our Kill() call)
-			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-				return nil
-			}
-		}
-	}
-
-	return err
+	return mpgutil.RunPsql(ctx, psqlPath, connectUrl, options)
 }
 
 // buildConnectURL prefers the selected database over the credential default.

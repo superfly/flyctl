@@ -36,6 +36,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateMachineConversion,
 		c.validateConsoleCommand,
 		c.validateMounts,
+		c.validateCacheDisks,
 		c.validateRestartPolicy,
 		c.validateCompression,
 	}
@@ -178,7 +179,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 			//      fix fly.toml configuration -- 2024-01-15
 			extraInfo += fmt.Sprintf(
 				"WARNING: Service must expose at least one port. Add a [[services.ports]] section to fly.toml; " +
-					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n " +
+					"Check docs at https://docs.fly.io/reference/configuration#services-ports \n " +
 					"Validation for _services without ports_ will hard fail after February 15, 2024.",
 			)
 			// err = ValidationError
@@ -249,8 +250,8 @@ func (c *Config) validateProcessesSection() (extraInfo string, err error) {
 
 func (c *Config) validateMachineConversion() (extraInfo string, err error) {
 	for _, name := range c.ProcessNames() {
-		if _, vErr := c.ToMachineConfig(name, nil); err != nil {
-			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s", name, vErr)
+		if _, vErr := c.ToMachineConfig(name, nil); vErr != nil {
+			extraInfo += fmt.Sprintf("Converting to machine in process group '%s' will fail because of: %s\n", name, vErr)
 			err = ErrInvalidApplicationConfig
 		}
 	}
@@ -380,6 +381,19 @@ func (c *Config) validateCompression() (extraInfo string, err error) {
 		if c.Build.CompressionLevel != nil {
 			if vErr := validation.ValidateCompressionLevelFlag(*c.Build.CompressionLevel); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
+				err = ErrInvalidApplicationConfig
+			}
+		}
+	}
+
+	return
+}
+
+func (c *Config) validateCacheDisks() (extraInfo string, err error) {
+	for _, disk := range c.CacheDisks {
+		for _, group := range disk.Processes {
+			if !slices.Contains(c.ProcessNames(), group) {
+				extraInfo += fmt.Sprintf("cache_disk references unknown process group %q\n", group)
 				err = ErrInvalidApplicationConfig
 			}
 		}

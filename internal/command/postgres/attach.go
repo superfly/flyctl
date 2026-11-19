@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
@@ -109,10 +110,11 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	flycast, err := flycastAddress(ctx, pgAppName)
+	flycast, ips, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
 		return err
 	}
+	warnIfUnreachable(ctx, pgApp, app, ips)
 
 	return machineAttachCluster(ctx, params, flycast)
 }
@@ -141,24 +143,85 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = flapsClient.GetApp(ctx, appName)
+	app, err := flapsClient.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	flycast, err := flycastAddress(ctx, pgAppName)
+	flycast, ips, err := flycastAddress(ctx, pgAppName)
 	if err != nil {
 		return err
 	}
+	warnIfUnreachable(ctx, pgApp, app, ips)
 
 	return machineAttachCluster(ctx, params, flycast)
 }
 
-// flycastAddress returns the postgres app's Flycast (private IPv6) address, if it has one.
-func flycastAddress(ctx context.Context, pgAppName string) (*string, error) {
+// warnIfUnreachable prints unreachableWarning, if any, to stderr. It only
+// warns: the user may be about to fix the network, and attach still works for
+// apps that can reach the cluster some other way.
+func warnIfUnreachable(ctx context.Context, pgApp, app *flaps.App, ips []flaps.IPAssignment) {
+	if msg := unreachableWarning(pgApp, app, ips); msg != "" {
+		io := iostreams.FromContext(ctx)
+		fmt.Fprintf(io.ErrOut, "%s %s\n", io.ColorScheme().WarningIcon(), msg)
+	}
+}
+
+// unreachableWarning explains why app can't reach pgApp's database when they
+// are on different private networks, given pgApp's IP assignments, and
+// returns "" when app can reach it or reachability can't be told.
+func unreachableWarning(pgApp, app *flaps.App, ips []flaps.IPAssignment) string {
+	pgNetwork, appNetwork := flapsutil.NetworkName(pgApp), flapsutil.NetworkName(app)
+	if pgNetwork == appNetwork {
+		return ""
+	}
+
+	hasFlycast := false
+	for _, ip := range ips {
+		if !ip.IsFlycast() {
+			continue
+		}
+		hasFlycast = true
+
+		// Without a network on the assignment, it may be on app's network.
+		if ip.Network == nil || flapsutil.NormalizeNetworkName(ip.Network.Name) == appNetwork {
+			return ""
+		}
+	}
+
+	mismatch := fmt.Sprintf("%s is on network %s and %s is on network %s, so %s won't be able to reach the database.",
+		app.Name, displayNetwork(appNetwork), pgApp.Name, displayNetwork(pgNetwork), app.Name)
+
+	// Without a Flycast address the connection string uses .internal, which
+	// never crosses networks, so a new address wouldn't help.
+	if !hasFlycast {
+		return mismatch + " Its connection string uses .internal, which only works within one network, so put both apps on the same network."
+	}
+
+	// The default network is selected by leaving --network off.
+	allocate := fmt.Sprintf("fly ips allocate-v6 --private -a %s", pgApp.Name)
+	if appNetwork != "" {
+		allocate = fmt.Sprintf("fly ips allocate-v6 --private --network %s -a %s", appNetwork, pgApp.Name)
+	}
+
+	return fmt.Sprintf("%s To fix it, give %s a Flycast address on %s's network: %s", mismatch, pgApp.Name, app.Name, allocate)
+}
+
+// displayNetwork names a network as users and the CLI flags know it.
+func displayNetwork(name string) string {
+	if name == "" {
+		return flapsutil.DefaultNetwork
+	}
+
+	return name
+}
+
+// flycastAddress returns the postgres app's Flycast (private IPv6) address, if
+// it has one, along with all of its IP assignments.
+func flycastAddress(ctx context.Context, pgAppName string) (*string, []flaps.IPAssignment, error) {
 	res, err := flapsutil.ClientFromContext(ctx).GetIPAssignments(ctx, pgAppName)
 	if err != nil {
-		return nil, fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
+		return nil, nil, fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
@@ -168,7 +231,7 @@ func flycastAddress(ctx context.Context, pgAppName string) (*string, error) {
 		}
 	}
 
-	return flycast, nil
+	return flycast, res.IPs, nil
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
@@ -262,14 +325,16 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 		return err
 	}
 	if dbExists && !force {
-		confirm := false
 		msg := fmt.Sprintf("Database %q already exists. Continue with the attachment process?", *input.DatabaseName)
-		confirm, err := prompt.Confirm(ctx, msg)
-		if err != nil {
+		switch confirm, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirm {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError(fmt.Sprintf("database %q already exists; pass --yes to attach to it when not running interactively", *input.DatabaseName))
+		default:
 			return err
-		}
-		if !confirm {
-			return nil
 		}
 	}
 
