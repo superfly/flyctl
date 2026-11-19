@@ -18,10 +18,21 @@ import (
 
 func newAttach() *cobra.Command {
 	const (
-		short = "Attach a managed Postgres cluster to an app"
-		long  = short + ". " +
-			`This command will add a secret to the specified app
- containing the connection string for the database.`
+		short = "Attach a Managed Postgres cluster to an app"
+		long  = `Attach a Managed Postgres cluster to an app by setting a secret on the app
+(DATABASE_URL unless --variable-name says otherwise) that holds the
+cluster's connection string. The app and the cluster must be in the same
+organization, and the command fails if the app already has a secret with
+that name.
+
+With no cluster ID, you pick one from the app's organization in a
+terminal; without a terminal, the cluster ID is required. In a terminal,
+you're also asked which user and database to use, with the option to
+create new ones, unless you pass --username and --database. Without a
+terminal and without those flags, the cluster's default credentials and
+database are used.
+
+Remove the link with ` + "`fly mpg detach`" + `.`
 		usage = "attach <CLUSTER ID>"
 	)
 

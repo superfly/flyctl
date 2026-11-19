@@ -13,8 +13,10 @@ import (
 
 func newExtensions() *cobra.Command {
 	const (
-		short = "Manage Postgres extensions in a managed postgres cluster database"
-		long  = short + "\n"
+		short = "Manage Postgres extensions in a Managed Postgres database"
+		long  = `List, enable and disable Postgres extensions in a database of a Managed
+Postgres cluster. Start with ` + "`fly mpg databases extensions list`" + ` to see which
+extensions are available and installed.`
 	)
 
 	cmd := command.New("extensions", short, long, nil)
@@ -31,8 +33,15 @@ func newExtensions() *cobra.Command {
 
 func newExtensionsList() *cobra.Command {
 	const (
-		long  = `List Postgres extensions in a database, showing which are currently installed.`
-		short = "List Postgres extensions for a database in an MPG cluster."
+		long = `List the Postgres extensions available in a Managed Postgres database,
+showing which are installed and, for those, their version and schema.
+
+With no cluster ID, you pick an organization and a cluster from a list in
+a terminal; without a terminal, the cluster ID is required.
+With no --database, the cluster's only database is used; if there are
+several, you pick one in a terminal, and without a terminal --database is
+required.`
+		short = "List Postgres extensions in a Managed Postgres database"
 		usage = "list <CLUSTER_ID>"
 	)
 
@@ -74,8 +83,19 @@ func runExtensionsList(ctx context.Context) error {
 
 func newExtensionsEnable() *cobra.Command {
 	const (
-		long  = `Enable a Postgres extension on a database in a Managed Postgres cluster.`
-		short = "Enable a Postgres extension on a database."
+		long = `Enable (install) a Postgres extension in a Managed Postgres database. The
+extension goes in the schema given by --schema; add --create-schema if
+that schema doesn't exist yet. For postgis_topology with no --schema, the
+topology schema is used and created if needed.
+
+With no --cluster, you pick an organization and a cluster from a list in
+a terminal; without a terminal, --cluster is required.
+With no --database, the cluster's only database is used; if there are
+several, you pick one in a terminal, and without a terminal --database is
+required.
+
+See available extensions with ` + "`fly mpg databases extensions list`" + `.`
+		short = "Enable a Postgres extension in a Managed Postgres database"
 		usage = "enable <EXTENSION>"
 	)
 
@@ -132,8 +152,16 @@ func runExtensionsEnable(ctx context.Context) error {
 
 func newExtensionsDisable() *cobra.Command {
 	const (
-		long  = `Disable a Postgres extension on a database in a Managed Postgres cluster.`
-		short = "Disable a Postgres extension on a database."
+		long = `Disable (drop) a Postgres extension in a Managed Postgres database. With
+--force, objects that depend on the extension are dropped too (CASCADE).
+There's no confirmation prompt.
+
+With no --cluster, you pick an organization and a cluster from a list in
+a terminal; without a terminal, --cluster is required.
+With no --database, the cluster's only database is used; if there are
+several, you pick one in a terminal, and without a terminal --database is
+required.`
+		short = "Disable a Postgres extension in a Managed Postgres database"
 		usage = "disable <EXTENSION>"
 	)
 

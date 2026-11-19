@@ -18,10 +18,16 @@ import (
 
 func newDetach() *cobra.Command {
 	const (
-		short = "Detach a managed Postgres cluster from an app"
-		long  = short + ". " +
-			`This command will remove the attachment record linking the app to the cluster.
-Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to remove secrets.`
+		short = "Detach a Managed Postgres cluster from an app"
+		long  = `Detach a Managed Postgres cluster from an app by removing the attachment
+record that links them. The cluster, its data and its users are not
+changed.
+
+This does not remove the connection string secret from the app. Remove it
+with ` + "`fly secrets unset DATABASE_URL`" + ` (or the variable name you used).
+
+With no cluster ID, you pick one from the app's organization in a
+terminal; without a terminal, the cluster ID is required.`
 		usage = "detach <CLUSTER ID>"
 	)
 
