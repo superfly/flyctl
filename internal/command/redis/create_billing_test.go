@@ -19,6 +19,7 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 	tests := []struct {
 		name     string
 		plan     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
+		prodPack bool
 		want     string
 		wantPayg bool
 	}{
@@ -38,6 +39,19 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 			plan: gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", PricePerMonth: 1000},
 			want: "billed at $10/mo (Fixed 250MB).",
 		},
+		{
+			name:     "pay-as-you-go with ProdPack",
+			plan:     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: redisPlanPayAsYouGo, DisplayName: "Pay-as-you-go", Description: "$0.2 per 100K commands"},
+			prodPack: true,
+			want:     "billed at $0.20 per 100K commands, plus $200/mo for ProdPack.",
+			wantPayg: true,
+		},
+		{
+			name:     "fixed plan with ProdPack",
+			plan:     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", Description: "$10/mo + $5 per read region", PricePerMonth: 1000},
+			prodPack: true,
+			want:     "billed at $10/mo + $5 per read region (Fixed 250MB), plus $200/mo for ProdPack.",
+		},
 	}
 
 	for _, tt := range tests {
@@ -47,7 +61,7 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 				"CreateAddOn":      `{"createAddOn": {"addOn": {"name": "cache", "publicUrl": "redis://cache"}}}`,
 			}}
 			create := func(ctx context.Context) error {
-				_, err := Create(ctx, &uiex.Organization{Slug: "personal"}, "cache", &fly.Region{Code: "ord"}, &tt.plan, true, false, false, false, &[]fly.Region{})
+				_, err := Create(ctx, &uiex.Organization{Slug: "personal"}, "cache", &fly.Region{Code: "ord"}, &tt.plan, true, false, false, tt.prodPack, &[]fly.Region{})
 
 				return err
 			}
