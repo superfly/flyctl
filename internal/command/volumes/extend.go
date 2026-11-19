@@ -6,6 +6,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -13,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -89,7 +91,13 @@ func runExtend(ctx context.Context) error {
 		volID = volume.ID
 	}
 
-	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, appName, volID, sizeGB)
+	var needsRestart bool
+	volume, err := tracing.WorkflowStep(ctx, "extend_volume", func(ctx context.Context) (*fly.Volume, error) {
+		volume, restart, err := flapsClient.ExtendVolume(ctx, appName, volID, sizeGB)
+		needsRestart = restart
+
+		return volume, err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}

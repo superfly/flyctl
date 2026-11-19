@@ -282,6 +282,169 @@ func TestIsComputeValid(t *testing.T) {
 	}
 }
 
+// The plan's memory is written as `memory` only: a memory_mb beside it takes
+// precedence, so editing `memory` in fly.toml later would have no effect.
+func TestUpdateConfigWritesPlanMemoryOnce(t *testing.T) {
+	newState := func(compute *appconfig.Compute, memoryMB int) *launchState {
+		return &launchState{
+			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+				AppName:  "my-app",
+				MemoryMB: memoryMB,
+				Compute:  []*appconfig.Compute{compute},
+			}},
+			planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+		}
+	}
+
+	t.Run("memory set from a guest", func(t *testing.T) {
+		compute := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+		state := newState(compute, 1024)
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, "1gb", got.Memory)
+		assert.Zero(t, got.MemoryMB)
+	})
+
+	t.Run("plan memory without a memory key", func(t *testing.T) {
+		compute := &appconfig.Compute{MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1}}
+		state := newState(compute, 512)
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, "512mb", got.Memory)
+		assert.Zero(t, got.MemoryMB)
+	})
+
+	t.Run("an explicit memory_mb is kept", func(t *testing.T) {
+		compute := &appconfig.Compute{MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 2048}}
+		state := newState(compute, 1024)
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, 2048, got.MemoryMB)
+		assert.Empty(t, got.Memory)
+	})
+}
+
+// The plan's memory comes from the default process group, so it must not
+// replace a `memory` another group already has.
+func TestUpdateConfigKeepsExistingMemory(t *testing.T) {
+	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+	worker := &appconfig.Compute{
+		Memory:       "4gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 2},
+		Processes:    []string{"worker"},
+	}
+	verbatim := &appconfig.Compute{
+		Memory:       "1024mb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1},
+		Processes:    []string{"cron"},
+	}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 1024,
+			Compute:  []*appconfig.Compute{app, worker, verbatim},
+		}},
+		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+	}
+
+	state.updateConfig(context.Background())
+
+	got := state.appConfig.Compute
+	assert.Equal(t, "1gb", got[0].Memory)
+	assert.Equal(t, "4gb", got[1].Memory)
+	assert.Equal(t, "1024mb", got[2].Memory)
+	for _, c := range got {
+		assert.Zero(t, c.MemoryMB)
+	}
+}
+
+// A vm_memory edited in a manifest (the Launch UI does this, leaving the
+// plan's compute as it was) replaces the default group's memory and nothing
+// else.
+func TestUpdateConfigPlanMemoryOverridesDefaultCompute(t *testing.T) {
+	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+	worker := &appconfig.Compute{
+		Memory:       "4gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 2},
+		Processes:    []string{"worker"},
+	}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 2048,
+			Compute:  []*appconfig.Compute{app, worker},
+		}},
+		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+	}
+
+	state.updateConfig(context.Background())
+
+	got := state.appConfig.Compute
+	assert.Equal(t, "2gb", got[0].Memory)
+	assert.Zero(t, got[0].MemoryMB)
+	assert.Equal(t, "4gb", got[1].Memory)
+}
+
+// With named process groups, the default group is the first by name, and its
+// compute is the one the plan's memory belongs to.
+func TestUpdateConfigPlanMemoryWithNamedGroups(t *testing.T) {
+	cfg := appconfig.NewConfig()
+	cfg.Processes = map[string]string{"web": "serve", "worker": "work"}
+	web := &appconfig.Compute{
+		Memory:       "1gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1},
+		Processes:    []string{"web"},
+	}
+	worker := &appconfig.Compute{
+		Memory:       "4gb",
+		MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 2},
+		Processes:    []string{"worker"},
+	}
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 2048,
+			Compute:  []*appconfig.Compute{worker, web},
+		}},
+		planBuildCache: planBuildCache{appConfig: cfg},
+	}
+
+	state.updateConfig(context.Background())
+
+	assert.Equal(t, "2gb", web.Memory)
+	assert.Equal(t, "4gb", worker.Memory)
+}
+
+// A nil entry in the plan's compute is skipped, not dereferenced, and
+// doesn't stop an edited vm_memory reaching the default group.
+func TestUpdateConfigSkipsNilCompute(t *testing.T) {
+	app := guestToCompute(&fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 1024, KernelArgs: []string{"x"}})
+	state := &launchState{
+		LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			MemoryMB: 2048,
+			Compute:  []*appconfig.Compute{nil, app},
+		}},
+		planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+	}
+
+	assert.NotPanics(t, func() { state.updateConfig(context.Background()) })
+	assert.Equal(t, "2gb", app.Memory)
+}
+
+func TestMemoryString(t *testing.T) {
+	assert.Equal(t, "1gb", memoryString(1024))
+	assert.Equal(t, "4gb", memoryString(4096))
+	assert.Equal(t, "256mb", memoryString(256))
+	assert.Equal(t, "1536mb", memoryString(1536))
+}
+
 func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 	// PowerShell expands $app inside double quotes and cmd.exe %app%, so a
 	// path can't be pasted into a command safely for every shell.

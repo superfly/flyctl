@@ -3,6 +3,7 @@ package volumes
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -171,9 +172,13 @@ func runCreate(ctx context.Context) error {
 		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
+	stage := "create_volume"
+	if snapshotID != nil {
+		stage = "create_volume_from_snapshot"
+	}
 	out := iostreams.FromContext(ctx).Out
 	for range count {
-		volume, err := flapsClient.CreateVolume(ctx, appName, input)
+		volume, err := tracing.WorkflowStep(ctx, stage, func(ctx context.Context) (*fly.Volume, error) { return flapsClient.CreateVolume(ctx, appName, input) })
 		if err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -142,6 +143,13 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	}
 	cfg.Statics = statics
 	cfg.Mounts = mounts
+	if disk := m.Machine().Config.CacheDrive; disk != nil && disk.SizeMB > 0 {
+		if disk.Path == "" {
+			warningMsg += warning("cache_disk", "Machine %s has a raw cache disk that cannot be represented in fly.toml. Deploying the saved configuration will remove it.\n", m.Machine().ID)
+		} else {
+			cfg.CacheDisks = []CacheDisk{{Size: strconv.FormatUint(disk.SizeMB, 10) + "mib", Path: disk.Path}}
+		}
+	}
 	cfg.Processes = processGroups.processes
 	cfg.Checks = topLevelChecks
 	cfg.Services = processGroups.services

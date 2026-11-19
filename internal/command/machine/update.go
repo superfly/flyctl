@@ -73,6 +73,8 @@ func newUpdate() *cobra.Command {
 
 	cmd.Args = cobra.RangeArgs(0, 1)
 
+	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+
 	return cmd
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/tracing"
 )
 
 func confirmAlloc(ctx context.Context, msg string) error {
@@ -138,11 +139,13 @@ func runAllocateIPAddress(ctx context.Context, addrType flaps.IPAssignmentType, 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	res, err := flapsClient.AssignIP(ctx, appName, flaps.AssignIPRequest{
-		Type:         addrType,
-		Region:       regionForIPType(ctx, addrType),
-		Organization: orgSlug,
-		Network:      network,
+	res, err := tracing.WorkflowStep(ctx, "allocate_ip", func(ctx context.Context) (*flaps.AssignIPResponse, error) {
+		return flapsClient.AssignIP(ctx, appName, flaps.AssignIPRequest{
+			Type:         addrType,
+			Region:       regionForIPType(ctx, addrType),
+			Organization: orgSlug,
+			Network:      network,
+		})
 	})
 	if err != nil {
 		return err
