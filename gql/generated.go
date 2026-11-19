@@ -3546,11 +3546,15 @@ func (v *__ListOrganizationAddOnsInput) GetAddOnType() AddOnType { return v.AddO
 
 // __ResetAddOnPasswordInput is used internally by genqlient
 type __ResetAddOnPasswordInput struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
 }
 
 // GetName returns __ResetAddOnPasswordInput.Name, and is useful for accessing the field via an interface.
 func (v *__ResetAddOnPasswordInput) GetName() string { return v.Name }
+
+// GetProvider returns __ResetAddOnPasswordInput.Provider, and is useful for accessing the field via an interface.
+func (v *__ResetAddOnPasswordInput) GetProvider() string { return v.Provider }
 
 // __SetNomadVMCountInput is used internally by genqlient
 type __SetNomadVMCountInput struct {
@@ -4735,8 +4739,8 @@ func LogOut(
 
 // The mutation executed by ResetAddOnPassword.
 const ResetAddOnPassword_Operation = `
-mutation ResetAddOnPassword ($name: String!) {
-	resetAddOnPassword(input: {name:$name}) {
+mutation ResetAddOnPassword ($name: String!, $provider: String) {
+	resetAddOnPassword(input: {name:$name,provider:$provider}) {
 		addOn {
 			publicUrl
 		}
@@ -4748,12 +4752,14 @@ func ResetAddOnPassword(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	name string,
+	provider string,
 ) (data_ *ResetAddOnPasswordResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "ResetAddOnPassword",
 		Query:  ResetAddOnPassword_Operation,
 		Variables: &__ResetAddOnPasswordInput{
-			Name: name,
+			Name:     name,
+			Provider: provider,
 		},
 	}
 

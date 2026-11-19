@@ -277,7 +277,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 			start_port = new(start)
 
 			var end int
-			end, err = strconv.Atoi(external_split[0])
+			end, err = strconv.Atoi(external_split[1])
 			if err != nil {
 				err = errors.Wrap(err, "invalid end port for port range")
 

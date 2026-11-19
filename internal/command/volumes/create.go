@@ -3,6 +3,7 @@ package volumes
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -23,7 +24,7 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/launch/volume-storage/."
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://docs.fly.io/launch/volume-storage"
 		usage = "create <volume name>"
 	)
 
@@ -171,9 +172,13 @@ func runCreate(ctx context.Context) error {
 		input.AutoBackupEnabled = new(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
+	stage := "create_volume"
+	if snapshotID != nil {
+		stage = "create_volume_from_snapshot"
+	}
 	out := iostreams.FromContext(ctx).Out
 	for range count {
-		volume, err := flapsClient.CreateVolume(ctx, appName, input)
+		volume, err := tracing.WorkflowStep(ctx, stage, func(ctx context.Context) (*fly.Volume, error) { return flapsClient.CreateVolume(ctx, appName, input) })
 		if err != nil {
 			return err
 		}
@@ -214,7 +219,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/volumes/overview/"
+	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://docs.fly.io/volumes/overview"
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {

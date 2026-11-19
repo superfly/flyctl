@@ -93,7 +93,7 @@ func (c *Config) flattenGroupsMatch(target string, toCheck []string) bool {
 
 // Flatten generates a machine config specific to a process_group.
 //
-// Only services, mounts, checks, metrics, files and restarts specific to the provided process group will be in the returned config.
+// Only services, mounts, cache disks, checks, metrics, files and restarts specific to the provided process group will be in the returned config.
 func (c *Config) Flatten(groupName string) (*Config, error) {
 	if err := c.SetMachinesPlatform(); err != nil {
 		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
@@ -139,6 +139,14 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	})
 	for i := range dst.Services {
 		dst.Services[i].Processes = []string{groupName}
+	}
+
+	// [[cache_disk]]
+	dst.CacheDisks = lo.Filter(dst.CacheDisks, func(x CacheDisk, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+	for i := range dst.CacheDisks {
+		dst.CacheDisks[i].Processes = []string{groupName}
 	}
 
 	// [[Mounts]]
@@ -201,9 +209,10 @@ func (c *Config) ComputeForGroup(groupName string) *Compute {
 	}
 
 	compute := lo.MaxBy(
-		// grab only the compute that matches or have no processes set
+		// grab only the compute that matches or have no processes set,
+		// skipping nil entries (a manifest can carry `null` in compute)
 		lo.Filter(c.Compute, func(x *Compute, _ int) bool {
-			return len(x.Processes) == 0 || c.flattenGroupsMatch(groupName, x.Processes)
+			return x != nil && (len(x.Processes) == 0 || c.flattenGroupsMatch(groupName, x.Processes))
 		}),
 		// Next find the most specific
 		func(item *Compute, _ *Compute) bool {

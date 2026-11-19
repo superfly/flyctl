@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
+	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -523,14 +524,28 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 }
 
 func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
-	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
-
 	org, err := state.Org(ctx)
 	if err != nil {
 		return err
 	}
 
-	params := extensions_core.ExtensionParams{
+	_, err = extensions_core.ProvisionExtension(ctx, state.tigrisExtensionParams(org))
+
+	return err
+}
+
+// tigrisExtensionParams builds the Tigris provisioning request from the plan.
+// sourceInfo is nil when launching from a manifest (--from-manifest / plan
+// steps), so it must not be dereferenced unguarded.
+func (state *launchState) tigrisExtensionParams(org *uiex.Organization) extensions_core.ExtensionParams {
+	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
+
+	var overrideSecretKeyNames map[string]map[string]string
+	if state.sourceInfo != nil {
+		overrideSecretKeyNames = state.sourceInfo.OverrideExtensionSecretKeyNames
+	}
+
+	return extensions_core.ExtensionParams{
 		Provider:       "tigris",
 		Organization:   org,
 		AppName:        state.Plan.AppName,
@@ -543,16 +558,8 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 				"domain_name": tigrisPlan.WebsiteDomainName,
 			},
 		},
-		OverrideExtensionSecretKeyNames: state.sourceInfo.OverrideExtensionSecretKeyNames,
+		OverrideExtensionSecretKeyNames: overrideSecretKeyNames,
 	}
-
-	_, err = extensions_core.ProvisionExtension(ctx, params)
-
-	if err != nil {
-		return err
-	}
-
-	return err
 }
 
 // errPostgresAttach marks a Postgres cluster that exists but isn't attached.

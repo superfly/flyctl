@@ -88,10 +88,10 @@ func (chk *ToplevelCheck) String() string {
 	}
 	switch chkType {
 	case "tcp":
-		return fmt.Sprintf("tcp-%d", chk.Port)
+		return fmt.Sprintf("tcp-%d", lo.FromPtr(chk.Port))
 	case "http":
-		return fmt.Sprintf("http-%d-%v", chk.Port, chk.HTTPMethod)
+		return fmt.Sprintf("http-%d-%v", lo.FromPtr(chk.Port), lo.FromPtr(chk.HTTPMethod))
 	default:
-		return fmt.Sprintf("%s-%d", chkType, chk.Port)
+		return fmt.Sprintf("%s-%d", chkType, lo.FromPtr(chk.Port))
 	}
 }

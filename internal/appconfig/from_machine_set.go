@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -142,6 +143,13 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	}
 	cfg.Statics = statics
 	cfg.Mounts = mounts
+	if disk := m.Machine().Config.CacheDrive; disk != nil && disk.SizeMB > 0 {
+		if disk.Path == "" {
+			warningMsg += warning("cache_disk", "Machine %s has a raw cache disk that cannot be represented in fly.toml. Deploying the saved configuration will remove it.\n", m.Machine().ID)
+		} else {
+			cfg.CacheDisks = []CacheDisk{{Size: strconv.FormatUint(disk.SizeMB, 10) + "mib", Path: disk.Path}}
+		}
+	}
 	cfg.Processes = processGroups.processes
 	cfg.Checks = topLevelChecks
 	cfg.Services = processGroups.services
@@ -215,7 +223,7 @@ func processGroupsFromMachineSet(ctx context.Context, ms machine.MachineSet) (*p
 			fmt.Fprintf(&otherCmds, "    %s\n", cmd)
 		}
 		warningMsg += warning("processes", `Found these additional commands on some machines. Consider adding process groups to your fly.toml and run machines with those process groups.
-For more info please see: https://fly.io/docs/reference/configuration/#the-processes-section
+For more info please see: https://docs.fly.io/reference/configuration#the-processes-section
 Machine IDs that were not saved to fly.toml: %s
 Commands they are running:
 %s
@@ -253,7 +261,7 @@ Commands they are running:
 		}
 		otherServicesString := strings.Join(lo.Keys(otherServices), "")
 		warningMsg += warning("services", `Found different services on some other machines. Consider adding [[services]] block to fly.toml to support them.
-For more info please see: https://fly.io/docs/reference/configuration/#the-services-sections
+For more info please see: https://docs.fly.io/reference/configuration#the-services-sections
 Machine IDs with different services: %s
 Other services:
 %s

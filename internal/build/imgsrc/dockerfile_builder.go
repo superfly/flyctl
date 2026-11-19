@@ -434,7 +434,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 
 	// Connect to Docker Engine's embedded Buildkit.
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
-		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
+		return dialDockerBuildkit(ctx, docker)
 	}
 	bc, err := client.New(ctx, "", client.WithContextDialer(dialer))
 	if err != nil {

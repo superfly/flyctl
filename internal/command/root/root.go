@@ -68,6 +68,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/synthetics"
 	"github.com/superfly/flyctl/internal/command/tokens"
+	tracecmd "github.com/superfly/flyctl/internal/command/trace"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
 	"github.com/superfly/flyctl/internal/command/wireguard"
@@ -109,6 +110,7 @@ func New() *cobra.Command {
 		group(apps.New(), "deploy"),
 		group(machine.New(), "deploy"),
 		version.New(),
+		tracecmd.New(),
 		group(orgs.New(), "acl"),
 		group(auth.New(), "acl"),
 		group(platform.New(), "more_help"),
@@ -240,7 +242,7 @@ func run(ctx context.Context) error {
 	cmd.Println()
 
 	cmd.Println("If you need help along the way:")
-	cmd.Println("  Use `fly docs` to open the Fly.io documentation, or visit https://fly.io/docs.")
+	cmd.Println("  Use `fly docs` to open the Fly.io documentation, or visit https://docs.fly.io/")
 	cmd.Println("  Use `fly <command> --help` for more information about a command.")
 	cmd.Println("  Visit https://community.fly.io to get help from the Fly.io community.")
 

@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -79,6 +80,12 @@ type WsWgProxy struct {
 	// refreshReplies carries the gateway's answers to in-band refreshes
 	// from the relay loop to the reconnect loop that sent them.
 	refreshReplies chan refreshReply
+
+	// connectedTo is the endpoint the current websocket was dialed at: the
+	// anycast name, or the gateway's direct IP after a reconnect there.
+	// Atomic so status reads don't wait on a reconnect, which holds lock
+	// while it dials.
+	connectedTo atomic.Pointer[string]
 }
 
 // refreshReply is a gateway's answer to an in-band refresh, with the
@@ -115,9 +122,10 @@ var (
 
 // dialWebsocket dials the gateway's wswg endpoint and wraps it as a
 // net.Conn bound to lifetimeCtx. A non-empty authorization goes out as the
-// upgrade request's Authorization header. A variable so tests can point it
-// at a plain-text local server.
-var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
+// upgrade request's Authorization header. A non-empty serverName is the name
+// TLS verifies the gateway's certificate against, for when endpoint is an IP.
+// A variable so tests can point it at a plain-text local server.
+var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint, serverName string, verifyTLS bool, authorization string) (net.Conn, error) {
 	rurl := websocketURL(endpoint)
 
 	log.Printf("(re-)connecting to %s", rurl)
@@ -138,6 +146,7 @@ var dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, 
 				// hostname and we hand them a macaroon, so verify those.
 				TLSClientConfig: &tls.Config{ // skipcq: GO-S1020
 					InsecureSkipVerify: !verifyTLS, // skipcq: GSC-G402
+					ServerName:         serverName,
 				},
 			},
 		},
@@ -244,6 +253,57 @@ func (wswg *WsWgProxy) Port() (int, error) {
 }
 
 func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint string) error {
+	return wswg.connect(dialCtx, lifetimeCtx, endpoint, "")
+}
+
+// directDialTimeout bounds a reconnect to the gateway's direct IP, so a
+// gateway that's gone doesn't hold up the fallback to the anycast endpoint.
+var directDialTimeout = 10 * time.Second
+
+// reconnect re-establishes the websocket after a drop. A token gateway that
+// gave us its direct IP is tried there first: the anycast endpoint may land
+// us on another gateway, which allocates a new peer address and so breaks
+// every connection through the tunnel. If the direct IP doesn't work, fall
+// back to the anycast endpoint and accept whatever gateway it picks.
+func (wswg *WsWgProxy) reconnect(ctx context.Context, endpoint string) error {
+	if wswg.prov != nil && wswg.prov.Direct != "" {
+		direct := net.JoinHostPort(wswg.prov.Direct, "443")
+
+		// TLS verifies the gateway's name, not the IP we dial
+		serverName := endpoint
+		if host, _, err := net.SplitHostPort(endpoint); err == nil {
+			serverName = host
+		}
+
+		log.Printf("reconnecting to gateway directly at %s (tls name %s)", direct, serverName)
+
+		dialCtx, cancel := context.WithTimeout(ctx, directDialTimeout)
+		err := wswg.connect(dialCtx, ctx, direct, serverName)
+		cancel()
+
+		if err == nil {
+			log.Printf("reconnected to gateway directly at %s", direct)
+
+			return nil
+		}
+
+		// a gateway that rejected our token won't take it via anycast either
+		if permanentTokenFailure(err) {
+			return err
+		}
+
+		log.Printf("reconnect to gateway at %s failed (%s); falling back to %s", direct, err, endpoint)
+	}
+
+	log.Printf("reconnecting to gateway via %s", endpoint)
+
+	return wswg.connect(ctx, ctx, endpoint, "")
+}
+
+// connect dials endpoint and performs the token exchange (or legacy magic),
+// installing the result as the current connection. serverName, if set, is
+// what TLS verifies the gateway's certificate against.
+func (wswg *WsWgProxy) connect(dialCtx, lifetimeCtx context.Context, endpoint, serverName string) error {
 	// one token per connection attempt: the same one goes in the upgrade
 	// request's Authorization header and the auth packet
 	token := wswg.auth.currentToken()
@@ -255,7 +315,7 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 		return fmt.Errorf("token exchange: %w", ErrNoToken)
 	}
 
-	wsConn, err := dialWebsocket(dialCtx, lifetimeCtx, endpoint, wswg.auth != nil, token)
+	wsConn, err := dialWebsocket(dialCtx, lifetimeCtx, endpoint, serverName, wswg.auth != nil, token)
 	if err != nil {
 		return err
 	}
@@ -279,12 +339,14 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 			// own key and allocated us a fresh address. Frames from the new
 			// peer must not be relayed to the old device, which the owner is
 			// about to replace.
-			log.Printf("gateway re-provisioned our peer (%s -> %s)", wswg.prov.PeerIP, prov.PeerIP)
+			log.Printf("gateway re-provisioned our peer (%s -> %s, direct %q)", wswg.prov.PeerIP, prov.PeerIP, prov.Direct)
 
 			reprovisioned = prov
 			wswg.lastPlugAddr = nil
 		} else if wswg.prov != nil {
-			log.Printf("gateway session re-authenticated: peer %s, expires %s", prov.PeerIP, prov.ExpiresAt.Format(time.RFC3339))
+			log.Printf("gateway session re-authenticated: peer %s, direct %q, expires %s", prov.PeerIP, prov.Direct, prov.ExpiresAt.Format(time.RFC3339))
+		} else {
+			log.Printf("gateway provisioned peer %s, direct %q, expires %s", prov.PeerIP, prov.Direct, prov.ExpiresAt.Format(time.RFC3339))
 		}
 		wswg.prov = prov
 		wswg.scheduleRefresh(prov)
@@ -303,6 +365,7 @@ func (wswg *WsWgProxy) Connect(dialCtx, lifetimeCtx context.Context, endpoint st
 		_ = wswg.wsConn.Close()
 	}
 	wswg.wsConn = wsConn
+	wswg.connectedTo.Store(&endpoint)
 	close(wswg.replaced)
 	wswg.replaced = make(chan struct{})
 
@@ -353,6 +416,15 @@ func (wswg *WsWgProxy) scheduleRefresh(prov *TokenProvision) {
 	if floor := time.Now().Add(tokenRefreshRetry); wswg.refreshAt.Before(floor) {
 		wswg.refreshAt = floor
 	}
+}
+
+// connectedEndpoint returns the endpoint the current websocket was dialed at
+func (wswg *WsWgProxy) connectedEndpoint() string {
+	if p := wswg.connectedTo.Load(); p != nil {
+		return *p
+	}
+
+	return ""
 }
 
 // provision returns the latest gateway answer.
@@ -637,7 +709,7 @@ func (wswg *WsWgProxy) start(lifetimeCtx context.Context, endpoint string) {
 
 					wswg.lock.Lock()
 					wswg.refreshAt = time.Time{}
-					if err := wswg.Connect(lifetimeCtx, lifetimeCtx, endpoint); err != nil {
+					if err := wswg.reconnect(lifetimeCtx, endpoint); err != nil {
 						log.Printf("reconnect failed: %s", err)
 
 						// Failed relays wait for replacement, so the owner

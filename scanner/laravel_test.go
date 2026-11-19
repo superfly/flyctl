@@ -1,8 +1,10 @@
 package scanner
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,4 +50,195 @@ func TestConfigureLaravelUsesGeneratorFrom81(t *testing.T) {
 			assert.NotNil(t, srcInfo.Callback)
 		})
 	}
+}
+
+// Without Composer there is no generator to install. With no Dockerfile, say
+// what to install; with one, launch goes ahead on it instead of running a
+// generator that was never installed.
+func TestLaravelCallbackWithoutComposer(t *testing.T) {
+	t.Run("no Dockerfile", func(t *testing.T) {
+		t.Chdir(writeLaravelApp(t, "^8.2"))
+		t.Setenv("PATH", t.TempDir())
+
+		err := LaravelCallback("my-app", &SourceInfo{Family: "Laravel"}, nil, nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "composer isn't on your PATH")
+	})
+
+	t.Run("existing Dockerfile", func(t *testing.T) {
+		t.Chdir(writeLaravelApp(t, "^8.2"))
+		t.Setenv("PATH", t.TempDir())
+		require.NoError(t, os.WriteFile("Dockerfile", []byte("FROM php:8.2\n"), 0o644))
+
+		srcInfo := &SourceInfo{Family: "Laravel"}
+		err := LaravelCallback("my-app", srcInfo, nil, nil)
+
+		require.NoError(t, err)
+		assert.Contains(t, srcInfo.DeployDocs, "fly deploy")
+	})
+}
+
+// writeComposerLock writes a composer.lock whose packages require the given
+// PHP constraints, the first under "packages" and the rest under "packages-dev".
+func writeComposerLock(t *testing.T, dir string, phpRequirements ...string) {
+	t.Helper()
+	pkg := func(i int, php string) string {
+		return fmt.Sprintf(`{"name": "vendor/pkg%d", "version": "1.0.0", "require": {"php": %q}}`, i, php)
+	}
+	var packages, packagesDev []string
+	for i, php := range phpRequirements {
+		if i == 0 {
+			packages = append(packages, pkg(i, php))
+		} else {
+			packagesDev = append(packagesDev, pkg(i, php))
+		}
+	}
+	lock := fmt.Sprintf(`{"packages": [%s], "packages-dev": [%s]}`, strings.Join(packages, ","), strings.Join(packagesDev, ","))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "composer.lock"), []byte(lock), 0o644))
+}
+
+// composer.json gives the oldest PHP the app allows, but a lock resolved on a
+// newer PHP can pin packages that need it. Composer can't add the Dockerfile
+// generator to such a lock on the older PHP, so the plan has to use the lock's.
+func TestConfigureLaravelPhpVersionFromComposerLock(t *testing.T) {
+	cases := []struct {
+		name     string
+		require  string
+		locked   []string
+		expected string
+	}{
+		{"no lock", "^8.3", nil, "8.3"},
+		{"lock needs newer PHP", "^8.3", []string{">=8.2", ">=8.4.1"}, "8.4"},
+		{"lock within composer.json", "^8.3", []string{">=8.1", "^8.2"}, "8.3"},
+		{"alternatives use their oldest", "^8.2", []string{"^7.4|^8.0", "^8.1 || ^8.3"}, "8.2"},
+		{"no lower bound is ignored", "^8.2", []string{"*", "<9.0"}, "8.2"},
+		{"lower bound after upper bound", "^8.2", []string{"<9.0 >=8.4"}, "8.4"},
+		{"minor compared numerically", "^8.2", []string{">=8.10"}, "8.10"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := writeLaravelApp(t, tc.require)
+			if tc.locked != nil {
+				writeComposerLock(t, dir, tc.locked...)
+			}
+			t.Chdir(dir)
+
+			srcInfo, err := configureLaravel(dir, &ScannerConfig{})
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, srcInfo.Runtime.Version)
+			assert.Equal(t, tc.expected, srcInfo.BuildArgs["PHP_VERSION"])
+		})
+	}
+}
+
+func TestExtractConnectionsRedis(t *testing.T) {
+	// The REDIS_* lines from Laravel 11's default .env.
+	const redisDefaults = "REDIS_CLIENT=phpredis\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\n"
+
+	cases := []struct {
+		name       string
+		env        string
+		wantRedis  bool
+		wantDB     DatabaseKind
+		wantSkipDb bool
+	}{
+		{
+			name:   "default Laravel 11 env, database drivers",
+			env:    "DB_CONNECTION=sqlite\nSESSION_DRIVER=database\nQUEUE_CONNECTION=database\nCACHE_STORE=database\n" + redisDefaults,
+			wantDB: DatabaseKindSqlite,
+		},
+		{
+			name:       "default redis lines only",
+			env:        redisDefaults,
+			wantSkipDb: true,
+		},
+		{
+			name:       "quoted default client with a comment",
+			env:        "export REDIS_CLIENT=\"phpredis\" # default\n",
+			wantSkipDb: true,
+		},
+		{
+			name:      "cache on redis",
+			env:       "DB_CONNECTION=pgsql\nCACHE_STORE=redis\n" + redisDefaults,
+			wantRedis: true,
+			wantDB:    DatabaseKindPostgres,
+		},
+		{
+			name:      "quoted queue driver with a comment",
+			env:       "QUEUE_CONNECTION=\"redis\" # workers\n",
+			wantRedis: true,
+		},
+		{
+			name:      "older env, session on redis",
+			env:       "DB_CONNECTION=mysql\nSESSION_DRIVER=redis\n",
+			wantRedis: true,
+			wantDB:    DatabaseKindMySQL,
+		},
+		{
+			name:      "legacy queue driver",
+			env:       "QUEUE_DRIVER=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "pulse ingest on redis",
+			env:       "PULSE_INGEST_DRIVER=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "custom store name",
+			env:       "CACHE_STORE=redis_cache\n",
+			wantRedis: true,
+		},
+		{
+			name:      "export prefix",
+			env:       "export CACHE_STORE=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "redis host from Sail, database drivers",
+			env:       "CACHE_STORE=database\nREDIS_CLIENT=phpredis\nREDIS_HOST=redis\n",
+			wantRedis: true,
+		},
+		{
+			name:      "redis url, database drivers",
+			env:       "CACHE_STORE=database\nREDIS_URL=redis://localhost:6379\n",
+			wantRedis: true,
+		},
+		{
+			name:      "predis client",
+			env:       "REDIS_CLIENT=predis\n",
+			wantRedis: true,
+		},
+		{
+			name:       "commented out driver",
+			env:        "# CACHE_STORE=redis\nCACHE_STORE=file\n",
+			wantSkipDb: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), ".env")
+			require.NoError(t, os.WriteFile(path, []byte(tc.env), 0o644))
+
+			db, redis, skipDb := extractConnections(path)
+
+			assert.Equal(t, tc.wantRedis, redis)
+			assert.Equal(t, tc.wantDB, db)
+			assert.Equal(t, tc.wantSkipDb, skipDb)
+		})
+	}
+}
+
+// The dockerfile-laravel Dockerfile builds assets in node:${NODE_VERSION}. The
+// current Laravel skeleton's Vite needs Node 20.19+ and crashes on Node 18.
+func TestConfigureLaravelBuildsAssetsOnNode22(t *testing.T) {
+	dir := writeLaravelApp(t, "^8.3")
+	t.Chdir(dir)
+
+	srcInfo, err := configureLaravel(dir, &ScannerConfig{})
+
+	require.NoError(t, err)
+	assert.Equal(t, "22", srcInfo.BuildArgs["NODE_VERSION"])
 }

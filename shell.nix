@@ -1,9 +1,9 @@
-with (import (fetchTarball https://github.com/nixos/nixpkgs/archive/db9208ab987cdeeedf78ad9b4cf3c55f5ebd269b.tar.gz) {});
+with (import (fetchTarball https://github.com/nixos/nixpkgs/archive/c56a87d8e41ce69bd2af57eb35dcc117a9dfca33.tar.gz) {});
 
 let
 
  basePackages = [
-  go_1_21
+  go_1_27
   gnumake
   gnused
   ];

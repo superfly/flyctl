@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,17 +154,32 @@ type pendingWatch struct {
 	configFile string // config.yml, where a finished login's token lands
 	id         string // this login's session
 	token      string // the token config.yml held when this login started
+
+	unreadable int // checks in a row that found the file but couldn't read it
 }
+
+// maxUnreadableChecks is how many checks in a row may fail to read a pending
+// login file that exists before the login counts as no longer pending. On
+// Windows, reading the file while another process replaces it can fail
+// (access denied), so one failed read doesn't mean it's gone.
+const maxUnreadableChecks = 3
 
 // check reports whether the login was finished elsewhere (its token), was
 // replaced or dropped (an error), or is still waiting (done is false).
 func (w *pendingWatch) check() (token string, done bool, err error) {
 	p, err := loadPendingLogin(w.path)
+	if err == nil {
+		w.unreadable = 0
+	}
 	switch {
 	case err == nil && p.ID == w.id:
 		return "", false, nil
 	case err == nil:
 		return "", true, errLoginReplaced
+	case !errors.Is(err, fs.ErrNotExist) && w.unreadable < maxUnreadableChecks:
+		w.unreadable++
+
+		return "", false, nil
 	}
 
 	// `fly auth login --code` removes the file only after saving its token,

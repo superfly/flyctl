@@ -406,6 +406,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, &Config{
+		CacheDisks:       []CacheDisk{{Size: "1gb", Path: "/cache", Processes: []string{"web"}}},
 		configFilePath:   "./testdata/full-reference.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
@@ -521,7 +522,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 			HTTPOptions: &fly.HTTPOptions{
 				Compress:    new(true),
-				IdleTimeout: UintPointer(600),
+				IdleTimeout: new(uint32(600)),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
@@ -646,7 +647,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
 						HTTPOptions: &fly.HTTPOptions{
-							IdleTimeout: UintPointer(600),
+							IdleTimeout: new(uint32(600)),
 						},
 					},
 				},
@@ -780,7 +781,103 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
 }
 
-//go:fix inline
-func UintPointer(v uint32) *uint32 {
-	return new(v)
+func TestLoadYAMLAppConfigWithNonStringKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config string
+	}{
+		{"integer", "env:\n  1: one\n"},
+		{"boolean", "env:\n  true: yes\n"},
+		{"null", "env:\n  null: value\n"},
+		{"colliding string", "env:\n  0x1: one\n  \"1\": another\n"},
+		{"nested array", "services:\n  - ports:\n      - 1: one\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "fly.yaml")
+			require.NoError(t, os.WriteFile(path, []byte("app: foo\n"+tt.config), 0o600))
+
+			t.Run("LoadConfig", func(t *testing.T) {
+				cfg, err := LoadConfig(path)
+				require.ErrorContains(t, err, "keys must be strings")
+				assert.Nil(t, cfg)
+			})
+
+			t.Run("LoadConfigAsMap", func(t *testing.T) {
+				raw, err := LoadConfigAsMap(path)
+				require.ErrorContains(t, err, "keys must be strings")
+				assert.Nil(t, raw)
+			})
+		})
+	}
+}
+
+func TestLoadYAMLAppConfigWithQuotedKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fly.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("app: foo\nenv:\n  \"1\": one\n  \"true\": yes\n"), 0o600))
+
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"1": "one", "true": "yes"}, cfg.Env)
+
+	raw, err := LoadConfigAsMap(path)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"1": "one", "true": "yes"}, raw["env"])
+}
+
+func TestNormalizeNestedYAMLMaps(t *testing.T) {
+	input := map[any]any{
+		"items": []any{map[any]any{"name": "worker", "enabled": true}},
+		"empty": map[any]any{},
+	}
+	got, err := stringifyYAMLMapKeys(input)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"items": []any{map[string]any{"name": "worker", "enabled": true}},
+		"empty": map[string]any{},
+	}, got)
+
+	for _, input := range []any{
+		map[any]any{"nested": map[any]any{1: "invalid"}},
+		map[string]any{"nested": map[any]any{true: "invalid"}},
+		[]any{map[any]any{nil: "invalid"}},
+	} {
+		got, err := stringifyYAMLMapKeys(input)
+		require.ErrorContains(t, err, "keys must be strings")
+		assert.Nil(t, got)
+	}
+}
+
+func TestCacheDiskSizeUnits(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		size    string
+		wantMB  uint64
+		wantErr string
+	}{
+		{name: "bare number", size: "1024", wantErr: "explicit unit"},
+		{name: "unitless string", size: `"1024"`, wantErr: "explicit unit"},
+		{name: "MiB", size: `"512mib"`, wantMB: 512},
+		{name: "GiB", size: `"1gib"`, wantMB: 1024},
+		{name: "CLI compatible gb", size: `"1gb"`, wantMB: 1024},
+		{name: "fractional GiB", size: `"1.5gib"`, wantMB: 1536},
+		{name: "large disk", size: `"50gib"`, wantMB: 51200},
+		{name: "server validates limit", size: `"51gib"`, wantMB: 52224},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := unmarshalTOML([]byte(fmt.Sprintf("[[cache_disk]]\nsize = %s\npath = \"/cache\"\n", tc.size)))
+			require.NoError(t, err)
+			if cfg.v2UnmarshalError != nil {
+				require.NotEmpty(t, tc.wantErr)
+				require.ErrorContains(t, cfg.v2UnmarshalError, tc.wantErr)
+				return
+			}
+			machine, err := cfg.ToMachineConfig("app", nil)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantMB, machine.CacheDrive.SizeMB)
+		})
+	}
 }

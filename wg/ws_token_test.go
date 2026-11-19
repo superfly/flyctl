@@ -215,12 +215,37 @@ func (g *fakeTokenGateway) headerFor(n int) string {
 	return g.headers[n]
 }
 
+var (
+	// directRoutes maps a gateway's direct "ip:443" to the fake gateway
+	// serving it; unrouted direct dials fail
+	directRoutes sync.Map
+	// directDials records the TLS server name each direct "ip:443" was
+	// last dialed with
+	directDials sync.Map
+
+	// udpGateway stands in for gateways' WireGuard port: tokenGatewayUDPPort
+	// points at it, so a direct IP of 127.0.0.1 sends WireGuard here
+	udpGateway *net.UDPConn
+)
+
 // TestMain points every token-mode test at a plain-text local gateway and
 // shortens the proxy's timers. Set once, before any proxy goroutine exists,
 // so the race detector doesn't see per-test restores racing with goroutines
 // still winding down from a previous test.
 func TestMain(m *testing.M) {
-	dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint string, verifyTLS bool, authorization string) (net.Conn, error) {
+	dialWebsocket = func(dialCtx, lifetimeCtx context.Context, endpoint, serverName string, verifyTLS bool, authorization string) (net.Conn, error) {
+		// direct dials arrive as ip:443; fake gateways listen on random
+		// ports, so tests route them here
+		if _, port, _ := net.SplitHostPort(endpoint); port == "443" {
+			directDials.Store(endpoint, serverName)
+
+			to, ok := directRoutes.Load(endpoint)
+			if !ok {
+				return nil, errors.New("connection refused")
+			}
+			endpoint = to.(string)
+		}
+
 		header := http.Header{}
 		if authorization != "" {
 			header.Set("Authorization", authorization)
@@ -237,6 +262,12 @@ func TestMain(m *testing.M) {
 	tokenRefreshMargin = 500 * time.Millisecond
 	tokenRefreshRetry = 200 * time.Millisecond
 	tokenHelloTimeout = 2 * time.Second
+
+	var err error
+	if udpGateway, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)}); err != nil {
+		panic(err)
+	}
+	tokenGatewayUDPPort = udpGateway.LocalAddr().(*net.UDPAddr).Port
 
 	os.Exit(m.Run())
 }
@@ -277,7 +308,7 @@ func TestConnectTokenReprovisionRebuildsTunnel(t *testing.T) {
 		Token:       func() string { return "FlyV1 fm2_test" },
 		OrgSlug:     "test-org",
 		NetworkName: "custom",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -343,7 +374,7 @@ func TestConnectTokenRejectedOnReconnectKillsTunnel(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -379,7 +410,7 @@ func TestConnectTokenRejectedInitially(t *testing.T) {
 	_, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "nope",
-	})
+	}, false)
 	require.Error(t, err)
 
 	var gwErr *GatewayError
@@ -398,7 +429,7 @@ func TestConnectTokenSilentGateway(t *testing.T) {
 	_, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.Error(t, err)
 	// through a real websocket conn the deadline surfaces as a context
 	// cancellation; it must still be recognized as "no hello"
@@ -427,7 +458,7 @@ func TestConnectTokenSameTokenRefreshedOncePerWindow(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_same" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -466,7 +497,7 @@ func TestConnectTokenSameTokenExtendsSessionCap(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_same" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -521,7 +552,7 @@ func TestConnectTokenNoTokenOnReconnectKillsTunnel(t *testing.T) {
 			return token
 		},
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -556,7 +587,7 @@ func TestConnectTokenPacketTokenForOlderGateway(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -583,7 +614,7 @@ func TestConnectTokenReprovisionClosesOpenConns(t *testing.T) {
 	tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
 		Token:   func() string { return "FlyV1 fm2_test" },
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	defer tunnel.Close()
 
@@ -653,7 +684,7 @@ func connectRefreshing(t *testing.T, gateway *fakeTokenGateway) (*Tunnel, func(s
 			return token
 		},
 		OrgSlug: "test-org",
-	})
+	}, false)
 	require.NoError(t, err)
 	t.Cleanup(func() { tunnel.Close() })
 
@@ -759,4 +790,86 @@ func TestConnectTokenInBandRefreshRejectedReconnects(t *testing.T) {
 	require.ErrorAs(t, tunnel.Err(), &gwErr)
 	assert.Equal(t, GatewayErrUnauthorized, gwErr.Code)
 	assert.Equal(t, 2, gateway.connections())
+}
+
+// routeDirect sends dials to ip:443 to gw for the rest of the test.
+func routeDirect(t *testing.T, ip string, gw *fakeTokenGateway) {
+	t.Helper()
+
+	addr := net.JoinHostPort(ip, "443")
+	directRoutes.Store(addr, gw.endpoint())
+	t.Cleanup(func() {
+		directRoutes.Delete(addr)
+		directDials.Delete(addr)
+	})
+}
+
+func TestConnectTokenReconnectsToDirectIP(t *testing.T) {
+	gw, _ := testKeypair(t)
+
+	const (
+		peerA  = "fdaa:0:18:a7b:1:1111:2222:3302"
+		direct = "192.0.2.10"
+	)
+
+	ok := tokenResult{Type: "ok", PeerIP: peerA, DNS: "fdaa:0:18::3", ExpiresAt: time.Now().Add(time.Hour).Unix(), Direct: direct}
+
+	// the anycast endpoint would pick some gateway; the direct IP reaches
+	// the one we're on. Anycast answers twice: the first connect, and the
+	// fallback once the direct IP stops answering.
+	anycast := newFakeTokenGateway(t, []string{gw, gw}, []tokenResult{ok, ok})
+	edge := newFakeTokenGateway(t, []string{gw}, []tokenResult{ok})
+	routeDirect(t, direct, edge)
+
+	pub, priv := testKeypair(t)
+	state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+	tunnel, err := ConnectToken(context.Background(), state, anycast.endpoint(), &TokenAuth{
+		Token:   func() string { return "FlyV1 fm2_test" },
+		OrgSlug: "test-org",
+	}, false)
+	require.NoError(t, err)
+	defer tunnel.Close()
+
+	<-anycast.ready
+	assert.Equal(t, direct, tunnel.Provision().Direct)
+
+	anycast.drop(0)
+	<-edge.ready
+
+	// TLS verifies the gateway's name, not the IP we dialed
+	serverName, dialed := directDials.Load(net.JoinHostPort(direct, "443"))
+	require.True(t, dialed)
+	anycastHost, _, err := net.SplitHostPort(anycast.endpoint())
+	require.NoError(t, err)
+	assert.Equal(t, anycastHost, serverName)
+
+	assert.Equal(t, 1, anycast.connections(), "reconnect went to the anycast endpoint")
+	assert.Equal(t, "FlyV1 fm2_test", edge.headerFor(0))
+
+	st, _ := tunnel.StateAndConfig()
+	assert.Equal(t, peerA, st.Peer.Peerip)
+
+	// the direct IP stops answering: the next reconnect tries it, then
+	// falls back to the anycast endpoint
+	directAddr := net.JoinHostPort(direct, "443")
+	directDials.Delete(directAddr)
+	directRoutes.Delete(directAddr)
+
+	edge.drop(0)
+	<-anycast.ready
+
+	_, dialed = directDials.Load(directAddr)
+	assert.True(t, dialed, "reconnect didn't try the direct IP first")
+	assert.Equal(t, 1, edge.connections())
+	assert.Equal(t, 2, anycast.connections(), "reconnect didn't fall back to the anycast endpoint")
+
+	st, _ = tunnel.StateAndConfig()
+	assert.Equal(t, peerA, st.Peer.Peerip)
+
+	select {
+	case <-tunnel.Done():
+		t.Fatalf("tunnel died: %v", tunnel.Err())
+	default:
+	}
 }

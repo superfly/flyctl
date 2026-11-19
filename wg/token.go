@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"time"
@@ -20,7 +21,7 @@ import (
 //
 //	gateway -> client   tokenHello  {version, pubkey}
 //	client  -> gateway  tokenAuth   {version, token, pubkey, org_slug, network_name?}
-//	gateway -> client   tokenResult {peer_ip, dns, expires_at} or {error, code}
+//	gateway -> client   tokenResult {peer_ip, dns, expires_at, direct?} or {error, code}
 //
 // followed by the usual length-prefixed WireGuard frame relay. Control
 // packets use the same 4-byte big-endian length framing, with JSON payloads.
@@ -95,6 +96,11 @@ type TokenProvision struct {
 	DNS           string
 	ExpiresAt     time.Time
 
+	// Direct is the gateway's own public IP, if it gave one: reconnecting
+	// there instead of to the anycast endpoint lands us on the same gateway,
+	// which keeps our peer address.
+	Direct string
+
 	// token is the header this provision was granted for, so a refresh can
 	// tell whether there's anything new to present
 	token string
@@ -154,6 +160,7 @@ type tokenResult struct {
 	PeerIP    string `json:"peer_ip,omitempty"`
 	DNS       string `json:"dns,omitempty"`
 	ExpiresAt int64  `json:"expires_at,omitempty"`
+	Direct    string `json:"direct,omitempty"`
 	Code      string `json:"code,omitempty"`
 	Error     string `json:"error,omitempty"`
 }
@@ -320,6 +327,13 @@ func tokenExchange(conn net.Conn, auth *TokenAuth, token string) (*TokenProvisio
 			DNS:           res.DNS,
 			ExpiresAt:     time.Unix(res.ExpiresAt, 0),
 			token:         token,
+		}
+		// optional, and only ever a shortcut: ignore one we can't use
+		// rather than fail the session over it
+		if ip := net.ParseIP(res.Direct); ip != nil {
+			prov.Direct = ip.String()
+		} else if res.Direct != "" {
+			log.Printf("ignoring malformed direct endpoint %q from gateway", res.Direct)
 		}
 		if err := prov.validate(); err != nil {
 			return nil, err

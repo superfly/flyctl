@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -486,6 +487,73 @@ func TestUpdateMachinesRecoveryDoesNotRefreshVolumes(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), updateCalls.Load())
 	assert.Zero(t, getVolumesCalls.Load(), "deploy recovery must not refresh the obsolete client-side volume inventory")
+}
+
+// TestUpdateMachinesRecoveryAppStateError checks that when a machine update
+// fails and re-reading the app state for the retry also fails, the deploy
+// returns the error instead of panicking on the nil state (FLYCTL-3SB).
+func TestUpdateMachinesRecoveryAppStateError(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+	oldMachine := &fly.Machine{
+		ID:         "machine1",
+		State:      "started",
+		HostStatus: fly.HostStatusOk,
+		Config:     &fly.MachineConfig{Image: "image1"},
+	}
+	newMachine := &fly.Machine{
+		ID:         "machine1",
+		State:      "started",
+		HostStatus: fly.HostStatusOk,
+		Config:     &fly.MachineConfig{Image: "image2"},
+	}
+
+	listErr := errors.New("list machines: stream error: INTERNAL_ERROR")
+	flapsClient := &mock.FlapsClient{
+		AcquireLeaseFunc: func(context.Context, string, string, *int) (*fly.MachineLease, error) {
+			return &fly.MachineLease{Data: &fly.MachineLeaseData{Nonce: "nonce"}}, nil
+		},
+		ReleaseLeaseFunc: func(context.Context, string, string, string) error {
+			return nil
+		},
+		RefreshLeaseFunc: func(_ context.Context, _, _ string, _ *int, _ string) (*fly.MachineLease, error) {
+			return &fly.MachineLease{Status: "success", Data: &fly.MachineLeaseData{Nonce: "nonce"}}, nil
+		},
+		UpdateFunc: func(context.Context, string, fly.LaunchMachineInput, string) (*fly.Machine, error) {
+			return nil, assert.AnError
+		},
+		ListFunc: func(context.Context, string, string) ([]*fly.Machine, error) {
+			return nil, listErr
+		},
+		GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+			return newMachine, nil
+		},
+	}
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	md := &machineDeployment{
+		flapsClient:     flapsClient,
+		io:              iostreams.FromContext(ctx),
+		app:             &flaps.App{Name: "myapp"},
+		appConfig:       &appconfig.Config{AppName: "myapp"},
+		waitTimeout:     10 * time.Second,
+		deployRetries:   1,
+		maxUnavailable:  1,
+		skipSmokeChecks: true,
+	}
+	oldState := &AppState{Machines: []*fly.Machine{oldMachine}}
+	newState := &AppState{Machines: []*fly.Machine{newMachine}}
+
+	var err error
+	assert.NotPanics(t, func() {
+		err = md.updateMachinesWRecovery(ctx, oldState, oldState, newState, nil, updateMachineSettings{
+			pushForward:      true,
+			skipHealthChecks: true,
+			skipSmokeChecks:  true,
+		})
+	})
+	assert.ErrorIs(t, err, listErr)
+	assert.ErrorContains(t, err, "failed to get current app state")
 }
 
 // TestUpdateMachinesWithNewMachine verifies that deploying with a new machine

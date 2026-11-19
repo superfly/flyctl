@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -47,9 +48,8 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if !planValidateHighAvailability(ctx, state.Plan, org.Billable, !state.warnedNoCcHa) {
+	if !state.validateHighAvailability(ctx, state.Plan, org.Billable) {
 		state.Plan.HighAvailability = false
-		state.warnedNoCcHa = true
 	}
 
 	planStep := plan.GetPlanStep(ctx)
@@ -376,6 +376,12 @@ func isComputeValid(c *appconfig.Compute) bool {
 	return c != nil && c.MachineGuest != nil
 }
 
+// memoryEquals reports whether a fly.toml `memory` value is mb megabytes.
+func memoryEquals(memory string, mb int) bool {
+	parsed, err := helpers.ParseSize(memory, units.RAMInBytes, units.MiB)
+	return err == nil && parsed == mb
+}
+
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
 	appConfig := state.appConfig
@@ -458,12 +464,46 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	}
 
 	if plan.MemoryMB != 0 {
-		for i := range appConfig.Compute {
-			if isComputeValid(appConfig.Compute[i]) && appConfig.Compute[i].MemoryMB == 0 {
-				appConfig.Compute[i].MemoryMB = plan.MemoryMB
+		// The plan's memory describes the default process group, so it is
+		// the final word for that group's compute: a vm_memory edited in a
+		// manifest replaces the `memory` the compute came with. Other
+		// computes only take it when they have no memory of their own.
+		//
+		// It is written as `memory` alone. A memory_mb next to it would win
+		// over `memory`, so a later edit of `memory` would do nothing.
+		defaultCompute := appConfig.ComputeForGroup(appConfig.DefaultProcessName())
+		for _, compute := range appConfig.Compute {
+			if !isComputeValid(compute) || compute.MemoryMB != 0 {
+				continue
+			}
+			if compute.Memory == "" || (compute == defaultCompute && !memoryEquals(compute.Memory, plan.MemoryMB)) {
+				compute.Memory = memoryString(plan.MemoryMB)
 			}
 		}
 	}
+}
+
+// appNameIsDerived reports whether the plan's app name was derived from the
+// directory rather than chosen by the user (--name, fly.toml, the web UI).
+func appNameIsDerived(source *launchPlanSource) bool {
+	return source != nil && source.appNameSource == appNameDerivedFromDir
+}
+
+// findFreeAppName returns prefix plus a random suffix that isn't taken.
+func findFreeAppName(ctx context.Context, prefix string) (string, bool) {
+	b := haikunator.Haikunator().Delimiter("-")
+	prefix = b.TrimSuffix(prefix)
+	if prefix != "" {
+		prefix += "-"
+	}
+	for i := 0; i < 4; i++ {
+		name := prefix + b.String()
+		if taken, err := appNameTaken(ctx, name); err == nil && !taken {
+			return name, true
+		}
+	}
+
+	return "", false
 }
 
 // createApp creates the fly.io app for the plan
@@ -478,6 +518,26 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		Name: state.Plan.AppName,
 		Org:  org.Slug,
 	})
+	if flaps.IsNameTakenError(err) && appNameIsDerived(state.PlanSource) {
+		// The name came from the directory, not from the user, and app names
+		// are global: pick a free one instead of failing the launch.
+		if name, ok := findFreeAppName(ctx, state.Plan.AppName); ok {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+				"App name %q is already taken, so this app is called %q instead. Use --name to choose one.\n",
+				state.Plan.AppName, name)
+			if pg := state.Plan.Postgres.FlyPostgres; pg != nil && pg.AppName == state.Plan.AppName+"-db" {
+				pg.AppName = name + "-db"
+			}
+			if pg := state.Plan.Postgres.ManagedPostgres; pg != nil && pg.DbName == state.Plan.AppName+"-db" {
+				pg.DbName = name + "-db"
+			}
+			state.Plan.AppName = name
+			state.appConfig.AppName = name
+			state.PlanSource.appNameSource = "generated"
+
+			app, err = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{Name: name, Org: org.Slug})
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

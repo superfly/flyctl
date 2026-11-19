@@ -23,7 +23,7 @@ import (
 
 const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
 #
 
 `
@@ -68,7 +68,7 @@ func LoadConfigAsMap(path string) (rawConfig map[string]any, err error) {
 	} else if strings.HasSuffix(path, ".yaml") {
 		err = yaml.Unmarshal(buf, &rawConfig)
 		if err == nil {
-			stringifyYAMLMapKeys(rawConfig)
+			_, err = stringifyYAMLMapKeys(rawConfig)
 		}
 	} else {
 		err = toml.Unmarshal(buf, &rawConfig)
@@ -256,7 +256,9 @@ func unmarshalYAML(buf []byte) (*Config, error) {
 	if err := yaml.Unmarshal(buf, &cfgMap); err != nil {
 		return nil, err
 	}
-	stringifyYAMLMapKeys(cfgMap)
+	if _, err := stringifyYAMLMapKeys(cfgMap); err != nil {
+		return nil, err
+	}
 	cfg, err := applyPatches(cfgMap)
 
 	// In case of parsing error fallback to bare compatibility
@@ -275,27 +277,42 @@ func unmarshalYAML(buf []byte) (*Config, error) {
 	return cfg, nil
 }
 
-// stringifyYAMLMapKeys converts map keys from interface{} to string
-// This is necessary because the yaml.v2 package unmarshals map keys as interface{},
-// which is not compatible with TOML and JSON which unmarshal map keys as strings.
-func stringifyYAMLMapKeys(obj any) any {
+// stringifyYAMLMapKeys normalizes nested YAML maps and rejects non-string keys
+// before config patches or JSON encoding can encounter them.
+func stringifyYAMLMapKeys(obj any) (any, error) {
 	if arrayobj, ok := obj.([]any); ok {
 		for i, v := range arrayobj {
-			arrayobj[i] = stringifyYAMLMapKeys(v)
+			value, err := stringifyYAMLMapKeys(v)
+			if err != nil {
+				return nil, err
+			}
+			arrayobj[i] = value
 		}
 	} else if mapobj, ok := obj.(map[string]any); ok {
 		for k, v := range mapobj {
-			mapobj[k] = stringifyYAMLMapKeys(v)
+			value, err := stringifyYAMLMapKeys(v)
+			if err != nil {
+				return nil, err
+			}
+			mapobj[k] = value
 		}
 	} else if mapobj, ok := obj.(map[any]any); ok {
 		newmap := make(map[string]any)
 		for k, v := range mapobj {
-			newmap[k.(string)] = stringifyYAMLMapKeys(v)
+			key, ok := k.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid YAML map key %v (%T): keys must be strings", k, k)
+			}
+			value, err := stringifyYAMLMapKeys(v)
+			if err != nil {
+				return nil, err
+			}
+			newmap[key] = value
 		}
 		obj = newmap
 	}
 
-	return obj
+	return obj, nil
 }
 
 // intelligently add new lines to the JSON and YAML outputs

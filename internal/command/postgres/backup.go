@@ -161,6 +161,7 @@ func runBackupRestore(ctx context.Context) error {
 	// Build the input for the new cluster using the leader's configuration.
 	input := &flypg.CreateClusterInput{
 		AppName:                   destAppName,
+		Network:                   flapsutil.NetworkName(app),
 		Organization:              org,
 		InitialClusterSize:        1,
 		ImageRef:                  imageRef,
@@ -174,9 +175,8 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	launcher := flypg.NewLauncher(client)
-	launcher.LaunchMachinesPostgres(ctx, input, false)
 
-	return nil
+	return launcher.LaunchMachinesPostgres(ctx, input, false)
 }
 
 func newBackupCreate() *cobra.Command {

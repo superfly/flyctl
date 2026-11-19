@@ -361,3 +361,68 @@ func TestRemovePendingLoginWaitsForAConcurrentSave(t *testing.T) {
 		t.Fatalf("the newer login was deleted: %+v, %v", p, err)
 	}
 }
+
+// A pending login file that exists but can't be read, as on Windows while
+// another process replaces it, doesn't end the wait right away: the next read
+// tells what happened. Only one that stays unreadable counts as gone.
+func TestPendingWatchToleratesAnUnreadableFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir) // the config lock file lands in the working directory under tests
+	pendingPath := filepath.Join(dir, "pending-login.json")
+	configFile := filepath.Join(dir, "config.yml")
+	if err := config.SetAccessToken(configFile, "old-token"); err != nil {
+		t.Fatal(err)
+	}
+	unreadable := func() {
+		t.Helper()
+		if err := os.WriteFile(pendingPath, []byte("{"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("then replaced", func(t *testing.T) {
+		w := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+		unreadable()
+		if _, done, err := w.check(); done {
+			t.Fatalf("an unreadable file ended the wait: %v", err)
+		}
+
+		if err := savePendingLogin(pendingPath, pendingLogin{ID: "sess2", Verifier: "verifier2", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+			t.Fatal(err)
+		}
+		if _, done, err := w.check(); !done || !errors.Is(err, errLoginReplaced) {
+			t.Fatalf("expected errLoginReplaced, got done=%v, %v", done, err)
+		}
+	})
+
+	t.Run("stays unreadable", func(t *testing.T) {
+		w := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+		unreadable()
+		for i := 0; i < maxUnreadableChecks; i++ {
+			if _, done, err := w.check(); done {
+				t.Fatalf("check %d ended the wait: %v", i+1, err)
+			}
+		}
+		if _, done, err := w.check(); !done || !errors.Is(err, errLoginNotPending) {
+			t.Fatalf("expected errLoginNotPending, got done=%v, %v", done, err)
+		}
+	})
+
+	t.Run("a good read resets the count", func(t *testing.T) {
+		w := &pendingWatch{path: pendingPath, configFile: configFile, id: "sess1", token: "old-token"}
+		for i := 0; i < 2; i++ {
+			unreadable()
+			for j := 0; j < maxUnreadableChecks; j++ {
+				if _, done, err := w.check(); done {
+					t.Fatalf("round %d check %d ended the wait: %v", i+1, j+1, err)
+				}
+			}
+			if err := savePendingLogin(pendingPath, pendingLogin{ID: "sess1", Verifier: "verifier1", ExpiresAt: time.Now().Add(time.Minute)}); err != nil {
+				t.Fatal(err)
+			}
+			if _, done, err := w.check(); done {
+				t.Fatalf("still pending, but the wait ended: %v", err)
+			}
+		}
+	})
+}

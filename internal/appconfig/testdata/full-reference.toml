@@ -227,3 +227,16 @@ host_dedication_id = "06031957"
    entrypoint = ["/bin/sh"]
    kill_timeout = "5s"
    kill_signal = "SIGKILL"
+
+# Semi-durable cache disk attached to the Machine. Contents generally survive Machine stops, restarts, and updates,
+# but durability is not guaranteed. Expect Machines to start with an empty cache disk at any time.
+# Removing this entry removes the disk on deploy.
+[[cache_disk]]
+  # Size of the cache disk with an explicit unit (e.g. 512mb, 1gb).
+  # Changing the size discards the disk's contents.
+  size = "1gb"
+  # Absolute path in the Machine at which to mount the cache disk.
+  path = "/cache"
+  # When omitted, applies only to the default process group.
+  # Each Machine can have at most one cache disk.
+  processes = ["web"]

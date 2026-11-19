@@ -36,7 +36,8 @@ func TestConfigurePythonProcfile(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			files := map[string]string{"requirements.txt": "pyTelegramBotAPI\nPillow\n"}
+			// app.py lets the fallback generate a Procfile when there is none.
+			files := map[string]string{"requirements.txt": "pyTelegramBotAPI\nPillow\n", "app.py": ""}
 			if tc.procfile != "" {
 				files["Procfile"] = tc.procfile
 			}

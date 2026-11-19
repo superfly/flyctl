@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -21,6 +22,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// exitEventReadTimeout bounds each Machine GET while waiting for an exit event,
+// so one stalled read leaves time for another poll.
+var exitEventReadTimeout = 30 * time.Second
 
 type WaitOptions struct {
 	allowInfinite bool
@@ -380,7 +385,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		case uptime > 10*time.Second && !lm.isConstantlyRestarting(machine):
 			return nil
 		case lm.isConstantlyRestarting(machine):
-			err := fmt.Errorf("the app appears to be crashing")
+			err := flyerr.Expected(errors.New("the app appears to be crashing"))
 			tracing.RecordErrorEvent(waitCtx, span, err)
 
 			return err
@@ -533,13 +538,16 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 	}
 	statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType1))
 	for {
-		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.appName, lm.Machine().ID)
+		readCtx, cancelRead := context.WithTimeout(waitCtx, exitEventReadTimeout)
+		updateMachine, err := lm.flapsClient.Get(readCtx, lm.appName, lm.Machine().ID)
+		readTimedOut := errors.Is(readCtx.Err(), context.DeadlineExceeded)
+		cancelRead()
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
-			return nil, err
+			return nil, waitCtx.Err()
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
-		case err != nil && flapsutil.IsTransientFlapsError(err):
+			return nil, fmt.Errorf("timeout waiting for %s event after %s for machine %s: %w", eventType1, eventType2, lm.Machine().ID, waitCtx.Err())
+		case err != nil && (readTimedOut || flapsutil.IsTransientFlapsError(err)):
 			select {
 			case <-time.After(b.Duration()):
 			case <-waitCtx.Done():

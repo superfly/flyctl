@@ -651,6 +651,19 @@ func TestValidateVolumeConfigReplacementChecksCountByRegion(t *testing.T) {
 	require.NoError(t, md.validateVolumeConfig(context.Background()))
 }
 
+func Test_launchInputForRestart_nilConfig(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{})
+	assert.NoError(t, err)
+
+	got, err := md.launchInputForRestart(&fly.Machine{
+		ID:               "unreachable",
+		HostStatus:       fly.HostStatusUnreachable,
+		IncompleteConfig: &fly.MachineConfig{},
+	})
+	assert.Nil(t, got)
+	assert.ErrorContains(t, err, `can't restart machine unreachable: its host status is "unreachable"`)
+}
+
 // Test machineDeployment.restartOnly
 func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{

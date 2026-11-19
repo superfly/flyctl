@@ -1,6 +1,7 @@
 package command
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -93,6 +94,92 @@ func withAccessTokenFlagContext(ctx context.Context, value string) context.Conte
 	}
 
 	return flag.NewContext(ctx, fs)
+}
+
+func TestTryOpenUserURL(t *testing.T) {
+	const url = "https://fly.example/sso/start"
+
+	setup := func(t *testing.T, ci bool, tty bool) (context.Context, *bytes.Buffer) {
+		for _, key := range []string{"CI", "GITHUB_ACTIONS", "CONTINUOUS_INTEGRATION", "BUILD_NUMBER", "RUN_ID"} {
+			t.Setenv(key, "") // restores the original value after the test
+			os.Unsetenv(key)
+		}
+		if ci {
+			t.Setenv("CI", "true")
+		}
+		t.Setenv("PATH", t.TempDir()) // no open/xdg-open to start a browser
+
+		ios, _, _, errOut := iostreams.Test()
+		ios.SetStdinTTY(tty)
+		ios.SetStdoutTTY(tty)
+
+		return iostreams.NewContext(context.Background(), ios), errOut
+	}
+
+	printsURL := func(t *testing.T, errOut *bytes.Buffer) {
+		t.Helper()
+		for _, line := range strings.Split(errOut.String(), "\n") {
+			if strings.TrimSpace(line) == url {
+				return
+			}
+		}
+		t.Fatalf("expected the URL on its own line, got %q", errOut.String())
+	}
+
+	t.Run("headless", func(t *testing.T) {
+		ctx, errOut := setup(t, false, false)
+
+		if err := tryOpenUserURL(ctx, url); err != nil {
+			t.Fatalf("expected nil so the sign-in is awaited, got %v", err)
+		}
+		printsURL(t, errOut)
+		if !strings.Contains(errOut.String(), "SSO") {
+			t.Fatalf("expected the notice to mention SSO, got %q", errOut.String())
+		}
+	})
+
+	t.Run("CI", func(t *testing.T) {
+		ctx, errOut := setup(t, true, false)
+
+		err := tryOpenUserURL(ctx, url)
+		if err == nil || !strings.Contains(err.Error(), "FLY_API_TOKEN") {
+			t.Fatalf("expected an error naming FLY_API_TOKEN, got %v", err)
+		}
+		printsURL(t, errOut)
+	})
+
+	t.Run("terminal without a browser", func(t *testing.T) {
+		ctx, errOut := setup(t, false, true)
+
+		if err := tryOpenUserURL(ctx, url); err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		printsURL(t, errOut)
+	})
+}
+
+func TestIncompleteSSO(t *testing.T) {
+	const url = "https://fly.example/sso/start"
+
+	ios, _, _, _ := iostreams.Test()
+	ctx := logger.NewContext(context.Background(), logger.New(ios.ErrOut, logger.Info, false))
+	needs := func(b bool, err error) func() (bool, error) {
+		return func() (bool, error) { return b, err }
+	}
+
+	if err := incompleteSSO(ctx, "", needs(true, nil)); err != nil {
+		t.Fatalf("no URL shown: expected nil, got %v", err)
+	}
+	if err := incompleteSSO(ctx, url, needs(false, nil)); err != nil {
+		t.Fatalf("sign-in finished: expected nil, got %v", err)
+	}
+	if err := incompleteSSO(ctx, url, needs(false, errors.New("bad token"))); err != nil {
+		t.Fatalf("inspection error: expected nil, got %v", err)
+	}
+	err := incompleteSSO(ctx, url, needs(true, nil))
+	if err == nil || !strings.Contains(err.Error(), "SSO sign-in was not completed") || !strings.Contains(err.Error(), url) {
+		t.Fatalf("expected an incomplete SSO error naming the URL, got %v", err)
+	}
 }
 
 func TestRequireSessionWithoutTerminal(t *testing.T) {

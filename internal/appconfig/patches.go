@@ -19,6 +19,7 @@ var configPatches = []patchFuncType{
 	patchTopLevelChecks,
 	patchCompute,
 	patchMounts,
+	patchCacheDisks,
 	patchMetrics,
 	patchTopFields,
 	patchBuild,
@@ -660,4 +661,26 @@ func stringOrSliceToSlice(input any, fieldName string) ([]string, error) {
 	} else {
 		return nil, fmt.Errorf("could not cast %v of type %T to []string on %s", input, input, fieldName)
 	}
+}
+
+// Cache disk sizes require a string with an explicit unit.
+func patchCacheDisks(cfg map[string]any) (map[string]any, error) {
+	raw, ok := cfg["cache_disk"]
+	if !ok {
+		return cfg, nil
+	}
+	disks, err := ensureArrayOfMap(raw)
+	if err != nil {
+		return nil, fmt.Errorf("error processing cache_disk: %w", err)
+	}
+	for _, disk := range disks {
+		if size, ok := disk["size"]; ok {
+			if _, ok := size.(string); !ok {
+				return nil, fmt.Errorf("cache_disk.size must be a string with an explicit unit (e.g. 512mb or 1gb)")
+			}
+		}
+	}
+	cfg["cache_disk"] = disks
+
+	return cfg, nil
 }
