@@ -271,7 +271,13 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 		if price == "" {
 			price = fmt.Sprintf("$%d/mo", plan.PricePerMonth/100)
 		}
-		fmt.Fprintf(io.Out, "\nYour database is billed at %s (%s)%s.\n", colorize.Green(price), plan.DisplayName, prodPack)
+		var regions string
+		if n := len(*readRegions); n == 1 {
+			regions = ", with 1 read region"
+		} else if n > 1 {
+			regions = fmt.Sprintf(", with %d read regions", n)
+		}
+		fmt.Fprintf(io.Out, "\nYour database is billed at %s (%s)%s%s. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green(price), plan.DisplayName, regions, prodPack)
 	}
 
 	return addOn, err

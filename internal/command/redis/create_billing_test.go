@@ -14,14 +14,18 @@ import (
 )
 
 func TestCreatePrintsPlanBilling(t *testing.T) {
-	const paygTip = "consider switching to a fixed-price plan"
+	const (
+		paygTip  = "consider switching to a fixed-price plan"
+		docsLink = "See https://docs.fly.io/upstash/redis#pricing"
+	)
 
 	tests := []struct {
-		name     string
-		plan     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
-		prodPack bool
-		want     string
-		wantPayg bool
+		name        string
+		plan        gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan
+		prodPack    bool
+		readRegions []fly.Region
+		want        string
+		wantPayg    bool
 	}{
 		{
 			name:     "pay-as-you-go",
@@ -32,12 +36,12 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 		{
 			name: "fixed plan",
 			plan: gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", Description: "$10/mo + $5 per read region", PricePerMonth: 1000},
-			want: "billed at $10/mo + $5 per read region (Fixed 250MB).",
+			want: "billed at $10/mo + $5 per read region (Fixed 250MB). " + docsLink,
 		},
 		{
 			name: "fixed plan without description",
 			plan: gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", PricePerMonth: 1000},
-			want: "billed at $10/mo (Fixed 250MB).",
+			want: "billed at $10/mo (Fixed 250MB). " + docsLink,
 		},
 		{
 			name:     "pay-as-you-go with ProdPack",
@@ -50,7 +54,20 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 			name:     "fixed plan with ProdPack",
 			plan:     gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", Description: "$10/mo + $5 per read region", PricePerMonth: 1000},
 			prodPack: true,
-			want:     "billed at $10/mo + $5 per read region (Fixed 250MB), plus $200/mo for ProdPack.",
+			want:     "billed at $10/mo + $5 per read region (Fixed 250MB), plus $200/mo for ProdPack. " + docsLink,
+		},
+		{
+			name:        "fixed plan with read regions",
+			plan:        gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", Description: "$10/mo + $5 per read region", PricePerMonth: 1000},
+			readRegions: []fly.Region{{Code: "iad"}, {Code: "lhr"}},
+			want:        "billed at $10/mo + $5 per read region (Fixed 250MB), with 2 read regions. " + docsLink,
+		},
+		{
+			name:        "fixed plan with one read region and ProdPack",
+			plan:        gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan{Id: "fixed_250", DisplayName: "Fixed 250MB", Description: "$10/mo + $5 per read region", PricePerMonth: 1000},
+			prodPack:    true,
+			readRegions: []fly.Region{{Code: "iad"}},
+			want:        "billed at $10/mo + $5 per read region (Fixed 250MB), with 1 read region, plus $200/mo for ProdPack. " + docsLink,
 		},
 	}
 
@@ -61,7 +78,8 @@ func TestCreatePrintsPlanBilling(t *testing.T) {
 				"CreateAddOn":      `{"createAddOn": {"addOn": {"name": "cache", "publicUrl": "redis://cache"}}}`,
 			}}
 			create := func(ctx context.Context) error {
-				_, err := Create(ctx, &uiex.Organization{Slug: "personal"}, "cache", &fly.Region{Code: "ord"}, &tt.plan, true, false, false, tt.prodPack, &[]fly.Region{})
+				readRegions := append([]fly.Region{}, tt.readRegions...)
+				_, err := Create(ctx, &uiex.Organization{Slug: "personal"}, "cache", &fly.Region{Code: "ord"}, &tt.plan, true, false, false, tt.prodPack, &readRegions)
 
 				return err
 			}
