@@ -193,22 +193,18 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 	poolSize := md.getPoolSize(len(machineTuples))
 
 	if !settings.skipLeaseAcquisition {
-		// A recovery deploy can enter with leases already held by its caller.
-		// On acquisition failure, release only leases obtained in this call.
-		var initiallyUnleased []machinePairing
-		for _, pair := range machineTuples {
-			m := pair.oldMachine
-			if m == nil {
-				m = pair.newMachine
-			}
-			if m.LeaseNonce == "" {
-				initiallyUnleased = append(initiallyUnleased, pair)
-			}
-		}
 		attempts := 0
 
 		defer func() {
 			span.SetAttributes(attribute.Int("lease_attempts", attempts))
+		}()
+
+		defer func() {
+			err := md.releaseLeases(ctx, machineTuples, machineLogger)
+			if err != nil {
+				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
+				tracing.RecordErrorEvent(ctx, span, err)
+			}
 		}()
 
 		for {
@@ -222,21 +218,9 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 			if attempts > md.deployRetries || errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
 				tracing.RecordErrorEvent(ctx, span, err)
 
-				if releaseErr := md.releaseLeases(ctx, initiallyUnleased, machineLogger); releaseErr != nil {
-					tracing.RecordErrorEvent(ctx, span, releaseErr)
-				}
-
 				return fmt.Errorf("failed to acquire leases: %w", err)
 			}
 		}
-
-		defer func() {
-			err := md.releaseLeases(ctx, machineTuples, machineLogger)
-			if err != nil {
-				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
-				tracing.RecordErrorEvent(ctx, span, err)
-			}
-		}()
 	}
 
 	pgroup := errgroup.Group{}

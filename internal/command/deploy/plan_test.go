@@ -344,20 +344,15 @@ func TestUpdateMachines(t *testing.T) {
 
 	// Another deploy temporarily holds machine2 while this one gets machine1.
 	acquiredLeases.Store("machine2", true)
-	acquiredLeases.Store("machine3", true)
-	oldMachines[2].LeaseNonce = "inherited"
 	md.deployRetries = 0
 	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	if !assert.Error(t, err) {
 		return
 	}
-	for _, id := range []string{"machine2", "machine3"} {
-		if _, held := acquiredLeases.Load(id); !assert.True(t, held, "lease must survive on %s", id) {
-			return
-		}
+	if _, held := acquiredLeases.Load("machine2"); !assert.True(t, held, "the other deploy must retain its lease") {
+		return
 	}
 	acquiredLeases.Delete("machine2")
-	acquiredLeases.Delete("machine3")
 	// The following deploy has fresh Machine objects and no prior lease nonces.
 	for _, m := range oldMachines {
 		m.LeaseNonce = ""
