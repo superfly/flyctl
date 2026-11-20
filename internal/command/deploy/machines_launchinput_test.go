@@ -71,7 +71,7 @@ func testLaunchInputForBasic(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 
@@ -196,7 +196,7 @@ func testLaunchInputForOnMounts(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	// New machine must ask flaps to select an available volume by name.
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, fly.MachineMount{Volume: "data", Path: "/data", Name: "data"}, li.Config.Mounts[0])
@@ -285,7 +285,7 @@ func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	// New machine must ask flaps to select an available volume by name.
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, fly.MachineMount{
@@ -534,7 +534,7 @@ func testLaunchInputForLaunchFiles(t *testing.T) {
 		},
 		MinSecretsVersion: nil,
 	}
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 }
