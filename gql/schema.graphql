@@ -7208,6 +7208,11 @@ type Organization implements Node {
   provisionsBetaExtensions: Boolean!
 
   """
+  Purchased credits in cents, as the billing page shows them. Null when the organization's billing parent pays its bills.
+  """
+  purchasedCreditBalance: Int
+
+  """
   Unmodified unique org slug
   """
   rawSlug: String!

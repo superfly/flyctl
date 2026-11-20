@@ -1,0 +1,120 @@
+package orgs
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"testing"
+
+	genq "github.com/Khan/genqlient/graphql"
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
+
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/iostreams"
+)
+
+// runShowWith runs `fly orgs show personal` against a GraphQL client that
+// answers the credit balance query with respond, and returns stdout.
+func runShowWith(t *testing.T, jsonOutput bool, respond mock.GraphQLClient) (string, error) {
+	t.Helper()
+
+	io, _, out, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), io)
+	ctx = config.NewContext(ctx, &config.Config{JSONOutput: jsonOutput})
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
+			return &uiex.Organization{Slug: slug}, nil
+		},
+	})
+	ctx = flyutil.NewContextWithClient(ctx, &mock.Client{
+		GetDetailedOrganizationBySlugFunc: func(_ context.Context, slug string) (*fly.OrganizationDetails, error) {
+			org := &fly.OrganizationDetails{Name: "Example Org", Slug: slug, Type: "PERSONAL", ViewerRole: "admin"}
+			org.Members.Edges = []fly.OrganizationMembershipEdge{{Node: fly.User{Name: "Ada", Email: "ada@example.com"}, Role: "admin"}}
+			return org, nil
+		},
+		GenqClientFunc: func() genq.Client { return respond },
+	})
+	flags := pflag.NewFlagSet("show", pflag.ContinueOnError)
+	require.NoError(t, flags.Parse([]string{"personal"}))
+	ctx = flagctx.NewContext(ctx, flags)
+
+	err := runShow(ctx)
+
+	return out.String(), err
+}
+
+func creditBalanceAnswer(t *testing.T, data string) mock.GraphQLClient {
+	return func(_ context.Context, req *genq.Request, resp *genq.Response) error {
+		assert.Equal(t, "GetOrganizationCreditBalance", req.OpName)
+		vars, err := json.Marshal(req.Variables)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"slug":"personal"}`, string(vars))
+
+		return json.Unmarshal([]byte(data), resp.Data)
+	}
+}
+
+func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
+	stdout, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":123456}}`))
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Type      : PERSONAL")
+	assert.Contains(t, stdout, "Credit    : $1,234.56")
+}
+
+func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
+	stdout, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":1000}}`))
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &got))
+	assert.Equal(t, float64(1000), got["PurchasedCreditBalanceCents"])
+	assert.Equal(t, "personal", got["Slug"])
+	assert.Equal(t, "Example Org", got["Name"])
+	assert.Contains(t, got, "Members")
+}
+
+// A billing child spends its parent's credit, so it has no balance of its own.
+func TestShowBilledThroughParent(t *testing.T) {
+	answer := `{"organization":{"purchasedCreditBalance":null}}`
+
+	stdout, err := runShowWith(t, false, creditBalanceAnswer(t, answer))
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Credit    : billed to parent organization")
+
+	stdout, err = runShowWith(t, true, creditBalanceAnswer(t, answer))
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &got))
+	assert.Contains(t, got, "PurchasedCreditBalanceCents")
+	assert.Nil(t, got["PurchasedCreditBalanceCents"])
+}
+
+func TestShowReturnsCreditBalanceError(t *testing.T) {
+	stdout, err := runShowWith(t, false, func(context.Context, *genq.Request, *genq.Response) error {
+		return errors.New("Field 'purchasedCreditBalance' doesn't exist on type 'Organization'")
+	})
+
+	require.ErrorContains(t, err, "failed retrieving credit balance for organization personal")
+	assert.Empty(t, stdout)
+}
+
+func TestFormatCredit(t *testing.T) {
+	for cents, want := range map[int]string{
+		0:         "$0.00",
+		5:         "$0.05",
+		1000:      "$10.00",
+		123456:    "$1,234.56",
+		100000000: "$1,000,000.00",
+	} {
+		assert.Equal(t, want, formatCredit(&cents))
+	}
+}
