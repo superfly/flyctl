@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
@@ -24,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/inmem"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -138,9 +140,13 @@ func TestDeployWithConfig_FailedBuildWithoutWireguardRunsOnce(t *testing.T) {
 
 	builds := 0
 	ctx = flyutil.NewContextWithClient(ctx, server.Client())
-	ctx = flapsutil.NewContextWithClient(ctx, server.FlapsClient("test-basic"))
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+		return &flaps.App{Name: "test-basic", Organization: flaps.AppOrganizationInfo{Slug: "my-org", InternalNumericID: 7}}, nil
+	}})
+	checkOrg := authtest.Organization(t, 7)
 	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
-		CreateBuildFunc: func(context.Context, uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+		CreateBuildFunc: func(ctx context.Context, _ uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+			checkOrg(ctx)
 			builds++
 			return &uiex.BuildResponse{}, nil
 		},

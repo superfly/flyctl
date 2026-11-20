@@ -12,6 +12,7 @@ import (
 )
 
 type mockFlapsClient struct {
+	checkRequest     func(context.Context)
 	LaunchFunc       func(context.Context, string, fly.LaunchMachineInput) (*fly.Machine, error)
 	breakLaunch      bool
 	breakWait        bool
@@ -374,6 +375,9 @@ func (m *mockFlapsClient) Kill(ctx context.Context, appName, machineID string) (
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	if m.checkRequest != nil {
+		m.checkRequest(ctx)
+	}
 	if m.LaunchFunc != nil {
 		return m.LaunchFunc(ctx, appName, builder)
 	}
@@ -628,6 +632,9 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 }
 
 func (m *mockFlapsClient) Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+	if m.checkRequest != nil {
+		m.checkRequest(ctx)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

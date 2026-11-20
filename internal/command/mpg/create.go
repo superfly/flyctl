@@ -161,6 +161,7 @@ func runCreate(ctx context.Context) error {
 	params := &cmdv2.CreateClusterParams{
 		Name:           appName,
 		OrgSlug:        slug,
+		OrgID:          org.InternalNumericID,
 		Plan:           plan,
 		PGMajorVersion: pgMajorVersion,
 		PostGISEnabled: flag.GetBool(ctx, "enable-postgis-support"),

@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -355,7 +356,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	ctx, span := tracing.GetTracer().Start(ctx, "set_machines_for_deployment")
 	defer span.End()
 
-	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx, md.app.Name)
+	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.app.Name)
 	if err != nil {
 		tracing.RecordError(ctx, span, err, "failed to list machines")
 
@@ -370,7 +371,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 
 		var err error
-		activeMachines, err = md.flapsClient.ListActive(ctx, md.app.Name)
+		activeMachines, err = md.flapsClient.ListActive(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.app.Name)
 		if err != nil {
 			tracing.RecordError(ctx, span, err, "failed to list machines")
 
@@ -541,7 +542,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 		return nil
 	}
 
-	volumes, err := md.flapsClient.GetVolumes(ctx, md.app.Name)
+	volumes, err := md.flapsClient.GetVolumes(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.app.Name)
 	if err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	}
@@ -699,7 +700,7 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
 		return nil
 	}
-	release, err := uiexutil.LatestRelease(ctx, md.uiexClient, md.app.Name)
+	release, err := uiexutil.LatestRelease(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.uiexClient, md.app.Name)
 	if err == nil && release != nil && release.ImageRef != "" {
 		md.img = release.ImageRef
 
@@ -730,7 +731,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
 	defer span.End()
 
-	resp, err := md.uiexClient.CreateRelease(ctx, uiex.CreateReleaseRequest{
+	resp, err := md.uiexClient.CreateRelease(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), uiex.CreateReleaseRequest{
 		AppName:    md.app.Name,
 		Strategy:   uiex.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition: md.appConfig,
@@ -772,7 +773,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	err := retry.Do(
 		func() error {
 			attempts++
-			_, err := md.uiexClient.UpdateRelease(ctx, md.releaseId, status, metadata)
+			_, err := md.uiexClient.UpdateRelease(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.releaseId, status, metadata)
 
 			return err
 		},

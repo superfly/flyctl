@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiexutil"
 )
@@ -43,6 +44,8 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	if err != nil {
 		return nil, err
 	}
+
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 
 	// Start the feature flag client, if we haven't already
 	if launchdarkly.ClientFromContext(ctx) == nil {

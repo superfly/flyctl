@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
 	"go.uber.org/mock/gomock"
@@ -184,8 +185,9 @@ func TestValidateBuilderNotStarted(t *testing.T) {
 
 func TestCreateBuilder(t *testing.T) {
 	ctx := testingContext(t)
+	assertOrg := authtest.Organization(t, 7)
 	org := &uiex.Organization{
-		Slug: "bigorg",
+		Slug: "bigorg", InternalNumericID: 7,
 	}
 	p := NewProvisionerUiexOrg(org)
 
@@ -203,6 +205,7 @@ func TestCreateBuilder(t *testing.T) {
 
 	flapsClient := mock.FlapsClient{
 		CreateAppFunc: func(ctx context.Context, req flaps.CreateAppRequest) (*flaps.App, error) {
+			assertOrg(ctx)
 			if createAppShouldFail {
 				return nil, errors.New("create app failed")
 			}
@@ -212,6 +215,7 @@ func TestCreateBuilder(t *testing.T) {
 			}, nil
 		},
 		AssignIPFunc: func(ctx context.Context, appName string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+			assertOrg(ctx)
 			if allocateIPAddressShouldFail {
 				return nil, errors.New("allocate ip address failed")
 			}
@@ -226,6 +230,7 @@ func TestCreateBuilder(t *testing.T) {
 			return nil
 		},
 		CreateVolumeFunc: func(ctx context.Context, appName string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+			assertOrg(ctx)
 			if createVolumeShouldFail {
 				createVolumeAttempts += 1
 
@@ -245,6 +250,7 @@ func TestCreateBuilder(t *testing.T) {
 			return nil, nil
 		},
 		LaunchFunc: func(ctx context.Context, appName string, input fly.LaunchMachineInput) (*fly.Machine, error) {
+			assertOrg(ctx)
 			launched = input.Config
 			if launchShouldFail {
 				return nil, errors.New("launch machine failed")

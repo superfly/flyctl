@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/state"
 )
 
@@ -117,12 +118,12 @@ func RunCreate(ctx context.Context) (err error) {
 		createReq.Network = v
 	}
 
-	app, err := flapsClient.CreateApp(ctx, createReq)
+	app, err := flapsClient.CreateApp(requestauth.WithOrganizations(ctx, org.InternalNumericID), createReq)
 	if err != nil {
 		return err
 	}
 
-	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(requestauth.WithOrganizations(ctx, org.InternalNumericID), app.Name); err != nil {
 		return err
 	}
 
