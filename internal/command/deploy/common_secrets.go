@@ -10,7 +10,7 @@ var commonSecretSubstrings = []string{"KEY", "PRIVATE", "DATABASE_URL", "PASSWOR
 
 // Match simple SQLite filenames only. Authorities, URI options and escaped
 // characters can change the meaning of a connection string.
-var localSQLiteFile = regexp.MustCompile(`^(file:(///|/)?|sqlite:/{3,4}|/|\.\.?/)([A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.(db|sqlite|sqlite3)$`)
+var localSQLiteFile = regexp.MustCompile(`^(file:(///|/)?|sqlite3?:/{3,4}|/|\.\.?/)([A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.(db|sqlite|sqlite3)$`)
 
 func shouldWarnAboutEnv(name, value string) bool {
 	// Allowlist for strings which contain a substring but are not secrets.
