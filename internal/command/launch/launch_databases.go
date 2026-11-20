@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flag"
@@ -23,7 +24,9 @@ import (
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/uiex"
+	uiexmpg "github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -361,21 +364,41 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 // attachToManagedPostgres attaches an existing Managed Postgres cluster to the app
 func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID string) error {
-	var (
-		io        = iostreams.FromContext(ctx)
-		mpgClient = mpgv1.ClientFromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
 	// Get cluster details to verify it exists and get credentials
 	fmt.Fprintf(io.Out, "Attaching to existing Managed Postgres cluster %s...\n", clusterID)
 
-	var cluster mpgv1.GetManagedClusterResponse
+	// Like `fly mpg attach`, read a v2 cluster's credentials from the v2 API:
+	// the v1 API returns none for it.
+	var clusterOrgSlug, baseUri string
 	err := retry.Do(
 		func() error {
-			var retryErr error
-			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, clusterID)
+			found, _, err := mpg.ClusterFromArgOrSelect(ctx, clusterID, "")
+			if err != nil {
+				return err
+			}
 
-			return retryErr
+			if found.Version == uiexmpg.VersionV1 {
+				cluster, err := mpgv1.ClientFromContext(ctx).GetManagedClusterById(ctx, clusterID)
+				if err != nil {
+					return err
+				}
+				clusterOrgSlug, baseUri = cluster.Data.Organization.Slug, cluster.Credentials.ConnectionUri
+
+				return nil
+			}
+
+			cluster, err := mpgv2.ClientFromContext(ctx).GetClusterById(ctx, clusterID)
+			if err != nil {
+				return err
+			}
+			if cluster.Credentials.ConnectionUri == "" {
+				return errors.New("connection URI is empty; cannot attach without valid credentials")
+			}
+			clusterOrgSlug, baseUri = cluster.Data.Organization.Slug, cluster.Credentials.ConnectionUri
+
+			return nil
 		},
 		retry.Context(ctx),
 		retry.Attempts(3),
@@ -400,7 +423,6 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 		return fmt.Errorf("failed retrieving organization for app %s: %w", state.Plan.AppName, err)
 	}
 
-	clusterOrgSlug := cluster.Data.Organization.Slug
 	appOrgSlug := appOrg.RawSlug
 
 	if appOrgSlug != clusterOrgSlug {
@@ -409,11 +431,11 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 	}
 
 	// Build connection URI with the database name from the plan (if provided)
-	connectionUri := cluster.Credentials.ConnectionUri
+	connectionUri := baseUri
 	dbName := state.Plan.Postgres.ManagedPostgres.DbName
 	if dbName != "" {
 		// Parse the base connection URI and replace the database name
-		parsedUri, err := url.Parse(cluster.Credentials.ConnectionUri)
+		parsedUri, err := url.Parse(baseUri)
 		if err != nil {
 			return fmt.Errorf("failed to parse connection URI: %w", err)
 		}

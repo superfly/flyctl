@@ -13,17 +13,22 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/uiex"
+	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -468,6 +473,124 @@ func TestPostgresAttachRetry(t *testing.T) {
 	err := attachFailed(errors.New("secrets unavailable"), retry)
 	assert.ErrorIs(t, err, errPostgresAttach)
 	assert.ErrorContains(t, err, retry)
+}
+
+// Launching onto an existing Managed Postgres cluster sets the URL `fly mpg
+// attach` sets, on the plan's database. The v1 API has no credentials for a
+// v2 cluster, so reading them there set DATABASE_URL to just "/my-app-db".
+func TestAttachExistingManagedPostgres(t *testing.T) {
+	attach := func(t *testing.T, flapsClient *mock.FlapsClient, v1 *mock.MpgV1Client, v2 *mock.MpgV2Client) (map[string]*string, error) {
+		t.Helper()
+		var secrets map[string]*string
+		flapsClient.GetAppFunc = func(context.Context, string) (*flaps.App, error) {
+			return &flaps.App{Name: "my-app", Organization: flaps.AppOrganizationInfo{Slug: "my-org"}}, nil
+		}
+		flapsClient.UpdateAppSecretsFunc = func(_ context.Context, _ string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+			secrets = values
+
+			return &fly.UpdateAppSecretsResp{Version: 1}, nil
+		}
+
+		// Setting secrets saves their version to the config file, whose lock
+		// lands in the working directory when no config dir is set.
+		dir := t.TempDir()
+		t.Chdir(dir)
+		previous := viper.Get(flyctl.ConfigAppSecretsMinvers)
+		t.Cleanup(func() { viper.Set(flyctl.ConfigAppSecretsMinvers, previous) })
+
+		ios, _, _, _ := iostreams.Test()
+		ctx := iostreams.NewContext(context.Background(), ios)
+		ctx = state.WithConfigDirectory(ctx, dir)
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+		ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+			GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+				return &uiex.Organization{RawSlug: "my-org"}, nil
+			},
+		})
+		ctx = mpgv1.NewContextWithClient(ctx, v1)
+		ctx = mpgv2.NewContextWithClient(ctx, v2)
+
+		launch := &launchState{LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+			AppName:  "my-app",
+			Postgres: plan.PostgresPlan{ManagedPostgres: &plan.ManagedPostgresPlan{DbName: "my-app-db", ClusterID: "cluster-id"}},
+		}}}
+		err := launch.createManagedPostgres(ctx)
+
+		return secrets, err
+	}
+
+	// v2Cluster stubs a v2 cluster whose pooler URI is uri. The v1 API
+	// finds the cluster but, as for any v2 cluster, has no credentials.
+	v2Cluster := func(uri string) (*mock.FlapsClient, *mock.MpgV1Client, *mock.MpgV2Client) {
+		flapsClient := &mock.FlapsClient{
+			GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
+				return flaps.ManagedPostgresCluster{ID: id, Organization: flaps.ManagedPostgresOrganization{Slug: "my-org"}}, nil
+			},
+		}
+		v1 := &mock.MpgV1Client{
+			GetManagedClusterByIdFunc: func(_ context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+				return mpgv1.GetManagedClusterResponse{Data: mpgv1.ManagedCluster{Id: id, Version: 2, Organization: fly.Organization{Slug: "my-org"}}}, nil
+			},
+		}
+		v2 := &mock.MpgV2Client{
+			GetClusterByIdFunc: func(_ context.Context, id string) (mpgv2.GetClusterResponse, error) {
+				return mpgv2.GetClusterResponse{
+					Data: mpgv2.ManagedCluster{Id: id, Organization: fly.Organization{Slug: "my-org"}},
+					Credentials: mpgv2.GetClusterCredentialsResponse{
+						User:          "fly-user",
+						Password:      "secret",
+						DBName:        "fly-db",
+						ConnectionUri: uri,
+					},
+				}, nil
+			},
+		}
+
+		return flapsClient, v1, v2
+	}
+
+	t.Run("v2 cluster", func(t *testing.T) {
+		flapsClient, v1, v2 := v2Cluster("postgresql://fly-user:secret@pgbouncer.cluster-id.flympg.net/fly-db")
+		secrets, err := attach(t, flapsClient, v1, v2)
+
+		require.NoError(t, err)
+		require.Contains(t, secrets, "DATABASE_URL")
+		assert.Equal(t, "postgresql://fly-user:secret@pgbouncer.cluster-id.flympg.net/my-app-db", *secrets["DATABASE_URL"])
+	})
+
+	t.Run("v2 cluster without credentials yet", func(t *testing.T) {
+		flapsClient, v1, v2 := v2Cluster("")
+		secrets, err := attach(t, flapsClient, v1, v2)
+
+		assert.ErrorContains(t, err, "connection URI is empty")
+		assert.Nil(t, secrets)
+	})
+
+	t.Run("v1 cluster", func(t *testing.T) {
+		flapsClient := &mock.FlapsClient{
+			GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
+				return flaps.ManagedPostgresCluster{}, flaps.ErrFlapsNotFound
+			},
+		}
+		v1 := &mock.MpgV1Client{
+			GetManagedClusterByIdFunc: func(_ context.Context, id string) (mpgv1.GetManagedClusterResponse, error) {
+				return mpgv1.GetManagedClusterResponse{
+					Data:        mpgv1.ManagedCluster{Id: id, Version: 1, Organization: fly.Organization{Slug: "my-org"}},
+					Credentials: mpgv1.GetManagedClusterCredentialsResponse{ConnectionUri: "postgresql://fly-user:secret@pgbouncer.v1.flympg.net/fly-db"},
+				}, nil
+			},
+		}
+		v2 := &mock.MpgV2Client{
+			GetClusterByIdFunc: func(context.Context, string) (mpgv2.GetClusterResponse, error) {
+				return mpgv2.GetClusterResponse{}, errors.New("v2 API asked about a v1 cluster")
+			},
+		}
+		secrets, err := attach(t, flapsClient, v1, v2)
+
+		require.NoError(t, err)
+		require.Contains(t, secrets, "DATABASE_URL")
+		assert.Equal(t, "postgresql://fly-user:secret@pgbouncer.v1.flympg.net/my-app-db", *secrets["DATABASE_URL"])
+	})
 }
 
 // Phoenix and others generate secrets, set on the app before fly.toml is
