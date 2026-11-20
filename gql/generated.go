@@ -2565,10 +2565,16 @@ type GetOrganizationCreditBalanceOrganization struct {
 	// included. A billing child reports its own balance, not the parent's credit
 	// that it spends. A negative value is money owed on Stripe.
 	CreditBalance int `json:"creditBalance"`
+	// True when a parent organization pays for this organization's usage with its
+	// own credit. creditBalance is then this organization's own balance, which it doesn't spend.
+	BilledByParent bool `json:"billedByParent"`
 }
 
 // GetCreditBalance returns GetOrganizationCreditBalanceOrganization.CreditBalance, and is useful for accessing the field via an interface.
 func (v *GetOrganizationCreditBalanceOrganization) GetCreditBalance() int { return v.CreditBalance }
+
+// GetBilledByParent returns GetOrganizationCreditBalanceOrganization.BilledByParent, and is useful for accessing the field via an interface.
+func (v *GetOrganizationCreditBalanceOrganization) GetBilledByParent() bool { return v.BilledByParent }
 
 // GetOrganizationCreditBalanceResponse is returned by GetOrganizationCreditBalance on success.
 type GetOrganizationCreditBalanceResponse struct {
@@ -4602,6 +4608,7 @@ const GetOrganizationCreditBalance_Operation = `
 query GetOrganizationCreditBalance ($slug: String!) {
 	organization(slug: $slug) {
 		creditBalance
+		billedByParent
 	}
 }
 `

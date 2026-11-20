@@ -7023,6 +7023,12 @@ type Organization implements Node {
     last: Int
   ): AppConnection!
   billable: Boolean!
+
+  """
+  True when a parent organization pays for this organization's usage with its
+  own credit. creditBalance is then this organization's own balance, which it doesn't spend.
+  """
+  billedByParent: Boolean!
   billingStatus: BillingStatus!
 
   """

@@ -69,8 +69,9 @@ func runShow(ctx context.Context) (err error) {
 		} else {
 			_ = render.JSON(io.Out, struct {
 				*fly.OrganizationDetails
-				PurchasedCreditBalanceCents int
-			}{org, credit})
+				PurchasedCreditBalanceCents *int
+				BilledByParent              bool
+			}{org, credit, credit == nil})
 		}
 
 		return nil
@@ -115,25 +116,35 @@ func runShow(ctx context.Context) (err error) {
 }
 
 // purchasedCreditBalance returns the org's purchased credit balance in cents,
-// without trial credits and other grants. Money owed is a negative balance,
-// which reads as 0, as on the billing page.
-func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string) (int, error) {
+// without trial credits and other grants, or nil when a parent org pays for its
+// usage. Money owed is a negative balance, which reads as 0, as on the billing page.
+func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string) (*int, error) {
 	_ = `# @genqlient
 	query GetOrganizationCreditBalance($slug: String!) {
 		organization(slug: $slug) {
 			creditBalance
+			billedByParent
 		}
 	}
 	`
 
 	resp, err := gql.GetOrganizationCreditBalance(ctx, client, slug)
 	if err != nil {
-		return 0, err
+		return nil, err
+	}
+	if resp.Organization.BilledByParent {
+		return nil, nil
 	}
 
-	return max(resp.Organization.CreditBalance, 0), nil
+	cents := max(resp.Organization.CreditBalance, 0)
+
+	return &cents, nil
 }
 
-func formatCredit(cents int) string {
-	return fmt.Sprintf("$%s.%02d", humanize.Comma(int64(cents/100)), cents%100)
+func formatCredit(cents *int) string {
+	if cents == nil {
+		return "billed through parent organization"
+	}
+
+	return fmt.Sprintf("$%s.%02d", humanize.Comma(int64(*cents/100)), *cents%100)
 }

@@ -73,7 +73,7 @@ func decodeJSON(t *testing.T, stdout string) map[string]any {
 }
 
 func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
-	stdout, stderr, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"creditBalance":123456}}`))
+	stdout, stderr, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"creditBalance":123456,"billedByParent":false}}`))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "Type            : PERSONAL")
@@ -82,11 +82,12 @@ func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
 }
 
 func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
-	stdout, _, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"creditBalance":1000}}`))
+	stdout, _, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"creditBalance":1000,"billedByParent":false}}`))
 	require.NoError(t, err)
 
 	got := decodeJSON(t, stdout)
 	assert.Equal(t, float64(1000), got["PurchasedCreditBalanceCents"])
+	assert.Equal(t, false, got["BilledByParent"])
 	assert.Equal(t, "personal", got["Slug"])
 	assert.Equal(t, "Example Org", got["Name"])
 	assert.Contains(t, got, "Members")
@@ -94,7 +95,7 @@ func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
 
 // Money owed is a negative balance, which the billing page shows as $0.
 func TestShowMoneyOwedReadsAsZero(t *testing.T) {
-	answer := `{"organization":{"creditBalance":-700}}`
+	answer := `{"organization":{"creditBalance":-700,"billedByParent":false}}`
 
 	stdout, _, err := runShowWith(t, false, creditBalanceAnswer(t, answer))
 	require.NoError(t, err)
@@ -103,6 +104,23 @@ func TestShowMoneyOwedReadsAsZero(t *testing.T) {
 	stdout, _, err = runShowWith(t, true, creditBalanceAnswer(t, answer))
 	require.NoError(t, err)
 	assert.Equal(t, float64(0), decodeJSON(t, stdout)["PurchasedCreditBalanceCents"])
+}
+
+// A billing child spends its parent's credit, so its own balance isn't shown.
+func TestShowBilledThroughParent(t *testing.T) {
+	answer := `{"organization":{"creditBalance":300,"billedByParent":true}}`
+
+	stdout, _, err := runShowWith(t, false, creditBalanceAnswer(t, answer))
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Purchased credit: billed through parent organization")
+	assert.NotContains(t, stdout, "$3.00")
+
+	stdout, _, err = runShowWith(t, true, creditBalanceAnswer(t, answer))
+	require.NoError(t, err)
+	got := decodeJSON(t, stdout)
+	assert.Contains(t, got, "PurchasedCreditBalanceCents")
+	assert.Nil(t, got["PurchasedCreditBalanceCents"])
+	assert.Equal(t, true, got["BilledByParent"])
 }
 
 // The rest of the org still shows when the balance can't be read, such as
@@ -125,6 +143,7 @@ func TestShowWarnsWhenCreditBalanceFails(t *testing.T) {
 	got := decodeJSON(t, stdout)
 	assert.Equal(t, "personal", got["Slug"])
 	assert.NotContains(t, got, "PurchasedCreditBalanceCents")
+	assert.NotContains(t, got, "BilledByParent")
 	assert.Contains(t, stderr, "Couldn't get the purchased credit balance")
 }
 
@@ -136,6 +155,7 @@ func TestFormatCredit(t *testing.T) {
 		123456:    "$1,234.56",
 		100000000: "$1,000,000.00",
 	} {
-		assert.Equal(t, want, formatCredit(cents), cents)
+		assert.Equal(t, want, formatCredit(&cents), cents)
 	}
+	assert.Equal(t, "billed through parent organization", formatCredit(nil))
 }
