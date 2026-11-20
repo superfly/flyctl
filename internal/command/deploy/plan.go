@@ -225,6 +225,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 				if releaseErr := md.releaseLeases(ctx, initiallyUnleased, machineLogger); releaseErr != nil {
 					tracing.RecordErrorEvent(ctx, span, releaseErr)
 				}
+
 				return fmt.Errorf("failed to acquire leases: %w", err)
 			}
 		}
