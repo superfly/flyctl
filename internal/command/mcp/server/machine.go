@@ -1368,14 +1368,12 @@ var MachineCommands = []FlyCommand{
 				Description: "Automatically start a stopped Machine when a network request is received",
 				Required:    false,
 				Type:        "boolean",
-				Default:     "true",
 			},
 			"autostop": {
 				Description: "Automatically stop a Machine when there are no network requests for it",
 				Required:    false,
 				Type:        "enum",
 				Enum:        []string{"off", "stop", "suspend"},
-				Default:     "off",
 			},
 			"command": {
 				Description: "Command to run on the machine",
@@ -1429,11 +1427,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "boolean",
 			},
-			"use-zstd": {
-				Description: "Use zstd compression for the image",
-				Required:    false,
-				Type:        "boolean",
-			},
 			"vm-cpu-kind": {
 				Description: "The CPU kind to use for the new machine",
 				Required:    false,
@@ -1463,7 +1456,7 @@ var MachineCommands = []FlyCommand{
 		},
 
 		Builder: func(args map[string]string) ([]string, error) {
-			cmdArgs := []string{"machine", "create"}
+			cmdArgs := []string{"machine", "update"}
 
 			if id, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, id)
@@ -1485,13 +1478,16 @@ var MachineCommands = []FlyCommand{
 				value, err := strconv.ParseBool(autostart)
 				if err != nil {
 					return nil, fmt.Errorf("invalid value for autostart: %v", err)
-				} else if value {
-					cmdArgs = append(cmdArgs, "--autostart")
 				}
+				cmdArgs = append(cmdArgs, "--autostart="+strconv.FormatBool(value))
 			}
 
 			if autostop, ok := args["autostop"]; ok {
-				cmdArgs = append(cmdArgs, "--autostop", autostop)
+				cmdArgs = append(cmdArgs, "--autostop="+autostop)
+			}
+
+			if command, ok := args["command"]; ok {
+				cmdArgs = append(cmdArgs, "--command", command)
 			}
 
 			if entrypoint, ok := args["entrypoint"]; ok {
@@ -1518,15 +1514,6 @@ var MachineCommands = []FlyCommand{
 				cmdArgs = append(cmdArgs, "--restart", restart)
 			}
 
-			if rm, ok := args["rm"]; ok {
-				value, err := strconv.ParseBool(rm)
-				if err != nil {
-					return nil, fmt.Errorf("invalid value for rm: %v", err)
-				} else if value {
-					cmdArgs = append(cmdArgs, "--rm")
-				}
-			}
-
 			if schedule, ok := args["schedule"]; ok {
 				cmdArgs = append(cmdArgs, "--schedule", schedule)
 			}
@@ -1537,15 +1524,6 @@ var MachineCommands = []FlyCommand{
 					return nil, fmt.Errorf("invalid value for skip-dns-registration: %v", err)
 				} else if value {
 					cmdArgs = append(cmdArgs, "--skip-dns-registration")
-				}
-			}
-
-			if useZstd, ok := args["use-zstd"]; ok {
-				value, err := strconv.ParseBool(useZstd)
-				if err != nil {
-					return nil, fmt.Errorf("invalid value for use-zstd: %v", err)
-				} else if value {
-					cmdArgs = append(cmdArgs, "--use-zstd")
 				}
 			}
 
@@ -1574,6 +1552,8 @@ var MachineCommands = []FlyCommand{
 					cmdArgs = append(cmdArgs, "--"+name+"="+value)
 				}
 			}
+
+			cmdArgs = append(cmdArgs, "--yes")
 
 			return cmdArgs, nil
 		},
