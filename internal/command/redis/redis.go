@@ -35,6 +35,7 @@ func New() (cmd *cobra.Command) {
 		newDashboard(),
 		newReset(),
 		newProxy(),
+		newAttach(),
 	)
 
 	return cmd
