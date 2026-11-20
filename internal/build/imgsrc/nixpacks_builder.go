@@ -217,7 +217,7 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 
 	build.PushStart()
-	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+	if err := pushToFly(ctx, docker, streams, opts.Tag, build); err != nil {
 		build.PushFinish()
 
 		return nil, "", err

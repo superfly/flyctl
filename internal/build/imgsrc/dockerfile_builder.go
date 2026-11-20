@@ -289,7 +289,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, docker, streams, opts.Tag, build); err != nil {
 			build.PushFinish()
 
 			return nil, "", err
@@ -481,7 +481,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
-func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
+func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string, bld *build) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_registry", trace.WithAttributes(attribute.String("tag", tag)))
 	defer span.End()
 
@@ -492,18 +492,23 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	}()
 
 	metrics.Started(ctx, "image_push")
-	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
+
+	// A push is only finished once its response stream is drained: a registry
+	// refusal surfaces while the stream is read, not when ImagePush returns.
+	defer func() {
+		metrics.Status(ctx, "image_push", err == nil)
+	}()
+
+	builderType, builderRegion := bld.builderAttributes()
+	sendImgPushMetrics := metrics.StartImagePushTiming(ctx, builderType, builderRegion)
 
 	pushResp, err := docker.ImagePush(ctx, tag, image.PushOptions{
 		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
 	})
-	metrics.Status(ctx, "image_push", err == nil)
-
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")
 	}
 	defer pushResp.Close() // skipcq: GO-S2307
-	sendImgPushMetrics()
 
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
 	if err != nil {
@@ -517,6 +522,10 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 
 		return errors.Wrap(err, "error rendering push status stream")
 	}
+
+	// Reported only for a push that completed: a failed upload's duration
+	// would skew the distribution, and image_push/status records the failure.
+	sendImgPushMetrics()
 
 	return nil
 }

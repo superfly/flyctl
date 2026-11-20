@@ -442,6 +442,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, flapsC
 	remoteBuilderOrg := app.Organization.Slug
 
 	build.SetBuilderMetaPart1(remoteBuilderType, remoteBuilderAppName, machine.ID)
+	build.SetBuilderRegion(machine.Region)
 
 	if msg := fmt.Sprintf("Waiting for remote builder %s...\n", remoteBuilderAppName); streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)

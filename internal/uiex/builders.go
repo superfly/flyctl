@@ -39,6 +39,7 @@ type BuildStrategyAttempt struct {
 
 type BuilderMeta struct {
 	BuilderType     string `json:"builder_type"`
+	BuilderRegion   string `json:"builder_region,omitempty"`
 	BuildkitEnabled bool   `json:"buildkit_enabled"`
 	DockerVersion   string `json:"docker_version"`
 	Platform        string `json:"platform"`

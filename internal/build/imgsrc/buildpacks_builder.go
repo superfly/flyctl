@@ -190,7 +190,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, docker, streams, opts.Tag, build); err != nil {
 			build.PushFinish()
 
 			return nil, "", err
