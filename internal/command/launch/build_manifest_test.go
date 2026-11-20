@@ -87,6 +87,17 @@ func (e *manifestEnv) buildManifestFrom(t *testing.T, dirName string, files map[
 func (e *manifestEnv) buildManifestIn(t *testing.T, dir string, args ...string) (manifestResult, error) {
 	t.Helper()
 
+	ctx, out, errOut := e.launchContext(t, dir, args...)
+	m, cache, err := buildManifest(ctx, nil, &recoverableErrorBuilder{canEnterUi: false})
+
+	return manifestResult{ctx: ctx, manifest: m, cache: cache, dir: dir, out: out.String(), errOut: errOut.String()}, err
+}
+
+// launchContext is the context for a headless `fly launch --path <dir> args...`
+// against e, with what it prints to stdout and stderr.
+func (e *manifestEnv) launchContext(t *testing.T, dir string, args ...string) (context.Context, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
+
 	// GitHub Actions detection reads the real repository; keep it out.
 	t.Setenv("OPT_OUT_GITHUB_ACTIONS", "1")
 	unsetCIEnv(t)
@@ -147,9 +158,7 @@ func (e *manifestEnv) buildManifestIn(t *testing.T, dir string, args ...string) 
 		},
 	})
 
-	m, cache, err := buildManifest(ctx, nil, &recoverableErrorBuilder{canEnterUi: false})
-
-	return manifestResult{ctx: ctx, manifest: m, cache: cache, dir: dir, out: out.String(), errOut: errOut.String()}, err
+	return ctx, out, errOut
 }
 
 func writeFiles(t *testing.T, dir string, files map[string]string) {

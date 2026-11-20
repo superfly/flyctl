@@ -26,12 +26,14 @@ import (
 	"github.com/superfly/flyctl/internal/flag/validation"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -232,6 +234,21 @@ func launchUiAvailable(ctx context.Context) bool {
 		!env.IsCI()
 }
 
+// stdoutToStderr keeps stdout for the manifest. Scanners also print to
+// os.Stdout and the terminal logger, so those move as well.
+func stdoutToStderr(ctx context.Context) (context.Context, func()) {
+	streams := *iostreams.FromContext(ctx)
+	streams.Out = streams.ErrOut
+
+	stdout, termLogger := os.Stdout, terminal.DefaultLogger
+	os.Stdout = os.Stderr
+	terminal.DefaultLogger = logger.New(os.Stderr, termLogger.Level(), true).AndLogToFile()
+
+	return iostreams.NewContext(ctx, &streams), func() {
+		os.Stdout, terminal.DefaultLogger = stdout, termLogger
+	}
+}
+
 func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
@@ -419,6 +436,13 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	manifestOut := io.Out
+	if launchManifest == nil && flag.GetBool(ctx, "manifest") && flag.GetString(ctx, "manifest-path") == "" {
+		var restore func()
+		ctx, restore = stdoutToStderr(ctx)
+		defer restore()
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -468,7 +492,7 @@ func run(ctx context.Context) (err error) {
 
 				jsonEncoder = json.NewEncoder(file)
 			} else {
-				jsonEncoder = json.NewEncoder(io.Out)
+				jsonEncoder = json.NewEncoder(manifestOut)
 			}
 			jsonEncoder.SetIndent("", "  ")
 			encodeErr := jsonEncoder.Encode(launchManifest)
