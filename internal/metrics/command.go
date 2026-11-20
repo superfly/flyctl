@@ -43,7 +43,8 @@ type commandStats struct {
 
 // Ways a browser login can reach the CLI, reported by SetLoginMethod.
 const (
-	LoginMethodCallback     = "callback"      // the browser reached the local callback
+	LoginMethodCallback     = "callback"      // the approval page sent the code to the local callback
+	LoginMethodRedirect     = "redirect"      // the server redirected the browser to the local callback
 	LoginMethodPaste        = "paste"         // the user pasted the code into the terminal
 	LoginMethodOtherProcess = "other_process" // another flyctl process (e.g. --code) finished it
 	LoginMethodPoll         = "poll"          // a server without PKCE; the CLI polled for the token
