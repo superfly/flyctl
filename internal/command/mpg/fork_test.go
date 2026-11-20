@@ -71,7 +71,14 @@ func TestRunFork(t *testing.T) {
 			clusterVersion: 2,
 			args:           []string{clusterID, "--plan", "PERFORMANCE"},
 			wantFork:       true,
-			wantPlan:       "PERFORMANCE",
+			wantPlan:       "performance",
+		},
+		{
+			name:           "sends a plan as the help lists it in lowercase",
+			clusterVersion: 2,
+			args:           []string{clusterID, "--plan", "Dev-256"},
+			wantFork:       true,
+			wantPlan:       "dev-256",
 		},
 	}
 

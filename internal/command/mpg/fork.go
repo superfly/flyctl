@@ -51,8 +51,10 @@ func runFork(ctx context.Context) error {
 	name := flag.GetString(ctx, "name")
 	// The API is the source of truth for plans and matches them
 	// case-insensitively, so --plan is passed through rather than checked
-	// against MPGPlans. Leaving it empty keeps the source cluster's plan.
-	plan := strings.TrimSpace(flag.GetString(ctx, "plan"))
+	// against MPGPlans. It goes out lowercase: --plan Dev-256, as the help
+	// lists it, sends dev-256. Leaving it empty keeps the source cluster's
+	// plan.
+	plan := strings.ToLower(strings.TrimSpace(flag.GetString(ctx, "plan")))
 
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {

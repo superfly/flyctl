@@ -205,10 +205,11 @@ func planNames() string {
 	names := make([]string, 0, len(keys))
 	for _, key := range keys {
 		// --plan matches a plan's key in any case, so a plan whose name
-		// isn't its key, like Developer (dev-256), is listed by its key.
+		// isn't its key, like Developer (dev-256), is listed by its key,
+		// capitalized like the others: Dev-256.
 		name := MPGPlans[key].Name
 		if !strings.EqualFold(name, key) {
-			name = key
+			name = strings.ToUpper(key[:1]) + key[1:]
 		}
 		names = append(names, name)
 	}

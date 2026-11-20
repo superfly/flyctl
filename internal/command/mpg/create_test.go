@@ -85,7 +85,7 @@ func TestRunCreatePlanFlag(t *testing.T) {
 	t.Run("unknown plan fails instead of creating a Basic cluster", func(t *testing.T) {
 		plan, err := createdPlan(t, "--plan", "hobby")
 		require.ErrorContains(t, err, `unknown plan "hobby"`)
-		assert.ErrorContains(t, err, "dev-256, Basic, Starter, Launch, Scale, Performance")
+		assert.ErrorContains(t, err, "Dev-256, Basic, Starter, Launch, Scale, Performance")
 		assert.Empty(t, plan, "no cluster should be requested")
 	})
 
