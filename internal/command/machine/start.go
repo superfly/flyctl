@@ -152,6 +152,7 @@ func startAfterCreation(ctx context.Context, appName string, machine *fly.Machin
 		if err := startCtx.Err(); err != nil {
 			return false, err
 		}
+
 		return false, Start(startCtx, appName, machine)
 	default:
 		return false, fmt.Errorf("machine %s entered state %q after creation", machine.ID, current.State)
