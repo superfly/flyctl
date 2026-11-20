@@ -100,7 +100,7 @@ func newCreate() (cmd *cobra.Command) {
 		},
 		flag.Bool{
 			Name:        "enable-prodpack",
-			Description: "Enable ProdPack add-on for additional features ($200/mo)",
+			Description: "Enable ProdPack add-on for additional features (" + prodPackPrice + ")",
 		},
 	)
 
