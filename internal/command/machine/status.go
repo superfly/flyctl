@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/alecthomas/chroma/quick"
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/format"
@@ -56,6 +59,26 @@ func optJSONStrings(v []string) string {
 	} else {
 		return ""
 	}
+}
+
+func rootfsUsageSummary(events []*fly.MachineEvent) string {
+	var latest *fly.MachineEvent
+	for _, event := range events {
+		if event == nil || event.Request == nil || event.Request.RootfsUsage == nil {
+			continue
+		}
+		latest = event
+
+		break
+	}
+	if latest != nil {
+		usage := latest.Request.RootfsUsage
+		if usage.ImageBytes != nil && usage.OverlayBytes != nil && *usage.ImageBytes <= math.MaxUint64-*usage.OverlayBytes {
+			return fmt.Sprintf("%s (measured %s)", humanize.IBytes(*usage.ImageBytes+*usage.OverlayBytes), format.RelativeTime(latest.Time()))
+		}
+	}
+
+	return "unknown (measured at next stop/suspend)"
 }
 
 func runMachineStatus(ctx context.Context) (err error) {
@@ -137,6 +160,8 @@ func runMachineStatus(ctx context.Context) (err error) {
 	}
 
 	cols := []string{"ID", "Version", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
+	cols = append(cols, "RootFS Size")
+	obj[0] = append(obj[0], rootfsUsageSummary(machine.Events))
 
 	if len(mConfig.Mounts) > 0 {
 		cols = append(cols, "Volume")
