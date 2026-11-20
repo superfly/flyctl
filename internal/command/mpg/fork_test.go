@@ -67,18 +67,25 @@ func TestRunFork(t *testing.T) {
 			wantFork:       true,
 		},
 		{
-			name:           "does not validate plan against the local plan list",
+			name:           "sends a known plan's key, matched in any case",
 			clusterVersion: 2,
 			args:           []string{clusterID, "--plan", "PERFORMANCE"},
 			wantFork:       true,
-			wantPlan:       "performance",
+			wantPlan:       "Performance",
 		},
 		{
-			name:           "sends a plan as the help lists it in lowercase",
+			name:           "sends the key of a plan named as the help lists it",
 			clusterVersion: 2,
 			args:           []string{clusterID, "--plan", "Dev-256"},
 			wantFork:       true,
 			wantPlan:       "dev-256",
+		},
+		{
+			name:           "does not validate plan against the local plan list",
+			clusterVersion: 2,
+			args:           []string{clusterID, "--plan", "Hobby"},
+			wantFork:       true,
+			wantPlan:       "Hobby",
 		},
 	}
 
