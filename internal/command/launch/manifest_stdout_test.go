@@ -10,55 +10,122 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
 
+var flaskApp = map[string]string{
+	"requirements.txt": "flask\ngunicorn\n",
+	"app.py":           "from flask import Flask\napp = Flask(__name__)\n",
+}
+
 // Scripts pipe `fly launch --manifest` into jq. Scanners print to stdout three
 // ways: iostreams, fmt.Printf (Django) and the terminal logger (Flask).
 func TestLaunchManifestStdoutIsOnlyJSON(t *testing.T) {
-	flaskApp := map[string]string{
-		"requirements.txt": "flask\ngunicorn\n",
-		"app.py":           "from flask import Flask\napp = Flask(__name__)\n",
-	}
-
 	for _, tc := range []struct {
 		name   string
 		files  map[string]string
+		run    manifestRun
 		stderr []string
 	}{
-		{"django", djangoApp, []string{"Scanning source code", "WARNING: WSGI entrypoint detected"}},
-		{"flask", flaskApp, []string{"Scanning source code", "Detected requirements.txt"}},
+		{"django", djangoApp, manifestRun{args: []string{"--manifest"}}, []string{"Scanning source code", "WARNING: WSGI entrypoint detected"}},
+		{"flask", flaskApp, manifestRun{args: []string{"--manifest"}}, []string{"Scanning source code", "Detected requirements.txt"}},
+		{"plan propose", flaskApp, manifestRun{propose: true}, []string{"Detected requirements.txt"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := filepath.Join(t.TempDir(), "my-app")
-			writeFiles(t, dir, tc.files)
-			t.Chdir(dir)
+			stdout, stderr := tc.run.do(t, tc.files)
 
-			ctx, _, _ := newManifestEnv().launchContext(t, dir, "--manifest")
-			ctx = config.NewContext(ctx, &config.Config{Tokens: tokens.Parse("test-token")})
-			t.Setenv("FLY_TRACE_COLLECTOR_URL", "127.0.0.1")
-
-			stdout, stderr := captureProcessOutput(t)
-			ios := iostreams.FromContext(ctx)
-			ios.Out, ios.ErrOut = stdout, stderr
-			ctx = logger.NewContext(ctx, logger.New(stderr, logger.Info, false))
-
-			require.NoError(t, run(ctx))
-
-			out := readFile(t, stdout)
-			require.True(t, json.Valid(out), "stdout is not JSON:\n%s", out)
+			require.True(t, json.Valid([]byte(stdout)), "stdout is not JSON:\n%s", stdout)
 			var m LaunchManifest
-			require.NoError(t, json.Unmarshal(out, &m))
+			require.NoError(t, json.Unmarshal([]byte(stdout), &m))
 			assert.Equal(t, "my-app", m.Plan.AppName)
-
-			errOut := string(readFile(t, stderr))
 			for _, s := range tc.stderr {
-				assert.Contains(t, errOut, s)
+				assert.Contains(t, stderr, s)
 			}
 		})
 	}
+}
+
+// With a manifest file, or a terminal on stdout, output stays where it was.
+func TestLaunchManifestKeepsStdout(t *testing.T) {
+	manifestFile := filepath.Join(t.TempDir(), "manifest.json")
+
+	for _, tc := range []struct {
+		name         string
+		run          manifestRun
+		stdout       []string
+		manifestFile string
+	}{
+		{"manifest path", manifestRun{propose: true, args: []string{"--manifest-path", manifestFile}}, []string{"Detected requirements.txt"}, manifestFile},
+		{"terminal", manifestRun{stdoutTTY: true, args: []string{"--manifest"}}, []string{"Scanning source code", "Detected requirements.txt"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stdout, _ := tc.run.do(t, flaskApp)
+
+			for _, s := range tc.stdout {
+				assert.Contains(t, stdout, s)
+			}
+			if tc.manifestFile != "" {
+				manifest, err := os.ReadFile(tc.manifestFile)
+				require.NoError(t, err)
+				assert.True(t, json.Valid(manifest), "manifest file is not JSON:\n%s", manifest)
+			}
+		})
+	}
+}
+
+// manifestRun is a headless `fly launch`, or `fly launch plan propose`, over
+// a source tree in my-app.
+type manifestRun struct {
+	propose   bool
+	stdoutTTY bool
+	args      []string
+}
+
+// do runs r and returns what reached the process's stdout and stderr.
+func (r manifestRun) do(t *testing.T, files map[string]string) (stdout, stderr string) {
+	t.Helper()
+
+	dir := filepath.Join(t.TempDir(), "my-app")
+	writeFiles(t, dir, files)
+	t.Chdir(dir)
+
+	launchArgs := r.args
+	if r.propose {
+		launchArgs = nil
+	}
+	ctx, _, _ := newManifestEnv().launchContext(t, dir, launchArgs...)
+	if r.propose {
+		flags := newPropose().Flags()
+		require.NoError(t, flags.Parse(r.args))
+		ctx = flagctx.NewContext(ctx, flags)
+		ctx = state.WithWorkingDirectory(ctx, dir)
+	}
+	ctx = config.NewContext(ctx, &config.Config{Tokens: tokens.Parse("test-token")})
+	// run exports traces; keep them away from the production collector.
+	t.Setenv("FLY_TRACE_COLLECTOR_URL", "127.0.0.1")
+
+	stdoutFile, stderrFile := captureProcessOutput(t)
+	ios := iostreams.FromContext(ctx)
+	ios.Out, ios.ErrOut = stdoutFile, stderrFile
+	if r.stdoutTTY {
+		ios.SetStdoutTTY(true)
+	}
+	ctx = logger.NewContext(ctx, logger.New(stderrFile, logger.Info, false))
+
+	termLogger := terminal.DefaultLogger
+	if r.propose {
+		require.NoError(t, runPropose(ctx))
+	} else {
+		require.NoError(t, run(ctx))
+	}
+	assert.Same(t, stdoutFile, os.Stdout, "os.Stdout not restored")
+	assert.Same(t, termLogger, terminal.DefaultLogger, "terminal logger not restored")
+
+	return string(readFile(t, stdoutFile)), string(readFile(t, stderrFile))
 }
 
 // captureProcessOutput points os.Stdout, os.Stderr and the terminal logger,

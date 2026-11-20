@@ -436,8 +436,9 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	manifestOut := io.Out
-	if launchManifest == nil && flag.GetBool(ctx, "manifest") && flag.GetString(ctx, "manifest-path") == "" {
+	// In a terminal, prompts draw on stdout, so it stays as it is.
+	if launchManifest == nil && flag.GetBool(ctx, "manifest") &&
+		flag.GetString(ctx, "manifest-path") == "" && !io.IsStdoutTTY() {
 		var restore func()
 		ctx, restore = stdoutToStderr(ctx)
 		defer restore()
@@ -492,7 +493,7 @@ func run(ctx context.Context) (err error) {
 
 				jsonEncoder = json.NewEncoder(file)
 			} else {
-				jsonEncoder = json.NewEncoder(manifestOut)
+				jsonEncoder = json.NewEncoder(io.Out)
 			}
 			jsonEncoder.SetIndent("", "  ")
 			encodeErr := jsonEncoder.Encode(launchManifest)
