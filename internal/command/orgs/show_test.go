@@ -106,7 +106,7 @@ func TestShowMoneyOwedReadsAsZero(t *testing.T) {
 }
 
 // The rest of the org still shows when the balance can't be read, such as
-// against an API that doesn't have the field yet.
+// after a network or API error.
 func TestShowWarnsWhenCreditBalanceFails(t *testing.T) {
 	fail := func(context.Context, *genq.Request, *genq.Response) error {
 		return errors.New("Internal server error")
