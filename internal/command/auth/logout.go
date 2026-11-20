@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -43,6 +44,18 @@ To continue interacting with Fly, the user will need to log in again.
 func runLogout(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	path := state.ConfigFile(ctx)
+
+	// Sprites API tokens were minted from this login and outlive it unless
+	// revoked, which only this login can do. So revoke them first.
+	if unlock, err := spritestate.LockMintForLogin(ctx, state.ConfigDirectory(ctx)); err != nil {
+		warn(io, fmt.Sprintf("Going ahead without waiting: %v", err))
+	} else {
+		defer unlock()
+	}
+
+	for _, msg := range spritestate.RevokeForLoginChange(ctx, state.ConfigDirectory(ctx), path) {
+		warn(io, msg)
+	}
 
 	// Log out the local access token that `fly auth login` manages, rather than an
 	// externally supplied token that happened to take precedence for this run.

@@ -96,19 +96,28 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cmd, err = root.ExecuteContextC(ctx, cmd)
 
+	// A command that relays another process's exit status worked, whatever
+	// that status was.
+	var exitCodeErr *flyerr.ExitCodeError
+	relayedExit := errors.As(err, &exitCodeErr)
+
 	if cmd != nil {
-		metrics.RecordCommandFinish(cmd, err != nil)
+		metrics.RecordCommandFinish(cmd, err != nil && !relayedExit)
 	}
 
 	// shutdown background tasks, giving up to 5s for them to finish
 	task.FromContext(ctx).ShutdownWithTimeout(5 * time.Second)
 
 	var childExit *tracecmd.ExitError
+
 	switch {
 	case errors.As(err, &childExit):
 		return childExit.Code
 	case err == nil:
 		return 0
+	case relayedExit:
+		// The command has already written its own output.
+		return exitCodeErr.Code
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):

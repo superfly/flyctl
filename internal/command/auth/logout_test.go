@@ -3,18 +3,22 @@ package auth
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/tokens"
 
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -192,4 +196,79 @@ func TestLogoutTokenOverrideWarning(t *testing.T) {
 
 		require.Empty(t, logoutTokenOverrideWarning())
 	})
+}
+
+func TestRunLogoutRevokesSpritesTokens(t *testing.T) {
+	dir := logoutTestDir(t)
+
+	var revoked []string
+
+	spritesAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		revoked = append(revoked, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization")+" "+string(body))
+
+		if strings.Contains(r.URL.Path, "/stuck/") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(spritesAPI.Close)
+
+	require.NoError(t, spritestate.Save(dir, &spritestate.State{
+		DefaultOrg: "acme",
+		Tokens: map[string]string{
+			spritestate.TokenKey(spritesAPI.URL, "acme"):  "tok-acme",
+			spritestate.TokenKey(spritesAPI.URL, "stuck"): "tok-stuck",
+		},
+	}))
+
+	ctx, _, stderr := logoutTestContext(t, dir, logoutTestServer(t, `{"data":{"logOut":{"ok":true}}}`).URL, false)
+
+	// The login being ended is what can revoke the Sprites tokens.
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "fm2_login"))
+	// An override from another user must not authenticate the revocations.
+	config.FromContext(ctx).Tokens = tokens.Parse("fm2_other-user")
+
+	require.NoError(t, runLogout(ctx))
+
+	assert.Contains(t, revoked,
+		`DELETE /v1/organizations/acme/tokens FlyV1 fm2_login {"token":"tok-acme"}`)
+	assert.Len(t, revoked, 2)
+
+	// The file goes either way, and a token that could not be revoked is
+	// named rather than silently left valid.
+	assert.NoFileExists(t, spritestate.Path(dir))
+	assert.Contains(t, stderr.String(), "Sprites API tokens for stuck could not be revoked")
+	assert.NotContains(t, stderr.String(), "acme,")
+}
+
+func TestRunLogoutSurvivesSpritesLockErrors(t *testing.T) {
+	dir := logoutTestDir(t)
+
+	// The mint lock cannot be taken: it links to somewhere that cannot be
+	// created.
+	if err := os.Symlink(filepath.Join(dir, "missing", "lock"), spritestate.Path(dir)+".mint.lock"); err != nil {
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
+
+	ctx, stdout, stderr := logoutTestContext(t, dir, logoutTestServer(t, `{"data":{"logOut":{"ok":true}}}`).URL, false)
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "fm2_login"))
+
+	require.NoError(t, runLogout(ctx))
+
+	assert.Contains(t, stdout.String(), "logged out successfully")
+	assert.Contains(t, stderr.String(), "Going ahead without waiting")
+}
+
+func TestRunLogoutWithoutSpritesTokens(t *testing.T) {
+	dir := logoutTestDir(t)
+
+	ctx, _, stderr := logoutTestContext(t, dir, logoutTestServer(t, `{"data":{}}`).URL, false)
+
+	// Most users have never run a sprites command: nothing to revoke, and
+	// nothing to warn about.
+	require.NoError(t, runLogout(ctx))
+	assert.NotContains(t, stderr.String(), "Sprites")
 }

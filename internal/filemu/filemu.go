@@ -20,25 +20,31 @@ const (
 
 // Lock attempts to acquire an exclusive lock on the named file.
 func Lock(ctx context.Context, path string) (UnlockFunc, error) {
-	return try(ctx, path, (*flock.Flock).TryLockContext)
+	return try(ctx, path, timeout, (*flock.Flock).TryLockContext)
+}
+
+// LockFor attempts to acquire an exclusive lock on the named file, waiting up
+// to wait for whoever holds it.
+func LockFor(ctx context.Context, path string, wait time.Duration) (UnlockFunc, error) {
+	return try(ctx, path, wait, (*flock.Flock).TryLockContext)
 }
 
 // RLock attempts to acquire a shared lock on the named file.
 func RLock(ctx context.Context, path string) (UnlockFunc, error) {
-	return try(ctx, path, (*flock.Flock).TryRLockContext)
+	return try(ctx, path, timeout, (*flock.Flock).TryRLockContext)
 }
 
 var errFailed = errors.New("failed acquiring lock")
 
 type lockFunc func(*flock.Flock, context.Context, time.Duration) (bool, error)
 
-func try(parent context.Context, path string, fn lockFunc) (UnlockFunc, error) {
-	ctx, cancel := context.WithTimeoutCause(parent, timeout, fmt.Errorf("acquiring file lock: %w", context.DeadlineExceeded))
+func try(parent context.Context, path string, wait time.Duration, fn lockFunc) (UnlockFunc, error) {
+	ctx, cancel := context.WithTimeoutCause(parent, wait, fmt.Errorf("acquiring file lock: %w", context.DeadlineExceeded))
 	defer cancel()
 
 	mu := flock.New(path)
 
-	switch locked, err := fn(mu, ctx, retryDelay); {
+	switch locked, err := fn(mu, ctx, min(wait/10, retryDelay)); {
 	case err != nil:
 		return nil, err
 	case !locked:

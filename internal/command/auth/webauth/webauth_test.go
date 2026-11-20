@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -20,8 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -305,4 +309,128 @@ func TestRunWebLoginKeepsPendingLoginWhenStopped(t *testing.T) {
 	if _, err := loadPendingLogin(pendingPath); err != nil {
 		t.Fatalf("a login stopped early lost its pending login, so --code can't finish it: %v", err)
 	}
+}
+
+// spritesTokenAPI is a fake Sprites token endpoint that records revocations.
+func spritesTokenAPI(t *testing.T) (*httptest.Server, *[]string) {
+	t.Helper()
+
+	var (
+		mu      sync.Mutex
+		revoked []string
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+
+		mu.Lock()
+		revoked = append(revoked, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization")+" "+string(body))
+		mu.Unlock()
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv, &revoked
+}
+
+func TestPersistAccessTokenRevokesSavedSpritesTokens(t *testing.T) {
+	ctx, _, errOut := headlessContext(t)
+	dir := state.ConfigDirectory(ctx)
+	t.Setenv("FLY_CONFIG_DIR", dir)
+	api, revoked := spritesTokenAPI(t)
+
+	// Tokens minted by whoever was logged in before, who is still saved.
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "fm2_old-login"))
+	require.NoError(t, spritestate.Save(dir, &spritestate.State{
+		DefaultOrg: "their-org",
+		Tokens:     map[string]string{spritestate.TokenKey(api.URL, "their-org"): "theirs"},
+	}))
+
+	require.NoError(t, persistAccessToken(ctx, "new-login-token"))
+
+	// The old login revokes them; the new login, maybe someone else, must
+	// not inherit them.
+	require.Equal(t, []string{`DELETE /v1/organizations/their-org/tokens FlyV1 fm2_old-login {"token":"theirs"}`}, *revoked)
+	require.NoFileExists(t, spritestate.Path(dir))
+	require.Empty(t, errOut.String())
+
+	saved, err := config.ReadAccessToken(state.ConfigFile(ctx))
+	require.NoError(t, err)
+	require.Equal(t, "new-login-token", saved)
+}
+
+func TestPersistAccessTokenWithoutPreviousLoginForgetsSpritesTokens(t *testing.T) {
+	ctx, _, errOut := headlessContext(t)
+	dir := state.ConfigDirectory(ctx)
+	t.Setenv("FLY_CONFIG_DIR", dir)
+
+	require.NoError(t, spritestate.Save(dir, &spritestate.State{
+		Tokens: map[string]string{spritestate.TokenKey("https://sprites.invalid", "their-org"): "theirs"},
+	}))
+
+	require.NoError(t, persistAccessToken(ctx, "new-login-token"))
+
+	require.NoFileExists(t, spritestate.Path(dir))
+	require.Contains(t, errOut.String(), "Sprites API tokens for their-org could not be revoked")
+}
+
+func TestPersistAccessTokenSurvivesSpritesStateErrors(t *testing.T) {
+	ctx, _, errOut := headlessContext(t)
+	dir := state.ConfigDirectory(ctx)
+	t.Setenv("FLY_CONFIG_DIR", dir)
+
+	// Neither the mint lock nor the state file can be used: the lock is a
+	// link to somewhere that cannot be created, and a directory sits where
+	// the state file goes.
+	if err := os.Symlink(filepath.Join(dir, "missing", "lock"), spritestate.Path(dir)+".mint.lock"); err != nil {
+		t.Skipf("cannot create a symlink here: %v", err)
+	}
+	require.NoError(t, os.MkdirAll(filepath.Join(spritestate.Path(dir), "x"), 0o755))
+
+	require.NoError(t, persistAccessToken(ctx, "new-login-token"))
+
+	saved, err := config.ReadAccessToken(state.ConfigFile(ctx))
+	require.NoError(t, err)
+	require.Equal(t, "new-login-token", saved)
+	require.Contains(t, errOut.String(), "Going ahead without waiting")
+	require.Contains(t, errOut.String(), "saved Sprites tokens")
+}
+
+func TestPersistAccessTokenWaitsForSpritesMint(t *testing.T) {
+	ctx, _, _ := headlessContext(t)
+	dir := state.ConfigDirectory(ctx)
+	t.Setenv("FLY_CONFIG_DIR", dir)
+	api, revoked := spritesTokenAPI(t)
+	require.NoError(t, config.SetAccessToken(state.ConfigFile(ctx), "fm2_old-login"))
+
+	// An old command is still waiting for its minted token. Login must wait
+	// until that token has been saved before clearing the previous state.
+	unlock, err := spritestate.LockMint(ctx, dir)
+	require.NoError(t, err)
+	defer unlock()
+	done := make(chan error, 1)
+	go func() { done <- persistAccessToken(ctx, "new-login") }()
+	select {
+	case err := <-done:
+		t.Fatalf("login did not wait for the in-flight mint: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	require.NoError(t, spritestate.Save(dir, &spritestate.State{
+		Tokens: map[string]string{spritestate.TokenKey(api.URL, "acme"): "old-login-sprite-token"},
+	}))
+	unlock()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("login did not finish after the mint released its lock")
+	}
+
+	require.Len(t, *revoked, 1)
+	require.NoFileExists(t, spritestate.Path(dir))
+	saved, err := config.ReadAccessToken(state.ConfigFile(ctx))
+	require.NoError(t, err)
+	require.Equal(t, "new-login", saved)
 }

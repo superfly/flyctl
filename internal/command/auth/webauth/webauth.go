@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/spritestate"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -251,6 +252,24 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 
 func persistAccessToken(ctx context.Context, token string) (err error) {
 	path := state.ConfigFile(ctx)
+
+	// Sprites state is secondary to the login itself: trouble with it is a
+	// warning, never a reason to throw away a login the user just approved.
+	warn := func(msg string) {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Warning: %s\n", msg)
+	}
+
+	if unlock, lockErr := spritestate.LockMintForLogin(ctx, state.ConfigDirectory(ctx)); lockErr != nil {
+		warn(fmt.Sprintf("Going ahead without waiting: %v", lockErr))
+	} else {
+		defer unlock()
+	}
+
+	// Sprites API tokens saved by an earlier login belong to that login, which
+	// may have been a different user. That login, still saved, can revoke them.
+	for _, msg := range spritestate.RevokeForLoginChange(ctx, state.ConfigDirectory(ctx), path) {
+		warn(msg)
+	}
 
 	if err = config.SetAccessToken(path, token); err != nil {
 		err = fmt.Errorf("failed persisting %s in %s: %w\n",
