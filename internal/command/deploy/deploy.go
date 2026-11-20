@@ -374,8 +374,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
 	}
 
-	for env := range appConfig.Env {
-		if containsCommonSecretSubstring(env) {
+	for env, value := range appConfig.Env {
+		if shouldWarnAboutEnv(env, value) {
 			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://docs.fly.io/apps/secrets\n", aurora.Yellow("WARN"), env)
 			fmt.Fprintln(io.ErrOut, warning)
 		}
