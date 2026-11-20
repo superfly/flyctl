@@ -16,14 +16,15 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// RunMaintenanceWindowShow prints the weekly maintenance window of clusterID.
+// RunMaintenanceWindowShow prints the weekly maintenance window of clusterID,
+// or that its maintenance can run at any time when it has none.
 func RunMaintenanceWindowShow(ctx context.Context, clusterID string) error {
 	window, err := flapsutil.ClientFromContext(ctx).GetManagedPostgresMaintenanceWindow(ctx, clusterID)
 	if err != nil {
 		return maintenanceWindowError("get", clusterID, err)
 	}
 
-	return renderMaintenanceWindow(ctx, window)
+	return renderMaintenanceWindow(ctx, clusterID, window)
 }
 
 // RunMaintenanceWindowSet changes the weekly maintenance window of clusterID
@@ -39,14 +40,23 @@ func RunMaintenanceWindowSet(ctx context.Context, clusterID string, req flaps.Up
 		fmt.Fprintf(iostreams.FromContext(ctx).Out, "Updated maintenance window for cluster %s\n", clusterID)
 	}
 
-	return renderMaintenanceWindow(ctx, window)
+	return renderMaintenanceWindow(ctx, clusterID, window)
 }
 
-func renderMaintenanceWindow(ctx context.Context, window flaps.ManagedPostgresMaintenanceWindow) error {
+// renderMaintenanceWindow prints window. A nil window means the cluster has
+// none and its maintenance can run at any time; --json prints it as null, as
+// the API sends it.
+func renderMaintenanceWindow(ctx context.Context, clusterID string, window *flaps.ManagedPostgresMaintenanceWindow) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if config.FromContext(ctx).JSONOutput {
 		return render.JSON(out, window)
+	}
+
+	if window == nil {
+		fmt.Fprintf(out, "Maintenance can run at any time on cluster %s.\n", clusterID)
+
+		return nil
 	}
 
 	rows := [][]string{{

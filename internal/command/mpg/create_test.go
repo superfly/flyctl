@@ -73,6 +73,10 @@ func TestRunCreatePlanFlag(t *testing.T) {
 		{" PERFORMANCE ", "Performance"},
 		{"Basic", "basic"},
 		{"launch", "launch"},
+		{"dev-256", "dev-256"},
+		{"DEV-256", "dev-256"},
+		{"Developer", "dev-256"},
+		{"developer", "dev-256"},
 	} {
 		t.Run(tc.flag, func(t *testing.T) {
 			plan, _ := createdPlan(t, "--plan", tc.flag)
@@ -83,7 +87,7 @@ func TestRunCreatePlanFlag(t *testing.T) {
 	t.Run("unknown plan fails instead of creating a Basic cluster", func(t *testing.T) {
 		plan, err := createdPlan(t, "--plan", "hobby")
 		require.ErrorContains(t, err, `unknown plan "hobby"`)
-		assert.ErrorContains(t, err, "Basic, Starter, Launch, Scale, Performance")
+		assert.ErrorContains(t, err, "Dev-256, Basic, Starter, Launch, Scale, Performance")
 		assert.Empty(t, plan, "no cluster should be requested")
 	})
 
@@ -114,20 +118,6 @@ func TestRunCreateVolumeSize(t *testing.T) {
 			assert.Equal(t, tc.want, req.DiskSizeGB)
 		})
 	}
-}
-
-// dev-256 is hidden until it launches: --plan takes it, in any case, and the
-// API decides whether the org can have it, but the plan lists don't show it.
-func TestRunCreateHiddenPlan(t *testing.T) {
-	for _, flag := range []string{"dev-256", "DEV-256"} {
-		plan, _ := createdPlan(t, "--plan", flag)
-		assert.Equal(t, "dev-256", plan, flag)
-	}
-
-	_, err := createdPlan(t, "--plan", "hobby")
-	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "Dev 256", "the unknown plan error")
-	assert.NotContains(t, newFork().Flags().Lookup("plan").Usage, "Dev 256", "fork's --plan help")
 }
 
 func TestWarnIfV2FlagUsed(t *testing.T) {

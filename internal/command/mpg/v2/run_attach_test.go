@@ -175,6 +175,64 @@ func TestRunAttach_noUsernameDefaultCredentials(t *testing.T) {
 	require.Empty(t, stderr.String())
 }
 
+// TestRunAttach_databaseURL verifies that attach hands out the credentials'
+// database_url (the direct URL on fly-proxy routing), and the pooled
+// pgbouncer_uri when an older ui-ex doesn't send database_url.
+func TestRunAttach_databaseURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		databaseURL string
+		wantUri     string
+	}{
+		{
+			name:        "database_url is used",
+			databaseURL: "postgres://default_user:default-pass@direct.fly.dev:5432/default_db",
+			wantUri:     "postgres://alice:alice-pass@direct.fly.dev:5432/appdb",
+		},
+		{
+			name:    "pgbouncer_uri without database_url",
+			wantUri: "postgres://alice:alice-pass@pooler.fly.dev:5432/appdb",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, stdout, stderr, flags := attachTestContext(t)
+			addAttachFlags(flags)
+			require.NoError(t, flags.Set("username", "alice"))
+			require.NoError(t, flags.Set("database", "appdb"))
+
+			var secrets map[string]*string
+			flapsClient := minimalAttachFlapsClient()
+			flapsClient.UpdateAppSecretsFunc = func(_ context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {
+				secrets = values
+
+				return &fly.UpdateAppSecretsResp{Version: 1}, nil
+			}
+			legacyClient := minimalAttachLegacyClient()
+			legacyClient.GetClusterByIdFunc = func(context.Context, string) (mpgv2.GetClusterResponse, error) {
+				return mpgv2.GetClusterResponse{
+					Credentials: mpgv2.GetClusterCredentialsResponse{
+						User:          "default_user",
+						Password:      "default-pass",
+						DBName:        "default_db",
+						ConnectionUri: "postgres://default_user:default-pass@pooler.fly.dev:5432/default_db",
+						DatabaseURL:   tt.databaseURL,
+					},
+				}, nil
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+			ctx = mpgv2.NewContextWithClient(ctx, legacyClient)
+
+			require.NoError(t, RunAttach(ctx, "mpg-123"))
+			require.Contains(t, secrets, "DATABASE_URL")
+			require.Equal(t, tt.wantUri, *secrets["DATABASE_URL"])
+			require.Equal(t, wantSecretOutput("my-app", "DATABASE_URL", tt.wantUri), stdout.String())
+			require.Empty(t, stderr.String())
+		})
+	}
+}
+
 // TestRunAttach_customVariableName verifies that a custom secret variable name is respected
 func TestRunAttach_customVariableName(t *testing.T) {
 	ctx, stdout, stderr, flags := attachTestContext(t)
