@@ -35,9 +35,11 @@ const (
 
 // SecretWithStatus extends fly.AppSecret with deployment status
 type SecretWithStatus struct {
-	Name   string       `json:"name"`
-	Digest string       `json:"digest"`
-	Status SecretStatus `json:"status"`
+	Name      string       `json:"name"`
+	Digest    string       `json:"digest"`
+	Status    SecretStatus `json:"status"`
+	CreatedAt *string      `json:"created_at,omitempty"`
+	UpdatedAt *string      `json:"updated_at,omitempty"`
 }
 
 func newList() (cmd *cobra.Command) {
@@ -158,9 +160,11 @@ func buildSecretRows(ctx context.Context, flapsClient flapsutil.FlapsClient, uie
 			partialCount++
 		}
 		secretsWithStatus = append(secretsWithStatus, SecretWithStatus{
-			Name:   secret.Name,
-			Digest: secret.Digest,
-			Status: status,
+			Name:      secret.Name,
+			Digest:    secret.Digest,
+			Status:    status,
+			CreatedAt: secret.CreatedAt,
+			UpdatedAt: secret.UpdatedAt,
 		})
 	}
 
