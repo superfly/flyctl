@@ -27,6 +27,7 @@ import (
 var COMMANDS = slices.Concat(
 	mcpServer.AppCommands,
 	mcpServer.CertsCommands,
+	mcpServer.DeploymentCommands,
 	mcpServer.IPCommands,
 	mcpServer.LogCommands,
 	mcpServer.MachineCommands,
