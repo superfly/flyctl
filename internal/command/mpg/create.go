@@ -46,7 +46,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "plan",
-			Description: "The plan to use for the Postgres cluster: Basic, Starter, Launch, Scale, Performance",
+			Description: "The plan to use for the Postgres cluster: " + planNames(),
 		},
 		flag.Int{
 			Name:        "volume-size",
@@ -126,9 +126,6 @@ func runCreate(ctx context.Context) error {
 			}
 			var planEntries []planEntry
 			for k, v := range MPGPlans {
-				if v.Hidden {
-					continue
-				}
 				planEntries = append(planEntries, planEntry{Key: k, Value: v})
 			}
 			// Sort by price
@@ -142,8 +139,11 @@ func runCreate(ctx context.Context) error {
 				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
 				planKeys = append(planKeys, entry.Key)
 			}
+			// Developer is listed first, as the cheapest, but Basic stays the
+			// default, as it is without a terminal.
+			defaultOption := planOptions[slices.Index(planKeys, "basic")]
 			var selectedIndex int
-			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", planOptions[0], planOptions...); err != nil {
+			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", defaultOption, planOptions...); err != nil {
 				return err
 			}
 			plan = planKeys[selectedIndex]
@@ -196,8 +196,7 @@ func planKey(name string) (string, bool) {
 	return "", false
 }
 
-// planNames lists the plans that aren't hidden, cheapest first, as --plan's
-// help does.
+// planNames lists the plans, cheapest first, by the names --plan takes.
 func planNames() string {
 	keys := slices.SortedFunc(maps.Keys(MPGPlans), func(a, b string) int {
 		return cmp.Compare(MPGPlans[a].PricePerMo, MPGPlans[b].PricePerMo)
@@ -205,10 +204,13 @@ func planNames() string {
 
 	names := make([]string, 0, len(keys))
 	for _, key := range keys {
-		if MPGPlans[key].Hidden {
-			continue
+		// --plan matches a plan's key in any case, so a plan whose name
+		// isn't its key, like Developer (dev-256), is listed by its key.
+		name := MPGPlans[key].Name
+		if !strings.EqualFold(name, key) {
+			name = key
 		}
-		names = append(names, MPGPlans[key].Name)
+		names = append(names, name)
 	}
 
 	return strings.Join(names, ", ")
