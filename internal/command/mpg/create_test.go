@@ -75,6 +75,8 @@ func TestRunCreatePlanFlag(t *testing.T) {
 		{"launch", "launch"},
 		{"dev-256", "dev-256"},
 		{"DEV-256", "dev-256"},
+		{"Developer", "dev-256"},
+		{"developer", "dev-256"},
 	} {
 		t.Run(tc.flag, func(t *testing.T) {
 			plan, _ := createdPlan(t, "--plan", tc.flag)

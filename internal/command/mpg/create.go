@@ -182,13 +182,13 @@ func runCreate(ctx context.Context) error {
 	})
 }
 
-// planKey returns the MPGPlans key for a plan name given in any case. The keys
-// are what the API expects, so "performance" has to find "Performance" (#4612)
-// rather than be lowercased.
+// planKey returns the MPGPlans key for a plan given by its key or its name
+// (Developer for dev-256), in any case. The keys are what the API expects, so
+// "performance" has to find "Performance" (#4612) rather than be lowercased.
 func planKey(name string) (string, bool) {
 	name = strings.TrimSpace(name)
-	for key := range MPGPlans {
-		if strings.EqualFold(key, name) {
+	for key, details := range MPGPlans {
+		if strings.EqualFold(key, name) || strings.EqualFold(details.Name, name) {
 			return key, true
 		}
 	}
@@ -204,9 +204,8 @@ func planNames() string {
 
 	names := make([]string, 0, len(keys))
 	for _, key := range keys {
-		// --plan matches a plan's key in any case, so a plan whose name
-		// isn't its key, like Developer (dev-256), is listed by its key,
-		// capitalized like the others: Dev-256.
+		// A plan whose name isn't its key, like Developer (dev-256), is
+		// listed by its key, capitalized like the others: Dev-256.
 		name := MPGPlans[key].Name
 		if !strings.EqualFold(name, key) {
 			name = strings.ToUpper(key[:1]) + key[1:]
