@@ -75,7 +75,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
-		"NODE_VERSION": "18",
+		"NODE_VERSION": "22",
 	}
 
 	// The Dockerfile comes from the dockerfile-laravel generator
@@ -342,7 +342,17 @@ func phpVersionLess(a, b string) bool {
 }
 
 var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *= *(\"|')? *[a-zA-Z]+(\"|')?"
-var redisRegStr = "^[^#]*redis"
+
+// redisReg matches an uncommented line that mentions redis, such as
+// CACHE_STORE=redis, REDIS_HOST=redis or REDIS_URL=redis://...
+var redisReg = regexp.MustCompile(`^[^#]*redis`)
+
+// redisClientDefaultReg matches REDIS_CLIENT=phpredis. Since Laravel 11 the
+// default .env has that line even when every driver is "database", so on its
+// own it doesn't mean the app uses Redis. It's the only line in the default
+// .env with a lowercase "redis"; REDIS_HOST=127.0.0.1 and the other REDIS_*
+// lines never matched redisReg.
+var redisClientDefaultReg = regexp.MustCompile(`^\s*(export\s+)?REDIS_CLIENT\s*=\s*["']?phpredis["']?\s*(#.*)?$`)
 
 // extractConnections detects the database connection of a laravel fly app
 // by checking the .env file in the project's base directory for connection keywords.
@@ -365,8 +375,6 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 	// Set up Regex to match
 	// -not commented out, with DB_CONNECTION
 	dbReg := regexp.MustCompile(dbRegStr)
-	// -not commented out with redis keyword
-	redisReg := regexp.MustCompile(redisRegStr)
 
 	// Default Return Variables
 	db = 0
@@ -379,7 +387,7 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 	for scanner.Scan() {
 		text := scanner.Text()
 
-		if redisReg.MatchString(text) {
+		if redisReg.MatchString(text) && !redisClientDefaultReg.MatchString(text) {
 			redis = true
 			skipDb = false
 		} else if db == 0 && dbReg.MatchString(text) {

@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/macaroon"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -38,6 +39,7 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/internal/version"
 	"github.com/superfly/macaroon/flyio"
@@ -107,7 +109,7 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 	}
 
 	return func(cmd *cobra.Command, _ []string) (err error) {
-		ctx := cmd.Context()
+		ctx, inheritedTrace := tracing.ExtractProcessContext(cmd.Context())
 		ctx = NewContext(ctx, cmd)
 		ctx = flag.NewContext(ctx, cmd.Flags())
 
@@ -148,7 +150,25 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		}()
 
 		// run the command
-		if err = fn(ctx); err == nil {
+		workflow := workflowCommand(cmd)
+		if inheritedTrace {
+			ctx = tracing.WithDeployTrace(ctx)
+			// These commands (and the subprocess runner) own their trace provider.
+			commandPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+			switch commandPath {
+			case "deploy", "launch", "trace run":
+			default:
+				if workflow == "" {
+					workflow = "cmd." + strings.ReplaceAll(commandPath, " ", ".")
+				}
+			}
+		}
+		if workflow != "" {
+			err = tracing.RunWorkflow(ctx, workflow, appconfig.NameFromContext(ctx), fn)
+		} else {
+			err = fn(ctx)
+		}
+		if err == nil {
 			// and finally, run the finalizer
 			finalize(ctx)
 		}
@@ -590,6 +610,27 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
+	return requireSession(ctx, false)
+}
+
+// RequireFlapsSession checks the credentials the Machines client will actually send.
+func RequireFlapsSession(ctx context.Context) (context.Context, error) {
+	return requireSession(ctx, true)
+}
+
+func requireSession(ctx context.Context, requireFlapsTokens bool) (context.Context, error) {
+	ctx, err := ensureLogin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := monitorSessionTokens(ctx, requireFlapsTokens); err != nil {
+		return nil, err
+	}
+
+	return ctx, nil
+}
+
+func ensureLogin(ctx context.Context) (context.Context, error) {
 	client := flyutil.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 
@@ -613,10 +654,6 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 
 			return handleReLogin(ctx, "expired")
 		}
-	}
-
-	if err := monitorSessionTokens(ctx); err != nil {
-		return nil, err
 	}
 
 	return ctx, nil
@@ -700,11 +737,6 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 			return nil, err
 		}
 
-		// Fetch organization tokens and discharge any third-party caveats
-		if err := monitorSessionTokens(ctx); err != nil {
-			return nil, err
-		}
-
 		return ctx, nil
 	} else {
 		return nil, reloginError(reason)
@@ -731,13 +763,14 @@ const ssoTokensHelpURL = "https://docs.fly.io/security/tokens"
 // monitorSessionTokens starts token monitoring and fails the command when an
 // SSO sign-in was requested but not completed, rather than letting it go on
 // to an unauthorized API call.
-func monitorSessionTokens(ctx context.Context) error {
+func monitorSessionTokens(ctx context.Context, requireFlapsTokens bool) error {
 	var (
 		mu    sync.Mutex
 		shown string
 	)
 
-	config.MonitorTokens(ctx, config.Tokens(ctx), func(ctx context.Context, url string) error {
+	t := config.Tokens(ctx)
+	_, dischargeErr := config.MonitorTokens(ctx, t, func(ctx context.Context, url string) error {
 		mu.Lock()
 		shown = url
 		mu.Unlock()
@@ -749,9 +782,34 @@ func monitorSessionTokens(ctx context.Context) error {
 	url := shown
 	mu.Unlock()
 
-	return incompleteSSO(ctx, url, func() (bool, error) {
-		return flyio.DischargeClient().NeedsDischarge(config.Tokens(ctx).All())
+	ssoErr := incompleteSSO(ctx, url, func() (bool, error) {
+		return flyio.DischargeClient().NeedsDischarge(t.All())
 	})
+	if requireFlapsTokens && dischargeErr != nil && allMissingDischarges(t.Flaps()) {
+		return errors.Join(ssoErr, fmt.Errorf("failed to refresh third-party discharge tokens: %w", dischargeErr))
+	}
+
+	return ssoErr
+}
+
+// allMissingDischarges reports whether every permission macaroon in the Machines
+// credential needs at least one more discharge.
+func allMissingDischarges(header string) bool {
+	raw, err := macaroon.Parse(header)
+	if err != nil {
+		return false
+	}
+	perms, _, _, discharges, err := macaroon.FindPermissionAndDischargeTokens(raw, flyio.LocationPermission)
+	if err != nil || len(perms) == 0 {
+		return false
+	}
+	for _, perm := range perms {
+		if len(perm.AllThirdPartyTickets(discharges...)) == 0 {
+			return false
+		}
+	}
+
+	return true
 }
 
 // incompleteSSO returns an error when url was shown for an SSO sign-in and the
@@ -974,4 +1032,58 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+// Match canonical Cobra names so aliases emit the same trace root.
+func workflowCommand(cmd *cobra.Command) string {
+	if cmd.Parent() == nil || cmd.Parent().Parent() == nil || cmd.Parent().Parent().Parent() != nil {
+		return ""
+	}
+	switch cmd.Parent().Name() + " " + cmd.Name() {
+	case "machine run":
+		shell, _ := cmd.Flags().GetBool("shell")
+		buildOnly, _ := cmd.Flags().GetBool("build-only")
+		if !shell && !buildOnly {
+			return "cmd.machine.run"
+		}
+	case "machine start":
+		return "cmd.machine.start"
+	case "machine update":
+		return "cmd.machine.update"
+	case "mpg restore":
+		return "cmd.mpg.restore"
+	case "volumes create":
+		snapshot, _ := cmd.Flags().GetString("snapshot-id")
+		if snapshot != "" {
+			return "cmd.volumes.restore"
+		}
+
+		return "cmd.volumes.create"
+	case "volumes extend":
+		return "cmd.volumes.extend"
+	case "certs add":
+		return "cmd.certs.add"
+	case "ips allocate-v4":
+		shared, _ := cmd.Flags().GetBool("shared")
+		if !shared {
+			return "cmd.ips.allocate"
+		}
+	case "ips allocate-v6":
+		private, _ := cmd.Flags().GetBool("private")
+		if !private {
+			return "cmd.ips.allocate"
+		}
+	case "ssh console":
+		return "cmd.ssh.console"
+	case "scale count":
+		return "cmd.scale.count"
+	case "mpg create":
+		return "cmd.mpg.create"
+	case "mpg attach":
+		return "cmd.mpg.attach"
+	case "secrets set":
+		return "cmd.secrets.set"
+	}
+
+	return ""
 }

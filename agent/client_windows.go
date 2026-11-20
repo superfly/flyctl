@@ -21,3 +21,7 @@ func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
 
 	return winio.DialPipeContext(ctx, pipe)
 }
+
+// bindsUnixSocket reports whether the agent listens on a unix socket rather
+// than a named pipe.
+func bindsUnixSocket() bool { return UseUnixSockets() }

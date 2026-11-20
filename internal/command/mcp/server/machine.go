@@ -60,11 +60,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "string",
 			},
-			"standby-for": {
-				Description: "Standby for a machine in the same region",
-				Required:    false,
-				Type:        "array",
-			},
 			"vm-cpu-kind": {
 				Description: "The CPU kind to use for the new machine",
 				Required:    false,
@@ -149,10 +144,6 @@ var MachineCommands = []FlyCommand{
 				cmdArgs = append(cmdArgs, "--region", region)
 			}
 
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
-			}
-
 			if vmCpuKind, ok := args["vm-cpu-kind"]; ok {
 				cmdArgs = append(cmdArgs, "--vm-cpu-kind", vmCpuKind)
 			}
@@ -221,6 +212,8 @@ var MachineCommands = []FlyCommand{
 		ToolName:        "fly-machine-create",
 		ToolDescription: "Create, but don’t start, a machine",
 		ToolArgs: map[string]FlyArg{
+			"cache-disk-size": {Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.", Type: "string"},
+			"cache-disk-path": {Description: "Absolute path in the Machine at which to mount the cache disk.", Type: "string"},
 			// missing: build-depot, build-nixpacks, dockerfile, file-literal, file-local, file-secret,
 			// kernel-arg, machine-config, org
 			"app": {
@@ -308,11 +301,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "boolean",
 			},
-			"standby-for": {
-				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
-				Required:    false,
-				Type:        "array",
-			},
 			"use-zstd": {
 				Description: "Use zstd compression for the image",
 				Required:    false,
@@ -371,7 +359,7 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if autostop, ok := args["autostop"]; ok {
-				cmdArgs = append(cmdArgs, "--autostop", autostop)
+				cmdArgs = append(cmdArgs, "--autostop="+autostop)
 			}
 
 			if entrypoint, ok := args["entrypoint"]; ok {
@@ -432,10 +420,6 @@ var MachineCommands = []FlyCommand{
 				}
 			}
 
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
-			}
-
 			if useZstd, ok := args["use-zstd"]; ok {
 				value, err := strconv.ParseBool(useZstd)
 				if err != nil {
@@ -463,6 +447,12 @@ var MachineCommands = []FlyCommand{
 
 			if volume, ok := args["volume"]; ok {
 				cmdArgs = append(cmdArgs, "--volume", volume)
+			}
+
+			for _, name := range []string{"cache-disk-size", "cache-disk-path"} {
+				if value, ok := args[name]; ok {
+					cmdArgs = append(cmdArgs, "--"+name+"="+value)
+				}
 			}
 
 			return cmdArgs, nil
@@ -874,6 +864,8 @@ var MachineCommands = []FlyCommand{
 		ToolName:        "fly-machine-run",
 		ToolDescription: "Run a machine",
 		ToolArgs: map[string]FlyArg{
+			"cache-disk-size": {Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.", Type: "string"},
+			"cache-disk-path": {Description: "Absolute path in the Machine at which to mount the cache disk.", Type: "string"},
 			// missing: build-depot, build-nixpacks, dockerfile, file-literal, file-local, file-secret,
 			// kernel-arg, machine-config, org, wg
 			"app": {
@@ -966,11 +958,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "boolean",
 			},
-			"standby-for": {
-				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
-				Required:    false,
-				Type:        "array",
-			},
 			"use-zstd": {
 				Description: "Use zstd compression for the image",
 				Required:    false,
@@ -1040,7 +1027,7 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if autostop, ok := args["autostop"]; ok {
-				cmdArgs = append(cmdArgs, "--autostop", autostop)
+				cmdArgs = append(cmdArgs, "--autostop="+autostop)
 			}
 
 			if entrypoint, ok := args["entrypoint"]; ok {
@@ -1101,10 +1088,6 @@ var MachineCommands = []FlyCommand{
 				}
 			}
 
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
-			}
-
 			if useZstd, ok := args["use-zstd"]; ok {
 				value, err := strconv.ParseBool(useZstd)
 				if err != nil {
@@ -1136,6 +1119,12 @@ var MachineCommands = []FlyCommand{
 
 			if volume, ok := args["volume"]; ok {
 				cmdArgs = append(cmdArgs, "--volume", volume)
+			}
+
+			for _, name := range []string{"cache-disk-size", "cache-disk-path"} {
+				if value, ok := args[name]; ok {
+					cmdArgs = append(cmdArgs, "--"+name+"="+value)
+				}
 			}
 
 			return cmdArgs, nil
@@ -1361,6 +1350,8 @@ var MachineCommands = []FlyCommand{
 		ToolName:        "fly-machine-update",
 		ToolDescription: "Update a machine",
 		ToolArgs: map[string]FlyArg{
+			"cache-disk-size": {Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.", Type: "string"},
+			"cache-disk-path": {Description: "Absolute path in the Machine at which to mount the cache disk.", Type: "string"},
 			// missing: build-depot, build-nixpacks, container, dockerfile, file-literal, file-local, file-secret,
 			// kernel-arg, machine-config
 			"app": {
@@ -1437,11 +1428,6 @@ var MachineCommands = []FlyCommand{
 				Description: "Skip DNS registration for the new machine",
 				Required:    false,
 				Type:        "boolean",
-			},
-			"standby-for": {
-				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
-				Required:    false,
-				Type:        "array",
 			},
 			"use-zstd": {
 				Description: "Use zstd compression for the image",
@@ -1554,10 +1540,6 @@ var MachineCommands = []FlyCommand{
 				}
 			}
 
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
-			}
-
 			if useZstd, ok := args["use-zstd"]; ok {
 				value, err := strconv.ParseBool(useZstd)
 				if err != nil {
@@ -1585,6 +1567,12 @@ var MachineCommands = []FlyCommand{
 
 			if waitTimeout, ok := args["wait-timeout"]; ok {
 				cmdArgs = append(cmdArgs, "--wait-timeout", waitTimeout)
+			}
+
+			for _, name := range []string{"cache-disk-size", "cache-disk-path"} {
+				if value, ok := args[name]; ok {
+					cmdArgs = append(cmdArgs, "--"+name+"="+value)
+				}
 			}
 
 			return cmdArgs, nil

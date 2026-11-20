@@ -2,10 +2,13 @@ package secrets
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
@@ -112,10 +115,22 @@ func DeploySecrets(ctx context.Context, appName string, args DeploymentArgs) err
 		return err
 	}
 
-	err = md.DeployMachinesApp(ctx)
+	err = tracing.WorkflowPhase(ctx, "rollout_secrets", md.DeployMachinesApp)
 	if err != nil {
 		sentry.CaptureExceptionWithFlapsAppInfo(ctx, err, "secrets", app)
 	}
 
 	return err
+}
+
+// updateError describes a failed appsecrets.Update. When the secrets changed
+// remotely and only saving their version locally failed, it says so, and says
+// that no deployment followed, instead of reading as a failed update.
+func updateError(err error) error {
+	var saveErr *appsecrets.VersionSaveError
+	if errors.As(err, &saveErr) {
+		return fmt.Errorf("secrets were updated remotely, but saving their version locally failed, so no deployment was started: %w", err)
+	}
+
+	return fmt.Errorf("update secrets: %w", err)
 }

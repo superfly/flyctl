@@ -36,6 +36,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateMachineConversion,
 		c.validateConsoleCommand,
 		c.validateMounts,
+		c.validateCacheDisks,
 		c.validateRestartPolicy,
 		c.validateCompression,
 	}
@@ -380,6 +381,19 @@ func (c *Config) validateCompression() (extraInfo string, err error) {
 		if c.Build.CompressionLevel != nil {
 			if vErr := validation.ValidateCompressionLevelFlag(*c.Build.CompressionLevel); vErr != nil {
 				extraInfo += fmt.Sprintf("%s\n", vErr.Error())
+				err = ErrInvalidApplicationConfig
+			}
+		}
+	}
+
+	return
+}
+
+func (c *Config) validateCacheDisks() (extraInfo string, err error) {
+	for _, disk := range c.CacheDisks {
+		for _, group := range disk.Processes {
+			if !slices.Contains(c.ProcessNames(), group) {
+				extraInfo += fmt.Sprintf("cache_disk references unknown process group %q\n", group)
 				err = ErrInvalidApplicationConfig
 			}
 		}

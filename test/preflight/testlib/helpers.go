@@ -17,7 +17,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -47,12 +46,11 @@ type platformRegion struct {
 	GatewayAvailable bool   `json:"gateway_available"`
 	RequiresPaidPlan bool   `json:"requires_paid_plan"`
 	Deprecated       bool   `json:"deprecated"`
-	Capacity         int    `json:"capacity"`
 }
 
-// getBestRegions fetches platform regions and returns the top N regions
-// with the most available capacity, filtering for usable regions
-func getBestRegions(count int) ([]string, error) {
+// getUsableRegions fetches platform regions and returns the first N usable
+// regions: not deprecated, not paid-only, and with a gateway.
+func getUsableRegions(count int) ([]string, error) {
 	flyctlBin := currentRepoFlyctl()
 
 	cmd := exec.Command(flyctlBin, "platform", "regions", "--json")
@@ -84,12 +82,6 @@ func getBestRegions(count int) ([]string, error) {
 		}
 	}
 
-	// Sort by capacity (highest first)
-	sort.Slice(usable, func(i, j int) bool {
-		return usable[i].Capacity > usable[j].Capacity
-	})
-
-	// Take top N regions
 	if len(usable) < count {
 		count = len(usable)
 	}
@@ -123,13 +115,13 @@ func selectRegionsFromEnv() selectedRegions {
 			return
 		}
 
-		best, err := getBestRegions(2)
-		if err == nil && len(best) > 0 {
-			regionSelection.primary = best[0]
-			if len(best) > 1 {
-				regionSelection.other = append([]string(nil), best[1:]...)
+		usable, err := getUsableRegions(2)
+		if err == nil && len(usable) > 0 {
+			regionSelection.primary = usable[0]
+			if len(usable) > 1 {
+				regionSelection.other = append([]string(nil), usable[1:]...)
 			}
-			terminal.Debugf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, auto-selected region with best capacity: %s", best[0])
+			terminal.Debugf("no region set with FLY_PREFLIGHT_TEST_FLY_REGIONS, auto-selected region: %s", usable[0])
 			return
 		}
 

@@ -24,7 +24,7 @@ type builderTransport func(*http.Request) (*http.Response, error)
 
 func (f builderTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-func TestEnsureStoppingBuilder(t *testing.T) {
+func TestEnsureTransitioningBuilder(t *testing.T) {
 	t.Setenv("FLY_FLAPS_BASE_URL", "http://builder.invalid")
 	type step struct {
 		method, path, body string
@@ -43,14 +43,17 @@ func TestEnsureStoppingBuilder(t *testing.T) {
 	ready := response("GET", "/proof/wait?state=started&timeout=60", `{}`)
 	stopping := failure("POST", "/proof/start", 412, "machine still stopping, refusing to start")
 	type testCase struct {
-		name    string
-		steps   []step
-		want    string
-		elapsed time.Duration
-		replace bool
-		direct  bool
+		name         string
+		initialState string
+		steps        []step
+		want         string
+		elapsed      time.Duration
+		replace      bool
+		direct       bool
 	}
 	tests := []testCase{
+		{name: "already starting", initialState: "starting", steps: []step{ready}},
+		{name: "start never completes", initialState: "starting", steps: []step{failure("GET", ready.path, 408, "timed out")}, want: "timed out"},
 		{name: "stop completes", steps: []step{wait, start, ready}},
 		{name: "other caller already started", steps: []step{wait, response("POST", "/proof/start", `{"previous_state":"started"}`), ready}},
 		{name: "other caller starts after wait", steps: []step{wait, failure("POST", "/proof/start", 409, "machine still attempting to start"), ready}},
@@ -89,7 +92,13 @@ func TestEnsureStoppingBuilder(t *testing.T) {
 						s = response("GET", path, `[{"id":"volume"}]`)
 					case !tt.direct && r.Method == "GET" && path == "/v1/apps/builder/machines":
 						checkOrg(r.Context())
-						s = response("GET", path, `[{"id":"proof","state":"stopping"}]`)
+						state := tt.initialState
+						if state == "" {
+							state = "stopping"
+						}
+						s = response("GET", path, fmt.Sprintf(`[{"id":"proof","state":%q}]`, state))
+					case tt.initialState == "starting" && r.Method == "POST" && strings.HasSuffix(path, "/restart"):
+						s = failure("POST", path, 412, "failed_precondition: unable to restart machine, not currently started or stopped")
 					default:
 						if next == len(tt.steps) {
 							return nil, fmt.Errorf("unexpected operation %s %s", r.Method, r.URL.RequestURI())

@@ -8,9 +8,11 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
+	"strings"
 	"time"
 
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 // StatusError is returned when api.fly.io answers with an unexpected status
@@ -238,7 +240,13 @@ func (c *Client) CreateRelease(ctx context.Context, request CreateReleaseRequest
 
 		return &response.Release, nil
 	default:
-		return nil, fmt.Errorf("failed to create release (status %d): %s", res.StatusCode, string(body))
+		err := fmt.Errorf("failed to create release (status %d): %s", res.StatusCode, string(body))
+		// An account state the API already explains to the user.
+		if res.StatusCode == http.StatusForbidden && strings.Contains(string(body), "overdue invoices") {
+			err = flyerr.Expected(err)
+		}
+
+		return nil, err
 	}
 }
 

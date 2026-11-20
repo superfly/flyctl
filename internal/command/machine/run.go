@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"maps"
 	"math/rand"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -37,6 +37,9 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// standbyForDeprecation is what --standby-for prints when it is used.
+const standbyForDeprecation = "it is ignored, except that an empty value on 'fly machine update' clears the setting"
 
 var sharedFlags = flag.Set{
 	flag.App(),
@@ -141,7 +144,8 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
-		Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
+		Description: "Deprecated. An empty value on 'fly machine update' clears the setting.",
+		Hidden:      true,
 	},
 	flag.StringArray{
 		Name:        "file-local",
@@ -169,8 +173,13 @@ var sharedFlags = flag.Set{
 		Description: "Swap size in MB. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 1gb).",
 	},
 	flag.String{
-		Name:        "cachedrive-size",
-		Description: "Cache drive size in MB. Accepts a plain number (in MB) or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable.",
+		Name:        "cache-disk-size",
+		Aliases:     []string{"cachedrive-size"},
+		Description: "Cache disk size in MiB or a human-readable size (e.g. 512mb, 10gb). Set to 0 to disable. Changing the size discards the disk's contents.",
+	},
+	flag.String{
+		Name:        "cache-disk-path",
+		Description: "Absolute path in the Machine at which to mount the cache disk.",
 	},
 }
 
@@ -284,6 +293,9 @@ func newRun() *cobra.Command {
 
 	cmd.Args = cobra.MinimumNArgs(0)
 
+	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+	_ = cmd.Flags().MarkDeprecated("standby-for", standbyForDeprecation)
+
 	return cmd
 }
 
@@ -307,6 +319,9 @@ func newCreate() *cobra.Command {
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
+
+	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+	_ = cmd.Flags().MarkDeprecated("standby-for", standbyForDeprecation)
 
 	return cmd
 }
@@ -419,13 +434,15 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
 	}
 
-	machineConf, err = determineMachineConfig(ctx, &determineMachineConfigInput{
-		initialMachineConf: *machineConf,
-		appName:            app.Name,
-		imageOrPath:        imageOrPath,
-		region:             input.Region,
-		updating:           false,
-		interact:           interact,
+	machineConf, err = tracing.WorkflowStep(ctx, "prepare_image", func(ctx context.Context) (*fly.MachineConfig, error) {
+		return determineMachineConfig(ctx, &determineMachineConfigInput{
+			initialMachineConf: *machineConf,
+			appName:            app.Name,
+			imageOrPath:        imageOrPath,
+			region:             input.Region,
+			updating:           false,
+			interact:           interact,
+		})
 	})
 	if err != nil {
 		return err
@@ -442,7 +459,7 @@ func runMachineRun(ctx context.Context) error {
 	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
-	machine, err := flapsClient.Launch(ctx, app.Name, input)
+	machine, err := tracing.WorkflowStep(ctx, "create_machine", func(ctx context.Context) (*fly.Machine, error) { return flapsClient.Launch(ctx, app.Name, input) })
 	if err != nil {
 		return machinelimit.WithRequestLink(ctx, fmt.Errorf("could not launch machine: %w", err), app.Organization.Slug)
 	}
@@ -474,7 +491,9 @@ func runMachineRun(ctx context.Context) error {
 
 	s.Start()
 	// wait for machine to be started
-	err = mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
+	err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
+		return mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
+	})
 	s.Stop()
 	if err != nil {
 		return err
@@ -747,19 +766,8 @@ func determineMachineConfig(
 		machineConf.Init.SwapSizeMB = new(sizeMB)
 	}
 
-	if flag.IsSpecified(ctx, "cachedrive-size") {
-		sizeMB, err := helpers.ParseSize(flag.GetString(ctx, "cachedrive-size"), units.RAMInBytes, units.MiB)
-		if err != nil {
-			return machineConf, fmt.Errorf("invalid cachedrive size: %w", err)
-		}
-		if sizeMB < 0 {
-			return machineConf, fmt.Errorf("--cachedrive-size must not be negative")
-		}
-		if sizeMB == 0 {
-			machineConf.CacheDrive = nil
-		} else {
-			machineConf.CacheDrive = &fly.MachineCacheDrive{SizeMB: uint64(sizeMB)}
-		}
+	if err := applyCacheDiskFlags(ctx, machineConf); err != nil {
+		return machineConf, err
 	}
 
 	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
@@ -927,12 +935,7 @@ func determineMachineConfig(
 		}
 	}
 
-	// Standby machine
-	if flag.IsSpecified(ctx, "standby-for") {
-		standbys := flag.GetStringSlice(ctx, "standby-for")
-		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
-		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
-	}
+	applyStandbyForFlag(ctx, machineConf)
 
 	machineFiles, err := command.FilesFromCommand(ctx)
 	if err != nil {
@@ -941,4 +944,15 @@ func determineMachineConfig(
 	fly.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
+}
+
+// applyStandbyForFlag handles the deprecated --standby-for. The flag never
+// makes a Machine a standby; its empty form turns a Machine that already is
+// one into a regular Machine.
+func applyStandbyForFlag(ctx context.Context, machineConf *fly.MachineConfig) {
+	if !flag.IsSpecified(ctx, "standby-for") || len(flag.GetStringSlice(ctx, "standby-for")) > 0 {
+		return
+	}
+	machineConf.Standbys = nil
+	delete(machineConf.Env, "FLY_STANDBY_FOR")
 }

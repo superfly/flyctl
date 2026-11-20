@@ -1,12 +1,15 @@
 package agent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 func TestSetupLogDirectoryPrunesLogs(t *testing.T) {
@@ -56,5 +59,25 @@ func TestSetupLogDirectoryPrunesLogs(t *testing.T) {
 
 	if _, err := os.Stat(nonLogPath); os.IsNotExist(err) {
 		t.Fatalf("non-log file was improperly pruned: %v", nonLogPath)
+	}
+}
+
+// A socket path over the limit can never be bound. The agent process refuses
+// it; this side only sees the agent fail to come up, and must not report that
+// to Sentry as a bug either.
+func TestStartFailureWithOverlongSocketPathIsExpected(t *testing.T) {
+	cause := errors.New("context deadline exceeded")
+
+	long := &startError{error: expectedIfSocketPathTooLong(cause, "/"+strings.Repeat("a", MaxUnixSocketPath))}
+	if !flyerr.IsExpected(long) {
+		t.Fatal("start failure with an over-long socket path is not marked expected")
+	}
+	if got := long.Error(); got != "agent: failed to start" {
+		t.Fatalf("message changed: %q", got)
+	}
+
+	short := &startError{error: expectedIfSocketPathTooLong(cause, "/tmp/fly-agent.sock")}
+	if flyerr.IsExpected(short) {
+		t.Fatal("an ordinary start failure must still be reported")
 	}
 }

@@ -166,6 +166,10 @@ type machineDeployment struct {
 	deployRetries         int
 	buildID               int64
 	builderID             string
+
+	// secondMachineGroups are the process groups this deploy tried to give a
+	// second machine for high availability.
+	secondMachineGroups []string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {

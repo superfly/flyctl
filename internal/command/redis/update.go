@@ -33,7 +33,7 @@ func newUpdate() (cmd *cobra.Command) {
 		flag.ReplicaRegions(),
 		flag.Bool{
 			Name:        "enable-prodpack",
-			Description: "Enable ProdPack add-on for additional features ($200/mo), leaving every other setting untouched",
+			Description: "Enable ProdPack add-on for additional features (" + prodPackPrice + "), leaving every other setting untouched",
 		},
 		flag.Bool{
 			Name:        "disable-prodpack",
@@ -53,7 +53,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	id := flag.FirstArg(ctx)
 
-	response, err := gql.GetAddOn(ctx, client, id, string(gql.AddOnTypeUpstashRedis))
+	response, err := gql.GetAddOn(ctx, client, id, redisProvider)
 	if err != nil {
 		return
 	}

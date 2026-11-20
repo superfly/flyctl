@@ -43,10 +43,9 @@ func TestFlyLaunchV2(t *testing.T) {
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
 		"vm": []any{map[string]any{
-			"cpu_kind":  "shared",
-			"cpus":      int64(1),
-			"memory":    "1gb",
-			"memory_mb": int64(1024),
+			"cpu_kind": "shared",
+			"cpus":     int64(1),
+			"memory":   "1gb",
 		}},
 		"http_service": map[string]any{
 			"force_https":          true,
@@ -107,10 +106,9 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
 		"vm": []any{map[string]any{
-			"cpu_kind":  "shared",
-			"cpus":      int64(1),
-			"memory":    "1gb",
-			"memory_mb": int64(1024),
+			"cpu_kind": "shared",
+			"cpus":     int64(1),
+			"memory":   "1gb",
 		}},
 	}
 	require.EqualValues(f, want, toml)
@@ -242,7 +240,7 @@ func TestFlyLaunchHA(t *testing.T) {
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml = f.Collect(c).MachinesList(appName)
-		assert.Equal(c, 5, len(ml), "want 5 machines, which includes two standbys")
+		assert.Equal(c, 4, len(ml), "want 4 machines: two for app, one each for task and disk")
 	}, 10*time.Second, 1*time.Second)
 
 	groups := lo.GroupBy(ml, func(m *fly.Machine) string {
@@ -251,13 +249,13 @@ func TestFlyLaunchHA(t *testing.T) {
 
 	require.Equal(f, 3, len(groups))
 	require.Equal(f, 2, len(groups["app"]))
-	require.Equal(f, 2, len(groups["task"]))
+	require.Equal(f, 1, len(groups["task"]))
 	require.Equal(f, 1, len(groups["disk"]))
 
 	isStandby := func(m *fly.Machine) bool { return len(m.Config.Standbys) > 0 }
 
 	require.Equal(f, 0, lo.CountBy(groups["app"], isStandby))
-	require.Equal(f, 1, lo.CountBy(groups["task"], isStandby))
+	require.Equal(f, 0, lo.CountBy(groups["task"], isStandby))
 	require.Equal(f, 0, lo.CountBy(groups["disk"], isStandby))
 
 	hasServices := func(m *fly.Machine) bool { return len(m.Config.Services) > 0 }
