@@ -53,29 +53,38 @@ func runShow(ctx context.Context) (err error) {
 		return err
 	}
 
-	credit, err := purchasedCreditBalance(ctx, client.GenqClient(), selectedOrg.Slug)
-	if err != nil {
-		return err
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	// A missing balance shouldn't hide the rest, such as when the API doesn't have the field yet.
+	credit, creditErr := purchasedCreditBalance(ctx, client.GenqClient(), selectedOrg.Slug)
+	if creditErr != nil {
+		fmt.Fprintln(io.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf(
+			"Couldn't get the purchased credit balance for organization %s: %v", selectedOrg.Slug, creditErr)))
 	}
 
-	io := iostreams.FromContext(ctx)
 	if config.FromContext(ctx).JSONOutput {
-		_ = render.JSON(io.Out, struct {
-			*fly.OrganizationDetails
-			PurchasedCreditBalanceCents *int
-		}{org, credit})
+		if creditErr != nil {
+			_ = render.JSON(io.Out, org)
+		} else {
+			_ = render.JSON(io.Out, struct {
+				*fly.OrganizationDetails
+				PurchasedCreditBalanceCents *int
+			}{org, credit})
+		}
 
 		return nil
 	}
-	colorize := io.ColorScheme()
 
 	var buf bytes.Buffer
 
 	fmt.Fprintln(&buf, colorize.Bold("Organization"))
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Name", org.Name)
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Slug", org.Slug)
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Type", org.Type)
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Credit", formatCredit(credit))
+	fmt.Fprintf(&buf, "%-16s: %-20s\n", "Name", org.Name)
+	fmt.Fprintf(&buf, "%-16s: %-20s\n", "Slug", org.Slug)
+	fmt.Fprintf(&buf, "%-16s: %-20s\n", "Type", org.Type)
+	if creditErr == nil {
+		fmt.Fprintf(&buf, "%-16s: %-20s\n", "Purchased credit", formatCredit(credit))
+	}
 	fmt.Fprintln(&buf)
 
 	fmt.Fprintln(&buf, colorize.Bold("Summary"))
@@ -105,8 +114,9 @@ func runShow(ctx context.Context) (err error) {
 	return nil
 }
 
-// purchasedCreditBalance returns the billing page's Purchased Credit Balance in
-// cents, or nil when the org's billing parent pays its bills.
+// purchasedCreditBalance returns the org's purchased credit balance in cents,
+// without trial credits and other grants, or nil when the org's billing parent
+// pays its bills.
 func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string) (*int, error) {
 	_ = `# @genqlient
 	query GetOrganizationCreditBalance($slug: String!) {
@@ -119,7 +129,7 @@ func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string
 
 	resp, err := gql.GetOrganizationCreditBalance(ctx, client, slug)
 	if err != nil {
-		return nil, fmt.Errorf("failed retrieving credit balance for organization %s: %w", slug, err)
+		return nil, err
 	}
 
 	return resp.Organization.PurchasedCreditBalance, nil
@@ -130,5 +140,10 @@ func formatCredit(cents *int) string {
 		return "billed to parent organization"
 	}
 
-	return fmt.Sprintf("$%s.%02d", humanize.Comma(int64(*cents/100)), *cents%100)
+	sign, c := "", *cents
+	if c < 0 {
+		sign, c = "-", -c
+	}
+
+	return fmt.Sprintf("%s$%s.%02d", sign, humanize.Comma(int64(c/100)), c%100)
 }

@@ -7208,7 +7208,9 @@ type Organization implements Node {
   provisionsBetaExtensions: Boolean!
 
   """
-  Purchased credits in cents, as the billing page shows them. Null when the organization's billing parent pays its bills.
+  Purchased credit balance in cents, the same value as the hosted MCP server's
+  get_credit_balance. Trial credits and other grants are not included. Null when
+  the organization's billing parent pays its bills.
   """
   purchasedCreditBalance: Int
 

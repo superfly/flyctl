@@ -22,11 +22,12 @@ import (
 )
 
 // runShowWith runs `fly orgs show personal` against a GraphQL client that
-// answers the credit balance query with respond, and returns stdout.
-func runShowWith(t *testing.T, jsonOutput bool, respond mock.GraphQLClient) (string, error) {
+// answers the credit balance query with respond.
+func runShowWith(t *testing.T, jsonOutput bool, respond mock.GraphQLClient) (stdout, stderr string, err error) {
 	t.Helper()
+	t.Setenv("FLY_ORG", "")
 
-	io, _, out, _ := iostreams.Test()
+	io, _, out, errOut := iostreams.Test()
 	ctx := iostreams.NewContext(context.Background(), io)
 	ctx = config.NewContext(ctx, &config.Config{JSONOutput: jsonOutput})
 	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
@@ -46,9 +47,9 @@ func runShowWith(t *testing.T, jsonOutput bool, respond mock.GraphQLClient) (str
 	require.NoError(t, flags.Parse([]string{"personal"}))
 	ctx = flagctx.NewContext(ctx, flags)
 
-	err := runShow(ctx)
+	err = runShow(ctx)
 
-	return out.String(), err
+	return out.String(), errOut.String(), err
 }
 
 func creditBalanceAnswer(t *testing.T, data string) mock.GraphQLClient {
@@ -62,20 +63,29 @@ func creditBalanceAnswer(t *testing.T, data string) mock.GraphQLClient {
 	}
 }
 
-func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
-	stdout, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":123456}}`))
-	require.NoError(t, err)
-
-	assert.Contains(t, stdout, "Type      : PERSONAL")
-	assert.Contains(t, stdout, "Credit    : $1,234.56")
-}
-
-func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
-	stdout, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":1000}}`))
-	require.NoError(t, err)
+func decodeJSON(t *testing.T, stdout string) map[string]any {
+	t.Helper()
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(stdout), &got))
+
+	return got
+}
+
+func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
+	stdout, stderr, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":123456}}`))
+	require.NoError(t, err)
+
+	assert.Contains(t, stdout, "Type            : PERSONAL")
+	assert.Contains(t, stdout, "Purchased credit: $1,234.56")
+	assert.Empty(t, stderr)
+}
+
+func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
+	stdout, _, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":1000}}`))
+	require.NoError(t, err)
+
+	got := decodeJSON(t, stdout)
 	assert.Equal(t, float64(1000), got["PurchasedCreditBalanceCents"])
 	assert.Equal(t, "personal", got["Slug"])
 	assert.Equal(t, "Example Org", got["Name"])
@@ -86,25 +96,38 @@ func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
 func TestShowBilledThroughParent(t *testing.T) {
 	answer := `{"organization":{"purchasedCreditBalance":null}}`
 
-	stdout, err := runShowWith(t, false, creditBalanceAnswer(t, answer))
+	stdout, _, err := runShowWith(t, false, creditBalanceAnswer(t, answer))
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "Credit    : billed to parent organization")
+	assert.Contains(t, stdout, "Purchased credit: billed to parent organization")
 
-	stdout, err = runShowWith(t, true, creditBalanceAnswer(t, answer))
+	stdout, _, err = runShowWith(t, true, creditBalanceAnswer(t, answer))
 	require.NoError(t, err)
-	var got map[string]any
-	require.NoError(t, json.Unmarshal([]byte(stdout), &got))
+	got := decodeJSON(t, stdout)
 	assert.Contains(t, got, "PurchasedCreditBalanceCents")
 	assert.Nil(t, got["PurchasedCreditBalanceCents"])
 }
 
-func TestShowReturnsCreditBalanceError(t *testing.T) {
-	stdout, err := runShowWith(t, false, func(context.Context, *genq.Request, *genq.Response) error {
+// The rest of the org still shows when the balance can't be read, such as
+// against an API that doesn't have the field yet.
+func TestShowWarnsWhenCreditBalanceFails(t *testing.T) {
+	fail := func(context.Context, *genq.Request, *genq.Response) error {
 		return errors.New("Field 'purchasedCreditBalance' doesn't exist on type 'Organization'")
-	})
+	}
 
-	require.ErrorContains(t, err, "failed retrieving credit balance for organization personal")
-	assert.Empty(t, stdout)
+	stdout, stderr, err := runShowWith(t, false, fail)
+	require.NoError(t, err)
+	assert.Contains(t, stdout, "Slug            : personal")
+	assert.Contains(t, stdout, "ada@example.com")
+	assert.NotContains(t, stdout, "Purchased credit")
+	assert.Contains(t, stderr, "Couldn't get the purchased credit balance for organization personal")
+	assert.Contains(t, stderr, "doesn't exist on type 'Organization'")
+
+	stdout, stderr, err = runShowWith(t, true, fail)
+	require.NoError(t, err)
+	got := decodeJSON(t, stdout)
+	assert.Equal(t, "personal", got["Slug"])
+	assert.NotContains(t, got, "PurchasedCreditBalanceCents")
+	assert.Contains(t, stderr, "Couldn't get the purchased credit balance")
 }
 
 func TestFormatCredit(t *testing.T) {
@@ -114,7 +137,8 @@ func TestFormatCredit(t *testing.T) {
 		1000:      "$10.00",
 		123456:    "$1,234.56",
 		100000000: "$1,000,000.00",
+		-150:      "-$1.50",
 	} {
-		assert.Equal(t, want, formatCredit(&cents))
+		assert.Equal(t, want, formatCredit(&cents), cents)
 	}
 }
