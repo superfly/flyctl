@@ -74,12 +74,11 @@ func runMachineStart(ctx context.Context) (err error) {
 		var confirmedStart bool
 		if err = tracing.WorkflowPhase(ctx, "request_start", func(ctx context.Context) error {
 			err := Start(ctx, appName, machine)
-			var apiErr *flaps.FlapsError
-			if !errors.As(err, &apiErr) || apiErr.ResponseStatusCode != http.StatusConflict || strings.TrimPrefix(apiErr.Error(), "aborted: ") != "machine still attempting to start" || machine.Version == "" {
+			if machine.Version == "" || !mayAlreadyBeStarting(err) {
 				return err
 			}
 
-			// The host is already processing a start for this version.
+			// Creation can launch the Machine before the explicit start is accepted.
 			const timeout = time.Minute
 			waitCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -115,6 +114,22 @@ func runMachineStart(ctx context.Context) (err error) {
 	}
 
 	return
+}
+
+func mayAlreadyBeStarting(err error) bool {
+	var apiErr *flaps.FlapsError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+
+	switch apiErr.ResponseStatusCode {
+	case http.StatusConflict:
+		return strings.TrimPrefix(apiErr.Error(), "aborted: ") == "machine still attempting to start"
+	case http.StatusPreconditionFailed:
+		return strings.TrimPrefix(apiErr.Error(), "failed_precondition: ") == "unable to start machine from current state: 'created'"
+	default:
+		return false
+	}
 }
 
 func Start(ctx context.Context, appName string, machine *fly.Machine) (err error) {
