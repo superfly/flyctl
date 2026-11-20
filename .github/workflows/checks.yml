@@ -19,7 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
       - uses: j178/prek-action@v3.1.0
@@ -31,7 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
       - name: golangci-lint

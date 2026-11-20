@@ -11,20 +11,25 @@ on:
         default: User initiated run
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   preflight-tests:
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-go@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
           check-latest: true
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - uses: superfly/flyctl-actions/setup-flyctl@1.6
       - name: Run cleanup script
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
@@ -33,7 +38,7 @@ jobs:
           go run ./scripts/clean-up-preflight-apps
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           webhook: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
