@@ -7026,7 +7026,7 @@ type Organization implements Node {
   billingStatus: BillingStatus!
 
   """
-  The account credits in cents
+  Purchased credit balance in cents. Trial credits and other grants are not included.
   """
   creditBalance: Int!
 
@@ -7206,13 +7206,6 @@ type Organization implements Node {
   Whether the organization can provision beta extensions
   """
   provisionsBetaExtensions: Boolean!
-
-  """
-  Purchased credit balance in cents, the same value as the hosted MCP server's
-  get_credit_balance. Trial credits and other grants are not included. Null when
-  the organization's billing parent pays its bills.
-  """
-  purchasedCreditBalance: Int
 
   """
   Unmodified unique org slug

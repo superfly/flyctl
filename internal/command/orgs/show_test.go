@@ -73,7 +73,7 @@ func decodeJSON(t *testing.T, stdout string) map[string]any {
 }
 
 func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
-	stdout, stderr, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":123456}}`))
+	stdout, stderr, err := runShowWith(t, false, creditBalanceAnswer(t, `{"organization":{"creditBalance":123456}}`))
 	require.NoError(t, err)
 
 	assert.Contains(t, stdout, "Type            : PERSONAL")
@@ -82,7 +82,7 @@ func TestShowPrintsPurchasedCreditBalance(t *testing.T) {
 }
 
 func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
-	stdout, _, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"purchasedCreditBalance":1000}}`))
+	stdout, _, err := runShowWith(t, true, creditBalanceAnswer(t, `{"organization":{"creditBalance":1000}}`))
 	require.NoError(t, err)
 
 	got := decodeJSON(t, stdout)
@@ -92,26 +92,24 @@ func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
 	assert.Contains(t, got, "Members")
 }
 
-// A billing child spends its parent's credit, so it has no balance of its own.
-func TestShowBilledThroughParent(t *testing.T) {
-	answer := `{"organization":{"purchasedCreditBalance":null}}`
+// Money owed is a negative balance, which the billing page shows as $0.
+func TestShowMoneyOwedReadsAsZero(t *testing.T) {
+	answer := `{"organization":{"creditBalance":-700}}`
 
 	stdout, _, err := runShowWith(t, false, creditBalanceAnswer(t, answer))
 	require.NoError(t, err)
-	assert.Contains(t, stdout, "Purchased credit: billed to parent organization")
+	assert.Contains(t, stdout, "Purchased credit: $0.00")
 
 	stdout, _, err = runShowWith(t, true, creditBalanceAnswer(t, answer))
 	require.NoError(t, err)
-	got := decodeJSON(t, stdout)
-	assert.Contains(t, got, "PurchasedCreditBalanceCents")
-	assert.Nil(t, got["PurchasedCreditBalanceCents"])
+	assert.Equal(t, float64(0), decodeJSON(t, stdout)["PurchasedCreditBalanceCents"])
 }
 
 // The rest of the org still shows when the balance can't be read, such as
 // against an API that doesn't have the field yet.
 func TestShowWarnsWhenCreditBalanceFails(t *testing.T) {
 	fail := func(context.Context, *genq.Request, *genq.Response) error {
-		return errors.New("Field 'purchasedCreditBalance' doesn't exist on type 'Organization'")
+		return errors.New("Internal server error")
 	}
 
 	stdout, stderr, err := runShowWith(t, false, fail)
@@ -120,7 +118,7 @@ func TestShowWarnsWhenCreditBalanceFails(t *testing.T) {
 	assert.Contains(t, stdout, "ada@example.com")
 	assert.NotContains(t, stdout, "Purchased credit")
 	assert.Contains(t, stderr, "Couldn't get the purchased credit balance for organization personal")
-	assert.Contains(t, stderr, "doesn't exist on type 'Organization'")
+	assert.Contains(t, stderr, "Internal server error")
 
 	stdout, stderr, err = runShowWith(t, true, fail)
 	require.NoError(t, err)
@@ -137,8 +135,7 @@ func TestFormatCredit(t *testing.T) {
 		1000:      "$10.00",
 		123456:    "$1,234.56",
 		100000000: "$1,000,000.00",
-		-150:      "-$1.50",
 	} {
-		assert.Equal(t, want, formatCredit(&cents), cents)
+		assert.Equal(t, want, formatCredit(cents), cents)
 	}
 }

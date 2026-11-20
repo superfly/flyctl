@@ -2561,16 +2561,12 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 
 // GetOrganizationCreditBalanceOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrganizationCreditBalanceOrganization struct {
-	// Purchased credit balance in cents, the same value as the hosted MCP server's
-	// get_credit_balance. Trial credits and other grants are not included. Null when
-	// the organization's billing parent pays its bills.
-	PurchasedCreditBalance *int `json:"purchasedCreditBalance"`
+	// Purchased credit balance in cents. Trial credits and other grants are not included.
+	CreditBalance int `json:"creditBalance"`
 }
 
-// GetPurchasedCreditBalance returns GetOrganizationCreditBalanceOrganization.PurchasedCreditBalance, and is useful for accessing the field via an interface.
-func (v *GetOrganizationCreditBalanceOrganization) GetPurchasedCreditBalance() *int {
-	return v.PurchasedCreditBalance
-}
+// GetCreditBalance returns GetOrganizationCreditBalanceOrganization.CreditBalance, and is useful for accessing the field via an interface.
+func (v *GetOrganizationCreditBalanceOrganization) GetCreditBalance() int { return v.CreditBalance }
 
 // GetOrganizationCreditBalanceResponse is returned by GetOrganizationCreditBalance on success.
 type GetOrganizationCreditBalanceResponse struct {
@@ -4603,7 +4599,7 @@ func GetOrganization(
 const GetOrganizationCreditBalance_Operation = `
 query GetOrganizationCreditBalance ($slug: String!) {
 	organization(slug: $slug) {
-		purchasedCreditBalance
+		creditBalance
 	}
 }
 `
