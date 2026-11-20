@@ -522,7 +522,7 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 	if err := leaseGroup.Wait(); err != nil {
 		tracing.RecordErrorEvent(ctx, span, err)
 
-		return nil
+		return err
 	}
 
 	return nil
