@@ -216,7 +216,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 			fmt.Fprint(out, "Notes:\n")
 		}
 		if hasStandbys {
-			fmt.Fprintf(out, "  † Standby machine (it will take over only in case of host hardware failure)\n")
+			fmt.Fprintf(out, "  † Standby machine\n")
 		}
 		if hasNotOk {
 			fmt.Fprintf(out, "  💀 The machine's host is unreachable\n")

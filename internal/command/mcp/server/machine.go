@@ -60,11 +60,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "string",
 			},
-			"standby-for": {
-				Description: "Standby for a machine in the same region",
-				Required:    false,
-				Type:        "array",
-			},
 			"vm-cpu-kind": {
 				Description: "The CPU kind to use for the new machine",
 				Required:    false,
@@ -147,10 +142,6 @@ var MachineCommands = []FlyCommand{
 
 			if region, ok := args["region"]; ok {
 				cmdArgs = append(cmdArgs, "--region", region)
-			}
-
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
 			}
 
 			if vmCpuKind, ok := args["vm-cpu-kind"]; ok {
@@ -310,11 +301,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "boolean",
 			},
-			"standby-for": {
-				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
-				Required:    false,
-				Type:        "array",
-			},
 			"use-zstd": {
 				Description: "Use zstd compression for the image",
 				Required:    false,
@@ -432,10 +418,6 @@ var MachineCommands = []FlyCommand{
 				} else if value {
 					cmdArgs = append(cmdArgs, "--skip-dns-registration")
 				}
-			}
-
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
 			}
 
 			if useZstd, ok := args["use-zstd"]; ok {
@@ -976,11 +958,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "boolean",
 			},
-			"standby-for": {
-				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
-				Required:    false,
-				Type:        "array",
-			},
 			"use-zstd": {
 				Description: "Use zstd compression for the image",
 				Required:    false,
@@ -1109,10 +1086,6 @@ var MachineCommands = []FlyCommand{
 				} else if value {
 					cmdArgs = append(cmdArgs, "--skip-dns-registration")
 				}
-			}
-
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
 			}
 
 			if useZstd, ok := args["use-zstd"]; ok {
@@ -1456,11 +1429,6 @@ var MachineCommands = []FlyCommand{
 				Required:    false,
 				Type:        "boolean",
 			},
-			"standby-for": {
-				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
-				Required:    false,
-				Type:        "array",
-			},
 			"use-zstd": {
 				Description: "Use zstd compression for the image",
 				Required:    false,
@@ -1570,10 +1538,6 @@ var MachineCommands = []FlyCommand{
 				} else if value {
 					cmdArgs = append(cmdArgs, "--skip-dns-registration")
 				}
-			}
-
-			if standbyFor, ok := args["standby-for"]; ok {
-				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
 			}
 
 			if useZstd, ok := args["use-zstd"]; ok {
