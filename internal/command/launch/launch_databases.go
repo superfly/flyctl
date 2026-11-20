@@ -324,7 +324,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Fetch the default user's credentials with retry logic, then build
-	// DATABASE_URL from the ready cluster's pooler endpoint.
+	// DATABASE_URL from the ready cluster's endpoints.
 	var creds flaps.ManagedPostgresUserCredentials
 	err = retry.Do(
 		func() error {
@@ -393,10 +393,11 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 			if err != nil {
 				return err
 			}
-			if cluster.Credentials.ConnectionUri == "" {
+			uri := cluster.Credentials.AppURI()
+			if uri == "" {
 				return errors.New("connection URI is empty; cannot attach without valid credentials")
 			}
-			clusterOrgSlug, baseUri = cluster.Data.Organization.Slug, cluster.Credentials.ConnectionUri
+			clusterOrgSlug, baseUri = cluster.Data.Organization.Slug, uri
 
 			return nil
 		},

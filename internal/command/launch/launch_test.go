@@ -519,9 +519,10 @@ func TestAttachExistingManagedPostgres(t *testing.T) {
 		return secrets, err
 	}
 
-	// v2Cluster stubs a v2 cluster whose pooler URI is uri. The v1 API
-	// finds the cluster but, as for any v2 cluster, has no credentials.
-	v2Cluster := func(uri string) (*mock.FlapsClient, *mock.MpgV1Client, *mock.MpgV2Client) {
+	// v2Cluster stubs a v2 cluster whose credentials carry databaseURL and
+	// the pooled pgbouncerURI. The v1 API finds the cluster but, as for any
+	// v2 cluster, has no credentials.
+	v2Cluster := func(databaseURL, pgbouncerURI string) (*mock.FlapsClient, *mock.MpgV1Client, *mock.MpgV2Client) {
 		flapsClient := &mock.FlapsClient{
 			GetManagedPostgresClusterFunc: func(_ context.Context, id string) (flaps.ManagedPostgresCluster, error) {
 				return flaps.ManagedPostgresCluster{ID: id, Organization: flaps.ManagedPostgresOrganization{Slug: "my-org"}}, nil
@@ -540,7 +541,8 @@ func TestAttachExistingManagedPostgres(t *testing.T) {
 						User:          "fly-user",
 						Password:      "secret",
 						DBName:        "fly-db",
-						ConnectionUri: uri,
+						ConnectionUri: pgbouncerURI,
+						DatabaseURL:   databaseURL,
 					},
 				}, nil
 			},
@@ -550,7 +552,20 @@ func TestAttachExistingManagedPostgres(t *testing.T) {
 	}
 
 	t.Run("v2 cluster", func(t *testing.T) {
-		flapsClient, v1, v2 := v2Cluster("postgresql://fly-user:secret@pgbouncer.cluster-id.flympg.net/fly-db")
+		flapsClient, v1, v2 := v2Cluster(
+			"postgresql://fly-user:secret@direct.cluster-id.flympg.net/fly-db",
+			"postgresql://fly-user:secret@pgbouncer.cluster-id.flympg.net/fly-db",
+		)
+		secrets, err := attach(t, flapsClient, v1, v2)
+
+		require.NoError(t, err)
+		require.Contains(t, secrets, "DATABASE_URL")
+		assert.Equal(t, "postgresql://fly-user:secret@direct.cluster-id.flympg.net/my-app-db", *secrets["DATABASE_URL"])
+	})
+
+	// A ui-ex without database_url sends only the pooled URI.
+	t.Run("v2 cluster without database_url", func(t *testing.T) {
+		flapsClient, v1, v2 := v2Cluster("", "postgresql://fly-user:secret@pgbouncer.cluster-id.flympg.net/fly-db")
 		secrets, err := attach(t, flapsClient, v1, v2)
 
 		require.NoError(t, err)
@@ -559,7 +574,7 @@ func TestAttachExistingManagedPostgres(t *testing.T) {
 	})
 
 	t.Run("v2 cluster without credentials yet", func(t *testing.T) {
-		flapsClient, v1, v2 := v2Cluster("")
+		flapsClient, v1, v2 := v2Cluster("", "")
 		secrets, err := attach(t, flapsClient, v1, v2)
 
 		assert.ErrorContains(t, err, "connection URI is empty")
