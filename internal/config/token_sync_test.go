@@ -130,7 +130,8 @@ func TestSyncPreservesUnsavedDischarge(t *testing.T) {
 	cached := tokens.ParseFromFile(fakeThirdPartyTokens(t, third, 1).All(), path)
 	original := cached.All()
 	require.NoError(t, SetAccessToken(path, original))
-	syncNow := MonitorTokens(ctx, cached, nil)
+	syncNow, err := MonitorTokens(ctx, cached, nil)
+	require.NoError(t, err)
 	select {
 	case unlock := <-locked:
 		require.NoError(t, unlock())

@@ -345,3 +345,50 @@ func TestConnectTokenUDPFollowsReprovision(t *testing.T) {
 	default:
 	}
 }
+
+func TestTokenTunnelStatus(t *testing.T) {
+	const peerIP = "fdaa:0:18:a7b:1:1111:2222:3302"
+
+	for _, tc := range []struct {
+		name   string
+		udp    bool
+		direct string
+		want   string // "" means the gateway's websocket address
+	}{
+		{name: "udp to direct ip", udp: true, direct: "192.0.2.10", want: directUDP("192.0.2.10")},
+		{name: "udp without direct ip", udp: true},
+		{name: "websockets only", direct: "192.0.2.10"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gw, _ := testKeypair(t)
+			gateway := newFakeTokenGateway(t, []string{gw}, []tokenResult{
+				{Type: "ok", PeerIP: peerIP, ExpiresAt: time.Now().Add(time.Hour).Unix(), Direct: tc.direct},
+			})
+
+			pub, priv := testKeypair(t)
+			state := &WireGuardState{Org: "test-org", LocalPublic: pub, LocalPrivate: priv}
+
+			tunnel, err := ConnectToken(context.Background(), state, gateway.endpoint(), &TokenAuth{
+				Token:   func() string { return "FlyV1 fm2_test" },
+				OrgSlug: "test-org",
+			}, tc.udp)
+			require.NoError(t, err)
+			defer tunnel.Close()
+
+			<-gateway.ready
+
+			want := tc.want
+			if want == "" {
+				want = "wss://" + gateway.endpoint()
+			}
+
+			assert.Equal(t, TunnelStatus{
+				Token:    true,
+				Name:     TokenPeerName(pub),
+				Pubkey:   pub,
+				PeerIP:   peerIP,
+				Endpoint: want,
+			}, tunnel.Status())
+		})
+	}
+}

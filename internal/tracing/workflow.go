@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -42,7 +43,8 @@ func FinishWorkflow(ctx context.Context) {
 }
 
 // WorkflowStep records a phase of a traced workflow. Its error is conveyed as a
-// status because command errors can contain secrets or connection strings.
+// status and a fixed error code because command errors can contain secrets or
+// connection strings.
 func WorkflowStep[T any](ctx context.Context, name string, run func(context.Context) (T, error)) (T, error) {
 	ctx, finish := StartWorkflowPhase(ctx, name)
 	result, err := run(ctx)
@@ -72,6 +74,7 @@ func WorkflowPhase(ctx context.Context, name string, run func(context.Context) e
 func finishWorkflowSpan(span trace.Span, err error) {
 	defer span.End()
 	if err != nil {
+		span.SetAttributes(attribute.String("workflow.error.code", WorkflowErrorCodeFor(err).String()))
 		span.SetStatus(codes.Error, "workflow operation failed")
 	} else {
 		span.SetStatus(codes.Ok, "")

@@ -77,7 +77,7 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			}
 		default:
 			var flapsErr *flaps.FlapsError
-			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
+			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
 				return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
 			}
 			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {

@@ -581,6 +581,11 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 
 	var err error
 	switch builderMachine.State {
+	case "starting":
+		// The builder is already booting. Join the readiness wait below.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Minute)
+		defer cancel()
 	case "stopping":
 		// Another caller may finish the stop and start the builder before we
 		// observe it. Start is idempotent for a started Machine.
@@ -639,7 +644,7 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 	if err := flapsClient.Wait(ctx, appName, builderMachine.ID, flaps.WithWaitStates("started"), flaps.WithWaitTimeout(time.Second*180)); err != nil {
 		tracing.RecordError(ctx, span, err, "error waiting for builder machine to start")
 
-		return fmt.Errorf("waiting for builder machine %s to start after restart: %w", builderMachine.ID, err)
+		return fmt.Errorf("waiting for builder machine %s to start: %w", builderMachine.ID, err)
 	}
 
 	return nil

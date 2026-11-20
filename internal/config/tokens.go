@@ -36,8 +36,9 @@ type UserURLCallback func(ctx context.Context, url string) error
 //   - Pruning tokens for organizations the user is no longer a member of.
 //
 // The returned function synchronizes file-backed tokens on demand, serialized
-// with the background monitor's updates. It performs no API calls.
-func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) func() error {
+// with the background monitor's updates. It performs no API calls. The error
+// reports the initial discharge attempt, which may have partially succeeded.
+func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) (func() error, error) {
 	log := logger.FromContext(monitorCtx)
 	file := t.FromFile()
 	before := t.Copy()
@@ -49,9 +50,9 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
 	}
 
-	updated2, err := refreshDischargeTokens(monitorCtx, updated, uucb, 30*time.Second)
-	if err != nil {
-		log.Debugf("failed to update discharge tokens: %s", err)
+	updated2, dischargeErr := refreshDischargeTokens(monitorCtx, updated, uucb, 30*time.Second)
+	if dischargeErr != nil {
+		log.Debugf("failed to update discharge tokens: %s", dischargeErr)
 	}
 
 	if updated1 || updated2 {
@@ -88,7 +89,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		wg.Wait()
 	})
 
-	return func() error { return syncConfigTokens(&m, t) }
+	return func() error { return syncConfigTokens(&m, t) }, dischargeErr
 }
 
 // monitorConfigTokenChanges watches for token changes in the config file. This can
