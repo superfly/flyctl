@@ -445,6 +445,228 @@ func TestMemoryString(t *testing.T) {
 	assert.Equal(t, "1536mb", memoryString(1536))
 }
 
+func TestComputeExceedsSuspendLimit(t *testing.T) {
+	tests := []struct {
+		name     string
+		compute  *appconfig.Compute
+		expected bool
+	}{
+		{
+			name:     "nil compute",
+			compute:  nil,
+			expected: false,
+		},
+		{
+			name: "shared-cpu-1x (256MB)",
+			compute: &appconfig.Compute{
+				Size:         "shared-cpu-1x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: false,
+		},
+		{
+			name: "shared-cpu-2x (512MB)",
+			compute: &appconfig.Compute{
+				Size:         "shared-cpu-2x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: false,
+		},
+		{
+			name: "shared-cpu-4x (1024MB)",
+			compute: &appconfig.Compute{
+				Size:         "shared-cpu-4x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: false,
+		},
+		{
+			name: "shared-cpu-8x (2048MB)",
+			compute: &appconfig.Compute{
+				Size:         "shared-cpu-8x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: true,
+		},
+		{
+			name: "performance-1x (2048MB)",
+			compute: &appconfig.Compute{
+				Size:         "performance-1x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: true,
+		},
+		{
+			name: "performance-2x (4096MB)",
+			compute: &appconfig.Compute{
+				Size:         "performance-2x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: true,
+		},
+		{
+			name: "performance-4x (8192MB)",
+			compute: &appconfig.Compute{
+				Size:         "performance-4x",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: true,
+		},
+		{
+			name: "a100-40gb GPU preset",
+			compute: &appconfig.Compute{
+				Size:         "a100-40gb",
+				MachineGuest: &fly.MachineGuest{},
+			},
+			expected: true,
+		},
+		{
+			name: "GPUKind directly on MachineGuest",
+			compute: &appconfig.Compute{
+				Size: "shared-cpu-1x",
+				MachineGuest: &fly.MachineGuest{
+					GPUKind: "l40s",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Memory string exceeds 2GB (4gb)",
+			compute: &appconfig.Compute{
+				Size:   "shared-cpu-1x",
+				Memory: "4gb",
+			},
+			expected: true,
+		},
+		{
+			name: "Memory string overrides size to under 2GB (1024mb)",
+			compute: &appconfig.Compute{
+				Size:   "performance-2x",
+				Memory: "1024mb",
+			},
+			expected: false,
+		},
+		{
+			name: "MemoryMB on MachineGuest exceeds 2GB",
+			compute: &appconfig.Compute{
+				MachineGuest: &fly.MachineGuest{
+					MemoryMB: 4096,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Size set without MachineGuest (nil MachineGuest)",
+			compute: &appconfig.Compute{
+				Size: "performance-2x",
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := computeExceedsSuspendLimit(tt.compute)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestUpdateConfigAutoStopSuspendFallback(t *testing.T) {
+	newCtx := func(t *testing.T, autoStop string) context.Context {
+		t.Helper()
+		flags := New().Flags()
+		require.NoError(t, flags.Parse([]string{"--auto-stop", autoStop}))
+		return flagctx.NewContext(context.Background(), flags)
+	}
+
+	t.Run("size performance-2x falls back to stop", func(t *testing.T) {
+		ctx := newCtx(t, "suspend")
+		state := &launchState{
+			LaunchManifest: LaunchManifest{
+				Plan: &plan.LaunchPlan{
+					HttpServicePort: 8080,
+					Compute: []*appconfig.Compute{
+						{
+							Size:         "performance-2x",
+							MachineGuest: &fly.MachineGuest{},
+						},
+					},
+				},
+				Config: appconfig.NewConfig(),
+			},
+		}
+
+		state.updateConfig(ctx)
+
+		require.NotNil(t, state.appConfig.HTTPService)
+		require.NotNil(t, state.appConfig.HTTPService.AutoStopMachines)
+		assert.Equal(t, fly.MachineAutostopStop, *state.appConfig.HTTPService.AutoStopMachines)
+	})
+
+	t.Run("size shared-cpu-1x keeps suspend", func(t *testing.T) {
+		ctx := newCtx(t, "suspend")
+		state := &launchState{
+			LaunchManifest: LaunchManifest{
+				Plan: &plan.LaunchPlan{
+					HttpServicePort: 8080,
+					Compute: []*appconfig.Compute{
+						{
+							Size:         "shared-cpu-1x",
+							MachineGuest: &fly.MachineGuest{},
+						},
+					},
+				},
+				Config: appconfig.NewConfig(),
+			},
+		}
+
+		state.updateConfig(ctx)
+
+		require.NotNil(t, state.appConfig.HTTPService)
+		require.NotNil(t, state.appConfig.HTTPService.AutoStopMachines)
+		assert.Equal(t, fly.MachineAutostopSuspend, *state.appConfig.HTTPService.AutoStopMachines)
+	})
+
+	t.Run("plan VmSize performance-4x falls back to stop", func(t *testing.T) {
+		ctx := newCtx(t, "suspend")
+		state := &launchState{
+			LaunchManifest: LaunchManifest{
+				Plan: &plan.LaunchPlan{
+					HttpServicePort: 8080,
+					VmSize:          "performance-4x",
+				},
+				Config: appconfig.NewConfig(),
+			},
+		}
+
+		state.updateConfig(ctx)
+
+		require.NotNil(t, state.appConfig.HTTPService)
+		require.NotNil(t, state.appConfig.HTTPService.AutoStopMachines)
+		assert.Equal(t, fly.MachineAutostopStop, *state.appConfig.HTTPService.AutoStopMachines)
+	})
+
+	t.Run("plan MemoryMB 4096 falls back to stop", func(t *testing.T) {
+		ctx := newCtx(t, "suspend")
+		state := &launchState{
+			LaunchManifest: LaunchManifest{
+				Plan: &plan.LaunchPlan{
+					HttpServicePort: 8080,
+					MemoryMB:        4096,
+				},
+				Config: appconfig.NewConfig(),
+			},
+		}
+
+		state.updateConfig(ctx)
+
+		require.NotNil(t, state.appConfig.HTTPService)
+		require.NotNil(t, state.appConfig.HTTPService.AutoStopMachines)
+		assert.Equal(t, fly.MachineAutostopStop, *state.appConfig.HTTPService.AutoStopMachines)
+	})
+}
+
 func TestDeployHintKeepsPathsOutOfTheCommand(t *testing.T) {
 	// PowerShell expands $app inside double quotes and cmd.exe %app%, so a
 	// path can't be pasted into a command safely for every shell.
