@@ -88,6 +88,16 @@ func TestRunDestroy(t *testing.T) {
 			wantOutput:      "Managed Postgres cluster example (mpg-123) scheduled to be destroyed",
 		},
 		{
+			name: "resource-level 404 (cluster not found) propagates without legacy fallback",
+			yes:  true,
+			publicLookupErr: &flaps.FlapsError{
+				ResponseStatusCode: 404,
+				ResponseBody:       []byte(`{"error":"cluster not found"}`),
+				OriginalError:      errors.New("cluster not found"),
+			},
+			wantErr: "failed retrieving cluster mpg-123: cluster not found",
+		},
+		{
 			name:          "requires yes when non-interactive",
 			publicCluster: publicCluster,
 			wantErr:       "--yes flag must be specified",
