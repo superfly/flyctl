@@ -18,10 +18,11 @@ import (
 
 func newUpdate() *cobra.Command {
 	const (
-		short = "Update a volume for an app."
+		short = "Update a volume for an app"
 
-		long = short + ` Volumes are persistent storage for
-		Fly Machines.`
+		long = `Change a Fly Volume's snapshot settings: how many days snapshots are
+kept, and whether scheduled snapshots are taken. Settings you don't pass
+are left as they are. To change the size, use ` + "`fly volumes extend`" + `.`
 
 		usage = "update <volume id>"
 	)

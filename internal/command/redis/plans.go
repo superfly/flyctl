@@ -16,9 +16,12 @@ import (
 
 func newPlans() (cmd *cobra.Command) {
 	const (
-		long = `List available Redis plans`
+		short = "List available Upstash Redis plans"
+		long  = `List the Upstash Redis plans you can choose for a new database, with
+each plan's maximum data size, monthly price and description. Legacy
+plans are not shown. Choose a plan with ` + "`fly redis create --plan`" + ` or
+change it with ` + "`fly redis update`" + `.`
 
-		short = long
 		usage = "plans"
 	)
 

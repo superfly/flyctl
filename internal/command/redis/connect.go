@@ -16,9 +16,16 @@ import (
 
 func newConnect() (cmd *cobra.Command) {
 	const (
-		long = `Connect to a Redis database using redis-cli`
+		short = "Connect to a Redis database using redis-cli"
+		long  = `Open a redis-cli session to an Upstash Redis database. You pick the
+database from a list, so this needs a terminal; pass ` + "`--org`" + ` to list
+only one organization's databases.
 
-		short = long
+The database is proxied to local port 16379 over your organization's
+private network, and redis-cli connects to it with the database password
+already set. redis-cli must be on your PATH. To use another client, run
+` + "`fly redis proxy`" + ` instead.`
+
 		usage = "connect"
 	)
 

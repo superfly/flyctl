@@ -17,9 +17,14 @@ import (
 
 func newDestroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy an Upstash Redis database`
+		short = "Permanently destroy an Upstash Redis database"
+		long  = `Permanently destroy the Upstash Redis database given by name as the
+argument. This can't be undone.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required. Find database names with
+` + "`fly redis list`" + `.`
+
 		usage = "destroy <name>"
 	)
 

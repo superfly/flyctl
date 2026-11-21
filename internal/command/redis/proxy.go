@@ -18,9 +18,15 @@ import (
 
 func newProxy() (cmd *cobra.Command) {
 	const (
-		long = `Proxy to a Redis database`
+		short = "Proxy a local port to an Upstash Redis database"
+		long  = `Forward local port 16379 to an Upstash Redis database over your
+organization's private network, and print the database password so you
+can connect with any Redis client. You pick the database from a list, so
+this needs a terminal; pass ` + "`--org`" + ` to list only one organization's
+databases.
 
-		short = long
+For a redis-cli session, use ` + "`fly redis connect`" + ` instead.`
+
 		usage = "proxy"
 	)
 
