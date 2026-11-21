@@ -38,7 +38,7 @@ func isImageNotFound(err error) bool {
 // while the image is reported missing and the wait has not run out. Any other
 // error is returned at once.
 func resolveImageWithRetry(ctx context.Context, api flyClient, appName, ref string, w imageWait, out io.Writer) (*fly.Image, error) {
-	return waitForImage(ctx, ref, w, out, func() (*fly.Image, error, bool) {
+	return waitForImage(ctx, "Image "+ref+" is not visible in the registry yet", w, out, func() (*fly.Image, error, bool) {
 		img, err := api.ResolveImageForApp(ctx, appName, ref)
 
 		return img, err, (err == nil && img == nil) || isImageNotFound(err)
@@ -49,7 +49,7 @@ func inspectPushedTag(ctx context.Context, docker *dockerclient.Client, tag, aut
 	ctx, cancel := context.WithTimeout(ctx, w.timeout)
 	defer cancel()
 
-	return waitForImage(ctx, tag, w, out, func() (registry.DistributionInspect, error, bool) {
+	return waitForImage(ctx, "Registry lookup for "+tag+" has not succeeded yet", w, out, func() (registry.DistributionInspect, error, bool) {
 		current, err := docker.DistributionInspect(ctx, tag, auth)
 		retry := errdefs.IsNotFound(err) || errdefs.IsUnavailable(err) || dockerclient.IsErrConnectionFailed(err)
 
@@ -57,7 +57,7 @@ func inspectPushedTag(ctx context.Context, docker *dockerclient.Client, tag, aut
 	})
 }
 
-func waitForImage[T any](ctx context.Context, ref string, w imageWait, out io.Writer, lookup func() (T, error, bool)) (T, error) {
+func waitForImage[T any](ctx context.Context, notice string, w imageWait, out io.Writer, lookup func() (T, error, bool)) (T, error) {
 	deadline := time.Now().Add(w.timeout)
 	delay := w.delay
 	announced := false
@@ -67,7 +67,7 @@ func waitForImage[T any](ctx context.Context, ref string, w imageWait, out io.Wr
 			return img, err
 		}
 		if !announced {
-			fmt.Fprintf(out, "Registry lookup for %s has not succeeded yet, retrying for up to %s...\n", ref, w.timeout)
+			fmt.Fprintf(out, "%s, retrying for up to %s...\n", notice, w.timeout)
 			announced = true
 		}
 		select {

@@ -1,6 +1,7 @@
 package imgsrc
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -44,7 +45,9 @@ var testImageWait = imageWait{timeout: 200 * time.Millisecond, delay: time.Milli
 
 func TestResolveImageWithRetryWaitsForPushedImage(t *testing.T) {
 	api := &fakeImageAPI{results: []func() (*fly.Image, error){notFound, notFound, found}}
-	img, err := resolveImageWithRetry(context.Background(), api, "app", "registry.fly.io/app:tag", testImageWait, io.Discard)
+	var out bytes.Buffer
+	img, err := resolveImageWithRetry(context.Background(), api, "app", "registry.fly.io/app:tag", testImageWait, &out)
+	assert.Equal(t, "Image registry.fly.io/app:tag is not visible in the registry yet, retrying for up to 200ms...\n", out.String())
 	require.NoError(t, err)
 	assert.Equal(t, "img", img.ID)
 	assert.Equal(t, 3, api.calls)
@@ -121,7 +124,8 @@ func TestInspectPushedTagRetriesTransientErrors(t *testing.T) {
 			require.NoError(t, err)
 			defer docker.Close()
 
-			manifest, err := inspectPushedTag(context.Background(), docker, "registry.fly.io/app:tag", "", testImageWait, io.Discard)
+			var out bytes.Buffer
+			manifest, err := inspectPushedTag(context.Background(), docker, "registry.fly.io/app:tag", "", testImageWait, &out)
 			require.Equal(t, tc.wantCalls, calls.Load())
 			if tc.wantCalls == 1 {
 				require.Error(t, err)
@@ -130,6 +134,7 @@ func TestInspectPushedTagRetriesTransientErrors(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, ack, manifest.Descriptor.Digest)
+			require.Equal(t, "Registry lookup for registry.fly.io/app:tag has not succeeded yet, retrying for up to 200ms...\n", out.String())
 		})
 	}
 }
