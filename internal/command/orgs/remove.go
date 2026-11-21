@@ -15,9 +15,14 @@ import (
 
 func newRemove() *cobra.Command {
 	const (
-		long = `Remove a user from an organization. User must have accepted a previous
-invitation to join (if not, see orgs revoke).
-`
+		long = `Remove a member from an organization, identified by email. The user must
+already be a member; if no member has that email, the command fails.
+
+Pass the organization slug and the email address as arguments. With no
+slug, you pick from the organizations you administer in a terminal, and
+with no email you're prompted for one; without a terminal, both are
+required. There's no confirmation step. Afterwards, the command prints a
+link to the organization's offboarding checklist.`
 		short = "Remove a user from an organization"
 		usage = "remove [slug] [email]"
 	)

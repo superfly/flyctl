@@ -18,9 +18,11 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long = `Lists organizations available to current user.
-`
-		short = "Lists organizations for current user"
+		long = `List the organizations you belong to, with each one's name, slug and type
+(personal or shared). Use the slug with ` + "`--org`" + ` in other commands.
+
+With ` + "`--json`" + `, prints an object that maps slugs to names.`
+		short = "List your organizations"
 	)
 
 	cmd := command.New("list", short, long, runList,

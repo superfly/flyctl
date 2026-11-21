@@ -14,8 +14,14 @@ import (
 
 func newSync() (cmd *cobra.Command) {
 	const (
-		long  = `Sync flyctl with the latest versions of app secrets, even if they were set elsewhere`
-		short = long
+		long = `Make the next ` + "`fly deploy`" + ` from this computer use the app's latest
+secrets, including ones set elsewhere, such as in the dashboard or from
+another computer.
+
+fly remembers the version of the secrets it last set for each app. Run this
+command if secrets were changed elsewhere and a deploy from here doesn't
+pick them up. It doesn't change any secrets and doesn't restart Machines.`
+		short = "Sync local state with the latest app secrets"
 		usage = "sync [flags]"
 	)
 
