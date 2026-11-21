@@ -71,10 +71,13 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 
 	// ensure package.json has a main, module, or start script
 	data, err := os.ReadFile("package.json")
+	hasStartScript := false
 
 	if err != nil {
 		return nil, nil
 	} else {
+		// start from an empty map, json.Unmarshal would merge into the one from an earlier scan
+		packageJson = nil
 		err = json.Unmarshal(data, &packageJson)
 		if err != nil {
 			return nil, nil
@@ -94,7 +97,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 
 		// check for a start script
 		scripts, ok := packageJson["scripts"].(map[string]any)
-		hasStartScript := ok && scripts["start"] != nil
+		hasStartScript = ok && scripts["start"] != nil
 
 		if hasStartScript {
 			start, ok := scripts["start"].(string)
@@ -103,9 +106,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			}
 		}
 
-		// bail if no entrypoint can be found, or if there's a package.json but no start script
-		// (this allows static sites with package.json for dev serving to fall through to configureStatic)
-		if main == "" || !hasStartScript {
+		// bail if no entrypoint can be found
+		if main == "" {
 			return nil, nil
 		}
 	}
@@ -295,6 +297,17 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
+	}
+
+	// A package.json without a start script may only be there to serve a static site in
+	// development (including a Vite dev server), so let it fall through to configureStatic.
+	// Frameworks detected from their dependencies, such as Astro, don't need a start script:
+	// the Dockerfile generator knows how to build and run them.
+	if !hasStartScript {
+		switch srcInfo.Family {
+		case "NodeJS", "Bun", "Vite":
+			return nil, nil
+		}
 	}
 
 	// Try to detect port from source code if not found in Dockerfile
