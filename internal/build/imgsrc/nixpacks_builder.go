@@ -217,24 +217,14 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 
 	build.PushStart()
-	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+	pushed, err := pushToFlyWithDigest(ctx, docker, streams, opts.Tag)
+	if err != nil {
 		build.PushFinish()
 
 		return nil, "", err
 	}
 	build.PushFinish()
 
-	img, err := findImageWithDocker(ctx, docker, opts.Tag)
-	if err != nil {
-		return nil, "", err
-	}
-	if img == nil {
-		return nil, "", fmt.Errorf("no image found")
-	}
-
-	return &DeploymentImage{
-		ID:   img.ID,
-		Tag:  opts.Tag,
-		Size: img.Size,
-	}, "", nil
+	img, err := findTaggedBuildImage(ctx, docker, dockerFactory.apiClient, opts, streams.ErrOut, pushed)
+	return img, "", err
 }

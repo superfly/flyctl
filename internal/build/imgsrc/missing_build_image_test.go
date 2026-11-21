@@ -3,7 +3,11 @@ package imgsrc
 import (
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	dockerclient "github.com/docker/docker/client"
 
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/require"
@@ -54,6 +58,52 @@ func TestResolveMissingBuildImage(t *testing.T) {
 			require.Equal(t, opts.Tag+"@"+manifest.String(), img.Tag)
 			require.Equal(t, img.Tag, img.String())
 			require.EqualValues(t, 123, img.Size)
+		})
+	}
+}
+
+func TestFindTaggedBuildImageAfterLocalLoss(t *testing.T) {
+	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1.41/images/json" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, "[]")
+	}))
+	defer daemon.Close()
+	docker, err := dockerclient.NewClientWithOpts(dockerclient.WithHost("tcp://"+daemon.Listener.Addr().String()), dockerclient.WithVersion("1.41"))
+	require.NoError(t, err)
+	defer docker.Close()
+
+	opts := ImageOptions{Tag: "registry.fly.io/app:build", AppName: "app"}
+	ack := digest.FromString("pushed manifest")
+	for _, tc := range []struct {
+		name             string
+		receipt, current digest.Digest
+	}{
+		{"matching receipt", ack, ack},
+		{"moved tag", ack, digest.FromString("replacement")},
+		{"no receipt", "", ack},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			api := resolveImageFunc(func(_ context.Context, app, ref string) (*fly.Image, error) {
+				called = true
+				require.Equal(t, opts.AppName, app)
+				require.Equal(t, opts.Tag, ref)
+				return &fly.Image{Digest: tc.current.String(), ID: "registry-id", CompressedSize: "123"}, nil
+			})
+			img, err := findTaggedBuildImage(context.Background(), docker, api, opts, io.Discard, tc.receipt)
+			require.Equal(t, tc.receipt != "", called)
+			if tc.receipt != tc.current {
+				require.EqualError(t, err, "no image found")
+				require.Nil(t, img)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, opts.Tag+"@"+ack.String(), img.Tag)
+			require.Equal(t, "registry-id", img.ID)
 		})
 	}
 }

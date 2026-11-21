@@ -3,6 +3,7 @@ package imgsrc
 import (
 	"context"
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	dockerparser "github.com/novln/docker-parser"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -123,6 +125,24 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
+
+func findTaggedBuildImage(ctx context.Context, docker *dockerclient.Client, api flyClient, opts ImageOptions, out io.Writer, pushed digest.Digest) (*DeploymentImage, error) {
+	img, err := findImageWithDocker(ctx, docker, opts.Tag)
+	if err != nil {
+		return nil, err
+	}
+	if img != nil {
+		return &DeploymentImage{ID: img.ID, Tag: opts.Tag, Size: img.Size}, nil
+	}
+	if pushed != "" && api != nil {
+		// Resolve the current tag so a moved tag fails the receipt comparison.
+		recovered, err := resolveVerifiedBuildImage(ctx, api, opts, out, opts.Tag, "", pushed)
+		if err != nil || recovered != nil {
+			return recovered, err
+		}
+	}
+	return nil, errors.New("no image found")
+}
 
 func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*image.Summary, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "find_image_with_docker")
