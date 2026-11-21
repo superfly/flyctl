@@ -234,8 +234,6 @@ func launchUiAvailable(ctx context.Context) bool {
 		!env.IsCI()
 }
 
-// stdoutToStderr keeps stdout for the manifest. Scanners also print to
-// os.Stdout and the terminal logger, so those move as well.
 func stdoutToStderr(ctx context.Context) (context.Context, func()) {
 	streams := *iostreams.FromContext(ctx)
 	streams.Out = streams.ErrOut
@@ -436,7 +434,6 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	// In a terminal, prompts draw on stdout, so it stays as it is.
 	if launchManifest == nil && flag.GetBool(ctx, "manifest") &&
 		flag.GetString(ctx, "manifest-path") == "" && !io.IsStdoutTTY() {
 		var restore func()

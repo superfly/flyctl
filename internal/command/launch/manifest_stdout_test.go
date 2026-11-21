@@ -22,8 +22,6 @@ var flaskApp = map[string]string{
 	"app.py":           "from flask import Flask\napp = Flask(__name__)\n",
 }
 
-// Scripts pipe `fly launch --manifest` into jq. Scanners print to stdout three
-// ways: iostreams, fmt.Printf (Django) and the terminal logger (Flask).
 func TestLaunchManifestStdoutIsOnlyJSON(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -49,7 +47,6 @@ func TestLaunchManifestStdoutIsOnlyJSON(t *testing.T) {
 	}
 }
 
-// With a manifest file, or a terminal on stdout, output stays where it was.
 func TestLaunchManifestKeepsStdout(t *testing.T) {
 	manifestFile := filepath.Join(t.TempDir(), "manifest.json")
 
@@ -77,15 +74,12 @@ func TestLaunchManifestKeepsStdout(t *testing.T) {
 	}
 }
 
-// manifestRun is a headless `fly launch`, or `fly launch plan propose`, over
-// a source tree in my-app.
 type manifestRun struct {
 	propose   bool
 	stdoutTTY bool
 	args      []string
 }
 
-// do runs r and returns what reached the process's stdout and stderr.
 func (r manifestRun) do(t *testing.T, files map[string]string) (stdout, stderr string) {
 	t.Helper()
 
@@ -105,7 +99,6 @@ func (r manifestRun) do(t *testing.T, files map[string]string) (stdout, stderr s
 		ctx = state.WithWorkingDirectory(ctx, dir)
 	}
 	ctx = config.NewContext(ctx, &config.Config{Tokens: tokens.Parse("test-token")})
-	// run exports traces; keep them away from the production collector.
 	t.Setenv("FLY_TRACE_COLLECTOR_URL", "127.0.0.1")
 
 	stdoutFile, stderrFile := captureProcessOutput(t)
@@ -128,8 +121,6 @@ func (r manifestRun) do(t *testing.T, files map[string]string) (stdout, stderr s
 	return string(readFile(t, stdoutFile)), string(readFile(t, stderrFile))
 }
 
-// captureProcessOutput points os.Stdout, os.Stderr and the terminal logger,
-// which writes to the process's stdout, at files the test reads.
 func captureProcessOutput(t *testing.T) (stdout, stderr *os.File) {
 	t.Helper()
 

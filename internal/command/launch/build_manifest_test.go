@@ -93,8 +93,6 @@ func (e *manifestEnv) buildManifestIn(t *testing.T, dir string, args ...string) 
 	return manifestResult{ctx: ctx, manifest: m, cache: cache, dir: dir, out: out.String(), errOut: errOut.String()}, err
 }
 
-// launchContext is the context for a headless `fly launch --path <dir> args...`
-// against e, with what it prints to stdout and stderr.
 func (e *manifestEnv) launchContext(t *testing.T, dir string, args ...string) (context.Context, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 
