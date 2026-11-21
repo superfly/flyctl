@@ -124,7 +124,6 @@ func runCreate(ctx context.Context) (err error) {
 	name := flag.GetString(ctx, "name")
 
 	if name == "" {
-		// With no TTY the name stays blank, so one is generated as for an empty answer.
 		if err := prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false); err != nil && !prompt.IsNonInteractive(err) {
 			return err
 		}
@@ -198,7 +197,6 @@ func runCreate(ctx context.Context) (err error) {
 	return err
 }
 
-// confirmOrOff asks question; with no TTY it answers no, the safe default, and prints offNotice.
 func confirmOrOff(ctx context.Context, question, offNotice string) (bool, error) {
 	yes, err := prompt.Confirm(ctx, question)
 	if prompt.IsNonInteractive(err) {
@@ -228,7 +226,6 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 
 		if !disallowReplicas {
 			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", false, []string{}, excludedRegions, "replica-regions")
-			// Replicas are optional and billed, so add none when no one can choose.
 			if prompt.IsNonInteractive(err) {
 				readRegions, err = &[]fly.Region{}, nil
 				fmt.Fprintln(io.Out, "No replica regions. Use --replica-regions to add them.")

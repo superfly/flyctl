@@ -21,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// runCreateWithoutTTY runs `fly redis create <args>` with no terminal against mock APIs.
 func runCreateWithoutTTY(t *testing.T, api *recordingAPI, args ...string) (stdout string, err error) {
 	t.Helper()
 
@@ -58,7 +57,6 @@ func createAPI() *recordingAPI {
 	}}
 }
 
-// ProdPack and replicas are billed, so with no TTY they must stay off.
 func TestCreateWithoutTTYUsesSafeDefaults(t *testing.T) {
 	api := createAPI()
 
@@ -84,7 +82,6 @@ func TestCreateWithoutTTYUsesSafeDefaults(t *testing.T) {
 	assert.Contains(t, stdout, "No replica regions. Use --replica-regions to add them.")
 }
 
-// The primary region has no safe default, so with no TTY nothing is created.
 func TestCreateWithoutTTYRequiresRegion(t *testing.T) {
 	api := createAPI()
 
