@@ -15,8 +15,11 @@ import (
 
 func newPrivate() *cobra.Command {
 	const (
-		long  = `List instances private IP addresses, accessible from within the Fly network`
-		short = `List instances private IP addresses`
+		long = `List the ID, region and private IP address of each of the app's
+Machines, for connections over Fly's private network. With ` + "`--json`" + `,
+print just the list of addresses. For the app's public and Flycast
+addresses, use ` + "`fly ips list`" + `.`
+		short = `List the private IP addresses of an app's Machines`
 	)
 
 	cmd := command.New("private", short, long, runPrivateIPAddressesList,

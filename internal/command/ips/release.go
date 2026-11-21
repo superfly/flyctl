@@ -14,7 +14,9 @@ import (
 
 func newRelease() *cobra.Command {
 	const (
-		long  = `Releases one or more ingress IP addresses from the application`
+		long = `Release one or more public or private IP addresses from the app,
+immediately and without a confirmation prompt. Pass the addresses as
+arguments; find them with ` + "`fly ips list`" + `.`
 		short = `Release ingress IP addresses`
 	)
 
@@ -35,7 +37,9 @@ func newRelease() *cobra.Command {
 
 func newReleaseEgress() *cobra.Command {
 	const (
-		long  = `Releases one or more egress IP addresses from the application`
+		long = `Release one or more egress IP addresses from the app, immediately and
+without a confirmation prompt. Pass the addresses as arguments; find them
+with ` + "`fly ips list`" + `.`
 		short = `Release egress IP addresses`
 	)
 
