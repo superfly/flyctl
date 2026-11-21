@@ -73,6 +73,7 @@ func TestFindTaggedBuildImageAfterLocalLoss(t *testing.T) {
 	}{
 		{"matching receipt", ack, ack},
 		{"moved tag", ack, digest.FromString("replacement")},
+		{"inspection denied", ack, ""},
 		{"no receipt", "", ack},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -85,6 +86,11 @@ func TestFindTaggedBuildImageAfterLocalLoss(t *testing.T) {
 				case "/v1.41/distribution/" + opts.Tag + "/json":
 					if tc.receipt == "" {
 						t.Error("queried registry without a push receipt")
+					}
+					if tc.current == "" {
+						http.Error(w, "registry access denied", http.StatusForbidden)
+
+						return
 					}
 					_, _ = fmt.Fprintf(w, `{"Descriptor":{"digest":%q}}`, tc.current)
 				default:
@@ -105,6 +111,12 @@ func TestFindTaggedBuildImageAfterLocalLoss(t *testing.T) {
 			})
 			img, err := findTaggedBuildImage(ctx, docker, api, opts, io.Discard, tc.receipt)
 			require.Equal(t, tc.receipt == tc.current, called)
+			if tc.current == "" {
+				require.ErrorContains(t, err, "registry access denied")
+				require.Nil(t, img)
+
+				return
+			}
 			if tc.receipt != tc.current {
 				require.EqualError(t, err, "no image found")
 				require.Nil(t, img)
