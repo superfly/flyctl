@@ -116,7 +116,7 @@ func runShow(ctx context.Context) (err error) {
 }
 
 // purchasedCreditBalance returns the org's purchased credit balance in cents,
-// without trial credits and other grants, or nil when a parent org pays for its
+// without trial credits, or nil when a parent org pays for its
 // usage. Money owed is a negative balance, which reads as 0, as on the billing page.
 func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string) (*int, error) {
 	_ = `# @genqlient

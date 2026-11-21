@@ -2561,12 +2561,9 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 
 // GetOrganizationCreditBalanceOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrganizationCreditBalanceOrganization struct {
-	// Purchased credit balance in cents. Trial credits and other grants are not
-	// included. A billing child reports its own balance, not the parent's credit
-	// that it spends. A negative value is money owed on Stripe.
+	// The purchased credit balance in cents
 	CreditBalance int `json:"creditBalance"`
-	// True when a parent organization pays for this organization's usage with its
-	// own credit. creditBalance is then this organization's own balance, which it doesn't spend.
+	// True when a parent organization pays for this organization
 	BilledByParent bool `json:"billedByParent"`
 }
 

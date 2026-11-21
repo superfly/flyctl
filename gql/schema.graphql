@@ -7025,16 +7025,13 @@ type Organization implements Node {
   billable: Boolean!
 
   """
-  True when a parent organization pays for this organization's usage with its
-  own credit. creditBalance is then this organization's own balance, which it doesn't spend.
+  True when a parent organization pays for this organization
   """
   billedByParent: Boolean!
   billingStatus: BillingStatus!
 
   """
-  Purchased credit balance in cents. Trial credits and other grants are not
-  included. A billing child reports its own balance, not the parent's credit
-  that it spends. A negative value is money owed on Stripe.
+  The purchased credit balance in cents
   """
   creditBalance: Int!
 
