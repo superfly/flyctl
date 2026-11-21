@@ -56,7 +56,6 @@ func runShow(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	// A missing balance shouldn't hide the rest, such as after a network or API error.
 	credit, creditErr := purchasedCreditBalance(ctx, client.GenqClient(), selectedOrg.Slug)
 	if creditErr != nil {
 		fmt.Fprintln(io.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf(
@@ -115,9 +114,6 @@ func runShow(ctx context.Context) (err error) {
 	return nil
 }
 
-// purchasedCreditBalance returns the org's purchased credit balance in cents,
-// without trial credits, or nil when a parent org pays for its
-// usage. Money owed is a negative balance, which reads as 0, as on the billing page.
 func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string) (*int, error) {
 	_ = `# @genqlient
 	query GetOrganizationCreditBalance($slug: String!) {

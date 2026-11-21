@@ -21,8 +21,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// runShowWith runs `fly orgs show personal` against a GraphQL client that
-// answers the credit balance query with respond.
 func runShowWith(t *testing.T, jsonOutput bool, respond mock.GraphQLClient) (stdout, stderr string, err error) {
 	t.Helper()
 	t.Setenv("FLY_ORG", "")
@@ -93,7 +91,6 @@ func TestShowJSONIncludesPurchasedCreditBalance(t *testing.T) {
 	assert.Contains(t, got, "Members")
 }
 
-// Money owed is a negative balance, which the billing page shows as $0.
 func TestShowMoneyOwedReadsAsZero(t *testing.T) {
 	answer := `{"organization":{"creditBalance":-700,"billedByParent":false}}`
 
@@ -106,7 +103,6 @@ func TestShowMoneyOwedReadsAsZero(t *testing.T) {
 	assert.Equal(t, float64(0), decodeJSON(t, stdout)["PurchasedCreditBalanceCents"])
 }
 
-// A billing child spends its parent's credit, so its own balance isn't shown.
 func TestShowBilledThroughParent(t *testing.T) {
 	answer := `{"organization":{"creditBalance":300,"billedByParent":true}}`
 
@@ -123,8 +119,6 @@ func TestShowBilledThroughParent(t *testing.T) {
 	assert.Equal(t, true, got["BilledByParent"])
 }
 
-// The rest of the org still shows when the balance can't be read, such as
-// after a network or API error.
 func TestShowWarnsWhenCreditBalanceFails(t *testing.T) {
 	fail := func(context.Context, *genq.Request, *genq.Response) error {
 		return errors.New("Internal server error")
