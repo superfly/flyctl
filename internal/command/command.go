@@ -20,6 +20,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -748,11 +749,17 @@ func handleReLogin(ctx context.Context, reason string) (context.Context, error) 
 // available" would be wrong, and logging in again fixes it.
 var errSessionExpired = errors.New("your flyctl session has expired. Run `fly auth login` to log in again")
 
+// noTokenSuggestion follows fly.ErrNoAuthToken, whose message already names
+// `flyctl auth login`. Someone without an account, or an agent setting one
+// up, needs signup instead, and a headless run needs a token in the env.
+const noTokenSuggestion = "New to Fly.io? Run `fly auth signup` to create an account.\n" +
+	"For CI or other non-interactive runs, set FLY_API_TOKEN to a token from `fly tokens create deploy` (one app) or `fly tokens create org`."
+
 // reloginError is the error for a command that needs a login and won't get
 // one interactively.
 func reloginError(reason string) error {
 	if reason == "not_authenticated" {
-		return fly.ErrNoAuthToken
+		return flyerr.WithSuggestion(fly.ErrNoAuthToken, noTokenSuggestion)
 	}
 
 	return errSessionExpired

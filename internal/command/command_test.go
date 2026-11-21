@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/task"
@@ -220,6 +221,15 @@ func TestRequireSessionWithoutTerminal(t *testing.T) {
 			if !tc.wantExpired {
 				if !errors.Is(err, fly.ErrNoAuthToken) {
 					t.Fatalf("expected fly.ErrNoAuthToken without a token, got %v", err)
+				}
+				// The message only names `auth login`; new users and headless
+				// runs need signup and FLY_API_TOKEN pointed out, with a
+				// tokens command that actually creates one.
+				suggestion := flyerr.GetErrorSuggestion(err)
+				for _, want := range []string{"fly auth signup", "FLY_API_TOKEN", "fly tokens create deploy"} {
+					if !strings.Contains(suggestion, want) {
+						t.Fatalf("expected the no-token suggestion to name %q, got %q", want, suggestion)
+					}
 				}
 				return
 			}
