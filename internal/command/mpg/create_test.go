@@ -63,6 +63,28 @@ func createRequest(t *testing.T, args ...string) (flaps.CreateManagedPostgresClu
 	return sent, runCreate(ctx)
 }
 
+func TestRunCreatePGMajorVersion(t *testing.T) {
+	t.Run("no flag asks for the default", func(t *testing.T) {
+		req, _ := createRequest(t)
+		assert.Equal(t, "17", req.PGMajorVersion)
+	})
+
+	for _, version := range []string{"16", "17", "18"} {
+		t.Run("accepts "+version, func(t *testing.T) {
+			req, _ := createRequest(t, "--pg-major-version", version)
+			assert.Equal(t, version, req.PGMajorVersion)
+		})
+	}
+
+	for _, version := range []string{"15", "19", "0"} {
+		t.Run("rejects "+version, func(t *testing.T) {
+			req, err := createRequest(t, "--pg-major-version", version)
+			assert.EqualError(t, err, "invalid Postgres major version: "+version+". Supported versions are 16, 17 and 18")
+			assert.Empty(t, req, "no cluster should be requested")
+		})
+	}
+}
+
 // --plan names are documented capitalized and matched in any case, but the
 // request has to carry the plan's own key: the backend knows Performance as
 // "Performance" (#4612), which lowercasing the flag could never match.
