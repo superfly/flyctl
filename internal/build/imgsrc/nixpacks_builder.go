@@ -226,5 +226,6 @@ func (b *nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.PushFinish()
 
 	img, err := findTaggedBuildImage(ctx, docker, dockerFactory.apiClient, opts, streams.ErrOut, pushed)
+
 	return img, "", err
 }

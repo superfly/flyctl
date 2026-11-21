@@ -141,6 +141,7 @@ func findTaggedBuildImage(ctx context.Context, docker *dockerclient.Client, api 
 			return recovered, err
 		}
 	}
+
 	return nil, errors.New("no image found")
 }
 

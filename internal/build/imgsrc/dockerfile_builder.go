@@ -365,6 +365,7 @@ func resolveVerifiedBuildImage(ctx context.Context, api flyClient, opts ImageOpt
 	if imageID == "" {
 		imageID = img.ID
 	}
+
 	return &DeploymentImage{ID: imageID, Tag: opts.Tag + "@" + img.Digest, Digest: img.Digest, Size: size}, nil
 }
 
