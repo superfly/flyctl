@@ -10,7 +10,10 @@ import (
 func New() (cmd *cobra.Command) {
 	const (
 		short = "Manage an app's configuration"
-		long  = `The CONFIG commands allow you to work with an application's configuration.`
+		long  = `Work with an app's configuration, the settings kept in fly.toml.
+` + "`fly config show`" + ` prints the deployed configuration, ` + "`fly config save`" + `
+writes it to a local file, and ` + "`fly config validate`" + ` checks a config file
+for errors.`
 	)
 	cmd = command.New("config", short, long, nil)
 

@@ -21,9 +21,10 @@ import (
 // TODO: make internal once the releases command has been deprecated
 func NewReleases() (cmd *cobra.Command) {
 	const (
-		long = `List all the releases of the application onto the Fly platform,
-including type, when, success/fail and which user triggered the release.
-`
+		long = `List the app's 25 most recent releases, newest first. Each row shows the
+release version, status, description, the user who made it and when. --image
+adds each release's Docker image reference, and --json prints the releases
+as JSON.`
 		short = "List app releases"
 	)
 

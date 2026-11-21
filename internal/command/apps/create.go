@@ -23,11 +23,22 @@ import (
 
 func newCreate() (cmd *cobra.Command) {
 	const (
-		long = `Create a new application on the Fly platform.
-This command won't generate a fly.toml configuration file, but you can
-fetch one with 'fly config save -a <app_name>'.`
+		long = `Create a new Fly app without deploying anything. Pass the name as an
+argument or with --name, or use --generate-name. In a terminal with no name,
+you're asked for one (leave it blank to get a generated name); without a
+terminal, a name is required.
 
-		short = "Create a new application."
+The app goes in the organization given with --org or FLY_ORG. Otherwise you
+pick one from a list, unless your personal organization is your only one;
+without a terminal, --org is required.
+
+No fly.toml is written unless --save is set, which writes one containing
+only the app name to the working directory, asking first if one exists
+(--yes overwrites it). To build a full configuration and deploy, use
+` + "`fly launch`" + ` instead, or fetch an existing app's configuration with
+` + "`fly config save`" + `.`
+
+		short = "Create a new app"
 		usage = "create <app name>"
 	)
 
