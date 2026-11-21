@@ -26,11 +26,14 @@ const (
 	redisPlanPayAsYouGo = "ekQ85Yjkw155ohQ5ALYq0M"
 )
 
+// The plans API has no ProdPack price, so it lives here.
+const prodPackPrice = "$200/mo"
+
 // Descriptions shown before the corresponding prompt, shared by create and
 // update so both paths explain a setting the same way.
 const (
 	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#auto-upgrade\n\n"
-	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo\n\n"
+	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at " + prodPackPrice + ".\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo\n\n"
 )
 
 // Legacy plans that are no longer available for new databases
@@ -97,7 +100,7 @@ func newCreate() (cmd *cobra.Command) {
 		},
 		flag.Bool{
 			Name:        "enable-prodpack",
-			Description: "Enable ProdPack add-on for additional features ($200/mo)",
+			Description: "Enable ProdPack add-on for additional features (" + prodPackPrice + ")",
 		},
 	)
 
@@ -269,7 +272,26 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 
 	fmt.Fprintf(io.Out, "\nYour database %s is ready. Apps in the %s org can connect to Redis at %s\n", colorize.Green(addOn.Name), colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
 	fmt.Fprintf(io.Out, "\nIf you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
-	fmt.Fprintf(io.Out, "\nYour database is billed at %s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green("$0.20 per 100K commands"))
+	var prodPack string
+	if enableProdpack {
+		prodPack = fmt.Sprintf(", plus %s for ProdPack", colorize.Green(prodPackPrice))
+	}
+	// Only Pay-as-you-go bills per command; other plans print their own price.
+	if plan.Id == redisPlanPayAsYouGo {
+		fmt.Fprintf(io.Out, "\nYour database is billed at %s%s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green("$0.20 per 100K commands"), prodPack)
+	} else {
+		price := plan.Description
+		if price == "" {
+			price = fmt.Sprintf("$%d/mo", plan.PricePerMonth/100)
+		}
+		var regions string
+		if n := len(*readRegions); n == 1 {
+			regions = ", with 1 read region"
+		} else if n > 1 {
+			regions = fmt.Sprintf(", with %d read regions", n)
+		}
+		fmt.Fprintf(io.Out, "\nYour database is billed at %s (%s)%s%s. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green(price), plan.DisplayName, regions, prodPack)
+	}
 
 	return addOn, err
 }

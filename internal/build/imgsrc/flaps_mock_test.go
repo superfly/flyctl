@@ -644,10 +644,10 @@ func (mr *MockFlapsClientMockRecorder) GetManagedPostgresCluster(ctx, id any) *g
 }
 
 // GetManagedPostgresMaintenanceWindow mocks base method.
-func (m *MockFlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+func (m *MockFlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetManagedPostgresMaintenanceWindow", ctx, id)
-	ret0, _ := ret[0].(flaps.ManagedPostgresMaintenanceWindow)
+	ret0, _ := ret[0].(*flaps.ManagedPostgresMaintenanceWindow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1238,10 +1238,10 @@ func (mr *MockFlapsClientMockRecorder) UpdateAppSecrets(ctx, appName, values any
 }
 
 // UpdateManagedPostgresMaintenanceWindow mocks base method.
-func (m *MockFlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
+func (m *MockFlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateManagedPostgresMaintenanceWindow", ctx, id, req)
-	ret0, _ := ret[0].(flaps.ManagedPostgresMaintenanceWindow)
+	ret0, _ := ret[0].(*flaps.ManagedPostgresMaintenanceWindow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

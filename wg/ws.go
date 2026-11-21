@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -79,6 +80,12 @@ type WsWgProxy struct {
 	// refreshReplies carries the gateway's answers to in-band refreshes
 	// from the relay loop to the reconnect loop that sent them.
 	refreshReplies chan refreshReply
+
+	// connectedTo is the endpoint the current websocket was dialed at: the
+	// anycast name, or the gateway's direct IP after a reconnect there.
+	// Atomic so status reads don't wait on a reconnect, which holds lock
+	// while it dials.
+	connectedTo atomic.Pointer[string]
 }
 
 // refreshReply is a gateway's answer to an in-band refresh, with the
@@ -358,6 +365,7 @@ func (wswg *WsWgProxy) connect(dialCtx, lifetimeCtx context.Context, endpoint, s
 		_ = wswg.wsConn.Close()
 	}
 	wswg.wsConn = wsConn
+	wswg.connectedTo.Store(&endpoint)
 	close(wswg.replaced)
 	wswg.replaced = make(chan struct{})
 
@@ -408,6 +416,15 @@ func (wswg *WsWgProxy) scheduleRefresh(prov *TokenProvision) {
 	if floor := time.Now().Add(tokenRefreshRetry); wswg.refreshAt.Before(floor) {
 		wswg.refreshAt = floor
 	}
+}
+
+// connectedEndpoint returns the endpoint the current websocket was dialed at
+func (wswg *WsWgProxy) connectedEndpoint() string {
+	if p := wswg.connectedTo.Load(); p != nil {
+		return *p
+	}
+
+	return ""
 }
 
 // provision returns the latest gateway answer.

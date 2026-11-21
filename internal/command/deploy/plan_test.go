@@ -342,8 +342,29 @@ func TestUpdateMachines(t *testing.T) {
 		skipLeaseAcquisition: false,
 	}
 
-	acquiredLeases = sync.Map{}
+	// Another deploy temporarily holds machine2 while this one gets machine1.
+	acquiredLeases.Store("machine2", true)
+	md.deployRetries = 0
 	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
+	if !assert.Error(t, err) {
+		return
+	}
+	if _, held := acquiredLeases.Load("machine2"); !assert.True(t, held, "the other deploy must retain its lease") {
+		return
+	}
+	acquiredLeases.Delete("machine2")
+	// The following deploy has fresh Machine objects and no prior lease nonces.
+	for _, m := range oldMachines {
+		m.LeaseNonce = ""
+	}
+	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
+	if !assert.NoError(t, err, "the next deploy should update both Machines") {
+		return
+	}
+	md.deployRetries = 5
+
+	acquiredLeases = sync.Map{}
+	err = md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 
 	// let's make sure we retry deploys a few times

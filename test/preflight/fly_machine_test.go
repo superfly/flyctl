@@ -76,7 +76,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	require.Equal(f, want, m.Config.Services)
 }
 
-// test --standby-for
+// test that the deprecated --standby-for never creates a standby machine
 func TestFlyMachineRun_standbyFor(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
@@ -104,38 +104,29 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	og := ml[0]
 	require.Empty(f, og.Config.Standbys)
 
-	// Run a another machine and set it as standby of first
+	// Running with the flag creates a regular machine
 	f.Fly("machine run -a %s nginx --standby-for=%s --region %s", appName, og.ID, f.PrimaryRegion())
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
-	// Mahcine must be stopped and be standby for first machine ID
-	s1 := findNewMachine(ml, []string{og.ID})
-	require.Contains(f, []string{"created", "stopped"}, s1.State)
-	require.Equal(f, []string{og.ID}, s1.Config.Standbys)
+	m1 := findNewMachine(ml, []string{og.ID})
+	require.Empty(f, m1.Config.Standbys)
+	require.NotContains(f, m1.Config.Env, "FLY_STANDBY_FOR")
 
-	// Clear the standbys field
-	f.Fly("machine update -a %s %s --standby-for='' -y", appName, s1.ID)
+	// Updating with the flag doesn't turn a machine into a standby
+	f.Fly("machine update -a %s %s --standby-for=%s -y", appName, m1.ID, og.ID)
 	ml = f.MachinesList(appName)
-	s1 = findMachineByID(ml, s1.ID)
 	require.Equal(f, 2, len(ml))
-	// Updating a stopped machine doesn't start it
-	require.Equal(f, "stopped", s1.State)
-	require.Empty(f, s1.Config.Standbys)
+	m1 = findMachineByID(ml, m1.ID)
+	require.Empty(f, m1.Config.Standbys)
+	require.NotContains(f, m1.Config.Env, "FLY_STANDBY_FOR")
 
-	// Clone and set its standby to the source
-	f.Fly("machine clone -a %s %s --standby-for=source,%s", appName, og.ID, s1.ID)
+	// Cloning with the flag creates a regular machine
+	f.Fly("machine clone -a %s %s --standby-for=source,%s", appName, og.ID, m1.ID)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 3, len(ml))
-	s2 := findNewMachine(ml, []string{og.ID, s1.ID})
-	require.Contains(f, []string{"created", "stopped"}, s2.State)
-	require.Equal(f, []string{og.ID, s1.ID}, s2.Config.Standbys)
-
-	// Finally update the standby list to only one machine
-	f.Fly("machine update -a %s %s --standby-for=%s -y", appName, s2.ID, s1.ID)
-	ml = f.MachinesList(appName)
-	s2 = findMachineByID(ml, s2.ID)
-	require.Equal(f, "stopped", s2.State)
-	require.Equal(f, []string{s1.ID}, s2.Config.Standbys)
+	m2 := findNewMachine(ml, []string{og.ID, m1.ID})
+	require.Empty(f, m2.Config.Standbys)
+	require.NotContains(f, m2.Config.Env, "FLY_STANDBY_FOR")
 }
 
 // test --rootfs-size flag
