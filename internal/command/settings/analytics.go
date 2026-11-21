@@ -13,12 +13,27 @@ import (
 )
 
 func newAnalytics() *cobra.Command {
-	metricsRoot := command.New("analytics", "Control anonymized analytics collection", "", runAnalyticsStatus)
+	const (
+		long = `Show whether fly sends anonymized usage analytics to Fly.io. Analytics
+are on by default. Change the setting with
+` + "`fly settings analytics enable`" + ` or ` + "`fly settings analytics disable`" + `.
 
-	optIn := command.New("enable", "Enable analytics", "", func(ctx context.Context) error {
+The ` + "`FLY_SEND_METRICS`" + ` environment variable, when set, overrides the saved
+setting.`
+		enableLong = `Turn on anonymized usage analytics for fly on this computer, and save
+the setting in your fly config file. The ` + "`FLY_SEND_METRICS`" + ` environment
+variable, when set, overrides it.`
+		disableLong = `Stop fly from sending anonymized usage analytics from this computer, and
+save the setting in your fly config file. The ` + "`FLY_SEND_METRICS`" + `
+environment variable, when set, overrides it.`
+	)
+
+	metricsRoot := command.New("analytics", "Control anonymized analytics collection", long, runAnalyticsStatus)
+
+	optIn := command.New("enable", "Enable analytics", enableLong, func(ctx context.Context) error {
 		return setAnalyticsEnabled(ctx, true)
 	})
-	optOut := command.New("disable", "Disable analytics", "", func(ctx context.Context) error {
+	optOut := command.New("disable", "Disable analytics", disableLong, func(ctx context.Context) error {
 		return setAnalyticsEnabled(ctx, false)
 	})
 

@@ -11,10 +11,12 @@ import (
 func New() *cobra.Command {
 	const (
 		short = "Prepare this machine to use Fly from a coding agent"
-		long  = `Commands that prepare a local environment for Fly.io.
+		long  = `Prepare this computer so AI coding agents (such as Claude Code, Codex or
+Cursor) can work with Fly.io.
 
-The agent subcommand installs the Fly agent skills and the hosted MCP server
-into the coding agents detected on this machine.`
+` + "`fly setup agent`" + ` installs the Fly agent skills and adds the hosted Fly
+MCP server to every coding agent it detects. Here "agent" means an AI coding
+agent, not the background WireGuard process managed by ` + "`fly agent`" + `.`
 	)
 
 	cmd := command.New("setup", short, long, nil)

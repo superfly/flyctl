@@ -30,6 +30,9 @@ func New() *cobra.Command {
 	const (
 		short = "Manage the Fly agent skills installed into local coding agents"
 		long  = `Install, update and remove the Fly agent skills from github.com/superfly/skills.
+These are skill files for AI coding agents; they are unrelated to the
+background WireGuard process managed by ` + "`fly agent`" + `. To install the
+skills and the hosted Fly MCP server together, use ` + "`fly setup agent`" + `.
 
 Skills are installed into ~/.agents/skills and into the global skills
 directory of every detected coding agent: Claude Code, Codex, Cursor,
