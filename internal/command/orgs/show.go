@@ -5,9 +5,13 @@ import (
 	"context"
 	"fmt"
 
+	genq "github.com/Khan/genqlient/graphql"
+	"github.com/dustin/go-humanize"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -50,19 +54,37 @@ func runShow(ctx context.Context) (err error) {
 	}
 
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	credit, creditErr := purchasedCreditBalance(ctx, client.GenqClient(), selectedOrg.Slug)
+	if creditErr != nil {
+		fmt.Fprintln(io.ErrOut, colorize.WarningIcon(), colorize.Yellow(fmt.Sprintf(
+			"Couldn't get the purchased credit balance for organization %s: %v", selectedOrg.Slug, creditErr)))
+	}
+
 	if config.FromContext(ctx).JSONOutput {
-		_ = render.JSON(io.Out, org)
+		if creditErr != nil {
+			_ = render.JSON(io.Out, org)
+		} else {
+			_ = render.JSON(io.Out, struct {
+				*fly.OrganizationDetails
+				PurchasedCreditBalanceCents *int
+				BilledByParent              bool
+			}{org, credit, credit == nil})
+		}
 
 		return nil
 	}
-	colorize := io.ColorScheme()
 
 	var buf bytes.Buffer
 
 	fmt.Fprintln(&buf, colorize.Bold("Organization"))
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Name", org.Name)
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Slug", org.Slug)
-	fmt.Fprintf(&buf, "%-10s: %-20s\n", "Type", org.Type)
+	fmt.Fprintf(&buf, "%-16s: %-20s\n", "Name", org.Name)
+	fmt.Fprintf(&buf, "%-16s: %-20s\n", "Slug", org.Slug)
+	fmt.Fprintf(&buf, "%-16s: %-20s\n", "Type", org.Type)
+	if creditErr == nil {
+		fmt.Fprintf(&buf, "%-16s: %-20s\n", "Purchased credit", formatCredit(credit))
+	}
 	fmt.Fprintln(&buf)
 
 	fmt.Fprintln(&buf, colorize.Bold("Summary"))
@@ -90,4 +112,35 @@ func runShow(ctx context.Context) (err error) {
 	buf.WriteTo(io.Out)
 
 	return nil
+}
+
+func purchasedCreditBalance(ctx context.Context, client genq.Client, slug string) (*int, error) {
+	_ = `# @genqlient
+	query GetOrganizationCreditBalance($slug: String!) {
+		organization(slug: $slug) {
+			creditBalance
+			billedByParent
+		}
+	}
+	`
+
+	resp, err := gql.GetOrganizationCreditBalance(ctx, client, slug)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Organization.BilledByParent {
+		return nil, nil
+	}
+
+	cents := max(resp.Organization.CreditBalance, 0)
+
+	return &cents, nil
+}
+
+func formatCredit(cents *int) string {
+	if cents == nil {
+		return "billed through parent organization"
+	}
+
+	return fmt.Sprintf("$%s.%02d", humanize.Comma(int64(*cents/100)), *cents%100)
 }

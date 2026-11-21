@@ -2559,6 +2559,31 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 	return v.NearestRegion
 }
 
+// GetOrganizationCreditBalanceOrganization includes the requested fields of the GraphQL type Organization.
+type GetOrganizationCreditBalanceOrganization struct {
+	// The purchased credit balance in cents
+	CreditBalance int `json:"creditBalance"`
+	// True when a parent organization pays for this organization
+	BilledByParent bool `json:"billedByParent"`
+}
+
+// GetCreditBalance returns GetOrganizationCreditBalanceOrganization.CreditBalance, and is useful for accessing the field via an interface.
+func (v *GetOrganizationCreditBalanceOrganization) GetCreditBalance() int { return v.CreditBalance }
+
+// GetBilledByParent returns GetOrganizationCreditBalanceOrganization.BilledByParent, and is useful for accessing the field via an interface.
+func (v *GetOrganizationCreditBalanceOrganization) GetBilledByParent() bool { return v.BilledByParent }
+
+// GetOrganizationCreditBalanceResponse is returned by GetOrganizationCreditBalance on success.
+type GetOrganizationCreditBalanceResponse struct {
+	// Find an organization by ID
+	Organization GetOrganizationCreditBalanceOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetOrganizationCreditBalanceResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetOrganizationCreditBalanceResponse) GetOrganization() GetOrganizationCreditBalanceOrganization {
+	return v.Organization
+}
+
 // GetOrganizationOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrganizationOrganization struct {
 	OrganizationData `json:"-"`
@@ -3507,6 +3532,14 @@ func (v *__GetExtensionSsoLinkInput) GetOrgSlug() string { return v.OrgSlug }
 
 // GetProvider returns __GetExtensionSsoLinkInput.Provider, and is useful for accessing the field via an interface.
 func (v *__GetExtensionSsoLinkInput) GetProvider() string { return v.Provider }
+
+// __GetOrganizationCreditBalanceInput is used internally by genqlient
+type __GetOrganizationCreditBalanceInput struct {
+	Slug string `json:"slug"`
+}
+
+// GetSlug returns __GetOrganizationCreditBalanceInput.Slug, and is useful for accessing the field via an interface.
+func (v *__GetOrganizationCreditBalanceInput) GetSlug() string { return v.Slug }
 
 // __GetOrganizationInput is used internally by genqlient
 type __GetOrganizationInput struct {
@@ -4556,6 +4589,41 @@ func GetOrganization(
 	}
 
 	data_ = &GetOrganizationResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by GetOrganizationCreditBalance.
+const GetOrganizationCreditBalance_Operation = `
+query GetOrganizationCreditBalance ($slug: String!) {
+	organization(slug: $slug) {
+		creditBalance
+		billedByParent
+	}
+}
+`
+
+func GetOrganizationCreditBalance(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	slug string,
+) (data_ *GetOrganizationCreditBalanceResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "GetOrganizationCreditBalance",
+		Query:  GetOrganizationCreditBalance_Operation,
+		Variables: &__GetOrganizationCreditBalanceInput{
+			Slug: slug,
+		},
+	}
+
+	data_ = &GetOrganizationCreditBalanceResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

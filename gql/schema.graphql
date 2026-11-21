@@ -7023,10 +7023,15 @@ type Organization implements Node {
     last: Int
   ): AppConnection!
   billable: Boolean!
+
+  """
+  True when a parent organization pays for this organization
+  """
+  billedByParent: Boolean!
   billingStatus: BillingStatus!
 
   """
-  The account credits in cents
+  The purchased credit balance in cents
   """
   creditBalance: Int!
 
