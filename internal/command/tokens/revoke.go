@@ -13,8 +13,13 @@ import (
 
 func newRevoke() *cobra.Command {
 	const (
-		short = "Revoke tokens"
-		long  = "Revoke one or more tokens."
+		short = "Revoke API tokens by ID"
+		long  = `Revoke one or more API tokens, passed as token IDs. Get IDs from
+` + "`fly tokens list`" + `.
+
+If a token can't be revoked, the error is printed and the remaining IDs
+are still processed. To revoke the token you're currently authenticating
+with, use ` + "`fly tokens revoke supplied`" + `.`
 		usage = "revoke [flags] ID ID ..."
 	)
 

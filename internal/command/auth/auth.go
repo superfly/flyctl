@@ -12,10 +12,12 @@ import (
 // New initializes and returns a new apps Command.
 func New() *cobra.Command {
 	const (
-		long = `Authenticate with Fly (and logout if you need to).
-If you do not have an account, start with the AUTH SIGNUP command.
-If you do have an account, begin with the AUTH LOGIN subcommand.
-`
+		long = `Log in to Fly.io, log out, and check who you're authenticated as.
+
+If you don't have an account, start with ` + "`fly auth signup`" + `; otherwise run
+` + "`fly auth login`" + `. Check the current identity with ` + "`fly auth whoami`" + `.
+In CI and other places without a browser, set ` + "`FLY_API_TOKEN`" + ` to a token
+from ` + "`fly tokens create`" + ` instead of logging in.`
 		short = "Manage authentication"
 	)
 
