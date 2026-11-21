@@ -23,9 +23,13 @@ const RegionsCommandDesc = `View a list of regions where Fly has datacenters.`
 func newRegions() (cmd *cobra.Command) {
 	const (
 		short = "List regions"
+		long  = `List the regions where you can run Fly Machines, grouped by area, with each
+region's name and code and whether Managed Postgres is available there.
+Deprecated regions are left out. Use a region code with flags such as
+--region. --json prints the regions as JSON.`
 	)
 
-	cmd = command.New("regions", short, RegionsCommandDesc, runRegions,
+	cmd = command.New("regions", short, long, runRegions,
 		command.RequireSession,
 	)
 

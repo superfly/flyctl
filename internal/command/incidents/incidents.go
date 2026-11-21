@@ -19,7 +19,10 @@ import (
 func New() *cobra.Command {
 	const (
 		short = "Show incidents"
-		long  = `Show incidents that may be affecting your organization.`
+		long  = `Check for problems that may affect your apps. ` + "`fly incidents list`" + ` shows
+unresolved incidents from the Fly.io status page, and
+` + "`fly incidents hosts list`" + ` shows issues on the hosts that run an app's
+Machines.`
 	)
 	cmd := command.New("incidents", short, long, nil)
 	cmd.AddCommand(
@@ -32,8 +35,11 @@ func New() *cobra.Command {
 
 func newIncidentsList() *cobra.Command {
 	const (
-		short = "List active incidents."
-		long  = `List the active incidents that may be affecting your apps or deployments.`
+		short = "List active Fly.io platform incidents"
+		long  = `List unresolved incidents posted on the Fly.io status page, with each one's
+status, affected components, and start and update times. The list is
+platform-wide: --app and --org don't filter it. To open the status page
+itself, run ` + "`fly platform status`" + `.`
 	)
 	cmd := command.New("list", short, long, runIncidentsList,
 		command.RequireSession,

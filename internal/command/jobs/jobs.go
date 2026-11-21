@@ -13,7 +13,8 @@ func New() *cobra.Command {
 	const (
 		short = "Show jobs at Fly.io"
 
-		long = `Show jobs at Fly.io, including maybe ones you should apply to`
+		long = `Print a short description of engineering work at Fly.io and where to find
+open roles. ` + "`fly jobs open`" + ` opens the jobs page in your browser.`
 	)
 
 	cmd := command.New("jobs", short, long, run)

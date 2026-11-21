@@ -8,8 +8,9 @@ import (
 func New() (cmd *cobra.Command) {
 
 	const (
-		short = "Show hosts' incidents"
-		long  = "Show hosts' incidents affecting applications"
+		short = "Show host issues affecting an app"
+		long  = `See issues on the hosts that run an app's Machines. Run
+` + "`fly incidents hosts list`" + ` to list them.`
 	)
 
 	cmd = command.New("hosts", short, long, nil)

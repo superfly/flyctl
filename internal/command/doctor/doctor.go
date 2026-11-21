@@ -25,8 +25,18 @@ import (
 // New initializes and returns a new doctor Command.
 func New() (cmd *cobra.Command) {
 	const (
-		short = `The DOCTOR command allows you to debug your Fly environment`
-		long  = short + "\n"
+		short = `Check your flyctl setup and connection to Fly.io`
+		long  = `Check your local setup in order: your auth token, the flyctl background
+agent, local Docker, and WireGuard connectivity, internal DNS and Machines
+API access for the --org organization (personal by default). A failed check
+stops the run and prints a suggested fix; no local Docker is only noted,
+since builds can use a remote builder.
+
+With an app from --app or fly.toml, it also checks the app's IP addresses
+and DNS records and, when run from the app's directory, its Docker build
+context and .dockerignore. The exit status is 0 even when a check fails, so
+use --json to read each check's result ("ok" or the error). To send
+diagnostics to Fly.io support, run ` + "`fly doctor diag`" + `.`
 	)
 
 	cmd = command.New("doctor", short, long, run,
