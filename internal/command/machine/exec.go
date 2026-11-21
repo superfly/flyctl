@@ -19,7 +19,15 @@ import (
 func newMachineExec() *cobra.Command {
 	const (
 		short = "Execute a command on a machine"
-		long  = short + "\n"
+		long  = `Run a single command on a Fly Machine through the Machines API and print
+its output when it finishes. Pass the command as one quoted argument, after
+an optional machine ID. This isn't an interactive session; for a shell, use
+` + "`fly ssh console`" + `.
+
+With no machine ID, you pick a machine of the app from a list in a
+terminal; without a terminal, the ID is required. A non-zero exit code from
+the command is printed, but fly itself still exits 0; use ` + "`--json`" + ` to
+get the exit code, stdout and stderr as fields.`
 		usage = "exec [machine-id] <command>"
 	)
 
