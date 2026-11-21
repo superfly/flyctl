@@ -8,18 +8,22 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/system"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -286,10 +290,12 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	var pushedDigest digest.Digest
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		pushedDigest, err = pushToFlyWithDigest(ctx, docker, streams, opts.Tag)
+		if err != nil {
 			build.PushFinish()
 
 			return nil, "", err
@@ -300,6 +306,17 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
+	if errdefs.IsNotFound(err) && opts.Publish && dockerFactory.apiClient != nil {
+		recovered, lookupErr := resolveMissingBuildImage(ctx, dockerFactory.apiClient, opts, streams.ErrOut, imageID, pushedDigest, buildkitEnabled)
+		if lookupErr != nil {
+			return nil, "", fmt.Errorf("local image %s is missing: %w", imageID, lookupErr)
+		}
+		if recovered != nil {
+			span.SetAttributes(recovered.ToSpanAttributes()...)
+
+			return recovered, "", nil
+		}
+	}
 	if err != nil {
 		return nil, "", errors.Wrap(err, "count not find built image")
 	}
@@ -313,6 +330,35 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	span.SetAttributes(di.ToSpanAttributes()...)
 
 	return &di, "", nil
+}
+
+// A concurrent build can remove our local image after the push. Use the
+// manifest in Docker's push receipt, or, for exporters without a receipt,
+// require the pushed tag to still match the BuildKit result.
+func resolveMissingBuildImage(ctx context.Context, api flyClient, opts ImageOptions, out io.Writer, imageID string, pushed digest.Digest, buildkit bool) (*DeploymentImage, error) {
+	lookup := opts.Tag
+	if pushed != "" {
+		lookup += "@" + pushed.String()
+	} else if buildkit {
+		pushed, _ = digest.Parse(imageID)
+	}
+	if pushed == "" {
+		return nil, nil
+	}
+
+	img, err := resolveImageWithRetry(ctx, api, opts.AppName, lookup, defaultImageWait, out)
+	if err != nil || img == nil {
+		return nil, err
+	}
+	if img.Digest != pushed.String() {
+		return nil, nil
+	}
+	size, err := strconv.ParseInt(img.CompressedSize, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid registry image size: %w", err)
+	}
+
+	return &DeploymentImage{ID: imageID, Tag: opts.Tag + "@" + img.Digest, Digest: img.Digest, Size: size}, nil
 }
 
 func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*string, error) {
@@ -481,7 +527,13 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
-func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
+func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
+	_, err := pushToFlyWithDigest(ctx, docker, streams, tag)
+
+	return err
+}
+
+func pushToFlyWithDigest(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (pushed digest.Digest, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_registry", trace.WithAttributes(attribute.String("tag", tag)))
 	defer span.End()
 
@@ -500,23 +552,30 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	metrics.Status(ctx, "image_push", err == nil)
 
 	if err != nil {
-		return errors.Wrap(err, "error pushing image to registry")
+		return "", errors.Wrap(err, "error pushing image to registry")
 	}
 	defer pushResp.Close() // skipcq: GO-S2307
 	sendImgPushMetrics()
 
-	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
+	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), func(m jsonmessage.JSONMessage) {
+		var result types.PushResult
+		if json.Unmarshal(*m.Aux, &result) == nil && result.Tag != "" && strings.HasSuffix(tag, ":"+result.Tag) {
+			if d, err := digest.Parse(result.Digest); err == nil {
+				pushed = d
+			}
+		}
+	})
 	if err != nil {
 		var msgerr *jsonmessage.JSONError
 
 		if errors.As(err, &msgerr) {
 			if msgerr.Message == "denied: requested access to the resource is denied" {
-				return &RegistryUnauthorizedError{Tag: tag}
+				return "", &RegistryUnauthorizedError{Tag: tag}
 			}
 		}
 
-		return errors.Wrap(err, "error rendering push status stream")
+		return "", errors.Wrap(err, "error rendering push status stream")
 	}
 
-	return nil
+	return pushed, nil
 }
