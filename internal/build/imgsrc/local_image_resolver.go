@@ -14,6 +14,7 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -135,8 +136,17 @@ func findTaggedBuildImage(ctx context.Context, docker *dockerclient.Client, api 
 		return &DeploymentImage{ID: img.ID, Tag: opts.Tag, Size: img.Size}, nil
 	}
 	if pushed != "" && api != nil {
-		// Resolve the current tag so a moved tag fails the receipt comparison.
-		recovered, err := resolveVerifiedBuildImage(ctx, api, opts, out, opts.Tag, "", pushed)
+		// Web can cache even tag@digest. Check the live tag through the daemon
+		// that pushed it before asking web for the pinned image metadata.
+		current, err := docker.DistributionInspect(ctx, opts.Tag, flyRegistryAuth(config.Tokens(ctx).Docker()))
+		if err != nil {
+			return nil, fmt.Errorf("local image missing, checking registry tag %s: %w", opts.Tag, err)
+		}
+		if current.Descriptor.Digest != pushed {
+			return nil, errors.New("no image found")
+		}
+
+		recovered, err := resolveMissingBuildImage(ctx, api, opts, out, "", pushed, false)
 		if err != nil || recovered != nil {
 			return recovered, err
 		}

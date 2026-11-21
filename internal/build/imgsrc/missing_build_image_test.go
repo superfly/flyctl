@@ -2,16 +2,18 @@ package imgsrc
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	dockerclient "github.com/docker/docker/client"
-
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/config"
 )
 
 type resolveImageFunc func(context.Context, string, string) (*fly.Image, error)
@@ -63,19 +65,6 @@ func TestResolveMissingBuildImage(t *testing.T) {
 }
 
 func TestFindTaggedBuildImageAfterLocalLoss(t *testing.T) {
-	daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1.41/images/json" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, "[]")
-	}))
-	defer daemon.Close()
-	docker, err := dockerclient.NewClientWithOpts(dockerclient.WithHost("tcp://"+daemon.Listener.Addr().String()), dockerclient.WithVersion("1.41"))
-	require.NoError(t, err)
-	defer docker.Close()
-
 	opts := ImageOptions{Tag: "registry.fly.io/app:build", AppName: "app"}
 	ack := digest.FromString("pushed manifest")
 	for _, tc := range []struct {
@@ -87,15 +76,35 @@ func TestFindTaggedBuildImageAfterLocalLoss(t *testing.T) {
 		{"no receipt", "", ack},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := config.NewContext(context.Background(), &config.Config{Tokens: tokens.Parse("")})
+			daemon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/v1.41/images/json":
+					_, _ = io.WriteString(w, "[]")
+				case "/v1.41/distribution/" + opts.Tag + "/json":
+					if tc.receipt == "" {
+						t.Error("queried registry without a push receipt")
+					}
+					_, _ = fmt.Fprintf(w, `{"Descriptor":{"digest":%q}}`, tc.current)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer daemon.Close()
+			docker, err := dockerclient.NewClientWithOpts(dockerclient.WithHost("tcp://"+daemon.Listener.Addr().String()), dockerclient.WithVersion("1.41"))
+			require.NoError(t, err)
+			defer docker.Close()
+
 			called := false
 			api := resolveImageFunc(func(_ context.Context, app, ref string) (*fly.Image, error) {
 				called = true
 				require.Equal(t, opts.AppName, app)
-				require.Equal(t, opts.Tag, ref)
-				return &fly.Image{Digest: tc.current.String(), ID: "registry-id", CompressedSize: "123"}, nil
+				require.Equal(t, opts.Tag+"@"+ack.String(), ref)
+				return &fly.Image{Digest: ack.String(), ID: "registry-id", CompressedSize: "123"}, nil
 			})
-			img, err := findTaggedBuildImage(context.Background(), docker, api, opts, io.Discard, tc.receipt)
-			require.Equal(t, tc.receipt != "", called)
+			img, err := findTaggedBuildImage(ctx, docker, api, opts, io.Discard, tc.receipt)
+			require.Equal(t, tc.receipt == tc.current, called)
 			if tc.receipt != tc.current {
 				require.EqualError(t, err, "no image found")
 				require.Nil(t, img)

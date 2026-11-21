@@ -346,10 +346,6 @@ func resolveMissingBuildImage(ctx context.Context, api flyClient, opts ImageOpti
 		return nil, nil
 	}
 
-	return resolveVerifiedBuildImage(ctx, api, opts, out, lookup, imageID, pushed)
-}
-
-func resolveVerifiedBuildImage(ctx context.Context, api flyClient, opts ImageOptions, out io.Writer, lookup, imageID string, pushed digest.Digest) (*DeploymentImage, error) {
 	img, err := resolveImageWithRetry(ctx, api, opts.AppName, lookup, defaultImageWait, out)
 	if err != nil || img == nil {
 		return nil, err
