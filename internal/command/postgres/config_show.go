@@ -22,7 +22,13 @@ import (
 
 func newConfigShow() (cmd *cobra.Command) {
 	const (
-		long  = `Show Postgres configuration`
+		long = `Show the Postgres settings that ` + "`fly postgres config update`" + ` can change,
+read from the cluster's primary, with each setting's value, unit,
+allowed values and whether it's waiting for a restart. The Postgres app
+comes from --app or fly.toml.
+
+If changes are waiting for a restart, apply them with
+` + "`fly postgres restart`" + `.`
 		short = "Show Postgres configuration"
 		usage = "show"
 	)

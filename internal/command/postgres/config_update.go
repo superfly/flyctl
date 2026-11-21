@@ -28,8 +28,19 @@ import (
 
 func newConfigUpdate() (cmd *cobra.Command) {
 	const (
-		long  = `Update Postgres configuration.`
-		short = "Update Postgres configuration."
+		long = `Change Postgres settings on a Fly Postgres cluster. The Postgres app comes
+from --app or fly.toml; pass each setting to change as a flag.
+
+The new values are checked against the current settings and shown as a
+table, and you're asked to confirm. If any change needs a restart, you're
+also asked whether to restart the cluster now; the restart goes one
+machine at a time. Pass --yes to confirm both, which is required without a
+terminal.
+
+With --force, values aren't checked, you aren't asked to confirm, and the
+cluster isn't restarted, so changes that need a restart wait for
+` + "`fly postgres restart`" + `.`
+		short = "Update Postgres configuration"
 		usage = "update"
 	)
 

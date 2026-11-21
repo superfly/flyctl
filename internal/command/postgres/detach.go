@@ -23,8 +23,14 @@ import (
 
 func newDetach() *cobra.Command {
 	const (
-		short = "Detach a postgres cluster from an app"
-		long  = short + "\n"
+		short = "Detach a Fly Postgres cluster from an app"
+		long  = `Detach a Fly Postgres cluster from an app. Pass the Postgres app's name as
+the argument; the consuming app comes from --app or fly.toml.
+
+You pick which attachment to remove from a list, so this needs a
+terminal. The attachment's database user is deleted from the cluster and
+its connection string secret is removed from the app. The database itself
+and its data are kept.`
 		usage = "detach <POSTGRES APP>"
 	)
 

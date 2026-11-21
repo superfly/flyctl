@@ -23,8 +23,15 @@ import (
 
 func newRenewSSHCerts() *cobra.Command {
 	const (
-		short = "Renews the SSH certificates for the Postgres cluster."
-		long  = "Renews the SSH certificates for the Postgres cluster. This is useful when the certificates have expired or need to be rotated."
+		short = "Renew the SSH certificates for a Fly Postgres cluster"
+		long  = `Issue new SSH certificates that the machines of a Fly Postgres cluster use
+to reach each other, for when they've expired or need rotating. The
+Postgres app comes from --app or fly.toml, and it must be managed by
+repmgr (Flex).
+
+The new key and certificate are stored as secrets on the app, valid for
+--valid-days days. They take effect after you redeploy; the command
+prints the ` + "`fly deploy`" + ` command to run.`
 		usage = "renew-certs"
 	)
 

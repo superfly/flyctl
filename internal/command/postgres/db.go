@@ -22,8 +22,9 @@ import (
 
 func newDb() *cobra.Command {
 	const (
-		short = "Manage databases in a cluster"
-		long  = short + "\n"
+		short = "Manage databases in a Fly Postgres cluster"
+		long  = `Work with the databases in a Fly Postgres cluster. Use
+` + "`fly postgres db list`" + ` to see them.`
 	)
 
 	cmd := command.New("db", short, long, nil)
@@ -39,8 +40,9 @@ func newDb() *cobra.Command {
 
 func newListDbs() *cobra.Command {
 	const (
-		short = "list databases"
-		long  = short + "\n"
+		short = "List databases in a Fly Postgres cluster"
+		long  = `List the databases in a Fly Postgres cluster and the users that can access
+each one. The Postgres app comes from --app or fly.toml.`
 
 		usage = "list"
 	)
