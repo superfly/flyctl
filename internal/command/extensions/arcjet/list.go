@@ -18,8 +18,9 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List your Arcjet sites`
-		short = long
+		short = "List your Arcjet sites"
+		long  = `List the Arcjet sites you have access to, with the organization each one
+belongs to. Pass ` + "`--org`" + ` to list only one organization's sites.`
 		usage = "list"
 	)
 

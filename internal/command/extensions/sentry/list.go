@@ -18,8 +18,9 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List your Sentry projects`
-		short = long
+		short = "List your Sentry projects"
+		long  = `List the Sentry projects you have access to, with the organization each
+one belongs to. Pass ` + "`--org`" + ` to list only one organization's projects.`
 		usage = "list"
 	)
 
