@@ -9,6 +9,7 @@ import (
 
 	packclient "github.com/buildpacks/pack/pkg/client"
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -186,11 +187,13 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	var pushed digest.Digest
 	if opts.Publish {
 		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		pushed, err = pushToFlyWithDigest(ctx, docker, streams, opts.Tag)
+		if err != nil {
 			build.PushFinish()
 
 			return nil, "", err
@@ -200,26 +203,14 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
-	img, err := findImageWithDocker(ctx, docker, opts.Tag)
+	di, err := findTaggedBuildImage(ctx, docker, dockerFactory.apiClient, opts, streams.ErrOut, pushed)
 	if err != nil {
+		tracing.RecordError(ctx, span, err, "failed to find build image")
 		return nil, "", err
 	}
-	if img == nil {
-		err := fmt.Errorf("no image found")
-		tracing.RecordError(ctx, span, err, "no image found")
-
-		return nil, "", err
-	}
-
-	di := DeploymentImage{
-		ID:   img.ID,
-		Tag:  opts.Tag,
-		Size: img.Size,
-	}
-
 	span.SetAttributes(di.ToSpanAttributes()...)
 
-	return &di, "", nil
+	return di, "", nil
 }
 
 func normalizeBuildArgs(buildArgs map[string]string) map[string]string {
