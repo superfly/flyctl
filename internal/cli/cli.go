@@ -39,6 +39,34 @@ import (
 	tracecmd "github.com/superfly/flyctl/internal/command/trace"
 )
 
+// enableDebugLogsFromArgs turns on debug logs when the global --debug flag is
+// passed, the same as setting LOG_LEVEL=debug. The flag only counts when the
+// resolved command does not define its own --debug flag, and arguments after a
+// bare "--" are ignored, since launch and mcp wrap pass them to other tools.
+func enableDebugLogsFromArgs(root *cobra.Command, args []string) {
+	// Find still resolves the command when it reports an error, such as
+	// unknown arguments on the root command, so only a nil result is skipped.
+	target, _, _ := root.Find(args)
+	if target == nil {
+		return
+	}
+	// root owns the global --debug flag; a subcommand that defines its own
+	// --debug flag keeps it to itself.
+	if target != root && (target.PersistentFlags().Lookup("debug") != nil || target.LocalNonPersistentFlags().Lookup("debug") != nil) {
+		return
+	}
+	for _, arg := range args {
+		if arg == "--" {
+			return
+		}
+		if arg == "--debug" || arg == "--debug=true" {
+			os.Setenv("LOG_LEVEL", "debug")
+			term2.EnableDebugLogging()
+			return
+		}
+	}
+}
+
 // Run runs the command line interface with the given arguments and reports the
 // exit code the application should exit with.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
@@ -57,7 +85,6 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		}()
 	}
 
-	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut).AndLogToFile())
 	// initialize the background task runner early so command preparers can start running stuff immediately
 	ctx = task.NewWithContext(ctx)
 
@@ -80,6 +107,9 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 			args = args[:index]
 		}
 	}
+
+	enableDebugLogsFromArgs(cmd, args)
+	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut).AndLogToFile())
 
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true

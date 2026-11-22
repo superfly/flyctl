@@ -29,6 +29,12 @@ func init() {
 	DefaultLogger = logger.New(os.Stdout, level, true).AndLogToFile()
 }
 
+// EnableDebugLogging switches DefaultLogger to debug level, using the same
+// output and formatting as the logger created in init.
+func EnableDebugLogging() {
+	DefaultLogger = logger.New(os.Stdout, logger.Debug, true).AndLogToFile()
+}
+
 func GetLogLevel() logger.Level {
 	return DefaultLogger.Level()
 }

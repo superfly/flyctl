@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
+	term2 "github.com/superfly/flyctl/terminal"
 )
 
 func TestFlyNoPrompt(t *testing.T) {
@@ -24,6 +26,20 @@ func TestFlyNoPrompt(t *testing.T) {
 
 		assert.Equal(t, interactive, ios.IsInteractive(), "FLY_NO_PROMPT=%q", val)
 	}
+}
+
+func TestEnableDebugLogsFromArgs(t *testing.T) {
+	orig := term2.DefaultLogger
+	t.Cleanup(func() { term2.DefaultLogger = orig })
+	t.Setenv("LOG_LEVEL", "info")
+
+	ios, _, _, _ := iostreams.Test()
+	Run(context.Background(), ios, "help")
+	assert.Equal(t, logger.Info, term2.GetLogLevel())
+
+	Run(context.Background(), ios, "help", "--debug")
+	assert.Equal(t, logger.Debug, term2.GetLogLevel())
+	assert.Equal(t, "debug", os.Getenv("LOG_LEVEL"))
 }
 
 func TestUnknownGroupSubcommand(t *testing.T) {
