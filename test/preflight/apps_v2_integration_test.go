@@ -532,12 +532,13 @@ ENV BUILT_BY_DOCKERFILE=true
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --ha=false --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("deploy --buildkit --remote-only --label Z=ZZZ -a %s", appName)
 	res := f.Fly("image show -a %s --json", appName)
 
 	var machineImages []map[string]string
 	res.StdOutJSON(&machineImages)
+	require.NotEmpty(f, machineImages)
 
 	for _, image := range machineImages {
 		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
