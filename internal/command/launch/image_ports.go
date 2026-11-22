@@ -2,7 +2,9 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 )
 
 // Private network traffic bypasses fly-proxy, which counts these servers idle and stops them.
@@ -70,6 +73,40 @@ func imageServicePort(ports []int, defaultPort int) (servicePort, databasePort i
 	}
 
 	return defaultPort, 0
+}
+
+func imageLookupWarning(image string, port int, err error) string {
+	return fmt.Sprintf("Warning: couldn't read the exposed ports of %s (%s); using internal_port %d. Set --internal-port, or rerun.\n",
+		image, imageLookupReason(image, err), port)
+}
+
+func imageLookupReason(image string, err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Sprintf("timed out after %s", imageInspectTimeout)
+	}
+	var terr *transport.Error
+	if !errors.As(err, &terr) {
+		return err.Error()
+	}
+	rateLimited := terr.StatusCode == http.StatusTooManyRequests || slices.ContainsFunc(terr.Errors, func(d transport.Diagnostic) bool {
+		return d.Code == transport.TooManyRequestsErrorCode
+	})
+	if rateLimited {
+		registry := "registry"
+		if ref, err := name.ParseReference(image); err == nil {
+			registry = ref.Context().RegistryStr()
+		}
+		if registry == name.DefaultRegistry {
+			registry = "Docker Hub"
+		}
+
+		return registry + " rate limit reached"
+	}
+	if len(terr.Errors) > 0 && terr.Errors[0].Message != "" {
+		return terr.Errors[0].Message
+	}
+
+	return terr.Error()
 }
 
 // Fly's private network is IPv6, and mongod listens on IPv4 unless started with --ipv6.

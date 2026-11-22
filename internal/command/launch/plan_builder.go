@@ -340,6 +340,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			if l := logger.MaybeFromContext(ctx); l != nil {
 				l.Debugf("can't read the ports image %s exposes, so it gets port %d: %v", image, lp.HttpServicePort, err)
 			}
+			fmt.Fprint(iostreams.FromContext(ctx).ErrOut, imageLookupWarning(image, lp.HttpServicePort, err))
 		} else {
 			lp.HttpServicePort, buildCache.databasePort = imageServicePort(ports, lp.HttpServicePort)
 		}

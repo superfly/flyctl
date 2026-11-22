@@ -1,9 +1,12 @@
 package launch
 
 import (
+	"context"
 	"io"
 	"log"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/random"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -84,6 +88,7 @@ func TestBuildManifestImageUsesItsExposedPort(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.wantPort, res.manifest.Plan.HttpServicePort)
+			assert.NotContains(t, res.errOut, "couldn't read the exposed ports")
 		})
 	}
 }
@@ -96,6 +101,7 @@ func TestBuildManifestImageKeepsTodaysPlan(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, 8080, res.manifest.Plan.HttpServicePort)
+		assert.Contains(t, res.errOut, "Warning: couldn't read the exposed ports of "+ref+" (Unknown manifest); using internal_port 8080. Set --internal-port, or rerun.\n")
 	})
 
 	t.Run("--internal-port asks for a service", func(t *testing.T) {
@@ -170,6 +176,59 @@ func TestLaunchMongoImageHint(t *testing.T) {
 			} else {
 				assert.NotContains(t, out, hint)
 			}
+		})
+	}
+}
+
+func TestBuildManifestImageLookupWarning(t *testing.T) {
+	rateLimited := func(t *testing.T, rawURL string) error {
+		req := httptest.NewRequest(http.MethodGet, rawURL, nil)
+		body := `{"errors":[{"code":"TOOMANYREQUESTS","message":"You have reached your unauthenticated pull rate limit."}]}`
+		err := transport.CheckError(&http.Response{StatusCode: http.StatusTooManyRequests, Body: io.NopCloser(strings.NewReader(body)), Request: req}, http.StatusOK)
+		require.Error(t, err)
+		return err
+	}
+
+	for _, tc := range []struct {
+		name   string
+		image  string
+		err    func(t *testing.T) error
+		reason string
+	}{
+		{
+			name:  "Docker Hub rate limit",
+			image: "redis",
+			err: func(t *testing.T) error {
+				return rateLimited(t, "https://index.docker.io/v2/library/redis/manifests/latest")
+			},
+			reason: "Docker Hub rate limit reached",
+		},
+		{
+			name:   "another registry's rate limit",
+			image:  "ghcr.io/acme/cache:1",
+			err:    func(t *testing.T) error { return rateLimited(t, "https://ghcr.io/v2/acme/cache/manifests/1") },
+			reason: "ghcr.io rate limit reached",
+		},
+		{
+			name:  "timeout",
+			image: "redis",
+			err: func(t *testing.T) error {
+				return &url.Error{Op: "Get", URL: "https://index.docker.io/v2/", Err: context.DeadlineExceeded}
+			},
+			reason: "timed out after 10s",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lookupErr := tc.err(t)
+			prev := imageExposedPorts
+			imageExposedPorts = func(context.Context, string) ([]int, error) { return nil, lookupErr }
+			t.Cleanup(func() { imageExposedPorts = prev })
+
+			res, err := newManifestEnv().buildManifestFrom(t, "my-app", nil, "--image", tc.image)
+			require.NoError(t, err)
+
+			assert.Equal(t, 8080, res.manifest.Plan.HttpServicePort)
+			assert.Contains(t, res.errOut, "Warning: couldn't read the exposed ports of "+tc.image+" ("+tc.reason+"); using internal_port 8080. Set --internal-port, or rerun.\n")
 		})
 	}
 }
