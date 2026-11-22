@@ -145,7 +145,7 @@ func TestLaunchDatabaseImage(t *testing.T) {
 	assert.Empty(t, cfg.Services)
 	assert.Contains(t, out, "my-db has no public HTTP service: "+ref+" exposes 6379, the Redis port.\n"+
 		"From other apps in this org: my-db.internal:6379. From this computer: `fly proxy 6379 -a my-db`.\n"+
-		"To add a public service, add it to fly.toml (https://docs.fly.io/reference/configuration#the-services-sections), then run `fly deploy`, `fly ips allocate-v6` and `fly ips allocate-v4 --shared`.\n")
+		"To add a public service, add it to fly.toml (https://docs.fly.io/reference/configuration#the-services-sections), run `fly ips allocate-v6` and `fly ips allocate-v4 --shared`, then `fly deploy`.\n")
 	assert.NotContains(t, out, "flycast")
 }
 
@@ -155,7 +155,7 @@ func TestLaunchDatabaseImageWithFlycast(t *testing.T) {
 	_, out, err := newManifestEnv().launchFrom(t, nil, "--image", ref, "--name", "my-db", "--flycast")
 	require.NoError(t, err)
 
-	assert.Contains(t, out, "my-db.flycast has no address: Flycast needs a [[services]] entry for port 6379, then `fly deploy` and `fly ips allocate-v6 --private`.\n")
+	assert.Contains(t, out, "my-db.flycast has no address: Flycast needs a [[services]] entry for port 6379. Add it, run `fly ips allocate-v6 --private`, then `fly deploy`.\n")
 }
 
 func TestLaunchWebImage(t *testing.T) {

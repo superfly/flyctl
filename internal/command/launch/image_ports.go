@@ -120,10 +120,10 @@ var databasePortHints = map[int]string{
 func databaseImageNote(appName, image string, port int, ownCommand, flycast bool) string {
 	note := fmt.Sprintf("%s has no public HTTP service: %s exposes %d, the %s port.\n"+
 		"From other apps in this org: %s.internal:%d. From this computer: `fly proxy %d -a %s`.\n"+
-		"To add a public service, add it to fly.toml (https://docs.fly.io/reference/configuration#the-services-sections), then run `fly deploy`, `fly ips allocate-v6` and `fly ips allocate-v4 --shared`.\n",
+		"To add a public service, add it to fly.toml (https://docs.fly.io/reference/configuration#the-services-sections), run `fly ips allocate-v6` and `fly ips allocate-v4 --shared`, then `fly deploy`.\n",
 		appName, image, port, databasePorts[port], appName, port, port, appName)
 	if flycast {
-		note += fmt.Sprintf("%s.flycast has no address: Flycast needs a [[services]] entry for port %d, then `fly deploy` and `fly ips allocate-v6 --private`.\n", appName, port)
+		note += fmt.Sprintf("%s.flycast has no address: Flycast needs a [[services]] entry for port %d. Add it, run `fly ips allocate-v6 --private`, then `fly deploy`.\n", appName, port)
 	}
 	if hint, ok := databasePortHints[port]; ok && !ownCommand {
 		note += hint + "\n"
