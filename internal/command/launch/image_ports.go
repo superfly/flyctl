@@ -79,7 +79,7 @@ var databasePortHints = map[int]string{
 
 func databaseImageNote(appName, image string, port int, ownCommand bool) string {
 	note := fmt.Sprintf("%s has no public HTTP service: %s exposes %d, the %s port.\n"+
-		"Reach it at %s.internal:%d, or from here with `fly proxy %d -a %s`. To add a public service: https://fly.io/docs/reference/configuration/#the-services-sections\n",
+		"Reach it at %s.internal:%d, or from here with `fly proxy %d -a %s`. To add a public service: https://docs.fly.io/reference/configuration#the-services-sections\n",
 		appName, image, port, databasePorts[port], appName, port, port, appName)
 	if hint, ok := databasePortHints[port]; ok && !ownCommand {
 		note += hint + "\n"
