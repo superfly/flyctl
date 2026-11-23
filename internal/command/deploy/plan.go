@@ -58,6 +58,8 @@ type AppState struct {
 }
 
 type machinePairing struct {
+	// plannedID remains stable when the API assigns a replacement a new ID.
+	plannedID string
 	// originalMachine is this machine as read before the deploy began. It's not re-read on recovery retries.
 	// nil for machines being created during the deploy.
 	originalMachine *fly.Machine
@@ -104,10 +106,10 @@ type healthcheckResult struct {
 var healthChecksPassed = sync.Map{}
 
 type updateMachineSettings struct {
-	pushForward          bool
-	skipHealthChecks     bool
-	skipSmokeChecks      bool
-	skipLeaseAcquisition bool
+	pushForward      bool
+	skipHealthChecks bool
+	skipSmokeChecks  bool
+	outerMachines    map[string]*fly.Machine
 }
 
 const rollingStrategyMaxConcurrentGroups = 16
@@ -135,34 +137,41 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 	for _, machine := range oldAppState.Machines {
 		oldMachines[machine.ID] = machine
 	}
-	newMachines := make(map[string]*fly.Machine)
-	for _, machine := range newAppState.Machines {
-		newMachines[machine.ID] = machine
-	}
-
-	machineTuples := make([]machinePairing, 0)
-	for _, oldMachine := range oldMachines {
-		// This means we want to update a machine
-		if newMachine, ok := newMachines[oldMachine.ID]; ok {
-			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{
-				regularChecksPassed: settings.skipHealthChecks,
-				machineChecksPassed: settings.skipHealthChecks,
-				smokeChecksPassed:   settings.skipSmokeChecks,
-			})
-			machineTuples = append(machineTuples, machinePairing{originalMachine: originalMachines[oldMachine.ID], oldMachine: oldMachine, newMachine: newMachine})
+	machineTuples := make([]machinePairing, 0, len(newAppState.Machines))
+	for _, planned := range newAppState.Machines {
+		target := planned
+		if accepted, ok := md.recoveryMachines.Load(planned.ID); ok {
+			target = accepted.(*fly.Machine)
+			if oldMachines[target.ID] == nil {
+				// A phase refresh can omit a recently created replacement.
+				current, err := md.flapsClient.Get(ctx, md.app.Name, target.ID)
+				if err != nil {
+					return fmt.Errorf("refresh accepted Machine %s for %s: %w", target.ID, planned.ID, err)
+				}
+				if current == nil || current.ID != target.ID {
+					return fmt.Errorf("could not confirm accepted Machine %s for %s", target.ID, planned.ID)
+				}
+				// A GET confirms identity but does not grant a lease to this attempt.
+				refreshed := *current
+				refreshed.LeaseNonce = ""
+				oldMachines[target.ID] = &refreshed
+			}
+			// Only the outer attempt can supply an owned lease for this exact ID.
+			if outer := settings.outerMachines[target.ID]; outer != nil {
+				oldMachines[target.ID].LeaseNonce = outer.LeaseNonce
+			}
 		}
-	}
-
-	for _, newMachine := range newMachines {
-		if _, ok := oldMachines[newMachine.ID]; !ok {
-			// This means we should create the new machine
-			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{
-				regularChecksPassed: settings.skipHealthChecks,
-				machineChecksPassed: settings.skipHealthChecks,
-				smokeChecksPassed:   settings.skipSmokeChecks,
-			})
-			machineTuples = append(machineTuples, machinePairing{originalMachine: originalMachines[newMachine.ID], oldMachine: nil, newMachine: newMachine})
-		}
+		healthChecksPassed.LoadOrStore(planned.ID, &healthcheckResult{
+			regularChecksPassed: settings.skipHealthChecks,
+			smokeChecksPassed:   settings.skipSmokeChecks,
+			machineChecksPassed: settings.skipHealthChecks,
+		})
+		machineTuples = append(machineTuples, machinePairing{
+			plannedID:       planned.ID,
+			originalMachine: originalMachines[planned.ID],
+			oldMachine:      oldMachines[target.ID],
+			newMachine:      target,
+		})
 	}
 
 	var sl statuslogger.StatusLogger
@@ -192,7 +201,15 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 
 	poolSize := md.getPoolSize(len(machineTuples))
 
-	if !settings.skipLeaseAcquisition {
+	leaseTuples := machineTuples
+	if settings.outerMachines != nil {
+		// Original Machines retain their outer attempt's leases. Accepted
+		// replacements have different IDs and need leases of their own.
+		leaseTuples = lo.Filter(machineTuples, func(pair machinePairing, _ int) bool {
+			return pair.oldMachine != nil && pair.oldMachine.ID != pair.plannedID && pair.oldMachine.LeaseNonce == ""
+		})
+	}
+	if len(leaseTuples) > 0 {
 		attempts := 0
 
 		defer func() {
@@ -200,7 +217,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 		}()
 
 		defer func() {
-			err := md.releaseLeases(ctx, machineTuples, machineLogger)
+			err := md.releaseLeases(ctx, leaseTuples, machineLogger)
 			if err != nil {
 				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
 				tracing.RecordErrorEvent(ctx, span, err)
@@ -208,7 +225,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 		}()
 
 		for {
-			err := md.acquireLeases(ctx, machineTuples, poolSize, machineLogger)
+			err := md.acquireLeases(ctx, leaseTuples, poolSize, machineLogger)
 			if err == nil {
 				break
 			}
@@ -315,10 +332,10 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 				return currentState.Machines[i].ID < currentState.Machines[j].ID
 			})
 			err = md.updateMachinesWRecovery(ctx, originalAppState, currentState, newAppState, sl, updateMachineSettings{
-				pushForward:          false,
-				skipHealthChecks:     settings.skipHealthChecks,
-				skipSmokeChecks:      settings.skipSmokeChecks,
-				skipLeaseAcquisition: true,
+				pushForward:      false,
+				skipHealthChecks: settings.skipHealthChecks,
+				skipSmokeChecks:  settings.skipSmokeChecks,
+				outerMachines:    oldMachines,
 			})
 			if err == nil {
 				break
@@ -385,7 +402,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 				return err
 			}
 
-			checkResult, ok := healthChecksPassed.Load(machineID)
+			checkResult, ok := healthChecksPassed.Load(machPair.plannedID)
 			// this shouldn't happen, we ensure that the machine is in the map but just in case
 			if !ok {
 				err := fmt.Errorf("no health checks stored for machine")
@@ -396,7 +413,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			}
 			machineCheckResult := checkResult.(*healthcheckResult)
 
-			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult)
+			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult, machPair.plannedID)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
 				tracing.RecordErrorEvent(gCtx, span, err)
@@ -577,7 +594,7 @@ func isEmptyOrNilSlice(v interface{}) bool {
 	return rv.Kind() == reflect.Slice && rv.Len() == 0
 }
 
-func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult, plannedID string) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks", trace.WithAttributes(
 		attribute.Bool("smoke_checks", healthcheckResult.smokeChecksPassed),
 		attribute.Bool("machine_checks", healthcheckResult.machineChecksPassed),
@@ -591,6 +608,16 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	var err error
 
 	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, skipLaunch, sl)
+	if machine != nil && machine.ID != plannedID && (err == nil || oldMachine == nil) {
+		// Keep the accepted identity and server-resolved config even if readiness
+		// fails next. The old ID and unresolved volume selection cannot be reused.
+		accepted := *machine
+		// Replacement leases are released by updateMachineByReplace. Recovery
+		// must acquire its own lease instead of carrying a nonce to another ID.
+		accepted.LeaseNonce = ""
+		md.recoveryMachines.Store(plannedID, &accepted)
+	}
+
 	// if machine is nil and the lease is nil, it means we don't need to check on this machine
 	if err != nil || (machine == nil && lease == nil) {
 		tracing.RecordErrorEvent(ctx, span, err)
@@ -598,7 +625,17 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		return err
 	}
 
-	return md.checkUpdatedMachine(ctx, oldMachine, machine, skipLaunch, sl, io, healthcheckResult)
+	checkErr := md.checkUpdatedMachine(ctx, oldMachine, machine, skipLaunch, sl, io, healthcheckResult)
+	if lease != nil {
+		// A fallback create owns this lease only for its readiness checks.
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		if releaseErr := md.flapsClient.ReleaseLease(releaseCtx, md.app.Name, machine.ID, lease.Data.Nonce); releaseErr != nil && !strings.Contains(releaseErr.Error(), "lease not found") {
+			fmt.Fprintf(md.io.ErrOut, "Failed to release create lease on %s: %v\n", machine.ID, releaseErr)
+		}
+	}
+
+	return checkErr
 }
 
 func (md *machineDeployment) checkUpdatedMachine(ctx context.Context, oldMachine, machine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) (err error) {
@@ -725,7 +762,8 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		if err != nil {
 			tracing.RecordErrorEvent(ctx, span, err)
 
-			return nil, nil, err
+			// Launch succeeded. Recovery still needs its ID when leasing fails.
+			return machine, nil, err
 		}
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquired lease for %s", newMachine.ID))
 

@@ -336,10 +336,9 @@ func TestUpdateMachines(t *testing.T) {
 		Machines: newMachines,
 	}
 	settings := updateMachineSettings{
-		pushForward:          true,
-		skipHealthChecks:     false,
-		skipSmokeChecks:      true,
-		skipLeaseAcquisition: false,
+		pushForward:      true,
+		skipHealthChecks: false,
+		skipSmokeChecks:  true,
 	}
 
 	// Another deploy temporarily holds machine2 while this one gets machine1.
@@ -500,10 +499,9 @@ func TestUpdateMachinesRecoveryDoesNotRefreshVolumes(t *testing.T) {
 	newState := &AppState{Machines: []*fly.Machine{newMachine}}
 
 	err := md.updateMachinesWRecovery(ctx, oldState, oldState, newState, nil, updateMachineSettings{
-		pushForward:          true,
-		skipHealthChecks:     true,
-		skipSmokeChecks:      true,
-		skipLeaseAcquisition: false,
+		pushForward:      true,
+		skipHealthChecks: true,
+		skipSmokeChecks:  true,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), updateCalls.Load())
@@ -718,10 +716,9 @@ func TestUpdateMachinesWithNewMachine(t *testing.T) {
 	// skipSmokeChecks=false ensures we enter the code path that previously
 	// dereferenced oldMachine.ID (which is nil for new machines).
 	settings := updateMachineSettings{
-		pushForward:          true,
-		skipHealthChecks:     false,
-		skipSmokeChecks:      false,
-		skipLeaseAcquisition: false,
+		pushForward:      true,
+		skipHealthChecks: false,
+		skipSmokeChecks:  false,
 	}
 
 	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
@@ -809,10 +806,9 @@ func TestUpdateProcessGroupScaleUpErrorDoesNotPanic(t *testing.T) {
 	// pushForward=false makes the error propagate immediately instead of
 	// retrying, so we can assert on it.
 	settings := updateMachineSettings{
-		pushForward:          false,
-		skipHealthChecks:     false,
-		skipSmokeChecks:      false,
-		skipLeaseAcquisition: false,
+		pushForward:      false,
+		skipHealthChecks: false,
+		skipSmokeChecks:  false,
 	}
 
 	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)

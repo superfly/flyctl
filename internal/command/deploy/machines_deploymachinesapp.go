@@ -750,10 +750,9 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
 		return md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, &newAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     true,
-			skipSmokeChecks:      true,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: true,
+			skipSmokeChecks:  true,
 		})
 	case "canary":
 		// Prefer a started machine as the canary, otherwise take the first machine.
@@ -780,10 +779,9 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
 		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     md.skipHealthChecks,
-			skipSmokeChecks:      md.skipSmokeChecks,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: md.skipHealthChecks,
+			skipSmokeChecks:  md.skipSmokeChecks,
 		}); err != nil {
 			return err
 		}
@@ -796,19 +794,17 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		}
 
 		return md.updateMachinesWRecovery(ctx, oldAppState, refreshedState, &newAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     md.skipHealthChecks,
-			skipSmokeChecks:      md.skipSmokeChecks,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: md.skipHealthChecks,
+			skipSmokeChecks:  md.skipSmokeChecks,
 		})
 	case "rolling":
 		fallthrough
 	default:
 		return md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, &newAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     md.skipHealthChecks,
-			skipSmokeChecks:      md.skipSmokeChecks,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: md.skipHealthChecks,
+			skipSmokeChecks:  md.skipSmokeChecks,
 		})
 	}
 }
