@@ -42,7 +42,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
-	cmd.Args = cobra.NoArgs
+	cmd.Args = launchArgs
 
 	flags := []flag.Flag{
 		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
@@ -180,12 +180,18 @@ func New() (cmd *cobra.Command) {
 		},
 		flag.String{
 			Name:        "db",
-			Description: "Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
-			NoOptDefVal: "true",
+			Description: "Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type). Use --db mpg or --db=mpg; bare --db means the default type",
 		},
 	}
 
 	flag.Add(cmd, flags...)
+
+	// Track whether --db was written bare; see dbFlagValue.
+	dbf := cmd.Flags().Lookup("db")
+	dbf.Value = &dbFlagValue{}
+	dbf.NoOptDefVal = bareDBSentinel
+	flag.SetDisplayNoOptDefVal(dbf, "true")
+	cmd.SetUsageFunc(usageWithDisplayDefaults(cmd))
 
 	cmd.AddCommand(NewPlan())
 
@@ -681,23 +687,11 @@ func validatePostgresFlags(ctx context.Context) error {
 	noDb := flag.GetBool(ctx, "no-db")
 
 	// Normalize db flag values
-	switch dbFlag {
-	case "true", "1", "yes":
-		dbFlag = "true"
-	case "mpg", "managed":
-		dbFlag = "mpg"
-	case "upg", "unmanaged", "legacy":
-		dbFlag = "upg"
-	case "false", "0", "no", "":
-		dbFlag = ""
-	default:
-		if dbFlag != "" {
-			return flyerr.GenericErr{
-				Err:     fmt.Sprintf("Invalid value '%s' for --db flag", dbFlag),
-				Suggest: "Valid options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
-			}
-		}
+	normalized, ok := normalizeDBValue(dbFlag)
+	if !ok {
+		return invalidDBValueError(dbFlag)
 	}
+	dbFlag = normalized
 
 	// Check if db flag conflicts with --no-db
 	if dbFlag != "" && noDb {
@@ -815,4 +809,105 @@ func openBrowser(url string) error {
 	}
 
 	return cmd.Start()
+}
+
+// normalizeDBValue maps a --db value to "true", "mpg", "upg" or "" (disabled).
+// The second result is false when the value is not recognised.
+func normalizeDBValue(v string) (string, bool) {
+	switch v {
+	case "true", "1", "yes":
+		return "true", true
+	case "mpg", "managed":
+		return "mpg", true
+	case "upg", "unmanaged", "legacy":
+		return "upg", true
+	case "false", "0", "no", "":
+		return "", true
+	}
+
+	return "", false
+}
+
+func invalidDBValueError(v string) error {
+	return flyerr.GenericErr{
+		Err:     fmt.Sprintf("Invalid value '%s' for --db flag", v),
+		Suggest: "Valid options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)",
+	}
+}
+
+// bareDBSentinel is --db's NoOptDefVal. pflag passes it to Set when --db is
+// written without a value, which lets dbFlagValue tell `--db` from `--db=true`
+// (pflag calls Set("true") for both if NoOptDefVal is "true"). Set normalizes
+// it back to "true", so it never reaches the rest of fly launch. Help and docs
+// show "true" instead (flag.SetDisplayNoOptDefVal).
+const bareDBSentinel = "true\u200b"
+
+// usageWithDisplayDefaults renders usage and help with display NoOptDefVals
+// (see flag.SetDisplayNoOptDefVal), so --db shows `[="true"]` rather than
+// bareDBSentinel and the help text is unchanged. The docs generator does the
+// same in doc/main.go. It defers to the usage function of owner's parent, as
+// cobra does by default. Subcommands such as `launch plan` inherit it, so it
+// must not look up the chain from c, which would find itself again.
+func usageWithDisplayDefaults(owner *cobra.Command) func(*cobra.Command) error {
+	return func(c *cobra.Command) error {
+		next := (&cobra.Command{}).UsageFunc()
+		if owner.HasParent() {
+			next = owner.Parent().UsageFunc()
+		}
+		var err error
+		flag.WithDisplayNoOptDefVals(owner.Flags(), func() { err = next(c) })
+
+		return err
+	}
+}
+
+// dbFlagValue is the pflag.Value behind --db. It behaves like pflag's string
+// value, and additionally records whether the last occurrence of the flag was
+// bare (`--db`), as opposed to carrying a value (`--db=true`). The last
+// occurrence wins, as it does for any other pflag.
+type dbFlagValue struct {
+	val  string
+	bare bool
+}
+
+func (v *dbFlagValue) String() string { return v.val }
+func (v *dbFlagValue) Type() string   { return "string" }
+
+func (v *dbFlagValue) Set(s string) error {
+	if s == bareDBSentinel {
+		v.val, v.bare = "true", true
+		return nil
+	}
+	v.val, v.bare = s, false
+
+	return nil
+}
+
+// isDBTypeName reports whether s names a database type, as opposed to a
+// boolean-like word or anything else.
+func isDBTypeName(s string) bool {
+	n, ok := normalizeDBValue(s)
+	return ok && (n == "mpg" || n == "upg")
+}
+
+// launchArgs is like cobra.NoArgs, except that it also accepts the value of
+// --db when it was written after a space (`--db mpg`). --db has NoOptDefVal so
+// that a bare `--db` works, which means pflag never consumes the next word as
+// its value and it arrives here as a positional argument.
+//
+// The argument is taken only when the last --db was bare and the argument
+// names a database type. Boolean-like words (`--db --ha false`) and anything
+// else fall through to cobra.NoArgs, exactly as before. This does not check
+// that the argument sits right after --db, so `fly launch mpg --db` is
+// accepted as well.
+func launchArgs(cmd *cobra.Command, args []string) error {
+	if len(args) == 1 && cmd.ArgsLenAtDash() < 0 && isDBTypeName(args[0]) {
+		if f := cmd.Flags().Lookup("db"); f != nil {
+			if v, ok := f.Value.(*dbFlagValue); ok && v.bare {
+				return cmd.Flags().Set("db", args[0])
+			}
+		}
+	}
+
+	return cobra.NoArgs(cmd, args)
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/cli"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 var titlePrefix = "## "
@@ -81,7 +82,8 @@ func printOptions(buf *bytes.Buffer, cmd *cobra.Command, name string) error {
 	flags.SetOutput(buf)
 	if flags.HasAvailableFlags() {
 		buf.WriteString(titlePrefix + "Options\n\n```\n")
-		flags.PrintDefaults()
+		// Show display NoOptDefVals (fly launch --db), as help does.
+		flag.WithDisplayNoOptDefVals(flags, flags.PrintDefaults)
 		buf.WriteString("```\n\n")
 	}
 
@@ -89,7 +91,7 @@ func printOptions(buf *bytes.Buffer, cmd *cobra.Command, name string) error {
 	parentFlags.SetOutput(buf)
 	if parentFlags.HasAvailableFlags() {
 		buf.WriteString(titlePrefix + "Global Options\n\n```\n")
-		parentFlags.PrintDefaults()
+		flag.WithDisplayNoOptDefVals(parentFlags, parentFlags.PrintDefaults)
 		buf.WriteString("```\n\n")
 	}
 

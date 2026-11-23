@@ -37,6 +37,34 @@ func TestGeneratedCommandDocumentationUsesCanonicalURLs(t *testing.T) {
 	}
 }
 
+// fly launch --db parses with a hidden NoOptDefVal sentinel containing a
+// zero-width space. The generated page must show it as "true", with the --db
+// line laid out exactly as on master (only the description has changed).
+func TestGeneratedLaunchDocsShowPlainDBDefault(t *testing.T) {
+	t.Chdir(t.TempDir())
+	main()
+
+	files, err := filepath.Glob("out/*.mdx")
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), "\u200b", file)
+	}
+
+	data, err := os.ReadFile("out/fly_launch.mdx")
+	require.NoError(t, err)
+	var dbLine string
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "      --db ") {
+			dbLine = line
+		}
+	}
+	const masterDBLine = `      --db string[="true"]               Provision a Postgres database. Options: mpg (managed postgres), upg/legacy (unmanaged postgres), or true (default type)`
+	require.True(t, strings.HasPrefix(dbLine, masterDBLine), "got %q", dbLine)
+}
+
 // Runtime messages never reach the generated pages, so scan the source too:
 // no links to the retired fly.io/docs host, and no docs URL followed by a
 // sentence-ending period, which terminals can fold into the link (a 404).
