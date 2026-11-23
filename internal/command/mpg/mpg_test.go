@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -1033,70 +1034,24 @@ func TestBackupList(t *testing.T) {
 	assert.Equal(t, "backup-2", backups[1].Id)
 }
 
-// Test PG major version validation logic
+// Test PG major version validation and the create command's default.
 func TestPGMajorVersionValidation(t *testing.T) {
-	tests := []struct {
-		name        string
-		version     int
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name:        "valid version 16",
-			version:     16,
-			expectError: false,
-		},
-		{
-			name:        "valid version 17",
-			version:     17,
-			expectError: false,
-		},
-		{
-			name:        "invalid version 15",
-			version:     15,
-			expectError: true,
-			errorMsg:    "invalid Postgres major version: 15. Supported versions are 16 and 17",
-		},
-		{
-			name:        "invalid version 18",
-			version:     18,
-			expectError: true,
-			errorMsg:    "invalid Postgres major version: 18. Supported versions are 16 and 17",
-		},
-		{
-			name:        "invalid version 14",
-			version:     14,
-			expectError: true,
-			errorMsg:    "invalid Postgres major version: 14. Supported versions are 16 and 17",
-		},
-		{
-			name:        "invalid version 0",
-			version:     0,
-			expectError: true,
-			errorMsg:    "invalid Postgres major version: 0. Supported versions are 16 and 17",
-		},
+	for _, version := range []int{16, 17, 18} {
+		assert.NoError(t, mpgutil.ValidatePGMajorVersion(version), "version %d", version)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Test the validation logic directly (matching lines 119-122 in create.go)
-			if tt.version != 16 && tt.version != 17 {
-				if !tt.expectError {
-					t.Errorf("expected error for version %d", tt.version)
-
-					return
-				}
-				err := fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", tt.version)
-				if tt.errorMsg != "" && err.Error() != tt.errorMsg {
-					t.Errorf("expected error message '%s', got '%s'", tt.errorMsg, err.Error())
-				}
-			} else {
-				if tt.expectError {
-					t.Errorf("did not expect error for version %d", tt.version)
-				}
-			}
-		})
+	for _, version := range []int{-1, 0, 13, 14, 15, 19} {
+		err := mpgutil.ValidatePGMajorVersion(version)
+		assert.EqualError(t, err, fmt.Sprintf("invalid Postgres major version: %d. Supported versions are 16, 17 and 18", version))
 	}
+}
+
+func TestCreateDefaultPGMajorVersion(t *testing.T) {
+	f := newCreate().Flags().Lookup("pg-major-version")
+	require.NotNil(t, f)
+	assert.Equal(t, "17", f.DefValue)
+	assert.Contains(t, f.Usage, "16, 17 and 18")
+	assert.NoError(t, mpgutil.ValidatePGMajorVersion(mpgutil.DefaultPGMajorVersion))
 }
 
 // Test CreateAttachment functionality
@@ -1356,21 +1311,6 @@ func TestAttachCommand_HandlesAttachmentErrorGracefully(t *testing.T) {
 	// In the actual implementation, this is handled as a warning:
 	// fmt.Fprintf(io.ErrOut, "Warning: failed to create attachment record: %v\n", err)
 	// The attach command still succeeds because the secret was set
-}
-
-// Test invalid PG major version error message
-func TestInvalidPGMajorVersion_Error(t *testing.T) {
-	invalidVersions := []int{15, 18, 14, 13, 19, 0, -1}
-
-	for _, version := range invalidVersions {
-		t.Run(fmt.Sprintf("version_%d", version), func(t *testing.T) {
-			err := fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", version)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid Postgres major version")
-			assert.Contains(t, err.Error(), "Supported versions are 16 and 17")
-			assert.Contains(t, err.Error(), fmt.Sprintf("%d", version))
-		})
-	}
 }
 
 // Test formatAttachedApps function
