@@ -908,6 +908,7 @@ func (md *machineDeployment) waitForReplacingMachinesToSettle(ctx context.Contex
 		})
 	}
 	wg.Wait()
+
 	return waited
 }
 
@@ -920,6 +921,7 @@ func retryBackoff(attempt int) time.Duration {
 	if attempt < 1 {
 		attempt = 1
 	}
+
 	return min(base<<min(attempt-1, 4), maxBackoff)
 }
 
@@ -942,10 +944,13 @@ func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID str
 func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool, skipLaunch bool) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_config")
 	defer span.End()
-	if updateID := newMachineConfig.Metadata[deployUpdateIDMetadataKey]; updateID != "" &&
-		oldMachine.Config.Metadata[deployUpdateIDMetadataKey] == updateID {
-		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Found previously applied update for %s", oldMachine.ID))
-		return oldMachine, nil
+	if newMachineConfig != nil && oldMachine.Config != nil {
+		if updateID := newMachineConfig.Metadata[deployUpdateIDMetadataKey]; updateID != "" &&
+			oldMachine.Config.Metadata[deployUpdateIDMetadataKey] == updateID {
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Found previously applied update for %s", oldMachine.ID))
+
+			return oldMachine, nil
+		}
 	}
 	if compareConfigs(ctx, oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil

@@ -732,11 +732,14 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		if e.launchInput.RequiresReplacement {
 			newMach.State = "replacing"
 		}
-		config := *e.launchInput.Config
-		config.Metadata = lo.Assign(config.Metadata, map[string]string{
-			deployUpdateIDMetadataKey: ulid.Make().String(),
-		})
-		newMach.Config = &config
+		newMach.Config = e.launchInput.Config
+		if newMach.Config != nil {
+			config := *newMach.Config
+			config.Metadata = lo.Assign(config.Metadata, map[string]string{
+				deployUpdateIDMetadataKey: ulid.Make().String(),
+			})
+			newMach.Config = &config
+		}
 
 		return newMach
 	})
