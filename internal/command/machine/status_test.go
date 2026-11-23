@@ -56,3 +56,36 @@ func TestMachineStatusCacheDisk(t *testing.T) {
 		})
 	}
 }
+
+func TestMachineStatusRootfsUsage(t *testing.T) {
+	for _, tc := range []struct{ name, state, events, want string }{
+		{"unmeasured", "started", `[]`, "unknown (measured at next stop/suspend)"},
+		{"stopped", "stopped", `[{"status":"stopped","timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"1048576","overlay_bytes":"1048576"}}}]`, "2.0 MiB"},
+		{"suspended zero", "suspended", `[{"status":"suspended","timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"0","overlay_bytes":"0"}}}]`, "0 B"},
+		{"newest measurement", "started", `[{"status":"started","timestamp":3000},{"status":"suspended","timestamp":2000,"request":{"rootfs_usage":{"image_bytes":"1048576","overlay_bytes":"1048576"}}},{"status":"stopped","timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"1048576","overlay_bytes":"0"}}}]`, "2.0 MiB (measured "},
+		{"other status", "started", `[{"status":"started","timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"1048576","overlay_bytes":"1048576"}}}]`, "2.0 MiB (measured "},
+		{"first measurement wins", "started", `[{"timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"1048576","overlay_bytes":"0"}}},{"timestamp":2000,"request":{"rootfs_usage":{"image_bytes":"1048576","overlay_bytes":"1048576"}}}]`, "1.0 MiB (measured "},
+		{"no request", "started", `[{"status":"stopped","timestamp":1000}]`, "unknown (measured at next stop/suspend)"},
+		{"partial", "started", `[{"status":"stopped","timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"1048576"}}}]`, "unknown (measured at next stop/suspend)"},
+		{"overflow", "started", `[{"status":"stopped","timestamp":1000,"request":{"rootfs_usage":{"image_bytes":"18446744073709551615","overlay_bytes":"1"}}}]`, "unknown (measured at next stop/suspend)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &fly.Machine{ID: "abc", State: tc.state, Config: &fly.MachineConfig{Guest: &fly.MachineGuest{}}}
+			require.NoError(t, json.Unmarshal([]byte(tc.events), &m.Events))
+			client := &mock.FlapsClient{GetFunc: func(context.Context, string, string) (*fly.Machine, error) { return m, nil }}
+			cmd := newStatus()
+			require.NoError(t, cmd.Flags().Parse([]string{m.ID}))
+			ios, _, out, _ := iostreams.Test()
+			ctx := iostreams.NewContext(t.Context(), ios)
+			ctx = appconfig.WithName(ctx, "test")
+			ctx = flapsutil.NewContextWithClient(ctx, client)
+			ctx = flag.NewContext(ctx, cmd.Flags())
+			require.NoError(t, runMachineStatus(ctx))
+			require.Contains(t, out.String(), "RootFS Size")
+			require.Contains(t, out.String(), tc.want)
+			if tc.state == "stopped" || tc.state == "suspended" {
+				require.NotContains(t, out.String(), "(measured ")
+			}
+		})
+	}
+}

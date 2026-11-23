@@ -49,10 +49,15 @@ including a smaller one.`
 func runFork(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
 	name := flag.GetString(ctx, "name")
-	// The API is the source of truth for plans and matches them
-	// case-insensitively, so --plan is passed through rather than checked
-	// against MPGPlans. Leaving it empty keeps the source cluster's plan.
+	// The API is the source of truth for plans, so --plan isn't checked
+	// against MPGPlans. A plan found there by key or name goes out as its
+	// key, the value the API knows: --plan Dev-256 or Developer sends
+	// dev-256. Any other --plan is passed through as typed. Leaving it
+	// empty keeps the source cluster's plan.
 	plan := strings.TrimSpace(flag.GetString(ctx, "plan"))
+	if key, ok := planKey(plan); ok {
+		plan = key
+	}
 
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {

@@ -101,6 +101,19 @@ type GetClusterCredentialsResponse struct {
 	Password      string `json:"password"`
 	DBName        string `json:"dbname"`
 	ConnectionUri string `json:"pgbouncer_uri"`
+	// DatabaseURL is the URL to hand an app: the direct one on fly-proxy
+	// routing, the pooled one otherwise. Older ui-ex versions don't send it.
+	DatabaseURL string `json:"database_url"`
+}
+
+// AppURI returns the connection URI to give an app: DatabaseURL, or the
+// pooled URI when ui-ex doesn't send DatabaseURL.
+func (c GetClusterCredentialsResponse) AppURI() string {
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL
+	}
+
+	return c.ConnectionUri
 }
 
 type GetClusterResponse struct {

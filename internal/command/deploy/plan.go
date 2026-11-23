@@ -199,6 +199,14 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 			span.SetAttributes(attribute.Int("lease_attempts", attempts))
 		}()
 
+		defer func() {
+			err := md.releaseLeases(ctx, machineTuples, machineLogger)
+			if err != nil {
+				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
+				tracing.RecordErrorEvent(ctx, span, err)
+			}
+		}()
+
 		for {
 			err := md.acquireLeases(ctx, machineTuples, poolSize, machineLogger)
 			if err == nil {
@@ -213,14 +221,6 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 				return fmt.Errorf("failed to acquire leases: %w", err)
 			}
 		}
-
-		defer func() {
-			err := md.releaseLeases(ctx, machineTuples, machineLogger)
-			if err != nil {
-				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
-				tracing.RecordErrorEvent(ctx, span, err)
-			}
-		}()
 	}
 
 	pgroup := errgroup.Group{}
@@ -500,14 +500,11 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 				return nil
 			}
 
-			sl := machToLogger.getLoggerFromID(machine.ID)
-
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing lease for %s", machine.ID))
 			if machine.LeaseNonce == "" {
-				sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Cleared lease for %s", machine.ID))
-
 				return nil
 			}
+			sl := machToLogger.getLoggerFromID(machine.ID)
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing lease for %s", machine.ID))
 			err := md.clearMachineLease(ctx, machine.ID, machine.LeaseNonce)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for %s: %v", machine.ID, err))
@@ -525,7 +522,7 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 	if err := leaseGroup.Wait(); err != nil {
 		tracing.RecordErrorEvent(ctx, span, err)
 
-		return nil
+		return err
 	}
 
 	return nil

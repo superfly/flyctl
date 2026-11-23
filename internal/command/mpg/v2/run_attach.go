@@ -140,7 +140,7 @@ func RunAttach(ctx context.Context, clusterID string) error {
 		return fmt.Errorf("failed retrieving cluster %s: %w", clusterID, err)
 	}
 
-	baseUri := clusterResp.Credentials.ConnectionUri
+	baseUri := clusterResp.Credentials.AppURI()
 	if baseUri == "" {
 		return fmt.Errorf("connection URI is empty; cannot attach without valid credentials")
 	}
