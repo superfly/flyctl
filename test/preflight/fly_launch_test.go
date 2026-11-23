@@ -203,8 +203,7 @@ func TestFlyLaunchWithSize(t *testing.T) {
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	ml := f.WaitForMachineCount(appName, 1)
 	require.Equal(f, "shared-cpu-4x", ml[0].Config.Guest.ToSize())
 }
 
