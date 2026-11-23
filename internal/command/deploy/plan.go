@@ -116,6 +116,9 @@ type updateMachineSettings struct {
 
 const rollingStrategyMaxConcurrentGroups = 16
 
+// Each intended recovery-enabled update gets a fresh ID that its retries share.
+const deployUpdateIDMetadataKey = "fly_flyctl_deploy_update_id"
+
 func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, originalAppState, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
 		ctx, "update_machines_w_recovery",
@@ -332,6 +335,14 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
+			if md.waitForReplacingMachinesToSettle(ctx, currentState, machineLogger) {
+				currentState, err = md.appState(ctx, currentState)
+				if err != nil {
+					tracing.RecordErrorEvent(ctx, span, err)
+
+					return fmt.Errorf("failed to refresh app state after waiting for replaces: %w", err)
+				}
+			}
 			// sort machines by id so we always have the same order when retrying
 			// This is needed for rolling deploys so we can start from the same machine
 			sort.Slice(currentState.Machines, func(i, j int) bool {
@@ -357,8 +368,14 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 				}
 				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, "Retrying...")
 			}
-			attempts += 1
-			time.Sleep(1 * time.Second)
+			attempts++
+			if attempts <= md.deployRetries {
+				select {
+				case <-time.After(retryBackoff(attempts)):
+				case <-ctx.Done():
+					return context.Cause(ctx)
+				}
+			}
 		}
 	}
 
@@ -569,14 +586,12 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 
 	opt := cmp.Options{
 		cmp.FilterPath(func(p cmp.Path) bool {
-			vx := p.Last().String()
-
-			// ignore the flyctl version used for the deployment. this is mostly useful for testing
-			if vx == `["fly_flyctl_version"]` {
+			switch p.Last().String() {
+			case `["fly_flyctl_version"]`, `["` + deployUpdateIDMetadataKey + `"]`:
 				return true
+			default:
+				return false
 			}
-
-			return false
 		}, cmp.Ignore()),
 		// Treat nil slices and empty slices as equal to avoid spurious diffs
 		// from JSON roundtripping (e.g. API returns [] where flyctl sent nil).
@@ -836,11 +851,10 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 			if successfulState != "" {
 				return
 			}
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
-
 			if err != nil {
 				waitErr = err
 			} else {
+				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
 				successfulState = state
 			}
 		}()
@@ -853,6 +867,8 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 			defer mutex.Unlock()
 			if successfulState != "" {
 				span.SetAttributes(attribute.String("state", successfulState))
+
+				return successfulState, nil
 			}
 
 			if waitErr != nil {
@@ -865,6 +881,48 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 		time.Sleep(1 * time.Second)
 	}
+}
+
+// waitForReplacingMachinesToSettle gives in-flight updates up to waitTimeout to
+// finish. It reports whether the caller should refresh its Machine snapshot.
+// The next update attempt handles Machines that are still replacing.
+func (md *machineDeployment) waitForReplacingMachinesToSettle(ctx context.Context, state *AppState, machineLogger *MachineLogger) bool {
+	stableStates := []string{fly.MachineStateStarted, fly.MachineStateStopped, fly.MachineStateSuspended}
+	var wg sync.WaitGroup
+	waited := false
+	for _, m := range state.Machines {
+		if m.State != "replacing" {
+			continue
+		}
+		sl := machineLogger.getLoggerFromID(m.ID)
+		if sl == nil {
+			// Not a machine we're tracking in this deploy; nothing to log against.
+			continue
+		}
+
+		waited = true
+		wg.Go(func() {
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for in-flight replace of %s to settle", m.ID))
+			lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, m, false)
+			_, _ = waitForMachineState(ctx, lm, stableStates, md.waitTimeout, sl)
+		})
+	}
+	wg.Wait()
+
+	return waited
+}
+
+// retryBackoff returns the delay before the Nth (1-based) recovery retry. It grows
+// exponentially and is capped so a run of retries can't stall a deploy indefinitely.
+func retryBackoff(attempt int) time.Duration {
+	const base = 1 * time.Second
+	const maxBackoff = 15 * time.Second
+
+	if attempt < 1 {
+		attempt = 1
+	}
+
+	return min(base<<min(attempt-1, 4), maxBackoff)
 }
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
@@ -886,6 +944,14 @@ func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID str
 func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool, skipLaunch bool) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_config")
 	defer span.End()
+	if newMachineConfig != nil && oldMachine.Config != nil {
+		if updateID := newMachineConfig.Metadata[deployUpdateIDMetadataKey]; updateID != "" &&
+			oldMachine.Config.Metadata[deployUpdateIDMetadataKey] == updateID {
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Found previously applied update for %s", oldMachine.ID))
+
+			return oldMachine, nil
+		}
+	}
 	if compareConfigs(ctx, oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil
 	}

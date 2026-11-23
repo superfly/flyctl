@@ -18,6 +18,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/cenkalti/backoff/v5"
 	"github.com/miekg/dns"
+	"github.com/oklog/ulid/v2"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
@@ -732,6 +733,13 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			newMach.State = "replacing"
 		}
 		newMach.Config = e.launchInput.Config
+		if newMach.Config != nil {
+			config := *newMach.Config
+			config.Metadata = lo.Assign(config.Metadata, map[string]string{
+				deployUpdateIDMetadataKey: ulid.Make().String(),
+			})
+			newMach.Config = &config
+		}
 
 		return newMach
 	})
