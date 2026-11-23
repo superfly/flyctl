@@ -49,7 +49,8 @@ func TestRecoveryRetainsSuccessfulReplacement(t *testing.T) {
 			leaseAcquisitions := map[string]int{}
 			leases := map[string]string{}
 			replacementReleases := map[string]int{}
-			retrying := false
+			refreshes := 0
+			firstReplacementReady := false
 			canaryOmissions := 0
 			expiredReleases := 0
 			waitCalls := 0
@@ -94,6 +95,9 @@ func TestRecoveryRetainsSuccessfulReplacement(t *testing.T) {
 				DestroyFunc: func(_ context.Context, _ string, in fly.RemoveMachineInput, _ string) error {
 					mu.Lock()
 					defer mu.Unlock()
+					if tc.readinessFailure && in.ID == oldState.Machines[1].ID && !firstReplacementReady {
+						t.Error("destroyed the second Machine while the first replacement was still starting")
+					}
 					destroyed[in.ID]++
 					delete(live, in.ID)
 					delete(leases, in.ID)
@@ -116,6 +120,9 @@ func TestRecoveryRetainsSuccessfulReplacement(t *testing.T) {
 					cfg := *in.Config
 					cfg.Mounts = []fly.MachineMount{{Name: "data", Path: "/data", Volume: fmt.Sprintf("vol-%d", launches)}}
 					m := &fly.Machine{ID: fmt.Sprintf("accepted-%d", launches), State: tc.originalState, HostStatus: fly.HostStatusOk, Config: &cfg}
+					if tc.readinessFailure && launches == 1 {
+						m.State = "starting"
+					}
 					if in.LeaseTTL > 0 {
 						m.LeaseNonce = "launch-" + m.ID
 						leases[m.ID] = m.LeaseNonce
@@ -127,7 +134,11 @@ func TestRecoveryRetainsSuccessfulReplacement(t *testing.T) {
 				ListFunc: func(context.Context, string, string) ([]*fly.Machine, error) {
 					mu.Lock()
 					defer mu.Unlock()
-					retrying = true
+					refreshes++
+					if tc.readinessFailure && refreshes == 2 {
+						// The first replacement is ready only on the final retry.
+						live["accepted-1"].State = "started"
+					}
 					var result []*fly.Machine
 					for _, m := range live {
 						if tc.canary && canaryOmissions < 2 && m.ID == "accepted-1" {
@@ -141,12 +152,17 @@ func TestRecoveryRetainsSuccessfulReplacement(t *testing.T) {
 
 					return result, nil
 				},
-				WaitFunc: func(_ context.Context, _, _ string, _ ...flaps.WaitOption) error {
+				WaitFunc: func(ctx context.Context, _, id string, _ ...flaps.WaitOption) error {
 					mu.Lock()
-					defer mu.Unlock()
 					waitCalls++
-					if tc.readinessFailure && !retrying {
-						return &flaps.FlapsError{ResponseStatusCode: 404, OriginalError: fmt.Errorf("readiness unavailable")}
+					stillStarting := tc.readinessFailure && id == "accepted-1" && refreshes < 2
+					if tc.readinessFailure && id == "accepted-1" && !stillStarting {
+						firstReplacementReady = true
+					}
+					mu.Unlock()
+					if stillStarting {
+						<-ctx.Done()
+						return ctx.Err()
 					}
 
 					return nil

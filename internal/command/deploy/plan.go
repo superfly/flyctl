@@ -60,6 +60,8 @@ type AppState struct {
 type machinePairing struct {
 	// plannedID remains stable when the API assigns a replacement a new ID.
 	plannedID string
+	// plannedState keeps an accepted replacement in the lane its plan chose.
+	plannedState string
 	// originalMachine is this machine as read before the deploy began. It's not re-read on recovery retries.
 	// nil for machines being created during the deploy.
 	originalMachine *fly.Machine
@@ -168,6 +170,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 		})
 		machineTuples = append(machineTuples, machinePairing{
 			plannedID:       planned.ID,
+			plannedState:    planned.State,
 			originalMachine: originalMachines[planned.ID],
 			oldMachine:      oldMachines[target.ID],
 			newMachine:      target,
@@ -249,6 +252,9 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 			eg, ctx := errgroup.WithContext(ctx)
 
 			isWarm := func(e machinePairing, i int) bool {
+				if e.plannedState == "started" || e.plannedState == "replacing" {
+					return true
+				}
 				if e.oldMachine != nil && (e.oldMachine.State == "started" || e.oldMachine.State == "replacing") {
 					return true
 				}
