@@ -12,6 +12,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/sort"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -141,6 +142,7 @@ func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 	// because "personal" is a flyctl alias, not a slug the API knows.
 	var orgs []uiex.Organization
 	var releaseOrgSlug string
+	releaseCtx := ctx
 	if orgSlug == "" {
 		var err error
 		if orgs, err = uiexClient.ListOrganizations(ctx, false); err != nil {
@@ -153,6 +155,7 @@ func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 		}
 		orgs = []uiex.Organization{*org}
 		releaseOrgSlug = org.RawSlug
+		releaseCtx = requestauth.WithOrganizations(ctx, org.InternalNumericID)
 	}
 	// The GraphQL listing grouped apps by org, personal org first, and
 	// sorted by name within each org; keep that order.
@@ -167,7 +170,7 @@ func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 	// the API's request timeout. The timestamps only fill the "Latest Deploy"
 	// column, so if the request fails anyway, warn and list the apps without
 	// it rather than fail.
-	releaseTimes, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(ctx, releaseOrgSlug)
+	releaseTimes, err := uiexClient.GetAllAppsCurrentReleaseTimestamps(releaseCtx, releaseOrgSlug)
 	if err != nil {
 		terminal.Warnf("Could not fetch latest deploy times: %v\n", err)
 		releaseTimes = nil
@@ -175,7 +178,7 @@ func getApps(ctx context.Context, orgSlug string) ([]fly.App, error) {
 
 	apps := []fly.App{}
 	for _, org := range orgs {
-		flapsApps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{OrgSlug: org.Slug})
+		flapsApps, err := flapsClient.ListApps(requestauth.WithOrganizations(ctx, org.InternalNumericID), flaps.ListAppsRequest{OrgSlug: org.Slug})
 		if err != nil {
 			return nil, err
 		}

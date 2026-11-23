@@ -29,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -45,6 +46,7 @@ type ProcessGroupsDiff struct {
 }
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
+	ctx = requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID))
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
 	defer span.End()
 
@@ -1652,7 +1654,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	defer cancel()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	ipRes, err := flapsClient.GetIPAssignments(ctx, md.appConfig.AppName)
+	ipRes, err := flapsClient.GetIPAssignments(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.app.Name)
 	if err != nil {
 		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
 
