@@ -523,11 +523,13 @@ func TestWaitForStateBoundsEachRead(t *testing.T) {
 					if tc.timeout != tc.want {
 						earliest = time.Now().Add(tc.want)
 					}
+
 					return context.DeadlineExceeded
 				}
 				if tc.timeout == tc.want && !deadline.Equal(firstDeadline) {
 					t.Fatalf("retry extended caller deadline from %v to %v", firstDeadline, deadline)
 				}
+
 				return nil
 			}}
 			lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
