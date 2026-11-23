@@ -43,6 +43,10 @@ func TestCompareConfig(t *testing.T) {
 	config2.Metadata["fly_flyctl_version"] = "v2"
 	assert.True(t, compareConfigs(ctx, config1, config2))
 
+	// A fresh update ID alone does not warrant an update.
+	config2.Metadata[deployUpdateIDMetadataKey] = "new-id"
+	assert.True(t, compareConfigs(ctx, config1, config2))
+
 	// Test that different images are not equal
 	config2.Image = "image2"
 	assert.False(t, compareConfigs(ctx, config1, config2))
@@ -124,6 +128,19 @@ func TestUpdateMachineConfig(t *testing.T) {
 	// updating a config with the same config should result in a noop, and shouldn't even use flaps
 	assert.NoError(t, err)
 
+	// A matching update ID identifies the submitted update after Flaps resolves defaults.
+	newMachineConfig.Metadata[deployUpdateIDMetadataKey] = "applied-id"
+	oldMachine.Config.Metadata[deployUpdateIDMetadataKey] = "applied-id"
+	oldMachine.Config.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyOnFailure, MaxRetries: 10}
+	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
+	assert.NoError(t, err)
+	assert.Same(t, oldMachine, machine)
+
+	// An older ID cannot suppress a genuine config change.
+	newMachineConfig.Metadata[deployUpdateIDMetadataKey] = "new-id"
+	_, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
+	assert.ErrorIs(t, err, assert.AnError)
+
 	destroyedMachine := false
 	// recreate machines when we specify that
 	flapsClient := &mock.FlapsClient{
@@ -156,7 +173,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	md.flapsClient = flapsClient
 
 	// ensure that we're actually creating a new machine when we replace it
-	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true, false)
+	machine, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true, false)
 	assert.NoError(t, err)
 	assert.Equal(t, machine.Config, newMachineConfig)
 	assert.NotEqual(t, machine.ID, "machine2")

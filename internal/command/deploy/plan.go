@@ -116,6 +116,9 @@ type updateMachineSettings struct {
 
 const rollingStrategyMaxConcurrentGroups = 16
 
+// Each intended recovery-enabled update gets a fresh ID that its retries share.
+const deployUpdateIDMetadataKey = "fly_flyctl_deploy_update_id"
+
 func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, originalAppState, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
 		ctx, "update_machines_w_recovery",
@@ -583,14 +586,12 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 
 	opt := cmp.Options{
 		cmp.FilterPath(func(p cmp.Path) bool {
-			vx := p.Last().String()
-
-			// ignore the flyctl version used for the deployment. this is mostly useful for testing
-			if vx == `["fly_flyctl_version"]` {
+			switch p.Last().String() {
+			case `["fly_flyctl_version"]`, `["` + deployUpdateIDMetadataKey + `"]`:
 				return true
+			default:
+				return false
 			}
-
-			return false
 		}, cmp.Ignore()),
 		// Treat nil slices and empty slices as equal to avoid spurious diffs
 		// from JSON roundtripping (e.g. API returns [] where flyctl sent nil).
@@ -941,6 +942,11 @@ func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID str
 func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool, skipLaunch bool) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_config")
 	defer span.End()
+	if updateID := newMachineConfig.Metadata[deployUpdateIDMetadataKey]; updateID != "" &&
+		oldMachine.Config.Metadata[deployUpdateIDMetadataKey] == updateID {
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Found previously applied update for %s", oldMachine.ID))
+		return oldMachine, nil
+	}
 	if compareConfigs(ctx, oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil
 	}
