@@ -883,3 +883,50 @@ func TestTemporaryMachinesDoNotInheritCacheDisks(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, console.CacheDrive)
 }
+
+func TestComputeToGuestMemoryPrecedence(t *testing.T) {
+	testcases := []struct {
+		name    string
+		compute *Compute
+		wantMB  int
+	}{
+		{
+			name: "memory takes precedence over memory_mb",
+			compute: &Compute{
+				Memory: "2gb",
+				MachineGuest: &fly.MachineGuest{
+					MemoryMB: 1024,
+				},
+			},
+			wantMB: 2048,
+		},
+		{
+			name: "memory_mb is still used when memory is unset",
+			compute: &Compute{
+				MachineGuest: &fly.MachineGuest{
+					MemoryMB: 1024,
+				},
+			},
+			wantMB: 1024,
+		},
+		{
+			name: "memory is used when memory_mb is unset",
+			compute: &Compute{
+				Memory: "512mb",
+			},
+			wantMB: 512,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := NewConfig()
+			cfg.Compute = []*Compute{tc.compute}
+
+			got, err := cfg.ToMachineConfig("app", nil)
+			require.NoError(t, err)
+			require.NotNil(t, got.Guest)
+			assert.Equal(t, tc.wantMB, got.Guest.MemoryMB)
+		})
+	}
+}

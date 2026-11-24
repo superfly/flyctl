@@ -33,6 +33,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateChecksSection,
 		c.validateServicesSection,
 		c.validateProcessesSection,
+		c.validateComputeSection,
 		c.validateMachineConversion,
 		c.validateConsoleCommand,
 		c.validateMounts,
@@ -400,4 +401,26 @@ func (c *Config) validateCacheDisks() (extraInfo string, err error) {
 	}
 
 	return
+}
+
+func (c *Config) validateComputeSection() (extraInfo string, err error) {
+	checkCompute := func(section string, compute *Compute) {
+		if compute == nil || compute.Memory == "" || compute.MachineGuest == nil || compute.MachineGuest.MemoryMB == 0 {
+			return
+		}
+		extraInfo += fmt.Sprintf(
+			"%s %s sets both memory (%q) and memory_mb (%d); memory takes precedence over memory_mb. Remove memory_mb to silence this warning.\n",
+			aurora.Yellow("WARN"), section, compute.Memory, compute.MachineGuest.MemoryMB,
+		)
+	}
+
+	for _, compute := range c.Compute {
+		checkCompute("[[vm]]", compute)
+	}
+
+	if c.Deploy != nil && c.Deploy.ReleaseCommandCompute != nil {
+		checkCompute("[deploy.release_command_vm]", c.Deploy.ReleaseCommandCompute)
+	}
+
+	return extraInfo, nil
 }

@@ -487,6 +487,14 @@ func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 		guest.HostDedicationID = c.HostDedicationID
 	}
 
+	if compute.MachineGuest != nil {
+		opts := copier.Option{IgnoreEmpty: true, DeepCopy: true}
+		err := copier.CopyWithOption(guest, compute.MachineGuest, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if compute.Memory != "" {
 		mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
 		switch {
@@ -496,14 +504,6 @@ func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 			return nil, fmt.Errorf("memory cannot be zero")
 		default:
 			guest.MemoryMB = mb
-		}
-	}
-
-	if compute.MachineGuest != nil {
-		opts := copier.Option{IgnoreEmpty: true, DeepCopy: true}
-		err := copier.CopyWithOption(guest, compute.MachineGuest, opts)
-		if err != nil {
-			return nil, err
 		}
 	}
 
