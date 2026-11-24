@@ -216,6 +216,7 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 				default:
 					return nil, fmt.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 				}
+
 				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			})})
 			require.NoError(t, err)

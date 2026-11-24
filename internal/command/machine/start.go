@@ -80,6 +80,7 @@ func runMachineStart(ctx context.Context) (err error) {
 				return err
 			}
 		}
+
 		return nil
 	}()
 	if err != nil {
@@ -90,6 +91,7 @@ func runMachineStart(ctx context.Context) (err error) {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -144,6 +146,7 @@ func startSelected(ctx context.Context, appName string, machine *fly.Machine, co
 		}
 	}
 	fmt.Fprintf(iostreams.FromContext(ctx).Out, "%s has been started\n", machine.ID)
+
 	return nil
 }
 
@@ -154,6 +157,7 @@ func refusedReplacementStart(err error) bool {
 	}
 	const refusal = "machine getting replaced, refusing to start"
 	msg := strings.TrimPrefix(apiErr.Error(), "failed_precondition: ")
+
 	return msg == refusal || msg == refusal+". Retry the start request after the replacement finishes"
 }
 
@@ -183,6 +187,7 @@ func startReplacement(ctx context.Context, appName string, original *fly.Machine
 				if leased != current || leased.LeaseNonce == "" {
 					return fmt.Errorf("machine %s changed while acquiring its replacement lease", current.ID)
 				}
+
 				return startSelected(ctx, appName, current, false)
 			}
 		}
