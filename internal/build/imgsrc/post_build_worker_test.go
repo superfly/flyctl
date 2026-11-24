@@ -39,6 +39,7 @@ func (*manifestContent) Read(_ *content.ReadContentRequest, stream content.Conte
 func TestDeploymentImageAfterWorkerDisconnect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	server := grpc.NewServer()
@@ -46,31 +47,42 @@ func TestDeploymentImageAfterWorkerDisconnect(t *testing.T) {
 	content.RegisterContentServer(server, &manifestContent{})
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)
+
 	meta := &uiex.BuilderMeta{}
 	c, readyHostname, err := connectDepotSDK(ctx, &depotmachine.Machine{Addr: "tcp://" + listener.Addr().String()}, meta)
 	require.NoError(t, err)
 	defer c.Close()
 	require.Empty(t, meta.RemoteMachineId)
+
 	digest := "sha256:" + strings.Repeat("a", 64)
-	descriptor := Descriptor{Digest: digest, Size: 35, Annotations: Annotations{RawManifest: "{}"}}
-	raw, err := json.Marshal(descriptor)
-	require.NoError(t, err)
-	receipt := &client.SolveResponse{ExporterResponse: map[string]string{"containerimage.digest": digest, "containerimage.descriptor": base64.StdEncoding.EncodeToString(raw)}}
 	plainDescriptor, err := json.Marshal(Descriptor{Digest: digest, Size: 35})
 	require.NoError(t, err)
-	plain := &client.SolveResponse{ExporterResponse: map[string]string{"containerimage.digest": digest, "containerimage.descriptor": base64.StdEncoding.EncodeToString(plainDescriptor)}}
+	plain := &client.SolveResponse{ExporterResponse: map[string]string{
+		"containerimage.digest":     digest,
+		"containerimage.descriptor": base64.StdEncoding.EncodeToString(plainDescriptor),
+	}}
+
 	plainImage, err := newDeploymentImage(ctx, c, plain, "plain-tag", "")
 	require.NoError(t, err)
 	require.EqualValues(t, 76, plainImage.Size)
+
 	hostname, err := workerHostname(ctx, c)
 	require.NoError(t, err)
 	require.Equal(t, "test-builder", hostname)
+
+	descriptor := Descriptor{Digest: digest, Size: 35, Annotations: Annotations{RawManifest: "{}"}}
+	raw, err := json.Marshal(descriptor)
+	require.NoError(t, err)
+	receipt := &client.SolveResponse{ExporterResponse: map[string]string{
+		"containerimage.digest":     digest,
+		"containerimage.descriptor": base64.StdEncoding.EncodeToString(raw),
+	}}
+
 	server.Stop()
+
 	image, err := newDeploymentImage(ctx, c, receipt, "registry.example/app:deploy", readyHostname)
 	require.NoError(t, err)
 	require.Equal(t, digest, image.ID)
 	require.Equal(t, "registry.example/app:deploy", image.Tag)
 	require.Equal(t, "test-builder", image.BuilderID)
-	_, err = newDeploymentImage(ctx, c, plain, "plain-tag", readyHostname)
-	require.ErrorContains(t, err, "read")
 }

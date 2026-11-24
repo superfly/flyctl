@@ -34,8 +34,7 @@ func connectDepotSDK(ctx context.Context, machine *depotmachine.Machine, meta *u
 
 			return nil, "", fmt.Errorf("%w: %w", ctx.Err(), last)
 		}
-		// The SDK readiness probe calls ListWorkers and discards the reply.
-		// Keep its hostname for release creation before the builder disconnects.
+		// Keep the hostname from the readiness probe to avoid another ListWorkers after Solve.
 		c, err = machine.Client(ctx)
 		if err == nil {
 			hostname, err = workerHostname(ctx, c)
