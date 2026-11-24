@@ -382,6 +382,18 @@ func memoryEquals(memory string, mb int) bool {
 	return err == nil && parsed == mb
 }
 
+// sizeMemoryMB returns the preset memory in megabytes for a VM size name, or 0 if unknown.
+func sizeMemoryMB(size string) int {
+	if size == "" {
+		return 0
+	}
+	var g fly.MachineGuest
+	if err := g.SetSize(size); err != nil {
+		return 0
+	}
+	return g.MemoryMB
+}
+
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
 	appConfig := state.appConfig
@@ -469,11 +481,23 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		// manifest replaces the `memory` the compute came with. Other
 		// computes only take it when they have no memory of their own.
 		//
+		// When a compute already sets a VM `size` preset, leave `memory`
+		// unset unless the default group's plan memory was explicitly
+		// changed away from that preset's memory.
+		//
 		// It is written as `memory` alone. A memory_mb next to it would win
 		// over `memory`, so a later edit of `memory` would do nothing.
 		defaultCompute := appConfig.ComputeForGroup(appConfig.DefaultProcessName())
 		for _, compute := range appConfig.Compute {
 			if !isComputeValid(compute) || compute.MemoryMB != 0 {
+				continue
+			}
+			if compute.Size != "" {
+				if compute == defaultCompute && compute.Memory == "" {
+					if sizeMB := sizeMemoryMB(compute.Size); sizeMB != 0 && plan.MemoryMB != sizeMB {
+						compute.Memory = memoryString(plan.MemoryMB)
+					}
+				}
 				continue
 			}
 			if compute.Memory == "" || (compute == defaultCompute && !memoryEquals(compute.Memory, plan.MemoryMB)) {

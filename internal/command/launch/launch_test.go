@@ -426,6 +426,86 @@ func TestUpdateConfigPlanMemoryWithNamedGroups(t *testing.T) {
 	assert.Equal(t, "4gb", worker.Memory)
 }
 
+// A [[vm]] block that sets a VM `size` preset already defines its memory, so
+// updateConfig must not write `memory` beside `size` when the plan carries the
+// preset's own memory or belongs to another process group. Issue #5462.
+func TestUpdateConfigKeepsSizeWithoutMemory(t *testing.T) {
+	t.Run("default group with size and extra guest field keeps memory unset", func(t *testing.T) {
+		compute := &appconfig.Compute{
+			Size: "performance-4x",
+			MachineGuest: &fly.MachineGuest{
+				KernelArgs: []string{"quiet"},
+			},
+		}
+		state := &launchState{
+			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+				AppName:  "my-app",
+				MemoryMB: 8192,
+				Compute:  []*appconfig.Compute{compute},
+			}},
+			planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+		}
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, "performance-4x", got.Size)
+		assert.Empty(t, got.Memory)
+		assert.Zero(t, got.MemoryMB)
+	})
+
+	t.Run("non-default group with size and cpus does not inherit default group memory", func(t *testing.T) {
+		cfg := appconfig.NewConfig()
+		cfg.Processes = map[string]string{"app": "serve", "worker": "work"}
+		app := &appconfig.Compute{
+			Memory:       "1gb",
+			MachineGuest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1},
+			Processes:    []string{"app"},
+		}
+		worker := &appconfig.Compute{
+			Size:         "performance-4x",
+			MachineGuest: &fly.MachineGuest{CPUs: 4},
+			Processes:    []string{"worker"},
+		}
+		state := &launchState{
+			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+				AppName:  "my-app",
+				MemoryMB: 1024,
+				Compute:  []*appconfig.Compute{app, worker},
+			}},
+			planBuildCache: planBuildCache{appConfig: cfg},
+		}
+
+		state.updateConfig(context.Background())
+
+		assert.Equal(t, "1gb", state.appConfig.Compute[0].Memory)
+		assert.Equal(t, "performance-4x", state.appConfig.Compute[1].Size)
+		assert.Empty(t, state.appConfig.Compute[1].Memory)
+		assert.Zero(t, state.appConfig.Compute[1].MemoryMB)
+	})
+
+	t.Run("explicit manifest vm_memory override still applies to default group with size", func(t *testing.T) {
+		compute := &appconfig.Compute{
+			Size:         "shared-cpu-1x",
+			MachineGuest: &fly.MachineGuest{KernelArgs: []string{"quiet"}},
+		}
+		state := &launchState{
+			LaunchManifest: LaunchManifest{Plan: &plan.LaunchPlan{
+				AppName:  "my-app",
+				MemoryMB: 2048,
+				Compute:  []*appconfig.Compute{compute},
+			}},
+			planBuildCache: planBuildCache{appConfig: appconfig.NewConfig()},
+		}
+
+		state.updateConfig(context.Background())
+
+		got := state.appConfig.Compute[0]
+		assert.Equal(t, "2gb", got.Memory)
+		assert.Zero(t, got.MemoryMB)
+	})
+}
+
 // A nil entry in the plan's compute is skipped, not dereferenced, and
 // doesn't stop an edited vm_memory reaching the default group.
 func TestUpdateConfigSkipsNilCompute(t *testing.T) {
