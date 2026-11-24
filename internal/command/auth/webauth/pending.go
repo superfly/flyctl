@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -62,7 +63,13 @@ func savePendingLogin(path string, p pendingLogin) error {
 func loadPendingLogin(path string) (pendingLogin, error) {
 	var p pendingLogin
 
-	data, err := os.ReadFile(path)
+	f, err := openPendingLogin(path)
+	if err != nil {
+		return p, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return p, err
 	}
