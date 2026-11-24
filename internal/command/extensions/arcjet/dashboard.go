@@ -16,11 +16,12 @@ func dashboard() (cmd *cobra.Command) {
 		short = "Visit the Arcjet dashboard"
 		long  = `Open the Arcjet console for a site in your browser, using a sign-in link
 from Fly.io. Name the site as an argument, or run the command in an app
-directory (or with ` + "`--app`" + `) to use the app's site. With ` + "`--org`" + `, it
-opens that organization's Arcjet dashboard instead.
+directory (or with ` + "`--app`" + `) to use the app's site. With ` + "`--org`" + `, or with
+FLY_ORG set, it opens that organization's Arcjet dashboard instead, even
+if you name a site.
 
 If you haven't accepted Arcjet's terms of service yet, you're asked to;
-` + "`--yes`" + ` accepts them.`
+` + "`--yes`" + ` accepts them, and is required to do so without a terminal.`
 
 		usage = "dashboard [site_name]"
 	)

@@ -15,9 +15,9 @@ func saveKubeconfig() (cmd *cobra.Command) {
 	const (
 		short = "Save a Kubernetes cluster's kubeconfig to a file"
 		long  = `Fetch the kubeconfig for the cluster named in the argument and write it
-to ` + "`<cluster-name>.kubeconfig.yml`" + ` in the current directory, or to the
-path given with ` + "`--output`" + `. The file is readable only by you and
-replaces any existing file at that path.`
+to a file named after the cluster, such as ` + "`my-cluster.kubeconfig.yml`" + `,
+in the current directory, or to the path given with ` + "`--output`" + `. The file
+is readable only by you and replaces any existing file at that path.`
 		usage = "save-kubeconfig [cluster name]"
 	)
 

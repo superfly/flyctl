@@ -19,7 +19,7 @@ sign-in link from Fly.io. Run the command in an app directory or pass
 ` + "`--app`" + `.
 
 If you haven't accepted Sentry's terms of service yet, you're asked to;
-` + "`--yes`" + ` accepts them.`
+` + "`--yes`" + ` accepts them, and is required to do so without a terminal.`
 
 		usage = "dashboard"
 	)

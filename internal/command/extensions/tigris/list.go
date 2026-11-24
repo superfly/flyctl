@@ -20,8 +20,8 @@ func list() (cmd *cobra.Command) {
 	const (
 		short = "List your Tigris object storage buckets"
 		long  = `List the Tigris object storage buckets you have access to, with the
-organization each one belongs to. Pass ` + "`--org`" + ` to list only one
-organization's buckets.`
+organization each one belongs to. Pass ` + "`--org`" + ` or set FLY_ORG to list
+only one organization's buckets.`
 		usage = "list"
 	)
 

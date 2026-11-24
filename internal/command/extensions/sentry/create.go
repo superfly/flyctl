@@ -23,8 +23,9 @@ The first time you use Sentry you must accept its terms of service;
 ` + "`--yes`" + ` accepts them, and is required to do so without a terminal.
 
 The values Sentry provides are set as secrets on the app and its
-machines restart to pick them up. If any of those secrets already exist,
-none are set, and the values are printed for you to set yourself.`
+machines restart to pick them up; if the app hasn't been deployed yet,
+they take effect on its first deploy. If any of those secrets already
+exist, none are set, and the values are printed for you to set yourself.`
 	)
 
 	cmd = command.New("create", short, long, runSentryCreate, command.RequireSession, command.RequireAppName)

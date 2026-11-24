@@ -20,12 +20,19 @@ func update() (cmd *cobra.Command) {
 		long  = `Change the settings of an existing Tigris bucket, given by name as the
 argument. You can make it public or private, set or clear a shadow
 bucket, and set or clear a custom domain. Settings you don't pass stay
-as they are. When the update succeeds, the bucket's status is printed.
+as they are, except within a shadow bucket. When the update succeeds,
+the bucket's status is printed.
 
-A new shadow bucket needs all five ` + "`--shadow-*`" + ` values. Before a custom
-domain is set, you're asked to confirm that you've created a DNS CNAME
-record pointing the domain at ` + "`<bucket>.t3.tigrisbucket.io`" + `; ` + "`--yes`" + `
-skips the confirmation.`
+Setting a shadow bucket replaces its whole configuration, so pass all
+five of ` + "`--shadow-access-key`" + `, ` + "`--shadow-secret-key`" + `, ` + "`--shadow-region`" + `,
+` + "`--shadow-name`" + ` and ` + "`--shadow-endpoint`" + `. Write-through is turned off
+unless you also pass ` + "`--shadow-write-through`" + `, which does nothing on its
+own.
+
+Before a custom domain is set, you're asked to confirm that you've
+created a DNS CNAME record pointing the domain at the bucket's name
+followed by ` + "`.t3.tigrisbucket.io`" + `. ` + "`--yes`" + ` skips the confirmation, and
+is required without a terminal.`
 	)
 
 	cmd = command.New("update <bucket_name>", short, long, runUpdate, command.RequireSession, command.LoadAppNameIfPresent)

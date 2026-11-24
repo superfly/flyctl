@@ -15,11 +15,12 @@ func dashboard() (cmd *cobra.Command) {
 		short = "Open the Upstash Vector dashboard in your browser"
 		long  = `Open the Upstash web console for an app's Vector index in your browser,
 using a sign-in link from Fly.io. Run the command in an app directory or
-pass ` + "`--app`" + `. With ` + "`--org`" + `, it opens that organization's Upstash Vector
-dashboard instead.
+pass ` + "`--app`" + `. With ` + "`--org`" + `, or with FLY_ORG set, it opens that
+organization's Upstash Vector dashboard instead.
 
 If you haven't accepted Upstash Vector's terms of service yet, you're
-asked to; ` + "`--yes`" + ` accepts them.`
+asked to; ` + "`--yes`" + ` accepts them, and is required to do so without a
+terminal.`
 
 		usage = "dashboard"
 	)
