@@ -63,7 +63,11 @@ func runMachineStart(ctx context.Context) (err error) {
 
 	// Finish the initial batch under its normal leases. A replacement can
 	// take longer than a lease, so release the batch before waiting for any.
-	var replacements []*fly.Machine
+	type replacement struct {
+		machine *fly.Machine
+		refusal error
+	}
+	var replacements []replacement
 	err = func() error {
 		leased, release, err := mach.AcquireLeases(ctx, appName, machines)
 		defer release()
@@ -73,7 +77,7 @@ func runMachineStart(ctx context.Context) (err error) {
 		for _, machine := range leased {
 			err := startSelected(ctx, appName, machine, false)
 			if machine.Version != "" && refusedReplacementStart(err) {
-				replacements = append(replacements, machine)
+				replacements = append(replacements, replacement{machine, err})
 				continue
 			}
 			if err != nil {
@@ -86,8 +90,8 @@ func runMachineStart(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	for _, machine := range replacements {
-		if err := startReplacement(ctx, appName, machine); err != nil {
+	for _, pending := range replacements {
+		if err := startReplacement(ctx, appName, pending.machine, pending.refusal); err != nil {
 			return err
 		}
 	}
@@ -161,14 +165,17 @@ func refusedReplacementStart(err error) bool {
 	return msg == refusal || msg == refusal+". Retry the start request after the replacement finishes"
 }
 
-func startReplacement(ctx context.Context, appName string, original *fly.Machine) error {
+func startReplacement(ctx context.Context, appName string, original *fly.Machine, refusal error) error {
 	client := flapsutil.ClientFromContext(ctx)
-	waitCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, time.Minute, fmt.Errorf("timed out waiting for replacement: %w", refusal))
 	defer cancel()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
 		current, err := client.Get(waitCtx, appName, original.ID)
+		if waitCtx.Err() != nil {
+			return context.Cause(waitCtx)
+		}
 		if err != nil {
 			return err
 		}
@@ -179,7 +186,7 @@ func startReplacement(ctx context.Context, appName string, original *fly.Machine
 			case fly.MachineStateStopped:
 				// AcquireLease re-fetches the Machine if the lease version
 				// differs. Only retry the successor we observed stopped.
-				leased, release, err := mach.AcquireLease(waitCtx, appName, current)
+				leased, release, err := mach.AcquireLease(ctx, appName, current)
 				defer release()
 				if err != nil {
 					return err
@@ -193,7 +200,7 @@ func startReplacement(ctx context.Context, appName string, original *fly.Machine
 		}
 		select {
 		case <-waitCtx.Done():
-			return fmt.Errorf("waiting for machine %s replacement: %w", original.ID, waitCtx.Err())
+			return context.Cause(waitCtx)
 		case <-ticker.C:
 		}
 	}

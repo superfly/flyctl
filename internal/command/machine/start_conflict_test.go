@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -148,10 +149,11 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 		{name: "GET before marker", successor: "stopped"},
 		{name: "already started", successor: "started"},
 		{name: "canceled", cancel: true},
+		{name: "timeout"},
 		{name: "lease changed", successor: "stopped", leaseChanged: true},
 		{name: "second replacement", successor: "stopped", refuseAgain: true},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		test := func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			const prefix = "/v1/apps/test-app/machines/"
@@ -161,6 +163,7 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 			starts := map[string]int{}
 			waits := map[string]int{}
 			healthReads := 0
+			began := time.Now()
 			version := "v1"
 			client, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{Transport: startTransport(func(r *http.Request) (*http.Response, error) {
 				mu.Lock()
@@ -177,7 +180,7 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 							if tc.cancel {
 								cancel()
 								state = "replacing"
-							} else {
+							} else if tc.name != "timeout" && time.Since(began) >= 30*time.Second {
 								version = "v2"
 								state = tc.successor
 							}
@@ -213,6 +216,10 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 				case "GET wait":
 					require.Equal(t, []string{"started"}, r.URL.Query()["state"])
 					waits[id]++
+					if id == "target" {
+						time.Sleep(35 * time.Second)
+						require.NoError(t, r.Context().Err())
+					}
 				default:
 					return nil, fmt.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 				}
@@ -227,9 +234,15 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 			ctx = appconfig.WithName(ctx, "test-app")
 			err = runMachineStart(flapsutil.NewContextWithClient(ctx, client))
 			require.Empty(t, holds)
+			require.NotContains(t, out.String(), "Releasing lease")
 			require.Equal(t, 1, starts["other"])
 			require.Equal(t, 1, waits["other"])
 			switch {
+			case tc.name == "timeout":
+				require.Equal(t, time.Minute, time.Since(began))
+				require.True(t, refusedReplacementStart(err))
+				require.NotErrorIs(t, err, context.DeadlineExceeded)
+				require.ErrorContains(t, err, "Retry the start request")
 			case tc.cancel:
 				require.ErrorIs(t, err, context.Canceled)
 			case tc.leaseChanged:
@@ -250,7 +263,8 @@ func TestRunMachineStartDuringReplacement(t *testing.T) {
 				require.Equal(t, 1, starts["target"])
 				require.Zero(t, waits["target"])
 			}
-		})
+		}
+		t.Run(tc.name, func(t *testing.T) { synctest.Test(t, test) })
 	}
 }
 
