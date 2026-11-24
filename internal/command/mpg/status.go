@@ -14,11 +14,13 @@ import (
 func newStatus() *cobra.Command {
 	const (
 		long = `Show the status of a Managed Postgres cluster: its ID, name,
-organization, region, status, storage used and allocated, replica count
-and direct IP address.
+organization, region, status, storage used and allocated (only allocated
+for v1 clusters), replica count and direct IP address. With --json, the
+output includes the cluster's credentials, including the password.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "Show the status of a Managed Postgres cluster"
 		usage = "status [CLUSTER_ID]"
 	)

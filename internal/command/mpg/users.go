@@ -41,8 +41,9 @@ func newUsersList() *cobra.Command {
 		long = `List the database users in a Managed Postgres cluster with each user's
 role.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "List users in a Managed Postgres cluster"
 		usage = "list <CLUSTER_ID>"
 	)
@@ -80,8 +81,9 @@ func newUsersCreate() *cobra.Command {
 schema_admin, writer or reader. Pass --username and --role, or enter them
 when asked in a terminal; without a terminal, both are required.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.
 
 To give an app a connection string for the new user, use
 ` + "`fly mpg attach --username`" + `.`
@@ -133,8 +135,9 @@ func newUsersSetRole() *cobra.Command {
 schema_admin, writer or reader. Pass --username and --role, or pick them
 from lists in a terminal; without a terminal, both are required.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "Change a user's role in a Managed Postgres cluster"
 		usage = "set-role <CLUSTER_ID>"
 	)
@@ -184,8 +187,9 @@ undone. Pass --username, or pick the user from a list in a terminal.
 You're asked to confirm unless you pass --yes; without a terminal,
 --username and --yes are required.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "Delete a user from a Managed Postgres cluster"
 		usage = "delete <CLUSTER_ID>"
 	)
@@ -232,11 +236,11 @@ their DATABASE_URL secrets afterwards. Existing sessions stay open unless
 you pass --kill-sessions.
 
 Pass --username, or pick the user from a list in a terminal. You're asked
-to confirm unless you pass --yes. Without a terminal, --username and --yes
-are required; with --json, the cluster ID is required too.
+to confirm unless you pass --yes. Without a terminal, or with --json, the
+cluster ID, --username and --yes are all required.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required. Not available for v1 clusters.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal. Not available for v1 clusters.`
 		short = "Rotate a user's password in a Managed Postgres cluster"
 		usage = "rotate-password <CLUSTER_ID>"
 	)

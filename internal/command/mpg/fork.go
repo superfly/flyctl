@@ -22,8 +22,9 @@ The fork uses the source cluster's plan unless --plan picks a different one,
 including a smaller one. The command returns once the fork starts and
 prints the new cluster's ID; check on it with ` + "`fly mpg status`" + `.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required. Not available for v1 clusters.`
 		short = "Fork a Managed Postgres cluster into a new cluster"
 		usage = "fork [CLUSTER_ID]"
 	)

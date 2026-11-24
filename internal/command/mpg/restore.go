@@ -20,12 +20,14 @@ func newRestore() *cobra.Command {
 new cluster, leaving the source cluster unchanged. The restored cluster is
 provisioned asynchronously in the same organization and billed separately.
 
-Pass exactly one of --backup-id or --pitr-time. Find backup IDs with
-` + "`fly mpg backup list`" + `. The command returns once the restore starts and
-prints the new cluster's ID; check on it with ` + "`fly mpg status`" + `.
+Pass exactly one of --backup-id or --pitr-time. Point-in-time restore is not available
+for v1 clusters. Find backup IDs with ` + "`fly mpg backup list`" + `, adding --all
+for backups older than 24 hours. The command returns once the restore starts
+and prints the new cluster's ID; check on it with ` + "`fly mpg status`" + `.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "Restore a Managed Postgres cluster into a new cluster"
 		usage = "restore <CLUSTER_ID>"
 	)

@@ -34,8 +34,9 @@ func newDatabasesList() *cobra.Command {
 	const (
 		long = `List the databases in a Managed Postgres cluster by name.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "List databases in a Managed Postgres cluster"
 		usage = "list <CLUSTER_ID>"
 	)
@@ -73,8 +74,9 @@ func newDatabasesCreate() *cobra.Command {
 --name, or enter it when asked in a terminal; without a terminal, --name
 is required.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.
 
 To give an app a connection string for the new database, use
 ` + "`fly mpg attach --database`" + `.`

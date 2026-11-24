@@ -35,8 +35,9 @@ func newBackupList() *cobra.Command {
 time, status and type. By default only backups started in the last 24
 hours are shown; pass --all to see every backup.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.
 
 Restore a backup into a new cluster with ` + "`fly mpg restore --backup-id`" + `.`
 		short = "List backups of a Managed Postgres cluster"
@@ -84,8 +85,9 @@ func newBackupCreate() *cobra.Command {
 backup is queued, not when it finishes; check on it with
 ` + "`fly mpg backup list`" + `.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required.`
 		short = "Create a backup of a Managed Postgres cluster"
 		usage = "create <CLUSTER_ID>"
 	)

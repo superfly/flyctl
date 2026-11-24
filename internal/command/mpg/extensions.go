@@ -36,11 +36,11 @@ func newExtensionsList() *cobra.Command {
 		long = `List the Postgres extensions available in a Managed Postgres database,
 showing which are installed and, for those, their version and schema.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required.
-With no --database, the cluster's only database is used; if there are
-several, you pick one in a terminal, and without a terminal --database is
-required.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required. With no --database, the cluster's only database is used; if there
+are several, you pick one in a terminal, and without a terminal --database
+is required.`
 		short = "List Postgres extensions in a Managed Postgres database"
 		usage = "list <CLUSTER_ID>"
 	)
@@ -88,8 +88,8 @@ extension goes in the schema given by --schema; add --create-schema if
 that schema doesn't exist yet. For postgis_topology with no --schema, the
 topology schema is used and created if needed.
 
-With no --cluster, you pick an organization and a cluster from a list in
-a terminal; without a terminal, --cluster is required.
+With no --cluster, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, --cluster is required.
 With no --database, the cluster's only database is used; if there are
 several, you pick one in a terminal, and without a terminal --database is
 required.
@@ -156,8 +156,8 @@ func newExtensionsDisable() *cobra.Command {
 --force, objects that depend on the extension are dropped too (CASCADE).
 There's no confirmation prompt.
 
-With no --cluster, you pick an organization and a cluster from a list in
-a terminal; without a terminal, --cluster is required.
+With no --cluster, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, --cluster is required.
 With no --database, the cluster's only database is used; if there are
 several, you pick one in a terminal, and without a terminal --database is
 required.`

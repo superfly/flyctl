@@ -20,9 +20,9 @@ func newList() *cobra.Command {
 		long = `List the Managed Postgres clusters in an organization, with each
 cluster's ID, region, status, plan and attached apps.
 
-Pass the organization with --org. Without it, you pick one from a list in
-a terminal; without a terminal, --org is required. Use --deleted to list
-deleted clusters instead of active ones.`
+Pass the organization with --org or FLY_ORG. With neither, you pick one
+from a list in a terminal; without a terminal, one of them is required.
+Use --deleted to list deleted clusters instead of active ones.`
 		short = "List Managed Postgres clusters in an organization"
 		usage = "list"
 	)

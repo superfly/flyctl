@@ -20,9 +20,9 @@ organization's WireGuard network, so any Postgres client on your machine
 can connect to it. By default it listens on 127.0.0.1:16380; change this
 with --bind-addr and --local-port. The proxy runs until you stop it.
 
-With no cluster ID, you pick an organization and a cluster from a list in
-a terminal; without a terminal, the cluster ID is required. To open psql
-directly, use ` + "`fly mpg connect`" + `.`
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required. To open psql directly, use ` + "`fly mpg connect`" + `.`
 
 		short = "Proxy a local port to a Managed Postgres cluster"
 		usage = "proxy <CLUSTER ID>"

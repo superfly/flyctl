@@ -23,7 +23,7 @@ func newAttach() *cobra.Command {
 (DATABASE_URL unless --variable-name says otherwise) that holds the
 cluster's connection string. The app and the cluster must be in the same
 organization, and the command fails if the app already has a secret with
-that name.
+that name. The connection string, including the password, is printed.
 
 With no cluster ID, you pick one from the app's organization in a
 terminal; without a terminal, the cluster ID is required. In a terminal,
