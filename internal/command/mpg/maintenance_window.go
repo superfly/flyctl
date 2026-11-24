@@ -37,7 +37,9 @@ may undergo maintenance. Times are in the cluster's regional timezone.`
 
 func newMaintenanceWindowShow() *cobra.Command {
 	const (
-		long  = `Show the weekly maintenance window of a Managed Postgres cluster.`
+		long = `Show the weekly maintenance window of a Managed Postgres cluster.
+Some clusters have no window: their maintenance can run at any time. For them
+it prints that, or null with --json.`
 		short = "Show an MPG cluster's maintenance window."
 		usage = "show [CLUSTER_ID]"
 	)

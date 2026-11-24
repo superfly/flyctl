@@ -161,7 +161,8 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 		c, err := NewLocalDockerClient()
 		if c != nil && err == nil {
 			return &dockerClientFactory{
-				mode: DockerDaemonTypeLocal,
+				mode:      DockerDaemonTypeLocal,
+				apiClient: apiClient,
 				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 					build.SetBuilderMetaPart1(localBuilderType, "", "")
 
