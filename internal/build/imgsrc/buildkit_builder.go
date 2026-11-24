@@ -125,7 +125,15 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 		return nil, err
 	}
 
-	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
+	image, err := newDeploymentImage(ctx, buildkitClient, res, opts.Tag, "")
+	if err != nil {
+		return nil, err
+	}
+	image.BuilderID, err = workerHostname(ctx, buildkitClient)
+	if err != nil {
+		return nil, err
+	}
+	return image, nil
 }
 
 func (r *BuildkitBuilder) connectClient(ctx context.Context, app *flaps.App, appName string) (*client.Client, error) {

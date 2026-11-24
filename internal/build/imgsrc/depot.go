@@ -169,7 +169,8 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 
 	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
-	buildkitClient, buildErr = connectDepotSDK(provisionCtx, buildkit, buildState.BuilderMeta)
+	var hostname string
+	buildkitClient, hostname, buildErr = connectDepotSDK(provisionCtx, buildkit, buildState.BuilderMeta)
 	if buildErr != nil {
 		tracing.RecordCancellation(provisionCtx, span)
 		return nil, errors.Wrap(buildErr, "connecting to Depot builder")
@@ -193,7 +194,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	link = streams.CreateLink("Build Summary: ", build.BuildURL)
 	tb.Done(link)
 
-	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag)
+	return newDeploymentImage(ctx, buildkitClient, res, opts.Tag, hostname)
 }
 
 var depotMachineID = regexp.MustCompile(`^[0-9a-f]{14}$`)
@@ -344,7 +345,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	return res, nil
 }
 
-func newDeploymentImage(ctx context.Context, c *client.Client, res *client.SolveResponse, tag string) (*DeploymentImage, error) {
+func newDeploymentImage(ctx context.Context, c *client.Client, res *client.SolveResponse, tag, builderHostname string) (*DeploymentImage, error) {
 	id := res.ExporterResponse["containerimage.digest"]
 	encoded := res.ExporterResponse["containerimage.descriptor"]
 	output, err := base64.StdEncoding.DecodeString(encoded)
@@ -366,14 +367,6 @@ func newDeploymentImage(ctx context.Context, c *client.Client, res *client.Solve
 		}
 	}
 
-	var builderHostname string
-	workers, err := c.ListWorkers(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, w := range workers {
-		builderHostname = w.Labels[label.Hostname]
-	}
 	image := &DeploymentImage{
 		ID:        id,
 		Tag:       tag,
@@ -382,6 +375,18 @@ func newDeploymentImage(ctx context.Context, c *client.Client, res *client.Solve
 	}
 
 	return image, nil
+}
+
+func workerHostname(ctx context.Context, c *client.Client) (string, error) {
+	workers, err := c.ListWorkers(ctx)
+	if err != nil {
+		return "", err
+	}
+	var hostname string
+	for _, w := range workers {
+		hostname = w.Labels[label.Hostname]
+	}
+	return hostname, nil
 }
 
 type Descriptor struct {
