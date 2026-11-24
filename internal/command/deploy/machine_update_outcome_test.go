@@ -286,7 +286,7 @@ func testUpdateMachineWChecksAcceptsPreservedStoppedUpdate(t *testing.T, strateg
 	}
 	line := statuslogger.Create(ctx, 1, false).Line(0)
 
-	require.NoError(t, md.updateMachineWChecks(ctx, oldMachine, newMachine, false, line, ios, &healthcheckResult{}))
+	require.NoError(t, md.updateMachineWChecks(ctx, oldMachine, newMachine, false, line, ios, &healthcheckResult{}, newMachine.ID))
 	assertReadinessSpan(t, recorder)
 	require.False(t, sawSkipLaunch.Load(), "observed outcome must not rewrite retry-stable launch intent")
 	require.True(t, sawMachineGet.Load())

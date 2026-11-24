@@ -26,11 +26,14 @@ const (
 	redisPlanPayAsYouGo = "ekQ85Yjkw155ohQ5ALYq0M"
 )
 
+// The plans API has no ProdPack price, so it lives here.
+const prodPackPrice = "$200/mo"
+
 // Descriptions shown before the corresponding prompt, shared by create and
 // update so both paths explain a setting the same way.
 const (
 	autoUpgradeDescription = "\nThe Auto Upgrade feature automatically upgrades your database to the next higher plan when you reach your bandwidth or storage limits, ensuring uninterrupted service.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#auto-upgrade\n\n"
-	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at $200/mo.\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo\n\n"
+	prodPackDescription    = "\nProdPack adds enhanced features for production workloads at " + prodPackPrice + ".\nThis setting can be changed later.\nFor more information, see https://docs.fly.io/upstash/redis#prod-pack-200-mo\n\n"
 )
 
 // Legacy plans that are no longer available for new databases
@@ -97,7 +100,7 @@ func newCreate() (cmd *cobra.Command) {
 		},
 		flag.Bool{
 			Name:        "enable-prodpack",
-			Description: "Enable ProdPack add-on for additional features ($200/mo)",
+			Description: "Enable ProdPack add-on for additional features (" + prodPackPrice + ")",
 		},
 	)
 
@@ -124,9 +127,7 @@ func runCreate(ctx context.Context) (err error) {
 	name := flag.GetString(ctx, "name")
 
 	if name == "" {
-		err = prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
-
-		if err != nil {
+		if err := prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false); err != nil && !prompt.IsNonInteractive(err) {
 			return err
 		}
 	}
@@ -151,7 +152,7 @@ func runCreate(ctx context.Context) (err error) {
 	} else if !flag.GetBool(ctx, "disable-eviction") {
 		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://docs.fly.io/upstash/redis#memory-limits-and-object-eviction-policies\n\n")
 
-		enableEviction, err = prompt.Confirm(ctx, "Would you like to enable eviction?")
+		enableEviction, err = confirmOrOff(ctx, "Would you like to enable eviction?", "Eviction is off. Use --enable-eviction to turn it on.")
 		if err != nil {
 			return
 		}
@@ -173,7 +174,7 @@ func runCreate(ctx context.Context) (err error) {
 			enableAutoUpgrade = flag.GetBool(ctx, "enable-auto-upgrade")
 		} else {
 			fmt.Fprint(io.Out, autoUpgradeDescription)
-			enableAutoUpgrade, err = prompt.Confirm(ctx, "Would you like to enable auto-upgrade?")
+			enableAutoUpgrade, err = confirmOrOff(ctx, "Would you like to enable auto-upgrade?", "Auto-upgrade is off. Use --enable-auto-upgrade to turn it on.")
 			if err != nil {
 				return
 			}
@@ -188,7 +189,7 @@ func runCreate(ctx context.Context) (err error) {
 		enableProdpack = flag.GetBool(ctx, "enable-prodpack")
 	} else {
 		fmt.Fprint(io.Out, prodPackDescription)
-		enableProdpack, err = prompt.Confirm(ctx, "Would you like to enable ProdPack?")
+		enableProdpack, err = confirmOrOff(ctx, "Would you like to enable ProdPack?", "ProdPack is off. Use --enable-prodpack to turn it on.")
 		if err != nil {
 			return
 		}
@@ -197,6 +198,17 @@ func runCreate(ctx context.Context) (err error) {
 	_, err = Create(ctx, org, name, primaryRegion, plan, flag.GetBool(ctx, "no-replicas"), enableEviction, enableAutoUpgrade, enableProdpack, nil)
 
 	return err
+}
+
+func confirmOrOff(ctx context.Context, question, offNotice string) (bool, error) {
+	yes, err := prompt.Confirm(ctx, question)
+	if prompt.IsNonInteractive(err) {
+		fmt.Fprintln(iostreams.FromContext(ctx).Out, offNotice)
+
+		return false, nil
+	}
+
+	return yes, err
 }
 
 func Create(ctx context.Context, org *uiex.Organization, name string, region *fly.Region, plan *gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, disallowReplicas bool, enableEviction bool, enableAutoUpgrade bool, enableProdpack bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
@@ -217,6 +229,10 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 
 		if !disallowReplicas {
 			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", false, []string{}, excludedRegions, "replica-regions")
+			if prompt.IsNonInteractive(err) {
+				readRegions, err = &[]fly.Region{}, nil
+				fmt.Fprintln(io.Out, "No replica regions. Use --replica-regions to add them.")
+			}
 
 			if err != nil {
 				return
@@ -256,7 +272,26 @@ func Create(ctx context.Context, org *uiex.Organization, name string, region *fl
 
 	fmt.Fprintf(io.Out, "\nYour database %s is ready. Apps in the %s org can connect to Redis at %s\n", colorize.Green(addOn.Name), colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
 	fmt.Fprintf(io.Out, "\nIf you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
-	fmt.Fprintf(io.Out, "\nYour database is billed at %s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green("$0.20 per 100K commands"))
+	var prodPack string
+	if enableProdpack {
+		prodPack = fmt.Sprintf(", plus %s for ProdPack", colorize.Green(prodPackPrice))
+	}
+	// Only Pay-as-you-go bills per command; other plans print their own price.
+	if plan.Id == redisPlanPayAsYouGo {
+		fmt.Fprintf(io.Out, "\nYour database is billed at %s%s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green("$0.20 per 100K commands"), prodPack)
+	} else {
+		price := plan.Description
+		if price == "" {
+			price = fmt.Sprintf("$%d/mo", plan.PricePerMonth/100)
+		}
+		var regions string
+		if n := len(*readRegions); n == 1 {
+			regions = ", with 1 read region"
+		} else if n > 1 {
+			regions = fmt.Sprintf(", with %d read regions", n)
+		}
+		fmt.Fprintf(io.Out, "\nYour database is billed at %s (%s)%s%s. See https://docs.fly.io/upstash/redis#pricing\n", colorize.Green(price), plan.DisplayName, regions, prodPack)
+	}
 
 	return addOn, err
 }
