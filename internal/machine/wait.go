@@ -35,7 +35,22 @@ func WaitForState(ctx context.Context, appName string, machine *fly.Machine, des
 	return desiredState, nil
 }
 
+// WaitForLaunch waits for the first start of a newly created Machine.
+func WaitForLaunch(ctx context.Context, appName string, machine *fly.Machine, timeout time.Duration) error {
+	for _, event := range machine.Events {
+		if event != nil && event.Type == "launch" && event.Status == "created" && event.ID != "" {
+			return waitForStartOrStop(ctx, appName, machine, "start", timeout, event.ID)
+		}
+	}
+
+	return WaitForStartOrStop(ctx, appName, machine, "start", timeout)
+}
+
 func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
+	return waitForStartOrStop(ctx, appName, machine, action, timeout, "")
+}
+
+func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration, fromEventID string) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	waitCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine start or stop: %w", context.DeadlineExceeded))
@@ -61,6 +76,9 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Jitter: false,
 	}
 	waitOpts := []flaps.WaitOption{flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(time.Minute)}
+	if fromEventID != "" {
+		waitOpts = append(waitOpts, flaps.WithWaitFromEventID(fromEventID))
+	}
 	waitingForFirstStart := false
 	for {
 		err := flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
