@@ -69,7 +69,8 @@ func newClone() *cobra.Command {
 		},
 		flag.StringSlice{
 			Name:        "standby-for",
-			Description: "Comma separated list of Machine IDs to watch for. You can use '--standby-for=source' to create a standby for the cloned Machine.",
+			Description: "Deprecated.",
+			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "volume-requires-unique-zone",
@@ -79,6 +80,8 @@ func newClone() *cobra.Command {
 		flag.Detach(),
 		flag.VMSizeFlags,
 	)
+
+	_ = cmd.Flags().MarkDeprecated("standby-for", "it is ignored")
 
 	return cmd
 }
@@ -244,19 +247,9 @@ func runMachineClone(ctx context.Context) (err error) {
 		}
 	}
 
-	// Standby machine
-	if flag.IsSpecified(ctx, "standby-for") {
-		standbys := flag.GetStringSlice(ctx, "standby-for")
-		for idx := range standbys {
-			if standbys[idx] == "source" {
-				standbys[idx] = source.ID
-			}
-		}
-		targetConfig.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
-		targetConfig.Env = lo.Assign(targetConfig.Env,
-			map[string]string{"FLY_STANDBY_FOR": strings.Join(standbys, ",")},
-		)
-	}
+	// A clone is always a regular Machine, also when its source is a standby.
+	targetConfig.Standbys = nil
+	delete(targetConfig.Env, "FLY_STANDBY_FOR")
 
 	minvers, err := appsecrets.GetMinvers(appName)
 	if err != nil {
@@ -267,7 +260,6 @@ func runMachineClone(ctx context.Context) (err error) {
 		Name:              flag.GetString(ctx, "name"),
 		Region:            region,
 		Config:            targetConfig,
-		SkipLaunch:        len(targetConfig.Standbys) > 0,
 		MinSecretsVersion: minvers,
 	}
 

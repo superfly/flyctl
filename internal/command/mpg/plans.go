@@ -6,20 +6,16 @@ type PlanDetails struct {
 	CPU        string
 	Memory     string
 	PricePerMo int
-	// Hidden plans are taken by --plan but left out of the plan prompt and
-	// the lists of plans, until they launch.
-	Hidden bool
 }
 
 var MPGPlans = map[string]PlanDetails{
 	// The API offers dev-256 only to organizations with its feature flag,
 	// and turns it down for the others.
 	"dev-256": {
-		Name:       "Dev 256 MB",
+		Name:       "Developer",
 		CPU:        "Shared x 1",
 		Memory:     "256 MB",
-		PricePerMo: 5,
-		Hidden:     true,
+		PricePerMo: 4,
 	},
 	"basic": {
 		Name:       "Basic",
@@ -42,7 +38,7 @@ var MPGPlans = map[string]PlanDetails{
 	"scale": {
 		Name:       "Scale",
 		CPU:        "Performance x 4",
-		Memory:     "33 GB",
+		Memory:     "32 GB",
 		PricePerMo: 962,
 	},
 	"Performance": {

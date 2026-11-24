@@ -74,21 +74,28 @@ func runMachineStart(ctx context.Context) (err error) {
 		var confirmedStart bool
 		if err = tracing.WorkflowPhase(ctx, "request_start", func(ctx context.Context) error {
 			err := Start(ctx, appName, machine)
-			var apiErr *flaps.FlapsError
-			if !errors.As(err, &apiErr) || apiErr.ResponseStatusCode != http.StatusConflict || strings.TrimPrefix(apiErr.Error(), "aborted: ") != "machine still attempting to start" || machine.Version == "" {
+			created := startRefusedWhileCreated(err)
+			if machine.Version == "" || (!created && !startAlreadyInProgress(err)) {
 				return err
 			}
 
-			// The host is already processing a start for this version.
+			states := []string{fly.MachineStateStarted}
+			if created {
+				states = append(states, fly.MachineStateStopped)
+			}
 			const timeout = time.Minute
 			waitCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			err = flapsutil.ClientFromContext(ctx).Wait(waitCtx, appName, machine.ID,
-				flaps.WithWaitVersion(machine.Version), flaps.WithWaitStates(fly.MachineStateStarted), flaps.WithWaitTimeout(timeout))
+				flaps.WithWaitVersion(machine.Version), flaps.WithWaitStates(states...), flaps.WithWaitTimeout(timeout))
 			if err != nil {
 				return fmt.Errorf("waiting for machine %s to finish starting: %w", machine.ID, err)
 			}
 
+			if created {
+				confirmedStart, err = startAfterCreation(waitCtx, appName, machine)
+				return err
+			}
 			confirmedStart = true
 
 			return nil
@@ -115,6 +122,53 @@ func runMachineStart(ctx context.Context) (err error) {
 	}
 
 	return
+}
+
+// Wait does not return the matched state to flyctl.
+func startAfterCreation(ctx context.Context, appName string, machine *fly.Machine) (bool, error) {
+	client := flapsutil.ClientFromContext(ctx)
+	current, err := client.Get(ctx, appName, machine.ID)
+	if err != nil {
+		return false, err
+	}
+	if current.Version != machine.Version {
+		return false, fmt.Errorf("machine %s changed version while waiting for creation", machine.ID)
+	}
+	switch current.State {
+	case fly.MachineStateStarted:
+		return true, nil
+	case fly.MachineStateStopped:
+		// The start endpoint takes a lease nonce but no version. The lease
+		// acquired before the first request may have expired while waiting.
+		lease, err := client.FindLease(ctx, appName, machine.ID)
+		if err != nil {
+			return false, err
+		}
+		if lease.Data == nil || machine.LeaseNonce == "" || lease.Data.Nonce != machine.LeaseNonce || lease.Data.Version != machine.Version {
+			return false, fmt.Errorf("machine %s no longer holds the original lease", machine.ID)
+		}
+		startCtx, cancel := context.WithDeadline(ctx, time.Unix(lease.Data.ExpiresAt, 0))
+		defer cancel()
+		if err := startCtx.Err(); err != nil {
+			return false, err
+		}
+
+		return false, Start(startCtx, appName, machine)
+	default:
+		return false, fmt.Errorf("machine %s entered state %q after creation", machine.ID, current.State)
+	}
+}
+
+func startAlreadyInProgress(err error) bool {
+	var apiErr *flaps.FlapsError
+	return errors.As(err, &apiErr) && apiErr.ResponseStatusCode == http.StatusConflict &&
+		strings.TrimPrefix(apiErr.Error(), "aborted: ") == "machine still attempting to start"
+}
+
+func startRefusedWhileCreated(err error) bool {
+	var apiErr *flaps.FlapsError
+	return errors.As(err, &apiErr) && apiErr.ResponseStatusCode == http.StatusPreconditionFailed &&
+		strings.TrimPrefix(apiErr.Error(), "failed_precondition: ") == "unable to start machine from current state: 'created'"
 }
 
 func Start(ctx context.Context, appName string, machine *fly.Machine) (err error) {

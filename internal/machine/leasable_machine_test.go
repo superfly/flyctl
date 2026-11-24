@@ -494,3 +494,47 @@ func TestReleaseExitEventAfterStalledRead(t *testing.T) {
 	assert.Same(t, exit, event)
 	assert.Equal(t, 2, calls)
 }
+
+func TestWaitForStateBoundsEachRead(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		timeout time.Duration
+		want    time.Duration
+	}{
+		{"long wait", 5 * time.Minute, 70 * time.Second},
+		{"short wait", 5 * time.Second, 5 * time.Second},
+		{"unlimited wait", 0, 70 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			earliest := time.Now().Add(tc.want)
+			var firstDeadline time.Time
+			calls := 0
+			client := &mock.FlapsClient{WaitFunc: func(ctx context.Context, app, id string, opts ...flaps.WaitOption) error {
+				calls++
+				deadline, ok := ctx.Deadline()
+				if !ok {
+					t.Fatal("state read has no deadline")
+				}
+				if deadline.Before(earliest) || deadline.After(time.Now().Add(tc.want)) {
+					t.Fatalf("deadline %v outside expected bounds for %v", deadline, tc.want)
+				}
+				if calls == 1 {
+					firstDeadline = deadline
+					if tc.timeout != tc.want {
+						earliest = time.Now().Add(tc.want)
+					}
+
+					return context.DeadlineExceeded
+				}
+				if tc.timeout == tc.want && !deadline.Equal(firstDeadline) {
+					t.Fatalf("retry extended caller deadline from %v to %v", firstDeadline, deadline)
+				}
+
+				return nil
+			}}
+			lm := newTestLeasableMachine(client, &fly.Machine{ID: "m1"})
+			assert.NoError(t, lm.WaitForState(t.Context(), "stopped", tc.timeout, WithAllowInfinite(true)))
+			assert.Equal(t, 2, calls)
+		})
+	}
+}

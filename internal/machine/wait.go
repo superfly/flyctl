@@ -60,8 +60,10 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Factor: 2,
 		Jitter: false,
 	}
+	waitOpts := []flaps.WaitOption{flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(time.Minute)}
+	waitingForFirstStart := false
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
 		if err == nil {
 			return nil
 		}
@@ -77,10 +79,22 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			}
 		default:
 			var flapsErr *flaps.FlapsError
-			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
-				return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
+			isFlapsError := errors.As(err, &flapsErr)
+			if waitingForFirstStart && isFlapsError && (flapsErr.ResponseStatusCode == http.StatusConflict || flapsErr.ResponseStatusCode == http.StatusNotFound) {
+				return err
 			}
-			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {
+			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
+				if action != "start" || machine.Version == "" || !isFlapsError || flapsErr.ResponseStatusCode != http.StatusRequestTimeout ||
+					flapsErr.Error() != "deadline_exceeded: machine failed to reach desired state, started, currently created" {
+					return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
+				}
+				// Follow the original launch if another version replaces this one.
+				if !waitingForFirstStart {
+					waitOpts = append(waitOpts, flaps.WithWaitVersion(machine.Version))
+					waitingForFirstStart = true
+				}
+			}
+			if isFlapsError && flapsErr.ResponseStatusCode == http.StatusBadRequest {
 				return fmt.Errorf("failed waiting for machine: %w", err)
 			}
 			time.Sleep(b.Duration())

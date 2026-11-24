@@ -165,7 +165,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 				// requested credentials for, NOT whatever Username the credentials
 				// response carries — invariant #6 keeps the URI user stable
 				// regardless of any unexpected payload drift.
-				uri, buildErr := buildConnectionURI(res.Endpoints.Primary.Pooler, flyUser, creds.Password, flyDB)
+				uri, buildErr := buildConnectionURI(mpgutil.AppEndpoint(res), flyUser, creds.Password, flyDB)
 				if buildErr != nil {
 					return fmt.Errorf("failed to build connection URI for cluster %s: %w", clusterID, buildErr)
 				}
@@ -200,19 +200,19 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	return nil
 }
 
-// buildConnectionURI composes a pooled (PgBouncer-style) connection URI for
-// the given endpoint + credentials. The password is URL-escaped via
+// buildConnectionURI composes a connection URI for the given endpoint +
+// credentials. The password is URL-escaped via
 // url.UserPassword so that reserved characters in the password do not corrupt
 // the URI.
 //
 // The endpoint Host/Port are validated before composition: a cluster that
-// reports status "ready" can still carry a zero-valued pooler endpoint during
+// reports status "ready" can still carry a zero-valued endpoint during
 // the propagation-lag race between readiness and endpoint population. Without
 // this check, the function would silently return a broken URI such as
 // "postgres://fly-user:secret@:0/fly-db" with a nil error.
 func buildConnectionURI(endpoint flaps.ManagedPostgresEndpoint, username, password, dbName string) (string, error) {
 	if endpoint.Host == "" || endpoint.Port == 0 {
-		return "", fmt.Errorf("cluster ready but pooler endpoint not yet available")
+		return "", fmt.Errorf("cluster ready but endpoint not yet available")
 	}
 
 	u := &url.URL{
