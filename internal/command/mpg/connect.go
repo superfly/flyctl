@@ -35,10 +35,10 @@ Press Ctrl+C to cancel a running query, and Ctrl+C twice within two
 seconds to end the session. To connect with another client, use
 ` + "`fly mpg proxy`" + `.
 
-With --command or --file, the cluster ID is required and you're not asked
-for a user or database: the cluster's defaults are used unless you pass
---username and --database. With either, psql stops at the first SQL error and skips its
-startup file. See the examples for scripted usage.`
+With --command or --file, psql stops at the first SQL error and skips its
+startup file. The cluster ID is then required, and you're not asked for a
+user or database: the cluster's defaults are used unless you pass
+--username and --database. See the examples for scripted usage.`
 
 		example = `  fly mpg connect <CLUSTER_ID> -c 'select count(*) from orders'
   fly mpg connect <CLUSTER_ID> -f migrations.sql
