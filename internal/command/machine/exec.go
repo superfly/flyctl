@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -49,6 +48,7 @@ func newMachineExec() *cobra.Command {
 	)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
+	cmd.MarkFlagsMutuallyExclusive("container", "no-container")
 
 	return cmd
 }
@@ -74,10 +74,6 @@ func runMachineExec(ctx context.Context) (err error) {
 
 	container := flag.GetString(ctx, "container")
 	noContainer := flag.GetBool(ctx, "no-container")
-
-	if container != "" && noContainer {
-		return errors.New("--container and --no-container are mutually exclusive")
-	}
 
 	current, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {

@@ -1,6 +1,7 @@
 package mpg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -36,18 +37,6 @@ func TestRunRestore(t *testing.T) {
 		wantV1Restore   bool
 		wantV2Restore   bool
 	}{
-		{
-			name:           "requires a restore source",
-			clusterVersion: 2,
-			wantErr:        "one of --backup-id or --pitr-time is required",
-		},
-		{
-			name:           "rejects both restore sources",
-			clusterVersion: 2,
-			backupID:       backupID,
-			pitrTime:       pitrTime,
-			wantErr:        "--backup-id and --pitr-time are mutually exclusive",
-		},
 		{
 			name:           "rejects point in time restore for v1 before request",
 			clusterVersion: 1,
@@ -242,6 +231,38 @@ func TestRunRestoreV2Serialization(t *testing.T) {
 				assert.Contains(t, string(body), wantField)
 			}
 			assert.NotContains(t, string(body), tt.omitField)
+		})
+	}
+}
+
+func TestRestoreFlagValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "requires a restore source",
+			args:    []string{"cluster-123"},
+			wantErr: "at least one of the flags in the group [backup-id pitr-time] is required",
+		},
+		{
+			name:    "rejects both restore sources",
+			args:    []string{"cluster-123", "--backup-id", "backup-456", "--pitr-time", "2026-06-01T12:00:00Z"},
+			wantErr: "if any flags in the group [backup-id pitr-time] are set none of the others can be; [backup-id pitr-time] were all set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newRestore()
+			var out bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&out)
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+			require.EqualError(t, err, tt.wantErr)
 		})
 	}
 }
