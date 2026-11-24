@@ -212,6 +212,7 @@ func TestCommandTree_FlagNamesAreKebabCase(t *testing.T) {
 				ok = false
 			}
 		})
+
 		return ok
 	}})
 }
