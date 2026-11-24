@@ -58,6 +58,10 @@ type AppState struct {
 }
 
 type machinePairing struct {
+	// plannedID remains stable when the API assigns a replacement a new ID.
+	plannedID string
+	// plannedState keeps an accepted replacement in the lane its plan chose.
+	plannedState string
 	// originalMachine is this machine as read before the deploy began. It's not re-read on recovery retries.
 	// nil for machines being created during the deploy.
 	originalMachine *fly.Machine
@@ -104,13 +108,16 @@ type healthcheckResult struct {
 var healthChecksPassed = sync.Map{}
 
 type updateMachineSettings struct {
-	pushForward          bool
-	skipHealthChecks     bool
-	skipSmokeChecks      bool
-	skipLeaseAcquisition bool
+	pushForward      bool
+	skipHealthChecks bool
+	skipSmokeChecks  bool
+	outerMachines    map[string]*fly.Machine
 }
 
 const rollingStrategyMaxConcurrentGroups = 16
+
+// Each intended recovery-enabled update gets a fresh ID that its retries share.
+const deployUpdateIDMetadataKey = "fly_flyctl_deploy_update_id"
 
 func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, originalAppState, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
@@ -135,34 +142,42 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 	for _, machine := range oldAppState.Machines {
 		oldMachines[machine.ID] = machine
 	}
-	newMachines := make(map[string]*fly.Machine)
-	for _, machine := range newAppState.Machines {
-		newMachines[machine.ID] = machine
-	}
-
-	machineTuples := make([]machinePairing, 0)
-	for _, oldMachine := range oldMachines {
-		// This means we want to update a machine
-		if newMachine, ok := newMachines[oldMachine.ID]; ok {
-			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{
-				regularChecksPassed: settings.skipHealthChecks,
-				machineChecksPassed: settings.skipHealthChecks,
-				smokeChecksPassed:   settings.skipSmokeChecks,
-			})
-			machineTuples = append(machineTuples, machinePairing{originalMachine: originalMachines[oldMachine.ID], oldMachine: oldMachine, newMachine: newMachine})
+	machineTuples := make([]machinePairing, 0, len(newAppState.Machines))
+	for _, planned := range newAppState.Machines {
+		target := planned
+		if accepted, ok := md.recoveryMachines.Load(planned.ID); ok {
+			target = accepted.(*fly.Machine)
+			if oldMachines[target.ID] == nil {
+				// A phase refresh can omit a recently created replacement.
+				current, err := md.flapsClient.Get(ctx, md.app.Name, target.ID)
+				if err != nil {
+					return fmt.Errorf("refresh accepted Machine %s for %s: %w", target.ID, planned.ID, err)
+				}
+				if current == nil || current.ID != target.ID {
+					return fmt.Errorf("could not confirm accepted Machine %s for %s", target.ID, planned.ID)
+				}
+				// A GET confirms identity but does not grant a lease to this attempt.
+				refreshed := *current
+				refreshed.LeaseNonce = ""
+				oldMachines[target.ID] = &refreshed
+			}
+			// Only the outer attempt can supply an owned lease for this exact ID.
+			if outer := settings.outerMachines[target.ID]; outer != nil {
+				oldMachines[target.ID].LeaseNonce = outer.LeaseNonce
+			}
 		}
-	}
-
-	for _, newMachine := range newMachines {
-		if _, ok := oldMachines[newMachine.ID]; !ok {
-			// This means we should create the new machine
-			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{
-				regularChecksPassed: settings.skipHealthChecks,
-				machineChecksPassed: settings.skipHealthChecks,
-				smokeChecksPassed:   settings.skipSmokeChecks,
-			})
-			machineTuples = append(machineTuples, machinePairing{originalMachine: originalMachines[newMachine.ID], oldMachine: nil, newMachine: newMachine})
-		}
+		healthChecksPassed.LoadOrStore(planned.ID, &healthcheckResult{
+			regularChecksPassed: settings.skipHealthChecks,
+			smokeChecksPassed:   settings.skipSmokeChecks,
+			machineChecksPassed: settings.skipHealthChecks,
+		})
+		machineTuples = append(machineTuples, machinePairing{
+			plannedID:       planned.ID,
+			plannedState:    planned.State,
+			originalMachine: originalMachines[planned.ID],
+			oldMachine:      oldMachines[target.ID],
+			newMachine:      target,
+		})
 	}
 
 	var sl statuslogger.StatusLogger
@@ -192,7 +207,15 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 
 	poolSize := md.getPoolSize(len(machineTuples))
 
-	if !settings.skipLeaseAcquisition {
+	leaseTuples := machineTuples
+	if settings.outerMachines != nil {
+		// Original Machines retain their outer attempt's leases. Accepted
+		// replacements have different IDs and need leases of their own.
+		leaseTuples = lo.Filter(machineTuples, func(pair machinePairing, _ int) bool {
+			return pair.oldMachine != nil && pair.oldMachine.ID != pair.plannedID && pair.oldMachine.LeaseNonce == ""
+		})
+	}
+	if len(leaseTuples) > 0 {
 		attempts := 0
 
 		defer func() {
@@ -200,7 +223,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 		}()
 
 		defer func() {
-			err := md.releaseLeases(ctx, machineTuples, machineLogger)
+			err := md.releaseLeases(ctx, leaseTuples, machineLogger)
 			if err != nil {
 				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
 				tracing.RecordErrorEvent(ctx, span, err)
@@ -208,7 +231,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 		}()
 
 		for {
-			err := md.acquireLeases(ctx, machineTuples, poolSize, machineLogger)
+			err := md.acquireLeases(ctx, leaseTuples, poolSize, machineLogger)
 			if err == nil {
 				break
 			}
@@ -232,6 +255,9 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 			eg, ctx := errgroup.WithContext(ctx)
 
 			isWarm := func(e machinePairing, i int) bool {
+				if e.plannedState == "started" || e.plannedState == "replacing" {
+					return true
+				}
 				if e.oldMachine != nil && (e.oldMachine.State == "started" || e.oldMachine.State == "replacing") {
 					return true
 				}
@@ -309,16 +335,24 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
+			if md.waitForReplacingMachinesToSettle(ctx, currentState, machineLogger) {
+				currentState, err = md.appState(ctx, currentState)
+				if err != nil {
+					tracing.RecordErrorEvent(ctx, span, err)
+
+					return fmt.Errorf("failed to refresh app state after waiting for replaces: %w", err)
+				}
+			}
 			// sort machines by id so we always have the same order when retrying
 			// This is needed for rolling deploys so we can start from the same machine
 			sort.Slice(currentState.Machines, func(i, j int) bool {
 				return currentState.Machines[i].ID < currentState.Machines[j].ID
 			})
 			err = md.updateMachinesWRecovery(ctx, originalAppState, currentState, newAppState, sl, updateMachineSettings{
-				pushForward:          false,
-				skipHealthChecks:     settings.skipHealthChecks,
-				skipSmokeChecks:      settings.skipSmokeChecks,
-				skipLeaseAcquisition: true,
+				pushForward:      false,
+				skipHealthChecks: settings.skipHealthChecks,
+				skipSmokeChecks:  settings.skipSmokeChecks,
+				outerMachines:    oldMachines,
 			})
 			if err == nil {
 				break
@@ -334,8 +368,14 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, origin
 				}
 				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, "Retrying...")
 			}
-			attempts += 1
-			time.Sleep(1 * time.Second)
+			attempts++
+			if attempts <= md.deployRetries {
+				select {
+				case <-time.After(retryBackoff(attempts)):
+				case <-ctx.Done():
+					return context.Cause(ctx)
+				}
+			}
 		}
 	}
 
@@ -385,7 +425,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 				return err
 			}
 
-			checkResult, ok := healthChecksPassed.Load(machineID)
+			checkResult, ok := healthChecksPassed.Load(machPair.plannedID)
 			// this shouldn't happen, we ensure that the machine is in the map but just in case
 			if !ok {
 				err := fmt.Errorf("no health checks stored for machine")
@@ -396,7 +436,7 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 			}
 			machineCheckResult := checkResult.(*healthcheckResult)
 
-			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult)
+			err := md.updateMachineWChecks(gCtx, oldMachine, newMachine, skipLaunch, sl, md.io, machineCheckResult, machPair.plannedID)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
 				tracing.RecordErrorEvent(gCtx, span, err)
@@ -546,14 +586,12 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 
 	opt := cmp.Options{
 		cmp.FilterPath(func(p cmp.Path) bool {
-			vx := p.Last().String()
-
-			// ignore the flyctl version used for the deployment. this is mostly useful for testing
-			if vx == `["fly_flyctl_version"]` {
+			switch p.Last().String() {
+			case `["fly_flyctl_version"]`, `["` + deployUpdateIDMetadataKey + `"]`:
 				return true
+			default:
+				return false
 			}
-
-			return false
 		}, cmp.Ignore()),
 		// Treat nil slices and empty slices as equal to avoid spurious diffs
 		// from JSON roundtripping (e.g. API returns [] where flyctl sent nil).
@@ -577,7 +615,7 @@ func isEmptyOrNilSlice(v interface{}) bool {
 	return rv.Kind() == reflect.Slice && rv.Len() == 0
 }
 
-func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult, plannedID string) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks", trace.WithAttributes(
 		attribute.Bool("smoke_checks", healthcheckResult.smokeChecksPassed),
 		attribute.Bool("machine_checks", healthcheckResult.machineChecksPassed),
@@ -591,6 +629,16 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	var err error
 
 	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, skipLaunch, sl)
+	if machine != nil && machine.ID != plannedID && (err == nil || oldMachine == nil) {
+		// Keep the accepted identity and server-resolved config even if readiness
+		// fails next. The old ID and unresolved volume selection cannot be reused.
+		accepted := *machine
+		// Replacement leases are released by updateMachineByReplace. Recovery
+		// must acquire its own lease instead of carrying a nonce to another ID.
+		accepted.LeaseNonce = ""
+		md.recoveryMachines.Store(plannedID, &accepted)
+	}
+
 	// if machine is nil and the lease is nil, it means we don't need to check on this machine
 	if err != nil || (machine == nil && lease == nil) {
 		tracing.RecordErrorEvent(ctx, span, err)
@@ -598,7 +646,17 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		return err
 	}
 
-	return md.checkUpdatedMachine(ctx, oldMachine, machine, skipLaunch, sl, io, healthcheckResult)
+	checkErr := md.checkUpdatedMachine(ctx, oldMachine, machine, skipLaunch, sl, io, healthcheckResult)
+	if lease != nil {
+		// A fallback create owns this lease only for its readiness checks.
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		if releaseErr := md.flapsClient.ReleaseLease(releaseCtx, md.app.Name, machine.ID, lease.Data.Nonce); releaseErr != nil && !strings.Contains(releaseErr.Error(), "lease not found") {
+			fmt.Fprintf(md.io.ErrOut, "Failed to release create lease on %s: %v\n", machine.ID, releaseErr)
+		}
+	}
+
+	return checkErr
 }
 
 func (md *machineDeployment) checkUpdatedMachine(ctx context.Context, oldMachine, machine *fly.Machine, skipLaunch bool, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) (err error) {
@@ -725,7 +783,8 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		if err != nil {
 			tracing.RecordErrorEvent(ctx, span, err)
 
-			return nil, nil, err
+			// Launch succeeded. Recovery still needs its ID when leasing fails.
+			return machine, nil, err
 		}
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquired lease for %s", newMachine.ID))
 
@@ -792,11 +851,10 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 			if successfulState != "" {
 				return
 			}
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
-
 			if err != nil {
 				waitErr = err
 			} else {
+				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
 				successfulState = state
 			}
 		}()
@@ -809,6 +867,8 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 			defer mutex.Unlock()
 			if successfulState != "" {
 				span.SetAttributes(attribute.String("state", successfulState))
+
+				return successfulState, nil
 			}
 
 			if waitErr != nil {
@@ -821,6 +881,48 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 		time.Sleep(1 * time.Second)
 	}
+}
+
+// waitForReplacingMachinesToSettle gives in-flight updates up to waitTimeout to
+// finish. It reports whether the caller should refresh its Machine snapshot.
+// The next update attempt handles Machines that are still replacing.
+func (md *machineDeployment) waitForReplacingMachinesToSettle(ctx context.Context, state *AppState, machineLogger *MachineLogger) bool {
+	stableStates := []string{fly.MachineStateStarted, fly.MachineStateStopped, fly.MachineStateSuspended}
+	var wg sync.WaitGroup
+	waited := false
+	for _, m := range state.Machines {
+		if m.State != "replacing" {
+			continue
+		}
+		sl := machineLogger.getLoggerFromID(m.ID)
+		if sl == nil {
+			// Not a machine we're tracking in this deploy; nothing to log against.
+			continue
+		}
+
+		waited = true
+		wg.Go(func() {
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for in-flight replace of %s to settle", m.ID))
+			lm := mach.NewLeasableMachine(md.flapsClient, md.io, md.app.Name, m, false)
+			_, _ = waitForMachineState(ctx, lm, stableStates, md.waitTimeout, sl)
+		})
+	}
+	wg.Wait()
+
+	return waited
+}
+
+// retryBackoff returns the delay before the Nth (1-based) recovery retry. It grows
+// exponentially and is capped so a run of retries can't stall a deploy indefinitely.
+func retryBackoff(attempt int) time.Duration {
+	const base = 1 * time.Second
+	const maxBackoff = 15 * time.Second
+
+	if attempt < 1 {
+		attempt = 1
+	}
+
+	return min(base<<min(attempt-1, 4), maxBackoff)
 }
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
@@ -842,6 +944,14 @@ func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID str
 func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool, skipLaunch bool) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_config")
 	defer span.End()
+	if newMachineConfig != nil && oldMachine.Config != nil {
+		if updateID := newMachineConfig.Metadata[deployUpdateIDMetadataKey]; updateID != "" &&
+			oldMachine.Config.Metadata[deployUpdateIDMetadataKey] == updateID {
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Found previously applied update for %s", oldMachine.ID))
+
+			return oldMachine, nil
+		}
+	}
 	if compareConfigs(ctx, oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil
 	}

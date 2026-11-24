@@ -358,6 +358,10 @@ func resolveMissingBuildImage(ctx context.Context, api flyClient, opts ImageOpti
 		return nil, fmt.Errorf("invalid registry image size: %w", err)
 	}
 
+	if imageID == "" {
+		imageID = img.ID
+	}
+
 	return &DeploymentImage{ID: imageID, Tag: opts.Tag + "@" + img.Digest, Digest: img.Digest, Size: size}, nil
 }
 

@@ -4,7 +4,6 @@
 package preflight
 
 import (
-	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 	"testing"
 )
@@ -21,8 +20,7 @@ func TestFlyLogsMachineFlagBehavior(t *testing.T) {
 	// Create app, Create Machine, get Machine ID
 	appName := f.CreateRandomAppMachines()
 	f.Fly("machine run -a %s nginx --port 80:81 --autostop --region %s", appName, f.PrimaryRegion())
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	ml := f.WaitForMachineCount(appName, 1)
 	machineId := ml[0].ID
 
 	// Test if --machine works, should not throw an error
