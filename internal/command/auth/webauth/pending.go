@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func pendingLoginPath(ctx context.Context) string {
 
 // lockPendingLogin serializes changes to the pending login across flyctl
 // processes, so removing one login can't delete a newer one saved meanwhile.
-// Readers need no lock: the file is replaced atomically.
+// Readers take the shared lock because Windows cannot always replace an open file.
 func lockPendingLogin(path string) (filemu.UnlockFunc, error) {
 	return filemu.Lock(context.Background(), path+".lock")
 }
@@ -60,9 +61,26 @@ func savePendingLogin(path string, p pendingLogin) error {
 // loadPendingLogin reads the pending login at path. The error wraps
 // os.ErrNotExist when there is none.
 func loadPendingLogin(path string) (pendingLogin, error) {
+	unlock, err := filemu.RLock(context.Background(), path+".lock")
+	if err != nil {
+		return pendingLogin{}, err
+	}
+	defer func() { _ = unlock() }()
+
+	return readPendingLogin(path)
+}
+
+// readPendingLogin requires the caller to hold the pending-login lock.
+func readPendingLogin(path string) (pendingLogin, error) {
 	var p pendingLogin
 
-	data, err := os.ReadFile(path)
+	f, err := openPendingLogin(path)
+	if err != nil {
+		return p, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
 	if err != nil {
 		return p, err
 	}
@@ -86,7 +104,7 @@ func removePendingLogin(path, id string) {
 	}
 	defer func() { _ = unlock() }()
 
-	p, err := loadPendingLogin(path)
+	p, err := readPendingLogin(path)
 	if errors.Is(err, os.ErrNotExist) || (err == nil && p.ID != id) {
 		return
 	}
