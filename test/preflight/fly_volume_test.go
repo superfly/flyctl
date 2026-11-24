@@ -55,8 +55,7 @@ primary_region = "%s"
 	`, appName, f.PrimaryRegion())
 
 	f.Fly("deploy --buildkit --remote-only --ha=false")
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	ml := f.WaitForMachineCount(appName, 1)
 
 	f.Fly("volume extend %s --size 4 --app %s", ml[0].Config.Mounts[0].Volume, appName)
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
@@ -168,7 +167,7 @@ func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {
 	}, time.Minute, 2*time.Second, "volume %s never became readable", vol.ID)
 	t.Logf("Start a machine under app %s", appName)
 	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
-	machine := f.MachinesList(appName)[0]
+	machine := f.WaitForMachineCount(appName, 1)[0]
 	require.EventuallyWithT(f, func(c *assert.CollectT) {
 		machines := f.Collect(c).MachinesList(appName)
 		if assert.Len(c, machines, 1) {

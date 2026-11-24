@@ -43,6 +43,10 @@ func TestCompareConfig(t *testing.T) {
 	config2.Metadata["fly_flyctl_version"] = "v2"
 	assert.True(t, compareConfigs(ctx, config1, config2))
 
+	// A fresh update ID alone does not warrant an update.
+	config2.Metadata[deployUpdateIDMetadataKey] = "new-id"
+	assert.True(t, compareConfigs(ctx, config1, config2))
+
 	// Test that different images are not equal
 	config2.Image = "image2"
 	assert.False(t, compareConfigs(ctx, config1, config2))
@@ -124,6 +128,19 @@ func TestUpdateMachineConfig(t *testing.T) {
 	// updating a config with the same config should result in a noop, and shouldn't even use flaps
 	assert.NoError(t, err)
 
+	// A matching update ID identifies the submitted update after Flaps resolves defaults.
+	newMachineConfig.Metadata[deployUpdateIDMetadataKey] = "applied-id"
+	oldMachine.Config.Metadata[deployUpdateIDMetadataKey] = "applied-id"
+	oldMachine.Config.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyOnFailure, MaxRetries: 10}
+	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
+	assert.NoError(t, err)
+	assert.Same(t, oldMachine, machine)
+
+	// An older ID cannot suppress a genuine config change.
+	newMachineConfig.Metadata[deployUpdateIDMetadataKey] = "new-id"
+	_, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, false, false)
+	assert.ErrorIs(t, err, assert.AnError)
+
 	destroyedMachine := false
 	// recreate machines when we specify that
 	flapsClient := &mock.FlapsClient{
@@ -156,7 +173,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	md.flapsClient = flapsClient
 
 	// ensure that we're actually creating a new machine when we replace it
-	machine, err := md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true, false)
+	machine, err = md.updateMachineConfig(ctx, oldMachine, newMachineConfig, sl, true, false)
 	assert.NoError(t, err)
 	assert.Equal(t, machine.Config, newMachineConfig)
 	assert.NotEqual(t, machine.ID, "machine2")
@@ -336,10 +353,9 @@ func TestUpdateMachines(t *testing.T) {
 		Machines: newMachines,
 	}
 	settings := updateMachineSettings{
-		pushForward:          true,
-		skipHealthChecks:     false,
-		skipSmokeChecks:      true,
-		skipLeaseAcquisition: false,
+		pushForward:      true,
+		skipHealthChecks: false,
+		skipSmokeChecks:  true,
 	}
 
 	// Another deploy temporarily holds machine2 while this one gets machine1.
@@ -500,10 +516,9 @@ func TestUpdateMachinesRecoveryDoesNotRefreshVolumes(t *testing.T) {
 	newState := &AppState{Machines: []*fly.Machine{newMachine}}
 
 	err := md.updateMachinesWRecovery(ctx, oldState, oldState, newState, nil, updateMachineSettings{
-		pushForward:          true,
-		skipHealthChecks:     true,
-		skipSmokeChecks:      true,
-		skipLeaseAcquisition: false,
+		pushForward:      true,
+		skipHealthChecks: true,
+		skipSmokeChecks:  true,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), updateCalls.Load())
@@ -718,10 +733,9 @@ func TestUpdateMachinesWithNewMachine(t *testing.T) {
 	// skipSmokeChecks=false ensures we enter the code path that previously
 	// dereferenced oldMachine.ID (which is nil for new machines).
 	settings := updateMachineSettings{
-		pushForward:          true,
-		skipHealthChecks:     false,
-		skipSmokeChecks:      false,
-		skipLeaseAcquisition: false,
+		pushForward:      true,
+		skipHealthChecks: false,
+		skipSmokeChecks:  false,
 	}
 
 	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
@@ -809,10 +823,9 @@ func TestUpdateProcessGroupScaleUpErrorDoesNotPanic(t *testing.T) {
 	// pushForward=false makes the error propagate immediately instead of
 	// retrying, so we can assert on it.
 	settings := updateMachineSettings{
-		pushForward:          false,
-		skipHealthChecks:     false,
-		skipSmokeChecks:      false,
-		skipLeaseAcquisition: false,
+		pushForward:      false,
+		skipHealthChecks: false,
+		skipSmokeChecks:  false,
 	}
 
 	err := md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, newAppState, nil, settings)
@@ -939,4 +952,71 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 	assert.Nil(t, mach)
 	assert.Nil(t, lease)
 
+}
+
+func TestRetryBackoff(t *testing.T) {
+	t.Parallel()
+
+	// 1-based, exponential, capped at 15s (and no overflow for large attempts).
+	assert.Equal(t, 1*time.Second, retryBackoff(1))
+	assert.Equal(t, 2*time.Second, retryBackoff(2))
+	assert.Equal(t, 4*time.Second, retryBackoff(3))
+	assert.Equal(t, 8*time.Second, retryBackoff(4))
+	assert.Equal(t, 15*time.Second, retryBackoff(5))
+	assert.Equal(t, 15*time.Second, retryBackoff(6))
+	assert.Equal(t, 15*time.Second, retryBackoff(1000))
+
+	// Defensive clamp for non-positive attempts.
+	assert.Equal(t, 1*time.Second, retryBackoff(0))
+	assert.Equal(t, 1*time.Second, retryBackoff(-5))
+}
+
+// TestWaitForReplacingMachinesToSettle checks that on a recovery retry we wait for
+// machines that are mid-replace to settle before re-issuing updates, and that we
+// don't waste a wait on machines that are already in a stable state.
+func TestWaitForReplacingMachinesToSettle(t *testing.T) {
+	t.Parallel()
+
+	ctx := withQuietIOStreams(context.Background())
+
+	var mu sync.Mutex
+	waited := map[string]bool{}
+	flapsClient := &mock.FlapsClient{
+		WaitFunc: func(ctx context.Context, appName, machineID string, waitOpts ...flaps.WaitOption) error {
+			mu.Lock()
+			waited[machineID] = true
+			mu.Unlock()
+
+			return nil
+		},
+	}
+
+	md := &machineDeployment{
+		flapsClient: flapsClient,
+		io:          iostreams.FromContext(ctx),
+		app:         &flaps.App{Name: "myapp"},
+		waitTimeout: 30 * time.Second,
+	}
+
+	state := &AppState{Machines: []*fly.Machine{
+		{ID: "replacing1", State: "replacing"},
+		{ID: "started1", State: "started"},
+		{ID: "stopped1", State: "stopped"},
+	}}
+
+	slLogger := statuslogger.Create(ctx, len(state.Machines), false)
+	machineLogger := NewMachineLogger(map[string]statuslogger.StatusLine{}, slLogger)
+	machineLogger.initFromMachinePairs([]machinePairing{
+		{oldMachine: state.Machines[0]},
+		{oldMachine: state.Machines[1]},
+		{oldMachine: state.Machines[2]},
+	})
+
+	md.waitForReplacingMachinesToSettle(ctx, state, machineLogger)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.True(t, waited["replacing1"], "should wait for a machine that is mid-replace to settle")
+	assert.False(t, waited["started1"], "should not wait on a machine that is already started")
+	assert.False(t, waited["stopped1"], "should not wait on a machine that is already stopped")
 }
