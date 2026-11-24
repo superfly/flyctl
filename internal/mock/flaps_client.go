@@ -52,7 +52,7 @@ type FlapsClient struct {
 	GetCertificateFunc                         func(ctx context.Context, appName, hostname string) (*fly.CertificateDetailResponse, error)
 	GetIPAssignmentsFunc                       func(ctx context.Context, appName string) (res *flaps.ListIPAssignmentsResponse, err error)
 	GetManagedPostgresClusterFunc              func(ctx context.Context, id string) (flaps.ManagedPostgresCluster, error)
-	GetManagedPostgresMaintenanceWindowFunc    func(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error)
+	GetManagedPostgresMaintenanceWindowFunc    func(ctx context.Context, id string) (*flaps.ManagedPostgresMaintenanceWindow, error)
 	GetManagedPostgresUserCredentialsFunc      func(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error)
 	GetManyFunc                                func(ctx context.Context, appName string, machineIDs []string) ([]*fly.Machine, error)
 	GetMetadataFunc                            func(ctx context.Context, appName, machineID string) (map[string]string, error)
@@ -92,7 +92,7 @@ type FlapsClient struct {
 	UncordonFunc                               func(ctx context.Context, appName, machineID string, nonce string) (err error)
 	UpdateFunc                                 func(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateAppSecretsFunc                       func(ctx context.Context, appName string, values map[string]*string) (*fly.UpdateAppSecretsResp, error)
-	UpdateManagedPostgresMaintenanceWindowFunc func(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error)
+	UpdateManagedPostgresMaintenanceWindowFunc func(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error)
 	UpdateManagedPostgresUserRoleFunc          func(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error
 	RotateManagedPostgresUserPasswordFunc      func(ctx context.Context, id, username string, req flaps.RotateManagedPostgresUserPasswordRequest) (flaps.ManagedPostgresUserCredentials, error)
 	UpdateVolumeFunc                           func(ctx context.Context, appName, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
@@ -264,7 +264,7 @@ func (m *FlapsClient) GetManagedPostgresCluster(ctx context.Context, id string) 
 	return m.GetManagedPostgresClusterFunc(ctx, id)
 }
 
-func (m *FlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+func (m *FlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 	return m.GetManagedPostgresMaintenanceWindowFunc(ctx, id)
 }
 
@@ -424,7 +424,7 @@ func (m *FlapsClient) UpdateAppSecrets(ctx context.Context, appName string, valu
 	return m.UpdateAppSecretsFunc(ctx, appName, values)
 }
 
-func (m *FlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
+func (m *FlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 	return m.UpdateManagedPostgresMaintenanceWindowFunc(ctx, id, req)
 }
 

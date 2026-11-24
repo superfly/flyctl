@@ -52,16 +52,16 @@ func TestCommand_Execute(t *testing.T) {
 	}
 	chdir(t, dir)
 
-	var buf bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd := New()
-	cmd.SetOut(&buf)
-	cmd.SetErr(&buf)
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
 	cmd.SetArgs([]string{"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000"})
 
 	ctx := context.Background()
-	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
+	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &stdout, ErrOut: &stderr})
 	ctx = task.NewWithContext(ctx)
-	ctx = logger.NewContext(ctx, logger.New(&buf, logger.Info, true))
+	ctx = logger.NewContext(ctx, logger.New(&stderr, logger.Info, true))
 
 	// Set up config with LastLogin timestamp to satisfy session timeout check
 	cfg := &config.Config{
@@ -95,6 +95,13 @@ func TestCommand_Execute(t *testing.T) {
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)
 	}
+	const warning = " may be a potentially sensitive environment variable"
+	assert.Contains(t, stderr.String(), "SECRET_KEY"+warning)
+	output := stdout.String() + stderr.String()
+	assert.Equal(t, 1, strings.Count(output, warning))
+	assert.NotContains(t, output, "file:/data/sqlite.db")
+	assert.NotContains(t, output, "test-secret-canary")
+
 	spans := map[string][]sdktrace.ReadOnlySpan{}
 	for _, span := range recorder.Ended() {
 		spans[span.Name()] = append(spans[span.Name()], span)

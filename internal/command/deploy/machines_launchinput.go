@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
@@ -38,7 +37,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) 
 	}, nil
 }
 
-func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest) (*fly.LaunchMachineInput, error) {
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, nil)
 	if err != nil {
 		return nil, err
@@ -56,11 +55,6 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
 		mount0.Volume = mount0.Name
-	}
-
-	if len(standbyFor) > 0 {
-		mConfig.Standbys = standbyFor
-		mConfig.Env["FLY_STANDBY_FOR"] = strings.Join(standbyFor, ",")
 	}
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {
