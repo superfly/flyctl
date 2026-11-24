@@ -426,3 +426,22 @@ func TestPendingWatchToleratesAnUnreadableFile(t *testing.T) {
 		}
 	})
 }
+
+func TestLoadPendingLoginWaitsForWriter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pending-login.json")
+	if err := savePendingLogin(path, pendingLogin{ID: "old", Verifier: "first"}); err != nil {
+		t.Fatal(err)
+	}
+
+	unlock, err := lockPendingLogin(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = unlock() }()
+
+	// The writer holds the lock through replacement. A reader must time out
+	// without opening the old file, even though it still exists and is valid.
+	if p, err := loadPendingLogin(path); err == nil {
+		t.Fatalf("read login %q during replacement", p.ID)
+	}
+}

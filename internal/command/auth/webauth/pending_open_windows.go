@@ -6,8 +6,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// A polling login may still be reading when another process replaces or
-// removes the file. os.Open on Windows omits FILE_SHARE_DELETE.
+// Allow removal even by a process that does not use the pending-login lock.
+// os.Open on Windows omits FILE_SHARE_DELETE.
 func openPendingLogin(path string) (*os.File, error) {
 	name, err := windows.UTF16PtrFromString(path)
 	if err != nil {
