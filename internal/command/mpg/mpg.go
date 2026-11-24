@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -20,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() *cobra.Command {
@@ -353,6 +355,18 @@ func ResolveOrganizationSlug(ctx context.Context, inputSlug string) (string, err
 	return org.RawSlug, nil
 }
 
+// requireMutationSession also disables login prompts for environment-selected
+// JSON output. Only the five JSON creation commands use this preparer.
+func requireMutationSession(ctx context.Context) (context.Context, error) {
+	if config.FromContext(ctx).JSONOutput {
+		streams := *iostreams.FromContext(ctx)
+		streams.SetNeverPrompt(true)
+		ctx = iostreams.NewContext(ctx, &streams)
+	}
+
+	return command.RequireSession(ctx)
+}
+
 // requireMacaroonToken is a preparer that validates token compatibility for MPG commands.
 func requireMacaroonToken(ctx context.Context) (context.Context, error) {
 	if err := validateMPGTokenCompatibility(ctx); err != nil {
@@ -388,4 +402,23 @@ Please upgrade your authentication by running:
 	}
 
 	return nil
+}
+
+// stdoutJSONHelp tells scripts and agents how to recover from a failure that
+// happens after the resource was created.
+const stdoutJSONHelp = `With --json, stdout carries only the JSON result; progress, prompts and errors
+go to stderr. If the command fails after the resource was created (for example
+while waiting for it to become ready), the JSON with its id is still printed on
+stdout before the non-zero exit, and the error on stderr names it. Read stdout
+before retrying, so that a retry does not create a second resource.`
+
+// addStdoutJSONFlag adds --json to a creation command and marks the command so
+// that, in JSON mode, the CLI keeps stdout for the JSON document alone.
+func addStdoutJSONFlag(cmd *cobra.Command, description, example string) {
+	jsonFlag := flag.JSONOutput()
+	jsonFlag.Description = description
+	flag.Add(cmd, jsonFlag)
+	cmd.Example = example
+	cmd.Long = strings.TrimRight(cmd.Long, "\n") + "\n\n" + stdoutJSONHelp + "\n"
+	command.MarkStdoutJSON(cmd)
 }

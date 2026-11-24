@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
@@ -17,7 +18,7 @@ import (
 func forkTestContext() (context.Context, *bytes.Buffer) {
 	io, _, stdout, _ := iostreams.Test()
 
-	return iostreams.NewContext(context.Background(), io), stdout
+	return config.NewContext(iostreams.NewContext(context.Background(), io), &config.Config{}), stdout
 }
 
 func TestRunForkPassesNameAndPlan(t *testing.T) {
@@ -94,4 +95,20 @@ func TestRunForkDoesNotFallBackOnPublic404(t *testing.T) {
 	err := RunFork(ctx, "mpg-missing", "", "")
 	require.ErrorIs(t, err, flaps.ErrFlapsNotFound)
 	require.ErrorContains(t, err, "failed to fork cluster:")
+}
+
+type brokenResultWriter struct{}
+
+func (brokenResultWriter) Write([]byte) (int, error) { return 0, errors.New("broken stdout") }
+
+func TestRunForkJSONWriteFailureReportsCreatedCluster(t *testing.T) {
+	ctx, _ := forkTestContext()
+	config.FromContext(ctx).JSONOutput = true
+	iostreams.FromContext(ctx).Out = brokenResultWriter{}
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		ForkManagedPostgresClusterFunc: func(context.Context, string, flaps.ForkManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+			return flaps.ManagedPostgresCluster{ID: "mpg-fork"}, nil
+		},
+	})
+	require.EqualError(t, RunFork(ctx, "mpg-source", "", ""), "cluster mpg-fork was created, but its result could not be displayed: broken stdout")
 }

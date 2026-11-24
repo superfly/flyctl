@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -17,7 +18,7 @@ import (
 func restoreTestContext() (context.Context, *bytes.Buffer) {
 	io, _, stdout, _ := iostreams.Test()
 
-	return iostreams.NewContext(context.Background(), io), stdout
+	return config.NewContext(iostreams.NewContext(context.Background(), io), &config.Config{}), stdout
 }
 
 func TestRunRestoreUsesPublicAPI(t *testing.T) {

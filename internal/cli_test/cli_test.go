@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,17 @@ import (
 
 	"github.com/superfly/flyctl/internal/cli"
 )
+
+func TestMain(m *testing.M) {
+	// The trace exporter owns its HTTP client and bypasses DefaultTransport.
+	// "127.0.0.1:1" is not a valid collector URL (it fails URL parsing), so the
+	// exporter never dials anything. Apply this in every test process,
+	// including subprocess helpers.
+	if err := os.Setenv("FLY_TRACE_COLLECTOR_URL", "127.0.0.1:1"); err != nil {
+		panic(err)
+	}
+	os.Exit(m.Run())
+}
 
 func TestVersion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"io"
 	"os"
 	"strings"
 
@@ -31,6 +32,11 @@ func init() {
 
 func GetLogLevel() logger.Level {
 	return DefaultLogger.Level()
+}
+
+// SetLogOutput redirects diagnostics while preserving the level and file log.
+func SetLogOutput(out io.Writer) {
+	DefaultLogger = logger.New(out, GetLogLevel(), true).AndLogToFile()
 }
 
 func Debug(v ...any) {

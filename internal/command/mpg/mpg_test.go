@@ -43,7 +43,7 @@ func (m *MockRegionProvider) GetPlatformRegions(ctx context.Context) ([]fly.Regi
 
 // setupTestContext creates a context with all necessary components for testing
 func setupTestContext() context.Context {
-	ctx := context.Background()
+	ctx := config.NewContext(context.Background(), &config.Config{})
 
 	// Add iostreams
 	ios, _, _, _ := iostreams.Test()

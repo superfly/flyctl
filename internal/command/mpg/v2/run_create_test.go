@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
@@ -30,6 +31,7 @@ func createTestContext(t *testing.T, region string) (context.Context, *bytes.Buf
 
 	io, _, stdout, _ := iostreams.Test()
 	ctx := iostreams.NewContext(context.Background(), io)
+	ctx = config.NewContext(ctx, &config.Config{})
 
 	flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	flags.String("region", "", "")

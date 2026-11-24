@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -38,7 +39,7 @@ You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
 	)
 
 	cmd := command.New("create", short, long, runCreate,
-		command.RequireSession,
+		requireMutationSession,
 		requireMacaroonToken,
 	)
 
@@ -77,6 +78,10 @@ You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
 		},
 	)
 
+	addStdoutJSONFlag(cmd, "JSON output (id, name, organization, region, plan, status; progress on stderr)",
+		`  out=$(fly mpg create --name my-db --org my-org --region iad --plan basic --json) || { echo "$out" >&2; exit 1; }
+  cluster_id=$(printf '%s' "$out" | jq -er '.id | select(. != "")') || exit 1`)
+
 	return cmd
 }
 
@@ -106,6 +111,9 @@ func runCreate(ctx context.Context) error {
 			// If we have an app name, use it to create a default database name
 			appName = appName + "-db"
 		} else {
+			if config.FromContext(ctx).JSONOutput {
+				return prompt.NonInteractiveError("--name must be specified when using --json")
+			}
 			// If no app name is available, prompt for a name
 			appName, err = prompt.SelectAppNameWithMsg(ctx, "Choose a database name:")
 			if err != nil {
@@ -114,8 +122,16 @@ func runCreate(ctx context.Context) error {
 		}
 	}
 
+	if config.FromContext(ctx).JSONOutput {
+		streams := *io
+		streams.SetNeverPrompt(true)
+		ctx = iostreams.NewContext(ctx, &streams)
+	}
 	org, err := prompt.Org(ctx)
 	if err != nil {
+		if config.FromContext(ctx).JSONOutput && prompt.IsNonInteractive(err) {
+			return prompt.NonInteractiveError("--org must be specified when using --json")
+		}
 		return err
 	}
 
@@ -127,11 +143,11 @@ func runCreate(ctx context.Context) error {
 	// Plan selection and validation
 	plan, ok := planKey(flag.GetString(ctx, "plan"))
 	if !ok {
-		if !io.IsInteractive() && flag.IsSpecified(ctx, "plan") {
+		if (!io.IsInteractive() || config.FromContext(ctx).JSONOutput) && flag.IsSpecified(ctx, "plan") {
 			return fmt.Errorf("unknown plan %q; valid plans are %s", flag.GetString(ctx, "plan"), planNames())
 		}
 
-		if io.IsInteractive() {
+		if io.IsInteractive() && !config.FromContext(ctx).JSONOutput {
 			// Prepare a sortable slice of plans
 			type planEntry struct {
 				Key   string

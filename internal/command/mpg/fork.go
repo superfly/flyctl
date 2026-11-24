@@ -8,7 +8,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
 
@@ -30,7 +32,7 @@ required. Not available for v1 clusters.`
 	)
 
 	cmd := command.New(usage, short, long, runFork,
-		command.RequireSession,
+		requireMutationSession,
 		requireMacaroonToken,
 	)
 
@@ -48,11 +50,18 @@ required. Not available for v1 clusters.`
 		},
 	)
 
+	addStdoutJSONFlag(cmd, "JSON output (id, name, organization, region, plan, status; progress on stderr)",
+		`  out=$(fly mpg fork "$source_id" --json) || { echo "$out" >&2; exit 1; }
+  cluster_id=$(printf '%s' "$out" | jq -er '.id | select(. != "")') || exit 1`)
+
 	return cmd
 }
 
 func runFork(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
+	if config.FromContext(ctx).JSONOutput && clusterID == "" {
+		return prompt.NonInteractiveError("CLUSTER_ID must be specified when using --json")
+	}
 	name := flag.GetString(ctx, "name")
 	// The API is the source of truth for plans, so --plan isn't checked
 	// against MPGPlans. A plan found there by key or name goes out as its

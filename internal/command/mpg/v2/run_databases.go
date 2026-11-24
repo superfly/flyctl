@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
@@ -55,13 +56,18 @@ func RunDatabasesList(ctx context.Context, clusterID string) error {
 }
 
 func RunDatabasesCreate(ctx context.Context, clusterID string) error {
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	jsonOutput := config.FromContext(ctx).JSONOutput
+	out := io.Out
+	if jsonOutput {
+		out = io.ErrOut
+	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	dbName := flag.GetString(ctx, "name")
 	if dbName == "" {
 		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
+		if jsonOutput || !io.IsInteractive() {
 			return prompt.NonInteractiveError("database name must be specified with --name flag when not running interactively")
 		}
 		err := prompt.String(ctx, &dbName, "Enter database name:", "", true)
@@ -85,11 +91,15 @@ func RunDatabasesCreate(ctx context.Context, clusterID string) error {
 		return fmt.Errorf("failed to create database: %w", err)
 	}
 
-	fmt.Fprintf(out, "Database created successfully!\n")
 	name := created.Name
 	if name == "" {
 		name = dbName
 	}
+	if jsonOutput {
+		return mpgutil.RenderCreatedJSON(io.Out, fmt.Sprintf("database %s in cluster %s", name, clusterID), mpgv2.Database{Name: name})
+	}
+
+	fmt.Fprintf(out, "Database created successfully!\n")
 	fmt.Fprintf(out, "  Name: %s\n", name)
 
 	return nil

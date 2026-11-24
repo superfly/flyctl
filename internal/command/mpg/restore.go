@@ -9,7 +9,9 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 )
@@ -33,7 +35,7 @@ required.`
 	)
 
 	cmd := command.New(usage, short, long, runRestore,
-		command.RequireSession,
+		requireMutationSession,
 		requireMacaroonToken,
 	)
 
@@ -55,11 +57,18 @@ required.`
 		},
 	)
 
+	addStdoutJSONFlag(cmd, "JSON output (id, name, organization, region, plan, status; progress on stderr)",
+		`  out=$(fly mpg restore "$source_id" --backup-id "$backup_id" --json) || { echo "$out" >&2; exit 1; }
+  cluster_id=$(printf '%s' "$out" | jq -er '.id | select(. != "")') || exit 1`)
+
 	return cmd
 }
 
 func runRestore(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
+	if config.FromContext(ctx).JSONOutput && clusterID == "" {
+		return prompt.NonInteractiveError("CLUSTER_ID must be specified when using --json")
+	}
 	backupID := flag.GetString(ctx, "backup-id")
 	pitrTime := flag.GetString(ctx, "pitr-time")
 	name := flag.GetString(ctx, "name")

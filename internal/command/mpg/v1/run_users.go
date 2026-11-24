@@ -6,6 +6,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -44,13 +45,18 @@ func RunUsersList(ctx context.Context, clusterID string) error {
 }
 
 func RunUsersCreate(ctx context.Context, clusterID string) error {
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	jsonOutput := config.FromContext(ctx).JSONOutput
+	out := io.Out
+	if jsonOutput {
+		out = io.ErrOut
+	}
 	mpgClient := mpgv1.ClientFromContext(ctx)
 
 	userName := flag.GetString(ctx, "username")
 	if userName == "" {
 		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
+		if jsonOutput || !io.IsInteractive() {
 			return prompt.NonInteractiveError("username must be specified with --username flag when not running interactively")
 		}
 		err := prompt.String(ctx, &userName, "Enter username:", "", true)
@@ -71,7 +77,7 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 
 	if userRole == "" {
 		io := iostreams.FromContext(ctx)
-		if !io.IsInteractive() {
+		if jsonOutput || !io.IsInteractive() {
 			return prompt.NonInteractiveError("user role must be specified with --role flag when not running interactively")
 		}
 		// Prompt for role selection
@@ -96,6 +102,15 @@ func RunUsersCreate(ctx context.Context, clusterID string) error {
 	response, err := mpgClient.CreateUserWithRole(ctx, clusterID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	if jsonOutput {
+		createdName := userName
+		if response.Data.Name != "" {
+			createdName = response.Data.Name
+		}
+
+		return mpgutil.RenderCreatedJSON(io.Out, fmt.Sprintf("user %s in cluster %s", createdName, clusterID), response.Data)
 	}
 
 	fmt.Fprintf(out, "User created successfully!\n")

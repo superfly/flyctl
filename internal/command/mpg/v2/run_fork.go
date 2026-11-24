@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -13,7 +15,12 @@ import (
 // out of the request so the API applies its defaults: the source's name with
 // a -fork suffix, and the source cluster's plan.
 func RunFork(ctx context.Context, clusterID, name, plan string) error {
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	jsonOutput := config.FromContext(ctx).JSONOutput
+	out := io.Out
+	if jsonOutput {
+		out = io.ErrOut
+	}
 
 	fmt.Fprintf(out, "Forking cluster %s...\n", clusterID)
 
@@ -25,6 +32,14 @@ func RunFork(ctx context.Context, clusterID, name, plan string) error {
 	response, err := flapsutil.ClientFromContext(ctx).ForkManagedPostgresCluster(ctx, clusterID, request)
 	if err != nil {
 		return fmt.Errorf("failed to fork cluster: %w", err)
+	}
+
+	if jsonOutput {
+		return mpgutil.RenderCreatedJSON(io.Out, fmt.Sprintf("cluster %s", response.ID), mpgutil.ClusterResult{
+			ID: response.ID, Name: response.Name,
+			Organization: mpgutil.ClusterOrganization{Name: response.Organization.Name, Slug: response.Organization.Slug},
+			Region:       response.Region, Plan: response.Plan, Status: response.Status,
+		})
 	}
 
 	fmt.Fprintf(out, "Fork initiated successfully!\n")

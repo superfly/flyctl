@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -107,11 +108,14 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 	var exporter sdktrace.SpanExporter
 	switch {
 	case os.Getenv("LOG_LEVEL") == "trace":
-		opts := []stdouttrace.Option{stdouttrace.WithPrettyPrint()}
+		// stdouttrace captures os.Stdout when its package initializes; pass the
+		// current one so a process that has moved stdout (JSON mode) is honored.
+		var traceOut io.Writer = os.Stdout
 		if baggage.FromContext(ctx).Member(deployTraceKey).Value() == "true" {
 			// A traced deployer invocation reserves stdout for command output and artifacts.
-			opts = append(opts, stdouttrace.WithWriter(iostreams.FromContext(ctx).ErrOut))
+			traceOut = iostreams.FromContext(ctx).ErrOut
 		}
+		opts := []stdouttrace.Option{stdouttrace.WithPrettyPrint(), stdouttrace.WithWriter(traceOut)}
 		stdoutExp, err := stdouttrace.New(opts...)
 		if err != nil {
 			return nil, err
