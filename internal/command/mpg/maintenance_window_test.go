@@ -130,11 +130,11 @@ func TestRunMaintenanceWindowSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var gotRequest *flaps.UpdateManagedPostgresMaintenanceWindowRequest
 			client := &mock.FlapsClient{
-				UpdateManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
+				UpdateManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 					assert.Equal(t, "cluster-123", id)
 					gotRequest = &req
 
-					return flaps.ManagedPostgresMaintenanceWindow{Day: "sunday", StartHour: 0, DurationHours: 3, Timezone: "UTC"}, nil
+					return &flaps.ManagedPostgresMaintenanceWindow{Day: "sunday", StartHour: 0, DurationHours: 3, Timezone: "UTC"}, nil
 				},
 			}
 			ctx, err := maintenanceWindowCommandContext(t, newMaintenanceWindowSet(), tt.clusterVersion, client, tt.args...)
@@ -166,11 +166,11 @@ func TestRunMaintenanceWindowShow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			getCalled := false
 			client := &mock.FlapsClient{
-				GetManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+				GetManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 					getCalled = true
 					assert.Equal(t, "cluster-123", id)
 
-					return flaps.ManagedPostgresMaintenanceWindow{Day: "sunday", StartHour: 1, DurationHours: 3, Timezone: "UTC"}, nil
+					return &flaps.ManagedPostgresMaintenanceWindow{Day: "sunday", StartHour: 1, DurationHours: 3, Timezone: "UTC"}, nil
 				},
 			}
 			ctx, err := maintenanceWindowCommandContext(t, newMaintenanceWindowShow(), tt.clusterVersion, client, "cluster-123")

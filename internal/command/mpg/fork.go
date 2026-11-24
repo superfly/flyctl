@@ -19,8 +19,13 @@ data, leaving the source cluster unchanged. The fork is provisioned
 asynchronously in the same organization and billed separately.
 
 The fork uses the source cluster's plan unless --plan picks a different one,
-including a smaller one.`
-		short = "Fork MPG cluster into a new cluster from its current data."
+including a smaller one. The command returns once the fork starts and
+prints the new cluster's ID; check on it with ` + "`fly mpg status`" + `.
+
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required. Not available for v1 clusters.`
+		short = "Fork a Managed Postgres cluster into a new cluster"
 		usage = "fork [CLUSTER_ID]"
 	)
 
@@ -49,10 +54,15 @@ including a smaller one.`
 func runFork(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
 	name := flag.GetString(ctx, "name")
-	// The API is the source of truth for plans and matches them
-	// case-insensitively, so --plan is passed through rather than checked
-	// against MPGPlans. Leaving it empty keeps the source cluster's plan.
+	// The API is the source of truth for plans, so --plan isn't checked
+	// against MPGPlans. A plan found there by key or name goes out as its
+	// key, the value the API knows: --plan Dev-256 or Developer sends
+	// dev-256. Any other --plan is passed through as typed. Leaving it
+	// empty keeps the source cluster's plan.
 	plan := strings.TrimSpace(flag.GetString(ctx, "plan"))
+	if key, ok := planKey(plan); ok {
+		plan = key
+	}
 
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {
