@@ -120,6 +120,9 @@ func argsFromManifest(manifest *DeployManifest, app *flaps.App) MachineDeploymen
 }
 
 type machineDeployment struct {
+	// recoveryMachines maps planned IDs to accepted replacements across retries and canary phases.
+	recoveryMachines sync.Map
+
 	// apiClient is a client to use web GraphQL.
 	apiClient webClient
 	// flapsClient is a client to use flaps.

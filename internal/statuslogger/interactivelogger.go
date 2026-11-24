@@ -10,7 +10,7 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 type interactiveLogger struct {
@@ -57,7 +57,7 @@ func (il *interactiveLogger) Destroy(clear bool) {
 }
 
 func (il *interactiveLogger) consoleSize() (int, int) {
-	width, height, err := terminal.GetSize(int(il.io.StdoutFd()))
+	width, height, err := term.GetSize(int(il.io.StdoutFd()))
 	if err != nil {
 		height = 24
 		width = 80

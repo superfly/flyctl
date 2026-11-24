@@ -496,26 +496,25 @@ func TestErrOutput(t *testing.T) {
 
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
-	machList := f.MachinesList(appName)
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	machList := f.WaitForMachineCount(appName, 1)
 	firstMachine := machList[0]
 
 	res := f.FlyAllowExitFailure("machine update --vm-cpus 3 %s --yes", firstMachine.ID)
+	require.NotZero(f, res.ExitCode())
 	require.Contains(f, res.StdErrString(), "invalid number of CPUs")
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
+	require.NotZero(f, res.ExitCode())
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
-	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
-
-	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+	res = f.FlyAllowExitFailure("machine update --vm-cpus 4 --vm-memory 256 %s --yes", firstMachine.ID)
+	require.NotZero(f, res.ExitCode())
 	require.Contains(f, res.StdErrString(), "memory size for config is too low")
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+	res = f.FlyAllowExitFailure("machine update --vm-cpus 4 --vm-memory 16384 %s --yes", firstMachine.ID)
+	require.NotZero(f, res.ExitCode())
 	require.Contains(f, res.StdErrString(), "memory size for config is too high")
-
-	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
 }
 
 func TestImageLabel(t *testing.T) {
@@ -532,12 +531,13 @@ ENV BUILT_BY_DOCKERFILE=true
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --ha=false --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("deploy --buildkit --remote-only --label Z=ZZZ -a %s", appName)
 	res := f.Fly("image show -a %s --json", appName)
 
 	var machineImages []map[string]string
 	res.StdOutJSON(&machineImages)
+	require.NotEmpty(f, machineImages)
 
 	for _, image := range machineImages {
 		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)

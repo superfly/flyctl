@@ -61,7 +61,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -251,7 +251,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	// New app machine
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{
@@ -395,7 +395,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// New app machine
-	li, err := md.launchInputForLaunch("", nil, nil)
+	li, err := md.launchInputForLaunch("", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, &fly.LaunchMachineInput{

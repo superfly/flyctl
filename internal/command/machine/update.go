@@ -84,6 +84,7 @@ health checks to pass (skip this with ` + "`--skip-health-checks`" + `).
 	cmd.Args = cobra.RangeArgs(0, 1)
 
 	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+	_ = cmd.Flags().MarkDeprecated("standby-for", standbyForDeprecation)
 
 	return cmd
 }

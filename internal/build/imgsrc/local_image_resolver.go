@@ -3,6 +3,7 @@ package imgsrc
 import (
 	"context"
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strings"
@@ -10,8 +11,10 @@ import (
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	dockerparser "github.com/novln/docker-parser"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -123,6 +126,37 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 }
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
+
+func findTaggedBuildImage(ctx context.Context, docker *dockerclient.Client, api flyClient, opts ImageOptions, out io.Writer, pushed digest.Digest) (*DeploymentImage, error) {
+	img, err := findImageWithDocker(ctx, docker, opts.Tag)
+	if err != nil {
+		return nil, err
+	}
+	if img != nil {
+		return &DeploymentImage{ID: img.ID, Tag: opts.Tag, Size: img.Size}, nil
+	}
+	if pushed != "" && api != nil {
+		// Web can cache even tag@digest. Check the live tag through the daemon
+		// that pushed it before asking web for the pinned image metadata.
+		current, err := inspectPushedTag(ctx, docker, opts.Tag, flyRegistryAuth(config.Tokens(ctx).Docker()), defaultImageWait, out)
+		if err != nil {
+			return nil, fmt.Errorf("local image missing, checking registry tag %s: %w", opts.Tag, err)
+		}
+		if current.Descriptor.Digest != pushed {
+			return nil, errors.New("no image found")
+		}
+
+		recovered, err := resolveMissingBuildImage(ctx, api, opts, out, "", pushed, false)
+		if err != nil {
+			return nil, fmt.Errorf("local image missing, resolving pushed manifest %s: %w", pushed, err)
+		}
+		if recovered != nil {
+			return recovered, nil
+		}
+	}
+
+	return nil, errors.New("no image found")
+}
 
 func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*image.Summary, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "find_image_with_docker")
