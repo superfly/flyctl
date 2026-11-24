@@ -42,6 +42,7 @@ func WaitForLaunch(ctx context.Context, appName string, machine *fly.Machine, ti
 			return waitForStartOrStop(ctx, appName, machine, "start", timeout, event.ID)
 		}
 	}
+
 	return WaitForStartOrStop(ctx, appName, machine, "start", timeout)
 }
 
