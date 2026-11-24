@@ -753,7 +753,7 @@ var errSessionExpired = errors.New("your flyctl session has expired. Run `fly au
 // `flyctl auth login`. Someone without an account, or an agent setting one
 // up, needs signup instead, and a headless run needs a token in the env.
 const noTokenSuggestion = "New to Fly.io? Run `fly auth signup` to create an account.\n" +
-	"For CI or other non-interactive runs, set FLY_API_TOKEN to a token from `fly tokens create deploy` (one app) or `fly tokens create org`."
+	"For CI or other non-interactive runs, set FLY_API_TOKEN to a token created on a logged-in machine with `fly tokens create deploy` (one app) or `fly tokens create org`."
 
 // reloginError is the error for a command that needs a login and won't get
 // one interactively.
