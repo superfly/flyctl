@@ -295,8 +295,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		if err != nil {
 			return nil, err
 		}
-		uiexClient := uiexutil.ClientFromContext(ctx)
-		org, err := uiexClient.GetOrganization(ctx, app.Organization.Slug)
+		org, err := uiexutil.AppOrganization(ctx, app)
 		if err != nil {
 			return nil, err
 		}

@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/requestauth"
 )
 
 func newSet() (cmd *cobra.Command) {
@@ -75,6 +76,7 @@ func runSet(ctx context.Context) (err error) {
 }
 
 func SetSecretsAndDeploy(ctx context.Context, flapsClient flapsutil.FlapsClient, app *flaps.App, secrets map[string]string, args DeploymentArgs) error {
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 	if err := tracing.WorkflowPhase(ctx, "update_secrets", func(ctx context.Context) error { return appsecrets.Update(ctx, flapsClient, app.Name, secrets, nil) }); err != nil {
 		return updateError(err)
 	}

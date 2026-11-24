@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -656,7 +657,9 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 
 			var asked string
 			flapsClient := &mock.FlapsClient{
-				GetPlacementsFunc: func(_ context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+				GetPlacementsFunc: func(ctx context.Context, req *flaps.GetPlacementsRequest) ([]flaps.RegionPlacement, error) {
+					authtest.Organization(t, 7)(ctx)
+					require.Equal(t, "personal", req.Org)
 					asked = req.Region
 
 					return tc.placements, tc.placementsErr
@@ -666,7 +669,7 @@ func TestDetermineRegionReplacesDeprecatedRegion(t *testing.T) {
 			config := appconfig.NewConfig()
 			config.PrimaryRegion = tc.primaryRegion
 
-			region, explanation, err := determineRegion(ctx, config, "personal", &fly.MachineGuest{}, flapsClient)
+			region, explanation, err := determineRegion(ctx, config, &uiex.Organization{Slug: "personal", InternalNumericID: 7}, &fly.MachineGuest{}, flapsClient)
 
 			assert.Equal(t, tc.wantAsked, asked)
 			assert.Equal(t, tc.wantRegion, region)
