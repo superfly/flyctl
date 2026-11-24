@@ -111,7 +111,7 @@ if [[ -n "$group" ]]; then
             ;;
         harness)
             # Offline tests of the testlib harness itself against a fake binary.
-            test_pattern="^TestCollect"
+            test_pattern="^Test(Collect|MachinePolling)"
             ;;
         *)
             echo "Unknown test group: $group"
