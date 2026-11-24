@@ -231,6 +231,7 @@ func TestRequireSessionWithoutTerminal(t *testing.T) {
 						t.Fatalf("expected the no-token suggestion to name %q, got %q", want, suggestion)
 					}
 				}
+
 				return
 			}
 			// A token is saved, so "no access token available" would be wrong:
