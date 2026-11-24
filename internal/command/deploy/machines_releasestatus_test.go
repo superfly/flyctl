@@ -5,9 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/uiex"
 )
 
@@ -104,4 +112,141 @@ func TestStatusErrorRetryable(t *testing.T) {
 	assert.False(t, (&uiex.StatusError{StatusCode: 499}).Retryable())
 	assert.True(t, (&uiex.StatusError{StatusCode: 500}).Retryable())
 	assert.True(t, (&uiex.StatusError{StatusCode: 599}).Retryable())
+}
+
+func newTestUIEXClient(t *testing.T, serverURL string, timeout time.Duration) *uiex.Client {
+	t.Helper()
+
+	parsedURL, err := url.Parse(serverURL)
+	require.NoError(t, err)
+
+	client, err := uiex.NewWithOptions(t.Context(), uiex.NewClientOpts{
+		BaseURL: parsedURL,
+		Timeout: timeout,
+	})
+	require.NoError(t, err)
+
+	return client
+}
+
+func testContextWithConfig(t *testing.T) context.Context {
+	t.Helper()
+
+	return config.NewContext(t.Context(), &config.Config{
+		Tokens: &tokens.Tokens{},
+	})
+}
+
+func TestUpdateReleaseInBackendRetriesHungAttempt(t *testing.T) {
+	var hits atomic.Int32
+	release := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempt := hits.Add(1)
+		if attempt == 1 {
+			select {
+			case <-r.Context().Done():
+			case <-release:
+			}
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"rel_123","version":2,"status":"running"}`))
+	}))
+	defer func() {
+		close(release)
+		srv.Close()
+	}()
+
+	md := &machineDeployment{
+		releaseId:  "rel_123",
+		uiexClient: newTestUIEXClient(t, srv.URL, 5*time.Second),
+	}
+
+	err := md.updateReleaseInBackendWithTimeouts(
+		testContextWithConfig(t),
+		"running",
+		nil,
+		30*time.Millisecond,
+		10*time.Millisecond,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), hits.Load())
+}
+
+func TestUpdateReleaseInBackendFailsAfterAllAttemptsHang(t *testing.T) {
+	var hits atomic.Int32
+	release := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer func() {
+		close(release)
+		srv.Close()
+	}()
+
+	md := &machineDeployment{
+		releaseId:  "rel_123",
+		uiexClient: newTestUIEXClient(t, srv.URL, 5*time.Second),
+	}
+
+	err := md.updateReleaseInBackendWithTimeouts(
+		testContextWithConfig(t),
+		"running",
+		nil,
+		25*time.Millisecond,
+		10*time.Millisecond,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, int32(releaseStatusRetryAttempts), hits.Load())
+}
+
+func TestUpdateReleaseInBackendDoesNotRetryParentContextCancel(t *testing.T) {
+	var hits atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		close(started)
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	defer func() {
+		close(release)
+		srv.Close()
+	}()
+
+	md := &machineDeployment{
+		releaseId:  "rel_123",
+		uiexClient: newTestUIEXClient(t, srv.URL, 5*time.Second),
+	}
+
+	ctx, cancel := context.WithCancel(testContextWithConfig(t))
+	defer cancel()
+
+	go func() {
+		<-started
+		cancel()
+	}()
+
+	err := md.updateReleaseInBackendWithTimeouts(
+		ctx,
+		"running",
+		nil,
+		5*time.Second,
+		10*time.Millisecond,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, int32(1), hits.Load())
 }

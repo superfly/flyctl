@@ -759,30 +759,69 @@ const (
 	// releaseStatusRetryDelay is the delay before the first retry; it doubles on
 	// each subsequent attempt.
 	releaseStatusRetryDelay = 500 * time.Millisecond
+	// releaseStatusAttemptTimeout bounds each individual UpdateRelease HTTP attempt
+	// so a hung API response fails that attempt and triggers a retry instead of
+	// blocking the entire deploy indefinitely.
+	releaseStatusAttemptTimeout = 30 * time.Second
 )
 
+type releaseStatusAttemptTimeoutError struct {
+	err error
+}
+
+func (e *releaseStatusAttemptTimeoutError) Error() string {
+	return e.err.Error()
+}
+
+func (e *releaseStatusAttemptTimeoutError) Unwrap() error {
+	return e.err
+}
+
 func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
+	return md.updateReleaseInBackendWithTimeouts(ctx, status, metadata, releaseStatusAttemptTimeout, releaseStatusRetryDelay)
+}
+
+func (md *machineDeployment) updateReleaseInBackendWithTimeouts(
+	ctx context.Context,
+	status string,
+	metadata *fly.ReleaseMetadata,
+	attemptTimeout time.Duration,
+	retryDelay time.Duration,
+) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
 		attribute.String("status", status),
 	))
 	defer span.End()
 
-	// Setting a release's status is idempotent, so a transient failure is safe to
-	// retry. Without this, a single blip anywhere between flyctl and api.fly.io
-	// aborts an otherwise healthy deploy after the image has already been built
-	// and pushed -- the user's only recourse being to run the whole deploy again.
 	attempts := 0
 	err := retry.Do(
 		func() error {
 			attempts++
-			_, err := md.uiexClient.UpdateRelease(requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID)), md.releaseId, status, metadata)
+
+			attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
+			reqCtx := attemptCtx
+			if md.app != nil {
+				reqCtx = requestauth.WithOrganizations(reqCtx, uint64(md.app.Organization.InternalNumericID))
+			}
+			_, err := md.uiexClient.UpdateRelease(reqCtx, md.releaseId, status, metadata)
+
+			attemptErr := attemptCtx.Err()
+			cancel()
+
+			if err != nil && ctx.Err() == nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(attemptErr, context.DeadlineExceeded)) {
+				if !errors.Is(err, context.DeadlineExceeded) {
+					err = errors.Join(err, attemptErr)
+				}
+				return &releaseStatusAttemptTimeoutError{err: err}
+			}
 
 			return err
+
 		},
 		retry.Context(ctx),
 		retry.Attempts(releaseStatusRetryAttempts),
-		retry.Delay(releaseStatusRetryDelay),
+		retry.Delay(retryDelay),
 		retry.DelayType(retry.BackOffDelay),
 		retry.RetryIf(isRetryableReleaseStatusError),
 		retry.LastErrorOnly(true),
@@ -802,27 +841,17 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	return nil
 }
 
-// isRetryableReleaseStatusError reports whether a failed release status update is
-// worth another attempt.
-//
-// A *uiex.StatusError means the server did answer, so the status code decides:
-// 5xx is transient, and notably includes the 504 served by the proxy in front of
-// api.fly.io when it gives up waiting on the backend, while 4xx means the request
-// itself is wrong and will fail the same way next time.
-//
-// Any other error -- a connection reset, a TLS handshake failure, a response body
-// that could not be read or decoded -- carries no status code to judge, so we
-// cannot tell a transient fault from a permanent one. Setting a release status is
-// idempotent and the retry budget is small and bounded, so the default is to try
-// again rather than fail a deploy that might well have succeeded. Context
-// cancellation and deadline expiry are the exceptions: both are explicit
-// instructions to stop.
 func isRetryableReleaseStatusError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// The user interrupted us, or a deadline expired. Retrying would ignore that.
+	var attemptTimeoutErr *releaseStatusAttemptTimeoutError
+	if errors.As(err, &attemptTimeoutErr) {
+		return true
+	}
+
+	// The user interrupted us, or the parent deadline expired. Retrying would ignore that.
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
