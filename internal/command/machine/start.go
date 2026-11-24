@@ -51,10 +51,7 @@ func newStart() *cobra.Command {
 }
 
 func runMachineStart(ctx context.Context) (err error) {
-	var (
-		io   = iostreams.FromContext(ctx)
-		args = flag.Args(ctx)
-	)
+	args := flag.Args(ctx)
 
 	machines, ctx, err := selectManyMachines(ctx, args)
 	if err != nil {
@@ -64,14 +61,47 @@ func runMachineStart(ctx context.Context) (err error) {
 	// appName is added to context by selectManyMachines
 	appName := appconfig.NameFromContext(ctx)
 
-	machines, release, err := mach.AcquireLeases(ctx, appName, machines)
-	defer release()
+	// Finish the initial batch under its normal leases. A replacement can
+	// take longer than a lease, so release the batch before waiting for any.
+	type replacement struct {
+		machine *fly.Machine
+		refusal error
+	}
+	var replacements []replacement
+	err = func() error {
+		leased, release, err := mach.AcquireLeases(ctx, appName, machines)
+		defer release()
+		if err != nil {
+			return err
+		}
+		for _, machine := range leased {
+			err := startSelected(ctx, appName, machine, false)
+			if machine.Version != "" && refusedReplacementStart(err) {
+				replacements = append(replacements, replacement{machine, err})
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}()
 	if err != nil {
 		return err
 	}
+	for _, pending := range replacements {
+		if err := startReplacement(ctx, appName, pending.machine, pending.refusal); err != nil {
+			return err
+		}
+	}
 
-	for _, machine := range machines {
-		var confirmedStart bool
+	return nil
+}
+
+func startSelected(ctx context.Context, appName string, machine *fly.Machine, confirmedStart bool) error {
+	var err error
+	if !confirmedStart {
 		if err = tracing.WorkflowPhase(ctx, "request_start", func(ctx context.Context) error {
 			err := Start(ctx, appName, machine)
 			created := startRefusedWhileCreated(err)
@@ -102,26 +132,78 @@ func runMachineStart(ctx context.Context) (err error) {
 		}); err != nil {
 			return err
 		}
-		if flag.GetBool(ctx, "wait") {
-			if !confirmedStart {
-				if err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
-					return mach.WaitForStartOrStop(ctx, appName, machine, "start", 5*time.Minute)
-				}); err != nil {
-					return err
-				}
-			}
-			if len(machine.Checks) > 0 {
-				if err = tracing.WorkflowPhase(ctx, "wait_for_health_checks", func(ctx context.Context) error {
-					return watch.MachinesChecks(ctx, appName, []*fly.Machine{machine})
-				}); err != nil {
-					return err
-				}
+	}
+	if flag.GetBool(ctx, "wait") {
+		if !confirmedStart {
+			if err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
+				return mach.WaitForStartOrStop(ctx, appName, machine, "start", 5*time.Minute)
+			}); err != nil {
+				return err
 			}
 		}
-		fmt.Fprintf(io.Out, "%s has been started\n", machine.ID)
+		if len(machine.Checks) > 0 {
+			if err = tracing.WorkflowPhase(ctx, "wait_for_health_checks", func(ctx context.Context) error {
+				return watch.MachinesChecks(ctx, appName, []*fly.Machine{machine})
+			}); err != nil {
+				return err
+			}
+		}
 	}
+	fmt.Fprintf(iostreams.FromContext(ctx).Out, "%s has been started\n", machine.ID)
 
-	return
+	return nil
+}
+
+func refusedReplacementStart(err error) bool {
+	var apiErr *flaps.FlapsError
+	if !errors.As(err, &apiErr) || apiErr.ResponseStatusCode != http.StatusPreconditionFailed {
+		return false
+	}
+	const refusal = "machine getting replaced, refusing to start"
+	msg := strings.TrimPrefix(apiErr.Error(), "failed_precondition: ")
+
+	return msg == refusal || msg == refusal+". Retry the start request after the replacement finishes"
+}
+
+func startReplacement(ctx context.Context, appName string, original *fly.Machine, refusal error) error {
+	client := flapsutil.ClientFromContext(ctx)
+	waitCtx, cancel := context.WithTimeoutCause(ctx, time.Minute, fmt.Errorf("timed out waiting for replacement: %w", refusal))
+	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		current, err := client.Get(waitCtx, appName, original.ID)
+		if waitCtx.Err() != nil {
+			return context.Cause(waitCtx)
+		}
+		if err != nil {
+			return err
+		}
+		if current.Version != "" && current.Version != original.Version {
+			switch current.State {
+			case fly.MachineStateStarted:
+				return startSelected(ctx, appName, current, true)
+			case fly.MachineStateStopped:
+				// AcquireLease re-fetches the Machine if the lease version
+				// differs. Only retry the successor we observed stopped.
+				leased, release, err := mach.AcquireLease(ctx, appName, current)
+				defer release()
+				if err != nil {
+					return err
+				}
+				if leased != current || leased.LeaseNonce == "" {
+					return fmt.Errorf("machine %s changed while acquiring its replacement lease", current.ID)
+				}
+
+				return startSelected(ctx, appName, current, false)
+			}
+		}
+		select {
+		case <-waitCtx.Done():
+			return context.Cause(waitCtx)
+		case <-ticker.C:
+		}
+	}
 }
 
 // Wait does not return the matched state to flyctl.
