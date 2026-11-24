@@ -18,6 +18,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/cenkalti/backoff/v5"
 	"github.com/miekg/dns"
+	"github.com/oklog/ulid/v2"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
@@ -732,6 +733,13 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			newMach.State = "replacing"
 		}
 		newMach.Config = e.launchInput.Config
+		if newMach.Config != nil {
+			config := *newMach.Config
+			config.Metadata = lo.Assign(config.Metadata, map[string]string{
+				deployUpdateIDMetadataKey: ulid.Make().String(),
+			})
+			newMach.Config = &config
+		}
 
 		return newMach
 	})
@@ -750,10 +758,9 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
 		return md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, &newAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     true,
-			skipSmokeChecks:      true,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: true,
+			skipSmokeChecks:  true,
 		})
 	case "canary":
 		// Prefer a started machine as the canary, otherwise take the first machine.
@@ -780,10 +787,9 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
 		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     md.skipHealthChecks,
-			skipSmokeChecks:      md.skipSmokeChecks,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: md.skipHealthChecks,
+			skipSmokeChecks:  md.skipSmokeChecks,
 		}); err != nil {
 			return err
 		}
@@ -796,19 +802,17 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		}
 
 		return md.updateMachinesWRecovery(ctx, oldAppState, refreshedState, &newAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     md.skipHealthChecks,
-			skipSmokeChecks:      md.skipSmokeChecks,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: md.skipHealthChecks,
+			skipSmokeChecks:  md.skipSmokeChecks,
 		})
 	case "rolling":
 		fallthrough
 	default:
 		return md.updateMachinesWRecovery(ctx, oldAppState, oldAppState, &newAppState, nil, updateMachineSettings{
-			pushForward:          true,
-			skipHealthChecks:     md.skipHealthChecks,
-			skipSmokeChecks:      md.skipSmokeChecks,
-			skipLeaseAcquisition: false,
+			pushForward:      true,
+			skipHealthChecks: md.skipHealthChecks,
+			skipSmokeChecks:  md.skipSmokeChecks,
 		})
 	}
 }

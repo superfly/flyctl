@@ -65,6 +65,7 @@ require (
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/olekukonko/tablewriter v1.1.5
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.12
@@ -80,7 +81,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/superfly/client-signals/go v0.5.0
-	github.com/superfly/fly-go v0.12.5
+	github.com/superfly/fly-go v0.12.8
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/macaroon v0.3.2
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
@@ -237,7 +238,6 @@ require (
 	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
 	github.com/olekukonko/errors v1.2.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/selinux v1.15.1 // indirect
 	github.com/pandatix/go-abnf v0.5.1 // indirect
