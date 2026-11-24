@@ -16,7 +16,10 @@ import (
 func status() *cobra.Command {
 	const (
 		short = "Show details about a Tigris storage bucket"
-		long  = short + "\n"
+		long  = `Show a Tigris bucket's name, status, whether it's public, and its shadow
+bucket settings. Name the bucket as an argument, or run the command in
+an app directory (or with ` + "`--app`" + `) to use the app's bucket. When the
+bucket is found through an app, the app's name is shown too.`
 
 		usage = "status [name]"
 	)

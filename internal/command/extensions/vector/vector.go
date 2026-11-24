@@ -71,8 +71,10 @@ var embeddingModels = []EmbeddingModel{
 
 func New() (cmd *cobra.Command) {
 	const (
-		short = "Provision and manage Upstash Vector index"
-		long  = short + "\n"
+		short = "Provision and manage Upstash Vector indexes"
+		long  = `Provision and manage Upstash Vector indexes. An index can be attached to
+an app, which then gets the index's credentials as secrets, or belong
+only to an organization. Create one with ` + "`fly ext vector create`" + `.`
 	)
 
 	cmd = command.New("vector", short, long, nil)

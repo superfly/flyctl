@@ -22,7 +22,16 @@ const (
 func create() (cmd *cobra.Command) {
 	const (
 		short = "Provision a Kubernetes cluster for an organization"
-		long  = short + "\n"
+		long  = `Provision a Fly Kubernetes cluster in an organization, which you pick
+from a list unless you pass ` + "`--org`" + ` or set FLY_ORG. Fly Kubernetes is in
+beta. You may also be asked for a name and region, unless you pass
+` + "`--name`" + ` and ` + "`--region`" + `. Without a terminal, pass ` + "`--name`" + `, ` + "`--region`" + `,
+and ` + "`--org`" + ` or FLY_ORG.
+
+After the cluster is created, its kubeconfig is written to a file named
+after the cluster, such as ` + "`my-cluster.kubeconfig.yml`" + `, in the current
+directory, or to the path given with ` + "`--output`" + `, replacing any existing
+file. Use it with kubectl to connect to the cluster.`
 		usage = "create [flags]"
 	)
 

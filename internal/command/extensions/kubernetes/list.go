@@ -15,8 +15,9 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List your Kubernetes clusters`
-		short = long
+		short = "List your Kubernetes clusters"
+		long  = `List the Fly Kubernetes clusters you have access to, with each cluster's
+organization and primary region.`
 		usage = "list"
 	)
 

@@ -18,9 +18,15 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy a Sentry project`
+		short = "Remove a Sentry project from Fly.io"
+		long  = `Remove a Sentry project from Fly.io's records. The project itself is not
+deleted from your Sentry account. Name the project as an argument, or
+run the command in an app directory (or with ` + "`--app`" + `) to use the app's
+project.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required.`
+
 		usage = "destroy [project-name]"
 	)
 
