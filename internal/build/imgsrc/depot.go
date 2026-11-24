@@ -386,6 +386,7 @@ func workerHostname(ctx context.Context, c *client.Client) (string, error) {
 	for _, w := range workers {
 		hostname = w.Labels[label.Hostname]
 	}
+
 	return hostname, nil
 }
 

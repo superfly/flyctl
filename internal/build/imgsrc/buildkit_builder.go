@@ -133,6 +133,7 @@ func (r *BuildkitBuilder) buildWithBuildkit(ctx context.Context, streams *iostre
 	if err != nil {
 		return nil, err
 	}
+
 	return image, nil
 }
 
