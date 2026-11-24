@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -136,5 +137,136 @@ func TestRunMachineStartDuringCreation(t *testing.T) {
 			require.Equal(t, tc.wantStarts, starts)
 			require.Contains(t, out.String(), "test-machine has been started")
 		})
+	}
+}
+
+func TestRunMachineStartDuringReplacement(t *testing.T) {
+	for _, tc := range []struct {
+		name, successor                   string
+		cancel, leaseChanged, refuseAgain bool
+	}{
+		{name: "GET before marker", successor: "stopped"},
+		{name: "already started", successor: "started"},
+		{name: "canceled", cancel: true},
+		{name: "lease changed", successor: "stopped", leaseChanged: true},
+		{name: "second replacement", successor: "stopped", refuseAgain: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			const prefix = "/v1/apps/test-app/machines/"
+			const refusal = `{"error":"failed_precondition: machine getting replaced, refusing to start. Retry the start request after the replacement finishes"}`
+			var mu sync.Mutex
+			holds := map[string]string{}
+			starts := map[string]int{}
+			waits := map[string]int{}
+			healthReads := 0
+			version := "v1"
+			client, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{Transport: startTransport(func(r *http.Request) (*http.Response, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				id, action, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, prefix), "/")
+				status, body := 200, "{}"
+				switch r.Method + " " + action {
+				case "GET ":
+					state, checks := "stopped", "[]"
+					if id == "target" && starts[id] > 0 {
+						if version == "v1" {
+							require.Empty(t, holds, "all original leases must be released before recovery")
+							require.Equal(t, 1, starts["other"])
+							if tc.cancel {
+								cancel()
+								state = "replacing"
+							} else {
+								version = "v2"
+								state = tc.successor
+							}
+						} else {
+							state = "started"
+							if !tc.leaseChanged {
+								healthReads++
+							}
+						}
+						checks = `[{"name":"ready","status":"passing"}]`
+					}
+					body = fmt.Sprintf(`{"id":%q,"instance_id":%q,"version":%q,"state":%q,"host_status":"ok","checks":%s}`, id, version, version, state, checks)
+				case "POST lease":
+					require.Empty(t, holds[id])
+					holds[id] = id + "-" + version
+					v := version
+					if tc.leaseChanged && version == "v2" {
+						v = "v3"
+					}
+					body = fmt.Sprintf(`{"data":{"nonce":%q,"version":%q}}`, holds[id], v)
+				case "DELETE lease":
+					require.NotEmpty(t, holds[id])
+					require.Equal(t, []string{holds[id]}, r.Header[flaps.NonceHeader])
+					delete(holds, id)
+				case "POST start":
+					require.Equal(t, id+"-"+version, holds[id])
+					require.Equal(t, []string{holds[id]}, r.Header[flaps.NonceHeader])
+					starts[id]++
+					if id == "target" && (starts[id] == 1 || tc.refuseAgain) {
+						status = 412
+						body = refusal
+					}
+				case "GET wait":
+					require.Equal(t, []string{"started"}, r.URL.Query()["state"])
+					waits[id]++
+				default:
+					return nil, fmt.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+				}
+				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+			})})
+			require.NoError(t, err)
+			cmd := newStart()
+			require.NoError(t, cmd.ParseFlags([]string{"--wait", "target", "other"}))
+			ios, _, out, _ := iostreams.Test()
+			ctx = iostreams.NewContext(flag.NewContext(ctx, cmd.Flags()), ios)
+			ctx = appconfig.WithName(ctx, "test-app")
+			err = runMachineStart(flapsutil.NewContextWithClient(ctx, client))
+			require.Empty(t, holds)
+			require.Equal(t, 1, starts["other"])
+			require.Equal(t, 1, waits["other"])
+			switch {
+			case tc.cancel:
+				require.ErrorIs(t, err, context.Canceled)
+			case tc.leaseChanged:
+				require.ErrorContains(t, err, "changed while acquiring")
+			case tc.refuseAgain:
+				require.True(t, refusedReplacementStart(err))
+			default:
+				require.NoError(t, err)
+				require.Equal(t, 1, healthReads)
+				require.Contains(t, out.String(), "target has been started")
+			}
+			if tc.successor == "stopped" && !tc.leaseChanged {
+				require.Equal(t, 2, starts["target"])
+				if !tc.refuseAgain {
+					require.Equal(t, 1, waits["target"])
+				}
+			} else {
+				require.Equal(t, 1, starts["target"])
+				require.Zero(t, waits["target"])
+			}
+		})
+	}
+}
+
+func TestRefusedReplacementStart(t *testing.T) {
+	const refusal = "machine getting replaced, refusing to start"
+	for _, tc := range []struct {
+		status  int
+		message string
+		want    bool
+	}{
+		{412, refusal, true},
+		{412, "failed_precondition: " + refusal + ". Retry the start request after the replacement finishes", true},
+		{409, refusal, false},
+		{412, "machine changed while waiting for build; retry the start request", false},
+		{412, refusal + " for another reason", false},
+	} {
+		err := &flaps.FlapsError{ResponseStatusCode: tc.status, OriginalError: errors.New(tc.message)}
+		require.Equal(t, tc.want, refusedReplacementStart(err), "%d %s", tc.status, tc.message)
 	}
 }
